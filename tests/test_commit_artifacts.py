@@ -49,6 +49,56 @@ class TestWriteResultMarker:
                 "commit_diff_path": None,
             }
 
+    def test_writes_committed_at_when_resolver_succeeds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: bug"}
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch(
+                    "sase.workflows.commit.commit_tracking._resolve_commit_created_at",
+                    return_value=1_700_000_000,
+                ),
+            ):
+                write_result_marker("create_commit", payload, None, "abc123", None)
+
+            data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
+            assert data["committed_at"] == 1_700_000_000
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert results[0]["committed_at"] == 1_700_000_000
+
+    def test_resolver_failure_still_writes_complete_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: bug", "name": "feat-x"}
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch(
+                    "sase.vcs_provider.get_vcs_provider",
+                    side_effect=RuntimeError("provider unavailable"),
+                ),
+            ):
+                write_result_marker(
+                    "create_commit", payload, None, "abc123", "proj_feat_1"
+                )
+
+            data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
+            assert "committed_at" not in data
+            assert data == {
+                "method": "create_commit",
+                "run_id": Path(tmpdir).name,
+                "cwd": os.getcwd(),
+                "result": "abc123",
+                "commit_result": "abc123",
+                "message": "fix: bug",
+                "name": "feat-x",
+                "bead_id": "",
+                "changespec_name": "proj_feat_1",
+                "commit_changespec_name": "proj_feat_1",
+                "entry_id": None,
+                "commit_entry_id": None,
+                "diff_path": None,
+                "commit_diff_path": None,
+            }
+
     def test_writes_none_values(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             payload = {"message": "test"}
@@ -532,6 +582,23 @@ class TestWriteResultMarker:
             ]
             assert update_index.call_count == 2
             update_index.assert_called_with(tmpdir)
+
+    def test_sdd_commit_records_committed_at_when_resolver_succeeds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch(
+                "sase.workflows.commit.commit_tracking._resolve_commit_created_at",
+                return_value=1_700_000_000,
+            ):
+                record_sdd_commit_result_marker(
+                    artifacts_dir=tmpdir,
+                    cwd="/workspace/sase/.sase/sdd",
+                    result="abc123",
+                    message="Archive approved plan demo\n\nSASE_TYPE=sdd",
+                    repo_name="sase-org/sase--sdd",
+                )
+
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert results[0]["committed_at"] == 1_700_000_000
 
     def test_sdd_commit_without_repo_name_uses_store_directory_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

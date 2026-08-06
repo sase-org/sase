@@ -449,6 +449,27 @@ def _external_repo_name_for_commit_cwd(
         return None
 
 
+def _resolve_commit_created_at(cwd: str, sha: str | None) -> int | None:
+    """Best-effort author-time lookup for a just-made commit. Never raises."""
+    if not sha:
+        return None
+    try:
+        from sase.vcs_provider import get_vcs_provider
+
+        provider = get_vcs_provider(cwd)
+        commits = provider.log(cwd, 1, revs=(sha,))
+    except Exception:
+        return None
+
+    if not commits:
+        return None
+    commit = commits[0]
+    target = sha.lower()
+    if commit.full_id.lower() != target and commit.short_id.lower() != target:
+        return None
+    return commit.timestamp
+
+
 def record_sdd_commit_result_marker(
     *,
     cwd: str | os.PathLike[str],
@@ -487,6 +508,9 @@ def record_sdd_commit_result_marker(
         "diff_path": diff_path,
         "commit_diff_path": diff_path,
     }
+    committed_at = _resolve_commit_created_at(cwd_str, result)
+    if committed_at is not None:
+        marker["committed_at"] = committed_at
     _upsert_commit_results_marker(artifacts_dir_str, marker)
     update_agent_artifact_index_for_marker_mutation(artifacts_dir_str)
 
@@ -532,6 +556,9 @@ def write_result_marker(
     }
     if repo_name is not None:
         marker["repo_name"] = repo_name
+    committed_at = _resolve_commit_created_at(commit_cwd, result)
+    if committed_at is not None:
+        marker["committed_at"] = committed_at
     marker_path = os.path.join(artifacts_dir, "commit_result.json")
     with open(marker_path, "w", encoding="utf-8") as f:
         json.dump(marker, f)

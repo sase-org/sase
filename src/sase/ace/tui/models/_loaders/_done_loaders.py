@@ -78,6 +78,8 @@ def _single_commit_record_from_metadata(
         record["sha"] = sha
     if cwd := metadata.get("meta_commit_cwd"):
         record["cwd"] = cwd
+    if committed_at := metadata.get("meta_commit_committed_at"):
+        record["committed_at"] = committed_at
     return record or None
 
 

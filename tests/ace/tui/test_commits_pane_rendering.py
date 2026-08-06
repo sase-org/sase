@@ -279,6 +279,7 @@ def test_commit_view_spec_preserves_owner_context_and_full_tagged_message() -> N
 
     assert spec.plan_workspaces == (owner,)
     assert "SASE_PLAN=sdd/plans/commits_single_line_timeline.md" in spec.message
+    assert spec.created_at == result.commits[0].commit.timestamp
 
 
 def test_commit_detail_bounds_byte_heavy_diff_and_explains_truncation() -> None:

@@ -37,6 +37,8 @@ class CommitViewSpec:
     is_primary: bool
     repo_kind: RepoKind = "linked"
     plan_workspaces: tuple[PlanWorkspace, ...] = ()
+    # Epoch seconds when the commit was created; author time where available.
+    created_at: int | None = None
 
 
 @dataclass

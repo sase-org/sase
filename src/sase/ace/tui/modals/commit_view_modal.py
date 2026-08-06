@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Literal, cast
 
 from rich.console import Group, RenderableType
+from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
@@ -20,10 +22,14 @@ from sase.ace.tui.util.lazy_syntax import (
     LazySyntaxRenderCache,
     lazy_renderable,
 )
-from sase.ace.tui.widgets.prompt_panel._agent_commits import load_commit_diff_text
+from sase.ace.tui.widgets.prompt_panel._agent_commits import (
+    load_commit_created_at,
+    load_commit_diff_text,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_deltas import parse_unified_diff_deltas
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.plan_documents import PlanDocument, load_commit_plan_document
+from sase.vcs_log.render import build_commit_time_chip
 
 from .base import CopyModeForwardingMixin
 
@@ -36,6 +42,18 @@ _COLOR_ADDED = "bold #5FD787"
 _COLOR_MODIFIED = "bold #FFD787"
 _COLOR_REMOVED = "bold #FF5F5F"
 _COLOR_MUTED = "dim #87D7FF"
+
+
+@dataclass(frozen=True)
+class _CommitLoad:
+    """Diff text and author time resolved together by the diff worker."""
+
+    diff_text: str | None
+    created_at: int | None
+
+
+def _load_commit(spec: CommitViewSpec) -> _CommitLoad:
+    return _CommitLoad(load_commit_diff_text(spec), load_commit_created_at(spec))
 
 
 class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
@@ -71,10 +89,11 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         self._current_index = min(max(initial_index, 0), len(specs) - 1)
         self._syntax_render_cache = LazySyntaxRenderCache()
         self._diff_text_by_index: dict[int, str | None] = {}
+        self._created_at_by_index: dict[int, int] = {}
         self._diff_loaded = False
         self._diff_text: str | None = None
         self._loading_index: int | None = None
-        self._diff_worker: Worker[str | None] | None = None
+        self._diff_worker: Worker[_CommitLoad] | None = None
         self._display_mode: Literal["commit", "plan_loading", "plan"] = "commit"
         self._plan_by_index: dict[int, PlanDocument] = {}
         self._plan_document: PlanDocument | None = None
@@ -117,13 +136,17 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         if completed_index is None or completed_index != self._current_index:
             return
         if event.state == WorkerState.SUCCESS:
-            self._diff_text = event.worker.result
+            load = cast(_CommitLoad, event.worker.result)
+            self._diff_text = load.diff_text
+            if load.created_at is not None:
+                self._created_at_by_index[completed_index] = load.created_at
         else:
             self._diff_text = None
         self._diff_text_by_index[completed_index] = self._diff_text
         self._diff_loaded = True
         if not self.is_attached:
             return
+        self.query_one("#commit-view-title", Static).update(self._build_title())
         self.query_one("#commit-view-content", Static).update(self._build_content())
 
     def _on_plan_worker_state_changed(self, event: Worker.StateChanged) -> None:
@@ -162,37 +185,54 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         self._refresh_commit_widgets(reset_scroll=False)
         self._notify_plan_failure(document)
 
-    def _build_title(self) -> Text:
+    def _build_title(self) -> RenderableType:
         spec = self._current_spec
-        text = Text()
+        identity = Text()
         heading = "PLAN" if self._display_mode != "commit" else "COMMIT"
-        text.append(heading, style="bold #FFD700")
+        identity.append(heading, style="bold #FFD700")
         if len(self._commit_specs) > 1:
-            text.append(
+            identity.append(
                 f" {self._current_index + 1}/{len(self._commit_specs)}",
                 style="bold #FFD700",
             )
-        text.append("  ")
-        text.append(spec.repo_name, style=_COLOR_HEADER)
+        identity.append("  ")
+        identity.append(spec.repo_name, style=_COLOR_HEADER)
         if spec.is_primary:
-            text.append(" (primary)", style="bold #5FD787")
+            identity.append(" (primary)", style="bold #5FD787")
         elif spec.repo_kind == "external":
-            text.append(" (external)", style="bold #FFAF00")
-        text.append("  ")
-        text.append(spec.short_sha or spec.sha, style=_COLOR_SHA)
+            identity.append(" (external)", style="bold #FFAF00")
+        identity.append("  ")
+        identity.append(spec.short_sha or spec.sha, style=_COLOR_SHA)
         if spec.subject:
-            text.append(" - ")
-            text.append(spec.subject, style="bold white")
+            identity.append(" - ")
+            identity.append(spec.subject, style="bold white")
+
+        left = Text(no_wrap=True, overflow="ellipsis")
         if self._display_mode == "plan" and self._plan_document is not None:
-            text.append("\n")
-            text.append(self._plan_document.reference, style=_COLOR_MUTED)
+            left.append(self._plan_document.reference, style=_COLOR_MUTED)
             if self._plan_document.path:
-                text.append("  →  ", style="dim")
-                text.append(self._plan_document.path, style=_COLOR_MUTED)
+                left.append("  →  ", style="dim")
+                left.append(self._plan_document.path, style=_COLOR_MUTED)
         elif spec.diff_path:
-            text.append("\n")
-            text.append(spec.diff_path, style=_COLOR_MUTED)
-        return text
+            left.append(spec.diff_path, style=_COLOR_MUTED)
+
+        created_at = self._effective_created_at()
+        right = build_commit_time_chip(created_at) if created_at is not None else Text()
+
+        if not left.plain and not right.plain:
+            return Group(identity)
+
+        metadata_row = Table.grid(expand=True, padding=(0, 0, 0, 2))
+        metadata_row.add_column(ratio=1, overflow="ellipsis")
+        metadata_row.add_column(justify="right", no_wrap=True)
+        metadata_row.add_row(left, right)
+        return Group(identity, metadata_row)
+
+    def _effective_created_at(self) -> int | None:
+        backfilled = self._created_at_by_index.get(self._current_index)
+        if backfilled is not None:
+            return backfilled
+        return self._current_spec.created_at
 
     def _build_footer(self) -> str:
         parts = [
@@ -344,7 +384,7 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         spec = self._current_spec
         self._loading_index = self._current_index
         self._diff_worker = self.run_worker(
-            lambda spec=spec: load_commit_diff_text(spec),
+            lambda spec=spec: _load_commit(spec),
             thread=True,
             exclusive=True,
             exit_on_error=False,

@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.models.agent import LinkedRepoMetadata
-from sase.ace.tui.widgets.prompt_panel._agent_commits import agent_commit_diffs
+from sase.ace.tui.widgets.prompt_panel._agent_commits import (
+    _commit_created_at_from_record,
+    _parse_created_at,
+    agent_commit_diffs,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_deltas import (
     agent_commit_linked_delta_groups,
 )
@@ -475,3 +479,100 @@ def test_external_commit_is_attributed_from_nested_clone_path(tmp_path: Path) ->
         (diff.repo_name, diff.repo_kind, diff.is_primary, diff.workspace_dir)
         for diff in commit_diffs
     ] == [("gh:pallets/click", "external", False, str(external))]
+
+
+class TestCommitCreatedAtParsing:
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (1_700_000_000, 1_700_000_000),
+            ("1700000000", 1_700_000_000),
+            (0, 0),
+            ("0", 0),
+        ],
+    )
+    def test_parse_created_at_accepts_int_and_numeric_string(
+        self, value: object, expected: int
+    ) -> None:
+        assert _parse_created_at(value) == expected
+
+    @pytest.mark.parametrize(
+        "value",
+        [None, "", "not-a-number", -1, "-1", True, False, [], {}],
+    )
+    def test_parse_created_at_rejects_missing_negative_bool_and_garbage(
+        self, value: object
+    ) -> None:
+        assert _parse_created_at(value) is None
+
+    def test_commit_created_at_from_record_reads_committed_at_key(self) -> None:
+        assert _commit_created_at_from_record({"committed_at": "1700000000"}) == (
+            1_700_000_000
+        )
+        assert _commit_created_at_from_record({}) is None
+
+    def test_meta_commits_record_carries_created_at_into_view_spec(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "sase_9"
+        agent = make_agent(
+            workspace_dir=str(workspace),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "feat: timed commit",
+                        "sha": "abcdef123456",
+                        "cwd": str(workspace),
+                        "committed_at": "1700000000",
+                    }
+                ],
+            },
+        )
+        hint_state = HeaderHintState(1, {}, str(workspace), {})
+
+        build_header_text(agent, summary=DetailHeaderSummary(), hint_state=hint_state)
+
+        assert hint_state.commit_views[1].created_at == 1_700_000_000
+
+    def test_meta_commits_record_omits_created_at_when_missing(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "sase_9"
+        agent = make_agent(
+            workspace_dir=str(workspace),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "feat: untimed commit",
+                        "sha": "abcdef123456",
+                        "cwd": str(workspace),
+                    }
+                ],
+            },
+        )
+        hint_state = HeaderHintState(1, {}, str(workspace), {})
+
+        build_header_text(agent, summary=DetailHeaderSummary(), hint_state=hint_state)
+
+        assert hint_state.commit_views[1].created_at is None
+
+    def test_legacy_single_commit_reads_created_at_from_step_output(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "sase_9"
+        agent = make_agent(
+            workspace_dir=str(workspace),
+            step_output={
+                "meta_commit_message": "feat: legacy timed commit",
+                "meta_new_commit": "abcdef123456",
+                "meta_commit_committed_at": "1700000000",
+            },
+        )
+        hint_state = HeaderHintState(1, {}, str(workspace), {})
+
+        build_header_text(agent, summary=DetailHeaderSummary(), hint_state=hint_state)
+
+        assert hint_state.commit_views[1].created_at == 1_700_000_000
