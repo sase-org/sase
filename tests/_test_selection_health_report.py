@@ -85,6 +85,7 @@ def render_report(health: SelectionHealth) -> list[str]:
     lines.append("")
 
     lines.extend(_render_false_negatives(health))
+    lines.extend(_render_flake_suppressed(health))
     return lines
 
 
@@ -214,12 +215,54 @@ def _render_false_negatives(health: SelectionHealth) -> list[str]:
     lines.extend(
         [
             "",
-            "  A non-zero count means the selection heuristic is unsound as tuned.",
-            "  Raise SASE_TEST_SELECTION_DEPTH to 3 or add the missed tests to",
-            "  tests/contract_manifest.txt, then re-measure.",
+            "  Known flakes are already excluded from this count (see",
+            "  flake-suppressed below); a non-zero count here means the selection",
+            "  heuristic itself is unsound as tuned. Raise SASE_TEST_SELECTION_DEPTH",
+            "  to 3 or add the missed tests to tests/contract_manifest.txt, then",
+            "  re-measure.",
         ]
     )
     return lines
+
+
+def _render_flake_suppressed(health: SelectionHealth) -> list[str]:
+    """Matches excluded from the count above because the node is a known flake.
+
+    Shown, not dropped: a reader who only sees a small false-negative count
+    should not have to wonder whether the metric is quietly discarding
+    evidence to get there.
+    """
+    if not health.flake_suppressed:
+        return []
+    grouped: dict[str, list[FalseNegative]] = {}
+    for suppressed in health.flake_suppressed:
+        grouped.setdefault(suppressed.nodeid, []).append(suppressed)
+
+    lines = [
+        "",
+        f"flake-suppressed: {len(grouped)}"
+        f" ({len(health.flake_suppressed)} scoped run/failure matches)",
+        "  Excluded from false negatives above: each failed in full runs whose",
+        "  change sets share no file, so no one diff explains the failure.",
+        "  See reproducible_flake_nodeids in tests/_test_selection_health.py.",
+    ]
+    for nodeid in sorted(grouped):
+        lines.append(f"  {nodeid}")
+    return lines
+
+
+def _false_negative_payload(false_negative: FalseNegative) -> dict[str, Any]:
+    return {
+        "nodeid": false_negative.nodeid,
+        "test_file": false_negative.test_file,
+        "selection_record": false_negative.selection_record,
+        "selection_head": false_negative.selection_head,
+        "selection_changed_files": list(false_negative.selection_changed_files),
+        "full_run_record": false_negative.full_run_record,
+        "full_run_head": false_negative.full_run_head,
+        "workspace": false_negative.workspace,
+        "rules": list(false_negative.rules),
+    }
 
 
 def health_payload(health: SelectionHealth) -> dict[str, Any]:
@@ -260,17 +303,11 @@ def health_payload(health: SelectionHealth) -> dict[str, Any]:
         "pre_schema_selections": health.pre_schema.selections,
         "pre_schema_full_runs": health.pre_schema.full_runs,
         "false_negatives": [
-            {
-                "nodeid": false_negative.nodeid,
-                "test_file": false_negative.test_file,
-                "selection_record": false_negative.selection_record,
-                "selection_head": false_negative.selection_head,
-                "selection_changed_files": list(false_negative.selection_changed_files),
-                "full_run_record": false_negative.full_run_record,
-                "full_run_head": false_negative.full_run_head,
-                "workspace": false_negative.workspace,
-                "rules": list(false_negative.rules),
-            }
+            _false_negative_payload(false_negative)
             for false_negative in health.false_negatives
+        ],
+        "flake_suppressed": [
+            _false_negative_payload(suppressed)
+            for suppressed in health.flake_suppressed
         ],
     }

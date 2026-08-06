@@ -35,6 +35,11 @@ Records written before schema 2 carry neither a workspace nor a change set, so
 they cannot satisfy that rule. They are excluded from correlation and counted
 separately in the report, so a zero reading is never mistaken for a clean one.
 
+A failure that satisfies all of the above can still be a **known flake** rather
+than a real miss: see :func:`reproducible_flake_nodeids`. Those matches are
+routed to :func:`find_flake_suppressed` instead of :func:`find_false_negatives`
+and reported separately, not dropped.
+
 :mod:`tests._test_selection_health_report` turns the summary into prose and
 JSON; ``tools/selection_health`` is the command that prints it.
 """
@@ -47,7 +52,7 @@ from pathlib import Path
 
 from tests._test_selection_contexts import contexts_consulted
 from tests._test_selection_graph import SelectionError, is_visual_path, run_git
-from tests._test_selection_health_records import HealthRecords
+from tests._test_selection_health_records import FullRunRecord, HealthRecords
 
 
 #: The full suite's measured cost, in worker-seconds, from the Tier 1 research
@@ -148,10 +153,52 @@ def count_pre_schema_records(records: HealthRecords) -> PreSchemaRecords:
     )
 
 
-def find_false_negatives(
+def reproducible_flake_nodeids(full_runs: Sequence[FullRunRecord]) -> frozenset[str]:
+    """Node IDs whose full-run failures share no change-set file in common.
+
+    A genuine miss recurs only across the ancestors of the one diff that broke
+    it, so every full run charging it shares that diff's files. A test whose
+    failures instead span two or more full runs with **no** file in common
+    cannot be attributed to any of those diffs — the common thread is the run
+    itself (host load, xdist worker assignment, environment staleness), not
+    the change. That is exactly the shape this project has already diagnosed
+    by hand for the ACE-TUI test-isolation family (``sase-ct``) and the
+    bead-mutation lock timeout (``sase-e2``): a different, unrelated diff each
+    time, passing immediately in isolation.
+
+    A hand-maintained node-ID list was considered and rejected for this rule:
+    the real store already shows failures reproducing across unrelated diffs
+    on nodes no bead had enumerated yet (an out-of-date ``sase_core_rs``
+    binding failing ``test_malformed_header_block_leaves_authored_metadata_visible``
+    identically in five unrelated workspaces), so a fixed list would already be
+    behind. This check needs no maintenance and generalizes to whatever the
+    next flake turns out to be.
+
+    Requires at least two full runs with a recorded change set (schema 2+) for
+    the same node; a node seen failing only once, or only in runs with no
+    identity, is never called reproducible here.
+    """
+    change_sets_by_node: dict[str, list[frozenset[str]]] = {}
+    for full_run in full_runs:
+        if full_run.changed_files is None:
+            continue
+        for nodeid in full_run.failures:
+            change_sets_by_node.setdefault(nodeid, []).append(full_run.changed_files)
+
+    flakes: set[str] = set()
+    for nodeid, change_sets in change_sets_by_node.items():
+        unique = {frozenset(changed) for changed in change_sets}
+        if len(unique) < 2:
+            continue
+        if not frozenset.intersection(*unique):
+            flakes.add(nodeid)
+    return frozenset(flakes)
+
+
+def _correlate_full_run_failures(
     records: HealthRecords, *, is_ancestor: AncestorOracle
 ) -> list[FalseNegative]:
-    """Match full-run failures against scoped runs that excluded them.
+    """Every full-run failure an ancestor scoped selection excluded, unfiltered.
 
     A pair must plausibly describe *the same change* (see the module
     docstring): same workspace, scoped HEAD an ancestor of the full run's, and
@@ -165,6 +212,10 @@ def find_false_negatives(
     test-visual`` is their lane. Records with no identity — anything written
     before schema 2 — are skipped and counted by
     :func:`count_pre_schema_records`.
+
+    Shared by :func:`find_false_negatives` and :func:`find_flake_suppressed`,
+    which split this list on :func:`reproducible_flake_nodeids` rather than
+    each re-walking the store.
     """
     candidates = [
         (selection, identity)
@@ -173,7 +224,7 @@ def find_false_negatives(
         and selection.head
         and (identity := selection.identity) is not None
     ]
-    false_negatives: list[FalseNegative] = []
+    matches: list[FalseNegative] = []
     for full_run in records.full_runs:
         full_run_identity = full_run.identity
         if not full_run.head or not full_run.failures or full_run_identity is None:
@@ -195,7 +246,7 @@ def find_false_negatives(
                 assert head is not None
                 if not is_ancestor(head, full_run.head):
                     continue
-                false_negatives.append(
+                matches.append(
                     FalseNegative(
                         nodeid=nodeid,
                         test_file=test_file,
@@ -208,7 +259,43 @@ def find_false_negatives(
                         rules=selection.rules,
                     )
                 )
-    return false_negatives
+    return matches
+
+
+def find_false_negatives(
+    records: HealthRecords, *, is_ancestor: AncestorOracle
+) -> list[FalseNegative]:
+    """Match full-run failures against scoped runs that excluded them.
+
+    See :func:`_correlate_full_run_failures` for the matching rule. A match
+    whose node is a :func:`reproducible_flake_nodeids` member is excluded here
+    and reported instead by :func:`find_flake_suppressed`: it is evidence the
+    lane cannot act on, not a selection miss.
+    """
+    flaky = reproducible_flake_nodeids(records.full_runs)
+    return [
+        match
+        for match in _correlate_full_run_failures(records, is_ancestor=is_ancestor)
+        if match.nodeid not in flaky
+    ]
+
+
+def find_flake_suppressed(
+    records: HealthRecords, *, is_ancestor: AncestorOracle
+) -> list[FalseNegative]:
+    """The other half of :func:`find_false_negatives`'s split: known flakes.
+
+    Same matches, same matching rule — only routed here instead because their
+    node is a :func:`reproducible_flake_nodeids` member. Excluded from the
+    false-negative count, but never silently dropped: the health report counts
+    and lists these too.
+    """
+    flaky = reproducible_flake_nodeids(records.full_runs)
+    return [
+        match
+        for match in _correlate_full_run_failures(records, is_ancestor=is_ancestor)
+        if match.nodeid in flaky
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -271,6 +358,10 @@ class SelectionHealth:
     context_stale_runs: int = 0
     context_selected_total: int = 0
     false_negatives: tuple[FalseNegative, ...] = ()
+    #: Matches :attr:`false_negatives` would otherwise contain, but excluded
+    #: because the node is a `reproducible_flake_nodeids` member. Counted and
+    #: shown, not dropped — see :func:`find_flake_suppressed`.
+    flake_suppressed: tuple[FalseNegative, ...] = ()
     pre_schema: PreSchemaRecords = PreSchemaRecords()
 
     @property
@@ -381,5 +472,6 @@ def summarize(
             int(contexts.get("selected_count") or 0) for contexts in with_baseline
         ),
         false_negatives=tuple(find_false_negatives(records, is_ancestor=is_ancestor)),
+        flake_suppressed=tuple(find_flake_suppressed(records, is_ancestor=is_ancestor)),
         pre_schema=count_pre_schema_records(records),
     )

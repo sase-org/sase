@@ -251,6 +251,7 @@ def test_report_lists_every_false_negative_and_what_to_do(tmp_path: Path) -> Non
     assert "false negatives: 1" in report
     assert "tests/test_missed.py::test_x" in report
     assert "SASE_TEST_SELECTION_DEPTH" in report
+    assert "flake-suppressed" in report  # remedy points at the split, not just depth
 
 
 def test_report_states_the_matching_rule_whatever_the_count(tmp_path: Path) -> None:
@@ -336,6 +337,39 @@ def test_health_payload_includes_duration_percentiles_and_slow_runs(
     assert slow_run["rules"] == ["compensate-narrow-diff"]
 
 
+def test_report_suppresses_a_reproducible_flake_and_states_it_separately(
+    tmp_path: Path,
+) -> None:
+    # The same node fails in two full runs whose change sets share no file:
+    # no single diff explains it, so it is a known flake, not a false negative.
+    store = tmp_path / "store"
+    write_selection(store, manifest(head="s1", changed_files=("src/a.py",)), minute=0)
+    write_full_run(
+        store,
+        head="f1",
+        failures=("tests/test_flaky.py::test_x",),
+        changed_files=("src/a.py",),
+        minute=1,
+    )
+    write_selection(store, manifest(head="s2", changed_files=("src/b.py",)), minute=2)
+    write_full_run(
+        store,
+        head="f2",
+        failures=("tests/test_flaky.py::test_x",),
+        changed_files=("src/b.py",),
+        minute=3,
+    )
+
+    health = summarize(
+        load_records(store), is_ancestor=linear_ancestry("s1", "f1", "s2", "f2")
+    )
+    report = "\n".join(render_report(health))
+
+    assert "false negatives: 0" in report
+    assert "flake-suppressed: 1 (2 scoped run/failure matches)" in report
+    assert "tests/test_flaky.py::test_x" in report
+
+
 def test_health_payload_is_machine_readable(tmp_path: Path) -> None:
     store = tmp_path / "store"
     write_selection(store, manifest(head="aaa", selected=("tests/test_kept.py",)))
@@ -347,8 +381,42 @@ def test_health_payload_is_machine_readable(tmp_path: Path) -> None:
 
     round_tripped = json.loads(json.dumps(payload))
     assert round_tripped["false_negatives"][0]["test_file"] == "tests/test_missed.py"
+    assert round_tripped["flake_suppressed"] == []
     # The exposure split is machine-readable too, so a reader that parses
     # rather than reads cannot fall back into the every-scoped-run denominator.
     assert round_tripped["context_consulted_runs"] == 1
     assert round_tripped["context_not_consulted_runs"] == 0
     assert round_tripped["context_missing_runs"] == 1
+
+
+def test_health_payload_reports_flake_suppressed_matches(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    write_selection(store, manifest(head="s1", changed_files=("src/a.py",)), minute=0)
+    write_full_run(
+        store,
+        head="f1",
+        failures=("tests/test_flaky.py::test_x",),
+        changed_files=("src/a.py",),
+        minute=1,
+    )
+    write_selection(store, manifest(head="s2", changed_files=("src/b.py",)), minute=2)
+    write_full_run(
+        store,
+        head="f2",
+        failures=("tests/test_flaky.py::test_x",),
+        changed_files=("src/b.py",),
+        minute=3,
+    )
+
+    payload = health_payload(
+        summarize(
+            load_records(store), is_ancestor=linear_ancestry("s1", "f1", "s2", "f2")
+        )
+    )
+
+    round_tripped = json.loads(json.dumps(payload))
+    assert round_tripped["false_negatives"] == []
+    assert len(round_tripped["flake_suppressed"]) == 2
+    assert {m["nodeid"] for m in round_tripped["flake_suppressed"]} == {
+        "tests/test_flaky.py::test_x"
+    }

@@ -21,10 +21,12 @@ from tests._selection_health_case_helpers import (
 from tests._test_selection_health import (
     count_pre_schema_records,
     find_false_negatives,
+    find_flake_suppressed,
     git_ancestor_oracle,
     nodeid_test_file,
+    reproducible_flake_nodeids,
 )
-from tests._test_selection_health_records import load_records
+from tests._test_selection_health_records import FullRunRecord, load_records
 
 
 def test_a_failure_excluded_by_an_ancestor_selection_is_a_false_negative(
@@ -180,3 +182,154 @@ def test_the_git_ancestor_oracle_answers_false_for_unknown_commits(
 def test_nodeid_test_file_strips_the_node_part() -> None:
     assert nodeid_test_file("tests/a/test_b.py::TestC::test_d") == "tests/a/test_b.py"
     assert nodeid_test_file("tests/a/test_b.py") == "tests/a/test_b.py"
+
+
+# --------------------------------------------------------------------------
+# Known-flake suppression
+# --------------------------------------------------------------------------
+#
+# A full-run failure that recurs across full runs whose change sets share no
+# file cannot be explained by any one of those diffs, so it is a known flake
+# rather than a selection miss. See `reproducible_flake_nodeids`.
+
+
+def test_reproducible_flake_nodeids_needs_at_least_two_full_runs() -> None:
+    one_run = (
+        FullRunRecord(
+            name="a",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=("tests/test_x.py::test_flaky",),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/a.py"}),
+        ),
+    )
+
+    assert reproducible_flake_nodeids(one_run) == frozenset()
+
+
+def test_reproducible_flake_nodeids_flags_failures_with_no_change_set_in_common() -> (
+    None
+):
+    runs = (
+        FullRunRecord(
+            name="a",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=("tests/test_x.py::test_flaky",),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/a.py"}),
+        ),
+        FullRunRecord(
+            name="b",
+            recorded_at=None,
+            head="bbb",
+            mode="fast",
+            failures=("tests/test_x.py::test_flaky",),
+            workspace="/workspaces/sase_3",
+            changed_files=frozenset({"src/b.py"}),
+        ),
+    )
+
+    assert reproducible_flake_nodeids(runs) == frozenset(
+        {"tests/test_x.py::test_flaky"}
+    )
+
+
+def test_reproducible_flake_nodeids_spares_a_failure_with_a_shared_file() -> None:
+    # Both occurrences' diffs touch src/shared.py: a single genuine cause is
+    # still plausible, so this is not called reproducible.
+    runs = (
+        FullRunRecord(
+            name="a",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=("tests/test_x.py::test_missed",),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/shared.py", "src/a.py"}),
+        ),
+        FullRunRecord(
+            name="b",
+            recorded_at=None,
+            head="bbb",
+            mode="fast",
+            failures=("tests/test_x.py::test_missed",),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/shared.py", "src/b.py"}),
+        ),
+    )
+
+    assert reproducible_flake_nodeids(runs) == frozenset()
+
+
+def test_reproducible_flake_nodeids_ignores_runs_with_no_change_set() -> None:
+    runs = (
+        FullRunRecord(
+            name="a",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=("tests/test_x.py::test_flaky",),
+            workspace=WORKSPACE,
+            changed_files=None,
+        ),
+        FullRunRecord(
+            name="b",
+            recorded_at=None,
+            head="bbb",
+            mode="fast",
+            failures=("tests/test_x.py::test_flaky",),
+            workspace=WORKSPACE,
+            changed_files=None,
+        ),
+    )
+
+    assert reproducible_flake_nodeids(runs) == frozenset()
+
+
+def test_a_reproducible_flake_is_excluded_from_false_negatives_and_counted_separately(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    write_selection(store, manifest(head="s1", changed_files=("src/a.py",)), minute=0)
+    write_full_run(
+        store,
+        head="f1",
+        failures=("tests/test_x.py::test_flaky",),
+        changed_files=("src/a.py", "src/other1.py"),
+        minute=1,
+    )
+    write_selection(store, manifest(head="s2", changed_files=("src/b.py",)), minute=2)
+    write_full_run(
+        store,
+        head="f2",
+        failures=("tests/test_x.py::test_flaky",),
+        changed_files=("src/b.py", "src/other2.py"),
+        minute=3,
+    )
+    records = load_records(store)
+    is_ancestor = linear_ancestry("s1", "f1", "s2", "f2")
+
+    assert not find_false_negatives(records, is_ancestor=is_ancestor)
+    suppressed = find_flake_suppressed(records, is_ancestor=is_ancestor)
+    assert {match.nodeid for match in suppressed} == {"tests/test_x.py::test_flaky"}
+    assert len(suppressed) == 2
+
+
+def test_a_single_occurrence_stays_a_false_negative_pending_a_second(
+    tmp_path: Path,
+) -> None:
+    # One failure is not enough evidence to call it a flake; it is charged
+    # as a false negative until it recurs across an unrelated change set.
+    store = tmp_path / "store"
+    write_selection(store, manifest(head="aaa", selected=("tests/test_kept.py",)))
+    write_full_run(store, head="bbb", failures=("tests/test_missed.py::test_x",))
+    records = load_records(store)
+    is_ancestor = linear_ancestry("aaa", "bbb")
+
+    assert not find_flake_suppressed(records, is_ancestor=is_ancestor)
+    found = find_false_negatives(records, is_ancestor=is_ancestor)
+    assert [match.nodeid for match in found] == ["tests/test_missed.py::test_x"]

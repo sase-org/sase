@@ -377,9 +377,10 @@ just selection-health --json   # the same numbers, machine-readable
 The report covers how many scoped runs ran, how often they escalated to the governed full lane, median and p90 selection
 size, median scoped duration, worker-seconds of host demand avoided, which broadening rules fired, and — the number that
 decides whether the fast lane is trustworthy — the **false negatives**: tests that failed in a full run after a scoped
-run over _the same change_ excluded them. The target is zero. A non-zero count means the heuristic is unsound as tuned;
-the response is to raise `SASE_TEST_SELECTION_DEPTH` to 3, or mark the missed tests `@pytest.mark.contract` and run
-`just refresh-contract-manifest`, and then re-measure — not to explain the failures away.
+run over _the same change_ excluded them. The target is zero of a sample that already excludes known flakes (see below).
+A non-zero count means the heuristic itself is unsound as tuned; the response is to raise `SASE_TEST_SELECTION_DEPTH` to
+3, or mark the missed tests `@pytest.mark.contract` and run `just refresh-contract-manifest`, and then re-measure — not
+to explain the failures away.
 
 "The same change" is what makes that number mean anything, and the report states the rule on every run: a scoped run is
 charged with a full-run failure only when both records name the same workspace, the scoped run's HEAD is an ancestor of
@@ -389,8 +390,19 @@ be charged to every other workspace's selection.
 
 Read the count together with the two lines under it. Records written before health schema 2 carry no workspace or change
 set, cannot satisfy the rule, and are excluded from correlation; the report says how many there are, so a zero is read
-as zero-of-a-known-sample rather than mistaken for a clean one. When a single missed test matches across more than one
-change set, the report says so and tells you to suspect a flake before a miss.
+as zero-of-a-known-sample rather than mistaken for a clean one.
+
+A failure that clears all of the above can still be a **known flake**: `reproducible_flake_nodeids`
+(`tests/_test_selection_health.py`) looks at every full run that saw the same node fail, and calls it reproducible when
+those runs' change sets share no file — no single diff can explain a failure that recurs across otherwise-unrelated
+work. Matches on a reproducible node are moved out of the false-negative count and into a separate `flake-suppressed`
+line, counted and listed exactly like the false negatives are, never silently dropped. A single occurrence is never
+enough evidence on its own and stays a false negative until it recurs. This needs no hand-maintained list of node IDs —
+the real store already showed failures reproducing on nodes no bead had enumerated yet, including one caused by a stale
+`sase_core_rs` build rather than test-isolation timing, so a fixed list would already have missed it. (A missed test
+still charged by exactly one scoped selection's change set, rather than reproducing across full runs, gets the older,
+softer hint instead — "matched across unrelated changes; suspect a flake before a miss" — since that alone is not enough
+evidence to suppress.)
 
 The `coverage contexts` block reports baseline availability over the runs that **consulted** the cache, not over every
 scoped run, and states separately how many escalated before contexts could matter. Those two denominators differ by
