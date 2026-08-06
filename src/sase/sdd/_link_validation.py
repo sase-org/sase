@@ -84,7 +84,16 @@ def validate_sdd_tree(
 
         if file.kind in PLAN_KINDS:
             header = parse_plan_header_block(file.path.read_text(encoding="utf-8"))
-            if header.disposition is not PlanHeaderDisposition.INVALID:
+            if header.disposition is PlanHeaderDisposition.INVALID:
+                issues.append(
+                    SddIssue(
+                        severity="error",
+                        code="header-invalid",
+                        path=file.relpath,
+                        message=header.reason or "plan header block is malformed",
+                    )
+                )
+            else:
                 _validate_parent_section(root, file, header.sections, issues)
 
         link_type = expected_link_type(file)

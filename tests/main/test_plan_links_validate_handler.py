@@ -163,6 +163,30 @@ def test_validate_reports_unresolvable_parent_section(tmp_path: Path) -> None:
     assert any(issue.code == "parent-missing-target" for issue in validation.errors)
 
 
+def test_validate_reports_invalid_header_block(tmp_path: Path) -> None:
+    root = tmp_path / "repo--plans"
+    plan = root / "202607" / "child.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [prompts/202607/child.md](https://example.test/child)\n"
+        "- **PARENT:** [202607/parent.md](https://example.test/parent) (epic open)\n\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+
+    validation = validate_sdd_tree(str(root))
+
+    header_issues = [
+        issue for issue in validation.errors if issue.code == "header-invalid"
+    ]
+    assert len(header_issues) == 1
+    issue = header_issues[0]
+    assert issue.path == "202607/child.md"
+    assert "trailing text" in issue.message
+    assert not any(issue.code == "parent-missing-target" for issue in validation.errors)
+
+
 def test_validate_reports_invalid_plan_frontmatter(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
