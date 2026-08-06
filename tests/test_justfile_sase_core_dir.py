@@ -134,7 +134,7 @@ def test_just_test_rust_install_targets_active_venv() -> None:
             "venv_dir",
             "/tmp/sase-custom-venv",
             "test",
-            "tests/test_run_pytest_tool.py",
+            "tests/test_run_pytest_command.py",
             "-q",
         ],
         cwd=ROOT,

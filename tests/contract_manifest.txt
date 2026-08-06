@@ -11,8 +11,12 @@ tests/test_justfile_lint.py
 tests/test_justfile_sase_core_dir.py
 tests/test_project_display_presentation_audit.py
 tests/test_ruff_config.py
+tests/test_run_pytest_command.py
 tests/test_run_pytest_health.py
-tests/test_run_pytest_tool.py
+tests/test_run_pytest_main.py
+tests/test_run_pytest_scoped.py
+tests/test_run_pytest_tmpdir.py
+tests/test_run_pytest_workers.py
 tests/test_rust_install_cleanup.py
 tests/test_sase_core_rs_at_reference_file_gate_smoke_tool.py
 tests/test_sase_core_rs_bead_resolution_smoke_tool.py
