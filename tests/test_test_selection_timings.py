@@ -436,7 +436,7 @@ def test_manifest_records_the_estimate_when_the_table_covers_the_selection(
     assert timings["coverage"] == pytest.approx(1.0)
     assert timings["table"]["identity"] == second.timings.table.identity
     # Well inside the default budget, so the estimate changes nothing here;
-    # `tests/test_test_selection.py` owns the budget rule's own assertions.
+    # `tests/test_test_selection_budget.py` owns the budget rule's own assertions.
     assert timings["estimated_serial_seconds"] < options.max_serial_seconds
     assert second.selected == first.selected
     assert second.escalated == first.escalated

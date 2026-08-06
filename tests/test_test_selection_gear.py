@@ -206,8 +206,9 @@ def _select(
     max_ratio: float = 1.0,
     max_serial_seconds: float = 1.0e9,
 ) -> Selection:
-    """Select as `tests/test_test_selection.py` does: a resolvable base, a
-    fresh baseline, and an empty timing table unless the caller priced one."""
+    """Select as `tests/_test_selection_engine_helpers.py` does: a resolvable
+    base, a fresh baseline, and an empty timing table unless the caller priced
+    one."""
     return select_tests(
         repo,
         SelectionOptions(
