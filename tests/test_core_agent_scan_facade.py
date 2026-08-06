@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import sys
-import types
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +21,10 @@ from sase.ace.tui.models._loaders._workflow_snapshot_loaders import (
     load_workflow_agents_from_snapshot,
 )
 
+from ._rust_extension_module_helpers import (
+    evict_rust_extension,
+    install_fake_rust_extension,
+)
 from .core_agent_scan_helpers import (
     core_agent_scan_fixture_root as _fixture_root,
     install_fake_scan_module,
@@ -338,7 +340,7 @@ def test_scan_agent_artifacts_missing_extension_raises_importerror(
     fixture_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """When the wheel is gone, the facade raises :class:`ImportError`."""
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
 
     def fail(name: str) -> object:
         raise ImportError(f"No module named {name!r}")
@@ -352,8 +354,7 @@ def test_scan_agent_artifacts_stale_wheel_raises_attributeerror(
     fixture_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A wheel without the binding raises :class:`AttributeError` naming the op."""
-    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    install_fake_rust_extension(monkeypatch)
     with pytest.raises(AttributeError, match="scan_agent_artifacts"):
         scan_agent_artifacts(fixture_root)
 
@@ -361,7 +362,6 @@ def test_scan_agent_artifacts_stale_wheel_raises_attributeerror(
 def test_scan_agent_artifact_dirs_stale_wheel_raises_attributeerror(
     fixture_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    install_fake_rust_extension(monkeypatch)
     with pytest.raises(AttributeError, match="scan_agent_artifact_dirs"):
         scan_agent_artifact_dirs(fixture_root, [])

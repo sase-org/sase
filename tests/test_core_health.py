@@ -17,6 +17,8 @@ from sase.core.health import (
 )
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
+from ._rust_extension_module_helpers import evict_rust_extension, patch_rust_extension
+
 
 def _install_fake_extension(
     monkeypatch: pytest.MonkeyPatch,
@@ -118,13 +120,12 @@ def _install_fake_extension(
         fake.__version__ = version  # type: ignore[attr-defined]
     if file_path is not None:
         fake.__file__ = file_path
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
-    return fake
+    return patch_rust_extension(monkeypatch, fake)
 
 
 def _force_import_failure(monkeypatch: pytest.MonkeyPatch, exc: Exception) -> None:
     """Make ``sase_core_rs`` import raise ``exc`` (clears any cached module)."""
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
     real_import = __import__
 
     def _raising(name: str, *args: Any, **kwargs: Any) -> Any:

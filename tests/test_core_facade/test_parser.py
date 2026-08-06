@@ -14,7 +14,6 @@ deleted, so the test surface here pins the new contract:
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
@@ -24,6 +23,11 @@ from sase.ace.changespec.parser import parse_project_file as raw_parse_project_f
 from sase.core import parser_facade
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.wire import CHANGESPEC_WIRE_SCHEMA_VERSION, ChangeSpecWire
+
+from tests._rust_extension_module_helpers import (
+    evict_rust_extension,
+    patch_rust_extension,
+)
 
 from tests.test_core_facade._helpers import (
     install_fake_rust_module,
@@ -115,7 +119,7 @@ def test_parse_project_bytes_missing_extension_raises_importerror(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """When the wheel is gone, the facade raises :class:`ImportError`."""
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
 
     def fail(name: str) -> object:
         raise ImportError(f"No module named {name!r}")
@@ -134,7 +138,7 @@ def test_parse_project_bytes_stale_wheel_raises_attributeerror(
     import types
 
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
     with pytest.raises(AttributeError, match="parse_project_bytes"):
         parser_facade.parse_project_bytes(
             str(sample_project), sample_project.read_bytes()

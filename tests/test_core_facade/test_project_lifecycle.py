@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 import types
 from pathlib import Path
 from typing import Any
@@ -20,6 +19,10 @@ from sase.core.project_lifecycle_wire import (
     project_record_from_dict,
 )
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+
+from tests._rust_extension_module_helpers import (
+    patch_rust_extension,
+)
 
 from tests.test_core_facade._helpers import force_no_rust_extension
 
@@ -145,7 +148,7 @@ def test_lifecycle_facade_stale_binding_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
 
     with pytest.raises(AttributeError, match="read_project_lifecycle_from_content"):
         project_lifecycle_facade.read_project_lifecycle_from_content("")
@@ -192,7 +195,7 @@ def test_lifecycle_facade_calls_rust_bindings(
     fake.apply_project_aliases_update = fake_apply_aliases  # type: ignore[attr-defined]
     fake.apply_project_name_update = fake_apply_name  # type: ignore[attr-defined]
     fake.list_project_records = fake_list  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
 
     lifecycle = project_lifecycle_facade.read_project_lifecycle_from_content(
         "NAME: x\n"
@@ -237,7 +240,7 @@ def test_lifecycle_facade_filters_invalid_project_records(
 
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     fake.list_project_records = fake_list  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
 
     records = project_lifecycle_facade.list_project_records("/tmp/projects")
 

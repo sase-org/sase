@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
-import sys
 import types
 from typing import Any
 
@@ -43,6 +42,11 @@ from sase.core.vcs_log_wire import (
     VcsCommitWire,
     aggregated_commit_from_dict,
     vcs_commit_from_dict,
+)
+
+from ._rust_extension_module_helpers import (
+    evict_rust_extension,
+    install_fake_rust_extension,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -288,7 +292,7 @@ def test_classify_matches_python_golden() -> None:
 
 
 def _force_no_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
     real_import_module = importlib.import_module
 
     def fail(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
@@ -302,11 +306,7 @@ def _force_no_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:
 def _install_fake_module(
     monkeypatch: pytest.MonkeyPatch, **bindings: Any
 ) -> types.ModuleType:
-    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    for name, fn in bindings.items():
-        setattr(fake, name, fn)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
-    return fake
+    return install_fake_rust_extension(monkeypatch, **bindings)
 
 
 def test_parse_missing_wheel_raises_import_error(

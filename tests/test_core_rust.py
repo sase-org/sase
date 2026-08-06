@@ -20,12 +20,14 @@ from sase.core.rust import (
     require_rust_extension,
 )
 
+from ._rust_extension_module_helpers import evict_rust_extension, patch_rust_extension
+
 
 def test_require_rust_extension_returns_module(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
     assert require_rust_extension() is fake
 
 
@@ -38,7 +40,7 @@ def test_require_rust_extension_raises_when_missing(
     the supported install commands, so callers cannot accidentally
     silently fall back to Python.
     """
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
 
     def _missing(name: str) -> object:
         raise ImportError(f"No module named {name!r}")
@@ -55,7 +57,7 @@ def test_require_rust_extension_uses_uv_tool_repair_hint(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
     tool_dir = tmp_path / "uv" / "tools"
     monkeypatch.setenv("UV_TOOL_DIR", str(tool_dir))
     monkeypatch.setattr(sys, "prefix", str(tool_dir / "sase"))
@@ -82,7 +84,7 @@ def test_require_rust_extension_propagates_non_import_errors(
     ``OSError`` from a misbuilt extension) is surfaced unchanged so the
     user sees the real cause instead of "package not installed".
     """
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
 
     def _broken(name: str) -> object:
         raise OSError(f"undefined symbol while loading {name!r}")
@@ -97,7 +99,7 @@ def test_require_rust_binding_returns_callable(
 ) -> None:
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     fake.parse_query = lambda raw: {"raw": raw}  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
     binding = require_rust_binding("parse_query")
     assert binding("status:Ready") == {"raw": "status:Ready"}
 
@@ -107,7 +109,7 @@ def test_require_rust_binding_missing_attribute(
 ) -> None:
     """A stale wheel without the requested binding raises with op-specific text."""
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
     with pytest.raises(AttributeError) as excinfo:
         require_rust_binding("parse_query")
     message = str(excinfo.value)
@@ -120,7 +122,7 @@ def test_require_rust_binding_missing_extension(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The binding helper delegates the import error path to the loader."""
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
 
     def _missing(name: str) -> object:
         raise ImportError(f"No module named {name!r}")

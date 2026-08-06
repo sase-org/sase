@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 import types
 from pathlib import Path
 from typing import Any
@@ -8,8 +7,8 @@ from typing import Any
 import pytest
 
 from sase.core.agent_scan_wire import AGENT_SCAN_WIRE_SCHEMA_VERSION
-from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
+from ._rust_extension_module_helpers import install_fake_rust_extension
 from .agent_scan_golden import build_fixture_tree
 
 
@@ -29,10 +28,7 @@ def install_fake_scan_module(
     scan_fn,
 ) -> types.ModuleType:
     """Register a fake ``sase_core_rs`` exposing ``scan_agent_artifacts``."""
-    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    fake.scan_agent_artifacts = scan_fn  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
-    return fake
+    return install_fake_rust_extension(monkeypatch, scan_agent_artifacts=scan_fn)
 
 
 def minimal_snapshot(

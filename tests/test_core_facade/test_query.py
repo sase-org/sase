@@ -9,7 +9,6 @@ query corpus facade.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
@@ -19,6 +18,10 @@ from sase.ace.query.parser import _parse_query_python as raw_parse_query
 from sase.core import parser_facade, query_corpus_facade, query_facade
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.wire_conversion import changespec_to_wire
+
+from tests._rust_extension_module_helpers import (
+    evict_rust_extension,
+)
 
 from tests.test_core_facade._helpers import install_fake_query_module
 
@@ -309,7 +312,7 @@ def test_parse_query_missing_extension_raises_importerror(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When the wheel is gone, the facade raises :class:`ImportError`."""
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
 
     def fail(name: str) -> object:
         raise ImportError(f"No module named {name!r}")

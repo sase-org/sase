@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 import types
 from pathlib import Path
 from typing import Any
@@ -16,6 +15,10 @@ from sase.core.prompt_stash_wire import (
     _prompt_stash_entry_from_dict,
     prompt_stash_wire_to_json_dict,
 )
+from tests._rust_extension_module_helpers import (
+    patch_rust_extension,
+)
+
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
 
@@ -45,7 +48,7 @@ def _fake_module(monkeypatch: pytest.MonkeyPatch, **bindings: Any) -> None:
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     for name, binding in bindings.items():
         setattr(fake, name, binding)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
 
 
 def _skip_without_prompt_stash_bindings(

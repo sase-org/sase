@@ -8,12 +8,16 @@ test files.
 from __future__ import annotations
 
 import importlib
-import sys
 import types
 
 import pytest
 
 from sase.ace.changespec.parser import parse_project_file_python
+from tests._rust_extension_module_helpers import (
+    evict_rust_extension,
+    patch_rust_extension,
+)
+
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.wire_conversion import changespec_to_wire
 
@@ -83,7 +87,7 @@ def install_fake_status_module(
         fake.read_status_from_lines = read_status_from_lines  # type: ignore[attr-defined]
     if apply_status_update is not None:
         fake.apply_status_update = apply_status_update  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
     return fake
 
 
@@ -94,7 +98,7 @@ def install_fake_rust_module(
     """Register a fake ``sase_core_rs`` module exposing ``parse_project_bytes``."""
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     fake.parse_project_bytes = parse_fn  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
     return fake
 
 
@@ -119,12 +123,12 @@ def install_fake_query_module(
         fake.compile_query = compile_query  # type: ignore[attr-defined]
     if evaluate_many is not None:
         fake.evaluate_many = evaluate_many  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
     return fake
 
 
 def force_no_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
     real_import_module = importlib.import_module
 
     def fail(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]

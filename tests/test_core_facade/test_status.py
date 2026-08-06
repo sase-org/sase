@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-import sys
 import types
 from pathlib import Path
 
@@ -11,6 +10,11 @@ import pytest
 
 from sase.core import status_facade
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+
+from tests._rust_extension_module_helpers import (
+    evict_rust_extension,
+    patch_rust_extension,
+)
 
 from tests.test_core_facade._helpers import (
     SAMPLE_PROJECT_TEXT,
@@ -21,7 +25,7 @@ from tests.test_core_facade._helpers import (
 
 def _force_no_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make the strict Rust loader see no extension module."""
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
     real_import_module = importlib.import_module
 
     def fail(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
@@ -190,7 +194,7 @@ def test_plan_status_transition_calls_rust_binding(
 
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     fake.plan_status_transition = fake_plan  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
 
     plan = status_facade.plan_status_transition(request)
     assert plan.status_update_target == "RUST_SENTINEL"
@@ -210,7 +214,7 @@ def test_plan_status_transition_rust_error_surfaces(
 
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     fake.plan_status_transition = boom  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
 
     with pytest.raises(ValueError, match="schema mismatch"):
         status_facade.plan_status_transition(basic_plan_request())

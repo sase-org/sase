@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 import types
 from typing import Any
 
@@ -19,6 +18,10 @@ from sase.core.agent_cleanup_wire import (
     agent_cleanup_wire_to_json_dict,
 )
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+
+from tests._rust_extension_module_helpers import (
+    patch_rust_extension,
+)
 
 from tests.test_core_facade._agent_cleanup_helpers import (
     _SCENARIOS,
@@ -47,7 +50,7 @@ def test_plan_agent_cleanup_uses_rust_binding_when_available(
         lambda: AGENT_CLEANUP_WIRE_SCHEMA_VERSION
     )
     fake.plan_agent_cleanup = fake_plan  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
 
     plan = plan_agent_cleanup(targets, request)
 
@@ -66,7 +69,7 @@ def test_plan_agent_cleanup_falls_back_when_binding_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
     agents, request = _scenario_marked_set()
 
     plan = plan_agent_cleanup(agents_to_cleanup_targets(agents), request)
@@ -83,7 +86,7 @@ def test_plan_agent_cleanup_falls_back_when_binding_schema_is_stale(
     fake.plan_agent_cleanup = lambda *_: pytest.fail(  # type: ignore[attr-defined]
         "stale planner must not receive a tribe-shaped payload"
     )
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
     agents, request = _scenario_marked_set()
 
     plan = plan_agent_cleanup(agents_to_cleanup_targets(agents), request)

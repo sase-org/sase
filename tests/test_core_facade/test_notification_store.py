@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shutil
-import sys
 import types
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -23,6 +22,10 @@ from sase.core.notification_store_wire import (
 )
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.time import get_timezone
+from tests._rust_extension_module_helpers import (
+    patch_rust_extension,
+)
+
 from sase.notifications.models import Notification
 
 FIXTURE_PATH = (
@@ -62,7 +65,7 @@ def _fake_module(monkeypatch: pytest.MonkeyPatch, **bindings: Any) -> None:
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     for name, binding in bindings.items():
         setattr(fake, name, binding)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    patch_rust_extension(monkeypatch, fake)
 
 
 def _skip_without_notification_bindings(

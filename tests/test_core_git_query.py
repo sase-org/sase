@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
-import sys
 import types
 from typing import Any
 
@@ -41,6 +40,11 @@ from sase.core.git_query_wire import (
     GIT_QUERY_WIRE_SCHEMA_VERSION,
     GitNameStatusEntryWire,
     git_name_status_entry_from_dict,
+)
+
+from ._rust_extension_module_helpers import (
+    evict_rust_extension,
+    install_fake_rust_extension,
 )
 
 
@@ -302,7 +306,7 @@ _LOCAL_CHANGES_INPUT = "M src/a.py\n"
 
 def _force_no_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make the strict Rust loader see no extension module."""
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    evict_rust_extension(monkeypatch)
     real_import_module = importlib.import_module
 
     def fail(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
@@ -317,11 +321,7 @@ def _install_fake_git_module(
     monkeypatch: pytest.MonkeyPatch, **bindings: Any
 ) -> types.ModuleType:
     """Install a fake ``sase_core_rs`` exposing the given Git bindings."""
-    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    for name, fn in bindings.items():
-        setattr(fake, name, fn)
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
-    return fake
+    return install_fake_rust_extension(monkeypatch, **bindings)
 
 
 def test_facade_calls_rust_binding_for_all_helpers(
