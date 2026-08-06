@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 
-PLAN_HEADER_BLOCK_NOTE = """Do not author the plan's provenance header block. SASE writes and reconciles the leading
-`PROMPT`, `PARENT`, `BEAD`, `AGENTS`, and `COMMITS` Markdown bullets itself, and `sase plan links refresh` keeps them
-current.
+PLAN_HEADER_BLOCK_NOTE = """SASE owns the plan's provenance header block; do not author it. SASE writes and reconciles
+the leading `PROMPT`, `PARENT`, `BEAD`, `AGENTS`, and `COMMITS` Markdown bullets itself, and `sase plan links refresh`
+keeps them current. A hand-authored bullet that deviates from the canonical form is a validation error, not a style
+choice: a link-shaped section (`PLAN`, `PROMPT`, `PARENT`, `BEAD`) must be a bolded key followed by exactly one
+Markdown link and nothing else, and a list-shaped section (`AGENTS`, `ARTIFACTS`, `COMMITS`) must be a bare bolded key
+whose entries are indented bullets.
 In particular, name a parent plan through the `PARENT` bullet SASE writes, never through a `parent:` frontmatter
 property: that property is deprecated and is migrated into the bullet."""
 

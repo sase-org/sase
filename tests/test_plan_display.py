@@ -186,7 +186,13 @@ def test_malformed_header_block_leaves_authored_metadata_visible(
 
     loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
 
-    assert loaded.validation_ok
+    # A malformed header block is a validation error (``header-invalid``), but
+    # the plan's authored title and goal stay visible for display purposes.
+    assert not loaded.validation_ok
+    assert any(
+        "header block is invalid" in diagnostic
+        for diagnostic in loaded.validation_diagnostics
+    )
     assert loaded.title == "Approved implementation"
     assert loaded.provenance == ()
 

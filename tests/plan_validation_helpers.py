@@ -25,3 +25,13 @@ phases:
 
 Implement the requested change.
 """
+
+# ``VALID_EPIC_PLAN`` with a hand-authored trailing-text annotation on the
+# machine-owned ``PARENT`` header bullet -- the exact mistake that motivated
+# the ``header-invalid`` diagnostic (see plan_header_validation.md).
+MALFORMED_HEADER_EPIC_PLAN = VALID_EPIC_PLAN.replace(
+    "---\n# Plan",
+    "---\n\n"
+    "- **PARENT:** [202608/parent.md](202608/parent.md) (epic sase-1, closed)\n\n"
+    "# Plan",
+)

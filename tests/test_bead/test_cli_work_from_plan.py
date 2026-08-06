@@ -17,6 +17,7 @@ from sase.bead.project import BeadProject
 from sase.sdd.frontmatter import parse_frontmatter
 from tests.test_bead.cli_work_from_plan_helpers import (
     EPIC_PLAN,
+    MALFORMED_HEADER_EPIC_PLAN,
     epic_plan_with_parent,
     write_plan_update,
 )
@@ -99,6 +100,45 @@ def test_plan_file_mode_creates_links_and_launches_in_tree(
             PhaseSize.MEDIUM,
             PhaseSize.LARGE,
         ]
+
+
+def test_plan_file_mode_rejects_malformed_header_block_before_lock_or_archive(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = project_dir / "incoming" / "malformed.md"
+    source.parent.mkdir()
+    source.write_text(MALFORMED_HEADER_EPIC_PLAN, encoding="utf-8")
+
+    def _fail_if_called(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("must not run before header validation fails")
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._epic_plan_launch_lock", _fail_if_called
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file", _fail_if_called
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file", _fail_if_called
+    )
+
+    with pytest.raises(PlanFileWorkError) as exc_info:
+        work_from_plan_file(
+            str(source),
+            dry_run=False,
+            yes=True,
+            no_push=False,
+            render=False,
+        )
+
+    error = exc_info.value
+    assert error.validation is not None
+    assert not error.validation.ok
+    assert any(
+        diagnostic.code == "header-invalid"
+        for diagnostic in error.validation.diagnostics
+    )
 
 
 def test_plan_file_mode_persists_durable_stage_timing(
