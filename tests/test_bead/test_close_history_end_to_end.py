@@ -1,18 +1,14 @@
 """End-to-end close-history persistence through ``BeadProject``.
 
-The archiving itself happens in sase-core's reducer. This test skips while the
-installed ``sase-core-rs`` still destroys close metadata on reopen, and starts
-running by itself once the dependency window is raised to a release that
-archives it — so the Python storage layer is checked against real reducer
-output rather than against hand-built fixtures.
+The archiving itself happens in sase-core's reducer, so this test checks the
+Python storage layer against real reducer output rather than against
+hand-built fixtures.
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-
-import pytest
 
 from sase.bead import db as bead_db
 from sase.bead.jsonl import import_from_jsonl
@@ -43,8 +39,6 @@ def test_a_plus_one_reopen_archives_the_close_reason(tmp_path: Path) -> None:
 
         assert changed
         assert issue.status == Status.READY
-        if not issue.close_history:
-            pytest.skip("installed sase-core-rs still clears close metadata on reopen")
 
         # The current close is gone; the past close is not.
         assert issue.closed_at is None
