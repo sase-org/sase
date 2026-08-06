@@ -2775,12 +2775,16 @@ finalizer, and appends an event to `~/.sase/projects/<project>/repo_opens.jsonl`
 infer the host project and workspace. Reopening a valid external clone preserves its current contents and records a new
 open event.
 
-| Open argument / flag | Description                                                                |
-| -------------------- | -------------------------------------------------------------------------- |
-| `REPO`               | Inventory name, registered project name, `gh:owner/repo`, or `owner/repo`. |
-| `-p, --project`      | Select the host project instead of inferring it from cwd.                  |
-| `-r, --reason`       | Required non-empty audit reason.                                           |
-| `-w, --workspace`    | Select the host workspace number instead of inferring it from cwd.         |
+| Open argument / flag | Description                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `REPO`               | Inventory name, registered project name, `gh:owner/repo`, `owner/repo`, or record path. |
+| `-p, --project`      | Select the host project instead of inferring it from cwd.                               |
+| `-r, --reason`       | Required non-empty audit reason.                                                        |
+| `-w, --workspace`    | Select the host workspace number instead of inferring it from cwd.                      |
+
+When two inventory records share a name or slug, `sase repo open` refuses rather than guessing and lists each candidate
+as `<kind> '<name>' (<path>)`. Pass one of those listed paths back as `REPO` to select it: a path that exactly matches
+one primary, sidecar, or linked record resolves to that record even when its name collides with another's.
 
 `sase repo log` renders a project-scoped summary and per-repo rollup of durable open events. Repo, agent, or workspace
 filters add agent and event drill-down panels; an event ID prefix shows one complete event. `--json` returns the same

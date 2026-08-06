@@ -390,6 +390,13 @@ workspace number as the positional argument.
 `cleanup` and `repair` skip workspace `#0` and any workspace number with an active claim. `cleanup --include-shares`
 opts workflow-share checkouts into the same cleanup pass.
 
+Preparing a numbered workspace (`#2` and above) for a launch evicts its `sase/repos/` sidecar clones, which would
+otherwise carry stale state into the new run. That eviction is blocked when a sidecar bead store in the workspace holds
+canonical bead commits that were never pushed: deleting the clone would delete the only copy of them. Preparation
+publishes synchronously first, and if commits still remain it retains a recovery ref inside the store's own repository
+and fails the launch instead of proceeding. See [Publication Verification](beads.md#publication-verification) for the
+invariant this protects and how to recover by hand.
+
 `migrate --to xdg-state` is opt-in. Existing adjacent checkouts are left in place until the command is invoked. With
 `--symlink-transition` it leaves a `<primary>_<num>` symlink at the original adjacent path so legacy tooling that still
 walks `..` for siblings keeps working; the canonical checkout lives under the managed root. Migration refuses to

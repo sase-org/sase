@@ -26,6 +26,8 @@ an epic DAG.
   - [Directory Structure](#directory-structure)
   - [Event Log + Compatibility Projections](#event-log-compatibility-projections)
   - [Sync Mechanism](#sync-mechanism)
+    - [Publication Verification](#publication-verification)
+    - [Duplicate Bead IDs](#duplicate-bead-ids)
 - [Bead Pages](#bead-pages)
 - [CLI Commands](#cli-commands)
 - [Rust Backend](#rust-backend)
@@ -543,6 +545,63 @@ per line, sorted by issue ID for clean diffs.
 When both stores exist, the event store wins. Manual edits to `issues.jsonl` do not change command output unless the
 event store is absent.
 
+#### Publication Verification
+
+Agents work in numbered workspace clones that are eventually discarded. A bead mutation that is committed but never
+pushed therefore does not merely arrive late — it is destroyed. Committing is not sufficient on its own, because the
+configured push policy can be asynchronous, queued, or aimed at a different checkout than the one holding the commit.
+
+So every bead CLI mutation that creates a commit runs a verification pass after the normal push policy: it resolves the
+bead store's own git root, and if that root has a tracking upstream and still carries unpushed canonical bead commits,
+it forces one synchronous push against the checkout holding them and re-verifies. If commits remain unpublished the
+command **fails** with an operator diagnostic naming the unpublished commit count, the store path and repository, the
+latest managed sync log, and a literal `git -C <repo> push` remediation:
+
+```text
+ERROR: <mutation> was committed locally but NOT published.
+  unpublished bead commit(s): 1
+  bead store: …/sase/repos/plans/beads
+  store repository: …/sase/repos/plans
+  latest managed sync log: …
+  This mutation exists only in this checkout. It is invisible to everyone else and is destroyed if this workspace is
+  evicted.
+  Remediation: git -C … push
+```
+
+Stores with no git root, no tracking upstream, an in-tree layout, or a read-only mount are reported as not applicable
+and never fail. `--no-push` skips the check along with the push it verifies. The check is also defensive about itself: a
+verification that raises is logged and ignored rather than converting an otherwise healthy mutation into a failure.
+
+Because verifying a close by reading the local store cannot distinguish a published close from one that will die with
+the workspace, agent-facing instructions point at the close command's own exit status and this diagnostic rather than at
+a follow-up `sase bead show`.
+
+Two other surfaces enforce the same invariant:
+
+- **The commit finalizer** commits leftover bead state as a safety net, then runs the same verification against the
+  store it committed to. Unpublished state fails the run with `status=failed` and `reason=bead_state_unpublished` in
+  `commit_finalizer_result.json`, carrying the full diagnostic, instead of reporting `finalized`. The failure is raised
+  at the finalizer's return points, so the agent's own commit passes still run first — aborting earlier would strand
+  uncommitted code in the workspace in order to report a bead problem.
+- **Launch-time workspace preparation** refuses to evict a numbered workspace (`#2` and above) whose sidecar bead-store
+  clones hold unpublished canonical commits. It publishes synchronously first; if commits remain it retains a recovery
+  ref in the store's own repository and fails the launch rather than renaming `sase/repos` into `.sase/trash`. The guard
+  understands the sidecar layouts — `sase/repos/beads` for a split clone root and `sase/repos/plans/beads` for a
+  combined sidecar — in addition to `<repo_root>/beads` and in-tree stores. Ordinary (non-launch) workspace preparation
+  warns and proceeds instead of refusing.
+
+#### Duplicate Bead IDs
+
+Two clones minting from their own `next_counter` can allocate the same bead ID and each write their own
+`events/streams/<id>.jsonl`. A naive merge of that add/add conflict produces a stream with two `issue_created` events,
+which the reducer rejects — historically wedging the shared store because every sync retry failed the same way.
+
+Conflict resolution now relocates instead of failing. The resolver allocates a relocation ID from a store-wide pool
+built from `config.json`'s `next_counter` plus every stream ID already in the store, so the ID a collision lands on
+depends only on the store's contents and not on which clone happens to resolve first. Both beads survive, and the
+resolution message and the sync log both report `relocated duplicate beads: <old> -> <new>`. Check the sync log after a
+concurrent-mint conflict if you are looking for a bead under an ID that moved.
+
 ## Bead Pages
 
 Projects with a hosted beads sidecar can publish one Markdown page per bead. Pages live in the `--beads` repository
@@ -635,8 +694,9 @@ retains that responsibility. Removing a child epic does not trigger the cascade,
 scheduled again on retry.
 
 When a close changes the store, SASE commits it and then publishes it according to `sdd.push_after_commit` (default:
-`async`). Use `--no-push` to keep the commit local while batching bead mutations, then publish the batch with a later
-`sase bead sync`.
+`async`), followed by the [publication check](#publication-verification) that turns an unpublished mutation into a
+failure instead of a false success. Use `--no-push` to keep the commit local while batching bead mutations, then publish
+the batch with a later `sase bead sync`.
 
 | Flag               | Description                                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |

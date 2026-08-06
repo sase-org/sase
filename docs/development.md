@@ -43,6 +43,7 @@ just check         # Agent default: whole-repo lint gates + a diff-scoped test l
 just check-full    # Exhaustive verification: whole-repo lint gates + the full test suite
 just selection-health  # Health of the diff-scoped test lane, including false negatives
 just refresh-contexts-baseline  # Cache CI's per-test coverage baseline for selection
+just refresh-contract-manifest  # Regenerate tests/contract_manifest.txt from the marker
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
 just build         # Build wheel and sdist
@@ -116,6 +117,34 @@ stale, which changed files it matched, and how many test files it contributed.
 
 Line numbers are read on the **baseline side** of `git diff -U0 <baseline-sha>`, restricted to the change set's own
 files, because the database is keyed by line numbers as they were in the baseline.
+
+#### The contract set
+
+Some tests audit the repository as a whole rather than one module: config-schema conformance, generated-file drift,
+terminology guards, tool-script contracts. No import edge connects them to the code they police, so the closure would
+never select them. They are marked `@pytest.mark.contract` and added to **every** scoped selection unconditionally.
+
+`tests/contract_manifest.txt` is a generated projection of that marker, not a hand-maintained list — the selector reads
+the committed file so it does not have to collect the suite first. To add or remove a test file from the set, change the
+marker on the test module and regenerate:
+
+```bash
+just refresh-contract-manifest   # rewrite tests/contract_manifest.txt from -m contract
+```
+
+`tests/test_contract_manifest.py` fails when the committed manifest disagrees with the marker, so a forgotten refresh
+surfaces as a test failure rather than a silently stale selection. The same module carries a **budget guard** bounding
+the size of the set: every agent pays for it on every `just check`, so growth has to be deliberate. The guard measures
+child CPU of a nested contract run and normalizes it against a fixed calibration probe measured the same way, because a
+raw wall-clock ceiling on a loaded host or a small CI runner reads host contention rather than set size.
+
+Changing the manifest is itself a broadening rule, so the `just check` that adds a contract test escalates to the full
+suite.
+
+The contract set is also the floor. A change set that contributes no import-graph seeds at all — a docs-only edit, an
+`sdd/**` change, a `.github/**` workflow tweak — records the `contract-set-only` rule and runs exactly the contract
+tests. That rule does **not** escalate: running the whole suite for a Markdown edit would be the heuristic failing in
+the expensive direction.
 
 **Expect selections to grow.** Over the 2026-08-06 baseline, 1,237 of the ~2,400 measured `src/` files have at least one
 line whose per-test contexts (40 tests or fewer) include a test the depth-2 closure never selects. The sharpest case is
@@ -235,10 +264,10 @@ just test tests/main/test_parser.py::test_example
 or by running `go install github.com/google/keep-sorted@v0.8.0` when Go is available. If neither `keep-sorted` nor Go is
 installed, those recipes fail with a setup error before linting YAML keep-sorted blocks.
 
-Default test runs exclude `slow` and `terminal_smoke` markers but include the ACE PNG snapshot regression tests. Use
-`just test-visual` for focused visual-snapshot work; both recipes install the optional PNG rasterizer dependencies when
-they are missing. Direct `pytest` runs still inherit the repository `pyproject.toml` default marker expression, which
-excludes `slow`, `terminal_smoke`, and `visual` unless you pass your own `-m` selector.
+Default test runs exclude the `slow`, `visual`, and `terminal_smoke` markers, so the ACE PNG snapshot regression tests
+do not run in `just test`, `just test-cov`, or `just test-scoped`. `just test-visual` is the only recipe that executes
+them; it installs the optional PNG rasterizer dependencies when they are missing. Direct `pytest` runs inherit the same
+default marker expression from `pyproject.toml` (`not slow and not visual`) unless you pass your own `-m` selector.
 
 Use `just test-terminal-smoke` only when you need to verify the ACE startup path through a real PTY. It installs
 `pexpect` and `pyte`, runs the optional `terminal_smoke` marker, and stays out of default tests and CI until that path
@@ -265,8 +294,8 @@ The report covers how many scoped runs ran, how often they escalated to the gove
 size, median scoped duration, worker-seconds of host demand avoided, which broadening rules fired, and — the number that
 decides whether the fast lane is trustworthy — the **false negatives**: tests that failed in a full run after a scoped
 run over an ancestor commit excluded them. The target is zero. A non-zero count means the heuristic is unsound as tuned;
-the response is to raise `SASE_TEST_SELECTION_DEPTH` to 3 or add the missed tests to `tests/contract_manifest.txt` and
-re-measure, not to explain the failures away.
+the response is to raise `SASE_TEST_SELECTION_DEPTH` to 3, or mark the missed tests `@pytest.mark.contract` and run
+`just refresh-contract-manifest`, and then re-measure — not to explain the failures away.
 
 Use `tools/select_tests --explain` to see why an individual test was or was not selected. Set
 `SASE_TEST_SELECTION_HEALTH_DISABLED=1` to skip recording entirely, and `SASE_TEST_SELECTION_HEALTH_DIR` to point the

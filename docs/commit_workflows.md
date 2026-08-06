@@ -488,6 +488,14 @@ Antigravity (`agy`), Qwen, OpenCode, and provider plugins share the same behavio
 8. If enforced changes remain after `commit.finalizer.max_passes`, write status `failed` when artifacts are enabled and
    fail the invocation instead of silently accepting dirty work.
 
+For projects using a separate or sidecar SDD store, the finalizer also commits leftover bead state as a safety net
+(`chore(beads): sync bead state`) and then verifies that commit actually reached the remote, because a bead mutation
+that exists only in a workspace clone is destroyed when that workspace is evicted. If it stayed local, the run is
+`status=failed` with `reason=bead_state_unpublished` and the full publication diagnostic in the result artifact, rather
+than `finalized`. That failure is raised at the finalizer's return points rather than at the commit site, so the agent's
+own commit passes still run first; on the dirty-after-max-passes path the publication diagnostic is appended to the
+existing error so neither failure is swallowed. See [Publication Verification](beads.md#publication-verification).
+
 Configured linked repos are resolved to host-scoped directories before agent launch. For example, an agent in `sase_10`
 sees a `../sase-core` linked repo at `sase_10/sase/repos/linked/sase-core`. The linked-repo dirty-check path is
 Git-specific: non-Git linked-repo paths can still be exposed through environment variables and metadata, but the

@@ -255,6 +255,41 @@ A normal `uv tool install sase` user is unaffected by this path, while a contrib
 same one-command update. `-n|--dry-run` previews the planned git/uv commands for both modes, and the `-j|--json` payload
 (schema version `2`) reports per-root dev outcomes alongside the managed package outcomes.
 
+#### The code-swap lock
+
+Fast-forwarding an editable checkout swaps the source tree out from under anything already importing from it. A process
+that has imported some modules and not yet imported others can end up mixing pre-swap and post-swap code. SASE guards
+that with an advisory lock at `~/.sase/locks/code-swap.lock`, with per-holder records under
+`~/.sase/locks/code-swap.holders/`. It has two kinds of holder, and the distinction matters:
+
+- **Blocking readers.** `sase bead work` takes a shared lock for its whole run. While it holds one, the dev-update
+  writer cannot take its exclusive lock, so the update stops before touching anything and reports its outcome as
+  deferred:
+
+  ```text
+  deferred: <holder> is running against this checkout; re-run `sase update` when it finishes
+  ```
+
+  In the Admin Center's Updates tab the same condition disables the update instead:
+
+  ```text
+  A sase bead work is running against this checkout (<holder>). Re-run the update after it finishes.
+  ```
+
+  Symmetrically, starting `sase bead work` while a swap is already in progress exits non-zero without starting any work,
+  rather than importing a torn tree.
+
+- **Advisory readers.** A long-lived agent runner registers as advisory for the lifetime of its execution loop. Advisory
+  holders never take the shared lock, so they can never defer a swap and are never counted as blocking one. Instead,
+  `sase update` and the ACE update preview print an informational line —
+  `N agent runner(s) are running from this checkout and a swap now can break their deferred imports.` — so you can
+  decide whether to wait. A runner is deliberately not allowed to block an update indefinitely.
+
+Both sides are non-blocking and fail fast rather than queueing: a waiting reader may already hold pre-swap imports, and
+a waiting writer would stall ACE. Set `SASE_DISABLE_CODE_SWAP_LOCK=1` to bypass the mechanism entirely (both the barrier
+and the warning). One residual race is accepted by design: a reader that starts while a swap is already underway can
+import torn modules before it reaches the lock. Closing that fully would require re-execing readers.
+
 ### Install mode switching
 
 `sase update -t/--to dev|pypi` switches the whole install between the two modes instead of updating within one:
