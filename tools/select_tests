@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""Print the diff-scoped test selection for the current change set."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests._test_selection import (  # noqa: E402
+    GRAPH_CACHE_FILENAME,
+    MANIFEST_FILENAME,
+    SELECTION_DIRECTORY,
+    SelectionOptions,
+    explain_lines,
+    select_tests,
+    summary_line,
+    write_manifest,
+)
+from tests._test_selection_graph import (  # noqa: E402
+    SelectionError,
+    build_import_graph,
+)
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--base",
+        help="base ref to diff against (default: $SASE_CHECK_BASE or origin/master)",
+    )
+    parser.add_argument(
+        "--depth",
+        type=int,
+        help="reverse-closure depth (default: $SASE_TEST_SELECTION_DEPTH or 2)",
+    )
+    parser.add_argument(
+        "--max-ratio",
+        type=float,
+        help=(
+            "escalate to the full suite above this fraction of the suite "
+            "(default: $SASE_TEST_SELECTION_MAX_RATIO or 0.25)"
+        ),
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="rebuild the import graph from scratch instead of reusing the cache",
+    )
+    parser.add_argument("--format", choices=("paths", "json"), default="paths")
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        help=f"where to write the selection manifest (default: {SELECTION_DIRECTORY / MANIFEST_FILENAME})",
+    )
+    parser.add_argument(
+        "--explain",
+        action="store_true",
+        help="print the rules that fired and why files were selected",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    namespace = _parse_args(argv)
+    selection_directory = REPO_ROOT / SELECTION_DIRECTORY
+    manifest_path = namespace.manifest or selection_directory / MANIFEST_FILENAME
+
+    try:
+        options = SelectionOptions.from_environment(
+            base_ref=namespace.base,
+            depth=namespace.depth,
+            max_ratio=namespace.max_ratio,
+            use_cache=not namespace.no_cache,
+        )
+        graph = build_import_graph(
+            REPO_ROOT,
+            cache_path=selection_directory / GRAPH_CACHE_FILENAME,
+            use_cache=options.use_cache,
+        )
+        selection = select_tests(REPO_ROOT, options, graph=graph)
+    except SelectionError as error:
+        print(f"test selection error: {error}", file=sys.stderr)
+        return 2
+
+    write_manifest(manifest_path, selection.manifest)
+
+    if namespace.explain:
+        for line in explain_lines(selection):
+            print(line, file=sys.stderr)
+    else:
+        print(summary_line(selection), file=sys.stderr)
+
+    if namespace.format == "json":
+        print(json.dumps(selection.manifest, indent=2))
+    else:
+        print(selection.paths_output)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
