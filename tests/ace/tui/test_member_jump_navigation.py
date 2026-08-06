@@ -330,6 +330,20 @@ def _clan(count: int, *, mixed_tribes: bool = False) -> tuple[list[Agent], Agent
     return projected, container
 
 
+def _large_family(count: int) -> tuple[list[Agent], Agent, list[Agent]]:
+    root = _agent("big--0", family="big", role="plan")
+    children = [
+        _agent(f"big--{index}", family="big", role="code") for index in range(1, count)
+    ]
+    for child in children:
+        child.parent_timestamp = root.raw_suffix
+    root.followup_agents = list(children)
+    for child in children:
+        child.family_container = root
+    assert root.is_family_container_row
+    return [root, *children], root, children
+
+
 def _family(*, in_clan: bool) -> tuple[list[Agent], Agent, Agent]:
     clan = "research" if in_clan else None
     root = _agent(
@@ -346,6 +360,8 @@ def _family(*, in_clan: bool) -> tuple[list[Agent], Agent, Agent]:
     )
     child.parent_timestamp = root.raw_suffix
     root.followup_agents = [child]
+    # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
+    child.family_container = root
     assert root.is_family_container_row
     projected = project_clan_tree([root, child])
     projected_root = next(
@@ -553,17 +569,7 @@ def test_stale_neighbor_digit_uses_neighbor_specific_cancellation() -> None:
 
 
 def test_digits_do_nothing_on_rows_that_do_not_own_lanes() -> None:
-    complete, root, child = _family(in_clan=False)
-    app = _JumpHarness(complete, root)
-    app._fold_manager.expand(root.raw_suffix or "")
-    app._refilter_agents()
-    app.current_idx = next(
-        index
-        for index, agent in enumerate(app._agents)
-        if agent.identity == child.identity
-    )
-    assert app._handle_member_jump_key("0") is False
-
+    root = _agent("alpha--plan", family="alpha", role="plan")
     workflow_step = _agent("workflow.step")
     workflow_step.parent_timestamp = root.raw_suffix
     workflow_step.parent_workflow = "demo-workflow"
@@ -694,3 +700,70 @@ def test_tribe_member_jump_expands_panel_and_selects_numbered_unit() -> None:
     assert "epic" not in app._collapsed_panel_keys
     assert app._agents[app.current_idx].identity == second.identity
     assert app.panel_fold_changes == [("epic", False)]
+
+
+def _select_member(app: _JumpHarness, root: Agent, member: Agent) -> None:
+    """Expand the family fold so a folded member row becomes selectable."""
+    app._fold_manager.expand(root.raw_suffix or "")
+    app._refilter_agents()
+    app.current_idx = next(
+        index
+        for index, agent in enumerate(app._agents)
+        if agent.identity == member.identity
+    )
+
+
+def test_selected_family_member_digit_jumps_to_sibling() -> None:
+    complete, root, child = _family(in_clan=False)
+    app = _JumpHarness(complete, root)
+    _select_member(app, root, child)
+    app._member_jump_maps[child.identity] = _jump_map(child, [root])
+
+    assert app._handle_member_jump_key("0") is True
+
+    assert app._agents[app.current_idx].identity == root.identity
+    assert app.notifications == []
+
+
+def test_family_member_jump_to_self_is_rejected_as_stale() -> None:
+    complete, root, child = _family(in_clan=False)
+    app = _JumpHarness(complete, root)
+    _select_member(app, root, child)
+    app._member_jump_maps[child.identity] = _jump_map(child, [child])
+
+    assert app._handle_member_jump_key("0") is True
+
+    assert app._agents[app.current_idx].identity == child.identity
+    assert app.notifications[-1] == "Member roster changed; jump cancelled"
+
+
+def test_family_member_jump_target_no_longer_in_family_cancels_as_stale() -> None:
+    complete, root, child = _family(in_clan=False)
+    stranger = _agent("stranger")
+    complete.append(stranger)
+    app = _JumpHarness(complete, root)
+    _select_member(app, root, child)
+    app._member_jump_maps[child.identity] = _jump_map(child, [stranger])
+
+    assert app._handle_member_jump_key("0") is True
+
+    assert app._agents[app.current_idx].identity == child.identity
+    assert app.notifications[-1] == "Member roster changed; jump cancelled"
+
+
+def test_two_digit_family_member_buffers_against_own_container_identity() -> None:
+    complete, root, children = _large_family(12)
+    selected = children[5]
+    others = [root, *[member for member in children if member is not selected]]
+    app = _JumpHarness(complete, root)
+    _select_member(app, root, selected)
+    app._member_jump_maps[selected.identity] = _jump_map(selected, others)
+
+    assert app._handle_member_jump_key("1") is True
+    assert app._member_jump_pending_digit == "1"
+    assert app._member_jump_pending_container_identity == selected.identity
+    assert app.footer_digits == ["1"]
+
+    assert app._handle_member_jump_key("0") is True
+
+    assert app._agents[app.current_idx].identity == others[10].identity

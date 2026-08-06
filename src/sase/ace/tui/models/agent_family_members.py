@@ -111,6 +111,20 @@ def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:
     return _dedupe_rows(candidates)
 
 
+def family_roster_container(agent: Agent) -> Agent | None:
+    """Return the container row whose FAMILY MEMBERS roster lists ``agent``.
+
+    Container rows render their own roster and are never members of another
+    row's roster, so they resolve to ``None``.
+    """
+    if agent.is_family_container_row:
+        return None
+    container = agent.family_container
+    if container is None or container is agent:
+        return None
+    return container
+
+
 def _settled_member_bucket(member: Agent) -> str:
     """Return the effective bucket for one non-final sequential-family member."""
     bucket = status_bucket_for_values(member.status)
@@ -214,5 +228,6 @@ __all__ = [
     "concrete_agent_statuses",
     "concrete_family_member_rows",
     "family_member_status_buckets",
+    "family_roster_container",
     "is_sequential_family_container",
 ]

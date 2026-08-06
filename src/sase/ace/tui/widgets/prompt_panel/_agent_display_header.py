@@ -15,6 +15,7 @@ from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 
 from ...models.agent import Agent, AgentType
 from ...models.agent_bead import cached_bead_display
+from ...models.agent_family_members import family_roster_container
 from ...models.agent_hoods import agent_owns_lane
 from ...models.fold_scale import (
     FAMILY_FOLD_SCALE,
@@ -28,6 +29,7 @@ from ._agent_display_family import (
     append_family_member_roster,
     effective_family_fold_level,
     family_roster_entries,
+    family_roster_heading_suffix,
 )
 from ._agent_display_neighbors import (
     NEIGHBORS_SECTION_ID,
@@ -119,6 +121,7 @@ def build_header_text(
         lane_scale,
     )
     family_fold_enabled = agent.is_family_container_row and lane_fold_level is not None
+    roster_container = family_roster_container(agent)
     lane_neighbors = lane_neighbors if agent_owns_lane(agent) else None
     neighbors_level = effective_fold_level(
         lane_overrides.get(NEIGHBORS_SECTION_ID, resolved_lane_fold_level),
@@ -134,7 +137,14 @@ def build_header_text(
             else min(len(lane_neighbors.rows), neighbors_limit)
         )
     )
-    family_entries = family_roster_entries(agent) if family_fold_enabled else ()
+    family_heading_suffix: Text | None = None
+    if family_fold_enabled:
+        family_entries = family_roster_entries(agent)
+    elif roster_container is not None:
+        family_entries = family_roster_entries(roster_container, exclude=agent)
+        family_heading_suffix = family_roster_heading_suffix(roster_container)
+    else:
+        family_entries = ()
     document_numbering = None
     if family_entries or shown_neighbor_count:
         from ._member_roster import MemberJumpNumbering
@@ -181,6 +191,7 @@ def build_header_text(
             level=resolved_lane_fold_level,
             scale=FAMILY_FOLD_SCALE,
         )
+    if family_entries:
         family_map = append_family_member_roster(
             header_text,
             agent,
@@ -188,6 +199,8 @@ def build_header_text(
             section_fold_overrides=lane_overrides,
             entries=family_entries,
             numbering=document_numbering,
+            fold_scale=FAMILY_FOLD_SCALE if family_fold_enabled else lane_scale,
+            heading_suffix=family_heading_suffix,
         )
 
     append_legacy_parallel_members_section(header_text, agent)

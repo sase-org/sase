@@ -342,6 +342,12 @@ class AgentState:
         repr=False,
     )
 
+    # Family container row whose FAMILY MEMBERS roster lists this row. Runtime
+    # presentation plumbing; not serialized. ``compare``/``repr`` must stay off:
+    # this pointer closes a cycle with ``followup_agents``/``runtime_children``
+    # and dataclass eq/repr (and the repr-based hint digest) would recurse.
+    family_container: Agent | None = field(default=None, compare=False, repr=False)
+
     # Set when a family root's members reveal a plan chain that started after
     # the root was promoted. Derived during status normalization; not
     # serialized. Sticky: normalization only ever sets this, never clears it.

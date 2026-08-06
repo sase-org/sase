@@ -10,6 +10,7 @@ from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType, wait_display_agent
+from ...models.agent_family_members import family_roster_container
 from ...models.agent_hoods import agent_owns_lane
 from ...util.xprompt_syntax import apply_xprompt_overlays
 from ._agent_clan_aggregation import (
@@ -176,7 +177,11 @@ class AgentHintRenderMixin:
         except Exception:
             app = None
         lane_owner = agent_owns_lane(agent)
-        lane_summary_enabled = agent.is_family_container_row or lane_owner
+        lane_summary_enabled = (
+            agent.is_family_container_row
+            or lane_owner
+            or family_roster_container(agent) is not None
+        )
         projection_resolver = getattr(app, "lane_neighbor_projection_for", None)
         lane_neighbors = (
             projection_resolver(agent)

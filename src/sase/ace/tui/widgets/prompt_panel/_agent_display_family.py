@@ -16,6 +16,7 @@ from ...models.agent_family_members import (
 from ...models.fold_state import FoldLevel
 from ...models.fold_scale import (
     FAMILY_FOLD_SCALE,
+    FoldScale,
     effective_fold_level,
 )
 from ._agent_display_content import get_phase_label
@@ -67,6 +68,7 @@ def family_roster_entries(
     agent: Agent,
     *,
     now: datetime | None = None,
+    exclude: Agent | None = None,
 ) -> tuple[MemberRosterEntry, ...]:
     """Adapt a family chain into shared numbered roster entries."""
     family_name = agent.presented_agent_name or ""
@@ -74,6 +76,10 @@ def family_roster_entries(
     buckets = family_member_status_buckets(members)
     entries: list[MemberRosterEntry] = []
     for member, bucket in zip(members, buckets, strict=True):
+        if exclude is not None and (
+            member is exclude or member.identity == exclude.identity
+        ):
+            continue
         phase_label = get_phase_label(member)
         kind = "agent" if phase_label == "AGENT" else phase_label
         entries.append(
@@ -106,6 +112,8 @@ def append_family_member_roster(
     now: datetime | None = None,
     entries: Sequence[MemberRosterEntry] | None = None,
     numbering: MemberJumpNumbering | None = None,
+    fold_scale: FoldScale = FAMILY_FOLD_SCALE,
+    heading_suffix: Text | None = None,
 ) -> MemberJumpMap:
     """Render a family container's numbered roster."""
     return append_member_roster(
@@ -118,9 +126,21 @@ def append_family_member_roster(
         accent=FAMILY_IDENTITY_COLOR,
         panel_level=panel_level,
         section_fold_overrides=section_fold_overrides,
-        fold_scale=FAMILY_FOLD_SCALE,
+        fold_scale=fold_scale,
         numbering=numbering,
+        heading_suffix=heading_suffix,
     )
+
+
+def family_roster_heading_suffix(container: Agent) -> Text:
+    """Return the ` · <family name>` suffix naming a member panel's family."""
+    suffix = Text()
+    suffix.append(" · ", style="dim")
+    suffix.append(
+        container.presented_agent_name or "",
+        style=FAMILY_IDENTITY_COLOR,
+    )
+    return suffix
 
 
 def family_member_label(member: Agent, family_name: str) -> str:
@@ -140,4 +160,5 @@ __all__ = [
     "family_member_label",
     "family_member_rows",
     "family_roster_entries",
+    "family_roster_heading_suffix",
 ]

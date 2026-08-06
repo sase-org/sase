@@ -59,6 +59,8 @@ def make_family(
         output_variables={"code_path": "/tmp/code.md"},
     )
     root.followup_agents = [child]
+    # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
+    child.family_container = root
     assert root.is_family_container_row is True
     return root, child
 

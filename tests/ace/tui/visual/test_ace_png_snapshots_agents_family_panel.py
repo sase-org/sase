@@ -220,6 +220,50 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         )
 
 
+async def test_family_member_panel_shows_sibling_roster_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=_family_agents(tmp_path, member_count=3, with_content=False),
+    )
+
+    async with AcePage(query='"visual-family"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        container = page.app._agents[page.app.current_idx]
+        assert container.is_family_container_row is True
+
+        await page.press("1")
+        await page.wait_for(
+            lambda _state: (
+                page.app._agents[page.app.current_idx].agent_name
+                == f"{_FAMILY_NAME}--code"
+            )
+        )
+        member = page.app._agents[page.app.current_idx]
+        assert member.is_family_container_row is False
+        await wait_for_visual_idle(page)
+
+        member_jump_map = page.app._member_jump_maps[member.identity]
+        member_targets = {target.member_identity for target in member_jump_map.targets}
+        assert member.identity not in member_targets
+
+        assert_page_svg_contains(page, "FAMILY MEMBERS")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_family_panel_member_roster_120x40",
+            title="ACE family member panel roster",
+        )
+
+
 async def test_family_two_digit_roster_and_pending_footer_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

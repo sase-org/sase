@@ -296,6 +296,18 @@ first three neighbors plus a hidden-count tail, and level 2 shows all of them. S
 [Lane Neighbors Section](ace.md#lane-neighbors-section) for the full behavior, which single agents share through their
 own three-level scale.
 
+#### Family member detail folding
+
+Selecting a family **member** row — not the container — also renders a numbered `FAMILY MEMBERS` roster: every member of
+the enclosing family in the same stable chain order, except the selected member itself, numbered starting from `0`. The
+heading carries a dim ` · <family name>` suffix naming the family. Digit jumps behave exactly as they do on the
+container roster — `0`–`9` (or two-key `00`–`99` past ten members) reveal the target member, and a roster that changed
+since the panel was drawn cancels the jump with a warning instead of landing somewhere stale.
+
+Unlike the container's two-level family scale, a member panel folds its roster and every other section on the selected
+member's own three-level agent scale (`z1`–`z3`, `zz`, `za`, `zA`), so no `Fold: N/M` header line appears. A member row
+owns no lane, so its panel has no `NEIGHBORS` section — only `FAMILY MEMBERS`.
+
 #### Per-member model lanes
 
 A family container has no single model: `%m` overrides, provider defaults, and per-member reasoning effort can differ

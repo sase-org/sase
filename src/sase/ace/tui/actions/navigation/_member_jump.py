@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING, Literal, Protocol
 from textual.screen import ModalScreen
 
 from ...models.agent import Agent, AgentType
-from ...models.agent_family_members import concrete_family_member_rows
+from ...models.agent_family_members import (
+    concrete_family_member_rows,
+    family_roster_container,
+)
 from ...models.agent_hoods import agent_owns_lane
 from ...models.agent_tribe_summary import AgentPanelFocus
 from ._agent_reveal import (
@@ -63,7 +66,11 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if not callable(get_selected):
             return None
         agent = get_selected()
-        if agent is None or not (agent.is_clan_container or agent_owns_lane(agent)):
+        if agent is None or not (
+            agent.is_clan_container
+            or agent_owns_lane(agent)
+            or family_roster_container(agent) is not None
+        ):
             return None
         return agent
 
@@ -159,9 +166,17 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
                 for member in container.runtime_children
                 if not member.is_clan_container
             )
+        if container.is_family_container_row:
+            return any(
+                member.identity == target_identity
+                for member in concrete_family_member_rows(container)
+            )
+        roster_container = family_roster_container(container)
+        if roster_container is None:
+            return False
         return any(
-            member.identity == target_identity
-            for member in concrete_family_member_rows(container)
+            member.identity == target_identity and member.identity != container.identity
+            for member in concrete_family_member_rows(roster_container)
         )
 
     def _member_jump_target(

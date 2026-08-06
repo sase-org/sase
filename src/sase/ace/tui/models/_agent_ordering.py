@@ -1,6 +1,7 @@
 """Final agent ordering helpers for the TUI agent list."""
 
 from .agent import Agent, AgentType
+from .agent_family_members import concrete_family_member_rows
 
 
 def get_status_priority(status: str) -> int:
@@ -145,11 +146,15 @@ def sort_and_reorder(
                 result.extend(followups_by_parent.pop(suffix))
         from ._agent_tree import project_clan_tree
 
-        return project_clan_tree(result)
+        ordered = project_clan_tree(result)
+        _attach_family_containers(ordered)
+        return ordered
 
     from ._agent_tree import project_clan_tree
 
-    return project_clan_tree(sorted_agents)
+    ordered = project_clan_tree(sorted_agents)
+    _attach_family_containers(ordered)
+    return ordered
 
 
 def _clear_runtime_children(
@@ -163,6 +168,7 @@ def _clear_runtime_children(
             continue
         seen.add(agent_id)
         agent.runtime_children.clear()
+        agent.family_container = None
 
 
 def _attach_runtime_children(
@@ -188,3 +194,13 @@ def _attach_runtime_children(
         children.extend(followups_by_parent.get(parent_suffix, []))
         if children:
             parent.runtime_children.extend(children)
+
+
+def _attach_family_containers(rows: list[Agent]) -> None:
+    """Point each concrete family member at the container row that lists it."""
+    for row in rows:
+        if not row.is_family_container_row:
+            continue
+        for member in concrete_family_member_rows(row):
+            if member is not row:
+                member.family_container = row

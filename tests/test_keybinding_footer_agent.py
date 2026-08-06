@@ -206,6 +206,33 @@ def test_keybinding_footer_clan_advertises_clan_fork() -> None:
     )
 
 
+def test_keybinding_footer_family_member_advertises_member_digits() -> None:
+    footer = KeybindingFooter()
+    root = _make_agent()
+    root.agent_name = "alpha--plan"
+    root.agent_family = "alpha"
+    root.plan_chain_root = True
+    root.role_suffix = "--plan"
+    child = _make_agent()
+    child.agent_name = "alpha--code"
+    child.agent_family = "alpha"
+    child.role_suffix = "--code"
+    child.parent_timestamp = "20260101000000"
+    root.followup_agents = [child]
+    # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
+    child.family_container = root
+    assert root.is_family_container_row is True
+    assert child.is_family_container_row is False
+
+    bindings = footer._compute_agent_bindings(child)
+
+    assert ("0-9", "member") in bindings
+    assert ("0-9", "member") not in footer._compute_agent_bindings(
+        child,
+        group_focused=True,
+    )
+
+
 def test_keybinding_footer_canonical_collapsed_panel_focus_shows_expand() -> None:
     footer = KeybindingFooter()
 

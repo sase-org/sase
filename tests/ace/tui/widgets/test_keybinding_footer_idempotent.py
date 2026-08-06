@@ -105,6 +105,7 @@ async def test_numbered_member_binding_is_conditional_on_container_rows() -> Non
             "agent_name": None,
             "workspace_num": None,
             "attempt_history": [],
+            "family_container": None,
         }
         clan = SimpleNamespace(
             **common,

@@ -704,7 +704,7 @@ precedence if rebound to `j`, `k`, or `q`.
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint                                                                |
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                         |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                       |
-| `0`–`9`                   | Jump from a selected clan, lane, or whole-panel roster to its numbered member or neighbor                                                                   |
+| `0`–`9`                   | Jump from a selected clan, lane, family member, or whole-panel roster to its numbered member or neighbor                                                    |
 | `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                                                                                |
 | `~`                       | Jump among lane-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                                    |
 | `g`                       | Scroll to top (file, tools, or metadata panel)                                                                                                              |
@@ -729,7 +729,9 @@ focus moves.
 
 When a clan or an agent lane is selected, its metadata panel assigns a fixed number to each numbered row, up to 100
 targets. A lane is a multi-member family container or a single agent that owns its own lane; lane panels number their
-`FAMILY MEMBERS` roster (when present) and then their `NEIGHBORS` section from one continuous ladder. Documents with at
+`FAMILY MEMBERS` roster (when present) and then their `NEIGHBORS` section from one continuous ladder. A selected family
+**member** row numbers its enclosing family's `FAMILY MEMBERS` roster the same way, listing every sibling except itself
+from the same ladder; a member row owns no lane, so it has no `NEIGHBORS` rows to follow the roster. Documents with at
 most ten numbered rows use `0`–`9`; larger documents number the first 100 rows with two-key values `00`–`99` and show
 any remaining entries as an unnumbered count. After the first digit of a two-key jump, press `Esc` to cancel or any
 non-digit key to cancel and continue with that key's normal action. A successful jump expands only the target's ancestor
@@ -809,6 +811,12 @@ members in the Agents list sort by status priority — Failed, Stopped, Running/
 launch recency breaking ties. The clan metadata roster instead keeps chronological launch order so its numbers do not
 change as statuses change; a nested family remains one direct entry with its chain indented beneath it. Family rosters
 retain sequential chain order.
+
+Selecting a family **member** row (not the container) also shows a `FAMILY MEMBERS` roster: the same enclosing family's
+members, in the same chain order, minus the selected member itself. The heading carries a dim ` · <family name>` suffix
+naming the family, since the count shown is one less than the family's full size. Unlike a container panel, a member
+panel folds this roster (and the rest of its own sections) using the selected member's own three-level agent scale
+rather than the family's two-level scale, so no `Fold: N/M` header line appears.
 
 Clan metadata has three session-only detail levels. Family metadata uses the last two effective states as its two-level
 scale for fold-aware metadata: family level 1 is expanded and level 2 is fully expanded.
@@ -928,7 +936,8 @@ place after the editor exits.
 Every agent lane panel carries a numbered `NEIGHBORS` roster in its metadata region. A lane is a multi-member family
 container row or a single agent that owns its own lane, so the section appears on family container panels below their
 `FAMILY MEMBERS` roster and on ordinary agent panels. Clan containers, tribe panel summaries, family member child rows,
-and workflow aggregate rows have no `NEIGHBORS` section.
+and workflow aggregate rows have no `NEIGHBORS` section. A selected family member row owns no lane, so its panel carries
+only the `FAMILY MEMBERS` roster (siblings, minus itself) and never a `NEIGHBORS` section.
 
 The rows are exactly the rows the `~` chooser offers for that lane — ancestors, descendants including same-session
 dismissed descendants, then hood neighbors grouped by hood, nearest hood first — under dim `ancestors`, `descendants`,

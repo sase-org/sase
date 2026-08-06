@@ -17,6 +17,7 @@ from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 from ...changespec import ChangeSpec
 from ...hooks import get_failed_hooks_file_path
 from ...operations import get_available_workflows
+from ..models.agent_family_members import family_roster_container
 from ..models.agent_panels import is_reserved_default_panel
 from ..models.agent_status import is_resumable_done_status
 from .tools_panel import ToolDetailLevel
@@ -261,7 +262,11 @@ class KeybindingBindingsMixin:
         if (
             not panel_focused
             and not group_focused
-            and (agent.is_clan_container or agent.is_family_container_row)
+            and (
+                agent.is_clan_container
+                or agent.is_family_container_row
+                or family_roster_container(agent) is not None
+            )
         ):
             bindings.append(("0-9", "member"))
         elif not panel_focused and not group_focused and lane_neighbor_jump_available:

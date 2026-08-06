@@ -190,3 +190,176 @@ def test_waiting_family_child_orders_under_running_parent_and_buckets_waiting() 
     assert parent.runtime_children == [child]
     assert child.is_family_member_child
     assert status_bucket_for(child) == "Waiting"
+
+
+def test_sort_and_reorder_attaches_family_container_for_workflow_shaped_family() -> (
+    None
+):
+    parent_suffix = "20260517085500"
+    parent = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="PLAN DONE",
+        start=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix=parent_suffix,
+        cl_name="agent-family",
+        role_suffix="-plan",
+    )
+    parent.workflow = "agent-family"
+    parent.agent_name = "ap5"
+    parent.agent_family = "ap5"
+    parent.agent_family_role = "root"
+    parent.plan_chain_root = True
+
+    planner = workflow_child(
+        step_type="agent",
+        status="DONE",
+        start=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix=parent_suffix,
+        cl_name="main",
+        role_suffix="-plan",
+    )
+    planner.parent_timestamp = parent_suffix
+    planner.step_index = 0
+    planner.total_steps = 2
+    planner.agent_name = "ap5-plan"
+
+    coder = agent(
+        status="PLAN DONE",
+        start=datetime(2026, 5, 17, 9, 10, 0),
+        raw_suffix="20260517091000",
+        cl_name="code",
+        role_suffix="-code",
+    )
+    coder.parent_timestamp = parent_suffix
+    coder.agent_name = "ap5-code"
+
+    # apply_status_overrides normally populates followup_agents before
+    # sort_and_reorder runs; simulate that state directly here.
+    parent.followup_agents = [coder]
+
+    ordered = sort_and_reorder([coder, parent], [planner])
+
+    assert ordered[:3] == [parent, planner, coder]
+    assert parent.is_family_container_row is True
+    assert parent.family_container is None
+    assert planner.family_container is parent
+    assert coder.family_container is parent
+    # A reference cycle between family_container and followup_agents must not
+    # break dataclass eq/repr (compare=False, repr=False keeps it out).
+    assert repr(coder)
+    assert coder == coder
+
+
+def test_sort_and_reorder_attaches_family_container_for_rename_on_attach_family() -> (
+    None
+):
+    parent = agent(
+        status="RUNNING",
+        start=datetime(2026, 8, 2, 10, 0, 0),
+        raw_suffix="20260802100000",
+        cl_name="fam",
+        role_suffix="--plan",
+    )
+    parent.agent_name = "fam--plan"
+    parent.agent_family = "fam"
+    parent.plan_chain_root = True
+    child = agent(
+        status="DONE",
+        start=datetime(2026, 8, 2, 10, 1, 0),
+        raw_suffix="20260802100100",
+        cl_name="fam--code",
+        role_suffix="--code",
+    )
+    child.parent_timestamp = parent.raw_suffix
+    child.agent_name = "fam--code"
+    parent.followup_agents = [child]
+
+    sort_and_reorder([child, parent], [])
+
+    assert parent.is_family_container_row is True
+    assert child.family_container is parent
+    assert parent.family_container is None
+
+
+def test_sort_and_reorder_clears_stale_family_container_pointer() -> None:
+    parent = agent(
+        status="RUNNING",
+        start=datetime(2026, 8, 2, 10, 0, 0),
+        raw_suffix="20260802100000",
+        cl_name="fam",
+        role_suffix="--plan",
+    )
+    parent.agent_name = "fam--plan"
+    parent.agent_family = "fam"
+    parent.plan_chain_root = True
+    child = agent(
+        status="DONE",
+        start=datetime(2026, 8, 2, 10, 1, 0),
+        raw_suffix="20260802100100",
+        cl_name="fam--code",
+        role_suffix="--code",
+    )
+    child.parent_timestamp = parent.raw_suffix
+    child.agent_name = "fam--code"
+    parent.followup_agents = [child]
+
+    sort_and_reorder([child, parent], [])
+    assert child.family_container is parent
+
+    # The family dissolves (e.g. the follow-up is dismissed); a re-run must
+    # not leave a stale pointer even though ``child`` is still passed in.
+    parent.followup_agents = []
+    sort_and_reorder([child, parent], [])
+
+    assert parent.is_family_container_row is False
+    assert child.family_container is None
+
+
+def test_sort_and_reorder_skips_synthetic_planner_and_parallel_family_rows() -> None:
+    parent = agent(
+        status="RUNNING",
+        start=datetime(2026, 8, 2, 11, 0, 0),
+        raw_suffix="20260802110000",
+        cl_name="fam2",
+        role_suffix="--plan",
+    )
+    parent.agent_name = "fam2--plan"
+    parent.agent_family = "fam2"
+    parent.plan_chain_root = True
+
+    synthetic = agent(
+        status="RUNNING",
+        start=datetime(2026, 8, 2, 11, 1, 0),
+        raw_suffix="20260802110100",
+        cl_name="fam2--0",
+    )
+    synthetic.parent_timestamp = parent.raw_suffix
+    synthetic.is_synthetic_planner = True
+
+    parallel = agent(
+        status="RUNNING",
+        start=datetime(2026, 8, 2, 11, 2, 0),
+        raw_suffix="20260802110200",
+        cl_name="fam2--parallel",
+    )
+    parallel.parent_timestamp = parent.raw_suffix
+    parallel.agent_family_parallel = True
+
+    real_child = agent(
+        status="DONE",
+        start=datetime(2026, 8, 2, 11, 3, 0),
+        raw_suffix="20260802110300",
+        cl_name="fam2--code",
+        role_suffix="--code",
+    )
+    real_child.parent_timestamp = parent.raw_suffix
+    real_child.agent_name = "fam2--code"
+
+    parent.followup_agents = [synthetic, parallel, real_child]
+
+    sort_and_reorder([synthetic, parallel, real_child, parent], [])
+
+    assert parent.is_family_container_row is True
+    assert synthetic.family_container is None
+    assert parallel.family_container is None
+    assert real_child.family_container is parent
