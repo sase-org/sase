@@ -45,6 +45,7 @@ FOREIGN_ENTRY_PATTERNS: tuple[str, ...] = (
     "ace-profiles",
     "ace_profile_*",
     "check.log",
+    "chezmoi-deploy-locks",  # see "ace_profile_*"
     "claude-*",
     "dbus-*",
     # Third-party pytest plugin scratch, created at plugin-configure time during
