@@ -45,6 +45,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from tests._test_selection_contexts import contexts_consulted
 from tests._test_selection_graph import SelectionError, is_visual_path, run_git
 from tests._test_selection_health_records import HealthRecords
 
@@ -235,6 +236,10 @@ class SelectionHealth:
     worker_seconds_saved: float = 0.0
     rule_histogram: dict[str, int] = field(default_factory=dict)
     outcome_histogram: dict[str, int] = field(default_factory=dict)
+    #: Scoped runs that reached the baseline cache at all — the denominator
+    #: `context_runs` belongs over. The rest escalated to the full suite before
+    #: contexts could matter.
+    context_consulted_runs: int = 0
     context_runs: int = 0
     context_stale_runs: int = 0
     context_selected_total: int = 0
@@ -246,6 +251,19 @@ class SelectionHealth:
         if not self.scoped_runs:
             return None
         return self.escalated_runs / self.scoped_runs
+
+    @property
+    def context_missing_runs(self) -> int:
+        """Runs that looked for a baseline, found none, and narrowed anyway.
+
+        This is the lane's real closure-only exposure, and the number phase
+        `compensate`'s `no-baseline-depth-boost` is sized against.
+        """
+        return self.context_consulted_runs - self.context_runs
+
+    @property
+    def context_not_consulted_runs(self) -> int:
+        return self.scoped_runs - self.context_consulted_runs
 
     @property
     def median_selected_ratio(self) -> float | None:
@@ -286,9 +304,16 @@ def summarize(
         if selection.manifest.get("universe_count")
     ]
 
-    with_baseline = [
-        selection.contexts for selection in scoped if selection.contexts.get("baseline")
+    # Only a run that actually reached the baseline cache can be counted for or
+    # against it. A run a rule forced to the full suite never looked, and
+    # charging it as "no baseline — static closure alone" is how a lane whose
+    # real closure-only exposure is a couple of runs reads as half of them.
+    consulted = [
+        selection.contexts
+        for selection in scoped
+        if contexts_consulted(selection.contexts, escalated=selection.escalated)
     ]
+    with_baseline = [contexts for contexts in consulted if contexts.get("baseline")]
 
     return SelectionHealth(
         scoped_runs=len(scoped),
@@ -301,6 +326,7 @@ def summarize(
         worker_seconds_saved=saved,
         rule_histogram=dict(sorted(rule_histogram.items())),
         outcome_histogram=dict(sorted(outcome_histogram.items())),
+        context_consulted_runs=len(consulted),
         context_runs=len(with_baseline),
         context_stale_runs=sum(
             1 for contexts in with_baseline if contexts.get("stale")

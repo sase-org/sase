@@ -18,9 +18,9 @@ from types import ModuleType
 from typing import Any
 
 
-#: Bumped to 2 when the `contexts` block joined the manifest, and to 3 when
-#: `effective_depth` did.
-MANIFEST_SCHEMA = 3
+#: Bumped to 2 when the `contexts` block joined the manifest, to 3 when
+#: `effective_depth` did, and to 4 when `contexts.consulted` did.
+MANIFEST_SCHEMA = 4
 
 SELECTION_DIRECTORY = Path(".pytest_cache") / "sase-selection"
 GRAPH_CACHE_FILENAME = "graph.json"

@@ -116,6 +116,68 @@ def test_report_counts_coverage_context_baselines_and_staleness(
     assert "runs on a stale one:   1" in report
 
 
+def test_an_escalated_run_is_not_counted_against_the_baseline(tmp_path: Path) -> None:
+    """A forced escalation never consulted contexts, so it is not exposure.
+
+    Counting it as a run that narrowed on the static closure alone is what made
+    a lane with two genuinely baseline-less runs read as twenty-three of them,
+    and that inflated number is what the compensating rule was first sized
+    against.
+    """
+    store = tmp_path / "store"
+    write_selection(
+        store,
+        manifest(
+            head="aaa",
+            selected=("tests/test_a.py",),
+            contexts={"baseline": "abc123", "consulted": True, "selected_count": 3},
+        ),
+        minute=0,
+    )
+    for minute, rule in enumerate(("justfile", "core-identity-changed"), start=1):
+        write_selection(
+            store,
+            manifest(
+                head=f"esc{minute}",
+                escalated=True,
+                rules=(rule,),
+                duration=0.0,
+                outcome="escalated",
+                contexts={"baseline": None, "consulted": False},
+            ),
+            minute=minute,
+        )
+
+    health = summarize(load_records(store), is_ancestor=lambda _a, _b: False)
+
+    assert health.scoped_runs == 3
+    assert health.context_consulted_runs == 1
+    assert health.context_not_consulted_runs == 2
+    assert health.context_runs == 1
+    assert health.context_missing_runs == 0
+    report = "\n".join(render_report(health))
+    assert "runs that consulted it: 1 of 3 (2 escalated before it mattered)" in report
+    assert "runs with a baseline:  1 of 1" in report
+    assert "runs without one:      0 (static closure alone)" in report
+
+
+def test_escalated_records_written_before_the_flag_are_read_the_same_way(
+    tmp_path: Path,
+) -> None:
+    """The store keeps 30 days of records, so the fix has to reach back."""
+    store = tmp_path / "store"
+    write_selection(
+        store,
+        manifest(head="aaa", escalated=True, rules=("justfile",), duration=0.0),
+        minute=0,
+    )
+
+    health = summarize(load_records(store), is_ancestor=lambda _a, _b: False)
+
+    assert (health.context_consulted_runs, health.context_missing_runs) == (0, 0)
+    assert "runs that consulted it: 0 of 1" in "\n".join(render_report(health))
+
+
 def test_report_points_at_the_remedy_when_no_baseline_is_cached(
     tmp_path: Path,
 ) -> None:
@@ -204,6 +266,10 @@ def test_health_payload_is_machine_readable(tmp_path: Path) -> None:
         summarize(load_records(store), is_ancestor=linear_ancestry("aaa", "bbb"))
     )
 
-    assert json.loads(json.dumps(payload))["false_negatives"][0]["test_file"] == (
-        "tests/test_missed.py"
-    )
+    round_tripped = json.loads(json.dumps(payload))
+    assert round_tripped["false_negatives"][0]["test_file"] == "tests/test_missed.py"
+    # The exposure split is machine-readable too, so a reader that parses
+    # rather than reads cannot fall back into the every-scoped-run denominator.
+    assert round_tripped["context_consulted_runs"] == 1
+    assert round_tripped["context_not_consulted_runs"] == 0
+    assert round_tripped["context_missing_runs"] == 1

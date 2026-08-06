@@ -286,7 +286,12 @@ def select_tests(
     )
     rules = list(evaluation.rules)
 
-    contexts = ContextSelection()
+    # A rule that forces the full suite short-circuits the branch below, so
+    # contexts are never looked at on that path. Say so on the manifest instead
+    # of leaving a default-shaped `contexts` block that reads as "the baseline
+    # was missing" — an escalated run ran every test and was never exposed to a
+    # narrower selection at all.
+    contexts = ContextSelection(consulted=False)
     selected: set[str] = set()
     explanations: dict[str, tuple[str, int]] = {}
     depth = options.depth

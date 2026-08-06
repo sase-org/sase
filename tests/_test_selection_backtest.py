@@ -36,6 +36,7 @@ the replay.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -94,6 +95,25 @@ SKIP_NO_SRC_PYTHON = "no-src-python-changed"
 SKIP_NO_BASELINE_LINES = "no-lines-in-baseline"
 SKIP_EMPTY_GROUND_TRUTH = "empty-ground-truth"
 SKIP_REPLAY_FAILED = "replay-failed"
+
+
+def require_coverage() -> None:
+    """Refuse to measure anything if ``coverage`` cannot be imported.
+
+    :func:`~tests._test_selection_contexts.find_tests_touching` swallows that
+    ImportError and returns an empty result, which is right for *selection* —
+    contexts are an optional accelerant and the closure carries the run. For a
+    measurement harness the same silence is a lie: every commit skips as
+    ``empty-ground-truth`` and the report reads like a finding about the
+    selector rather than a shell that never activated the venv.
+    """
+    if importlib.util.find_spec("coverage") is None:
+        raise SelectionError(
+            "the `coverage` package is not importable, so there is no ground "
+            "truth to measure against — run this through `just "
+            "selection-backtest`, or activate the workspace venv first"
+        )
+
 
 #: Why each skip reason means "this commit cannot contribute a recall reading".
 #: Rendered verbatim by the report, because a skipped commit that nobody can
@@ -458,6 +478,7 @@ def run_backtest(
     progress: Callable[[str], None] | None = None,
 ) -> BacktestReport:
     """Replay the last ``limit`` commits and report recall against ground truth."""
+    require_coverage()
     options = options or SelectionOptions()
     baseline = resolve_backtest_baseline(contexts_dir, baseline_sha)
     commits = list_commits(root, limit, rev)

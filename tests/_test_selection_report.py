@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from tests._test_selection import Selection
-from tests._test_selection_contexts import ContextSelection
+from tests._test_selection_contexts import ContextSelection, contexts_consulted
 
 
 def summary_line(selection: Selection) -> str:
@@ -29,6 +29,11 @@ def summary_line(selection: Selection) -> str:
 
 def context_line(contexts: ContextSelection) -> str:
     """One line describing what per-test coverage contributed, if anything."""
+    if not contexts.consulted:
+        return (
+            "coverage contexts: not consulted — the run escalates to the full "
+            "suite, so ground truth had nothing to add"
+        )
     if contexts.baseline_sha is None:
         return (
             "coverage contexts: no baseline cached "
@@ -60,7 +65,9 @@ def manifest_summary_line(manifest: dict[str, Any]) -> str:
     universe_count = int(manifest.get("universe_count") or 0)
     contexts = manifest.get("contexts") or {}
     baseline_sha = contexts.get("baseline")
-    if baseline_sha is None:
+    if not contexts_consulted(contexts, escalated=escalated):
+        baseline_status = "not consulted"
+    elif baseline_sha is None:
         baseline_status = "missing"
     else:
         baseline_status = "stale" if contexts.get("stale") else "present"

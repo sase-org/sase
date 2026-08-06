@@ -87,13 +87,22 @@ def _render_contexts(health: SelectionHealth) -> list[str]:
     This is the reading that says whether contexts earn their CI cost: runs
     with no baseline got the static closure alone, and a high stale count next
     to a non-zero false-negative count is the signal to refresh more often.
+
+    The denominator is deliberately the *consulted* runs, not every scoped run.
+    A run a rule forced to the full suite never reached the baseline cache and
+    executed every test regardless, so counting it as one that ran on the static
+    closure alone overstates the lane's exposure — by an order of magnitude on
+    a store where roughly half the runs escalate.
     """
     if not health.scoped_runs:
         return ["coverage contexts: no scoped runs recorded"]
-    without = health.scoped_runs - health.context_runs
+    consulted = health.context_consulted_runs
+    without = health.context_missing_runs
     lines = [
         "coverage contexts:",
-        f"  runs with a baseline:  {health.context_runs} of {health.scoped_runs}",
+        f"  runs that consulted it: {consulted} of {health.scoped_runs}"
+        f" ({health.context_not_consulted_runs} escalated before it mattered)",
+        f"  runs with a baseline:  {health.context_runs} of {consulted}",
         f"  runs without one:      {without} (static closure alone)",
         f"  runs on a stale one:   {health.context_stale_runs}",
         f"  test files contributed: {health.context_selected_total} (cumulative)",
@@ -193,7 +202,10 @@ def health_payload(health: SelectionHealth) -> dict[str, Any]:
         "worker_seconds_saved": health.worker_seconds_saved,
         "rule_histogram": health.rule_histogram,
         "outcome_histogram": health.outcome_histogram,
+        "context_consulted_runs": health.context_consulted_runs,
+        "context_not_consulted_runs": health.context_not_consulted_runs,
         "context_runs": health.context_runs,
+        "context_missing_runs": health.context_missing_runs,
         "context_stale_runs": health.context_stale_runs,
         "context_selected_total": health.context_selected_total,
         "pre_schema_selections": health.pre_schema.selections,

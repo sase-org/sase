@@ -137,18 +137,31 @@ context rows at all. A baseline more than `SASE_TEST_SELECTION_CONTEXTS_MAX_DIST
 it elsewhere. The manifest's `contexts` block records the baseline SHA, its distance behind `HEAD`, whether it was
 stale, which changed files it matched, and how many test files it contributed.
 
+Contexts are consulted only on the path that actually produces a narrowed selection. A run a broadening rule forces to
+the full suite short-circuits before the cache is read, so its `contexts` block records `"consulted": false` rather than
+a baseline of `null` — an escalated run executed every test and was never exposed to a narrow selection, and counting it
+as one that ran on the static closure alone is what used to inflate the exposure reading below.
+
 Line numbers are read on the **baseline side** of `git diff -U0 <baseline-sha>`, restricted to the change set's own
 files, because the database is keyed by line numbers as they were in the baseline.
 
 ##### When there is no usable baseline
 
-A missing or stale baseline is the common case, not an exceptional one — `just selection-health` recorded a baseline
-present in only 11 of the first 22 scoped runs — so the run cannot simply carry on as if the closure alone were sound.
-It also cannot escalate: sending half the lane to the full suite would delete the reason the lane exists. Instead the
-closure **walks one hop deeper** and records `no-baseline-depth-boost`, which appears in the manifest, in `just check`'s
-scoped summary line, and in `just selection-health`'s rule histogram. The manifest's `effective_depth` is the depth
-actually walked, configured depth plus whatever the rename/delete and no-baseline compensations bought; `depth` stays
-the configured one.
+A run that finds no usable baseline narrows on the static closure alone, which the backtest below measures as a real
+blind spot — so it cannot simply carry on as if the closure were sound. How often that happens is worth stating
+carefully, because the first reading of it was wrong: `just selection-health` used to count every escalated run as one
+without a baseline, which made absence look like half the lane. Escalated runs never consult the cache and run every
+test anyway. Over the same store measured by consulted runs only, a baseline was present in **21 of 23**; the 21
+remaining scoped runs escalated before contexts could matter.
+
+So absence is uncommon on a host that fetches or records baselines — but it is not rare where it counts. It is the
+standing condition of a workspace that has been idle past the CI artifact's 14-day retention, one that is offline, or a
+host that has never fetched, and there absence is persistent rather than occasional. Escalating on it would be sound and
+is now known to be affordable at this frequency; the closure **walks one hop deeper** instead because a measured 91% of
+the blind spot comes back for roughly double the selected files, against 3,650 worker-seconds for a full run. That
+records `no-baseline-depth-boost`, which appears in the manifest, in `just check`'s scoped summary line, and in
+`just selection-health`'s rule histogram. The manifest's `effective_depth` is the depth actually walked, configured
+depth plus whatever the rename/delete and no-baseline compensations bought; `depth` stays the configured one.
 
 Measured with `just selection-backtest --limit 150 --include-descendant-baseline --baseline 96183d71b` at `4651ed199`
 over 63 commits with usable ground truth (3 faithful baseline-ancestor replays, 60 approximate baseline-descendant
@@ -366,6 +379,11 @@ Read the count together with the two lines under it. Records written before heal
 set, cannot satisfy the rule, and are excluded from correlation; the report says how many there are, so a zero is read
 as zero-of-a-known-sample rather than mistaken for a clean one. When a single missed test matches across more than one
 change set, the report says so and tells you to suspect a flake before a miss.
+
+The `coverage contexts` block reports baseline availability over the runs that **consulted** the cache, not over every
+scoped run, and states separately how many escalated before contexts could matter. Those two denominators differ by
+roughly the escalation rate — on a store where half the runs escalate, counting them as baseline-less made a lane with
+two genuinely closure-only runs read as twenty-three of them.
 
 Use `tools/select_tests --explain` to see why an individual test was or was not selected. Set
 `SASE_TEST_SELECTION_HEALTH_DISABLED=1` to skip recording entirely, and `SASE_TEST_SELECTION_HEALTH_DIR` to point the

@@ -34,12 +34,13 @@ RULE_NO_BASELINE_DEPTH_BOOST = "no-baseline-depth-boost"
 
 #: Rules whose only sound response is to run everything.
 #:
-#: ``RULE_NO_BASELINE_DEPTH_BOOST`` is deliberately absent: a missing or stale
-#: coverage baseline is the *common* case, not an exceptional one — roughly half
-#: of recorded scoped runs have no usable baseline — so escalating on it would
-#: send half the lane to the full suite and delete the reason the lane exists.
-#: It compensates by walking one hop deeper instead; see
-#: :func:`tests._test_selection.select_tests`.
+#: ``RULE_NO_BASELINE_DEPTH_BOOST`` is deliberately absent. Absence of a usable
+#: coverage baseline is uncommon per-run on a host that fetches or records one,
+#: but it is the *standing* condition of a workspace that is offline or idle
+#: past the CI artifact's retention — so escalating on it would hand those
+#: workspaces a permanently full lane. It compensates by walking one hop
+#: deeper instead, which the backtest measured as recovering 91% of the
+#: closure's blind spot; see :func:`tests._test_selection.select_tests`.
 FULL_SUITE_RULES = frozenset(
     {
         RULE_BASE_UNRESOLVED,

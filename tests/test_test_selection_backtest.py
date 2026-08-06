@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 from coverage import CoverageData
 
+from tests import _test_selection_backtest as backtest
 from tests._test_selection import SelectionOptions
 from tests._test_selection_backtest import (
     ANCESTOR,
@@ -467,3 +468,21 @@ def test_backtest_payload_round_trips_the_measurement(
     assert [arm["arm"] for arm in payload["arms"]] == [CLOSURE_ARM, UNION_ARM]
     assert payload["commits"][0]["arms"][CLOSURE_ARM]["missed"] == [DYNAMIC_TEST]
     assert payload["executed"] is False
+
+
+def test_backtest_refuses_to_measure_without_coverage_installed(
+    history: Path, contexts_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A silent empty report reads as a finding; a setup error has to say so.
+
+    `find_tests_touching` returns nothing rather than raising when `coverage`
+    is missing, which is right for selection and wrong here: every commit would
+    skip as `empty-ground-truth` and the harness would look like it measured
+    something.
+    """
+    monkeypatch.setattr(
+        backtest.importlib.util, "find_spec", lambda name: None, raising=True
+    )
+
+    with pytest.raises(SelectionError, match="`coverage` package is not importable"):
+        run_backtest(history, limit=1, options=_options(), contexts_dir=contexts_dir)

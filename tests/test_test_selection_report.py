@@ -42,12 +42,14 @@ def test_reports_the_rules_that_fired() -> None:
 
 
 def test_reports_escalation_without_a_share() -> None:
+    """A ratio escalation happens after contexts are consulted, so it reports them."""
     line = manifest_summary_line(
         {
             "escalated": True,
             "selected_count": 0,
             "universe_count": 20,
             "rules_fired": ["ratio-exceeded"],
+            "contexts": {"baseline": None, "consulted": True, "stale": False},
         }
     )
 
@@ -55,6 +57,40 @@ def test_reports_escalation_without_a_share() -> None:
         line
         == "scoped: escalated to the full suite (rules: ratio-exceeded); contexts baseline missing"
     )
+
+
+def test_a_forced_escalation_reports_contexts_as_unconsulted_not_missing() -> None:
+    """A rule that forces the full suite short-circuits before the cache is read.
+
+    Calling that a *missing* baseline tells an agent to go cache one — and
+    tells `just selection-health` to charge the run with a closure-only
+    exposure it never ran, when in fact it executed every test.
+    """
+    line = manifest_summary_line(
+        {
+            "escalated": True,
+            "selected_count": 0,
+            "universe_count": 20,
+            "rules_fired": ["core-identity-changed"],
+            "contexts": {"baseline": None, "consulted": False, "stale": False},
+        }
+    )
+
+    assert line.endswith("contexts baseline not consulted")
+
+
+def test_an_escalated_pre_schema_4_record_is_read_as_unconsulted() -> None:
+    """Records written before `consulted` existed still have to read honestly."""
+    line = manifest_summary_line(
+        {
+            "escalated": True,
+            "selected_count": 0,
+            "universe_count": 20,
+            "rules_fired": ["justfile"],
+        }
+    )
+
+    assert line.endswith("contexts baseline not consulted")
 
 
 def test_reports_a_present_fresh_baseline() -> None:

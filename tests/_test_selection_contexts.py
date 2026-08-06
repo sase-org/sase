@@ -83,6 +83,17 @@ class ContextSelection:
     stale: bool = False
     distance: int | None = None
     matched_files: tuple[str, ...] = ()
+    #: Whether the baseline cache was looked at during this selection at all.
+    #:
+    #: A run a rule forces to the full suite never reaches
+    #: :func:`select_from_contexts`: its selection is already the whole suite,
+    #: so ground truth has nothing left to add. Recording that as a *missing*
+    #: baseline charges the run with an exposure it never ran — the difference
+    #: between "the static closure was the only source" and "the static closure
+    #: was not the source either". Every reader that reports baseline
+    #: availability has to tell those apart, so the selector states it rather
+    #: than leaving each one to re-derive it from ``escalated``.
+    consulted: bool = True
 
     @property
     def usable(self) -> bool:
@@ -101,11 +112,29 @@ class ContextSelection:
         """The manifest's ``contexts`` block."""
         return {
             "baseline": self.baseline_sha,
+            "consulted": self.consulted,
             "stale": self.stale,
             "distance": self.distance,
             "selected_count": len(self.selected),
             "matched_files": list(self.matched_files),
         }
+
+
+def contexts_consulted(payload: Mapping[str, Any], *, escalated: bool) -> bool:
+    """Whether a manifest's ``contexts`` block records a real lookup.
+
+    Manifests written before schema 4 carry no ``consulted`` flag, so the
+    answer has to be inferred for them: an escalated run that also recorded no
+    baseline is the forced-full-suite shape, since a ratio escalation happens
+    only *after* contexts are consulted and keeps whatever baseline it found.
+    Reading it wrong in that direction is safe — such a run executed the whole
+    suite either way — while reading a forced escalation as a missing baseline
+    is what inflates the exposure count this function exists to keep honest.
+    """
+    recorded = payload.get("consulted")
+    if recorded is not None:
+        return bool(recorded)
+    return not (escalated and payload.get("baseline") is None)
 
 
 # --------------------------------------------------------------------------
