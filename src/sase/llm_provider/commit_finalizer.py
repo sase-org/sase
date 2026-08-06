@@ -26,6 +26,7 @@ from .commit_finalizer_git import (
     auto_commit_sdd_prompt_qa_candidate,
     auto_commit_done_sdd_plan_status,
     git_changed_files,
+    progress_fingerprint,
     sdd_prompt_qa_auto_commit_candidates,
 )
 from .commit_finalizer_prompting import (
@@ -255,7 +256,7 @@ def run_commit_finalizer(
             follow_up_prompt,
         )
 
-        fingerprint_before = finalizer_git.progress_fingerprint(dirty_state)
+        fingerprint_before = progress_fingerprint(dirty_state)
 
         follow_up = provider.invoke(
             follow_up_prompt,
@@ -297,7 +298,7 @@ def run_commit_finalizer(
         )
         done_plan_auto_committed = done_auto_committed or done_plan_auto_committed
 
-        fingerprint_after = finalizer_git.progress_fingerprint(dirty_state)
+        fingerprint_after = progress_fingerprint(dirty_state)
         previous_pass_stalled = fingerprint_after == fingerprint_before
         if previous_pass_stalled:
             no_progress_passes += 1
