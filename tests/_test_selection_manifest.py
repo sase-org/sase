@@ -22,8 +22,10 @@ from typing import Any
 #: `effective_depth` did, to 4 when `contexts.consulted` did, to 5 when the
 #: `timings` block — the estimated serial cost of the selection, and the
 #: identity of the table it was estimated from — joined it, and to 6 when
-#: `baseline.environment` became a per-input map (was a single opaque digest)
-#: and `baseline.environment_changed_inputs` joined it.
+#: `baseline.environment` became a per-input map (was a single opaque digest),
+#: `baseline.environment_changed_inputs` joined it, `max_serial_seconds` did,
+#: and the `timings` block stopped reading `escalated` for a run that escalated
+#: on that estimate.
 MANIFEST_SCHEMA = 6
 
 SELECTION_DIRECTORY = Path(".pytest_cache") / "sase-selection"

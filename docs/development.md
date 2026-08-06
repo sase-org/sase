@@ -64,9 +64,19 @@ Selection is a **heuristic**, not a guarantee: an unbounded closure would select
 of a large import cycle in `src/sase`, so depth-bounding is the mechanism, not a tuning knob. A handful of broadening
 rules escalate to the full suite when the change touches something the closure cannot safely reason about (a conftest,
 `pyproject.toml`, the `Justfile`, config schemas, the selection engine itself, or a narrow set of environment-identity
-inputs — see "The `core-identity-changed` escalation" below), and the selection also escalates when it would otherwise
-exceed `SASE_TEST_SELECTION_MAX_RATIO` (default `0.25`) of all test files. An escalated run falls through to the same
-governed, fully parallel lane as `just test`.
+inputs — see "The `core-identity-changed` escalation" below). A selection that survives those rules is then costed
+rather than counted: it escalates when a serial run of it is estimated to take longer than
+`SASE_TEST_SELECTION_MAX_SERIAL_SECONDS` (default: the full lane's measured wall clock, 232s), and only where no such
+estimate is available does the file-count ratio `SASE_TEST_SELECTION_MAX_RATIO` (default `0.25`) decide instead. An
+escalated run falls through to the same governed, fully parallel lane as `just test`.
+
+The runtime budget exists because file count is a 6x-spread proxy for runtime: measured on athena on 2026-08-06, eight
+of 39 scoped runs took longer than the 232s full lane and consumed 75% of the lane's total wall clock, and the worst —
+494 files, which the ratio rated as scoped — ran 1,032.6s where `just check-full` would have finished in ~291s. Past the
+crossover the fast path is the slow path, so the lane stops taking it. Every scoped manifest records both halves of the
+comparison (`max_serial_seconds` and the `timings` block), and `tools/select_tests --explain` prints them whether or not
+the rule fired —
+`serial budget: estimated 180s against a 232s budget (within; 96% of the selection covered by the timing table)`.
 
 Run `just check-full` — every lint gate plus the full test suite, `just test` unchanged — before landing an epic's
 combined tree, whenever a change touches the broadening set above, and any time a scoped run escalated or reported a
@@ -92,9 +102,9 @@ while at least `SASE_TEST_SELECTION_TIMINGS_MIN_COVERAGE` (default `0.8`) of the
 the answer is an explicit "insufficient data" rather than a number. Every scoped manifest records the estimate, the
 coverage fraction, and the identity of the table it came from, under `timings`.
 
-The estimate is **measured and inert**: no escalation rule consults it yet, so a host with no table behaves exactly as
-it did before. `SASE_TEST_SELECTION_TIMINGS_DISABLED=1` turns recording and estimating off;
-`SASE_TEST_SELECTION_TIMINGS_DIR` relocates the table.
+The estimate is what the `serial-budget-exceeded` rule above decides on. Where it is unavailable — a fresh host, a
+mostly-new selection, or `SASE_TEST_SELECTION_TIMINGS_DISABLED=1` — nothing changes: the file-count ratio decides, as it
+did before the table existed. `SASE_TEST_SELECTION_TIMINGS_DIR` relocates the table.
 
 #### The `core-identity-changed` escalation
 

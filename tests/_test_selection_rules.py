@@ -39,10 +39,35 @@ RULE_DIRECTORY_CONFTEST = "directory-conftest"
 RULE_CONTRACT_SET_ALWAYS = "contract-set-always"
 RULE_CONTRACT_SET_ONLY = "contract-set-only"
 RULE_RENAME_OR_DELETE = "rename-or-delete"
+#: The selection is too large a share of the suite to be worth running scoped.
+#: A *fallback*: it survives only for the case where no duration table exists,
+#: because file count is a 6x-spread proxy for runtime and the selections that
+#: blow the runtime budget are precisely the ones it rates as cheap. See
+#: ``RULE_SERIAL_BUDGET_EXCEEDED``, which supersedes it wherever the table can
+#: answer.
 RULE_RATIO_EXCEEDED = "selection-ratio-exceeded"
+
+#: A serial run of the selection is estimated to cost more than the governed
+#: full lane's wall clock (``SASE_TEST_SELECTION_MAX_SERIAL_SECONDS``, default
+#: :data:`tests._test_selection_health.FULL_LANE_WALL_SECONDS`). Past that
+#: crossover the "fast path" is the slow path: the same agent would have had
+#: `just check-full` sooner. Evaluated only when
+#: :func:`tests._test_selection_timings.estimate_serial_seconds` returns an
+#: available estimate; when it does not, ``RULE_RATIO_EXCEEDED`` decides
+#: instead, so a host with no table behaves exactly as it did before.
+RULE_SERIAL_BUDGET_EXCEEDED = "serial-budget-exceeded"
+
 RULE_NO_BASELINE_DEPTH_BOOST = "no-baseline-depth-boost"
 
 #: Rules whose only sound response is to run everything.
+#:
+#: This set is consulted by :meth:`RuleEvaluation.forces_full_suite`, which
+#: runs *before* the closure, so it holds only rules
+#: :func:`evaluate_broadening_rules` can decide from the change set alone.
+#: ``RULE_RATIO_EXCEEDED`` and ``RULE_SERIAL_BUDGET_EXCEEDED`` also escalate,
+#: but neither can be known until there is a selection to measure; both are
+#: appended by :func:`tests._test_selection.select_tests` afterwards and are
+#: deliberately absent here for that reason, not because they are weaker.
 #:
 #: ``RULE_NO_BASELINE_DEPTH_BOOST`` is deliberately absent. Absence of a usable
 #: coverage baseline is uncommon per-run on a host that fetches or records one,
@@ -86,6 +111,11 @@ SELECTION_TOOLING_PATHS = frozenset(
         "tests/_test_selection_manifest.py",
         "tests/_test_selection_report.py",
         "tests/_test_selection_rules.py",
+        # Joined the set with `RULE_SERIAL_BUDGET_EXCEEDED`: the duration table
+        # stopped being an inert measurement the moment an escalation started
+        # depending on it, and a change to the cost model can move any run
+        # across the budget.
+        "tests/_test_selection_timings.py",
         CONTRACT_MANIFEST_PATH,
     }
 )

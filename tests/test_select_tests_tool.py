@@ -149,6 +149,17 @@ def test_ratio_flag_can_force_escalation(
     assert capsys.readouterr().out.strip() == FULL_SUITE
 
 
+def test_serial_budget_flag_overrides_the_environment(
+    tool: ModuleType, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _touch(repo, "src/pkg/a.py")
+
+    tool.main(["--base", "HEAD", "--max-serial-seconds", "12.5", "--format", "json"])
+
+    manifest = json.loads(capsys.readouterr().out)
+    assert manifest["max_serial_seconds"] == pytest.approx(12.5)
+
+
 def test_explain_names_the_seed_and_hop(
     tool: ModuleType, repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

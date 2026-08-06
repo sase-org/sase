@@ -50,6 +50,7 @@ from tests._test_selection_graph import (
     is_test_file,
     is_visual_path,
 )
+from tests._test_selection_health import FULL_LANE_WALL_SECONDS
 from tests._test_selection_health_store import store_directory
 from tests._test_selection_manifest import (
     ENVIRONMENT_ESCALATING_INPUTS,
@@ -66,6 +67,7 @@ from tests._test_selection_rules import (
     RULE_CONTRACT_SET_ALWAYS,
     RULE_NO_BASELINE_DEPTH_BOOST,
     RULE_RATIO_EXCEEDED,
+    RULE_SERIAL_BUDGET_EXCEEDED,
     evaluate_broadening_rules,
 )
 from tests._test_selection_timings import (
@@ -78,10 +80,17 @@ from tests._test_selection_timings import (
 
 DEFAULT_DEPTH = 2
 DEFAULT_MAX_RATIO = 0.25
+#: The serial-runtime budget: the crossover past which running the selection
+#: scoped costs the waiting agent more than handing the whole suite to the
+#: governed parallel lane would have. It is the full lane's measured wall
+#: clock, not a round number — see
+#: :data:`tests._test_selection_health.FULL_LANE_WALL_SECONDS`.
+DEFAULT_MAX_SERIAL_SECONDS = FULL_LANE_WALL_SECONDS
 DEFAULT_BASE_REF = "origin/master"
 
 DEPTH_ENV = "SASE_TEST_SELECTION_DEPTH"
 MAX_RATIO_ENV = "SASE_TEST_SELECTION_MAX_RATIO"
+MAX_SERIAL_SECONDS_ENV = "SASE_TEST_SELECTION_MAX_SERIAL_SECONDS"
 BASE_ENV = "SASE_CHECK_BASE"
 
 FULL_SUITE = "FULL_SUITE"
@@ -97,6 +106,7 @@ class SelectionOptions:
     base_ref: str = DEFAULT_BASE_REF
     depth: int = DEFAULT_DEPTH
     max_ratio: float = DEFAULT_MAX_RATIO
+    max_serial_seconds: float = DEFAULT_MAX_SERIAL_SECONDS
     use_cache: bool = True
 
     @classmethod
@@ -107,6 +117,7 @@ class SelectionOptions:
         base_ref: str | None = None,
         depth: int | None = None,
         max_ratio: float | None = None,
+        max_serial_seconds: float | None = None,
         use_cache: bool = True,
     ) -> SelectionOptions:
         environ = os.environ if environ is None else environ
@@ -116,8 +127,25 @@ class SelectionOptions:
             depth = _positive_int(environ.get(DEPTH_ENV), DEFAULT_DEPTH, DEPTH_ENV)
         if max_ratio is None:
             max_ratio = _ratio(environ.get(MAX_RATIO_ENV), DEFAULT_MAX_RATIO)
+        if max_serial_seconds is None:
+            max_serial_seconds = _positive_float(
+                environ.get(MAX_SERIAL_SECONDS_ENV),
+                DEFAULT_MAX_SERIAL_SECONDS,
+                MAX_SERIAL_SECONDS_ENV,
+            )
+        elif max_serial_seconds <= 0:
+            # An explicit `--max-serial-seconds 0` is rejected on the same
+            # terms as the environment variable rather than silently becoming
+            # a budget that escalates everything.
+            raise SelectionError(
+                "max_serial_seconds must be a positive number of seconds"
+            )
         return cls(
-            base_ref=base_ref, depth=depth, max_ratio=max_ratio, use_cache=use_cache
+            base_ref=base_ref,
+            depth=depth,
+            max_ratio=max_ratio,
+            max_serial_seconds=max_serial_seconds,
+            use_cache=use_cache,
         )
 
 
@@ -130,6 +158,25 @@ def _positive_int(raw: str | None, default: int, name: str) -> int:
         raise SelectionError(f"{name} must be a non-negative integer") from error
     if value < 0:
         raise SelectionError(f"{name} must be a non-negative integer")
+    return value
+
+
+def _positive_float(raw: str | None, default: float, name: str) -> float:
+    """A positive number of seconds, or a stated error.
+
+    Zero is rejected along with the negatives: a budget of ``0`` would escalate
+    every run that has an estimate at all, which is what
+    ``SASE_TEST_SELECTION_TIMINGS_DISABLED=1`` is for and is not what anyone
+    means by a budget.
+    """
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = float(raw)
+    except ValueError as error:
+        raise SelectionError(f"{name} must be a positive number of seconds") from error
+    if value <= 0:
+        raise SelectionError(f"{name} must be a positive number of seconds")
     return value
 
 
@@ -158,10 +205,17 @@ class Selection:
     manifest: dict[str, Any]
     explanations: dict[str, tuple[str, int]]
     universe_count: int
+    #: The knobs this selection was made under. Carried so a renderer can say
+    #: what an estimate was measured *against* without re-reading the
+    #: environment it no longer runs in.
+    options: SelectionOptions = SelectionOptions()
     contexts: ContextSelection = ContextSelection()
-    #: What a serial run of `selected` is estimated to cost, or why that
-    #: cannot be said. Measured and inert: nothing in this selection depends
-    #: on it.
+    #: What a serial run of the candidate selection was estimated to cost, or
+    #: why that cannot be said. This is what `RULE_SERIAL_BUDGET_EXCEEDED`
+    #: decides on, so on an escalated run it describes the selection that was
+    #: rejected rather than the empty one that replaced it — unless a
+    #: change-set rule escalated first, in which case there was never a
+    #: selection to cost and the reason is `escalated`.
     timings: TimingEstimate = field(default_factory=TimingEstimate)
 
     @property
@@ -386,28 +440,40 @@ def select_tests(
         }
 
     escalated = evaluation.forces_full_suite
-    if not escalated and len(selected) > options.max_ratio * len(universe):
-        escalated = True
-        rules.append(RULE_RATIO_EXCEEDED)
+
+    # What the selection would cost to run serially, decided *before* the
+    # selection is thrown away, so the budget rule below has a number and so
+    # the manifest can show it whether or not the rule fires. A run that a
+    # change-set rule already escalated never had a per-file selection to
+    # cost: that records as `escalated`, not as `0.0`.
+    if escalated:
+        timings = TimingEstimate(reason=REASON_ESCALATED)
+    else:
+        timings = estimate_serial_seconds(
+            sorted(selected),
+            directory=timings_directory(
+                store_directory(root) if timings_store is None else timings_store
+            ),
+        )
+        # Runtime first, file count only as the fallback. The ratio is a 6x-
+        # spread proxy for runtime — the epic measured a 94-file selection at
+        # 465s against a 517-file one at 404s — so it is consulted only where
+        # the duration table cannot answer, which keeps a fresh host with no
+        # table behaving exactly as it did before.
+        if timings.available and timings.seconds is not None:
+            if timings.seconds > options.max_serial_seconds:
+                escalated = True
+                rules.append(RULE_SERIAL_BUDGET_EXCEEDED)
+        elif len(selected) > options.max_ratio * len(universe):
+            escalated = True
+            rules.append(RULE_RATIO_EXCEEDED)
+
     if escalated:
         selected = set()
         explanations = {}
 
     ordered_rules = tuple(sorted(set(rules)))
     ordered_selected = tuple(sorted(selected))
-
-    # Measured and inert. The estimate is recorded so a reader can see what a
-    # selection was about to cost; no rule above consults it, and none should
-    # until a phase deliberately makes it one.
-    if escalated:
-        timings = TimingEstimate(reason=REASON_ESCALATED)
-    else:
-        timings = estimate_serial_seconds(
-            ordered_selected,
-            directory=timings_directory(
-                store_directory(root) if timings_store is None else timings_store
-            ),
-        )
 
     manifest = {
         "schema": MANIFEST_SCHEMA,
@@ -420,6 +486,12 @@ def select_tests(
         # one without re-deriving it from `rules_fired`.
         "effective_depth": depth,
         "max_ratio": options.max_ratio,
+        # The serial-runtime budget the estimate below was measured against.
+        # Recorded on every scoped manifest, including the runs that stayed
+        # scoped: "estimated 180s, budget 232s" is the sentence a reader
+        # looking at a 400-file selection needs, and it is only a sentence if
+        # both halves are on the record.
+        "max_serial_seconds": options.max_serial_seconds,
         "rules_fired": list(ordered_rules),
         "escalated": escalated,
         "selected": list(ordered_selected),
@@ -446,6 +518,7 @@ def select_tests(
         manifest=manifest,
         explanations=explanations,
         universe_count=len(universe),
+        options=options,
         contexts=contexts,
         timings=timings,
     )

@@ -146,3 +146,48 @@ def test_zero_universe_count_does_not_divide_by_zero() -> None:
     )
 
     assert "selected 0 of 0 test files (0.0%" in line
+
+
+def test_reports_the_estimate_against_the_budget() -> None:
+    line = manifest_summary_line(
+        {
+            "escalated": False,
+            "selected_count": 5,
+            "universe_count": 20,
+            "rules_fired": [],
+            "max_serial_seconds": 232.0,
+            "timings": {"estimated_serial_seconds": 117.6, "available": True},
+        }
+    )
+
+    assert line.endswith("; est 118s/232s")
+
+
+def test_says_nothing_about_a_budget_it_could_not_measure() -> None:
+    """A run the ratio decided has no comparison to report."""
+    line = manifest_summary_line(
+        {
+            "escalated": False,
+            "selected_count": 5,
+            "universe_count": 20,
+            "rules_fired": [],
+            "max_serial_seconds": 232.0,
+            "timings": {"estimated_serial_seconds": None, "available": False},
+        }
+    )
+
+    assert "; est " not in line
+
+
+def test_a_pre_schema_6_record_carries_no_budget() -> None:
+    line = manifest_summary_line(
+        {
+            "escalated": False,
+            "selected_count": 5,
+            "universe_count": 20,
+            "rules_fired": [],
+            "timings": {"estimated_serial_seconds": 12.0, "available": True},
+        }
+    )
+
+    assert "; est " not in line

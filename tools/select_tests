@@ -50,6 +50,16 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--max-serial-seconds",
+        type=float,
+        help=(
+            "escalate when a serial run of the selection is estimated to cost "
+            "more than this many seconds, whenever the timing table can say "
+            "(default: $SASE_TEST_SELECTION_MAX_SERIAL_SECONDS or the full "
+            "lane's measured wall clock)"
+        ),
+    )
+    parser.add_argument(
         "--no-cache",
         action="store_true",
         help="rebuild the import graph from scratch instead of reusing the cache",
@@ -78,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
             base_ref=namespace.base,
             depth=namespace.depth,
             max_ratio=namespace.max_ratio,
+            max_serial_seconds=namespace.max_serial_seconds,
             use_cache=not namespace.no_cache,
         )
         graph = build_import_graph(

@@ -8,6 +8,7 @@ these tests rot on every commit that adds or removes an import.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -26,8 +27,9 @@ from tests._test_selection_graph import (
     parse_import_targets,
     parser_fingerprint,
 )
+from tests._test_selection_health import FULL_LANE_WALL_SECONDS
 from tests._test_selection_manifest import MANIFEST_SCHEMA
-from tests._test_selection_report import explain_lines, summary_line
+from tests._test_selection_report import budget_line, explain_lines, summary_line
 from tests._test_selection_rules import (
     CONTRACT_MANIFEST_PATH,
     RULE_BASE_UNRESOLVED,
@@ -41,7 +43,16 @@ from tests._test_selection_rules import (
     RULE_RENAME_OR_DELETE,
     RULE_ROOT_CONFTEST,
     RULE_SELECTION_TOOLING,
+    RULE_SERIAL_BUDGET_EXCEEDED,
     RULE_SRC_DATA_ASSET,
+)
+from tests._test_selection_timings import (
+    MIN_COVERAGE_ENV,
+    REASON_ESCALATED,
+    TIMINGS_DIR_ENV,
+    TIMINGS_DISABLED_ENV,
+    timings_directory,
+    write_timings,
 )
 
 
@@ -53,6 +64,19 @@ from tests._test_selection_fixtures import (
     build_fixture_repo,
     install_fresh_baseline,
 )
+
+
+@pytest.fixture(autouse=True)
+def _neutral_timings_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the host's own timing knobs out of this module's assertions.
+
+    The budget rule reads the ambient environment, so an agent running the
+    suite with ``SASE_TEST_SELECTION_TIMINGS_DISABLED=1`` would otherwise
+    silently turn every budget assertion here into an assertion about the
+    file-count fallback.
+    """
+    for name in (TIMINGS_DIR_ENV, TIMINGS_DISABLED_ENV, MIN_COVERAGE_ENV):
+        monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture
@@ -69,6 +93,7 @@ def _select(
     depth: int = 2,
     max_ratio: float = 1.0,
     base_ref: str = "HEAD",
+    max_serial_seconds: float = 1.0e9,
     **kwargs: object,
 ) -> Selection:
     """Select against a *fresh* baseline, so the closure walks the given depth.
@@ -78,8 +103,18 @@ def _select(
     than the closure. The compensation has its own tests, in
     ``tests/test_test_selection_contexts_depth_boost.py``.
     """
-    options = SelectionOptions(base_ref=base_ref, depth=depth, max_ratio=max_ratio)
+    options = SelectionOptions(
+        base_ref=base_ref,
+        depth=depth,
+        max_ratio=max_ratio,
+        max_serial_seconds=max_serial_seconds,
+    )
     kwargs.setdefault("contexts_store", root.parent / "selection-store" / "project")
+    # An empty timing store, unless a test says otherwise. Without it these
+    # selections would be costed against whatever table the host running the
+    # suite happens to have recorded, which is neither this synthetic
+    # repository's cost nor reproducible on another machine.
+    kwargs.setdefault("timings_store", root.parent / "selection-store" / "no-timings")
     return select_tests(root, options, **kwargs)  # type: ignore[arg-type]
 
 
@@ -591,6 +626,115 @@ def test_ratio_escalation_does_not_trip_below_the_threshold(repo: Path) -> None:
 
 
 # --------------------------------------------------------------------------
+# The serial-runtime budget
+# --------------------------------------------------------------------------
+
+
+def _with_timings(
+    repo: Path, seconds_per_file: float, *, minute: int = 1
+) -> tuple[Path, Selection]:
+    """A timings store covering everything a change to ``src/pkg/a.py`` selects.
+
+    Returns the store and the un-budgeted selection it was built from, so a
+    caller can assert against the selection the budget is about to judge.
+    """
+    store = repo.parent / "selection-store" / "timings"
+    baseline = _select(repo, timings_store=store)
+    write_timings(
+        timings_directory(store, {}),
+        dict.fromkeys(baseline.selected, seconds_per_file),
+        mode="fast",
+        pid=1000 + minute,
+        now=datetime(2026, 8, 6, 12, minute, 0, tzinfo=UTC),
+    )
+    return store, baseline
+
+
+def test_serial_budget_escalates_a_selection_that_costs_more_than_the_full_lane(
+    repo: Path,
+) -> None:
+    _touch(repo, "src/pkg/a.py")
+    store, baseline = _with_timings(repo, 100.0)
+
+    selection = _select(repo, max_serial_seconds=50.0, timings_store=store)
+
+    assert RULE_SERIAL_BUDGET_EXCEEDED in selection.rules
+    assert selection.escalated
+    assert selection.selected == ()
+    assert selection.paths_output == FULL_SUITE
+    # The rejected selection's cost stays on the record: an escalation that
+    # cannot say what it was avoiding is not attributable.
+    assert selection.timings.seconds == pytest.approx(100.0 * len(baseline.selected))
+
+
+def test_serial_budget_leaves_a_selection_within_it_alone(repo: Path) -> None:
+    _touch(repo, "src/pkg/a.py")
+    store, baseline = _with_timings(repo, 1.0)
+
+    selection = _select(repo, max_serial_seconds=1.0e6, timings_store=store)
+
+    assert RULE_SERIAL_BUDGET_EXCEEDED not in selection.rules
+    assert not selection.escalated
+    assert selection.selected == baseline.selected
+    assert selection.timings.available
+
+
+def test_serial_budget_supersedes_the_file_count_ratio(repo: Path) -> None:
+    """A cheap selection stays scoped even when the ratio would have escalated.
+
+    This is the epic's whole point: the ratio rated a 94-file selection that
+    cost 465s as comfortably scoped, and a 517-file one that cost 404s as too
+    big. Where the table can answer, runtime decides.
+    """
+    _touch(repo, "src/pkg/a.py")
+    store, _ = _with_timings(repo, 0.1)
+
+    selection = _select(
+        repo, max_ratio=0.05, max_serial_seconds=1.0e6, timings_store=store
+    )
+
+    assert not selection.escalated
+    assert RULE_RATIO_EXCEEDED not in selection.rules
+
+
+def test_the_ratio_still_decides_when_there_is_no_timing_data(repo: Path) -> None:
+    """A fresh host with no table behaves exactly as it did before."""
+    _touch(repo, "src/pkg/a.py")
+
+    selection = _select(repo, max_ratio=0.05, max_serial_seconds=0.001)
+
+    assert selection.escalated
+    assert RULE_RATIO_EXCEEDED in selection.rules
+    assert RULE_SERIAL_BUDGET_EXCEEDED not in selection.rules
+    assert not selection.timings.available
+
+
+def test_manifest_records_the_budget_the_estimate_was_measured_against(
+    repo: Path,
+) -> None:
+    _touch(repo, "src/pkg/a.py")
+    store, _ = _with_timings(repo, 1.0)
+
+    selection = _select(repo, max_serial_seconds=1234.5, timings_store=store)
+
+    assert selection.manifest["max_serial_seconds"] == pytest.approx(1234.5)
+    assert selection.manifest["timings"]["available"] is True
+
+
+def test_a_change_set_escalation_never_reaches_the_budget(repo: Path) -> None:
+    """`pyproject.toml` escalates before there is a selection to cost."""
+    _touch(repo, "pyproject.toml")
+    store, _ = _with_timings(repo, 100.0)
+
+    selection = _select(repo, max_serial_seconds=0.001, timings_store=store)
+
+    assert selection.escalated
+    assert RULE_PACKAGING_CONFIG in selection.rules
+    assert RULE_SERIAL_BUDGET_EXCEEDED not in selection.rules
+    assert selection.timings.reason == REASON_ESCALATED
+
+
+# --------------------------------------------------------------------------
 # Manifest and reporting
 # --------------------------------------------------------------------------
 
@@ -608,6 +752,7 @@ def test_manifest_carries_every_documented_field(repo: Path) -> None:
         "depth",
         "effective_depth",
         "max_ratio",
+        "max_serial_seconds",
         "rules_fired",
         "escalated",
         "selected",
@@ -663,6 +808,35 @@ def test_summary_line_reports_a_scoped_selection(repo: Path) -> None:
     assert summary_line(_select(repo)).startswith("selected 5 of ")
 
 
+def test_explain_reports_the_budget_a_scoped_run_stayed_within(repo: Path) -> None:
+    _touch(repo, "src/pkg/a.py")
+    store, _ = _with_timings(repo, 2.0)
+
+    line = budget_line(_select(repo, max_serial_seconds=232.0, timings_store=store))
+
+    assert line.startswith("serial budget: estimated 10s against a 232s budget")
+    assert "within" in line
+
+
+def test_explain_says_the_ratio_decided_when_there_is_no_estimate(
+    repo: Path,
+) -> None:
+    _touch(repo, "src/pkg/a.py")
+
+    line = budget_line(_select(repo, max_ratio=0.25))
+
+    assert "no estimate" in line
+    assert "ratio decides instead" in line
+
+
+def test_explain_does_not_claim_a_budget_on_a_change_set_escalation(
+    repo: Path,
+) -> None:
+    _touch(repo, "Justfile")
+
+    assert "not evaluated" in budget_line(_select(repo))
+
+
 def test_paths_output_is_one_path_per_line(repo: Path) -> None:
     _touch(repo, "src/pkg/d.py")
 
@@ -682,12 +856,14 @@ def test_options_read_the_environment() -> None:
             "SASE_CHECK_BASE": "origin/main",
             "SASE_TEST_SELECTION_DEPTH": "3",
             "SASE_TEST_SELECTION_MAX_RATIO": "0.4",
+            "SASE_TEST_SELECTION_MAX_SERIAL_SECONDS": "90",
         }
     )
 
     assert options.base_ref == "origin/main"
     assert options.depth == 3
     assert options.max_ratio == 0.4
+    assert options.max_serial_seconds == 90.0
 
 
 def test_options_default_when_unset() -> None:
@@ -696,6 +872,9 @@ def test_options_default_when_unset() -> None:
     assert options.base_ref == "origin/master"
     assert options.depth == 2
     assert options.max_ratio == 0.25
+    # The budget defaults to the full lane's measured wall clock, not a round
+    # number: past that crossover the scoped lane is the slow lane.
+    assert options.max_serial_seconds == FULL_LANE_WALL_SECONDS
 
 
 @pytest.mark.parametrize(
@@ -706,6 +885,9 @@ def test_options_default_when_unset() -> None:
         {"SASE_TEST_SELECTION_MAX_RATIO": "0"},
         {"SASE_TEST_SELECTION_MAX_RATIO": "1.5"},
         {"SASE_TEST_SELECTION_MAX_RATIO": "nope"},
+        {"SASE_TEST_SELECTION_MAX_SERIAL_SECONDS": "0"},
+        {"SASE_TEST_SELECTION_MAX_SERIAL_SECONDS": "-5"},
+        {"SASE_TEST_SELECTION_MAX_SERIAL_SECONDS": "nope"},
     ],
 )
 def test_options_reject_nonsense(environ: dict[str, str]) -> None:

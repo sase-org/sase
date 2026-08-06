@@ -12,6 +12,7 @@ from typing import Any
 
 from tests._test_selection import Selection
 from tests._test_selection_contexts import ContextSelection, contexts_consulted
+from tests._test_selection_timings import REASON_ESCALATED
 
 
 def summary_line(selection: Selection) -> str:
@@ -50,6 +51,36 @@ def context_line(contexts: ContextSelection) -> str:
     )
 
 
+def budget_line(selection: Selection) -> str:
+    """One line describing the serial-runtime budget and what it decided.
+
+    Printed whether or not `RULE_SERIAL_BUDGET_EXCEEDED` fired: an agent
+    looking at a 400-file selection that stayed scoped should be able to read
+    "estimated 180s, budget 232s" and understand why, without re-deriving it
+    from the manifest.
+    """
+    budget = selection.options.max_serial_seconds
+    timings = selection.timings
+    if timings.reason == REASON_ESCALATED:
+        return (
+            "serial budget: not evaluated — a change-set rule escalated before "
+            "there was a selection to cost"
+        )
+    if not timings.available or timings.seconds is None:
+        return (
+            f"serial budget: no estimate ({timings.reason}; "
+            f"{timings.covered_count}/{timings.covered_count + timings.missing_count} "
+            f"files covered, floor {timings.min_coverage:.0%}) — "
+            f"the {selection.options.max_ratio:.0%} file-count ratio decides instead"
+        )
+    verdict = "over" if timings.seconds > budget else "within"
+    return (
+        f"serial budget: estimated {timings.seconds:.0f}s against a {budget:.0f}s "
+        f"budget ({verdict}; {timings.coverage:.0%} of the selection covered by "
+        f"the timing table)"
+    )
+
+
 def manifest_summary_line(manifest: dict[str, Any]) -> str:
     """The scoped lane's one-line summary, rebuilt from its persisted manifest.
 
@@ -82,7 +113,26 @@ def manifest_summary_line(manifest: dict[str, Any]) -> str:
             f"({share:.1f}%; rules: {rules})"
         )
 
-    return f"scoped: {selection_part}; contexts baseline {baseline_status}"
+    return (
+        f"scoped: {selection_part}; contexts baseline {baseline_status}"
+        f"{_manifest_budget_clause(manifest)}"
+    )
+
+
+def _manifest_budget_clause(manifest: dict[str, Any]) -> str:
+    """`; est 118s/232s`, when the manifest costed a selection at all.
+
+    Compact because it rides on the one line an agent sees after a passing
+    scoped run, and silent when there was no estimate: a run the ratio decided
+    has no budget comparison to report, and inventing one would be worse than
+    saying nothing.
+    """
+    timings = manifest.get("timings") or {}
+    estimate = timings.get("estimated_serial_seconds")
+    budget = manifest.get("max_serial_seconds")
+    if estimate is None or budget is None:
+        return ""
+    return f"; est {float(estimate):.0f}s/{float(budget):.0f}s"
 
 
 def explain_lines(selection: Selection, *, sample: int = 20) -> list[str]:
@@ -95,6 +145,7 @@ def explain_lines(selection: Selection, *, sample: int = 20) -> list[str]:
     if changed_inputs:
         lines.append(f"environment inputs changed: {', '.join(changed_inputs)}")
     lines.append(context_line(selection.contexts))
+    lines.append(budget_line(selection))
     if selection.escalated:
         lines.append("no per-file selection: the run escalates to the full suite")
         return lines

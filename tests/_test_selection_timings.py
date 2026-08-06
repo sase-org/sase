@@ -6,8 +6,11 @@ costs. That gap is why a 94-file selection — 4% of the suite, comfortably
 a 6x-spread proxy for runtime, and the ratio guard that uses it rates the
 slowest selections as the cheapest.
 
-This module owns the cost model and nothing else. It is deliberately inert:
-:func:`estimate_serial_seconds` is a number a caller may consult, not a rule.
+This module owns the cost model and nothing else: it measures, and
+:mod:`tests._test_selection_rules` decides. Its one consumer is
+``RULE_SERIAL_BUDGET_EXCEEDED``, which escalates a selection whose estimated
+serial cost exceeds the governed full lane's wall clock; where this module
+refuses to answer, the file-count ratio decides instead.
 
 The shape of the model:
 
