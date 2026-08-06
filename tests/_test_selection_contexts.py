@@ -31,19 +31,36 @@ Selection itself never touches the network.
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import sqlite3
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from tests._test_selection_graph import SelectionError, is_visual_path, run_git
 
 
 CONTEXTS_SUBDIRECTORY = "contexts"
 BASELINE_SUFFIX = ".sqlite"
+BREADTH_SUFFIX = ".breadth.json"
 ARTIFACT_PREFIX = "sase-coverage-contexts"
+
+#: How thin a baseline may be, relative to the broadest candidate in the cache,
+#: and still be treated as comparably attributed.
+#:
+#: Ranking on breadth alone would let a marginally broader but much older
+#: database beat a fresh one for the sake of a few hundred rows, so breadth is a
+#: *gate* rather than the sort key: everything within this share of the best
+#: candidate is comparable, and commit distance decides among them. The observed
+#: failure this guards against was an order of magnitude off — 46k attribution
+#: pairs against 598k — so the exact cutoff only has to land somewhere in that
+#: gap.
+BREADTH_TOLERANCE = 0.75
 
 #: Overrides the baseline cache directory outright; the tests use it.
 CONTEXTS_DIR_ENV = "SASE_TEST_SELECTION_CONTEXTS_DIR"
@@ -66,11 +83,44 @@ _SHA_PATTERN = re.compile(r"^[0-9a-f]{7,40}$")
 
 
 @dataclass(frozen=True)
+class BaselineBreadth:
+    """How much ground truth a coverage database actually holds.
+
+    Two databases recorded over the same suite at the same commit can still
+    differ by an order of magnitude in what they attribute: coverage's default
+    ``sysmon`` core on Python 3.14 stops monitoring a location once it has been
+    seen, so only the *first* test to execute a line is credited, while the
+    ``ctrace`` core credits every one of them. Both runs are complete, and only
+    the row counts tell them apart.
+
+    ``attributions`` is the count that matters — one ``line_bits`` row is one
+    ``(file, context)`` pair, which is exactly the "which tests executed this
+    code" question selection asks.
+    """
+
+    contexts: int
+    attributions: int
+    files: int
+
+    @property
+    def density(self) -> float:
+        """Attribution pairs per measured file.
+
+        Comparing raw counts across databases would confuse a *thin* run with a
+        *smaller repository*; dividing by the file count leaves only how richly
+        each measured file is attributed.
+        """
+        return self.attributions / self.files if self.files else 0.0
+
+
+@dataclass(frozen=True)
 class ContextBaseline:
     """A cached per-test coverage database and the commit it was recorded at."""
 
     path: Path
     sha: str
+    #: ``None`` when the database could not be read to measure it.
+    breadth: BaselineBreadth | None = None
 
 
 @dataclass(frozen=True)
@@ -155,19 +205,27 @@ def baseline_path(directory: Path, sha: str) -> Path:
 
 
 def cached_baselines(directory: Path) -> list[ContextBaseline]:
-    """Every cached baseline, newest file first.
+    """Every cached baseline, newest file first, each measured for breadth.
 
     Only names that look like ``<sha>.sqlite`` are recognised: this directory
     lives under the user's ``~/.sase``, and treating an unfamiliar file there as
     a coverage database is how you get a confusing traceback instead of a
     clean fallback.
+
+    File order is mtime order because that is what pruning wants — the cache is
+    a fixed-size ring of the most recently obtained databases. Choosing which
+    one to *read* is :func:`resolve_baseline`'s job and uses breadth instead.
     """
     try:
         entries = list(directory.iterdir())
     except OSError:
         return []
     baselines = [
-        ContextBaseline(path=entry, sha=entry.name[: -len(BASELINE_SUFFIX)])
+        ContextBaseline(
+            path=entry,
+            sha=entry.name[: -len(BASELINE_SUFFIX)],
+            breadth=_load_breadth(entry),
+        )
         for entry in entries
         if entry.name.endswith(BASELINE_SUFFIX)
         and _SHA_PATTERN.match(entry.name[: -len(BASELINE_SUFFIX)])
@@ -184,12 +242,111 @@ def _mtime(path: Path) -> float:
         return 0.0
 
 
+def breadth_path(database: Path) -> Path:
+    """The sidecar recording ``database``'s measured breadth."""
+    return database.with_name(f"{database.name}{BREADTH_SUFFIX}")
+
+
+def measure_breadth(database: Path) -> BaselineBreadth | None:
+    """Count what ``database`` attributes, or ``None`` if it cannot be read.
+
+    The counts come straight from SQLite rather than through ``CoverageData``:
+    opening a 50 MB database through coverage's API to learn three integers
+    costs seconds, and selection runs on every ``just check``.
+
+    Read-only is not just hygiene. A database another process is writing must
+    not gain a journal or a lock from being counted, and opening one that turns
+    out not to be SQLite at all must fail rather than create anything.
+    """
+    uri = f"file:{quote(str(database))}?mode=ro"
+    try:
+        connection = sqlite3.connect(uri, uri=True)
+    except sqlite3.Error:
+        return None
+    try:
+        contexts, attributions, files = connection.execute(
+            "SELECT (SELECT count(*) FROM context), "
+            "(SELECT count(*) FROM line_bits), "
+            "(SELECT count(*) FROM file)"
+        ).fetchone()
+    except sqlite3.Error:
+        return None
+    finally:
+        connection.close()
+    return BaselineBreadth(
+        contexts=int(contexts), attributions=int(attributions), files=int(files)
+    )
+
+
+def cache_breadth(database: Path, breadth: BaselineBreadth) -> None:
+    """Record ``breadth`` beside ``database`` so selection never re-measures it.
+
+    Both producers call this the moment a database lands, which keeps the cost
+    of measuring on the side that already spent minutes recording or
+    downloading — not on the ``just check`` that happens to resolve it first.
+    Failing to write the sidecar is not an error: it is a cache, and
+    :func:`_load_breadth` re-measures whenever it is absent or stale.
+    """
+    try:
+        stat = database.stat()
+    except OSError:
+        return
+    payload = {
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+        "contexts": breadth.contexts,
+        "attributions": breadth.attributions,
+        "files": breadth.files,
+    }
+    try:
+        breadth_path(database).write_text(json.dumps(payload), encoding="utf-8")
+    except OSError:
+        return
+
+
+def _load_breadth(database: Path) -> BaselineBreadth | None:
+    """``database``'s breadth, from the sidecar when it still describes it.
+
+    The sidecar names the size and mtime it was measured from, so a database
+    re-recorded under the same SHA — which is what ``just test-contexts`` does
+    on a commit already in the cache — is measured again rather than read
+    through the previous run's numbers.
+    """
+    cached = _read_breadth_sidecar(database)
+    if cached is not None:
+        return cached
+    measured = measure_breadth(database)
+    if measured is not None:
+        cache_breadth(database, measured)
+    return measured
+
+
+def _read_breadth_sidecar(database: Path) -> BaselineBreadth | None:
+    try:
+        raw = json.loads(breadth_path(database).read_text(encoding="utf-8"))
+        stat = database.stat()
+    except (OSError, ValueError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    if raw.get("size") != stat.st_size or raw.get("mtime_ns") != stat.st_mtime_ns:
+        return None
+    try:
+        return BaselineBreadth(
+            contexts=int(raw["contexts"]),
+            attributions=int(raw["attributions"]),
+            files=int(raw["files"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def prune_baselines(directory: Path, keep: int) -> list[Path]:
     """Keep only the ``keep`` newest baselines; the cache is disposable.
 
     Both producers — the CI fetch and a local ``cov-contexts`` run — call this,
     so one bound holds however a baseline arrived. Each database is tens of
-    megabytes, and only the newest ancestor is ever read.
+    megabytes, and only one of them is ever read per selection.
     """
     removed: list[Path] = []
     for baseline in cached_baselines(directory)[keep:]:
@@ -197,17 +354,26 @@ def prune_baselines(directory: Path, keep: int) -> list[Path]:
             baseline.path.unlink()
         except OSError:
             continue
+        breadth_path(baseline.path).unlink(missing_ok=True)
         removed.append(baseline.path)
     return removed
 
 
 def resolve_baseline(root: Path, directory: Path) -> ContextBaseline | None:
-    """Pick the cached baseline closest to ``HEAD``.
+    """Pick the cached baseline with the most ground truth nearest ``HEAD``.
 
-    "Closest" means the most recent ancestor of ``HEAD``; a baseline recorded on
-    a branch this workspace never merged is still usable — contexts only ever
-    *add* tests — so an unrelated baseline is accepted as a last resort rather
-    than discarded.
+    Ancestors of ``HEAD`` win outright: a baseline recorded on a branch this
+    workspace never merged is still usable — contexts only ever *add* tests —
+    so an unrelated baseline is accepted as a last resort rather than discarded.
+
+    Among the ancestors, ranking is by breadth first and commit distance
+    second. Distance alone (or its old proxy, file mtime) assumes every baseline
+    holds comparable ground truth, which stopped being true once a database
+    could arrive from two producers: a thin local run displaced a CI artifact
+    holding four times the contexts and thirteen times the attribution pairs,
+    and every selection that resolved it silently narrowed while reporting a
+    healthy ``context-selection``. So anything materially thinner than the best
+    candidate is skipped, and distance decides among the rest.
     """
     baselines = cached_baselines(directory)
     if not baselines:
@@ -217,7 +383,41 @@ def resolve_baseline(root: Path, directory: Path) -> ContextBaseline | None:
         for baseline in baselines
         if _is_ancestor_of_head(root, baseline.sha) is True
     ]
-    return ancestors[0] if ancestors else baselines[0]
+    if not ancestors:
+        return _broadest(baselines)
+    ancestors.sort(key=lambda baseline: _distance_rank(root, baseline.sha))
+    return _broadest(ancestors)
+
+
+def _distance_rank(root: Path, sha: str) -> int:
+    distance = baseline_distance(root, sha)
+    return sys.maxsize if distance is None else distance
+
+
+def _attribution_count(baseline: ContextBaseline) -> int:
+    """``baseline``'s attribution pairs, with an unreadable database counting 0.
+
+    Zero is the honest answer for a database nothing can be read out of: it
+    contributes no tests either way, so it should never displace one that does.
+    """
+    return baseline.breadth.attributions if baseline.breadth else 0
+
+
+def _broadest(baselines: Sequence[ContextBaseline]) -> ContextBaseline:
+    """The first baseline in ``baselines`` that is not materially thinner than the best.
+
+    Order carries the caller's tie-break — commit distance for ancestors, file
+    mtime for the unrelated fallback — so this picks the first acceptable entry
+    rather than re-sorting. When no database could be measured every count is
+    zero, the threshold is zero, and the caller's own ordering decides
+    unchanged.
+    """
+    best = max(_attribution_count(entry) for entry in baselines)
+    threshold = best * BREADTH_TOLERANCE
+    return next(
+        (entry for entry in baselines if _attribution_count(entry) >= threshold),
+        baselines[0],
+    )
 
 
 def _is_ancestor_of_head(root: Path, sha: str) -> bool | None:

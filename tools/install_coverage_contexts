@@ -12,20 +12,29 @@ success, so the expensive instrumented run a human or agent already opted into
 fills the host-local cache for every workspace on the machine. It is also
 runnable on its own against a database recorded earlier.
 
-Two guards keep a bad database out of the cache, because a baseline that
-resolves but contributes nothing is worse than none at all: it silences
-``context-baseline-missing`` while adding no tests.
+Three guards keep a bad database out of the cache, because a baseline that
+resolves but contributes little is worse than none at all: it silences
+``context-baseline-missing`` while adding few tests.
 
 * **A dirty ``src/`` tree is refused.** The database is keyed by the line
   numbers of the commit it is installed under; uncommitted edits to instrumented
   code mean the recorded lines are not that commit's lines, and every later
   lookup reads the wrong rows.
-* **A partial run is refused.** Contexts from a handful of test files would
-  displace a full CI baseline — cached baselines are ranked by mtime, so the
-  newest wins — and shrink the selection back toward the closure.
+* **A partial run is refused.** Contexts from a handful of test files are not a
+  suite baseline, and a database that names most of the suite while attributing
+  almost none of it passes that check anyway — which is what the third guard is
+  for.
+* **A thinly attributed run is refused.** A complete run recorded under
+  coverage's ``sysmon`` core credits only the *first* test to reach each line,
+  so it can name the whole suite and still hold an order of magnitude fewer
+  ``(file, test)`` pairs per file than a ``ctrace`` run of the same commit.
+  Selection now prefers the broader database (see
+  :func:`~tests._test_selection_contexts.resolve_baseline`), but caching a thin
+  one still burns a slot in a fixed-size ring, so it is refused up front.
 
-Both are overridable (``--allow-dirty``, ``--allow-partial``) for deliberate
-use; neither default is a guess about the caller's intent.
+All three are overridable (``--allow-dirty``, ``--allow-partial``,
+``--allow-thin``) for deliberate use; no default is a guess about the caller's
+intent.
 """
 
 from __future__ import annotations
@@ -42,9 +51,14 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tests._test_selection_contexts import (  # noqa: E402
+    BaselineBreadth,
+    ContextBaseline,
     baseline_path,
+    cache_breadth,
+    cached_baselines,
     context_test_file,
     contexts_directory,
+    measure_breadth,
     prune_baselines,
 )
 from tests._test_selection_graph import (  # noqa: E402
@@ -62,6 +76,17 @@ DEFAULT_KEEP = 5
 #: files did not come from a full-suite run, and would narrow the selection for
 #: every workspace on the host if it displaced a complete baseline.
 MIN_SUITE_SHARE = 0.5
+#: How thinly attributed a database may be, relative to the best already cached,
+#: before it is refused.
+#:
+#: Density is ``(file, test)`` attribution pairs per measured file, so two runs
+#: of the same suite at nearby commits should land within a few percent of each
+#: other however the suite was sharded. The failure this catches is not a few
+#: percent: a sysmon-cored run measured 17.5 pairs per file against a ctrace
+#: run's 226.7 at the same repository size, 8% of it. Halving is therefore
+#: deliberately permissive — well clear of ordinary run-to-run variation, and
+#: still an order of magnitude above the case that motivated the guard.
+MIN_DENSITY_RATIO = 0.5
 #: Set to ``0`` to keep a `just test-contexts` run from caching its own database.
 INSTALL_ENV = "SASE_TEST_SELECTION_INSTALL_CONTEXTS"
 
@@ -119,12 +144,32 @@ def _context_test_files(database: Path) -> set[str] | None:
     }
 
 
-def _install(database: Path, target: Path) -> None:
+def _density(baseline: ContextBaseline) -> float:
+    return baseline.breadth.density if baseline.breadth else 0.0
+
+
+def _densest_cached(directory: Path) -> ContextBaseline | None:
+    """The cached baseline holding the most attribution pairs per measured file.
+
+    ``None`` when the cache is empty or nothing in it could be measured: there
+    is then no reference to call a new database thin against, and refusing on a
+    comparison that was never made would leave the host with no baseline at all.
+    """
+    best = max(cached_baselines(directory), key=_density, default=None)
+    if best is None or _density(best) <= 0:
+        return None
+    return best
+
+
+def _install(database: Path, target: Path, breadth: BaselineBreadth | None) -> None:
     """Copy the database into place without ever exposing a partial file.
 
     A scoped run in a sibling workspace may resolve this directory at any
     moment, so the database lands under a temporary name in the same directory
     and is renamed on top of the target, which is atomic within a filesystem.
+    The breadth sidecar is written after the rename, so a reader that catches
+    the gap measures the database itself rather than trusting numbers for a
+    file that is not there yet.
     """
     target.parent.mkdir(parents=True, exist_ok=True)
     staging = target.with_name(f"{target.name}.partial-{os.getpid()}")
@@ -133,6 +178,8 @@ def _install(database: Path, target: Path) -> None:
         staging.replace(target)
     finally:
         staging.unlink(missing_ok=True)
+    if breadth is not None:
+        cache_breadth(target, breadth)
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -162,6 +209,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--allow-partial",
         action="store_true",
         help="install a database recorded over part of the suite",
+    )
+    parser.add_argument(
+        "--allow-thin",
+        action="store_true",
+        help="install a database far less attributed than one already cached",
     )
     parser.add_argument(
         "--if-enabled",
@@ -218,22 +270,38 @@ def _run(namespace: argparse.Namespace) -> int:
     if share < MIN_SUITE_SHARE and not namespace.allow_partial:
         print(
             f"{database} holds contexts for {len(recorded & known)} of "
-            f"{len(known)} test files ({share:.0%}); a partial run would displace "
-            "a fuller baseline. Record the whole suite, or pass --allow-partial.",
+            f"{len(known)} test files ({share:.0%}); a partial run is not a suite "
+            "baseline. Record the whole suite, or pass --allow-partial.",
             file=sys.stderr,
         )
         return 1
 
     directory = contexts_directory(store_directory(REPO_ROOT))
+    breadth = measure_breadth(database)
+    reference = _densest_cached(directory)
+    if breadth is not None and reference is not None and not namespace.allow_thin:
+        ratio = breadth.density / _density(reference)
+        if ratio < MIN_DENSITY_RATIO:
+            print(
+                f"{database} attributes {breadth.density:.1f} (file, test) pairs "
+                f"per measured file, {ratio:.0%} of cached baseline "
+                f"{reference.sha[:12]}'s {_density(reference):.1f}. A run this "
+                "thin narrows every scoped selection that resolves it; check "
+                "that COVERAGE_CORE=ctrace was set, or pass --allow-thin.",
+                file=sys.stderr,
+            )
+            return 1
+
     target = baseline_path(directory, sha)
     try:
-        _install(database, target)
+        _install(database, target, breadth)
     except OSError as error:
         print(f"could not install {database} at {target}: {error}", file=sys.stderr)
         return 1
+    density = "" if breadth is None else f", {breadth.density:.1f} pairs per file"
     print(
         f"cached coverage-contexts baseline {sha[:12]} at {target} "
-        f"({len(recorded & known)} test files, {share:.0%} of the suite)"
+        f"({len(recorded & known)} test files, {share:.0%} of the suite{density})"
     )
     for pruned in prune_baselines(directory, namespace.keep):
         print(f"pruned {pruned.name}")

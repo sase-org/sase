@@ -117,16 +117,28 @@ and per-test attribution thins out as the suite runs. Measured on athena at `6b0
 what CI's Python 3.12 leg (already on `ctrace`) records. A local baseline has to be the same ground truth, not a thinner
 one.
 
-The installer refuses two databases that would be worse than no baseline at all, since a baseline that resolves but
-contributes nothing silences `context-baseline-missing` while adding no tests: one recorded against a `src/` tree with
-uncommitted changes (its line numbers are not the commit's line numbers), and one recorded over part of the suite (it
-would displace a fuller baseline, since the cache is ranked by mtime). `--allow-dirty` and `--allow-partial` override
-them deliberately; a refusal never fails the recording recipe.
+The installer refuses three databases that would be worse than no baseline at all, since a baseline that resolves but
+contributes little silences `context-baseline-missing` while adding few tests: one recorded against a `src/` tree with
+uncommitted changes (its line numbers are not the commit's line numbers), one recorded over part of the suite, and one
+whose attribution density — `(file, test)` pairs per measured file — is under half that of the densest database already
+cached. The third guard is the one the other two cannot see: a `sysmon`-cored run names the whole suite over a clean
+tree and still holds an order of magnitude less ground truth. `--allow-dirty`, `--allow-partial`, and `--allow-thin`
+override them deliberately; a refusal never fails the recording recipe.
 
 Baselines are cached by SHA under `${SASE_HOME:-~/.sase}/test-selection/contexts/`, newest five retained however they
-arrived. **Selection itself never touches the network**: it reads whichever cached baseline is the newest ancestor of
-`HEAD`, and an absent or unreadable one is not an error — the run records `context-baseline-missing` and proceeds on the
-static closure alone, so a fresh workspace with no connectivity still gets a working `just check`.
+arrived, each beside a `<sha>.sqlite.breadth.json` sidecar recording the context, attribution, and file counts its
+producer measured. **Selection itself never touches the network**: among the cached ancestors of `HEAD` it reads the
+nearest one that is not materially thinner than the broadest available, and an absent or unreadable one is not an error
+— the run records `context-baseline-missing` and proceeds on the static closure alone, so a fresh workspace with no
+connectivity still gets a working `just check`.
+
+Breadth is what breaks the tie, not recency. Ranking on file mtime held while every baseline arrived the same way, as a
+CI artifact, and stopped holding once a local run became a second producer: measured on athena at `b08862001`, a local
+`6b0976bcb` database (14,349 contexts, 46,364 attribution pairs) outranked CI's `96183d71b` (58,770 and 597,959) purely
+by being written more recently, over a near-identical file count. Every selection that resolved it got 13× less
+attribution while reporting a healthy `context-selection`. So the cache now ranks ancestors by breadth first and commit
+distance second, with anything holding at least 75% of the best candidate's attribution pairs counted as comparable — a
+gate wide enough that ordinary run-to-run variation still lets the _nearer_ baseline win.
 
 Contexts are **unioned into** the selection, never substituted for it. They are ground truth only for the code that
 existed when the baseline was recorded; they say nothing about code added since, and a brand-new test file has no

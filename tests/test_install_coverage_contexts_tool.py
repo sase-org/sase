@@ -19,6 +19,7 @@ from coverage import CoverageData
 from tests._test_selection_contexts import (
     CONTEXTS_DIR_ENV,
     baseline_path,
+    breadth_path,
     cached_baselines,
     resolve_baseline,
 )
@@ -71,13 +72,26 @@ def _head(repo: Path) -> str:
     ).stdout.strip()
 
 
-def _write_database(path: Path, *, test_files: int, measured: str = MEASURED) -> Path:
-    """A coverage database whose contexts name ``test_files`` ring tests."""
+def _write_database(
+    path: Path, *, test_files: int, measured_files: int = 1, dense: bool = True
+) -> Path:
+    """A coverage database whose contexts name ``test_files`` ring tests.
+
+    ``dense`` is what separates the two ways a *complete* run can turn out. A
+    ctrace-cored run credits every test that reached a file, so each measured
+    file carries one ``(file, test)`` pair per test; a sysmon-cored one credits
+    only the first, leaving the same tests and the same files with a fraction
+    of the attribution.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
+    measured = [MEASURED] + [
+        f"src/pkg/ring{index}.py" for index in range(measured_files - 1)
+    ]
     data = CoverageData(basename=str(path))
     for index in range(test_files):
         data.set_context(f"tests/test_ring{index}.py::test_it|run")
-        data.add_lines({measured: [1]})
+        touched = measured if dense else [measured[index % len(measured)]]
+        data.add_lines({name: [1] for name in touched})
     data.write()
     return path
 
@@ -138,10 +152,59 @@ def test_a_database_without_contexts_is_refused(
     assert cached_baselines(contexts_dir) == []
 
 
+def test_a_thinly_attributed_run_is_refused_but_can_be_forced(
+    tool: ModuleType, repo: Path, contexts_dir: Path
+) -> None:
+    """The whole suite, the same files, an order of magnitude less ground truth.
+
+    Neither existing guard sees this one: the run is complete and the tree is
+    clean. Only the recorded attribution density tells it apart from the cached
+    baseline it would otherwise sit beside.
+    """
+    _write_database(
+        baseline_path(contexts_dir, "0" * 40), test_files=RING_SIZE, measured_files=6
+    )
+    _write_database(
+        repo / ".coverage", test_files=RING_SIZE, measured_files=6, dense=False
+    )
+
+    assert tool.main([]) == 1
+    assert [entry.sha for entry in cached_baselines(contexts_dir)] == ["0" * 40]
+
+    assert tool.main(["--allow-thin"]) == 0
+    assert baseline_path(contexts_dir, _head(repo)).is_file()
+
+
+def test_a_first_baseline_is_never_called_thin(
+    tool: ModuleType, repo: Path, contexts_dir: Path
+) -> None:
+    """With nothing cached there is no reference, and some ground truth beats none."""
+    _write_database(
+        repo / ".coverage", test_files=RING_SIZE, measured_files=6, dense=False
+    )
+
+    assert tool.main([]) == 0
+    assert baseline_path(contexts_dir, _head(repo)).is_file()
+
+
+def test_the_installed_baseline_carries_its_measured_breadth(
+    tool: ModuleType, repo: Path, contexts_dir: Path
+) -> None:
+    """Measuring is the producer's cost, not every later `just check`'s."""
+    _full_database(repo)
+
+    assert tool.main([]) == 0
+
+    installed = cached_baselines(contexts_dir)[0]
+    assert breadth_path(installed.path).is_file()
+    assert installed.breadth is not None
+    assert installed.breadth.attributions == RING_SIZE
+
+
 def test_a_partial_run_is_refused_but_can_be_forced(
     tool: ModuleType, repo: Path, contexts_dir: Path
 ) -> None:
-    """A subset run would displace a fuller baseline: newest mtime wins."""
+    """Contexts from a handful of test files are not a suite baseline."""
     _write_database(repo / ".coverage", test_files=2)
 
     assert tool.main([]) == 1
@@ -209,9 +272,10 @@ def test_installing_leaves_no_partial_file_behind(
 
     assert tool.main([]) == 0
 
-    assert [entry.name for entry in contexts_dir.iterdir()] == [
-        baseline_path(contexts_dir, _head(repo)).name
-    ]
+    target = baseline_path(contexts_dir, _head(repo))
+    assert sorted(entry.name for entry in contexts_dir.iterdir()) == sorted(
+        [target.name, breadth_path(target).name]
+    )
 
 
 def test_if_enabled_respects_the_opt_out(
