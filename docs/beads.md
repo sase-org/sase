@@ -17,6 +17,7 @@ an epic DAG.
   - [Bead Claim Lifecycle](#bead-claim-lifecycle)
   - [Standalone Task Workflow](#standalone-task-workflow)
   - [Task Corroboration (+1)](#task-corroboration-1)
+  - [Close History](#close-history)
   - [Dependencies](#dependencies)
   - [Discovered Follow-Up Capture and Triage](#discovered-follow-up-capture-and-triage)
   - [Artifact References](#artifact-references)
@@ -140,8 +141,9 @@ its draft is proposed, `ready → open` when retracted, and `ready → in_progre
 `ready`; set it after the title, description, notes, dependencies, and any desired size or model are ready for human
 review. Moving a bead to `closed` is rejected while any descendant remains open, claimed, ready, or in progress. Close
 those descendants deliberately first; `update --status=closed` never cascades. `sase bead open <id>` reopens the bead
-and every closed ancestor above it, clearing their resolution, close reason, and close timestamp so a closed parent
-never sits above reopened work. `claimed` is machine-managed by the agent runner (see
+and every closed ancestor above it, archiving their resolution, close reason, and close timestamp into
+[close history](#close-history) instead of discarding them, so a closed parent never sits above reopened work but the
+reason it was closed is not lost either. `claimed` is machine-managed by the agent runner (see
 [Bead Claim Lifecycle](#bead-claim-lifecycle)); do not set it by hand.
 
 Every new close records a typed `resolution`: `done`, `canceled`, or `superseded`. Normal closes default to `done`;
@@ -293,9 +295,62 @@ at most once, and the task creator does not count as an additional reporter; a r
 the reporter to `sase bead note` for supplementary evidence. The evidence entries—not a mutable counter—derive the
 visible total and machine-readable `plus_one_count`.
 
-Adding new evidence to an `open` draft or `closed` task atomically promotes it to `ready` and clears stale close
-metadata. A `claimed`, `ready`, or `in_progress` task keeps its status. The same mutation attaches normalized artifact
-refs, and plan/phase targets are rejected without writing.
+Adding new evidence to an `open` draft or `closed` task atomically promotes it to `ready`. If the task was `closed`, its
+close metadata is archived into [close history](#close-history) rather than discarded, and the `+1 EVIDENCE` entry that
+did the reopening is marked. A `claimed`, `ready`, or `in_progress` task keeps its status. The same mutation attaches
+normalized artifact refs, and plan/phase targets are rejected without writing.
+
+### Close History
+
+A bead remembers how it was closed even after a later reopen undoes that close. The _current_ close, when a bead is
+closed right now, stays exactly where it has always lived: the flat `closed_at`, `close_reason`, and `resolution`
+fields. `close_history` is strictly the past — an append-only, oldest-first list of close episodes that have since been
+undone. This applies to every bead type (task, phase, and plan), not just tasks: phases and plans are reopened by
+`sase bead open` and by epic work preclaims, and "why was this closed before?" is the same useful question there too.
+
+Each record captures one undone close:
+
+| Field          | Description                                                |
+| -------------- | ---------------------------------------------------------- |
+| `closed_at`    | When the archived close happened                           |
+| `close_reason` | The free-text reason recorded on that close, if any        |
+| `resolution`   | `done`, `canceled`, or `superseded`, if recorded           |
+| `reopened_at`  | When the close was undone                                  |
+| `reopened_via` | `plus_one`, `open`, `update`, or `epic_preclaim`           |
+| `reopened_by`  | Who reopened it, populated only for `plus_one` (see below) |
+
+A record is created whenever a closed bead leaves `closed`: `sase bead +1` on a closed task (`plus_one`),
+`sase bead open` (`open`), `sase bead update --status` moving a bead away from `closed` (`update`), and an epic work
+preclaim relaunching a previously-closed phase or epic (`epic_preclaim`). Reopening a bead that was never closed adds no
+record. A bead closed, reopened, and closed again accumulates one record per undone close; `sase bead show` renders them
+newest first.
+
+`reopened_by` is populated only for `plus_one` reopens, because `add_task_plus_one` is the one reopen path whose event
+actor is genuinely the agent that ran the command — `sase bead close`/`open`/`update`'s mutations currently attribute
+their events to the bead's creator rather than the acting agent, which is a separate, known defect. Recording a
+`reopened_by` from those paths would confidently print the wrong name, so it is left unpopulated there instead.
+
+Because the canonical event log already recorded every close and reopen, existing stores recover close reasons that a
+reopen previously destroyed **automatically**, the next time their events are reduced (for example, on the next
+mutation, or with `sase bead doctor --fix-projection`) — no backfill script is needed.
+
+Every surface that shows a bead's status also shows its reopen history:
+
+- The `↺N` badge sits next to the `+N` corroboration badge on `sase bead show`, `sase bead list`, `sase bead ready`,
+  `sase bead blocked`, `sase bead search` rows, the ACE beads pane, and the generated bead page lineage roster.
+- `sase bead show --format full` renders a `PREVIOUSLY CLOSED` section — placed where `RESOLUTION` sits, above
+  `DESCRIPTION` — with one entry per record, newest first, and the `+1 EVIDENCE` entry that reopened the bead marked
+  with `↺ reopened this task`.
+- `sase bead show --format json` (and other JSON-emitting bead commands sharing the same issue schema) include
+  `close_history` on the issue object, and each `plus_one_evidence` entry carries a derived `reopened_bead` boolean.
+- `sase bead search` indexes archived close reasons, resolutions, and timestamps, so a reason recorded before a reopen
+  is still findable.
+- The ACE beads pane shows the `↺N` badge on list rows, a "Previously closed" property and a `## Previously Closed` body
+  section in the detail pane, and a `has:reopened` filter label.
+- Generated bead pages render a `## Previously Closed` section and a `**↺ Reopened:**` primary fact.
+- The `TaskTriage` gate preview — the highest-value surface, since **Launch** is its default decision — renders one
+  `> [!WARNING]` callout per record above the description, newest first, and adds the `↺N` badge to its notification
+  note.
 
 ### Dependencies
 
@@ -471,7 +526,8 @@ are kept in sync:
   with the same timestamp, so add-then-remove deterministically leaves the edge absent.
 - **Closed intervals** start with the first close after a bead becomes closed. Later close events in the same interval
   are kept in the log but ignored by the projection, so duplicate closes cannot move `closed_at` or erase a close
-  reason. Reopening or otherwise moving out of `closed` ends the interval and clears close metadata.
+  reason. Reopening or otherwise moving out of `closed` ends the interval and archives its close metadata as a
+  [close-history](#close-history) record instead of discarding it.
 - **Note appends** use `note_appended` events whose payload stores only the new entry text. The reducer renders the
   timestamped attribution from the event metadata, so concurrent note appends merge as separate entries instead of
   replacing each other. Legacy `issue_updated { notes }` events remain whole-field replacements.
@@ -540,14 +596,16 @@ Show all issues that have at least one active (non-closed) blocker.
 
 Corroborate an existing task with independently attributed evidence. `--note` is required; `--ref` is repeatable and
 `--author` overrides normal current-agent attribution. Each reporter counts once, the creator does not count, and repeat
-reporters are unchanged no-ops. New evidence promotes `open` and `closed` tasks to `ready` atomically, preserves other
-active statuses, and rejects plan or phase beads. See [Task Corroboration (+1)](#task-corroboration-1).
+reporters are unchanged no-ops. New evidence promotes `open` and `closed` tasks to `ready` atomically, archiving any
+close metadata into close history rather than discarding it, preserves other active statuses, and rejects plan or phase
+beads. See [Task Corroboration (+1)](#task-corroboration-1) and [Close History](#close-history).
 
 ### `sase bead close <id> [<id2> ...]`
 
 Close one or more issues. Every requested bead is checked before the first write, so a batch either closes completely or
 leaves the store untouched. A bead with any non-closed descendant is rejected and names the unfinished work; phase
-agents should continue to close only their assigned phase bead, not the parent epic.
+agents should continue to close only their assigned phase bead, not the parent epic. Closing does not touch a bead's
+existing [close history](#close-history); a new record is only archived there the next time the bead reopens.
 
 Closing a bead that is already closed exits successfully and reports `Already closed` without appending another close
 event, changing `issues.jsonl`, or creating a store commit. If the repeat close includes a note, the note is still
@@ -712,9 +770,12 @@ extension is importable and exposes the representative bead CLI binding used by 
 
 `--fix-projection` previews rows where `issues.jsonl` differs from replaying the canonical event streams, then rewrites
 the projection from the streams after confirmation. The repair refuses unexpected diffs: row additions or removals,
-status changes, fields outside `closed_at`, `close_reason`, and `updated_at`, or any `closed_at` move later. A
-successful repair commits `chore(beads): reproject bead state from canonical events`; a second clean run writes nothing.
-Use `--yes` for non-interactive repair after reviewing the preview through an external approval gate.
+status changes, fields outside `closed_at`, `close_reason`, `close_history`, and `updated_at`, or any `closed_at` move
+later. `close_history` is allowed because the first repair after upgrading to a sase-core release with close history
+legitimately materializes archived records for beads whose close reasons were destroyed by a reopen before sase-core
+started archiving them — see [Close History](#close-history). A successful repair commits
+`chore(beads): reproject bead state from canonical events`; a second clean run writes nothing. Use `--yes` for
+non-interactive repair after reviewing the preview through an external approval gate.
 
 `--fix-issue-prefix` previews and, after confirmation, resets a store's issue prefix on demand when it was leaked as the
 project's ProjectSpec directory key (e.g. `gh_bobs-org__bob-cli`) instead of its `PROJECT_NAME` (e.g. `bob-cli`). The
@@ -825,8 +886,9 @@ and task corroboration.
 ### `sase bead open <id>`
 
 Reopen an issue with an `issue_opened` event. Every closed ancestor above it is reopened in the same mutation, and the
-command prints the ancestor IDs it changed. Resolutions, close reasons, and close timestamps are cleared on the reopened
-bead and ancestors; historical values remain available in `sase bead history --format full`.
+command prints the ancestor IDs it changed. Resolutions, close reasons, and close timestamps are archived into each
+reopened bead's close history instead of being discarded — see [Close History](#close-history); the full history also
+remains available in `sase bead history --format full`.
 
 ### `sase bead ready`
 
