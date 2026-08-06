@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -9,13 +10,18 @@ import pytest
 from sase.ace.tui.models.agent import LinkedRepoMetadata
 from sase.ace.tui.widgets.prompt_panel._agent_commits import (
     agent_commit_diffs,
+    load_commit_created_at,
     load_commit_diff_text,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     DetailHeaderSummary,
     build_header_text,
 )
-from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
+    CommitViewSpec,
+    HeaderHintState,
+)
+from sase.core.vcs_log_wire import VcsCommitWire
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
@@ -228,3 +234,96 @@ class TestCommitMetadataViewsAndDiffs:
         assert load_commit_diff_text(hint_state.commit_views[1]) == (
             "diff --git a/f b/f\n"
         )
+
+    def _spec(self, **overrides: object) -> CommitViewSpec:
+        base = CommitViewSpec(
+            short_sha="abc1234",
+            sha="abc1234567890",
+            repo_name="sase",
+            cwd="/workspace/sase",
+            subject="feat: x",
+            message="feat: x",
+            diff_path=None,
+            is_primary=True,
+        )
+        return replace(base, **overrides)
+
+    def test_load_commit_created_at_returns_none_without_sha_or_cwd(self) -> None:
+        assert load_commit_created_at(self._spec(sha="")) is None
+        assert load_commit_created_at(self._spec(cwd=None)) is None
+
+    def test_load_commit_created_at_skips_lookup_when_already_known(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def fail_if_called(_cwd: str) -> None:
+            raise AssertionError("get_vcs_provider should not be called")
+
+        monkeypatch.setattr("sase.vcs_provider.get_vcs_provider", fail_if_called)
+
+        assert load_commit_created_at(self._spec(created_at=1_700_000_000)) is None
+
+    def test_load_commit_created_at_returns_none_when_provider_raises(
+        self,
+    ) -> None:
+        def boom(_cwd: str) -> None:
+            raise RuntimeError("provider unavailable")
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr("sase.vcs_provider.get_vcs_provider", boom)
+            assert load_commit_created_at(self._spec()) is None
+
+    def test_load_commit_created_at_rejects_mismatched_no_merges_ancestor(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class Provider:
+            def log(
+                self, cwd: str, limit: int, *, revs: tuple[str, ...], **_kwargs: object
+            ) -> list[VcsCommitWire]:
+                assert revs == ("abc1234567890",)
+                return [
+                    VcsCommitWire(
+                        full_id="deadbeef00000000",
+                        short_id="deadbeef",
+                        author_name="bryan",
+                        author_email="b@x",
+                        timestamp=1_700_000_000,
+                        subject="unrelated ancestor",
+                        body="",
+                    )
+                ]
+
+        monkeypatch.setattr(
+            "sase.vcs_provider.get_vcs_provider",
+            lambda _cwd: Provider(),
+        )
+
+        assert load_commit_created_at(self._spec()) is None
+
+    def test_load_commit_created_at_resolves_matching_commit(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class Provider:
+            def log(
+                self, cwd: str, limit: int, *, revs: tuple[str, ...], **_kwargs: object
+            ) -> list[VcsCommitWire]:
+                return [
+                    VcsCommitWire(
+                        full_id="abc1234567890",
+                        short_id="abc1234",
+                        author_name="bryan",
+                        author_email="b@x",
+                        timestamp=1_700_000_000,
+                        subject="feat: x",
+                        body="",
+                    )
+                ]
+
+        monkeypatch.setattr(
+            "sase.vcs_provider.get_vcs_provider",
+            lambda _cwd: Provider(),
+        )
+
+        assert load_commit_created_at(self._spec()) == 1_700_000_000

@@ -188,6 +188,7 @@ def build_commit_view_spec(
         is_primary=repo_kind == "primary",
         repo_kind=repo_kind,
         plan_workspaces=repo.plan_workspaces if repo is not None else (),
+        created_at=entry.commit.timestamp,
     )
 
 

@@ -29,6 +29,20 @@ def _text(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _committed_at_text(value: Any) -> str | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return str(value) if value >= 0 else None
+    if isinstance(value, str):
+        try:
+            parsed = int(value)
+        except ValueError:
+            return None
+        return str(parsed) if parsed >= 0 else None
+    return None
+
+
 def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
     """Read commit_result.json and return workflow metadata fields."""
     if not artifacts_dir:
@@ -57,6 +71,8 @@ def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
         metadata["meta_changespec"] = changespec
     if diff_path := _text(commit_result.get("diff_path")):
         metadata["diff_path"] = diff_path
+    if committed_at := _committed_at_text(commit_result.get("committed_at")):
+        metadata["meta_commit_committed_at"] = committed_at
     return metadata
 
 
@@ -78,6 +94,8 @@ def _commit_result_list_record(item: dict[str, Any]) -> dict[str, str] | None:
         _text(item.get("diff_path")) or _text(item.get("commit_diff_path"))
     ):
         record["diff_path"] = os.path.expanduser(diff_path)
+    if committed_at := _committed_at_text(item.get("committed_at")):
+        record["committed_at"] = committed_at
     return record or None
 
 

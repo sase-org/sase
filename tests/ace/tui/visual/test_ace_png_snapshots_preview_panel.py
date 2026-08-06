@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 from textual.widgets import Input
 
@@ -11,6 +13,7 @@ from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.plan_documents import PlanDocument
+from sase.vcs_log.render import build_commit_time_chip
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -253,6 +256,7 @@ new file mode 100644
         ),
         diff_path=diff_path,
         is_primary=True,
+        created_at=1_786_014_354,
     )
     second_diff_path = "/workspace/sase/.sase/diffs/8ed4cc91a777.diff"
     second_diff_text = """diff --git a/src/sase/ace/tui/modals/commit_view_modal.py b/src/sase/ace/tui/modals/commit_view_modal.py
@@ -276,6 +280,7 @@ new file mode 100644
         ),
         diff_path=second_diff_path,
         is_primary=True,
+        created_at=1_785_978_240,
     )
     diff_text_by_path = {
         diff_path: diff_text,
@@ -284,6 +289,12 @@ new file mode 100644
     monkeypatch.setattr(
         "sase.ace.tui.modals.commit_view_modal.load_commit_diff_text",
         lambda spec: diff_text_by_path.get(spec.diff_path or ""),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.build_commit_time_chip",
+        lambda timestamp, **_kwargs: build_commit_time_chip(
+            timestamp, now_local=datetime(2026, 8, 6, 9, 5, 54)
+        ),
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.commit_view_modal.load_commit_plan_document",

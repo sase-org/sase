@@ -161,6 +161,7 @@ def _persisted_commit_lines(
     cwd = _display_text(cwd_raw) if cwd_raw is not None else None
     if cwd == "":
         cwd = None
+    created_at = _parse_created_at(step_output.get("meta_commit_committed_at"))
     from ._agent_display_state import CommitViewSpec
 
     return (
@@ -178,9 +179,28 @@ def _persisted_commit_lines(
                 is_primary=attribution.kind == "primary",
                 repo_kind=attribution.kind,
                 plan_workspaces=_agent_plan_workspaces(agent),
+                created_at=created_at,
             ),
         ),
     )
+
+
+def _parse_created_at(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, str):
+        try:
+            parsed = int(value)
+        except ValueError:
+            return None
+        return parsed if parsed >= 0 else None
+    return None
+
+
+def _commit_created_at_from_record(record: dict[str, Any]) -> int | None:
+    return _parse_created_at(record.get("committed_at"))
 
 
 def _commit_info_from_record(record: dict[str, Any]) -> _CommitInfo | None:
@@ -229,6 +249,7 @@ def _commit_line_from_record(
             is_primary=attribution.kind == "primary",
             repo_kind=attribution.kind,
             plan_workspaces=_agent_plan_workspaces(agent),
+            created_at=_commit_created_at_from_record(record),
         ),
     )
 
@@ -647,3 +668,25 @@ def load_commit_diff_text(spec: CommitViewSpec) -> str | None:
     if not ok or not diff_text or not diff_text.strip():
         return None
     return diff_text
+
+
+def load_commit_created_at(spec: CommitViewSpec) -> int | None:
+    """Resolve a commit's author time from the VCS when it was never recorded."""
+    if spec.created_at is not None or not spec.sha or not spec.cwd:
+        return None
+
+    try:
+        from sase.vcs_provider import get_vcs_provider
+
+        provider = get_vcs_provider(spec.cwd)
+        commits = provider.log(spec.cwd, 1, revs=(spec.sha,))
+    except Exception:
+        return None
+
+    if not commits:
+        return None
+    commit = commits[0]
+    target = spec.sha.lower()
+    if commit.full_id.lower() != target and commit.short_id.lower() != target:
+        return None
+    return commit.timestamp

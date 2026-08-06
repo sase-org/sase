@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from sase.ace.tui.models._loaders._done_loaders import (
     _build_done_agent_from_record,
     _load_done_agent_for_dir,
@@ -70,6 +72,63 @@ def test_extract_step_output_preserves_multiline_commit_result_message(
     assert step_output["meta_commit_cwd"] == "/workspace/sase-core_7"
     assert step_output["meta_changespec"] == "sase-full-message"
     assert diff_path is None
+
+
+def test_extract_step_output_reads_committed_at_from_single_commit_result(
+    tmp_path: Path,
+) -> None:
+    state_data = {
+        "workflow_name": "test",
+        "status": "completed",
+        "steps": [{"name": "step1", "status": "completed", "output": {"result": "ok"}}],
+    }
+    (tmp_path / "workflow_state.json").write_text(json.dumps(state_data))
+    (tmp_path / "commit_result.json").write_text(
+        json.dumps(
+            {
+                "message": "fix: linked",
+                "result": "def456",
+                "cwd": "/workspace/sase-core_7",
+                "committed_at": 1_700_000_000,
+            }
+        )
+    )
+
+    step_output, _diff_path = extract_step_output_and_diff_path(str(tmp_path))
+
+    assert step_output is not None
+    assert step_output["meta_commit_committed_at"] == "1700000000"
+
+
+@pytest.mark.parametrize(
+    "committed_at",
+    [-1, True, "not-a-number", None],
+)
+def test_extract_step_output_drops_invalid_committed_at_on_single_commit_result(
+    tmp_path: Path,
+    committed_at: object,
+) -> None:
+    state_data = {
+        "workflow_name": "test",
+        "status": "completed",
+        "steps": [{"name": "step1", "status": "completed", "output": {"result": "ok"}}],
+    }
+    (tmp_path / "workflow_state.json").write_text(json.dumps(state_data))
+    (tmp_path / "commit_result.json").write_text(
+        json.dumps(
+            {
+                "message": "fix: linked",
+                "result": "def456",
+                "cwd": "/workspace/sase-core_7",
+                "committed_at": committed_at,
+            }
+        )
+    )
+
+    step_output, _diff_path = extract_step_output_and_diff_path(str(tmp_path))
+
+    assert step_output is not None
+    assert "meta_commit_committed_at" not in step_output
 
 
 def test_extract_step_output_surfaces_commit_results_list(
@@ -156,6 +215,46 @@ def test_extract_step_output_surfaces_commit_results_list(
         },
     ]
     assert diff_path == "/tmp/linked.diff"
+
+
+def test_extract_step_output_surfaces_committed_at_in_commits_list(
+    tmp_path: Path,
+) -> None:
+    state_data = {
+        "workflow_name": "test",
+        "status": "completed",
+        "steps": [{"name": "step1", "status": "completed", "output": {"result": "ok"}}],
+    }
+    (tmp_path / "workflow_state.json").write_text(json.dumps(state_data))
+    (tmp_path / "commit_result.json").write_text(
+        json.dumps(
+            {"message": "fix: linked", "result": "def456", "cwd": "/workspace-core"}
+        )
+    )
+    (tmp_path / "commit_results.json").write_text(
+        json.dumps(
+            [
+                {
+                    "message": "fix: primary",
+                    "result": "abc123",
+                    "cwd": "/workspace-primary",
+                    "committed_at": 1_700_000_000,
+                },
+                {
+                    "message": "fix: linked",
+                    "result": "def456",
+                    "cwd": "/workspace-core",
+                    "committed_at": "not-a-number",
+                },
+            ]
+        )
+    )
+
+    step_output, _diff_path = extract_step_output_and_diff_path(str(tmp_path))
+
+    assert step_output is not None
+    assert step_output["meta_commits"][0]["committed_at"] == "1700000000"
+    assert "committed_at" not in step_output["meta_commits"][1]
 
 
 def test_extract_step_output_prefers_commit_result_message_over_workflow_subject(
@@ -357,6 +456,52 @@ def test_done_agent_loader_backfills_commit_cwd_from_commit_result(
             "message": "feat: linked",
             "sha": "abc123",
             "cwd": str(commit_cwd),
+        }
+    ]
+
+
+def test_done_agent_loader_backfills_committed_at_into_single_commit(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "20260624120015"
+    artifact_dir.mkdir()
+    commit_cwd = tmp_path / "sase-core_7"
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "sase-test",
+                "outcome": "completed",
+                "project_file": str(tmp_path / "sase.sase"),
+                "step_output": {
+                    "meta_commit_message": "feat: linked",
+                    "meta_new_commit": "abc123",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "commit_result.json").write_text(
+        json.dumps(
+            {
+                "message": "feat: linked",
+                "result": "abc123",
+                "cwd": str(commit_cwd),
+                "committed_at": 1_700_000_000,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.step_output is not None
+    assert agent.step_output["meta_commits"] == [
+        {
+            "message": "feat: linked",
+            "sha": "abc123",
+            "cwd": str(commit_cwd),
+            "committed_at": "1700000000",
         }
     ]
 

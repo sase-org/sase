@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from io import StringIO
 from pathlib import Path
 from threading import Event
 
 import pytest
 from rich.console import Console
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Static
@@ -89,9 +91,61 @@ def test_commit_view_title_labels_external_repo() -> None:
         repo_kind="external",
     )
 
-    title = CommitViewModal([spec])._build_title().plain
+    title = _rendered_text(CommitViewModal([spec])._build_title())
 
     assert "gh:pallets/click (external)" in title
+
+
+def test_commit_view_title_shows_time_chip_when_created_at_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.build_commit_time_chip",
+        lambda timestamp, **_kwargs: Text(f"CHIP:{timestamp}"),
+    )
+    spec = replace(_spec("/missing/commit.diff"), created_at=1_700_000_000)
+
+    title = _rendered_text(CommitViewModal([spec])._build_title())
+
+    assert "CHIP:1700000000" in title
+
+
+def test_commit_view_title_omits_metadata_row_when_nothing_to_show() -> None:
+    spec = CommitViewSpec(
+        short_sha="abcdef123456",
+        sha="abcdef1234567890",
+        repo_name="sase",
+        cwd=None,
+        subject="chore: bare",
+        message="chore: bare",
+        diff_path=None,
+        is_primary=True,
+    )
+
+    title = _rendered_text(CommitViewModal([spec])._build_title())
+
+    assert title.rstrip("\n").count("\n") == 0
+    assert "chore: bare" in title
+
+
+def test_commit_view_title_long_diff_path_ellipsizes_without_clipping_chip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.build_commit_time_chip",
+        lambda timestamp, **_kwargs: Text("Today 07:05:54 · 2h ago"),
+    )
+    spec = replace(
+        _spec("/" + ("x" * 300) + "/commit.diff"),
+        created_at=1_700_000_000,
+    )
+
+    title = _rendered_text(CommitViewModal([spec])._build_title())
+    metadata_line = title.splitlines()[1]
+
+    assert "…" in metadata_line
+    assert metadata_line.rstrip().endswith("Today 07:05:54 · 2h ago")
+    assert len(metadata_line) <= 120
 
 
 def test_commit_view_content_bounds_byte_heavy_diff_and_explains_truncation() -> None:
@@ -291,6 +345,77 @@ async def test_commit_view_modal_uses_cached_diff_when_returning_to_commit(
         ]
 
 
+async def test_commit_view_modal_backfills_time_chip_and_refreshes_title(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    diff_path = tmp_path / "commit.diff"
+    _write_diff(diff_path, old="old", new="new")
+    spec = _spec(str(diff_path))
+    assert spec.created_at is None
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.load_commit_created_at",
+        lambda spec: 1_700_000_000,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.build_commit_time_chip",
+        lambda timestamp, **_kwargs: Text(f"CHIP:{timestamp}"),
+    )
+    app = _CommitModalTestApp([spec])
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, CommitViewModal)
+
+        await _wait_for_diff(pilot, modal, "+new")
+
+        title_widget = modal.query_one("#commit-view-title", Static)
+        rendered = _rendered_text(title_widget.content)
+        assert "CHIP:1700000000" in rendered
+
+
+async def test_commit_view_modal_time_chip_tracks_selected_commit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_diff = tmp_path / "first.diff"
+    second_diff = tmp_path / "second.diff"
+    _write_diff(first_diff, old="old-one", new="new-one")
+    _write_diff(second_diff, old="old-two", new="new-two")
+    first = replace(
+        _spec(str(first_diff), sha="111111111111111111111111", subject="feat: first"),
+        created_at=1_700_000_000,
+    )
+    second = replace(
+        _spec(str(second_diff), sha="222222222222222222222222", subject="fix: second"),
+        created_at=1_800_000_000,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.build_commit_time_chip",
+        lambda timestamp, **_kwargs: Text(f"CHIP:{timestamp}"),
+    )
+    app = _CommitModalTestApp([first, second])
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, CommitViewModal)
+        await _wait_for_diff(pilot, modal, "+new-one")
+
+        title_widget = modal.query_one("#commit-view-title", Static)
+        assert "CHIP:1700000000" in _rendered_text(title_widget.content)
+
+        await pilot.press("ctrl+n")
+        await _wait_for_diff(pilot, modal, "+new-two")
+        assert "CHIP:1800000000" in _rendered_text(title_widget.content)
+
+        await pilot.press("ctrl+p")
+        await pilot.pause()
+        assert "CHIP:1700000000" in _rendered_text(title_widget.content)
+
+
 async def test_commit_view_modal_ignores_stale_diff_worker_result(
     monkeypatch,
 ) -> None:
@@ -366,8 +491,8 @@ async def test_commit_view_modal_toggles_plan_and_restores_cached_diff(
         await pilot.press("p")
         await _wait_for_plan(pilot, modal)
 
-        assert modal._build_title().plain.startswith("PLAN")
-        assert str(plan_path.resolve()) in modal._build_title().plain
+        assert _rendered_text(modal._build_title()).startswith("PLAN")
+        assert str(plan_path.resolve()) in _rendered_text(modal._build_title())
         assert "p commit" in modal._build_footer()
         assert "Attached plan" in _rendered_text(modal._build_content())
         assert scroll.scroll_y == 0
@@ -376,10 +501,43 @@ async def test_commit_view_modal_toggles_plan_and_restores_cached_diff(
         await pilot.pause()
 
         assert modal._display_mode == "commit"
-        assert modal._build_title().plain.startswith("COMMIT")
+        assert _rendered_text(modal._build_title()).startswith("COMMIT")
         assert "p plan" in modal._build_footer()
         assert modal._diff_loaded is True
         assert modal._diff_text is not None and "+new" in modal._diff_text
+
+
+async def test_commit_view_modal_time_chip_renders_in_plan_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    diff_path = tmp_path / "commit.diff"
+    plan_path = tmp_path / "plan.md"
+    _write_diff(diff_path, old="old", new="new")
+    plan_path.write_text("# Attached plan\n\n- Do the work.\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.build_commit_time_chip",
+        lambda timestamp, **_kwargs: Text(f"CHIP:{timestamp}"),
+    )
+    spec = replace(
+        _spec(
+            str(diff_path),
+            message=f"feat: modal\n\nSASE_PLAN={plan_path}",
+        ),
+        created_at=1_700_000_000,
+    )
+    app = _CommitModalTestApp([spec])
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, CommitViewModal)
+        await _wait_for_diff(pilot, modal, "+new")
+
+        await pilot.press("p")
+        await _wait_for_plan(pilot, modal)
+
+        assert "CHIP:1700000000" in _rendered_text(modal._build_title())
 
 
 async def test_commit_view_modal_plan_failure_notifies_and_keeps_commit(

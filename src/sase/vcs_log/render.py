@@ -566,9 +566,22 @@ def _format_bound(timestamp: int) -> str:
 
 
 def _relative_age(dt_local: datetime) -> str:
-    from sase.notifications.models import format_relative_time
+    return _relative_age_between(dt_local, _local_now())
 
-    return format_relative_time(dt_local.isoformat(timespec="seconds"))
+
+def _relative_age_between(dt_local: datetime, now_local: datetime) -> str:
+    total_seconds = int((now_local - dt_local).total_seconds())
+    if total_seconds <= 0:
+        return "just now"
+    if total_seconds < 60:
+        return f"{total_seconds}s ago"
+    minutes = total_seconds // 60
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    return f"{hours // 24}d ago"
 
 
 def _to_local(timestamp: int) -> datetime:
@@ -655,6 +668,23 @@ def build_timeline_commit(
     return line
 
 
+def build_commit_time_chip(
+    timestamp: int,
+    *,
+    now_local: datetime | None = None,
+) -> Text:
+    """Build the compact ``<day> <clock> · <age>`` chip for one commit time."""
+    dt_local = _to_local(timestamp)
+    reference = now_local or _local_now()
+    label = _day_label(dt_local, reference)
+    clock_format = "%H:%M:%S" if label in ("Today", "Yesterday") else "%H:%M"
+
+    text = Text(no_wrap=True)
+    text.append(f"{label} {dt_local:{clock_format}}", style="#D7AF5F")
+    text.append(f" · {_relative_age_between(dt_local, reference)}", style="dim #D7AF5F")
+    return text
+
+
 def build_commit_presence(
     presence: CommitPresence,
     *,
@@ -677,6 +707,7 @@ def format_commit_timestamp(timestamp: int) -> str:
 
 __all__ = [
     "build_commit_presence",
+    "build_commit_time_chip",
     "build_pretty_legend",
     "build_timeline_commit",
     "build_timeline_day",
