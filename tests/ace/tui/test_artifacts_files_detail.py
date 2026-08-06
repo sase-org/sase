@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -223,6 +225,7 @@ async def test_rapid_navigation_loads_only_the_final_detail(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Two rapid j presses must coalesce to a single detail load."""
     paths = tuple(tmp_path / f"row-{index}.txt" for index in range(3))
     for index, path in enumerate(paths):
         path.write_text(f"row {index}\n", encoding="utf-8")
@@ -254,8 +257,22 @@ async def test_rapid_navigation_loads_only_the_final_detail(
         await page.wait_for(lambda _state: calls == [rows[0].id])
         calls.clear()
 
+        fired: list[Callable[[], None]] = []
+
+        def _set_timer(_delay: float, callback: Callable[[], None]) -> object:
+            fired.append(callback)
+            return SimpleNamespace(stop=lambda: None)
+
+        monkeypatch.setattr(page.app, "set_timer", _set_timer)
+
         await page.press("j", "j")
+
+        # No timer has fired yet, so the intermediate row-1 load never ran.
+        assert calls == []
+        assert pane.selected_entry is rows[2]
+        assert fired
+
+        fired[-1]()
         await page.wait_for(lambda _state: bool(calls))
 
-        assert pane.selected_entry is rows[2]
         assert calls == [rows[2].id]
