@@ -11,12 +11,19 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from sase.notification_gates.entrypoints import gate_command_entrypoint
 from sase.notification_gates.models import GateError
-from sase.bead.model import TaskPlusOneEvidence
+from sase.bead.model import CloseRecord, ReopenCause, TaskPlusOneEvidence
 from sase.bead_time_presentation import bead_created_cli, bead_created_label
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_SECTION_LABEL,
     plus_one_badge,
     plus_one_evidence_label,
+)
+from sase.bead.reopen_presentation import (
+    REOPEN_EVIDENCE_MARKER,
+    REOPEN_GLYPH,
+    close_history_display_order,
+    evidence_reopened_bead,
+    reopen_badge,
 )
 
 if TYPE_CHECKING:
@@ -66,6 +73,7 @@ def create_task_triage_gate(
     size: str | None = None,
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
+    close_history: Sequence[CloseRecord] = (),
     producer: Mapping[str, Any] | None = None,
 ) -> Any:
     """Create one human-only triage gate for a ready standalone task bead."""
@@ -84,6 +92,7 @@ def create_task_triage_gate(
             size=size,
             refs=refs,
             plus_one_evidence=plus_one_evidence,
+            close_history=close_history,
             producer=producer,
         )
     )
@@ -102,6 +111,7 @@ def _build_task_triage_gate_spec(
     size: str | None = None,
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
+    close_history: Sequence[CloseRecord] = (),
     producer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the TaskTriage adapter."""
@@ -112,11 +122,18 @@ def _build_task_triage_gate_spec(
     origin_agent = created_by.strip()
     evidence = tuple(plus_one_evidence)
     count = len(evidence)
+    history = tuple(close_history)
     presentation: dict[str, Any] = {
         "sender": "bead",
         "icon": "✦",
         "notes": [
-            task_triage_presentation_note(bead_id, title, count, created_at=created_at)
+            task_triage_presentation_note(
+                bead_id,
+                title,
+                count,
+                created_at=created_at,
+                reopen_count=len(history),
+            )
         ],
         "tags": ["bead", "task"],
         "panel": "beads",
@@ -148,6 +165,7 @@ def _build_task_triage_gate_spec(
                 }
                 for item in evidence
             ],
+            "close_history": [_close_record_payload(record) for record in history],
         },
         "presentation": presentation,
         "query": TASK_TRIAGE_QUERY,
@@ -200,6 +218,7 @@ def _build_task_triage_gate_spec(
                     size=size,
                     refs=refs,
                     plus_one_evidence=evidence,
+                    close_history=history,
                 ),
             },
         ],
@@ -218,12 +237,15 @@ def render_task_triage_preview(
     size: str | None = None,
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
+    close_history: Sequence[CloseRecord] = (),
 ) -> str:
     """Render the reviewed Markdown detail shown by ACE and mobile clients.
 
     The creation time is rendered absolute-only: this preview is persisted and
     later reconstructed byte for byte by gate validation, so a relative age
-    would make the gate fail validation as it aged.
+    would make the gate fail validation as it aged. The same rule governs the
+    prior-close callout: every field it renders is a persisted absolute
+    instant, never a recomputed age.
     """
     description_text = description.strip() or "_No description._"
     notes_text = notes.strip() or "_No notes._"
@@ -239,12 +261,14 @@ def render_task_triage_preview(
     if refs:
         rendered_refs = ", ".join(f"`{_markdown_code(ref)}`" for ref in refs)
         metadata += f"**References:** {rendered_refs}\n\n"
-    evidence_section = _task_triage_evidence_preview(plus_one_evidence)
+    close_history_section = _task_triage_close_history_preview(close_history)
+    evidence_section = _task_triage_evidence_preview(plus_one_evidence, close_history)
     return (
         f"# {bead_id} — {title}\n\n"
         f"{filer}"
         f"{created}"
         f"{metadata}"
+        f"{close_history_section}"
         f"## Description\n\n{description_text}\n\n"
         f"## Notes\n\n{notes_text}\n"
         f"{evidence_section}"
@@ -257,16 +281,21 @@ def task_triage_presentation_note(
     count: int,
     *,
     created_at: str = "",
+    reopen_count: int = 0,
 ) -> str:
     """Return the stable notification summary for one task triage gate.
 
     The creation time rides along as an immutable calendar date rather than an
     age, because gate validation recomputes this note and compares it with the
-    persisted one; a relative age would drift and fail that comparison.
+    persisted one; a relative age would drift and fail that comparison. The
+    same rule is why the reopen badge is derived from the persisted close
+    history count rather than any live-computed value.
     """
 
-    badge = plus_one_badge(count)
-    suffix = f" [{badge}]" if badge else ""
+    badges = [
+        badge for badge in (plus_one_badge(count), reopen_badge(reopen_count)) if badge
+    ]
+    suffix = "".join(f" [{badge}]" for badge in badges)
     created = (
         bead_created_cli(created_at, use_color=False, relative=False)
         if created_at
@@ -276,8 +305,61 @@ def task_triage_presentation_note(
     return f"{bead_id}{suffix} — {title}{created_suffix}"
 
 
+def _task_triage_close_history_preview(
+    close_history: Sequence[CloseRecord],
+) -> str:
+    """Render the prior-close warning callout shown above the description.
+
+    This is the highest-value surface in the epic: Launch is the gate's
+    primary branch, so a previously-closed task is exactly the case where
+    skimming past the default would be wrong. Newest first, so the freshest
+    decision is the one a triager sees when there is more than one record.
+    """
+    if not close_history:
+        return ""
+    blocks: list[str] = []
+    for record in close_history_display_order(close_history):
+        resolution = record.resolution.value if record.resolution else "(unrecorded)"
+        reason = (record.close_reason or "").strip() or "(none)"
+        header = (
+            f"> [!WARNING] **{REOPEN_GLYPH} Previously closed {record.closed_at} "
+            f"as {resolution}** {reason}"
+        )
+        blocks.append(
+            "\n".join([header, ">", f"> {_close_record_reopened_markdown(record)}"])
+        )
+    return "\n\n".join(blocks) + "\n\n"
+
+
+def _close_record_reopened_markdown(record: CloseRecord) -> str:
+    """Return the cause-specific ``Reopened ...`` line for one close record."""
+    if record.reopened_via == ReopenCause.PLUS_ONE:
+        if record.reopened_by:
+            return (
+                f"Reopened {record.reopened_at} by a +1 from `@{record.reopened_by}`."
+            )
+        return f"Reopened {record.reopened_at} by a +1."
+    if record.reopened_via == ReopenCause.OPEN:
+        return f"Reopened {record.reopened_at} by `sase bead open`."
+    if record.reopened_via == ReopenCause.UPDATE:
+        return f"Reopened {record.reopened_at} by a status update."
+    return f"Reopened {record.reopened_at} by an epic work preclaim."
+
+
+def _close_record_payload(record: CloseRecord) -> dict[str, Any]:
+    return {
+        "closed_at": record.closed_at,
+        "close_reason": record.close_reason,
+        "resolution": record.resolution.value if record.resolution else None,
+        "reopened_at": record.reopened_at,
+        "reopened_via": record.reopened_via.value,
+        "reopened_by": record.reopened_by,
+    }
+
+
 def _task_triage_evidence_preview(
     evidence_rows: Sequence[TaskPlusOneEvidence],
+    close_history: Sequence[CloseRecord] = (),
 ) -> str:
     if not evidence_rows:
         return ""
@@ -286,6 +368,8 @@ def _task_triage_evidence_preview(
         if index:
             lines.append("")
         label = plus_one_evidence_label(evidence).replace("`", "\\`")
+        if evidence_reopened_bead(evidence, close_history):
+            label = f"{label} {REOPEN_EVIDENCE_MARKER}"
         lines.append(f"> [!TIP] **{label}**")
         lines.extend(
             f"> {line}" if line else ">" for line in evidence.note.splitlines()

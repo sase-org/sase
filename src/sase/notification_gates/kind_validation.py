@@ -315,7 +315,13 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
         task_triage_gate_command_script,
         task_triage_result_schema,
     )
-    from sase.bead.model import PhaseSize, TaskPlusOneEvidence
+    from sase.bead.model import (
+        CloseRecord,
+        PhaseSize,
+        ReopenCause,
+        Resolution,
+        TaskPlusOneEvidence,
+    )
     from sase.core.paths import is_valid_sase_project_name
 
     if spec.continuation_mode != TASK_TRIAGE_CONTINUATION_MODE:
@@ -350,6 +356,7 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
         "refs",
         "plus_one_count",
         "plus_one_evidence",
+        "close_history",
     }
     if set(payload) != expected_payload_fields:
         raise GateError(
@@ -464,6 +471,81 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
             "task triage +1 count must equal its evidence entries",
         )
 
+    raw_close_history = payload.get("close_history")
+    if not isinstance(raw_close_history, list):
+        raise GateError(
+            "invalid_task_triage_payload",
+            "payload.close_history",
+            "task triage close history must be a list",
+        )
+    resolution_values = {item.value for item in Resolution}
+    reopen_cause_values = {item.value for item in ReopenCause}
+    close_history: list[CloseRecord] = []
+    for index, raw_record in enumerate(raw_close_history):
+        if not isinstance(raw_record, Mapping) or set(raw_record) != {
+            "closed_at",
+            "close_reason",
+            "resolution",
+            "reopened_at",
+            "reopened_via",
+            "reopened_by",
+        }:
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.close_history.{index}",
+                "task triage close history entry is malformed",
+            )
+        raw_resolution = raw_record.get("resolution")
+        if raw_resolution is not None and raw_resolution not in resolution_values:
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.close_history.{index}.resolution",
+                "task triage close history resolution is invalid",
+            )
+        raw_reopened_via = raw_record.get("reopened_via")
+        if raw_reopened_via not in reopen_cause_values:
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.close_history.{index}.reopened_via",
+                "task triage close history reopened_via is invalid",
+            )
+        raw_close_reason = raw_record.get("close_reason")
+        raw_reopened_by = raw_record.get("reopened_by")
+        if (raw_close_reason is not None and not isinstance(raw_close_reason, str)) or (
+            raw_reopened_by is not None and not isinstance(raw_reopened_by, str)
+        ):
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.close_history.{index}",
+                "task triage close history text fields must be strings or null",
+            )
+        if any(
+            not isinstance(raw_record.get(field), str)
+            for field in ("closed_at", "reopened_at")
+        ):
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.close_history.{index}",
+                "task triage close history timestamps must be strings",
+            )
+        record = CloseRecord(
+            closed_at=cast(str, raw_record["closed_at"]),
+            reopened_at=cast(str, raw_record["reopened_at"]),
+            reopened_via=ReopenCause(raw_reopened_via),
+            close_reason=cast(str | None, raw_close_reason),
+            resolution=Resolution(raw_resolution) if raw_resolution else None,
+            reopened_by=cast(str | None, raw_reopened_by),
+        )
+        try:
+            record.validate()
+        except ValueError as exc:
+            raise GateError(
+                "invalid_task_triage_payload",
+                f"payload.close_history.{index}",
+                str(exc),
+            ) from exc
+        close_history.append(record)
+
     if tuple(option.id for option in spec.options) != TASK_TRIAGE_OPTION_IDS:
         raise GateError(
             "invalid_task_triage_options",
@@ -556,6 +638,7 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
         cast(str, payload["title"]),
         count,
         created_at=created_at,
+        reopen_count=len(close_history),
     )
     presentation = spec.presentation
     origin_agent = presentation.get("origin_agent")
@@ -587,6 +670,7 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
         size=cast(str | None, size),
         refs=cast(list[str], refs),
         plus_one_evidence=evidence,
+        close_history=close_history,
     )
     preview_prefix, marker, template_tail = template.partition(description_marker)
     description_notes_separator, marker_two, preview_suffix = template_tail.partition(
@@ -614,6 +698,7 @@ def validate_task_triage_spec(spec: GateSpec) -> None:
             size=cast(str | None, size),
             refs=cast(list[str], refs),
             plus_one_evidence=evidence,
+            close_history=close_history,
         )
         if separator
         else None

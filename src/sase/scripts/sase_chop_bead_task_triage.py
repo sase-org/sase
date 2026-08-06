@@ -195,6 +195,17 @@ def _presentation_fingerprint(issue: Issue) -> str:
             }
             for evidence in issue.plus_one_evidence
         ],
+        "close_history": [
+            {
+                "closed_at": record.closed_at,
+                "close_reason": record.close_reason,
+                "resolution": record.resolution.value if record.resolution else None,
+                "reopened_at": record.reopened_at,
+                "reopened_via": record.reopened_via.value,
+                "reopened_by": record.reopened_by,
+            }
+            for record in issue.close_history
+        ],
     }
     encoded = json.dumps(
         payload,
@@ -339,6 +350,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                     size=issue.size.value if issue.size else None,
                     refs=issue.refs,
                     plus_one_evidence=issue.plus_one_evidence,
+                    close_history=issue.close_history,
                     producer={
                         "chop": "bead_task_triage",
                         "project": project_name,

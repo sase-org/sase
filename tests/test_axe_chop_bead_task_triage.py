@@ -11,7 +11,16 @@ import pytest
 
 import sase.scripts.sase_chop_bead_task_triage as task_triage
 from sase.axe.chop_script_context import ChopScriptContext
-from sase.bead.model import Issue, IssueType, PhaseSize, Status, TaskPlusOneEvidence
+from sase.bead.model import (
+    CloseRecord,
+    Issue,
+    IssueType,
+    PhaseSize,
+    ReopenCause,
+    Resolution,
+    Status,
+    TaskPlusOneEvidence,
+)
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
 
@@ -269,6 +278,46 @@ def test_later_plus_one_refreshes_pending_triage_presentation(
     assert refreshed.counters == {"gated": 1, "canceled": 1, "skipped": 0}
     assert canceled == [(created[0]["request_id"], "task_triage_presentation_changed")]
     assert created[1]["plus_one_evidence"] == task.plus_one_evidence
+    assert created[1]["request_id"].endswith("-g2")
+
+
+def test_later_close_history_refreshes_pending_triage_presentation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    task = _task()
+    ready = [task]
+    _patch_project(monkeypatch, tmp_path, ready)
+    created: list[dict[str, Any]] = []
+    canceled: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs),
+    )
+    monkeypatch.setattr(task_triage, "_gate_state", lambda _request_id: "pending")
+    monkeypatch.setattr(
+        task_triage,
+        "_cancel_pending_gate",
+        lambda request_id, *, reason: canceled.append((request_id, reason)) or True,
+    )
+
+    task_triage._run(_runtime(tmp_path))
+    task.close_history.append(
+        CloseRecord(
+            closed_at="2026-07-30T09:12:04Z",
+            reopened_at="2026-08-05T17:04:11Z",
+            reopened_via=ReopenCause.PLUS_ONE,
+            close_reason="Not reproducible on main.",
+            resolution=Resolution.CANCELED,
+            reopened_by="claude.probe",
+        )
+    )
+    refreshed = task_triage._run(_runtime(tmp_path))
+
+    assert refreshed.counters == {"gated": 1, "canceled": 1, "skipped": 0}
+    assert canceled == [(created[0]["request_id"], "task_triage_presentation_changed")]
+    assert created[1]["close_history"] == task.close_history
     assert created[1]["request_id"].endswith("-g2")
 
 

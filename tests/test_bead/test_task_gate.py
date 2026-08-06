@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from sase.bead.model import TaskPlusOneEvidence
+from sase.bead.model import CloseRecord, ReopenCause, Resolution, TaskPlusOneEvidence
 from sase.bead.task_gate import (
     TASK_TRIAGE_COMMAND_PATHS,
     TASK_TRIAGE_PREVIEW_PATH,
@@ -76,6 +76,7 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
         "refs": [],
         "plus_one_count": 0,
         "plus_one_evidence": [],
+        "close_history": [],
     }
     assert [(option["id"], option["feedback"]) for option in request["options"]] == [
         ("launch", "optional"),
@@ -146,6 +147,103 @@ def test_task_triage_presents_structured_plus_one_evidence(gate_home: Path) -> N
     assert "## +1 Evidence" in preview
     assert "+1 agent.beta · 2026-08-01T15:00:00Z" in preview
     assert "Reproduced after clearing the cache." in preview
+
+
+def test_task_triage_presents_prior_close_history(gate_home: Path) -> None:
+    del gate_home
+    older = CloseRecord(
+        closed_at="2026-06-01T00:00:00Z",
+        reopened_at="2026-06-15T00:00:00Z",
+        reopened_via=ReopenCause.OPEN,
+        close_reason="Won't fix.",
+        resolution=Resolution.CANCELED,
+    )
+    newer = CloseRecord(
+        closed_at="2026-07-30T09:12:04Z",
+        reopened_at="2026-08-05T17:04:11Z",
+        reopened_via=ReopenCause.PLUS_ONE,
+        close_reason="Not reproducible on main; the retry shim already covers this.",
+        resolution=Resolution.CANCELED,
+        reopened_by="claude.probe",
+    )
+    evidence = TaskPlusOneEvidence(
+        timestamp="2026-08-05T17:04:11Z",
+        reporter="claude.probe",
+        note="Saw the same flake in CI run 4821 with a clean worktree.",
+    )
+
+    gate = create_task_triage_gate(
+        request_id="task-triage-close-history",
+        bead_id="sase-task.3",
+        project="sase",
+        title="Flaky retry test in CI",
+        plus_one_evidence=(evidence,),
+        close_history=(older, newer),
+    )
+
+    request = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    assert request["payload"]["close_history"] == [
+        {
+            "closed_at": "2026-06-01T00:00:00Z",
+            "close_reason": "Won't fix.",
+            "resolution": "canceled",
+            "reopened_at": "2026-06-15T00:00:00Z",
+            "reopened_via": "open",
+            "reopened_by": None,
+        },
+        {
+            "closed_at": "2026-07-30T09:12:04Z",
+            "close_reason": (
+                "Not reproducible on main; the retry shim already covers this."
+            ),
+            "resolution": "canceled",
+            "reopened_at": "2026-08-05T17:04:11Z",
+            "reopened_via": "plus_one",
+            "reopened_by": "claude.probe",
+        },
+    ]
+    assert request["presentation"]["notes"] == [
+        "sase-task.3 [+1] [↺2] — Flaky retry test in CI"
+    ]
+
+    preview = (gate.bundle_path / TASK_TRIAGE_PREVIEW_PATH).read_text(encoding="utf-8")
+    description_index = preview.index("## Description")
+    newer_index = preview.index("Previously closed 2026-07-30T09:12:04Z as canceled")
+    older_index = preview.index("Previously closed 2026-06-01T00:00:00Z as canceled")
+    assert newer_index < older_index < description_index
+    assert "Reopened 2026-08-05T17:04:11Z by a +1 from `@claude.probe`." in preview
+    assert "Reopened 2026-06-15T00:00:00Z by `sase bead open`." in preview
+    assert "+1 claude.probe · 2026-08-05T17:04:11Z ↺ reopened this task" in preview
+
+
+def test_task_triage_close_history_placeholders_for_missing_fields() -> None:
+    record = CloseRecord(
+        closed_at="2026-06-01T00:00:00Z",
+        reopened_at="2026-06-15T00:00:00Z",
+        reopened_via=ReopenCause.UPDATE,
+    )
+
+    preview = render_task_triage_preview(
+        bead_id="sase-task.1",
+        title="Follow up on the cache",
+        description="",
+        notes="",
+        close_history=(record,),
+    )
+
+    assert (
+        "> [!WARNING] **↺ Previously closed 2026-06-01T00:00:00Z as "
+        "(unrecorded)** (none)"
+    ) in preview
+    assert "Reopened 2026-06-15T00:00:00Z by a status update." in preview
+
+
+def test_task_triage_presentation_note_includes_reopen_badge() -> None:
+    note = task_triage_presentation_note(
+        "sase-task.1", "Flaky retry test in CI", 1, reopen_count=2
+    )
+
+    assert note == "sase-task.1 [+1] [↺2] — Flaky retry test in CI"
 
 
 def test_task_triage_gate_omits_blank_origin_agent(gate_home: Path) -> None:
@@ -242,6 +340,25 @@ def test_task_triage_rejects_automatic_resolution(gate_home: Path) -> None:
         (
             lambda spec: spec["payload"].update(created_at="2020-06-01T00:00:00Z"),
             "invalid_task_triage_presentation",
+        ),
+        (
+            lambda spec: spec["payload"].update(close_history=[{"bad": True}]),
+            "invalid_task_triage_payload",
+        ),
+        (
+            lambda spec: spec["payload"].update(
+                close_history=[
+                    {
+                        "closed_at": "2026-06-01T00:00:00Z",
+                        "close_reason": None,
+                        "resolution": None,
+                        "reopened_at": "2026-06-15T00:00:00Z",
+                        "reopened_via": "not_a_real_cause",
+                        "reopened_by": None,
+                    }
+                ]
+            ),
+            "invalid_task_triage_payload",
         ),
         (
             lambda spec: spec["options"][0].update(feedback="disabled"),
