@@ -41,7 +41,7 @@ from tests._test_selection_manifest import (  # noqa: E402
     write_manifest,
 )
 from tests._test_selection_report import context_line, summary_line  # noqa: E402
-from tests._test_selection_health import (  # noqa: E402
+from tests._test_selection_health_store import (  # noqa: E402
     KIND_FULL_RUN,
     RECORD_ENV,
     allocate_record_path,

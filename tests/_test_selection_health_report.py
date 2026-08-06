@@ -1,0 +1,215 @@
+"""Render a :class:`~tests._test_selection_health.SelectionHealth` for a reader.
+
+Two renderings of the same summary: prose for a human running
+``tools/selection_health``, and a flat JSON payload for anything that would
+rather parse than read. Nothing here computes; if a number is missing from a
+report it is missing from :func:`tests._test_selection_health.summarize`.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from tests._test_selection_health import (
+    FULL_SUITE_WORKER_SECONDS,
+    FalseNegative,
+    SelectionHealth,
+)
+from tests._test_selection_health_store import HEALTH_SCHEMA
+
+
+def _format_count(value: float | None, *, universe: int | None) -> str:
+    if value is None:
+        return "n/a"
+    if universe:
+        return f"{value:.0f} ({value / universe:.1%} of {universe})"
+    return f"{value:.0f}"
+
+
+def _format_seconds(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.1f}s"
+
+
+def render_report(health: SelectionHealth) -> list[str]:
+    """Render the store as prose a human can act on, not a JSON dump."""
+    lines = ["Diff-scoped test selection health", ""]
+    if not health.scoped_runs and not health.full_runs:
+        lines.append("No runs recorded yet. Run `just check` to record one.")
+        return lines
+
+    rate = health.escalation_rate
+    lines.extend(
+        [
+            f"scoped runs recorded:   {health.scoped_runs}",
+            f"  escalated to full:    {health.escalated_runs}"
+            + (f" ({rate:.1%})" if rate is not None else ""),
+            "  median selected:      "
+            + _format_count(health.median_selected, universe=health.universe_count),
+            "  p90 selected:         "
+            + _format_count(health.p90_selected, universe=health.universe_count),
+            f"  median duration:      {_format_seconds(health.median_duration)}",
+            f"full-lane runs recorded: {health.full_runs}",
+            "",
+            "worker-seconds avoided vs. running the full suite instead: "
+            f"{health.worker_seconds_saved:,.0f}"
+            f" (~{health.worker_seconds_saved / 60:,.0f} worker-minutes, "
+            f"at {FULL_SUITE_WORKER_SECONDS:,.0f}s per full run)",
+            "",
+        ]
+    )
+
+    lines.append("broadening rules fired:")
+    if health.rule_histogram:
+        for rule, count in health.rule_histogram.items():
+            lines.append(f"  {count:>4}  {rule}")
+    else:
+        lines.append("  (none)")
+    lines.append("")
+
+    lines.append("scoped run outcomes:")
+    if health.outcome_histogram:
+        for outcome, count in health.outcome_histogram.items():
+            lines.append(f"  {count:>4}  {outcome}")
+    else:
+        lines.append("  (none)")
+    lines.append("")
+
+    lines.extend(_render_contexts(health))
+    lines.append("")
+
+    lines.extend(_render_false_negatives(health))
+    return lines
+
+
+def _render_contexts(health: SelectionHealth) -> list[str]:
+    """Whether per-test coverage ground truth is reaching these runs at all.
+
+    This is the reading that says whether contexts earn their CI cost: runs
+    with no baseline got the static closure alone, and a high stale count next
+    to a non-zero false-negative count is the signal to refresh more often.
+    """
+    if not health.scoped_runs:
+        return ["coverage contexts: no scoped runs recorded"]
+    without = health.scoped_runs - health.context_runs
+    lines = [
+        "coverage contexts:",
+        f"  runs with a baseline:  {health.context_runs} of {health.scoped_runs}",
+        f"  runs without one:      {without} (static closure alone)",
+        f"  runs on a stale one:   {health.context_stale_runs}",
+        f"  test files contributed: {health.context_selected_total} (cumulative)",
+    ]
+    if without and not health.context_runs:
+        lines.append("  Run `just refresh-contexts-baseline` to cache one.")
+    return lines
+
+
+#: Stated in the report because a metric whose matching rule is invisible is a
+#: metric nobody can argue with — and this rule is the whole phase.
+_MATCHING_RULE_LINES = (
+    "  matching rule: a scoped run is charged with a full-run failure only when",
+    "  both records name the same workspace, the scoped run's HEAD is an ancestor",
+    "  of the full run's, and the full run's change set covers the scoped run's.",
+)
+
+
+def _render_pre_schema(health: SelectionHealth) -> list[str]:
+    pre_schema = health.pre_schema
+    if not pre_schema.total:
+        return []
+    return [
+        f"  {pre_schema.total} record(s) predate schema {HEALTH_SCHEMA} "
+        f"({pre_schema.selections} scoped, {pre_schema.full_runs} full-lane),",
+        "  carry no workspace or change set, and are excluded from correlation.",
+    ]
+
+
+def _render_false_negatives(health: SelectionHealth) -> list[str]:
+    if not health.false_negatives:
+        return [
+            "false negatives: 0",
+            "  No full-run failure has ever been excluded by a scoped run over an",
+            "  ancestor of the same change.",
+            *_MATCHING_RULE_LINES,
+            *_render_pre_schema(health),
+        ]
+    # One missed test excluded by twenty ancestor selections is one problem,
+    # not twenty; group so the headline number is the number of tests.
+    grouped: dict[str, list[FalseNegative]] = {}
+    for false_negative in health.false_negatives:
+        grouped.setdefault(false_negative.nodeid, []).append(false_negative)
+
+    lines = [
+        f"false negatives: {len(grouped)}"
+        f" ({len(health.false_negatives)} scoped run/failure matches)",
+        *_MATCHING_RULE_LINES,
+        *_render_pre_schema(health),
+    ]
+    for nodeid, matches in sorted(grouped.items()):
+        rules = sorted({rule for match in matches for rule in match.rules})
+        # Repetition across *unrelated* change sets is the signature of a flake
+        # rather than a selection miss: a genuinely missed test is missed by
+        # the selections over the one change that should have selected it.
+        change_sets = {match.selection_changed_files for match in matches}
+        lines.append(f"  {nodeid}")
+        lines.append(
+            f"    failed in {matches[0].full_run_record} "
+            f"(head {(matches[0].full_run_head or '?')[:12]})"
+        )
+        lines.append(
+            f"    excluded by {len(matches)} scoped run(s), first "
+            f"{matches[0].selection_record} "
+            f"(head {(matches[0].selection_head or '?')[:12]})"
+        )
+        lines.append(f"    distinct change sets: {len(change_sets)}")
+        if len(change_sets) > 1:
+            lines.append(
+                "    matched across unrelated changes; suspect a flake before a miss"
+            )
+        lines.append(f"    rules across those runs: {', '.join(rules) or 'none'}")
+    lines.extend(
+        [
+            "",
+            "  A non-zero count means the selection heuristic is unsound as tuned.",
+            "  Raise SASE_TEST_SELECTION_DEPTH to 3 or add the missed tests to",
+            "  tests/contract_manifest.txt, then re-measure.",
+        ]
+    )
+    return lines
+
+
+def health_payload(health: SelectionHealth) -> dict[str, Any]:
+    """The same summary, for anything that would rather parse than read."""
+    return {
+        "schema": HEALTH_SCHEMA,
+        "scoped_runs": health.scoped_runs,
+        "escalated_runs": health.escalated_runs,
+        "escalation_rate": health.escalation_rate,
+        "full_runs": health.full_runs,
+        "universe_count": health.universe_count,
+        "median_selected": health.median_selected,
+        "median_selected_ratio": health.median_selected_ratio,
+        "p90_selected": health.p90_selected,
+        "median_duration": health.median_duration,
+        "worker_seconds_saved": health.worker_seconds_saved,
+        "rule_histogram": health.rule_histogram,
+        "outcome_histogram": health.outcome_histogram,
+        "context_runs": health.context_runs,
+        "context_stale_runs": health.context_stale_runs,
+        "context_selected_total": health.context_selected_total,
+        "pre_schema_selections": health.pre_schema.selections,
+        "pre_schema_full_runs": health.pre_schema.full_runs,
+        "false_negatives": [
+            {
+                "nodeid": false_negative.nodeid,
+                "test_file": false_negative.test_file,
+                "selection_record": false_negative.selection_record,
+                "selection_head": false_negative.selection_head,
+                "selection_changed_files": list(false_negative.selection_changed_files),
+                "full_run_record": false_negative.full_run_record,
+                "full_run_head": false_negative.full_run_head,
+                "workspace": false_negative.workspace,
+                "rules": list(false_negative.rules),
+            }
+            for false_negative in health.false_negatives
+        ],
+    }

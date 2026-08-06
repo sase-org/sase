@@ -23,7 +23,11 @@ from typing import Any
 
 import pytest
 
-from tests._test_selection_health import RECORD_ENV, full_run_record, write_record
+from tests._test_selection_health_store import (
+    RECORD_ENV,
+    full_run_record,
+    write_record,
+)
 
 
 class FullRunFailureRecorder:

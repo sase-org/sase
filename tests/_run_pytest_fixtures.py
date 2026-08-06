@@ -14,7 +14,7 @@ from types import ModuleType
 
 import pytest
 
-from tests._test_selection_health import STORE_ENV
+from tests._test_selection_health_store import STORE_ENV
 
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -49,7 +49,7 @@ from tests._test_selection_graph import (
     is_test_file,
     is_visual_path,
 )
-from tests._test_selection_health import store_directory
+from tests._test_selection_health_store import store_directory
 from tests._test_selection_manifest import (
     GRAPH_CACHE_FILENAME,
     MANIFEST_FILENAME,

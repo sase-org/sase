@@ -15,7 +15,7 @@ from types import ModuleType
 
 import pytest
 
-from tests._test_selection_health import (
+from tests._test_selection_health_store import (
     KIND_FULL_RUN,
     allocate_record_path,
     full_run_record,

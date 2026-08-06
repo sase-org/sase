@@ -29,7 +29,7 @@ from tests._test_selection_contexts import (  # noqa: E402
     contexts_directory,
 )
 from tests._test_selection_graph import SelectionError, run_git  # noqa: E402
-from tests._test_selection_health import store_directory  # noqa: E402
+from tests._test_selection_health_store import store_directory  # noqa: E402
 
 
 DEFAULT_RUN_LIMIT = 20

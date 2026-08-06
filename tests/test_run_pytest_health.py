@@ -18,7 +18,8 @@ from tests._run_pytest_fixtures import (
     load_run_pytest,
     scoped_selection,
 )
-from tests._test_selection_health import STORE_ENV, load_records
+from tests._test_selection_health_records import load_records
+from tests._test_selection_health_store import STORE_ENV
 
 
 pytestmark = pytest.mark.contract
