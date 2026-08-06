@@ -40,7 +40,7 @@ def _patch_commits(
         "sase.ace.tui.widgets.artifacts.commits_filtering.normalize_reference_time",
         lambda: reference,
     )
-    monkeypatch.setattr("sase.vcs_log.render._now_epoch", reference.timestamp)
+    monkeypatch.setattr("sase.vcs_log._render_util._now_epoch", reference.timestamp)
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
     monkeypatch.setattr(

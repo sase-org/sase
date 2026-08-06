@@ -7,12 +7,14 @@ from datetime import datetime
 
 import pytest
 
-import sase.vcs_log.render as render_mod
+import sase.vcs_log._render_console as console_mod
+from sase.vcs_log._style import make_console
 from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
 from sase.vcs_log.render import build_timeline_commit
 
 from ._vcs_log_render_helpers import (
     _entry,
+    _patch_clock,
     _render,
     _result,
     _styles_covering,
@@ -29,8 +31,7 @@ def test_pretty_day_groups_labels_and_order(
         200: datetime(2026, 7, 8, 13, 5),  # Today
         100: datetime(2026, 7, 7, 18, 40),  # Yesterday
     }
-    monkeypatch.setattr(render_mod, "_local_now", lambda: now)
-    monkeypatch.setattr(render_mod, "_to_local", lambda ts: local[ts])
+    _patch_clock(monkeypatch, local_now=lambda: now, to_local=lambda ts: local[ts])
 
     text = _render(_result(), "pretty")
 
@@ -66,8 +67,7 @@ def test_pretty_reverse_uses_ascending_day_groups(
         200: datetime(2026, 7, 8, 13, 5),
         100: datetime(2026, 7, 7, 18, 40),
     }
-    monkeypatch.setattr(render_mod, "_local_now", lambda: now)
-    monkeypatch.setattr(render_mod, "_to_local", lambda ts: local[ts])
+    _patch_clock(monkeypatch, local_now=lambda: now, to_local=lambda ts: local[ts])
 
     text = _render(_result(), "pretty", reverse=True)
 
@@ -84,8 +84,7 @@ def test_pretty_tags_suffix_before_author(
         300: datetime(2026, 7, 8, 14, 22),
         200: datetime(2026, 7, 8, 13, 5),
     }
-    monkeypatch.setattr(render_mod, "_local_now", lambda: now)
-    monkeypatch.setattr(render_mod, "_to_local", lambda ts: local[ts])
+    _patch_clock(monkeypatch, local_now=lambda: now, to_local=lambda ts: local[ts])
 
     text = _render(_tagged_result(), "pretty")
 
@@ -108,7 +107,7 @@ def test_pretty_tag_spans_use_semantic_chip_colors() -> None:
         ),
     )
 
-    line = render_mod._commit_line(
+    line = console_mod.commit_line(
         entry,
         {"sase": "#87D7FF"},
         repo_width=len("sase"),
@@ -143,9 +142,7 @@ def test_compact_timeline_row_is_one_line_and_ellipsizes(
         commits=(entry,),
         warnings=(),
     )
-    monkeypatch.setattr(
-        render_mod, "_to_local", lambda _ts: datetime(2026, 7, 8, 14, 22)
-    )
+    _patch_clock(monkeypatch, to_local=lambda _ts: datetime(2026, 7, 8, 14, 22))
 
     row = build_timeline_commit(
         entry,
@@ -167,7 +164,7 @@ def test_compact_timeline_row_is_one_line_and_ellipsizes(
     assert row.overflow == "ellipsis"
 
     out = io.StringIO()
-    console = render_mod.make_console("never", file=out, width=36)
+    console = make_console("never", file=out, width=36)
     console.print(row, no_wrap=row.no_wrap, overflow=row.overflow)
     rendered_lines = out.getvalue().splitlines()
     assert len(rendered_lines) == 1
@@ -182,7 +179,7 @@ def test_pretty_filter_summary_and_empty_message(
         200: datetime(2026, 7, 8, 14, 30),
         300: datetime(2026, 7, 8, 15, 30),
     }
-    monkeypatch.setattr(render_mod, "_to_local", lambda ts: local[ts])
+    _patch_clock(monkeypatch, to_local=lambda ts: local[ts])
     filters = CommitFilters(since=100, until=200, authors=("bryan",))
 
     text = _render(_result(), "pretty", filters=filters)
@@ -213,11 +210,12 @@ def test_pretty_empty_still_shows_warnings() -> None:
 def test_pretty_cached_remote_summary_shows_fetch_age(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(render_mod, "_local_now", lambda: datetime(2026, 7, 8, 15, 0))
-    monkeypatch.setattr(
-        render_mod, "_to_local", lambda ts: datetime(2026, 7, 8, 14, 22)
+    _patch_clock(
+        monkeypatch,
+        local_now=lambda: datetime(2026, 7, 8, 15, 0),
+        to_local=lambda ts: datetime(2026, 7, 8, 14, 22),
+        now_epoch=lambda: 1030.0,
     )
-    monkeypatch.setattr(render_mod, "_now_epoch", lambda: 1030.0)
     result = VcsLogResult(
         repos=(LogRepo("sase", "/p/sase", "primary"),),
         commits=(_entry("sase", "a1b2c3d4", 300, "cached"),),
@@ -233,9 +231,10 @@ def test_pretty_cached_remote_summary_shows_fetch_age(
 def test_pretty_mixed_fetched_and_cached_remote_summary_is_fresh(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(render_mod, "_local_now", lambda: datetime(2026, 7, 8, 15, 0))
-    monkeypatch.setattr(
-        render_mod, "_to_local", lambda ts: datetime(2026, 7, 8, 14, 22)
+    _patch_clock(
+        monkeypatch,
+        local_now=lambda: datetime(2026, 7, 8, 15, 0),
+        to_local=lambda ts: datetime(2026, 7, 8, 14, 22),
     )
     result = VcsLogResult(
         repos=(
