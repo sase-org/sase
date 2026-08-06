@@ -8,6 +8,8 @@ exist so an agent reading ``just check`` output, or a human running
 
 from __future__ import annotations
 
+from typing import Any
+
 from tests._test_selection import Selection
 from tests._test_selection_contexts import ContextSelection
 
@@ -41,6 +43,39 @@ def context_line(contexts: ContextSelection) -> str:
         f"{distance} behind HEAD) matched {len(contexts.matched_files)} changed "
         f"file(s) and contributed {len(contexts.selected)} test file(s)"
     )
+
+
+def manifest_summary_line(manifest: dict[str, Any]) -> str:
+    """The scoped lane's one-line summary, rebuilt from its persisted manifest.
+
+    `summary_line`/`context_line` render a live `Selection`; `run_silent`
+    discards a scoped run's stdout+stderr on success before either can reach
+    the terminal. This renders the same facts from the JSON manifest
+    `tools/run_pytest` already persists, so a `check` step that runs after
+    `run_silent` returns — outside its captured region — can still show what
+    a passing scoped run decided.
+    """
+    escalated = bool(manifest.get("escalated"))
+    rules = ", ".join(manifest.get("rules_fired") or ()) or "none"
+    universe_count = int(manifest.get("universe_count") or 0)
+    contexts = manifest.get("contexts") or {}
+    baseline_sha = contexts.get("baseline")
+    if baseline_sha is None:
+        baseline_status = "missing"
+    else:
+        baseline_status = "stale" if contexts.get("stale") else "present"
+
+    if escalated:
+        selection_part = f"escalated to the full suite (rules: {rules})"
+    else:
+        selected_count = int(manifest.get("selected_count") or 0)
+        share = 0.0 if universe_count == 0 else 100 * selected_count / universe_count
+        selection_part = (
+            f"selected {selected_count} of {universe_count} test files "
+            f"({share:.1f}%; rules: {rules})"
+        )
+
+    return f"scoped: {selection_part}; contexts baseline {baseline_status}"
 
 
 def explain_lines(selection: Selection, *, sample: int = 20) -> list[str]:

@@ -455,6 +455,11 @@ selection-health *args: _setup (_header "selection-health")
 # combined tree, when the change touches the broadening set (see
 # `tools/select_tests --explain`), or whenever the scoped run escalated or
 # reported an unusual selection.
+#
+# `tools/run_silent` discards the scoped stage's captured output on success,
+# so `print_scoped_summary` runs as a separate step right after it returns —
+# outside that captured region — and reads the selection manifest `test-scoped`
+# just finished writing to show what the run decided either way.
 check: _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
@@ -468,6 +473,7 @@ check: _setup
     @tools/run_silent "SASE validation"     just validate
     @tools/run_silent "committed plans"      just validate-committed-plans
     @tools/run_silent "test (scoped)"      just test-scoped
+    @{{ venv_bin }}/python tools/print_scoped_summary
 
 # Exhaustive verification: every whole-repo lint gate plus the full test
 # suite. Run this before landing, and in CI.
