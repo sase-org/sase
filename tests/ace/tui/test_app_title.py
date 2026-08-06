@@ -7,9 +7,11 @@ best-effort, git-aware refinement applied off-thread during ``on_mount``.
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
+from textual.pilot import Pilot
 
 import sase
 from sase.ace.tui.app import AceApp
@@ -120,6 +122,15 @@ def test_host_display_version_normalizes_unknown_sentinel_to_none(
     assert host_display_version() is None
 
 
+async def _wait_for_mount_state_loads(app: AceApp, pilot: Pilot[None]) -> None:
+    """Poll until the title write's barrier fires, or fail with a clear message."""
+    deadline = asyncio.get_running_loop().time() + 15.0
+    while not app._mount_state_loads_done:
+        if asyncio.get_running_loop().time() >= deadline:
+            raise AssertionError("mount state loads did not finish within 15 seconds")
+        await pilot.pause()
+
+
 async def test_on_mount_refines_title_to_resolved_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -132,7 +143,7 @@ async def test_on_mount_refines_title_to_resolved_version(
 
     app = AceApp(query="!!!", auto_start_axe=False)
     async with app.run_test() as pilot:
-        await pilot.pause()
+        await _wait_for_mount_state_loads(app, pilot)
         assert app.title == format_app_title(dev_version)
 
 
@@ -147,5 +158,5 @@ async def test_on_mount_keeps_initial_title_when_resolver_returns_none(
 
     app = AceApp(query="!!!", auto_start_axe=False)
     async with app.run_test() as pilot:
-        await pilot.pause()
+        await _wait_for_mount_state_loads(app, pilot)
         assert app.title == f"sase ace (v{sase.__version__})"
