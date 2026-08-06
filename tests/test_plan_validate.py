@@ -57,6 +57,16 @@ phases:
 Implement it.
 """
 
+# ``VALID_EPIC`` with a hand-authored trailing-text annotation on the
+# machine-owned ``PARENT`` header bullet -- the exact mistake that motivated
+# the ``header-invalid`` diagnostic (see plan_header_validation.md).
+MALFORMED_HEADER_EPIC = VALID_EPIC.replace(
+    "---\n# Plan",
+    "---\n\n"
+    "- **PARENT:** [202608/parent.md](202608/parent.md) (epic sase-1, closed)\n\n"
+    "# Plan",
+)
+
 
 def _parse(argv: list[str]) -> argparse.Namespace:
     return create_parser().parse_args(argv)
@@ -436,6 +446,42 @@ def test_failure_human_output_is_location_bearing_and_self_teaching(
     assert "title: Ship the requested capability" in captured.err
     assert "goal: The requested capability works end to end." in captured.err
     assert "Validation failed" in captured.err
+
+
+def test_facade_reports_header_invalid_as_error() -> None:
+    result = validate_plan(MALFORMED_HEADER_EPIC, "epic")
+
+    assert not result.ok
+    assert result.plan is None
+    header_diagnostics = [d for d in result.diagnostics if d.code == "header-invalid"]
+    assert len(header_diagnostics) == 1
+    diagnostic = header_diagnostics[0]
+    assert diagnostic.severity is PlanDiagnosticSeverity.ERROR
+    assert diagnostic.is_error
+    assert diagnostic.field_path == ""
+    assert diagnostic.line == 19
+    assert "trailing text in PARENT plan header section" in diagnostic.message
+
+
+def test_cli_rejects_malformed_header_block_with_location_bearing_diagnostic(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plan = tmp_path / "epic.md"
+    plan.write_text(MALFORMED_HEADER_EPIC, encoding="utf-8")
+
+    assert _invoke([str(plan), "--json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    header_diagnostics = [
+        d for d in payload["diagnostics"] if d["code"] == "header-invalid"
+    ]
+    assert len(header_diagnostics) == 1
+    assert header_diagnostics[0]["line"] == 19
+
+    assert _invoke([str(plan)]) == 1
+    captured = capsys.readouterr()
+    assert f"{plan}:19: error [header-invalid]" in captured.err
+    assert "SASE owns the plan header block" in captured.err
 
 
 def test_failure_json_envelope_has_core_parity(

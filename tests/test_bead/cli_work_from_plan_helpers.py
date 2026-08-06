@@ -30,6 +30,17 @@ Execute the rollout.
 """
 
 
+# ``EPIC_PLAN`` with a hand-authored trailing-text annotation on the
+# machine-owned ``PARENT`` header bullet -- the exact mistake that motivated
+# the ``header-invalid`` diagnostic (see plan_header_validation.md).
+MALFORMED_HEADER_EPIC_PLAN = EPIC_PLAN.replace(
+    "---\n# Plan",
+    "---\n\n"
+    "- **PARENT:** [202608/parent.md](202608/parent.md) (epic sase-1, closed)\n\n"
+    "# Plan",
+)
+
+
 def epic_plan_with_parent(parent_id: str) -> str:
     return EPIC_PLAN.replace(
         "goal: Exercise the host-owned plan-file launch.\n",

@@ -20,6 +20,7 @@ from sase.plan_approval_actions import (
     PlanApprovalActionContext,
     PlanApprovalValidationError,
     execute_plan_approval_response,
+    require_plan_approval_validation,
 )
 from sase.plan_gate import (
     _build_plan_gate_spec,
@@ -32,7 +33,11 @@ from sase.plan_gate import (
     translate_plan_gate_response,
 )
 
-from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
+from tests.plan_validation_helpers import (
+    MALFORMED_HEADER_EPIC_PLAN,
+    VALID_EPIC_PLAN,
+    VALID_TALE_PLAN,
+)
 
 
 @pytest.fixture()
@@ -222,6 +227,24 @@ def test_edit_revalidates_tier_then_refreshes_review_hashes(gate_home: Path) -> 
         "selected_option_ids"
     ] == ["approve"]
     assert plan.read_text(encoding="utf-8") == edited
+
+
+def test_require_plan_approval_validation_rejects_malformed_header_block(
+    gate_home: Path,
+) -> None:
+    plan = _write_plan(gate_home, "malformed-header.md", MALFORMED_HEADER_EPIC_PLAN)
+
+    with pytest.raises(PlanApprovalValidationError) as exc_info:
+        require_plan_approval_validation(plan, "epic")
+
+    error = exc_info.value
+    assert error.code == "plan_validation_failed"
+    assert any(
+        diagnostic.code == "header-invalid"
+        for diagnostic in error.validation.diagnostics
+    )
+    assert "header-invalid" in str(error)
+    assert "trailing text in PARENT plan header section" in str(error)
 
 
 def test_plan_context_recovers_original_file_from_old_bundle_payload(
