@@ -16,7 +16,13 @@ from types import ModuleType
 import pytest
 
 from tests._test_selection import FULL_SUITE, MANIFEST_FILENAME, SELECTION_DIRECTORY
-from tests._test_selection_fixtures import RING_SIZE, _touch, build_fixture_repo
+from tests._test_selection_contexts import CONTEXTS_DIR_ENV
+from tests._test_selection_fixtures import (
+    RING_SIZE,
+    _touch,
+    build_fixture_repo,
+    install_fresh_baseline,
+)
 
 
 @pytest.fixture
@@ -44,6 +50,10 @@ def _load_tool(repo_root: Path) -> ModuleType:
 
 @pytest.fixture
 def tool(repo: Path, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    # A fresh baseline, so these assertions measure the closure at the depth
+    # they ask for rather than the extra hop `no-baseline-depth-boost` buys.
+    store = install_fresh_baseline(repo)
+    monkeypatch.setenv(CONTEXTS_DIR_ENV, str(store.parent / "contexts"))
     monkeypatch.setenv("SASE_TEST_SELECTION_MAX_RATIO", "1.0")
     monkeypatch.delenv("SASE_TEST_SELECTION_DEPTH", raising=False)
     monkeypatch.delenv("SASE_CHECK_BASE", raising=False)
@@ -87,7 +97,7 @@ def test_json_format_prints_the_manifest(
     assert tool.main(["--base", "HEAD", "--format", "json"]) == 0
 
     manifest = json.loads(capsys.readouterr().out)
-    assert manifest["schema"] == 2
+    assert manifest["schema"] == 3
     assert manifest["changed_files"] == ["src/pkg/a.py"]
     assert manifest["selected_count"] == len(manifest["selected"])
 
@@ -113,7 +123,7 @@ def test_manifest_destination_is_overridable(
 
     tool.main(["--base", "HEAD", "--manifest", str(destination)])
 
-    assert json.loads(destination.read_text(encoding="utf-8"))["schema"] == 2
+    assert json.loads(destination.read_text(encoding="utf-8"))["schema"] == 3
 
 
 def test_depth_and_max_ratio_flags_override_the_environment(

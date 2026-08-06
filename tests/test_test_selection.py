@@ -50,13 +50,16 @@ from tests._test_selection_fixtures import (
     _touch,
     _write,
     build_fixture_repo,
+    install_fresh_baseline,
 )
 
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     """A committed synthetic repository with a known import shape."""
-    return build_fixture_repo(tmp_path)
+    root = build_fixture_repo(tmp_path)
+    install_fresh_baseline(root)
+    return root
 
 
 def _select(
@@ -67,7 +70,15 @@ def _select(
     base_ref: str = "HEAD",
     **kwargs: object,
 ) -> Selection:
+    """Select against a *fresh* baseline, so the closure walks the given depth.
+
+    Without one, ``no-baseline-depth-boost`` would buy every selection here an
+    extra hop and these assertions would be measuring the compensation rather
+    than the closure. The compensation has its own tests, in
+    ``tests/test_test_selection_contexts.py``.
+    """
     options = SelectionOptions(base_ref=base_ref, depth=depth, max_ratio=max_ratio)
+    kwargs.setdefault("contexts_store", root.parent / "selection-store" / "project")
     return select_tests(root, options, **kwargs)  # type: ignore[arg-type]
 
 
@@ -528,12 +539,13 @@ def test_manifest_carries_every_documented_field(repo: Path) -> None:
 
     manifest = _select(repo).manifest
 
-    assert manifest["schema"] == 2
+    assert manifest["schema"] == 3
     assert set(manifest) == {
         "schema",
         "base",
         "changed_files",
         "depth",
+        "effective_depth",
         "max_ratio",
         "rules_fired",
         "escalated",
@@ -545,6 +557,8 @@ def test_manifest_carries_every_documented_field(repo: Path) -> None:
         "contexts",
     }
     assert manifest["changed_files"] == ["src/pkg/a.py"]
+    # Nothing compensated here, so the walked depth is the configured one.
+    assert manifest["effective_depth"] == manifest["depth"]
     assert manifest["selected_count"] == len(manifest["selected"])
     assert manifest["baseline"]["tree_dirty"] is True
     assert manifest["graph"]["modules"] > 0

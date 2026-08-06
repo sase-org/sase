@@ -12,8 +12,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from coverage import CoverageData
-
 from tests._test_selection import (
     Selection,
     SelectionOptions,
@@ -36,8 +34,17 @@ from tests._test_selection_contexts import (
     parse_baseline_lines,
     select_from_contexts,
 )
-from tests._test_selection_fixtures import _git, _write, build_fixture_repo
+from tests._test_selection_fixtures import (
+    _git,
+    _write,
+    build_fixture_repo,
+    write_contexts_baseline,
+)
 from tests._test_selection_report import context_line
+from tests._test_selection_rules import (
+    FULL_SUITE_RULES,
+    RULE_NO_BASELINE_DEPTH_BOOST,
+)
 
 
 @pytest.fixture
@@ -57,19 +64,9 @@ def _store_for(contexts_dir: Path) -> Path:
     return contexts_dir.parent / "project"
 
 
-def _write_baseline(path: Path, coverage_map: dict[str, dict[str, list[int]]]) -> None:
-    """Write a coverage database recording ``{file: {context: lines}}``."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    data = CoverageData(basename=str(path))
-    # An always-present row keeps the database on disk even when the caller
-    # only cares that *a* baseline exists.
-    data.set_context("tests/test_placeholder.py::test_placeholder|run")
-    data.add_lines({"src/pkg/never_changed.py": [1]})
-    for measured_file, contexts in coverage_map.items():
-        for context, lines in contexts.items():
-            data.set_context(context)
-            data.add_lines({measured_file: lines})
-    data.write()
+#: Shared with ``tests/test_test_selection.py``, which needs the same database
+#: to put its closure assertions in the fresh-baseline world.
+_write_baseline = write_contexts_baseline
 
 
 def _head(repo: Path) -> str:
@@ -470,6 +467,90 @@ def test_a_docs_only_change_matches_no_context(repo: Path, contexts_dir: Path) -
 
     assert selection.manifest["contexts"]["matched_files"] == []
     assert RULE_CONTEXT_SELECTION not in selection.rules
+
+
+# --------------------------------------------------------------------------
+# Compensating for a baseline that is not there
+# --------------------------------------------------------------------------
+#
+# The fixture repository's import chain is ``a <- b <- c <- d``, so a change to
+# ``src/pkg/a.py`` reaches ``tests/test_c.py`` at depth 2 and ``tests/test_d.py``
+# only at depth 3. That one file is the whole observable difference between
+# compensating and not, which is why every test below watches it.
+
+
+def test_no_baseline_buys_the_closure_an_extra_hop(
+    repo: Path, contexts_dir: Path
+) -> None:
+    _write(repo, "src/pkg/a.py", "VALUE = 2\n")
+
+    selection = _select(repo, contexts_dir)
+
+    assert RULE_CONTEXT_BASELINE_MISSING in selection.rules
+    assert RULE_NO_BASELINE_DEPTH_BOOST in selection.rules
+    assert selection.manifest["effective_depth"] == 3
+    assert "tests/test_d.py" in selection.selected
+
+
+def test_a_fresh_baseline_spends_no_extra_hop(repo: Path, contexts_dir: Path) -> None:
+    """Ground truth is present, so the closure has no gap to compensate for."""
+    _write_baseline(baseline_path(contexts_dir, _head(repo)), {})
+    _write(repo, "src/pkg/a.py", "VALUE = 2\n")
+
+    selection = _select(repo, contexts_dir)
+
+    assert RULE_NO_BASELINE_DEPTH_BOOST not in selection.rules
+    assert selection.manifest["effective_depth"] == 2
+    assert "tests/test_c.py" in selection.selected
+    assert "tests/test_d.py" not in selection.selected
+
+
+def test_a_stale_baseline_buys_the_hop_as_well(
+    repo: Path, contexts_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stale rows describe code that has since moved; they are not ground truth.
+
+    The baseline is still queried and still contributes — see
+    ``test_a_stale_baseline_is_used_and_flagged`` — but it no longer counts as
+    the second source that lets the closure stay shallow.
+    """
+    _write_baseline(baseline_path(contexts_dir, _head(repo)), {})
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "move on")
+    monkeypatch.setenv(CONTEXTS_MAX_DISTANCE_ENV, "0")
+    _write(repo, "src/pkg/a.py", "VALUE = 2\n")
+
+    selection = _select(repo, contexts_dir)
+
+    assert RULE_CONTEXT_BASELINE_STALE in selection.rules
+    assert RULE_NO_BASELINE_DEPTH_BOOST in selection.rules
+    assert selection.manifest["effective_depth"] == 3
+
+
+def test_the_depth_boost_widens_instead_of_escalating(
+    repo: Path, contexts_dir: Path
+) -> None:
+    """The compensation must never be a full-suite rule.
+
+    Roughly half of recorded scoped runs have no usable baseline. Escalating on
+    that would send half the lane to the full suite, which is the one outcome
+    this compensation exists to avoid.
+    """
+    _write(repo, "src/pkg/a.py", "VALUE = 2\n")
+
+    selection = _select(repo, contexts_dir)
+
+    assert RULE_NO_BASELINE_DEPTH_BOOST not in FULL_SUITE_RULES
+    assert not selection.escalated
+
+
+def test_the_boost_composes_with_the_rename_hop(repo: Path, contexts_dir: Path) -> None:
+    """Two independent compensations, two hops — not one shared bump."""
+    _git(repo, "rm", "-q", "src/pkg/hub.py")
+    _write(repo, "src/pkg/a.py", "VALUE = 2\n")
+
+    selection = _select(repo, contexts_dir)
+
+    assert selection.manifest["effective_depth"] == 4
 
 
 # --------------------------------------------------------------------------

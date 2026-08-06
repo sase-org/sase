@@ -80,6 +80,47 @@ def build_fixture_repo(tmp_path: Path) -> Path:
     return root
 
 
+def write_contexts_baseline(
+    path: Path, coverage_map: dict[str, dict[str, list[int]]]
+) -> None:
+    """Write a coverage database recording ``{file: {context: lines}}``."""
+    from coverage import CoverageData
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = CoverageData(basename=str(path))
+    # An always-present row keeps the database on disk even when the caller
+    # only cares that *a* baseline exists.
+    data.set_context("tests/test_placeholder.py::test_placeholder|run")
+    data.add_lines({"src/pkg/never_changed.py": [1]})
+    for measured_file, contexts in coverage_map.items():
+        for context, lines in contexts.items():
+            data.set_context(context)
+            data.add_lines({measured_file: lines})
+    data.write()
+
+
+def install_fresh_baseline(root: Path) -> Path:
+    """Cache an empty-but-fresh baseline at ``root``'s HEAD; return its store.
+
+    Selection compensates for a missing or stale baseline by walking a hop
+    deeper, so a test about the *closure* has to say which of the two worlds it
+    is in or it silently measures whichever baselines the host happens to have
+    cached. This puts the caller in the fresh-baseline world: ground truth is
+    consulted, finds nothing about this synthetic repository, and buys no extra
+    hop.
+    """
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    store = root.parent / "selection-store" / "project"
+    write_contexts_baseline(store.parent / "contexts" / f"{head}.sqlite", {})
+    return store
+
+
 def _touch(root: Path, path: str) -> None:
     """Make a benign, content-changing edit to a tracked file."""
     target = root / path

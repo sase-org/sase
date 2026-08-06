@@ -140,6 +140,33 @@ stale, which changed files it matched, and how many test files it contributed.
 Line numbers are read on the **baseline side** of `git diff -U0 <baseline-sha>`, restricted to the change set's own
 files, because the database is keyed by line numbers as they were in the baseline.
 
+##### When there is no usable baseline
+
+A missing or stale baseline is the common case, not an exceptional one — `just selection-health` recorded a baseline
+present in only 11 of the first 22 scoped runs — so the run cannot simply carry on as if the closure alone were sound.
+It also cannot escalate: sending half the lane to the full suite would delete the reason the lane exists. Instead the
+closure **walks one hop deeper** and records `no-baseline-depth-boost`, which appears in the manifest, in `just check`'s
+scoped summary line, and in `just selection-health`'s rule histogram. The manifest's `effective_depth` is the depth
+actually walked, configured depth plus whatever the rename/delete and no-baseline compensations bought; `depth` stays
+the configured one.
+
+Measured with `just selection-backtest --limit 150 --include-descendant-baseline --baseline 96183d71b` at `4651ed199`
+over 63 commits with usable ground truth (3 faithful baseline-ancestor replays, 60 approximate baseline-descendant
+ones), closure-only:
+
+| depth              | mean recall | p10 recall | worst recall | blind-spot commits | missed test files | median selection |
+| ------------------ | ----------: | ---------: | -----------: | -----------------: | ----------------: | ---------------: |
+| 2 (before)         |       96.0% |      85.3% |        23.5% |            13 / 63 |               116 |             6.4% |
+| 3 (with the boost) |       99.2% |     100.0% |        81.3% |             5 / 63 |                11 |             8.8% |
+
+The extra hop costs roughly double the selected files (`src/sase/agent_lanes.py`: 110 → 255 of 2,329, 1,117 → 2,514
+tests, 57s → 164s serial on athena) and raises the replayed escalation rate from 23/63 to 28/63 — historical
+whole-commit diffs, well above what a working-tree change selects. It buys back 91% of the measured blind spot. On the
+sharpest known shape, `src/sase/ace/tui/_app_layout.py` — widely executed but shallowly imported — it lifts recall from
+24.2% to 53.8% (69 missed of 91 down to 42) at 14.2% of the suite, still under the escalation ratio. Directory-mirror
+expansion was measured as the alternative for that shape and rejected: `tests/ace/tui/**` is 831 files, 35.7% of the
+suite, so mirroring escalates to the full suite rather than staying scoped.
+
 #### The contract set
 
 Some tests audit the repository as a whole rather than one module: config-schema conformance, generated-file drift,

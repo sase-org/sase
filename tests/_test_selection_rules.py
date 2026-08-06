@@ -30,8 +30,16 @@ RULE_CONTRACT_SET_ALWAYS = "contract-set-always"
 RULE_CONTRACT_SET_ONLY = "contract-set-only"
 RULE_RENAME_OR_DELETE = "rename-or-delete"
 RULE_RATIO_EXCEEDED = "selection-ratio-exceeded"
+RULE_NO_BASELINE_DEPTH_BOOST = "no-baseline-depth-boost"
 
 #: Rules whose only sound response is to run everything.
+#:
+#: ``RULE_NO_BASELINE_DEPTH_BOOST`` is deliberately absent: a missing or stale
+#: coverage baseline is the *common* case, not an exceptional one — roughly half
+#: of recorded scoped runs have no usable baseline — so escalating on it would
+#: send half the lane to the full suite and delete the reason the lane exists.
+#: It compensates by walking one hop deeper instead; see
+#: :func:`tests._test_selection.select_tests`.
 FULL_SUITE_RULES = frozenset(
     {
         RULE_BASE_UNRESOLVED,
