@@ -40,6 +40,7 @@ just test-terminal-smoke  # Optional real-terminal ACE smoke test
 just test-cov      # Parallel test run with coverage + 50% gate, excluding visual snapshots
 just check         # Agent default: whole-repo lint gates + a diff-scoped test lane
 just check-full    # Exhaustive verification: whole-repo lint gates + the full test suite
+just selection-health  # Health of the diff-scoped test lane, including false negatives
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
 just build         # Build wheel and sdist
@@ -190,6 +191,32 @@ Use `just test-terminal-smoke` only when you need to verify the ACE startup path
 has proved stable. The recipe uses the shared pytest runner's private disk-backed temp root and leak guard, but it is
 always serial and never leases xdist worker tokens; `SASE_PYTEST_DIST` is therefore ignored. Set `SASE_PYTEST_TMPDIR` to
 override its scratch root while diagnosing temp-path behavior.
+
+### Selection Health
+
+`just test-scoped` selects tests from the change set with a depth-bounded reverse walk of the import graph. That
+selection is a heuristic, so its cost and its mistakes are both measured rather than assumed.
+
+Every scoped run copies its selection manifest, and every full-lane run (`just test`, `just test-cov`) copies the node
+IDs it saw fail, into a durable host-local store at `${SASE_HOME:-~/.sase}/test-selection/<project-key>/`. The store is
+shared by every numbered workspace of the project — which is the point, since a land agent in one workspace needs to see
+what phase agents in the others skipped — and records older than 30 days are pruned on write.
+
+```bash
+just selection-health          # readable report
+just selection-health --json   # the same numbers, machine-readable
+```
+
+The report covers how many scoped runs ran, how often they escalated to the governed full lane, median and p90 selection
+size, median scoped duration, worker-seconds of host demand avoided, which broadening rules fired, and — the number that
+decides whether the fast lane is trustworthy — the **false negatives**: tests that failed in a full run after a scoped
+run over an ancestor commit excluded them. The target is zero. A non-zero count means the heuristic is unsound as tuned;
+the response is to raise `SASE_TEST_SELECTION_DEPTH` to 3 or add the missed tests to `tests/contract_manifest.txt` and
+re-measure, not to explain the failures away.
+
+Use `tools/select_tests --explain` to see why an individual test was or was not selected. Set
+`SASE_TEST_SELECTION_HEALTH_DISABLED=1` to skip recording entirely, and `SASE_TEST_SELECTION_HEALTH_DIR` to point the
+store somewhere else.
 
 ## Visual Snapshot Workflow
 

@@ -1,0 +1,493 @@
+"""Unit tests for the selection-health store, correlator, and report.
+
+Everything here runs against a synthetic store under ``tmp_path`` with an
+injected ancestry oracle. The point of this phase is to measure whether the
+selection heuristic has ever been wrong, so these tests pin the two halves of
+that measurement: what gets written, and what the correlator concludes from it.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import pytest
+
+from tests._test_selection_health import (
+    FULL_SUITE_WORKER_SECONDS,
+    KIND_FULL_RUN,
+    PROJECT_KEY_ENV,
+    RECORD_ENV,
+    SASE_HOME_ENV,
+    STORE_ENV,
+    allocate_record_path,
+    find_false_negatives,
+    full_run_record,
+    git_ancestor_oracle,
+    health_payload,
+    load_records,
+    nodeid_test_file,
+    project_key,
+    prune_store,
+    record_selection,
+    render_report,
+    store_directory,
+    summarize,
+    write_record,
+)
+from tests._test_selection_health_plugin import (
+    FullRunFailureRecorder,
+    pytest_configure,
+)
+
+
+NOW = datetime(2026, 8, 5, 12, 0, 0, tzinfo=UTC)
+
+
+def _git_init(root: Path, *, remote: str | None) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    if remote is not None:
+        subprocess.run(["git", "remote", "add", "origin", remote], cwd=root, check=True)
+
+
+def _manifest(
+    *,
+    head: str,
+    selected: tuple[str, ...] = (),
+    escalated: bool = False,
+    rules: tuple[str, ...] = ("contract-set-always",),
+    duration: float | None = 80.0,
+    outcome: str = "passed",
+) -> dict[str, object]:
+    manifest: dict[str, object] = {
+        "schema": 1,
+        "escalated": escalated,
+        "rules_fired": list(rules),
+        "selected": list(selected),
+        "selected_count": len(selected),
+        "universe_count": 2400,
+        "baseline": {"head": head, "environment": "digest", "tree_dirty": False},
+    }
+    if duration is not None:
+        manifest["duration"] = duration
+    manifest["outcome"] = outcome
+    return manifest
+
+
+def _write_selection(
+    store: Path, manifest: dict[str, object], *, minute: int = 0
+) -> Path:
+    return record_selection(
+        store, manifest, pid=1000 + minute, now=NOW + timedelta(minutes=minute)
+    )
+
+
+def _write_full_run(
+    store: Path,
+    *,
+    head: str,
+    failures: tuple[str, ...],
+    minute: int = 30,
+) -> Path:
+    when = NOW + timedelta(minutes=minute)
+    path = allocate_record_path(
+        store, KIND_FULL_RUN, head=head, pid=2000 + minute, now=when
+    )
+    write_record(
+        path,
+        full_run_record(
+            head=head, mode="fast", failures=failures, exit_status=1, now=when
+        ),
+    )
+    return path
+
+
+def _linear_ancestry(*commits: str):
+    """Every commit is an ancestor of the ones listed after it."""
+    order = {commit: index for index, commit in enumerate(commits)}
+
+    def _is_ancestor(ancestor: str, descendant: str) -> bool:
+        if ancestor not in order or descendant not in order:
+            return False
+        return order[ancestor] <= order[descendant]
+
+    return _is_ancestor
+
+
+# --------------------------------------------------------------------------
+# Store location
+# --------------------------------------------------------------------------
+
+
+def test_project_key_matches_the_projectspec_key_for_a_github_remote(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "sase_11"
+    root.mkdir()
+    _git_init(root, remote="https://github.com/sase-org/sase.git")
+
+    assert project_key(root, {}) == "gh_sase-org__sase"
+
+
+def test_project_key_falls_back_to_the_workspace_stripped_directory_name(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "sase_11"
+    root.mkdir()
+    _git_init(root, remote=None)
+
+    assert project_key(root, {}) == "sase"
+
+
+def test_project_key_environment_override_wins(tmp_path: Path) -> None:
+    assert project_key(tmp_path, {PROJECT_KEY_ENV: "custom"}) == "custom"
+
+
+def test_store_directory_lives_under_sase_home_by_project(tmp_path: Path) -> None:
+    root = tmp_path / "sase_3"
+    root.mkdir()
+    _git_init(root, remote="git@github.com:sase-org/sase.git")
+    home = tmp_path / "home"
+
+    store = store_directory(root, {SASE_HOME_ENV: str(home)})
+
+    assert store == home / "test-selection" / "gh_sase-org__sase"
+
+
+def test_store_directory_environment_override_wins(tmp_path: Path) -> None:
+    override = tmp_path / "elsewhere"
+
+    assert store_directory(tmp_path, {STORE_ENV: str(override)}) == override
+
+
+# --------------------------------------------------------------------------
+# Writing, pruning, loading
+# --------------------------------------------------------------------------
+
+
+def test_recording_a_selection_writes_a_timestamped_record(tmp_path: Path) -> None:
+    path = _write_selection(tmp_path / "store", _manifest(head="a" * 40))
+
+    assert path.name == f"20260805T120000Z-{'a' * 12}-1000.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["kind"] == "selection"
+    assert payload["manifest"]["selected_count"] == 0
+
+
+def test_pruning_drops_records_past_retention_and_keeps_the_rest(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    old = _write_selection(store, _manifest(head="a" * 40), minute=0)
+    recent = record_selection(
+        store, _manifest(head="b" * 40), pid=7, now=NOW + timedelta(days=29)
+    )
+    unfamiliar = store / "notes.txt"
+    unfamiliar.write_text("hand-written", encoding="utf-8")
+
+    removed = prune_store(store, now=NOW + timedelta(days=31))
+
+    assert removed == [old]
+    assert not old.exists()
+    assert recent.exists()
+    assert unfamiliar.exists()
+
+
+def test_allocating_a_record_path_prunes_the_store(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    stale = _write_selection(store, _manifest(head="a" * 40))
+
+    allocate_record_path(
+        store, KIND_FULL_RUN, head="b" * 40, pid=9, now=NOW + timedelta(days=45)
+    )
+
+    assert not stale.exists()
+
+
+def test_loading_records_separates_kinds_and_ignores_junk(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="a" * 40))
+    _write_full_run(store, head="b" * 40, failures=("tests/test_x.py::test_y",))
+    (store / "20260805T120000Z-cccccccccccc-3.json").write_text(
+        "not json", encoding="utf-8"
+    )
+
+    records = load_records(store)
+
+    assert len(records.selections) == 1
+    assert len(records.full_runs) == 1
+    assert records.full_runs[0].failures == ("tests/test_x.py::test_y",)
+
+
+def test_loading_an_absent_store_is_empty_not_an_error(tmp_path: Path) -> None:
+    records = load_records(tmp_path / "missing")
+
+    assert records.selections == ()
+    assert records.full_runs == ()
+
+
+# --------------------------------------------------------------------------
+# False-negative detection
+# --------------------------------------------------------------------------
+
+
+def test_a_failure_excluded_by_an_ancestor_selection_is_a_false_negative(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", selected=("tests/test_kept.py",)))
+    _write_full_run(store, head="bbb", failures=("tests/test_missed.py::test_x",))
+
+    found = find_false_negatives(
+        load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb")
+    )
+
+    assert len(found) == 1
+    assert found[0].nodeid == "tests/test_missed.py::test_x"
+    assert found[0].test_file == "tests/test_missed.py"
+    assert found[0].rules == ("contract-set-always",)
+
+
+def test_a_selected_failure_is_not_a_false_negative(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", selected=("tests/test_x.py",)))
+    _write_full_run(store, head="bbb", failures=("tests/test_x.py::test_y",))
+
+    assert not find_false_negatives(
+        load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb")
+    )
+
+
+def test_an_escalated_selection_can_never_be_a_false_negative(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", escalated=True, outcome="escalated"))
+    _write_full_run(store, head="bbb", failures=("tests/test_x.py::test_y",))
+
+    assert not find_false_negatives(
+        load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb")
+    )
+
+
+def test_a_selection_that_is_not_an_ancestor_is_ignored(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="zzz"))
+    _write_full_run(store, head="bbb", failures=("tests/test_x.py::test_y",))
+
+    assert not find_false_negatives(
+        load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb")
+    )
+
+
+def test_visual_failures_are_never_false_negatives(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa"))
+    _write_full_run(
+        store,
+        head="bbb",
+        failures=("tests/ace/tui/visual/test_png.py::test_snapshot",),
+    )
+
+    assert not find_false_negatives(
+        load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb")
+    )
+
+
+def test_the_git_ancestor_oracle_answers_false_for_unknown_commits(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    _git_init(root, remote=None)
+
+    assert git_ancestor_oracle(root)("a" * 40, "b" * 40) is False
+
+
+def test_nodeid_test_file_strips_the_node_part() -> None:
+    assert nodeid_test_file("tests/a/test_b.py::TestC::test_d") == "tests/a/test_b.py"
+    assert nodeid_test_file("tests/a/test_b.py") == "tests/a/test_b.py"
+
+
+# --------------------------------------------------------------------------
+# Summary and report
+# --------------------------------------------------------------------------
+
+
+def test_summary_reports_coverage_escalation_and_savings(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(
+        store,
+        _manifest(head="aaa", selected=("tests/test_a.py",), duration=50.0),
+        minute=0,
+    )
+    _write_selection(
+        store,
+        _manifest(
+            head="bbb",
+            selected=("tests/test_a.py", "tests/test_b.py", "tests/test_c.py"),
+            duration=150.0,
+        ),
+        minute=1,
+    )
+    _write_selection(
+        store,
+        _manifest(head="ccc", escalated=True, rules=("justfile",), duration=0.0),
+        minute=2,
+    )
+
+    health = summarize(load_records(store), is_ancestor=lambda _a, _b: False)
+
+    assert health.scoped_runs == 3
+    assert health.escalated_runs == 1
+    assert health.escalation_rate == pytest.approx(1 / 3)
+    assert health.median_selected == pytest.approx(2.0)
+    assert health.median_duration == pytest.approx(100.0)
+    assert health.worker_seconds_saved == pytest.approx(
+        2 * FULL_SUITE_WORKER_SECONDS - 200.0
+    )
+    assert health.rule_histogram == {"contract-set-always": 2, "justfile": 1}
+    assert health.universe_count == 2400
+    assert health.median_selected_ratio == pytest.approx(2 / 2400)
+
+
+def test_summary_of_an_empty_store_is_reportable(tmp_path: Path) -> None:
+    health = summarize(load_records(tmp_path), is_ancestor=lambda _a, _b: False)
+
+    assert health.scoped_runs == 0
+    assert health.escalation_rate is None
+    assert "No runs recorded yet." in "\n".join(render_report(health))
+
+
+def test_report_states_a_clean_bill_of_health_explicitly(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", selected=("tests/test_a.py",)))
+
+    report = "\n".join(
+        render_report(summarize(load_records(store), is_ancestor=lambda _a, _b: False))
+    )
+
+    assert "false negatives: 0" in report
+    assert "worker-seconds avoided" in report
+
+
+def test_report_lists_every_false_negative_and_what_to_do(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", selected=("tests/test_kept.py",)))
+    _write_full_run(store, head="bbb", failures=("tests/test_missed.py::test_x",))
+
+    health = summarize(load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb"))
+    report = "\n".join(render_report(health))
+
+    assert "false negatives: 1" in report
+    assert "tests/test_missed.py::test_x" in report
+    assert "SASE_TEST_SELECTION_DEPTH" in report
+
+
+def test_health_payload_is_machine_readable(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", selected=("tests/test_kept.py",)))
+    _write_full_run(store, head="bbb", failures=("tests/test_missed.py::test_x",))
+
+    payload = health_payload(
+        summarize(load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb"))
+    )
+
+    assert json.loads(json.dumps(payload))["false_negatives"][0]["test_file"] == (
+        "tests/test_missed.py"
+    )
+
+
+# --------------------------------------------------------------------------
+# The full-lane recorder plugin
+# --------------------------------------------------------------------------
+
+
+class _FakeReport:
+    def __init__(self, nodeid: str, *, failed: bool) -> None:
+        self.nodeid = nodeid
+        self.failed = failed
+
+
+class _FakePluginManager:
+    def __init__(self) -> None:
+        self.registered: dict[str, object] = {}
+
+    def register(self, plugin: object, name: str) -> None:
+        self.registered[name] = plugin
+
+
+class _FakeConfig:
+    def __init__(self) -> None:
+        self.pluginmanager = _FakePluginManager()
+
+
+def test_recorder_writes_only_the_failures_it_saw(tmp_path: Path) -> None:
+    path = tmp_path / "record.json"
+    recorder = FullRunFailureRecorder(path, head="abc", mode="fast")
+
+    for _ in range(2):
+        recorder.pytest_runtest_logreport(
+            _FakeReport("tests/test_a.py::test_x", failed=True)
+        )
+    recorder.pytest_runtest_logreport(
+        _FakeReport("tests/test_b.py::test_y", failed=False)
+    )
+    recorder.pytest_collectreport(_FakeReport("tests/test_c.py", failed=True))
+    recorder.pytest_sessionfinish(1)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["kind"] == KIND_FULL_RUN
+    assert payload["head"] == "abc"
+    assert payload["failures"] == ["tests/test_a.py::test_x", "tests/test_c.py"]
+
+
+def test_recorder_never_fails_a_run_over_an_unwritable_store(tmp_path: Path) -> None:
+    # A directory is not a writable record path; telemetry must swallow that.
+    recorder = FullRunFailureRecorder(tmp_path, head=None, mode="fast")
+
+    recorder.pytest_sessionfinish(0)
+
+
+def test_plugin_registers_a_recorder_and_consumes_the_request(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    record_path = tmp_path / "record.json"
+    monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+    monkeypatch.setenv(
+        RECORD_ENV,
+        json.dumps({"path": str(record_path), "head": "abc", "mode": "cov"}),
+    )
+    config = _FakeConfig()
+
+    pytest_configure(config)
+
+    recorder = config.pluginmanager.registered["sase-selection-health-recorder"]
+    assert isinstance(recorder, FullRunFailureRecorder)
+    # Popped so nested pytest subprocesses cannot overwrite this run's record.
+    assert RECORD_ENV not in os.environ
+
+
+def test_plugin_does_nothing_without_a_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(RECORD_ENV, raising=False)
+    monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+    config = _FakeConfig()
+
+    pytest_configure(config)
+
+    assert not config.pluginmanager.registered
+
+
+def test_plugin_leaves_recording_to_the_xdist_controller(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PYTEST_XDIST_WORKER", "gw3")
+    monkeypatch.setenv(RECORD_ENV, json.dumps({"path": str(tmp_path / "record.json")}))
+    config = _FakeConfig()
+
+    pytest_configure(config)
+
+    assert not config.pluginmanager.registered

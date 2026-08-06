@@ -419,6 +419,15 @@ refresh-contract-manifest: _setup
     @printf "\n---------- Regenerating contract test manifest... ----------\n"
     {{ venv_bin }}/python tools/refresh_contract_manifest
 
+# Summarize diff-scoped selection health from the durable, host-local record
+# store: coverage, escalation rate, worker-seconds avoided, the broadening-rule
+# histogram, and every false negative (a test that failed in a full run after a
+# scoped run over an ancestor commit excluded it). Pass --json for the same
+# numbers machine-readably.
+[positional-arguments]
+selection-health *args: _setup (_header "selection-health")
+    @{{ venv_bin }}/python tools/selection_health "$@"
+
 # Agent default: whole-repo lint gates plus a diff-scoped test lane that takes
 # no suite-gate lease. Run `just check-full` instead before landing an epic's
 # combined tree, when the change touches the broadening set (see

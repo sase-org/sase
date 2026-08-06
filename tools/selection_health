@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Summarize diff-scoped test selection health from the durable record store."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests._test_selection_health import (  # noqa: E402
+    RETENTION_DAYS,
+    git_ancestor_oracle,
+    health_payload,
+    load_records,
+    render_report,
+    store_directory,
+    summarize,
+)
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--store",
+        type=Path,
+        help=(
+            "record store to summarize "
+            "(default: $SASE_HOME/test-selection/<project-key>)"
+        ),
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the summary as JSON instead of a report",
+    )
+    parser.add_argument(
+        "--fail-on-false-negative",
+        action="store_true",
+        help="exit non-zero when the store contains any false negative",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    namespace = _parse_args(argv)
+    store = namespace.store or store_directory(REPO_ROOT)
+    health = summarize(
+        load_records(store), is_ancestor=git_ancestor_oracle(REPO_ROOT)
+    )
+
+    if namespace.json:
+        print(json.dumps(health_payload(health), indent=2))
+    else:
+        print(f"store: {store}")
+        print(f"retention: {RETENTION_DAYS} days")
+        print()
+        for line in render_report(health):
+            print(line)
+
+    if namespace.fail_on_false_negative and health.false_negatives:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

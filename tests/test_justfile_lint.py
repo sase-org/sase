@@ -184,6 +184,12 @@ def test_test_scoped_skips_the_visual_dependency_install() -> None:
     assert '-e ".[dev]"' in output
 
 
+def test_selection_health_recipe_runs_the_reporting_tool() -> None:
+    output = _dry_run("selection-health")
+
+    assert "tools/selection_health" in output
+
+
 def test_legacy_pyvision_wiring_is_absent() -> None:
     justfile = (ROOT / "Justfile").read_text()
 

@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 import os
-from importlib.machinery import SourceFileLoader
 from pathlib import Path
-from types import ModuleType
 
 import pytest
+
+from tests._run_pytest_fixtures import (
+    forbid_pytest_launch,
+    install_scoped_selection,
+    load_run_pytest,
+    scoped_selection,
+)
 
 
 pytestmark = pytest.mark.contract
@@ -16,20 +20,8 @@ pytestmark = pytest.mark.contract
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _load_run_pytest() -> ModuleType:
-    loader = SourceFileLoader("run_pytest_tool", str(ROOT / "tools" / "run_pytest"))
-    spec = importlib.util.spec_from_file_location(
-        "run_pytest_tool", ROOT / "tools" / "run_pytest", loader=loader
-    )
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def test_normalizes_invocation_relative_file_selector() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._normalize_args(["test_repeat_launcher.py"], ROOT / "tests")
 
@@ -37,7 +29,7 @@ def test_normalizes_invocation_relative_file_selector() -> None:
 
 
 def test_normalizes_invocation_relative_node_selector() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._normalize_args(
         [
@@ -52,7 +44,7 @@ def test_normalizes_invocation_relative_node_selector() -> None:
 
 
 def test_preserves_repo_relative_selector() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._normalize_args(["tests/test_repeat_launcher.py"], ROOT / "tests")
 
@@ -60,7 +52,7 @@ def test_preserves_repo_relative_selector() -> None:
 
 
 def test_strips_just_separator_and_preserves_keyword_expression() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._normalize_args(
         ["--", "-k", "test_repeat_launcher.py", "test_repeat_launcher.py"],
@@ -75,7 +67,7 @@ def test_strips_just_separator_and_preserves_keyword_expression() -> None:
 
 
 def test_visual_mode_selects_visual_marker() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._pytest_command("visual", ["tests/ace/tui/visual"])
 
@@ -90,7 +82,7 @@ def test_visual_mode_selects_visual_marker() -> None:
 def test_fast_mode_selects_not_slow_and_not_visual_marker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
 
     result = runner._pytest_command("fast", [])
@@ -104,7 +96,7 @@ def test_fast_mode_selects_not_slow_and_not_visual_marker(
 def test_parallel_grant_uses_actual_lease_grant(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
     monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
     events: list[object] = []
@@ -149,7 +141,7 @@ def test_parallel_grant_uses_actual_lease_grant(
 def test_exact_worker_override_requests_exact_governed_capacity(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv("SASE_PYTEST_WORKERS", "6")
     monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
     acquisition: list[tuple[int, int, bool]] = []
@@ -181,7 +173,7 @@ def test_exact_worker_override_requests_exact_governed_capacity(
 def test_worker_override_must_be_positive(
     monkeypatch: pytest.MonkeyPatch, invalid: str
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv("SASE_PYTEST_WORKERS", invalid)
 
     with pytest.raises(pytest.UsageError, match="SASE_PYTEST_WORKERS"):
@@ -189,7 +181,7 @@ def test_worker_override_must_be_positive(
 
 
 def test_disabled_gate_skips_acquisition(monkeypatch: pytest.MonkeyPatch) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv("SASE_TEST_GATE_DISABLED", "1")
     monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
     monkeypatch.setattr(runner, "configured_token_budget", lambda: (8, True))
@@ -201,7 +193,7 @@ def test_disabled_gate_skips_acquisition(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_command_uses_granted_worker_count_and_worksteal_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
 
     result = runner._pytest_command("fast", [], worker_count=7)
@@ -212,7 +204,7 @@ def test_command_uses_granted_worker_count_and_worksteal_default(
 def test_loadfile_distribution_environment_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv(runner.PYTEST_DIST_ENV, "loadfile")
 
     result = runner._pytest_command("fast", [], worker_count=7)
@@ -224,7 +216,7 @@ def test_loadfile_distribution_environment_fallback(
 def test_distribution_override_rejects_unsupported_modes(
     monkeypatch: pytest.MonkeyPatch, invalid: str
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv(runner.PYTEST_DIST_ENV, invalid)
 
     with pytest.raises(
@@ -235,14 +227,14 @@ def test_distribution_override_rejects_unsupported_modes(
 
 
 def test_rejects_xdist_count_that_could_bypass_grant() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     with pytest.raises(pytest.UsageError, match="SASE_PYTEST_WORKERS"):
         runner._reject_numprocesses_args(["tests", "-n", "12"])
 
 
 def test_inline_snapshot_fix_disables_default_xdist() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._pytest_command(
         "fast", ["--inline-snapshot=fix", "tests/test_run_pytest_tool.py"]
@@ -254,7 +246,7 @@ def test_inline_snapshot_fix_disables_default_xdist() -> None:
 
 
 def test_inline_snapshot_separate_value_disables_default_xdist() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._pytest_command(
         "fast", ["--inline-snapshot", "short-report", "tests/test_run_pytest_tool.py"]
@@ -267,7 +259,7 @@ def test_inline_snapshot_separate_value_disables_default_xdist() -> None:
 def test_inline_snapshot_disable_preserves_default_xdist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
 
     result = runner._pytest_command(
@@ -279,7 +271,7 @@ def test_inline_snapshot_disable_preserves_default_xdist(
 
 
 def test_inline_snapshot_fix_shortcut_disables_default_xdist() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._pytest_command("fast", ["--fix", "tests/test_run_pytest_tool.py"])
 
@@ -288,7 +280,7 @@ def test_inline_snapshot_fix_shortcut_disables_default_xdist() -> None:
 
 
 def test_slow_mode_selects_slow_marker() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._pytest_command("slow", ["tests/perf"])
 
@@ -298,7 +290,7 @@ def test_slow_mode_selects_slow_marker() -> None:
 def test_terminal_smoke_mode_selects_marker_and_stays_serial(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv(runner.PYTEST_DIST_ENV, "invalid-but-unused")
 
     result = runner._pytest_command(
@@ -315,7 +307,7 @@ def test_terminal_smoke_mode_selects_marker_and_stays_serial(
 
 
 def test_cov_mode_excludes_visual_tests_matching_dedicated_visual_test_job() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._pytest_command("cov", [])
 
@@ -327,7 +319,7 @@ def test_cov_mode_excludes_visual_tests_matching_dedicated_visual_test_job() -> 
 
 
 def test_visual_flag_selects_visual_mode() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     mode, args = runner._resolve_mode_and_args(
         "fast", ["--visual", "-k", "axe", "tests/ace/tui/visual"]
@@ -340,7 +332,7 @@ def test_visual_flag_selects_visual_mode() -> None:
 def test_sanitizes_commit_workflow_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv("SASE_COMMIT_METHOD", "create_pull_request")
     monkeypatch.setenv("SASE_COMMIT_METHOD_ALLOW_OVERRIDE", "1")
     monkeypatch.setenv("SASE_PR_NAME", "fix_just_tests")
@@ -357,7 +349,7 @@ def test_sanitizes_commit_workflow_environment(
 def test_configured_pytest_tmpdir_defaults_to_disk_backed_workspace_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.delenv(runner.PYTEST_TMPDIR_ENV, raising=False)
 
     scratch_root = runner._configured_pytest_tmpdir()
@@ -370,7 +362,7 @@ def test_configured_pytest_tmpdir_defaults_to_disk_backed_workspace_root(
 def test_prepare_pytest_tmpdir_honors_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     scratch_root = tmp_path / "pytest scratch"
     monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(scratch_root))
 
@@ -383,7 +375,7 @@ def test_prepare_pytest_tmpdir_honors_override(
 def test_configured_pytest_tmpdir_resolves_relative_override_from_repo(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, "build/pytest-scratch")
 
     assert runner._configured_pytest_tmpdir() == ROOT / "build" / "pytest-scratch"
@@ -392,7 +384,7 @@ def test_configured_pytest_tmpdir_resolves_relative_override_from_repo(
 def test_configured_pytest_tmpdir_rejects_empty_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, "")
 
     with pytest.raises(pytest.UsageError, match="must not be empty"):
@@ -406,7 +398,7 @@ def test_configured_pytest_tmpdir_rejects_empty_override(
 def test_configured_pytest_tmpdir_rejects_broad_cleanup_targets(
     monkeypatch: pytest.MonkeyPatch, unsafe_root: Path
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(unsafe_root))
 
     with pytest.raises(pytest.UsageError, match="dedicated scratch directory"):
@@ -414,7 +406,7 @@ def test_configured_pytest_tmpdir_rejects_broad_cleanup_targets(
 
 
 def test_reaper_removes_only_stale_pytest_run_directories(tmp_path: Path) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     user_root = tmp_path / "pytest-of-user"
     stale_run = user_root / "pytest-1"
     fresh_run = user_root / "pytest-2"
@@ -442,7 +434,7 @@ def test_reaper_removes_only_stale_pytest_run_directories(tmp_path: Path) -> Non
 
 
 def test_reaper_removes_stale_top_level_scratch_entries(tmp_path: Path) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     stale_inline_snapshot = tmp_path / "inline-snapshot-abc"
     stale_artifact_tree = tmp_path / "tmpab12cd34" / "artifacts"
     fresh_inline_snapshot = tmp_path / "inline-snapshot-def"
@@ -477,7 +469,7 @@ def test_reaper_removes_stale_top_level_scratch_entries(tmp_path: Path) -> None:
 
 
 def test_reaper_preserves_run_with_fresh_lock(tmp_path: Path) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     run_directory = tmp_path / "pytest-of-user" / "pytest-1"
     run_directory.mkdir(parents=True)
     lock_path = run_directory / ".lock"
@@ -496,7 +488,7 @@ def test_reaper_preserves_run_with_fresh_lock(tmp_path: Path) -> None:
 def test_reaper_ignores_cleanup_races(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     run_directory = tmp_path / "pytest-of-user" / "pytest-1"
     run_directory.mkdir(parents=True)
     now = 100_000.0
@@ -516,7 +508,7 @@ def test_reaper_ignores_cleanup_races(
 def test_main_prepares_governed_environment_and_descriptors_before_exec(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv("SASE_TEST_GATE_DIR", str(tmp_path))
     monkeypatch.setenv("SASE_TEST_GATE_SLOTS", "4")
     monkeypatch.setenv("SASE_TEST_GATE_TIMEOUT", "0")
@@ -566,7 +558,7 @@ def test_main_prepares_governed_environment_and_descriptors_before_exec(
 def test_main_serial_snapshot_mode_never_acquires(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv(runner.PYTEST_DIST_ENV, "invalid-but-unused")
     observed: dict[str, list[str]] = {}
 
@@ -599,7 +591,7 @@ def test_main_serial_snapshot_mode_never_acquires(
 def test_main_terminal_smoke_mode_redirects_and_never_acquires(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv(runner.PYTEST_DIST_ENV, "invalid-but-unused")
     scratch_root = tmp_path / "scratch"
     monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(scratch_root))
@@ -639,7 +631,7 @@ def test_main_terminal_smoke_mode_redirects_and_never_acquires(
 def test_main_rejects_invalid_distribution_before_worker_acquisition(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.setenv(runner.PYTEST_DIST_ENV, "loadscope")
 
     def _unexpected_grant() -> None:
@@ -656,58 +648,8 @@ def test_main_rejects_invalid_distribution_before_worker_acquisition(
     ) in capsys.readouterr().err
 
 
-def _scoped_selection(
-    runner: ModuleType,
-    *,
-    selected: tuple[str, ...] = (),
-    escalated: bool = False,
-    rules: tuple[str, ...] = ("contract-set-always",),
-) -> object:
-    return runner.Selection(
-        selected=selected,
-        escalated=escalated,
-        rules=rules,
-        manifest={
-            "schema": 1,
-            "escalated": escalated,
-            "selected": list(selected),
-            "selected_count": len(selected),
-            "universe_count": 2408,
-        },
-        explanations={path: (path, 0) for path in selected},
-        universe_count=2408,
-    )
-
-
-def _install_scoped_selection(
-    runner: ModuleType,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    selection: object,
-) -> Path:
-    """Point scoped mode at a fabricated selection and a scratch manifest."""
-    manifest_path = tmp_path / "manifest.json"
-    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
-    monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
-    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(tmp_path / "scratch"))
-    monkeypatch.setattr(runner, "_scoped_manifest_path", lambda: manifest_path)
-    monkeypatch.setattr(runner, "select_tests", lambda *_args, **_kwargs: selection)
-    return manifest_path
-
-
-def _forbid_pytest_launch(runner: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
-    def _unexpected_execv(_executable: str, _command: list[str]) -> None:
-        raise AssertionError("scoped mode exec'd pytest unexpectedly")
-
-    def _unexpected_run(_command: list[str], **_kwargs: object) -> None:
-        raise AssertionError("scoped mode launched pytest unexpectedly")
-
-    monkeypatch.setattr(runner.os, "execv", _unexpected_execv)
-    monkeypatch.setattr(runner.subprocess, "run", _unexpected_run)
-
-
 def test_scoped_mode_selects_fast_markers_without_xdist() -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
 
     result = runner._pytest_command("scoped", ["tests/test_repeat_launcher.py"])
 
@@ -723,10 +665,10 @@ def test_scoped_mode_selects_fast_markers_without_xdist() -> None:
 def test_scoped_mode_runs_the_selection_serially_and_never_acquires(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     selected = ("tests/test_alpha.py", "tests/test_beta.py")
-    manifest_path = _install_scoped_selection(
-        runner, monkeypatch, tmp_path, _scoped_selection(runner, selected=selected)
+    manifest_path = install_scoped_selection(
+        runner, monkeypatch, tmp_path, scoped_selection(runner, selected=selected)
     )
     observed: dict[str, object] = {}
 
@@ -769,12 +711,12 @@ def test_scoped_mode_runs_the_selection_serially_and_never_acquires(
 def test_scoped_mode_reports_a_failing_selection_in_the_manifest(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    runner = _load_run_pytest()
-    manifest_path = _install_scoped_selection(
+    runner = load_run_pytest()
+    manifest_path = install_scoped_selection(
         runner,
         monkeypatch,
         tmp_path,
-        _scoped_selection(runner, selected=("tests/test_alpha.py",)),
+        scoped_selection(runner, selected=("tests/test_alpha.py",)),
     )
 
     class _Completed:
@@ -791,13 +733,13 @@ def test_scoped_mode_reports_a_failing_selection_in_the_manifest(
 def test_scoped_escalation_runs_the_governed_fast_lane(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    runner = _load_run_pytest()
+    runner = load_run_pytest()
     monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
-    _install_scoped_selection(
+    install_scoped_selection(
         runner,
         monkeypatch,
         tmp_path,
-        _scoped_selection(runner, escalated=True, rules=("justfile",)),
+        scoped_selection(runner, escalated=True, rules=("justfile",)),
     )
     observed: dict[str, object] = {}
 
@@ -808,9 +750,13 @@ def test_scoped_escalation_runs_the_governed_fast_lane(
         observed["command"] = command
         raise ExecCalled
 
-    def _unexpected_run(_command: list[str], **_kwargs: object) -> None:
-        raise AssertionError("an escalated run must not stay in the serial lane")
+    def _unexpected_run(command: list[str], **kwargs: object) -> object:
+        if "pytest" in command:
+            raise AssertionError("an escalated run must not stay in the serial lane")
+        # Health recording resolves HEAD through git; let that through.
+        return _real_subprocess_run(command, **kwargs)
 
+    _real_subprocess_run = runner.subprocess.run
     monkeypatch.setattr(runner, "_parallel_worker_grant", lambda: (7, None))
     monkeypatch.setattr(runner.os, "execv", _execv)
     monkeypatch.setattr(runner.subprocess, "run", _unexpected_run)
@@ -819,7 +765,10 @@ def test_scoped_escalation_runs_the_governed_fast_lane(
         runner.main(["scoped"])
 
     assert observed["command"] == runner._pytest_command(
-        "fast", [], worker_count=7, distribution_mode="worksteal"
+        "fast",
+        ["-p", runner.HEALTH_PLUGIN_MODULE],
+        worker_count=7,
+        distribution_mode="worksteal",
     )
     assert "escalating to the governed full test lane" in capsys.readouterr().err
 
@@ -827,11 +776,11 @@ def test_scoped_escalation_runs_the_governed_fast_lane(
 def test_scoped_empty_selection_exits_zero_without_running_pytest(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    runner = _load_run_pytest()
-    manifest_path = _install_scoped_selection(
-        runner, monkeypatch, tmp_path, _scoped_selection(runner)
+    runner = load_run_pytest()
+    manifest_path = install_scoped_selection(
+        runner, monkeypatch, tmp_path, scoped_selection(runner)
     )
-    _forbid_pytest_launch(runner, monkeypatch)
+    forbid_pytest_launch(runner, monkeypatch)
 
     assert runner.main(["scoped"]) == 0
     assert "no test files selected" in capsys.readouterr().err
@@ -843,9 +792,9 @@ def test_scoped_empty_selection_exits_zero_without_running_pytest(
 def test_scoped_mode_rejects_explicit_xdist_count(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    runner = _load_run_pytest()
-    _install_scoped_selection(runner, monkeypatch, tmp_path, _scoped_selection(runner))
-    _forbid_pytest_launch(runner, monkeypatch)
+    runner = load_run_pytest()
+    install_scoped_selection(runner, monkeypatch, tmp_path, scoped_selection(runner))
+    forbid_pytest_launch(runner, monkeypatch)
 
     assert runner.main(["scoped", "-n", "4"]) == int(pytest.ExitCode.USAGE_ERROR)
     assert "just check-full" in capsys.readouterr().err
@@ -854,9 +803,9 @@ def test_scoped_mode_rejects_explicit_xdist_count(
 def test_scoped_mode_rejects_exact_worker_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    runner = _load_run_pytest()
-    _install_scoped_selection(runner, monkeypatch, tmp_path, _scoped_selection(runner))
-    _forbid_pytest_launch(runner, monkeypatch)
+    runner = load_run_pytest()
+    install_scoped_selection(runner, monkeypatch, tmp_path, scoped_selection(runner))
+    forbid_pytest_launch(runner, monkeypatch)
     monkeypatch.setenv("SASE_PYTEST_WORKERS", "8")
 
     assert runner.main(["scoped"]) == int(pytest.ExitCode.USAGE_ERROR)
@@ -868,9 +817,9 @@ def test_scoped_mode_rejects_exact_worker_override(
 def test_scoped_selection_failure_is_a_usage_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    runner = _load_run_pytest()
-    _install_scoped_selection(runner, monkeypatch, tmp_path, _scoped_selection(runner))
-    _forbid_pytest_launch(runner, monkeypatch)
+    runner = load_run_pytest()
+    install_scoped_selection(runner, monkeypatch, tmp_path, scoped_selection(runner))
+    forbid_pytest_launch(runner, monkeypatch)
 
     def _explode(*_args: object, **_kwargs: object) -> None:
         raise runner.SelectionError("SASE_TEST_SELECTION_DEPTH must be an integer")

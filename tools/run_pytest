@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import stat
@@ -36,7 +37,14 @@ from tests._test_selection import (  # noqa: E402
     summary_line,
     write_manifest,
 )
-from tests._test_selection_graph import SelectionError  # noqa: E402
+from tests._test_selection_graph import SelectionError, run_git  # noqa: E402
+from tests._test_selection_health import (  # noqa: E402
+    KIND_FULL_RUN,
+    RECORD_ENV,
+    allocate_record_path,
+    record_selection,
+    store_directory,
+)
 
 
 PYTEST_ENV_UNSET_KEYS = (
@@ -58,6 +66,11 @@ SCOPED_WORKER_REMEDY = (
     "unaccounted-demand shape the suite gate exists to prevent; use "
     "`just check-full` (or `just test`) for a governed parallel run."
 )
+#: Modes that run the whole fast suite, and whose failures are therefore
+#: evidence about what a scoped run should not have skipped.
+FULL_LANE_MODES = frozenset({"fast", "cov"})
+HEALTH_PLUGIN_MODULE = "tests._test_selection_health_plugin"
+HEALTH_DISABLED_ENV = "SASE_TEST_SELECTION_HEALTH_DISABLED"
 PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
 DEFAULT_PYTEST_DIST = "worksteal"
 SUPPORTED_PYTEST_DIST_MODES = ("loadfile", "worksteal")
@@ -465,10 +478,61 @@ def _complete_scoped_manifest(
     outcome: str,
 ) -> None:
     """Append the two fields only the runner knows to the selection manifest."""
-    write_manifest(
-        manifest_path,
-        {**manifest, "duration": round(duration, 3), "outcome": outcome},
+    completed = {**manifest, "duration": round(duration, 3), "outcome": outcome}
+    write_manifest(manifest_path, completed)
+    _record_scoped_run(completed)
+
+
+def _health_recording_enabled() -> bool:
+    return os.environ.get(HEALTH_DISABLED_ENV) != "1"
+
+
+def _health_store() -> Path:
+    return store_directory(REPO_ROOT)
+
+
+def _record_scoped_run(manifest: dict[str, object]) -> None:
+    """Copy a completed scoped manifest into the durable, host-local store.
+
+    ``.pytest_cache`` dies with the workspace; the durable store is what lets a
+    land agent in one workspace see what phase agents in the others skipped.
+    Failing to record is never worth failing a run over.
+    """
+    if not _health_recording_enabled():
+        return
+    try:
+        record_selection(_health_store(), manifest)
+    except OSError:
+        pass
+
+
+def _head_sha() -> str | None:
+    try:
+        return run_git(REPO_ROOT, "rev-parse", "HEAD").strip() or None
+    except SelectionError:
+        return None
+
+
+def _full_lane_recording_args(mode: str) -> list[str]:
+    """Arm the full-lane failure recorder, returning the pytest args it needs.
+
+    The full lanes hand off with ``execv``, so the record has to be written
+    from inside pytest. The runner still picks the path here, in the parent,
+    where ``SASE_HOME`` is the real one rather than a per-test redirect.
+    """
+    if mode not in FULL_LANE_MODES or not _health_recording_enabled():
+        return []
+    head = _head_sha()
+    try:
+        record_path = allocate_record_path(
+            _health_store(), KIND_FULL_RUN, head=head, pid=os.getpid()
+        )
+    except OSError:
+        return []
+    os.environ[RECORD_ENV] = json.dumps(
+        {"path": str(record_path), "head": head, "mode": mode}
     )
+    return ["-p", HEALTH_PLUGIN_MODULE]
 
 
 def _reject_scoped_worker_overrides(args: list[str]) -> None:
@@ -513,6 +577,12 @@ def main(argv: list[str] | None = None) -> int:
                     f"(rules: {', '.join(selection.rules) or 'none'})",
                     file=sys.stderr,
                 )
+                # Record the escalation before handing off: the full lane
+                # `execv`s away, and an unrecorded escalation would read as an
+                # escalation rate of zero.
+                _complete_scoped_manifest(
+                    manifest_path, selection.manifest, duration=0.0, outcome="escalated"
+                )
                 mode = "fast"
             elif not selection.selected:
                 print(
@@ -526,6 +596,8 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 scoped_manifest = selection.manifest
                 pytest_args = [*pytest_args, *selection.selected]
+
+        pytest_args = [*_full_lane_recording_args(mode), *pytest_args]
 
         if _requires_serial_run(mode, pytest_args):
             worker_count = 1

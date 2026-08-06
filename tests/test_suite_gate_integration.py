@@ -84,6 +84,7 @@ def _build_scoped_repo(root: Path) -> None:
         "_suite_gate.py",
         "_test_selection.py",
         "_test_selection_graph.py",
+        "_test_selection_health.py",
     ):
         shutil.copy(_ROOT / "tests" / module, root / "tests" / module)
 
@@ -132,6 +133,9 @@ def _exhausted_pool_environment(root: Path, pool_dir: Path) -> dict[str, str]:
     environment.update(
         {
             "SASE_CHECK_BASE": "HEAD",
+            # Keep the runner's selection-health records inside the miniature
+            # repo instead of the developer's real ``~/.sase`` store.
+            "SASE_HOME": str(root / "sase-home"),
             "SASE_PYTEST_TMPDIR": str(root / "scratch"),
             "SASE_TEST_GATE_DIR": str(pool_dir),
             "SASE_TEST_GATE_SLOTS": "1",
