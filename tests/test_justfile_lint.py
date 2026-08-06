@@ -214,6 +214,22 @@ def test_selection_health_recipe_runs_the_reporting_tool() -> None:
     assert "tools/selection_health" in output
 
 
+def test_selection_backtest_recipe_runs_the_backtest_tool() -> None:
+    output = _dry_run("selection-backtest")
+
+    assert "tools/selection_backtest" in output
+
+
+def test_selection_backtest_is_not_a_check_gate() -> None:
+    """The backtest measures; it must never become something `check` waits on.
+
+    It checks out historical commits and, under `--execute`, runs their tests.
+    Neither belongs on the path an agent takes before replying.
+    """
+    for recipe in ("check", "check-full"):
+        assert "selection_backtest" not in _dry_run(recipe)
+
+
 def test_refresh_contexts_baseline_recipe_runs_the_fetch_tool() -> None:
     output = _dry_run("refresh-contexts-baseline")
 

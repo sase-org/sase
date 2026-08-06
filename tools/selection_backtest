@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""Replay historical commits through the diff-scoped selector and report recall.
+
+This is a measurement tool, not a gate: it is deliberately absent from `just
+check` and `just check-full`. It checks commits out into its own detached
+worktree and never touches the invoking checkout.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests._test_selection import SelectionOptions  # noqa: E402
+from tests._test_selection_backtest import (  # noqa: E402
+    CLOSURE_ARM,
+    DEFAULT_EXECUTE_LIMIT,
+    DEFAULT_EXECUTE_TIMEOUT,
+    DEFAULT_LIMIT,
+    UNION_ARM,
+    execute_probes,
+    run_backtest,
+)
+from tests._test_selection_backtest_report import (  # noqa: E402
+    backtest_payload,
+    render_report,
+)
+from tests._test_selection_contexts import contexts_directory  # noqa: E402
+from tests._test_selection_graph import SelectionError  # noqa: E402
+from tests._test_selection_health_store import store_directory  # noqa: E402
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=DEFAULT_LIMIT,
+        help=f"how many commits back from --rev to replay (default: {DEFAULT_LIMIT})",
+    )
+    parser.add_argument(
+        "--rev",
+        default="HEAD",
+        help="the commit to walk back from (default: HEAD)",
+    )
+    parser.add_argument(
+        "--contexts-dir",
+        type=Path,
+        help="baseline cache to measure against (default: the host-local cache)",
+    )
+    parser.add_argument(
+        "--baseline",
+        help="measure against this baseline SHA instead of the newest cached one",
+    )
+    parser.add_argument(
+        "--depth",
+        type=int,
+        help="reverse-closure depth to replay with (default: the selector's own)",
+    )
+    parser.add_argument(
+        "--max-ratio",
+        type=float,
+        help="escalation ratio to replay with (default: the selector's own)",
+    )
+    parser.add_argument(
+        "--include-descendant-baseline",
+        action="store_true",
+        help=(
+            "also replay commits the baseline is a descendant of. Ground truth "
+            "for those is widened by every later change to the same files, so "
+            "recall reads pessimistically; the report labels them separately"
+        ),
+    )
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help=(
+            "after measuring, actually run the missed test files for the worst "
+            "few blind spots. Slow, opt-in, and never part of a check path"
+        ),
+    )
+    parser.add_argument(
+        "--execute-limit",
+        type=int,
+        default=DEFAULT_EXECUTE_LIMIT,
+        help=f"how many commits --execute probes (default: {DEFAULT_EXECUTE_LIMIT})",
+    )
+    parser.add_argument(
+        "--execute-timeout",
+        type=int,
+        default=DEFAULT_EXECUTE_TIMEOUT,
+        help=f"per-commit --execute timeout in seconds (default: {DEFAULT_EXECUTE_TIMEOUT})",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the measurement as JSON instead of a report",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="suppress per-commit progress on stderr",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    namespace = _parse_args(argv)
+    contexts_dir = namespace.contexts_dir or contexts_directory(
+        store_directory(REPO_ROOT)
+    )
+
+    def progress(message: str) -> None:
+        if not namespace.quiet:
+            print(message, file=sys.stderr)
+
+    options = SelectionOptions.from_environment(
+        depth=namespace.depth, max_ratio=namespace.max_ratio
+    )
+    try:
+        report = run_backtest(
+            REPO_ROOT,
+            limit=namespace.limit,
+            options=options,
+            contexts_dir=contexts_dir,
+            baseline_sha=namespace.baseline,
+            include_descendant=namespace.include_descendant_baseline,
+            rev=namespace.rev,
+            progress=progress,
+        )
+        if namespace.execute:
+            report.executed = True
+            report.probes = execute_probes(
+                REPO_ROOT,
+                report,
+                arm=CLOSURE_ARM,
+                limit=namespace.execute_limit,
+                timeout=namespace.execute_timeout,
+                progress=progress,
+            )
+    except SelectionError as error:
+        print(f"selection backtest error: {error}", file=sys.stderr)
+        return 2
+
+    if namespace.json:
+        print(json.dumps(backtest_payload(report), indent=2))
+    else:
+        print(f"contexts cache: {contexts_dir}")
+        print(f"arms: {CLOSURE_ARM}, {UNION_ARM}")
+        print()
+        for line in render_report(report):
+            print(line)
+
+    return 0 if report.baseline is not None else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

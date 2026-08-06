@@ -86,6 +86,30 @@ def _parse_porcelain_z(raw: str) -> tuple[list[str], bool]:
     return paths, special
 
 
+def commit_change_set(root: Path, sha: str) -> ChangeSet:
+    """The change set a single commit introduced, as its own diff against its parent.
+
+    This is the historical analogue of :func:`compute_change_set`: no working
+    tree, no merge base against a branch point, just "what did this commit
+    change". ``tools/selection_backtest`` replays real commits through the
+    selector with it. A root commit has no parent to diff against and raises,
+    because a synthetic empty-tree diff would report the whole repository as
+    changed and quietly turn one commit's recall into an escalation.
+    """
+    parent = run_git(root, "rev-parse", f"{sha}^").strip()
+    paths, has_rename_or_delete = _parse_name_status_z(
+        run_git(root, "diff", "--name-status", "-M", "-z", parent, sha)
+    )
+    return ChangeSet(
+        paths=tuple(sorted(set(paths))),
+        base_ref=parent,
+        merge_base=parent,
+        has_rename_or_delete=has_rename_or_delete,
+        head=sha,
+        tree_dirty=False,
+    )
+
+
 def compute_change_set(root: Path, base_ref: str) -> ChangeSet:
     """Union the merge-base diff with the working tree's own changes.
 
