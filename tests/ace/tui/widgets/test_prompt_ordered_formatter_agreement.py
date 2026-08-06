@@ -13,7 +13,7 @@ import shutil
 
 import pytest
 
-from sase.ace.tui.widgets._prompt_ordered_editing import renumber_ordered_runs
+from sase.ace.tui.widgets._prompt_ordered_editing import _renumber_ordered_runs
 from sase.file_references import format_agent_prompt_markdown
 
 pytestmark = pytest.mark.skipif(
@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(
 
 def _renumbered(text: str, anchor_row: int = 0) -> str:
     lines = text.split("\n")
-    return "\n".join(renumber_ordered_runs(lines, (anchor_row,)).lines)
+    return "\n".join(_renumber_ordered_runs(lines, (anchor_row,)).lines)
 
 
 @pytest.mark.parametrize(

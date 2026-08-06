@@ -14,10 +14,13 @@ numbered ``1`` the run is in Prettier's "git diff friendly" *repeat style*, so
 the first item keeps its number and every later item stays ``1``; otherwise the
 run is *sequential* and item *i* is ``first_number + i``.
 
-Structural keymaps do not mutate the document directly. They build the changed
-lines, hand them to :func:`plan_ordered_list_edit`, and apply the single
-returned :class:`TextEdit` -- one keypress stays one undo checkpoint, because
-Textual opens a new undo batch for every multi-character edit.
+Structural keymaps do not mutate the document directly. Each one has a planner
+(:func:`plan_ordered_insert_newline` for INSERT-mode ``Ctrl+J``) that builds
+the changed lines and hands them to :func:`plan_ordered_list_edit`, which
+renumbers the run the change restructured and returns a single
+:class:`TextEdit` -- one keypress stays one undo checkpoint, because Textual
+opens a new undo batch for every multi-character edit. A planner returns
+``None`` when no ordered item is involved, leaving the hyphen path untouched.
 
 Everything here is pure, does no I/O, and is bounded: a run larger than
 :data:`MAX_ORDERED_RUN_ITEMS` (or a scan longer than
@@ -44,15 +47,9 @@ from sase.ace.tui.widgets._prompt_list_markers import (
 __all__ = [
     "MAX_ORDERED_RUN_ITEMS",
     "MAX_ORDERED_SCAN_LINES",
-    "OrderedRun",
-    "RenumberResult",
     "find_ordered_run",
-    "is_prompt_ordered_content_column",
-    "is_prompt_ordered_marker_only",
+    "plan_ordered_insert_newline",
     "plan_ordered_list_edit",
-    "prompt_ordered_row_has_item_above",
-    "prompt_ordered_sibling_prefix",
-    "renumber_ordered_runs",
     "strip_prompt_ordered_marker",
 ]
 
@@ -66,7 +63,7 @@ _ORDERED = MarkerFamily.ORDERED
 
 
 @dataclass(frozen=True, slots=True)
-class OrderedRun:
+class _OrderedRun:
     """One maximal run of sibling ordered items."""
 
     items: tuple[ListMarker, ...]
@@ -115,7 +112,7 @@ class _LineShift:
 
 
 @dataclass(frozen=True, slots=True)
-class RenumberResult:
+class _RenumberResult:
     """The renumbered lines plus the column shifts the pass introduced."""
 
     lines: list[str]
@@ -131,13 +128,13 @@ class RenumberResult:
         return max(0, min(column, shift.prefix_length + shift.delta))
 
 
-def is_prompt_ordered_marker_only(line: str) -> bool:
+def _is_prompt_ordered_marker_only(line: str) -> bool:
     """Return whether *line* is exactly a spaces-only ordered marker."""
     marker = find_list_marker(line, _ORDERED)
     return marker is not None and marker.content_column == len(line)
 
 
-def is_prompt_ordered_content_column(line: str, cursor_col: int) -> bool:
+def _is_prompt_ordered_content_column(line: str, cursor_col: int) -> bool:
     """Return whether *cursor_col* is just after an ordered marker."""
     if is_list_boundary_line(line, _ORDERED):
         return False
@@ -159,7 +156,7 @@ def strip_prompt_ordered_marker(line: str) -> str:
     return line[marker.content_column :]
 
 
-def prompt_ordered_row_has_item_above(lines: Sequence[str], cursor_row: int) -> bool:
+def _prompt_ordered_row_has_item_above(lines: Sequence[str], cursor_row: int) -> bool:
     """Return whether the line above *cursor_row* belongs to an ordered item."""
     if cursor_row <= 0:
         return False
@@ -232,7 +229,7 @@ def _next_sibling(lines: Sequence[str], item: ListMarker) -> ListMarker | None:
     return None
 
 
-def find_ordered_run(lines: Sequence[str], row: int) -> OrderedRun | None:
+def find_ordered_run(lines: Sequence[str], row: int) -> _OrderedRun | None:
     """Return the ordered run containing *row*, or ``None``.
 
     *row* may be an item's marker line or any line that item owns.
@@ -263,10 +260,10 @@ def find_ordered_run(lines: Sequence[str], row: int) -> OrderedRun | None:
     items = tuple(reversed(before)) + (anchor,) + tuple(after)
     if len(items) > MAX_ORDERED_RUN_ITEMS:
         oversized = True
-    return OrderedRun(items=items, oversized=oversized)
+    return _OrderedRun(items=items, oversized=oversized)
 
 
-def prompt_ordered_sibling_prefix(
+def _prompt_ordered_sibling_prefix(
     lines: Sequence[str],
     cursor_row: int,
     *,
@@ -308,10 +305,10 @@ def _record_shift(
     )
 
 
-def renumber_ordered_runs(
+def _renumber_ordered_runs(
     lines: Sequence[str],
     anchor_rows: Iterable[int],
-) -> RenumberResult:
+) -> _RenumberResult:
     """Renumber the run containing each row in *anchor_rows*.
 
     Runs are renumbered in place over a copy of *lines*; the line count never
@@ -355,7 +352,7 @@ def renumber_ordered_runs(
                     working[row] = line[removed:]
                     _record_shift(shifts, row, indent, -removed)
 
-    return RenumberResult(lines=working, shifts=shifts)
+    return _RenumberResult(lines=working, shifts=shifts)
 
 
 def _plan_list_text_edit(
@@ -438,13 +435,150 @@ def plan_ordered_list_edit(
     and is translated across any marker-width change the renumber pass makes.
     Returns ``None`` when the plan would leave *text* unchanged.
     """
-    result = renumber_ordered_runs(new_lines, anchor_rows)
+    result = _renumber_ordered_runs(new_lines, anchor_rows)
     return _plan_list_text_edit(
         text,
         result.lines,
         cursor_row,
         result.adjust_column(cursor_row, cursor_col),
     )
+
+
+def _previous_sibling_row(lines: Sequence[str], row: int) -> int | None:
+    """Return the row of the ordered item preceding the item on *row*."""
+    item = find_list_marker(lines[row], _ORDERED, row=row)
+    if item is None:
+        return None
+    previous = _previous_sibling(lines, item)
+    return None if previous is None else previous.row
+
+
+def _anchor_rows(anchor: int | None) -> tuple[int, ...]:
+    """Return the anchor tuple for a removal path with an optional anchor."""
+    return () if anchor is None else (anchor,)
+
+
+def _plan_ordered_marker_exit(
+    text: str,
+    lines: Sequence[str],
+    row: int,
+) -> TextEdit | None:
+    """Plan the list exit from an empty ordered marker on *row*."""
+    new_lines = list(lines)
+    new_lines[row] = ""
+    new_lines.insert(row + 1, "")
+    return plan_ordered_list_edit(
+        text,
+        new_lines,
+        anchor_rows=_anchor_rows(_previous_sibling_row(lines, row)),
+        cursor_row=row + 1,
+        cursor_col=0,
+    )
+
+
+def _plan_ordered_grow_sibling(
+    text: str,
+    lines: Sequence[str],
+    row: int,
+) -> TextEdit | None:
+    """Plan the sibling a lone ordered marker on *row* grows below itself."""
+    prefix = _prompt_ordered_sibling_prefix(lines, row)
+    if prefix is None:
+        return None
+    new_lines = list(lines)
+    new_lines.insert(row + 1, prefix)
+    return plan_ordered_list_edit(
+        text,
+        new_lines,
+        anchor_rows=(row + 1,),
+        cursor_row=row + 1,
+        cursor_col=len(prefix),
+    )
+
+
+def _plan_ordered_delist(
+    text: str,
+    lines: Sequence[str],
+    row: int,
+) -> TextEdit | None:
+    """Plan dropping the marker of the populated ordered item on *row*."""
+    item = find_list_marker(lines[row], _ORDERED, row=row)
+    if item is None:
+        return None
+    new_lines = list(lines)
+    new_lines[row] = ""
+    new_lines.insert(row + 1, lines[row][item.content_column :])
+    return plan_ordered_list_edit(
+        text,
+        new_lines,
+        anchor_rows=_anchor_rows(_previous_sibling_row(lines, row)),
+        cursor_row=row + 1,
+        cursor_col=0,
+    )
+
+
+def _plan_ordered_split(
+    text: str,
+    lines: Sequence[str],
+    start: tuple[int, int],
+    end: tuple[int, int],
+    prefix_row: int,
+) -> TextEdit | None:
+    """Plan the split of an ordered item at (or across) the selection."""
+    prefix = _prompt_ordered_sibling_prefix(lines, prefix_row)
+    if prefix is None:
+        return None
+    (top_row, top_col), (bottom_row, bottom_col) = sorted((start, end))
+    head = lines[top_row][: max(0, top_col)]
+    tail = lines[bottom_row][max(0, bottom_col) :]
+    new_lines = [*lines[:top_row], head, prefix + tail, *lines[bottom_row + 1 :]]
+    return plan_ordered_list_edit(
+        text,
+        new_lines,
+        anchor_rows=(top_row + 1,),
+        cursor_row=top_row + 1,
+        cursor_col=len(prefix),
+    )
+
+
+def plan_ordered_insert_newline(
+    lines: Sequence[str],
+    start: tuple[int, int],
+    end: tuple[int, int],
+) -> TextEdit | None:
+    """Plan one INSERT-mode ``Ctrl+J`` press inside an ordered list.
+
+    Mirrors the hyphen ``Ctrl+J`` rules -- split at the cursor, exit from an
+    empty marker (growing one sibling first when no ordered item sits above),
+    de-list at the content column, and replace an active selection -- and adds
+    the renumber of the one run the press restructured. *start* and *end* are
+    the selection's endpoints; *end* is the cursor, and its row selects the
+    owning item exactly as the hyphen path does. Returns ``None`` when no
+    ordered item is involved, leaving the hyphen path to run unchanged.
+    """
+    row = end[0]
+    if row < 0 or row >= len(lines):
+        return None
+    line = lines[row]
+    if (
+        not _is_prompt_ordered_marker_only(line)
+        and list_marker_owner(lines, row, _ORDERED) is None
+    ):
+        # Cheap early-out before joining the document: nothing here is ordered.
+        return None
+
+    text = "\n".join(lines)
+    if start == end:
+        if _is_prompt_ordered_marker_only(line):
+            if _prompt_ordered_row_has_item_above(lines, row):
+                return _plan_ordered_marker_exit(text, lines, row)
+            return _plan_ordered_grow_sibling(text, lines, row)
+        if _is_prompt_ordered_content_column(
+            line, start[1]
+        ) and _prompt_ordered_row_has_item_above(lines, row):
+            return _plan_ordered_delist(text, lines, row)
+
+    return _plan_ordered_split(text, lines, start, end, row)
 
 
 def _row_offsets(lines: Sequence[str]) -> list[int]:

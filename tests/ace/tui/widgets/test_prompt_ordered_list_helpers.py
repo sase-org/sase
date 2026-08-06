@@ -14,9 +14,9 @@ from sase.ace.tui.widgets._prompt_list_markers import (
     owned_block_end,
 )
 from sase.ace.tui.widgets._prompt_ordered_editing import (
-    is_prompt_ordered_content_column,
-    is_prompt_ordered_marker_only,
-    prompt_ordered_row_has_item_above,
+    _is_prompt_ordered_content_column,
+    _is_prompt_ordered_marker_only,
+    _prompt_ordered_row_has_item_above,
     strip_prompt_ordered_marker,
 )
 
@@ -258,7 +258,7 @@ def test_owned_block_end_is_the_marker_row_when_nothing_is_owned() -> None:
     ],
 )
 def test_is_prompt_ordered_marker_only(line: str, expected: bool) -> None:
-    assert is_prompt_ordered_marker_only(line) is expected
+    assert _is_prompt_ordered_marker_only(line) is expected
 
 
 @pytest.mark.parametrize(
@@ -285,7 +285,7 @@ def test_is_prompt_ordered_content_column(
     cursor_col: int,
     expected: bool,
 ) -> None:
-    assert is_prompt_ordered_content_column(line, cursor_col) is expected
+    assert _is_prompt_ordered_content_column(line, cursor_col) is expected
 
 
 @pytest.mark.parametrize(
@@ -335,4 +335,4 @@ def test_prompt_ordered_row_has_item_above(
     row: int,
     expected: bool,
 ) -> None:
-    assert prompt_ordered_row_has_item_above(lines, row) is expected
+    assert _prompt_ordered_row_has_item_above(lines, row) is expected

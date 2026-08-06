@@ -22,11 +22,13 @@ from sase.ace.tui.widgets._prompt_bullet_editing import (
     prompt_bullet_sibling_prefix,
     strip_prompt_bullet_marker,
 )
+from sase.ace.tui.widgets._prompt_ordered_editing import plan_ordered_insert_newline
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.vim_text_area import VimTextArea as _MixinBase
 
+    from sase.ace.tui.widgets._paired_text_editing import TextEdit
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 else:
@@ -66,6 +68,12 @@ class PromptTextAreaActionsMixin(_MixinBase):
         _vim_mode: str
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
+        def _apply_planned_text_edit(
+            self,
+            plan: TextEdit,
+            *,
+            remap_dot_capture: bool = False,
+        ) -> None: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
         def _clear_file_completion(
             self,
@@ -327,9 +335,20 @@ class PromptTextAreaActionsMixin(_MixinBase):
         )
 
     def action_insert_newline(self) -> None:
-        """Insert a newline, continuing or exiting a prompt hyphen bullet."""
+        """Insert a newline, continuing or exiting a prompt list item.
+
+        Ordered items go first, through the planner that renumbers the run the
+        press restructured and reaches the document as one edit (one undo
+        checkpoint). The planner declines whenever no ordered item is involved,
+        leaving the hyphen bullet branches below to run exactly as before.
+        """
         row = self.cursor_location[0]
         start, end = self.selection
+        ordered_plan = plan_ordered_insert_newline(self.document.lines, start, end)
+        if ordered_plan is not None:
+            self._apply_planned_text_edit(ordered_plan)
+            return
+
         line = self.document.get_line(row)
         if start == end and is_prompt_bullet_marker_only(line):
             if prompt_bullet_row_has_bullet_above(self.document.lines, row):

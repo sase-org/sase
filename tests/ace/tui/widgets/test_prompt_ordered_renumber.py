@@ -9,13 +9,13 @@ from sase.ace.tui.widgets._prompt_ordered_editing import (
     MAX_ORDERED_RUN_ITEMS,
     find_ordered_run,
     plan_ordered_list_edit,
-    prompt_ordered_sibling_prefix,
-    renumber_ordered_runs,
+    _prompt_ordered_sibling_prefix,
+    _renumber_ordered_runs,
 )
 
 
 def _renumber(lines: list[str], *anchor_rows: int) -> list[str]:
-    return renumber_ordered_runs(lines, anchor_rows or (0,)).lines
+    return _renumber_ordered_runs(lines, anchor_rows or (0,)).lines
 
 
 # --------------------------------------------------------------------------
@@ -173,7 +173,7 @@ def test_renumber_shrink_only_removes_spaces_that_exist() -> None:
 
 
 def test_renumber_reports_column_shifts_for_the_cursor() -> None:
-    result = renumber_ordered_runs(["9. a", "2. b"], (0,))
+    result = _renumber_ordered_runs(["9. a", "2. b"], (0,))
 
     assert result.lines == ["9. a", "10. b"]
     assert result.adjust_column(1, 3) == 4
@@ -248,7 +248,7 @@ def test_prompt_ordered_sibling_prefix(
     increment: bool,
     expected: str | None,
 ) -> None:
-    assert prompt_ordered_sibling_prefix(lines, row, increment=increment) == expected
+    assert _prompt_ordered_sibling_prefix(lines, row, increment=increment) == expected
 
 
 # --------------------------------------------------------------------------
