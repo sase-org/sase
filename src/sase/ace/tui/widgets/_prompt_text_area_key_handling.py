@@ -16,6 +16,9 @@ from sase.ace.tui.widgets._paired_text_editing import (
     plan_pair_insert,
 )
 from sase.ace.tui.widgets._prompt_bullet_editing import plan_prompt_bullet_shift
+from sase.ace.tui.widgets._prompt_ordered_shift_editing import (
+    plan_prompt_ordered_shift,
+)
 from sase.ace.tui.widgets._prompt_text_area_actions import prompt_bar_class
 
 if TYPE_CHECKING:
@@ -380,9 +383,11 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._try_file_completion_tab()
             return
 
-        # Tab / Shift+Tab in INSERT mode shift a bullet while the cursor is in
-        # its marker region. A queued snippet tabstop still wins; elsewhere Tab
-        # keeps its snippet behavior and Shift+Tab is a consumed no-op.
+        # Tab / Shift+Tab in INSERT mode shift a list item while the cursor is
+        # in its marker region: ordered items nest to their parent's content
+        # column and renumber, hyphen bullets shift by one indent unit. A queued
+        # snippet tabstop still wins; elsewhere Tab keeps its snippet behavior
+        # and Shift+Tab is a consumed no-op.
         if event.key in {"tab", "shift+tab"}:
             event.stop()
             event.prevent_default()
@@ -390,10 +395,16 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             if not self._snippet_tabstops:
                 start, end = self.selection
                 if start == end:
-                    plan = plan_prompt_bullet_shift(
+                    offset = self._absolute_offset(self.cursor_location)
+                    dedent = event.key == "shift+tab"
+                    plan = plan_prompt_ordered_shift(
                         self.text,
-                        self._absolute_offset(self.cursor_location),
-                        dedent=event.key == "shift+tab",
+                        offset,
+                        dedent=dedent,
+                    ) or plan_prompt_bullet_shift(
+                        self.text,
+                        offset,
+                        dedent=dedent,
                     )
                     if plan is not None:
                         self._apply_planned_text_edit(
@@ -629,8 +640,15 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         if remap_dot_capture:
             capture = self._dot_insert_capture_offset
             if capture is not None and capture >= plan.start:
-                if capture < plan.end:
-                    capture = plan.start + len(plan.text)
+                if capture <= plan.end:
+                    # The capture sits inside the rewritten span, so follow the
+                    # cursor: a list shift moves both by the same amount, and
+                    # the text between them survives the edit untouched.
+                    cursor_before = self._absolute_offset(self.cursor_location)
+                    capture = max(
+                        plan.start,
+                        plan.cursor - (cursor_before - capture),
+                    )
                 else:
                     capture += len(plan.text) - (plan.end - plan.start)
                 self._dot_insert_capture_offset = max(0, capture)

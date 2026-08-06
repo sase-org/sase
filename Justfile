@@ -274,10 +274,8 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-gi.2(is_prompt_ordered_content_column)' \
         --epic-symbol 'sase-gi.2(prompt_ordered_row_has_item_above)' \
         --epic-symbol 'sase-gi.2(prompt_ordered_sibling_prefix)' \
-        --epic-symbol 'sase-gi.2(plan_ordered_list_edit)' \
         --epic-symbol 'sase-gi.4(OrderedRun)' \
         --epic-symbol 'sase-gi.4(RenumberResult)' \
-        --epic-symbol 'sase-gi.4(find_ordered_run)' \
         --epic-symbol 'sase-gi.4(renumber_ordered_runs)' \
         --epic-symbol 'sase-gi.5(strip_prompt_ordered_marker)' \
         {{ args }}
