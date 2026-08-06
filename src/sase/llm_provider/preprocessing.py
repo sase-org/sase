@@ -186,7 +186,7 @@ def preprocess_prompt_late(
     if is_jinja2_template(prompt):
         prompt = render_toplevel_jinja2(prompt)
 
-    # 6. Prettier formatting (agent prompts wrap narrower than saved artifacts)
+    # 6. Prettier formatting (shared agent-prompt Markdown policy)
     prompt = format_agent_prompt_markdown(prompt)
 
     # 7. HTML comment stripping

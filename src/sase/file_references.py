@@ -14,12 +14,10 @@ from sase.output import (
     print_status,
 )
 
-# Prose wrap width used by the shared Markdown formatter for saved Markdown
-# artifacts (plans, SDD files, generated skills, notifications).
+# Prose wrap width used by the shared Markdown formatter for both saved
+# Markdown artifacts (plans, SDD files, generated skills, notifications) and
+# agent prompts.
 DEFAULT_MARKDOWN_WRAP_WIDTH = 120
-# Narrower wrap width applied to agent prompts sent through the launch-time
-# preprocessing pipeline.
-AGENT_PROMPT_WRAP_WIDTH = 80
 
 # Pattern to match '@' followed by a file path
 # This captures paths like @/path/to/file.txt or @path/to/file
@@ -528,9 +526,9 @@ def format_with_prettier(
 
     Args:
         text: The markdown text to format.
-        print_width: The column width to wrap prose at. Agent prompt
-            preprocessing passes ``AGENT_PROMPT_WRAP_WIDTH``; other callers
-            (plans, SDD files, skills, notifications) keep the default.
+        print_width: The column width to wrap prose at. Defaults to
+            ``DEFAULT_MARKDOWN_WRAP_WIDTH``, which every caller (plans, SDD
+            files, skills, notifications, agent prompts) uses today.
     """
     if os.environ.get("SASE_DISABLE_PRETTIER") or shutil.which("prettier") is None:
         return text
@@ -614,13 +612,14 @@ def _unescape_prettier_underscores(text: str) -> str:
 def format_agent_prompt_markdown(text: str) -> str:
     """Format editable/launch-time agent prompt Markdown canonically.
 
-    Agent prompts intentionally wrap more narrowly than saved Markdown
-    artifacts.  Keeping that policy behind a named helper lets launch-time
-    preprocessing and explicit prompt-editor formatting share it without
+    Keeping this policy behind a named helper is what keeps launch-time
+    preprocessing and explicit prompt-editor formatting provably identical:
+    both call this function instead of invoking prettier independently, so
+    they stay pinned to the repo-wide Markdown wrap width without
     duplicating the width or invoking the rest of the prompt preprocessing
     pipeline.
     """
-    return format_with_prettier(text, print_width=AGENT_PROMPT_WRAP_WIDTH)
+    return format_with_prettier(text)
 
 
 def strip_html_comments(text: str) -> str:

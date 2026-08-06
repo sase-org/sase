@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.file_references import (
-    AGENT_PROMPT_WRAP_WIDTH,
     DEFAULT_MARKDOWN_WRAP_WIDTH,
     format_agent_prompt_markdown,
     format_markdown_files_with_prettier,
@@ -50,10 +49,8 @@ def test_format_with_prettier_default_uses_120() -> None:
     assert "--print-width=80" not in captured[0]
 
 
-def test_agent_prompt_formatter_uses_80() -> None:
-    """The named agent-prompt policy flows 80 columns through to prettier."""
-    assert AGENT_PROMPT_WRAP_WIDTH == 80
-
+def test_agent_prompt_formatter_uses_default_width() -> None:
+    """The named agent-prompt policy flows the default 120 columns through to prettier."""
     captured: list[list[str]] = []
     with (
         patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
@@ -65,8 +62,30 @@ def test_agent_prompt_formatter_uses_80() -> None:
         format_agent_prompt_markdown("some prose")
 
     assert captured, "prettier should have been invoked"
-    assert "--print-width=80" in captured[0]
-    assert "--print-width=120" not in captured[0]
+    assert "--print-width=120" in captured[0]
+    assert "--print-width=80" not in captured[0]
+
+
+def test_agent_prompt_formatter_matches_default_formatter_argv() -> None:
+    """format_agent_prompt_markdown and format_with_prettier must agree on argv.
+
+    This is the regression test for the original 80-vs-120 split: it fails
+    loudly if a future change re-forks the prompt width without updating the
+    published-artifact path.
+    """
+    captured: list[list[str]] = []
+    with (
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
+        patch(
+            "sase.file_references.subprocess.run",
+            side_effect=_fake_run_capturing(captured),
+        ),
+    ):
+        format_agent_prompt_markdown("some prose")
+        format_with_prettier("some prose")
+
+    assert len(captured) == 2
+    assert captured[0] == captured[1]
 
 
 def test_format_with_prettier_missing_prettier_returns_text() -> None:
@@ -147,4 +166,3 @@ def test_preprocess_prompt_late_uses_named_agent_prompt_formatter() -> None:
         preprocess_prompt_late("just some prompt prose", file_ref_mode="skip")
 
     mock_formatter.assert_called_once()
-    assert AGENT_PROMPT_WRAP_WIDTH == 80
