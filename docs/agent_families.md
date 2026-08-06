@@ -275,25 +275,6 @@ level directly. `z3` and `z4` are invalid in a family context and leave both the
 untouched. A member-specific override inherits from the `FAMILY MEMBERS` section, which in turn inherits the panel
 level. The numbered roster and its digit jumps remain present at both effective levels.
 
-#### Per-member model lanes
-
-A family container has no single model: `%m` overrides, provider defaults, and per-member reasoning effort can differ
-along the chain, and one shared `Model:` line would hide that. So when a family projects to two or more concrete
-members, the panel header's `Model:` field expands into one lane per member instead of a single value:
-
-```text
-Model:  --plan    · CLAUDE(opus) @ high
-        --code    · CODEX(gpt-5.1-codex)
-        --review  · default
-```
-
-Each lane's value is the same `PROVIDER(model) @ <effort>` rendering used everywhere else, so a member's effective model
-and reasoning effort are read from the same place. Member labels are the `--<suffix>` labels the `FAMILY MEMBERS` roster
-uses, padded to one aligned value column, and a member with no recorded model renders a dim `default`. Long values wrap
-beneath that column rather than pushing the layout wide. At most 12 lanes are shown; a larger family adds a dim
-`… +N more members (see FAMILY MEMBERS)` tail. A family that projects to fewer than two concrete members — and every
-ordinary single agent — keeps the original one-line `Model:` field.
-
 The family root's `SLOW TOOL CALLS` section also follows that two-position scale. Level 1 keeps one aligned row per call
 with a short target digest and a tail explaining that full commands are hidden. Level 2 retains those rows and adds the
 wrapped full command or target, timing and outcome facts, errors, output previews, subagent statistics, and relative
@@ -314,6 +295,27 @@ under `FAMILY MEMBERS` are never repeated in `NEIGHBORS`; they are reported as a
 first three neighbors plus a hidden-count tail, and level 2 shows all of them. See
 [Lane Neighbors Section](ace.md#lane-neighbors-section) for the full behavior, which single agents share through their
 own three-level scale.
+
+#### Per-member model lanes
+
+A family container has no single model: `%m` overrides, provider defaults, and per-member reasoning effort can differ
+along the chain, and one shared `Model:` line would hide that. So when a family projects to two or more concrete
+members, the `Model:` field in the family root's detail-panel header expands into one lane per member instead of a
+single value:
+
+```text
+Model:  --plan    · CLAUDE(opus) @ high
+        --code    · CODEX(gpt-5.1-codex)
+        --review  · default
+```
+
+Each lane's value uses the same `PROVIDER(model) @ <effort>` rendering as every other SASE surface — the single-agent
+panel and `sase agent show` included — so one reading habit covers all of them. Member labels are the `--<suffix>`
+labels from the `FAMILY MEMBERS` roster, padded to one aligned value column, and a member with no recorded model renders
+a dim `default`. Long values wrap beneath that column rather than pushing the layout wide. At most 12 lanes are shown; a
+larger family adds a dim `… +N more members (see FAMILY MEMBERS)` tail. The lanes are not part of the two-level fold
+scale — they read the same at level 1 and level 2. A family that projects to fewer than two concrete members, and every
+ordinary single agent, keeps the original one-line `Model:` field.
 
 Two bundled xprompts help assemble common follow-up prompt bodies. They build text only; `%i` performs the attachment:
 

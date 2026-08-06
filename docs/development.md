@@ -138,8 +138,14 @@ the size of the set: every agent pays for it on every `just check`, so growth ha
 child CPU of a nested contract run and normalizes it against a fixed calibration probe measured the same way, because a
 raw wall-clock ceiling on a loaded host or a small CI runner reads host contention rather than set size.
 
-Changing the manifest is itself a broadening rule, so the `just check` that adds a contract test escalates to the full
-suite.
+Both guards live outside the contract set on purpose — regenerating and re-timing the whole set from inside that same
+set would charge every `just check` for it twice — so they run only in the exhaustive lane (`just test`,
+`just check-full`, CI). Marking a test and forgetting the refresh therefore survives a `just check`: run
+`just check-full` after changing a `contract` marker.
+
+Once you do regenerate, the manifest change broadens the next selection by itself. `tests/contract_manifest.txt` belongs
+to the `selection-tooling` broadening rule, so the `just check` that lands a new contract test escalates to the full
+suite — that escalation is the manifest edit, not the new test.
 
 The contract set is also the floor. A change set that contributes no import-graph seeds at all — a docs-only edit, an
 `sdd/**` change, a `.github/**` workflow tweak — records the `contract-set-only` rule and runs exactly the contract
@@ -233,8 +239,9 @@ selection grew from 19,744 to 19,921 items while the work landed; no existing te
 the fast lane.
 
 Coverage parity used the same 19,921-item selection with `just test-cov`: 19,915 tests passed, 7 were skipped, total
-branch coverage was 80.07%, and the unchanged 50% gate passed. The coverage recipe still uses the same `not slow`
-selection and includes the visual regression tests.
+branch coverage was 80.07%, and the unchanged 50% gate passed. `just test-cov` shares `just test`'s marker selection,
+which at the time of this measurement still included the ACE PNG visual regression tests. Both recipes exclude those
+tests today; see [Visual Snapshot Workflow](#visual-snapshot-workflow).
 
 Sustained real-host demand also exercised the pool while these measurements were prepared. With memory sizing the active
 budget at 20 tokens, three full suites progressed simultaneously with grants of 12, 4, and 4 workers. Their sum never
@@ -264,10 +271,11 @@ just test tests/main/test_parser.py::test_example
 or by running `go install github.com/google/keep-sorted@v0.8.0` when Go is available. If neither `keep-sorted` nor Go is
 installed, those recipes fail with a setup error before linting YAML keep-sorted blocks.
 
-Default test runs exclude the `slow`, `visual`, and `terminal_smoke` markers, so the ACE PNG snapshot regression tests
-do not run in `just test`, `just test-cov`, or `just test-scoped`. `just test-visual` is the only recipe that executes
-them; it installs the optional PNG rasterizer dependencies when they are missing. Direct `pytest` runs inherit the same
-default marker expression from `pyproject.toml` (`not slow and not visual`) unless you pass your own `-m` selector.
+Default test runs select `not slow and not visual`, so the ACE PNG snapshot regression tests do not run in `just test`,
+`just test-cov`, or `just test-scoped`. `just test-visual` is the only recipe that executes them; it installs the
+optional PNG rasterizer dependencies when they are missing. The real-PTY smoke tests carry both `terminal_smoke` and
+`slow`, so that same expression excludes them too — `terminal_smoke` selects them, it does not deselect them. Direct
+`pytest` runs inherit the identical default expression from `pyproject.toml` unless you pass your own `-m` selector.
 
 Use `just test-terminal-smoke` only when you need to verify the ACE startup path through a real PTY. It installs
 `pexpect` and `pyte`, runs the optional `terminal_smoke` marker, and stays out of default tests and CI until that path

@@ -39,7 +39,6 @@ and CLI flags.
   - [tasks](#tasks)
   - [timezone](#timezone)
   - [chat_install](#chat_install)
-  - [chat_history](#chat_history)
   - [telegram](#telegram)
   - [mobile_gateway](#mobile_gateway)
   - [sdd](#sdd)
@@ -2783,8 +2782,10 @@ open event.
 | `-w, --workspace`    | Select the host workspace number instead of inferring it from cwd.                      |
 
 When two inventory records share a name or slug, `sase repo open` refuses rather than guessing and lists each candidate
-as `<kind> '<name>' (<path>)`. Pass one of those listed paths back as `REPO` to select it: a path that exactly matches
-one primary, sidecar, or linked record resolves to that record even when its name collides with another's.
+as `<kind> '<name>' (<path>)`. To pick one, re-run the command with that candidate's path as `REPO`, copied exactly as
+printed: a record path is matched literally, ahead of any name or slug, so it selects that record even when its name
+collides with another's. This is a disambiguator, not a general "open any directory" mode — a path that matches no
+primary, sidecar, or linked record falls through to the usual name and provider-ref tiers and fails there.
 
 `sase repo log` renders a project-scoped summary and per-repo rollup of durable open events. Repo, agent, or workspace
 filters add agent and event drill-down panels; an event ID prefix shows one complete event. `--json` returns the same

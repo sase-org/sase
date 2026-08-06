@@ -568,9 +568,11 @@ ERROR: <mutation> was committed locally but NOT published.
   Remediation: git -C … push
 ```
 
-Stores with no git root, no tracking upstream, an in-tree layout, or a read-only mount are reported as not applicable
-and never fail. `--no-push` skips the check along with the push it verifies. The check is also defensive about itself: a
-verification that raises is logged and ignored rather than converting an otherwise healthy mutation into a failure.
+A store with nothing of its own to publish to is reported as not applicable and never fails the command: no git root, no
+tracking upstream, an [in-tree](#directory-structure) layout, or a store this checkout may only read (one discovered
+through a checkout-local `.sase/sdd-store.json` record, which refuses mutations outright). `--no-push` skips the check
+along with the push it verifies. The check is also defensive about itself: a verification that raises is logged and
+ignored rather than converting an otherwise healthy mutation into a failure.
 
 Because verifying a close by reading the local store cannot distinguish a published close from one that will die with
 the workspace, agent-facing instructions point at the close command's own exit status and this diagnostic rather than at
@@ -585,10 +587,12 @@ Two other surfaces enforce the same invariant:
   uncommitted code in the workspace in order to report a bead problem.
 - **Launch-time workspace preparation** refuses to evict a numbered workspace (`#2` and above) whose sidecar bead-store
   clones hold unpublished canonical commits. It publishes synchronously first; if commits remain it retains a recovery
-  ref in the store's own repository and fails the launch rather than renaming `sase/repos` into `.sase/trash`. The guard
-  understands the sidecar layouts — `sase/repos/beads` for a split clone root and `sase/repos/plans/beads` for a
-  combined sidecar — in addition to `<repo_root>/beads` and in-tree stores. Ordinary (non-launch) workspace preparation
-  warns and proceeds instead of refusing.
+  ref under `refs/sase/recovery/` in the store's own repository and fails the launch rather than renaming `sase/repos`
+  into the workspace's `.sase/trash`. The printed refusal names both the ref and the store repository, so the commits
+  are recoverable by hand with `git -C <store-repo> log <ref>` and a push of that ref's history. The guard understands
+  the sidecar layouts — `sase/repos/beads` for a split clone root and `sase/repos/plans/beads` for a combined sidecar —
+  in addition to `<repo_root>/beads` and in-tree stores. Ordinary (non-launch) workspace preparation warns and proceeds
+  instead of refusing; only a store whose recovery ref could not be written stops it too.
 
 #### Duplicate Bead IDs
 
@@ -596,11 +600,12 @@ Two clones minting from their own `next_counter` can allocate the same bead ID a
 `events/streams/<id>.jsonl`. A naive merge of that add/add conflict produces a stream with two `issue_created` events,
 which the reducer rejects — historically wedging the shared store because every sync retry failed the same way.
 
-Conflict resolution now relocates instead of failing. The resolver allocates a relocation ID from a store-wide pool
-built from `config.json`'s `next_counter` plus every stream ID already in the store, so the ID a collision lands on
-depends only on the store's contents and not on which clone happens to resolve first. Both beads survive, and the
-resolution message and the sync log both report `relocated duplicate beads: <old> -> <new>`. Check the sync log after a
-concurrent-mint conflict if you are looking for a bead under an ID that moved.
+Conflict resolution relocates one of the two beads instead of failing. The resolver allocates the relocation ID from a
+store-wide pool built from `config.json`'s `next_counter` plus every stream ID already in the store, so the ID a
+collision lands on depends only on the store's contents and not on which clone happens to resolve the conflict first.
+Both beads survive under distinct IDs, and the resolver reports `relocated duplicate beads: <old> -> <new>` — in its own
+resolution message and in the managed sync log under `~/.sase/bead_push_logs/sync-*.log`. If a bead you expect is
+missing after a concurrent-mint conflict, search those logs for that line: the bead still exists, under the new ID.
 
 ## Bead Pages
 

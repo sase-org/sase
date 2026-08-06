@@ -262,9 +262,10 @@ that has imported some modules and not yet imported others can end up mixing pre
 that with an advisory lock at `~/.sase/locks/code-swap.lock`, with per-holder records under
 `~/.sase/locks/code-swap.holders/`. It has two kinds of holder, and the distinction matters:
 
-- **Blocking readers.** `sase bead work` takes a shared lock for its whole run. While it holds one, the dev-update
-  writer cannot take its exclusive lock, so the update stops before touching anything and reports its outcome as
-  deferred:
+- **Blocking readers.** `sase bead work` takes a shared lock for its whole run. While it holds one, `sase update` cannot
+  take the exclusive lock its editable swap needs, so the update stops before touching anything. Each actionable
+  editable package is reported with status `failed` and a reason that begins `deferred:`, and the command exits non-zero
+  without having changed anything — re-run it later rather than treating it as a broken checkout:
 
   ```text
   deferred: <holder> is running against this checkout; re-run `sase update` when it finishes
@@ -281,7 +282,7 @@ that with an advisory lock at `~/.sase/locks/code-swap.lock`, with per-holder re
 
 - **Advisory readers.** A long-lived agent runner registers as advisory for the lifetime of its execution loop. Advisory
   holders never take the shared lock, so they can never defer a swap and are never counted as blocking one. Instead,
-  `sase update` and the ACE update preview print an informational line —
+  `sase update` and the Admin Center's update preview print an informational line —
   `N agent runner(s) are running from this checkout and a swap now can break their deferred imports.` — so you can
   decide whether to wait. A runner is deliberately not allowed to block an update indefinitely.
 
