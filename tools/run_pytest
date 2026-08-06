@@ -31,8 +31,10 @@ from tests._suite_gate import (  # noqa: E402
 from tests._test_selection import (  # noqa: E402
     MANIFEST_FILENAME,
     SELECTION_DIRECTORY,
+    ChangeSet,
     Selection,
     SelectionOptions,
+    compute_change_set,
     context_line,
     select_tests,
     summary_line,
@@ -45,6 +47,7 @@ from tests._test_selection_health import (  # noqa: E402
     allocate_record_path,
     record_selection,
     store_directory,
+    workspace_identity,
 )
 
 
@@ -522,7 +525,9 @@ def _record_scoped_run(manifest: dict[str, object]) -> None:
     if not _health_recording_enabled():
         return
     try:
-        record_selection(_health_store(), manifest)
+        record_selection(
+            _health_store(), manifest, workspace=workspace_identity(REPO_ROOT)
+        )
     except OSError:
         pass
 
@@ -534,16 +539,34 @@ def _head_sha() -> str | None:
         return None
 
 
+def _full_lane_change_set() -> ChangeSet | None:
+    """The change set this full run is testing, as the selector computes it.
+
+    Correlation compares a full run's change set against a scoped run's, so it
+    has to be the *same* computation — same merge-base, same working-tree
+    union — not an approximation of it. Git trouble yields ``None``, which
+    makes the record uncorrelatable rather than wrongly correlated.
+    """
+    try:
+        return compute_change_set(
+            REPO_ROOT, SelectionOptions.from_environment().base_ref
+        )
+    except SelectionError:
+        return None
+
+
 def _full_lane_recording_args(mode: str) -> list[str]:
     """Arm the full-lane failure recorder, returning the pytest args it needs.
 
     The full lanes hand off with ``execv``, so the record has to be written
     from inside pytest. The runner still picks the path here, in the parent,
-    where ``SASE_HOME`` is the real one rather than a per-test redirect.
+    where ``SASE_HOME`` is the real one rather than a per-test redirect, and
+    where the working tree is still the one being tested.
     """
     if mode not in FULL_LANE_MODES or not _health_recording_enabled():
         return []
-    head = _head_sha()
+    change_set = _full_lane_change_set()
+    head = change_set.head if change_set is not None else _head_sha()
     try:
         record_path = allocate_record_path(
             _health_store(), KIND_FULL_RUN, head=head, pid=os.getpid()
@@ -551,7 +574,15 @@ def _full_lane_recording_args(mode: str) -> list[str]:
     except OSError:
         return []
     os.environ[RECORD_ENV] = json.dumps(
-        {"path": str(record_path), "head": head, "mode": mode}
+        {
+            "path": str(record_path),
+            "head": head,
+            "mode": mode,
+            "workspace": workspace_identity(REPO_ROOT),
+            "changed_files": (
+                None if change_set is None else sorted(set(change_set.paths))
+            ),
+        }
     )
     return ["-p", HEALTH_PLUGIN_MODULE]
 

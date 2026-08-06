@@ -17,6 +17,24 @@ A **false negative** is a test that failed in a full run and was *excluded* by a
 scoped run over an ancestor of the same change. Correlating the two record
 kinds is what turns "selection is probably fine" into a number.
 
+"The same change" is the load-bearing half of that definition. The store is
+shared by every numbered workspace and those workspaces normally sit on the
+same master HEAD, so ancestry alone makes ``is_ancestor(head, head)`` trivially
+true and charges every workspace's flakes to every other workspace's selection.
+A scoped run is therefore charged with a full-run failure only when *all* of:
+
+* both records name the same workspace;
+* the scoped run's HEAD is an ancestor of the full run's HEAD;
+* the full run's change set covers the scoped run's — equal, or a superset,
+  because agents commit as they go and the change set is computed against the
+  ``origin/master`` merge-base, so a later full run in the same workspace
+  normally sees a superset of an earlier scoped run's files;
+* the scoped run did not escalate, and did not select the failing test's file.
+
+Records written before schema 2 carry neither a workspace nor a change set, so
+they cannot satisfy that rule. They are excluded from correlation and counted
+separately in the report, so a zero reading is never mistaken for a clean one.
+
 The store lives under ``${SASE_HOME:-~/.sase}/test-selection/<project-key>/``
 rather than in ``.pytest_cache``, because the numbered workspaces are ephemeral
 and the correlation surface that matters spans them: a phase agent in
@@ -38,7 +56,9 @@ from typing import Any
 from tests._test_selection_graph import SelectionError, is_visual_path, run_git
 
 
-HEALTH_SCHEMA = 1
+#: Bumped to 2 when the workspace identity and change set that change-scoped
+#: correlation requires joined both record kinds.
+HEALTH_SCHEMA = 2
 
 STORE_SUBDIRECTORY = "test-selection"
 DEFAULT_SASE_HOME = Path("~/.sase")
@@ -113,6 +133,18 @@ def project_key(root: Path, environ: Mapping[str, str] | None = None) -> str:
     return _key_from_remote_url(url) or _key_from_root(root)
 
 
+def workspace_identity(root: Path) -> str:
+    """Identify the workspace a record was written from.
+
+    The resolved repository root, not a digest of it. The store is host-local
+    and already namespaced per project, so the path is exactly as stable as a
+    hash would be while staying legible: ``.../sase_3`` versus ``.../sase_11``
+    is the very distinction the false-negative metric turns on, and a reader
+    inspecting a suspicious match needs to see which workspace produced it.
+    """
+    return str(root.resolve())
+
+
 def store_directory(root: Path, environ: Mapping[str, str] | None = None) -> Path:
     """Resolve the host-local record store for ``root``'s project."""
     environ = os.environ if environ is None else environ
@@ -169,10 +201,17 @@ def record_selection(
     store: Path,
     manifest: Mapping[str, Any],
     *,
+    workspace: str | None,
     pid: int | None = None,
     now: datetime | None = None,
 ) -> Path:
-    """Persist a completed scoped-run manifest to the durable store."""
+    """Persist a completed scoped-run manifest to the durable store.
+
+    The manifest already carries the change set; ``workspace`` is the other
+    half of the correlation identity, and lives on the envelope rather than in
+    the manifest because it describes where the record was written, not what
+    the selector decided.
+    """
     head = str((manifest.get("baseline") or {}).get("head") or "") or None
     path = allocate_record_path(
         store,
@@ -187,6 +226,7 @@ def record_selection(
             "schema": HEALTH_SCHEMA,
             "kind": KIND_SELECTION,
             "recorded_at": (now or _now()).astimezone(UTC).isoformat(),
+            "workspace": workspace,
             "manifest": dict(manifest),
         },
     )
@@ -199,8 +239,16 @@ def full_run_record(
     mode: str,
     failures: Sequence[str],
     exit_status: int,
+    workspace: str | None,
+    changed_files: Sequence[str] | None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
+    """Build a full-lane record, identity included.
+
+    ``workspace`` and ``changed_files`` are written even when unresolvable, as
+    explicit nulls: a schema-2 record with no identity is as uncorrelatable as
+    a pre-schema one, and saying so beats leaving the reader to infer it.
+    """
     return {
         "schema": HEALTH_SCHEMA,
         "kind": KIND_FULL_RUN,
@@ -208,6 +256,8 @@ def full_run_record(
         "head": head,
         "mode": mode,
         "exit_status": exit_status,
+        "workspace": workspace,
+        "changed_files": None if changed_files is None else sorted(set(changed_files)),
         "failures": sorted(set(failures)),
     }
 
@@ -260,6 +310,23 @@ class SelectionRecord:
     name: str
     recorded_at: str | None
     manifest: dict[str, Any]
+    workspace: str | None = None
+
+    @property
+    def changed_files(self) -> frozenset[str] | None:
+        """The change set this run selected for, or ``None`` if unrecorded."""
+        changed = self.manifest.get("changed_files")
+        if not isinstance(changed, list):
+            return None
+        return frozenset(str(path) for path in changed)
+
+    @property
+    def identity(self) -> tuple[str, frozenset[str]] | None:
+        """Workspace and change set, or ``None`` when either is missing."""
+        changed = self.changed_files
+        if self.workspace is None or changed is None:
+            return None
+        return (self.workspace, changed)
 
     @property
     def head(self) -> str | None:
@@ -304,6 +371,15 @@ class FullRunRecord:
     head: str | None
     mode: str
     failures: tuple[str, ...]
+    workspace: str | None = None
+    changed_files: frozenset[str] | None = None
+
+    @property
+    def identity(self) -> tuple[str, frozenset[str]] | None:
+        """Workspace and change set, or ``None`` when either is missing."""
+        if self.workspace is None or self.changed_files is None:
+            return None
+        return (self.workspace, self.changed_files)
 
 
 @dataclass(frozen=True)
@@ -329,6 +405,8 @@ def load_records(store: Path) -> HealthRecords:
             continue
         recorded_at = payload.get("recorded_at")
         recorded_at = str(recorded_at) if recorded_at else None
+        workspace = payload.get("workspace")
+        workspace = str(workspace) if workspace else None
         kind = payload.get("kind")
         if kind == KIND_SELECTION and isinstance(payload.get("manifest"), dict):
             selections.append(
@@ -336,10 +414,12 @@ def load_records(store: Path) -> HealthRecords:
                     name=entry.name,
                     recorded_at=recorded_at,
                     manifest=payload["manifest"],
+                    workspace=workspace,
                 )
             )
         elif kind == KIND_FULL_RUN:
             head = payload.get("head")
+            changed = payload.get("changed_files")
             full_runs.append(
                 FullRunRecord(
                     name=entry.name,
@@ -348,6 +428,12 @@ def load_records(store: Path) -> HealthRecords:
                     mode=str(payload.get("mode") or "unknown"),
                     failures=tuple(
                         str(failure) for failure in payload.get("failures") or ()
+                    ),
+                    workspace=workspace,
+                    changed_files=(
+                        frozenset(str(path) for path in changed)
+                        if isinstance(changed, list)
+                        else None
                     ),
                 )
             )
@@ -400,9 +486,40 @@ class FalseNegative:
     test_file: str
     selection_record: str
     selection_head: str | None
+    selection_changed_files: tuple[str, ...]
     full_run_record: str
     full_run_head: str | None
+    workspace: str
     rules: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PreSchemaRecords:
+    """Records with no correlation identity, and so not correlated at all."""
+
+    selections: int = 0
+    full_runs: int = 0
+
+    @property
+    def total(self) -> int:
+        return self.selections + self.full_runs
+
+
+def count_pre_schema_records(records: HealthRecords) -> PreSchemaRecords:
+    """How much of the store predates the identity correlation requires.
+
+    The store holds up to ``RETENTION_DAYS`` of records written before schema
+    2, and those can only be dropped from the metric, never rescued: the
+    workspace and change set they would need were never written down. A
+    reader seeing "0 false negatives" is entitled to know how many records
+    that zero was computed over.
+    """
+    return PreSchemaRecords(
+        selections=sum(
+            1 for selection in records.selections if selection.identity is None
+        ),
+        full_runs=sum(1 for full_run in records.full_runs if full_run.identity is None),
+    )
 
 
 def find_false_negatives(
@@ -410,25 +527,42 @@ def find_false_negatives(
 ) -> list[FalseNegative]:
     """Match full-run failures against scoped runs that excluded them.
 
+    A pair must plausibly describe *the same change* (see the module
+    docstring): same workspace, scoped HEAD an ancestor of the full run's, and
+    the full run's change set a superset of or equal to the scoped run's.
+    Without all three, one workspace's flake is charged to another workspace's
+    selection, which is what this correlator existed to avoid measuring.
+
     Escalated manifests are skipped because they ran everything: they excluded
     nothing and cannot have missed anything. Visual paths are skipped because
     the selector excludes them unconditionally and by design; ``just
-    test-visual`` is their lane.
+    test-visual`` is their lane. Records with no identity — anything written
+    before schema 2 — are skipped and counted by
+    :func:`count_pre_schema_records`.
     """
     candidates = [
-        selection
+        (selection, identity)
         for selection in records.selections
-        if not selection.escalated and selection.head
+        if not selection.escalated
+        and selection.head
+        and (identity := selection.identity) is not None
     ]
     false_negatives: list[FalseNegative] = []
     for full_run in records.full_runs:
-        if not full_run.head or not full_run.failures:
+        full_run_identity = full_run.identity
+        if not full_run.head or not full_run.failures or full_run_identity is None:
             continue
+        full_workspace, full_changed = full_run_identity
+        related = [
+            (selection, changed)
+            for selection, (workspace, changed) in candidates
+            if workspace == full_workspace and changed <= full_changed
+        ]
         for nodeid in full_run.failures:
             test_file = nodeid_test_file(nodeid)
             if is_visual_path(test_file):
                 continue
-            for selection in candidates:
+            for selection, changed in related:
                 if test_file in selection.selected:
                     continue
                 head = selection.head
@@ -441,8 +575,10 @@ def find_false_negatives(
                         test_file=test_file,
                         selection_record=selection.name,
                         selection_head=head,
+                        selection_changed_files=tuple(sorted(changed)),
                         full_run_record=full_run.name,
                         full_run_head=full_run.head,
+                        workspace=full_workspace,
                         rules=selection.rules,
                     )
                 )
@@ -487,6 +623,7 @@ class SelectionHealth:
     context_stale_runs: int = 0
     context_selected_total: int = 0
     false_negatives: tuple[FalseNegative, ...] = ()
+    pre_schema: PreSchemaRecords = PreSchemaRecords()
 
     @property
     def escalation_rate(self) -> float | None:
@@ -556,6 +693,7 @@ def summarize(
             int(contexts.get("selected_count") or 0) for contexts in with_baseline
         ),
         false_negatives=tuple(find_false_negatives(records, is_ancestor=is_ancestor)),
+        pre_schema=count_pre_schema_records(records),
     )
 
 
@@ -644,12 +782,34 @@ def _render_contexts(health: SelectionHealth) -> list[str]:
     return lines
 
 
+#: Stated in the report because a metric whose matching rule is invisible is a
+#: metric nobody can argue with — and this rule is the whole phase.
+_MATCHING_RULE_LINES = (
+    "  matching rule: a scoped run is charged with a full-run failure only when",
+    "  both records name the same workspace, the scoped run's HEAD is an ancestor",
+    "  of the full run's, and the full run's change set covers the scoped run's.",
+)
+
+
+def _render_pre_schema(health: SelectionHealth) -> list[str]:
+    pre_schema = health.pre_schema
+    if not pre_schema.total:
+        return []
+    return [
+        f"  {pre_schema.total} record(s) predate schema {HEALTH_SCHEMA} "
+        f"({pre_schema.selections} scoped, {pre_schema.full_runs} full-lane),",
+        "  carry no workspace or change set, and are excluded from correlation.",
+    ]
+
+
 def _render_false_negatives(health: SelectionHealth) -> list[str]:
     if not health.false_negatives:
         return [
             "false negatives: 0",
             "  No full-run failure has ever been excluded by a scoped run over an",
             "  ancestor of the same change.",
+            *_MATCHING_RULE_LINES,
+            *_render_pre_schema(health),
         ]
     # One missed test excluded by twenty ancestor selections is one problem,
     # not twenty; group so the headline number is the number of tests.
@@ -659,10 +819,16 @@ def _render_false_negatives(health: SelectionHealth) -> list[str]:
 
     lines = [
         f"false negatives: {len(grouped)}"
-        f" ({len(health.false_negatives)} scoped run/failure matches)"
+        f" ({len(health.false_negatives)} scoped run/failure matches)",
+        *_MATCHING_RULE_LINES,
+        *_render_pre_schema(health),
     ]
     for nodeid, matches in sorted(grouped.items()):
         rules = sorted({rule for match in matches for rule in match.rules})
+        # Repetition across *unrelated* change sets is the signature of a flake
+        # rather than a selection miss: a genuinely missed test is missed by
+        # the selections over the one change that should have selected it.
+        change_sets = {match.selection_changed_files for match in matches}
         lines.append(f"  {nodeid}")
         lines.append(
             f"    failed in {matches[0].full_run_record} "
@@ -673,6 +839,11 @@ def _render_false_negatives(health: SelectionHealth) -> list[str]:
             f"{matches[0].selection_record} "
             f"(head {(matches[0].selection_head or '?')[:12]})"
         )
+        lines.append(f"    distinct change sets: {len(change_sets)}")
+        if len(change_sets) > 1:
+            lines.append(
+                "    matched across unrelated changes; suspect a flake before a miss"
+            )
         lines.append(f"    rules across those runs: {', '.join(rules) or 'none'}")
     lines.extend(
         [
@@ -704,14 +875,18 @@ def health_payload(health: SelectionHealth) -> dict[str, Any]:
         "context_runs": health.context_runs,
         "context_stale_runs": health.context_stale_runs,
         "context_selected_total": health.context_selected_total,
+        "pre_schema_selections": health.pre_schema.selections,
+        "pre_schema_full_runs": health.pre_schema.full_runs,
         "false_negatives": [
             {
                 "nodeid": false_negative.nodeid,
                 "test_file": false_negative.test_file,
                 "selection_record": false_negative.selection_record,
                 "selection_head": false_negative.selection_head,
+                "selection_changed_files": list(false_negative.selection_changed_files),
                 "full_run_record": false_negative.full_run_record,
                 "full_run_head": false_negative.full_run_head,
+                "workspace": false_negative.workspace,
                 "rules": list(false_negative.rules),
             }
             for false_negative in health.false_negatives

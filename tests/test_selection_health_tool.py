@@ -33,6 +33,7 @@ from tests._test_selection_health import (
 ROOT = Path(__file__).resolve().parents[1]
 TOOL_PATH = ROOT / "tools" / "selection_health"
 NOW = datetime(2026, 8, 5, 12, 0, 0, tzinfo=UTC)
+WORKSPACE = "/workspaces/sase_11"
 
 
 def _load_tool() -> ModuleType:
@@ -51,7 +52,7 @@ def _populate(store: Path, *, missed: bool) -> None:
     record_selection(
         store,
         {
-            "schema": 1,
+            "schema": 2,
             "escalated": False,
             "rules_fired": ["contract-set-always"],
             "selected": ["tests/test_kept.py"],
@@ -59,8 +60,10 @@ def _populate(store: Path, *, missed: bool) -> None:
             "universe_count": 2400,
             "duration": 80.0,
             "outcome": "passed",
+            "changed_files": ["src/sase/alpha.py"],
             "baseline": {"head": "aaa"},
         },
+        workspace=WORKSPACE,
         pid=1,
         now=NOW,
     )
@@ -74,6 +77,8 @@ def _populate(store: Path, *, missed: bool) -> None:
             mode="fast",
             failures=["tests/test_missed.py::test_x"],
             exit_status=1,
+            workspace=WORKSPACE,
+            changed_files=["src/sase/alpha.py"],
             now=NOW,
         ),
     )

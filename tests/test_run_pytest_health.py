@@ -47,6 +47,7 @@ def test_scoped_run_lands_in_the_durable_health_store(
     selection = records.selections[0]
     assert selection.outcome == "passed"
     assert selection.selected == frozenset({"tests/test_alpha.py"})
+    assert selection.workspace == str(runner.REPO_ROOT.resolve())
 
 
 def test_escalated_scoped_run_is_recorded_before_the_handoff(
@@ -107,6 +108,16 @@ def test_full_lane_arms_the_failure_recorder(
     assert request["mode"] == "fast"
     assert Path(request["path"]).parent == health_store(tmp_path)
     assert Path(request["path"]).name.endswith("-full-run.json")
+    # Both halves of the correlation identity are resolved in the parent, and
+    # the change set is the selector's own computation, not an approximation.
+    assert request["workspace"] == str(runner.REPO_ROOT.resolve())
+    assert request["changed_files"] == sorted(
+        set(
+            runner.compute_change_set(
+                runner.REPO_ROOT, runner.SelectionOptions.from_environment().base_ref
+            ).paths
+        )
+    )
 
 
 def test_health_recording_can_be_switched_off(

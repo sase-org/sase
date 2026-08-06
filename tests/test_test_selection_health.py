@@ -24,6 +24,7 @@ from tests._test_selection_health import (
     SASE_HOME_ENV,
     STORE_ENV,
     allocate_record_path,
+    count_pre_schema_records,
     find_false_negatives,
     full_run_record,
     git_ancestor_oracle,
@@ -36,6 +37,7 @@ from tests._test_selection_health import (
     render_report,
     store_directory,
     summarize,
+    workspace_identity,
     write_record,
 )
 from tests._test_selection_health_plugin import (
@@ -45,6 +47,10 @@ from tests._test_selection_health_plugin import (
 
 
 NOW = datetime(2026, 8, 5, 12, 0, 0, tzinfo=UTC)
+#: The default workspace both record kinds claim, so correlation is on unless
+#: a test deliberately turns it off.
+WORKSPACE = "/workspaces/sase_11"
+CHANGED = ("src/sase/alpha.py",)
 
 
 def _git_init(root: Path, *, remote: str | None) -> None:
@@ -62,6 +68,7 @@ def _manifest(
     duration: float | None = 80.0,
     outcome: str = "passed",
     contexts: dict[str, object] | None = None,
+    changed_files: tuple[str, ...] | None = CHANGED,
 ) -> dict[str, object]:
     manifest: dict[str, object] = {
         "schema": 2,
@@ -72,6 +79,8 @@ def _manifest(
         "universe_count": 2400,
         "baseline": {"head": head, "environment": "digest", "tree_dirty": False},
     }
+    if changed_files is not None:
+        manifest["changed_files"] = list(changed_files)
     if duration is not None:
         manifest["duration"] = duration
     manifest["outcome"] = outcome
@@ -81,10 +90,18 @@ def _manifest(
 
 
 def _write_selection(
-    store: Path, manifest: dict[str, object], *, minute: int = 0
+    store: Path,
+    manifest: dict[str, object],
+    *,
+    minute: int = 0,
+    workspace: str | None = WORKSPACE,
 ) -> Path:
     return record_selection(
-        store, manifest, pid=1000 + minute, now=NOW + timedelta(minutes=minute)
+        store,
+        manifest,
+        workspace=workspace,
+        pid=1000 + minute,
+        now=NOW + timedelta(minutes=minute),
     )
 
 
@@ -94,6 +111,8 @@ def _write_full_run(
     head: str,
     failures: tuple[str, ...],
     minute: int = 30,
+    workspace: str | None = WORKSPACE,
+    changed_files: tuple[str, ...] | None = CHANGED,
 ) -> Path:
     when = NOW + timedelta(minutes=minute)
     path = allocate_record_path(
@@ -102,7 +121,13 @@ def _write_full_run(
     write_record(
         path,
         full_run_record(
-            head=head, mode="fast", failures=failures, exit_status=1, now=when
+            head=head,
+            mode="fast",
+            failures=failures,
+            exit_status=1,
+            workspace=workspace,
+            changed_files=changed_files,
+            now=when,
         ),
     )
     return path
@@ -160,6 +185,15 @@ def test_store_directory_lives_under_sase_home_by_project(tmp_path: Path) -> Non
     assert store == home / "test-selection" / "gh_sase-org__sase"
 
 
+def test_workspace_identity_is_the_resolved_root(tmp_path: Path) -> None:
+    root = tmp_path / "sase_11"
+    root.mkdir()
+    link = tmp_path / "current"
+    link.symlink_to(root)
+
+    assert workspace_identity(link) == str(root.resolve())
+
+
 def test_store_directory_environment_override_wins(tmp_path: Path) -> None:
     override = tmp_path / "elsewhere"
 
@@ -186,7 +220,11 @@ def test_pruning_drops_records_past_retention_and_keeps_the_rest(
     store = tmp_path / "store"
     old = _write_selection(store, _manifest(head="a" * 40), minute=0)
     recent = record_selection(
-        store, _manifest(head="b" * 40), pid=7, now=NOW + timedelta(days=29)
+        store,
+        _manifest(head="b" * 40),
+        workspace=WORKSPACE,
+        pid=7,
+        now=NOW + timedelta(days=29),
     )
     unfamiliar = store / "notes.txt"
     unfamiliar.write_text("hand-written", encoding="utf-8")
@@ -252,6 +290,85 @@ def test_a_failure_excluded_by_an_ancestor_selection_is_a_false_negative(
     assert found[0].nodeid == "tests/test_missed.py::test_x"
     assert found[0].test_file == "tests/test_missed.py"
     assert found[0].rules == ("contract-set-always",)
+    assert found[0].workspace == WORKSPACE
+    assert found[0].selection_changed_files == CHANGED
+
+
+def test_a_failure_from_another_workspace_is_never_a_false_negative(
+    tmp_path: Path,
+) -> None:
+    # The store is shared across numbered workspaces, and they all sit on the
+    # same master HEAD: without this restriction every manifest matches every
+    # other workspace's failures, which is the defect this phase fixes.
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa"), workspace="/workspaces/sase_3")
+    _write_full_run(
+        store,
+        head="bbb",
+        failures=("tests/test_missed.py::test_x",),
+        workspace="/workspaces/sase_11",
+    )
+
+    assert not find_false_negatives(
+        load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb")
+    )
+
+
+def test_a_full_run_of_a_disjoint_change_is_never_a_false_negative(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", changed_files=("docs/a.md",)))
+    _write_full_run(
+        store,
+        head="bbb",
+        failures=("tests/test_missed.py::test_x",),
+        changed_files=("src/sase/beta.py",),
+    )
+
+    assert not find_false_negatives(
+        load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb")
+    )
+
+
+def test_a_full_run_that_grew_the_scoped_change_set_still_matches(
+    tmp_path: Path,
+) -> None:
+    # Agents commit as they go, so the full run normally sees a superset of
+    # what the earlier scoped run over the same change saw.
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", changed_files=("src/sase/a.py",)))
+    _write_full_run(
+        store,
+        head="bbb",
+        failures=("tests/test_missed.py::test_x",),
+        changed_files=("src/sase/a.py", "src/sase/b.py"),
+    )
+
+    found = find_false_negatives(
+        load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb")
+    )
+
+    assert [match.nodeid for match in found] == ["tests/test_missed.py::test_x"]
+
+
+def test_records_without_the_schema_2_identity_are_skipped_and_counted(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", changed_files=None))
+    _write_selection(store, _manifest(head="aaa"), minute=1, workspace=None)
+    _write_full_run(
+        store,
+        head="bbb",
+        failures=("tests/test_missed.py::test_x",),
+        changed_files=None,
+    )
+    records = load_records(store)
+
+    assert not find_false_negatives(records, is_ancestor=_linear_ancestry("aaa", "bbb"))
+    pre_schema = count_pre_schema_records(records)
+    assert (pre_schema.selections, pre_schema.full_runs, pre_schema.total) == (2, 1, 3)
 
 
 def test_a_selected_failure_is_not_a_false_negative(tmp_path: Path) -> None:
@@ -437,6 +554,59 @@ def test_report_lists_every_false_negative_and_what_to_do(tmp_path: Path) -> Non
     assert "SASE_TEST_SELECTION_DEPTH" in report
 
 
+def test_report_states_the_matching_rule_whatever_the_count(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa"))
+
+    report = "\n".join(
+        render_report(summarize(load_records(store), is_ancestor=lambda _a, _b: False))
+    )
+
+    assert "matching rule:" in report
+    assert "same workspace" in report
+    assert "covers the scoped run's" in report
+
+
+def test_report_says_how_many_records_predate_the_schema(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa"), workspace=None)
+    _write_full_run(store, head="bbb", failures=(), changed_files=None)
+
+    report = "\n".join(
+        render_report(summarize(load_records(store), is_ancestor=lambda _a, _b: False))
+    )
+
+    assert "2 record(s) predate schema 2" in report
+    assert "excluded from correlation" in report
+
+
+def test_report_flags_a_nodeid_matched_across_unrelated_changes(
+    tmp_path: Path,
+) -> None:
+    # Two scoped runs over different changes, both charged with the same
+    # failure: repetition across unrelated change sets reads as a flake.
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", changed_files=("src/sase/a.py",)))
+    _write_selection(
+        store,
+        _manifest(head="aaa", changed_files=("src/sase/b.py",)),
+        minute=1,
+    )
+    _write_full_run(
+        store,
+        head="bbb",
+        failures=("tests/test_flaky.py::test_x",),
+        changed_files=("src/sase/a.py", "src/sase/b.py"),
+    )
+
+    health = summarize(load_records(store), is_ancestor=_linear_ancestry("aaa", "bbb"))
+    report = "\n".join(render_report(health))
+
+    assert "false negatives: 1 (2 scoped run/failure matches)" in report
+    assert "distinct change sets: 2" in report
+    assert "suspect a flake before a miss" in report
+
+
 def test_health_payload_is_machine_readable(tmp_path: Path) -> None:
     store = tmp_path / "store"
     _write_selection(store, _manifest(head="aaa", selected=("tests/test_kept.py",)))
@@ -477,7 +647,13 @@ class _FakeConfig:
 
 def test_recorder_writes_only_the_failures_it_saw(tmp_path: Path) -> None:
     path = tmp_path / "record.json"
-    recorder = FullRunFailureRecorder(path, head="abc", mode="fast")
+    recorder = FullRunFailureRecorder(
+        path,
+        head="abc",
+        mode="fast",
+        workspace=WORKSPACE,
+        changed_files=CHANGED,
+    )
 
     for _ in range(2):
         recorder.pytest_runtest_logreport(
@@ -493,6 +669,8 @@ def test_recorder_writes_only_the_failures_it_saw(tmp_path: Path) -> None:
     assert payload["kind"] == KIND_FULL_RUN
     assert payload["head"] == "abc"
     assert payload["failures"] == ["tests/test_a.py::test_x", "tests/test_c.py"]
+    assert payload["workspace"] == WORKSPACE
+    assert payload["changed_files"] == list(CHANGED)
 
 
 def test_recorder_never_fails_a_run_over_an_unwritable_store(tmp_path: Path) -> None:
@@ -509,7 +687,15 @@ def test_plugin_registers_a_recorder_and_consumes_the_request(
     monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
     monkeypatch.setenv(
         RECORD_ENV,
-        json.dumps({"path": str(record_path), "head": "abc", "mode": "cov"}),
+        json.dumps(
+            {
+                "path": str(record_path),
+                "head": "abc",
+                "mode": "cov",
+                "workspace": WORKSPACE,
+                "changed_files": list(CHANGED),
+            }
+        ),
     )
     config = _FakeConfig()
 
@@ -517,6 +703,10 @@ def test_plugin_registers_a_recorder_and_consumes_the_request(
 
     recorder = config.pluginmanager.registered["sase-selection-health-recorder"]
     assert isinstance(recorder, FullRunFailureRecorder)
+    recorder.pytest_sessionfinish(0)
+    written = json.loads(record_path.read_text(encoding="utf-8"))
+    assert written["workspace"] == WORKSPACE
+    assert written["changed_files"] == list(CHANGED)
     # Popped so nested pytest subprocesses cannot overwrite this run's record.
     assert RECORD_ENV not in os.environ
 
