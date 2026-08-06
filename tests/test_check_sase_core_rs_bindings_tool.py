@@ -18,6 +18,9 @@ from types import ModuleType
 
 import pytest
 
+
+pytestmark = pytest.mark.contract
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "check_sase_core_rs_bindings"
 SRC_ROOT = ROOT / "src" / "sase"

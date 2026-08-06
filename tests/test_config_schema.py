@@ -16,6 +16,8 @@ from sase.config.inventory import config_schema_path
 from tests._config_schema_helpers import format_schema_error, schema
 
 
+pytestmark = pytest.mark.contract
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 

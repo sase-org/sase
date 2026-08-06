@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Any
 
 
+import pytest
+
+pytestmark = pytest.mark.contract
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _TOOL_PATH = _REPO_ROOT / "tools" / "purge_sase_core_rs_extensions"
 

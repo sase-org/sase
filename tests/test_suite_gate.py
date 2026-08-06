@@ -24,6 +24,8 @@ from tests._suite_gate import (
 )
 
 
+pytestmark = pytest.mark.contract
+
 _ROOT = Path(__file__).resolve().parents[1]
 _GIB_KIB = 1024 * 1024
 

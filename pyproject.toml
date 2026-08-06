@@ -272,6 +272,7 @@ markers = [
     "visual: marks visual regression tests",
     "plan_chain_golden: marks plan/questions lifecycle golden-equivalence tests",
     "real_clipboard: test exercises the real clipboard command resolution (opts out of the clipboard guard)",
+    "contract: curated repository-wide audit/contract set always included in a diff-scoped test selection",
 ]
 
 # --- Coverage ---

@@ -6,6 +6,10 @@ import ast
 from pathlib import Path
 
 
+import pytest
+
+pytestmark = pytest.mark.contract
+
 _SRC_ROOT = Path(__file__).resolve().parents[1] / "src" / "sase"
 
 _ALLOWED_CLOCK_DISPLAY_SITES = frozenset(

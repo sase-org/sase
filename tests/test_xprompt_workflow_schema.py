@@ -8,6 +8,10 @@ import yaml
 from jsonschema import Draft7Validator
 
 
+import pytest
+
+pytestmark = pytest.mark.contract
+
 ROOT = Path(__file__).resolve().parents[1]
 
 

@@ -6,6 +6,10 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.contract
+
 _ROOT = Path(__file__).resolve().parents[1]
 
 

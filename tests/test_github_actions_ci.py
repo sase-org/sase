@@ -6,8 +6,11 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
+
+pytestmark = pytest.mark.contract
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 

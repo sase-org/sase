@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Regenerate ``tests/contract_manifest.txt`` from the `contract` pytest marker."""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MANIFEST_PATH = REPO_ROOT / "tests" / "contract_manifest.txt"
+
+# pytest's own "no tests collected" exit code; not a failure for this tool.
+_NO_TESTS_COLLECTED_EXIT_CODE = 5
+
+
+def _nested_pytest_env() -> dict[str, str]:
+    """Environment for a pytest subprocess nested inside another pytest run.
+
+    ``tools/run_pytest`` derives ``TMPDIR`` deterministically from the repo
+    path, so a nested subprocess inherits the exact same watched root as an
+    enclosing suite run. Its own tmp-leak-guard session hook would then diff
+    that shared, actively-written-to root and misattribute sibling xdist
+    workers' scratch as a leak. The enclosing session already watches the same
+    root for the nested subprocess's own lifetime, so real leaks are still
+    caught there; disable the guard for the nested process only.
+    """
+    env = dict(os.environ)
+    env["SASE_TMP_LEAK_GUARD_DISABLED"] = "1"
+    return env
+
+
+def collect_contract_files(python: str = sys.executable) -> list[str]:
+    """Return the sorted, deduplicated test files ``-m contract`` selects."""
+    proc = subprocess.run(
+        [python, "-m", "pytest", "-m", "contract", "--collect-only", "-q"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=_nested_pytest_env(),
+        check=False,
+    )
+    if proc.returncode not in (0, _NO_TESTS_COLLECTED_EXIT_CODE):
+        sys.stderr.write(proc.stdout)
+        sys.stderr.write(proc.stderr)
+        raise RuntimeError(
+            f"pytest -m contract --collect-only failed (exit {proc.returncode})"
+        )
+
+    files: set[str] = set()
+    for line in proc.stdout.splitlines():
+        node_id = line.split("::", 1)[0]
+        if node_id.startswith("tests/") and node_id.endswith(".py"):
+            files.add(node_id)
+    return sorted(files)
+
+
+def refresh_manifest() -> list[str]:
+    files = collect_contract_files()
+    MANIFEST_PATH.write_text("".join(f"{f}\n" for f in files), encoding="utf-8")
+    return files
+
+
+def main() -> int:
+    files = refresh_manifest()
+    if not files:
+        print(
+            "[refresh_contract_manifest] no tests matched -m contract",
+            file=sys.stderr,
+        )
+        return 1
+    print(
+        f"[refresh_contract_manifest] wrote {len(files)} files to "
+        f"{MANIFEST_PATH.relative_to(REPO_ROOT)}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

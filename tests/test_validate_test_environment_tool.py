@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 
 
+import pytest
+
+pytestmark = pytest.mark.contract
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools/validate_test_environment"
 FORCE_ENV = "SASE_TEST_SETUP_FORCE_REVALIDATE"

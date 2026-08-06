@@ -26,6 +26,10 @@ import importlib.metadata
 import re
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.contract
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Active product + reference surface scanned by the guard. Tests, SDD records,

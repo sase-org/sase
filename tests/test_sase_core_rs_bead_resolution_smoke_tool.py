@@ -7,6 +7,10 @@ from pathlib import Path
 from types import ModuleType
 
 
+import pytest
+
+pytestmark = pytest.mark.contract
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "smoke_sase_core_rs_bead_resolution"
 

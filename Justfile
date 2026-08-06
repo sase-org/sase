@@ -399,6 +399,13 @@ test-tox: _setup
 test-py VER: _setup
     {{ venv_bin }}/tox -e py{{ VER }}
 
+# Regenerate the committed contract-set manifest (tests/contract_manifest.txt)
+# from the `contract` pytest marker. Run this after adding or removing
+# `@pytest.mark.contract` from a test module.
+refresh-contract-manifest: _setup
+    @printf "\n---------- Regenerating contract test manifest... ----------\n"
+    {{ venv_bin }}/python tools/refresh_contract_manifest
+
 # Run all checks (format check + lint + SASE validation + test) with context-efficient output for agents
 check: _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check

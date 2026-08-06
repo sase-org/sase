@@ -21,6 +21,8 @@ import pytest
 from sase.sdd.store import normalize_sdd_store_record
 
 
+pytestmark = pytest.mark.contract
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = ROOT / "tools" / "ci_bootstrap_sidecars"
 PROJECT_REPO = "sase-org/sase"

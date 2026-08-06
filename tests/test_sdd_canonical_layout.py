@@ -6,6 +6,10 @@ import re
 from pathlib import Path
 
 
+import pytest
+
+pytestmark = pytest.mark.contract
+
 _ROOT = Path(__file__).resolve().parents[1]
 _LEGACY_PLAN_PATH = re.compile(r"(?:@?sdd|\.sase/sdd)/(?:tales|epics)/")
 

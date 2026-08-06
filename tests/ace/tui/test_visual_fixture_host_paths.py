@@ -36,6 +36,10 @@ from pathlib import Path
 
 from sase.ace.tui.modals.axe_entry_editor_rendering import _HOME
 
+import pytest
+
+pytestmark = pytest.mark.contract
+
 _VISUAL_ROOT = Path(__file__).parent / "visual"
 _FIXTURE_SUFFIXES = {".py", ".json", ".yml", ".yaml", ".diff", ".md", ".txt"}
 
