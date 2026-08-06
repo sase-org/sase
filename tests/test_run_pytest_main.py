@@ -12,10 +12,19 @@ from pathlib import Path
 
 import pytest
 
-from tests._run_pytest_fixtures import load_run_pytest
+from tests._run_pytest_fixtures import (
+    PINNED_ENV_VARS,
+    isolate_run_pytest_environment,  # noqa: F401 (registers autouse env-isolation fixture)
+    load_run_pytest,
+)
 
 
 pytestmark = pytest.mark.contract
+
+
+def test_pinned_env_vars_cover_every_key_main_sanitizes() -> None:
+    runner = load_run_pytest()
+    assert set(runner.PYTEST_ENV_UNSET_KEYS) <= set(PINNED_ENV_VARS)
 
 
 def test_sanitizes_commit_workflow_environment(

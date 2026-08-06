@@ -72,6 +72,15 @@ _REPORT_ATTRIBUTE = "_sase_tmp_leak_report"
 
 TempSnapshot = dict[Path, frozenset[str]]
 
+# Per-test companion to the session-scoped guard above. That guard diffs
+# directory *entries* at session start/finish, which can only name whichever
+# test happens to be running when the suite finishes -- not the test that
+# actually mutated the environment. This one watches the two env vars
+# ``_prepare_pytest_tmpdir()`` (tools/run_pytest) writes directly to
+# ``os.environ`` and fails the offending test itself, at its own teardown.
+ENV_LEAK_WATCHED_VARS: tuple[str, ...] = ("TMPDIR", PYTEST_TMP_REDIRECTED_ENV)
+_ENV_LEAK_BASELINE_ATTRIBUTE = "_sase_tmp_env_leak_baseline"
+
 
 def watched_temp_directories() -> tuple[Path, ...]:
     """Return the temp roots this guard watches.
@@ -213,6 +222,64 @@ def report_tmp_leak_guard(
     delattr(config, _REPORT_ATTRIBUTE)
     terminalreporter.write_sep("=", "system temp leakage", red=True, bold=True)
     terminalreporter.write_line(report)
+
+
+def snapshot_env_leak_watch() -> dict[str, str | None]:
+    """Return the current values of the per-test env-leak watch list."""
+    return {name: os.environ.get(name) for name in ENV_LEAK_WATCHED_VARS}
+
+
+def start_tmp_env_leak_guard(item: pytest.Item) -> None:
+    """Snapshot the watched env vars before ``item``'s own fixtures run.
+
+    Called from ``pytest_runtest_setup``, which fires before any per-item
+    fixture (including ``monkeypatch``) is set up, so the snapshot reflects
+    the clean state left by the previous test's own teardown.
+    """
+    setattr(item, _ENV_LEAK_BASELINE_ATTRIBUTE, snapshot_env_leak_watch())
+
+
+def check_tmp_env_leak_guard(item: pytest.Item) -> None:
+    """Fail ``item`` if it left a watched env var changed after its teardown.
+
+    Called from a ``pytest_runtest_teardown`` hookwrapper *after* the real
+    teardown has run, so ``monkeypatch``'s own restoration has already
+    happened by the time this compares against the baseline -- a redirect
+    routed through ``monkeypatch.setenv``/``delenv`` never trips this. Only a
+    test that mutates ``TMPDIR`` or ``SASE_PYTEST_TMP_REDIRECTED`` directly
+    (as ``tools/run_pytest``'s ``_prepare_pytest_tmpdir()`` does) and leaves
+    it changed does. Checking at the leaking test's own teardown -- instead of
+    diffing a directory snapshot at session finish -- is what lets the
+    failure name the actual offender rather than whichever later test happens
+    to read the stale value.
+
+    Before failing, the watched vars are restored to their baseline: the
+    offender still fails loudly, but the blast radius stops there instead of
+    poisoning every later test on this worker with the leaked value.
+    """
+    baseline = getattr(item, _ENV_LEAK_BASELINE_ATTRIBUTE, None)
+    if baseline is None:
+        return
+    current = snapshot_env_leak_watch()
+    if current == baseline:
+        return
+    changed = ", ".join(
+        f"{name}: {baseline[name]!r} -> {current[name]!r}"
+        for name in ENV_LEAK_WATCHED_VARS
+        if baseline[name] != current[name]
+    )
+    for name, value in baseline.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+    pytest.fail(
+        f"{item.nodeid} left {changed} changed after its own teardown. The "
+        "guard has already restored it to its pre-test value, so this is "
+        "contained -- route the mutation through monkeypatch.setenv()/"
+        "delenv() so teardown restores it itself.",
+        pytrace=False,
+    )
 
 
 def _is_guard_exempt(config: pytest.Config) -> bool:
