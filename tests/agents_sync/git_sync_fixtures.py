@@ -49,6 +49,8 @@ def setup_repo(tmp_path: Path) -> tuple[Path, Path, Path]:
     git(seed, "push", "-u", "origin", "HEAD")
     sidecar = tmp_path / "sidecar"
     git(tmp_path, "clone", str(remote), str(sidecar))
+    git(sidecar, "config", "user.name", "Tests")
+    git(sidecar, "config", "user.email", "tests@example.test")
     return remote, seed, sidecar
 
 
