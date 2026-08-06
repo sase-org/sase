@@ -29,18 +29,18 @@ from tests._suite_gate import (  # noqa: E402
     gate_timeout,
 )
 from tests._test_selection import (  # noqa: E402
-    MANIFEST_FILENAME,
-    SELECTION_DIRECTORY,
-    ChangeSet,
     Selection,
     SelectionOptions,
-    compute_change_set,
-    context_line,
     select_tests,
-    summary_line,
+)
+from tests._test_selection_changes import ChangeSet, compute_change_set  # noqa: E402
+from tests._test_selection_graph import SelectionError, run_git  # noqa: E402
+from tests._test_selection_manifest import (  # noqa: E402
+    MANIFEST_FILENAME,
+    SELECTION_DIRECTORY,
     write_manifest,
 )
-from tests._test_selection_graph import SelectionError, run_git  # noqa: E402
+from tests._test_selection_report import context_line, summary_line  # noqa: E402
 from tests._test_selection_health import (  # noqa: E402
     KIND_FULL_RUN,
     RECORD_ENV,

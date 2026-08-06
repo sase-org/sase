@@ -17,7 +17,6 @@ from coverage import CoverageData
 from tests._test_selection import (
     Selection,
     SelectionOptions,
-    context_line,
     select_tests,
 )
 from tests._test_selection_contexts import (
@@ -38,6 +37,7 @@ from tests._test_selection_contexts import (
     select_from_contexts,
 )
 from tests._test_selection_fixtures import _git, _write, build_fixture_repo
+from tests._test_selection_report import context_line
 
 
 @pytest.fixture

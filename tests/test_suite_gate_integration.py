@@ -83,9 +83,13 @@ def _build_scoped_repo(root: Path) -> None:
     for module in (
         "_suite_gate.py",
         "_test_selection.py",
+        "_test_selection_changes.py",
         "_test_selection_contexts.py",
         "_test_selection_graph.py",
         "_test_selection_health.py",
+        "_test_selection_manifest.py",
+        "_test_selection_report.py",
+        "_test_selection_rules.py",
     ):
         shutil.copy(_ROOT / "tests" / module, root / "tests" / module)
 

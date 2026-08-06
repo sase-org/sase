@@ -16,20 +16,28 @@ the mechanism, not a tuning knob.
 Selection is deliberately a heuristic. The broadening rules, the escalation
 threshold, the always-included contract set, and the manifest that records
 every decision all exist because the closure is unsound.
+
+This module holds the closure and the policy that surrounds it. Its neighbours
+hold the parts that stand on their own:
+
+* :mod:`tests._test_selection_graph` — building the import graph.
+* :mod:`tests._test_selection_changes` — asking git what moved.
+* :mod:`tests._test_selection_rules` — the named broadening rules.
+* :mod:`tests._test_selection_manifest` — cache paths, manifest I/O, and the
+  environment fingerprint the manifest baseline is keyed to.
+* :mod:`tests._test_selection_contexts` — per-test coverage as a second source.
+* :mod:`tests._test_selection_report` — rendering a selection for a reader.
 """
 
 from __future__ import annotations
 
-import importlib.util
-import json
 import os
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from importlib.machinery import SourceFileLoader
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 
+from tests._test_selection_changes import ChangeSet, compute_change_set
 from tests._test_selection_contexts import (
     ContextSelection,
     select_from_contexts,
@@ -40,13 +48,23 @@ from tests._test_selection_graph import (
     build_import_graph,
     is_test_file,
     is_visual_path,
-    run_git,
 )
 from tests._test_selection_health import store_directory
+from tests._test_selection_manifest import (
+    GRAPH_CACHE_FILENAME,
+    MANIFEST_FILENAME,
+    MANIFEST_SCHEMA,
+    SELECTION_DIRECTORY,
+    environment_fingerprint,
+    read_manifest,
+)
+from tests._test_selection_rules import (
+    CONTRACT_MANIFEST_PATH,
+    RULE_CONTRACT_SET_ALWAYS,
+    RULE_RATIO_EXCEEDED,
+    evaluate_broadening_rules,
+)
 
-
-#: Bumped to 2 when the `contexts` block joined the manifest.
-MANIFEST_SCHEMA = 2
 
 DEFAULT_DEPTH = 2
 DEFAULT_MAX_RATIO = 0.25
@@ -56,269 +74,11 @@ DEPTH_ENV = "SASE_TEST_SELECTION_DEPTH"
 MAX_RATIO_ENV = "SASE_TEST_SELECTION_MAX_RATIO"
 BASE_ENV = "SASE_CHECK_BASE"
 
-SELECTION_DIRECTORY = Path(".pytest_cache") / "sase-selection"
-GRAPH_CACHE_FILENAME = "graph.json"
-MANIFEST_FILENAME = "manifest.json"
-
-CONTRACT_MANIFEST_PATH = "tests/contract_manifest.txt"
-
 FULL_SUITE = "FULL_SUITE"
 
-RULE_BASE_UNRESOLVED = "base-unresolved"
-RULE_ROOT_CONFTEST = "root-conftest"
-RULE_PACKAGING_CONFIG = "packaging-config"
-RULE_JUSTFILE = "justfile"
-RULE_SRC_DATA_ASSET = "src-data-asset"
-RULE_SELECTION_TOOLING = "selection-tooling"
-RULE_CORE_IDENTITY_CHANGED = "core-identity-changed"
-RULE_DIRECTORY_CONFTEST = "directory-conftest"
-RULE_CONTRACT_SET_ALWAYS = "contract-set-always"
-RULE_CONTRACT_SET_ONLY = "contract-set-only"
-RULE_RENAME_OR_DELETE = "rename-or-delete"
-RULE_RATIO_EXCEEDED = "selection-ratio-exceeded"
-
-#: Rules whose only sound response is to run everything.
-FULL_SUITE_RULES = frozenset(
-    {
-        RULE_BASE_UNRESOLVED,
-        RULE_ROOT_CONFTEST,
-        RULE_PACKAGING_CONFIG,
-        RULE_JUSTFILE,
-        RULE_SRC_DATA_ASSET,
-        RULE_SELECTION_TOOLING,
-        RULE_CORE_IDENTITY_CHANGED,
-    }
-)
-
-#: The root conftest and every module it imports from within the repository.
-#: A change to any of them can alter fixture behaviour for the whole suite.
-ROOT_CONFTEST_PATHS = frozenset(
-    {
-        "tests/conftest.py",
-        "tests/_suite_gate.py",
-        "tests/_tmp_leak_guard.py",
-        "tests/_project_display_case.py",
-    }
-)
-PACKAGING_CONFIG_PATHS = frozenset({"pyproject.toml", "uv.lock", "tox.ini"})
-JUSTFILE_PATHS = frozenset({"Justfile", "justfile"})
-SELECTION_TOOLING_PATHS = frozenset(
-    {
-        "tools/run_pytest",
-        "tools/select_tests",
-        "tests/_test_selection.py",
-        "tests/_test_selection_contexts.py",
-        "tests/_test_selection_graph.py",
-        CONTRACT_MANIFEST_PATH,
-    }
-)
-SRC_DATA_ASSET_SUFFIXES = (".yml", ".yaml", ".json")
-
-_SASE_CORE_DIR_ENV_VARS = (
-    "SASE_CORE_DIR",
-    "SASE_LINKED_REPO_SASE_CORE_DIR",
-    "SASE_SIBLING_REPO_SASE_CORE_DIR",
-    "SASE_SIBLING_REPO_CORE_DIR",
-)
-_WORKSPACE_SASE_CORE_DIR = Path("sase/repos/linked/sase-core")
-
 
 # --------------------------------------------------------------------------
-# Change set
-# --------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class ChangeSet:
-    paths: tuple[str, ...]
-    base_ref: str
-    merge_base: str | None
-    has_rename_or_delete: bool
-    head: str | None
-    tree_dirty: bool
-
-
-def _parse_name_status_z(raw: str) -> tuple[list[str], bool]:
-    """Parse ``git diff --name-status -z`` into paths and a rename/delete flag.
-
-    With ``-z`` each status code is its own NUL-separated field, and a rename
-    or copy is followed by *two* path fields (old, then new). Both are kept:
-    the old path seeds nothing but the new one does, and callers only need to
-    know that some path moved.
-    """
-    fields = raw.split("\0")
-    paths: list[str] = []
-    special = False
-    index = 0
-    while index < len(fields):
-        status = fields[index]
-        index += 1
-        if not status:
-            continue
-        code = status[0]
-        if code in {"R", "C"}:
-            special = special or code == "R"
-            for _ in range(2):
-                if index < len(fields):
-                    if fields[index]:
-                        paths.append(fields[index])
-                    index += 1
-            continue
-        if index < len(fields):
-            if fields[index]:
-                paths.append(fields[index])
-            index += 1
-        if code == "D":
-            special = True
-    return paths, special
-
-
-def _parse_porcelain_z(raw: str) -> tuple[list[str], bool]:
-    """Parse ``git status --porcelain -z`` into paths and a rename/delete flag.
-
-    Each entry is ``XY<space><path>``; a rename or copy puts the original path
-    in the following NUL-separated field. Untracked (``??``) entries are
-    included so a brand-new test file participates in the change set.
-    """
-    fields = raw.split("\0")
-    paths: list[str] = []
-    special = False
-    index = 0
-    while index < len(fields):
-        entry = fields[index]
-        index += 1
-        if len(entry) < 4:
-            continue
-        status, path = entry[:2], entry[3:]
-        paths.append(path)
-        if "R" in status or "C" in status:
-            if index < len(fields) and fields[index]:
-                paths.append(fields[index])
-            index += 1
-            special = special or "R" in status
-        if "D" in status:
-            special = True
-    return paths, special
-
-
-def compute_change_set(root: Path, base_ref: str) -> ChangeSet:
-    """Union the merge-base diff with the working tree's own changes.
-
-    A stale or missing base ref is not an error the selector may paper over:
-    the caller sees ``merge_base is None`` and escalates to the full suite,
-    because failing toward *more* testing is the only safe direction.
-    """
-    try:
-        merge_base = run_git(root, "merge-base", "HEAD", base_ref).strip() or None
-    except SelectionError:
-        merge_base = None
-    try:
-        head = run_git(root, "rev-parse", "HEAD").strip() or None
-    except SelectionError:
-        head = None
-
-    paths: list[str] = []
-    has_rename_or_delete = False
-    if merge_base is not None:
-        diff_paths, diff_special = _parse_name_status_z(
-            run_git(root, "diff", "--name-status", "-M", "-z", merge_base)
-        )
-        paths.extend(diff_paths)
-        has_rename_or_delete = has_rename_or_delete or diff_special
-
-    status_paths, status_special = _parse_porcelain_z(
-        run_git(root, "status", "--porcelain", "-z")
-    )
-    paths.extend(status_paths)
-    has_rename_or_delete = has_rename_or_delete or status_special
-
-    return ChangeSet(
-        paths=tuple(sorted(set(paths))),
-        base_ref=base_ref,
-        merge_base=merge_base,
-        has_rename_or_delete=has_rename_or_delete,
-        head=head,
-        tree_dirty=bool(status_paths),
-    )
-
-
-# --------------------------------------------------------------------------
-# Broadening rules
-# --------------------------------------------------------------------------
-
-
-def _is_src_data_asset(path: str) -> bool:
-    return path.startswith("src/") and path.endswith(SRC_DATA_ASSET_SUFFIXES)
-
-
-def _is_directory_conftest(path: str) -> bool:
-    return (
-        path.startswith("tests/")
-        and path.endswith("/conftest.py")
-        and path != "tests/conftest.py"
-    )
-
-
-@dataclass(frozen=True)
-class RuleEvaluation:
-    rules: tuple[str, ...]
-    conftest_directories: tuple[str, ...]
-
-    @property
-    def forces_full_suite(self) -> bool:
-        return any(rule in FULL_SUITE_RULES for rule in self.rules)
-
-
-def evaluate_broadening_rules(
-    changed_paths: Iterable[str],
-    *,
-    base_resolved: bool,
-    core_identity_changed: bool,
-    has_rename_or_delete: bool,
-    graph: ImportGraph,
-) -> RuleEvaluation:
-    """Classify the change set into the named rules it triggers."""
-    rules: list[str] = []
-    conftest_directories: list[str] = []
-    known_module_paths = 0
-
-    if not base_resolved:
-        rules.append(RULE_BASE_UNRESOLVED)
-    if core_identity_changed:
-        rules.append(RULE_CORE_IDENTITY_CHANGED)
-
-    for path in changed_paths:
-        if path in ROOT_CONFTEST_PATHS:
-            rules.append(RULE_ROOT_CONFTEST)
-        elif path in PACKAGING_CONFIG_PATHS:
-            rules.append(RULE_PACKAGING_CONFIG)
-        elif path in JUSTFILE_PATHS:
-            rules.append(RULE_JUSTFILE)
-        elif path in SELECTION_TOOLING_PATHS:
-            rules.append(RULE_SELECTION_TOOLING)
-        elif _is_src_data_asset(path):
-            rules.append(RULE_SRC_DATA_ASSET)
-        elif _is_directory_conftest(path):
-            rules.append(RULE_DIRECTORY_CONFTEST)
-            conftest_directories.append(path[: -len("/conftest.py")])
-        if path in graph.paths:
-            known_module_paths += 1
-
-    if has_rename_or_delete:
-        rules.append(RULE_RENAME_OR_DELETE)
-    if known_module_paths == 0 and not conftest_directories:
-        # Docs, sdd/**, .github/**, and friends contribute no seeds at all.
-        rules.append(RULE_CONTRACT_SET_ONLY)
-
-    ordered = tuple(sorted(set(rules)))
-    return RuleEvaluation(
-        rules=ordered,
-        conftest_directories=tuple(sorted(set(conftest_directories))),
-    )
-
-
-# --------------------------------------------------------------------------
-# Selection
+# Options
 # --------------------------------------------------------------------------
 
 
@@ -373,6 +133,11 @@ def _ratio(raw: str | None, default: float) -> float:
     if not 0 < value <= 1:
         raise SelectionError(f"{MAX_RATIO_ENV} must be a number in (0, 1]")
     return value
+
+
+# --------------------------------------------------------------------------
+# Selection
+# --------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -612,131 +377,3 @@ def select_tests(
         universe_count=len(universe),
         contexts=contexts,
     )
-
-
-# --------------------------------------------------------------------------
-# Manifest and environment identity
-# --------------------------------------------------------------------------
-
-
-def read_manifest(path: Path) -> dict[str, Any] | None:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return payload if isinstance(payload, dict) else None
-
-
-def write_manifest(path: Path, manifest: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-
-
-def sase_core_directory(root: Path, environ: Mapping[str, str] | None = None) -> Path:
-    """Mirror the Justfile's ``sase_core_dir`` resolution order."""
-    environ = os.environ if environ is None else environ
-    for name in _SASE_CORE_DIR_ENV_VARS:
-        value = environ.get(name)
-        if value:
-            candidate = Path(value)
-            return candidate if candidate.is_absolute() else root / candidate
-    workspace_checkout = root / _WORKSPACE_SASE_CORE_DIR
-    if workspace_checkout.exists():
-        return workspace_checkout
-    return root.parent / "sase-core"
-
-
-def _load_validator_module(root: Path) -> ModuleType | None:
-    script = root / "tools" / "validate_test_environment"
-    if not script.exists():
-        return None
-    loader = SourceFileLoader("sase_validate_test_environment", str(script))
-    spec = importlib.util.spec_from_file_location(
-        "sase_validate_test_environment", script, loader=loader
-    )
-    if spec is None or spec.loader is None:
-        return None
-    module = importlib.util.module_from_spec(spec)
-    try:
-        spec.loader.exec_module(module)
-    except Exception:
-        return None
-    return module
-
-
-def environment_fingerprint(root: Path) -> str | None:
-    """Digest the installed environment, including the ``sase_core_rs`` identity.
-
-    The Rust extension's identity is invisible to ``git diff`` — the wheel
-    lives in the venv and its source lives in a sibling repo — so the selector
-    reuses the fingerprint ``tools/validate_test_environment`` already computes
-    rather than inventing a second, divergent one. An unavailable fingerprint
-    is recorded as ``None``, never as a change.
-    """
-    module = _load_validator_module(root)
-    if module is None:
-        return None
-    try:
-        return str(
-            module._input_fingerprint(
-                venv_dir=root / ".venv",
-                pyproject=root / "pyproject.toml",
-                uv_lock=root / "uv.lock",
-                sase_core_dir=sase_core_directory(root),
-            )
-        )
-    except Exception:
-        return None
-
-
-# --------------------------------------------------------------------------
-# Reporting
-# --------------------------------------------------------------------------
-
-
-def summary_line(selection: Selection) -> str:
-    rules = ", ".join(selection.rules) or "none"
-    if selection.escalated:
-        return (
-            f"test selection escalated to the full suite "
-            f"(rules: {rules}); {selection.universe_count} test files in scope"
-        )
-    return (
-        f"selected {len(selection.selected)} of {selection.universe_count} "
-        f"test files (rules: {rules})"
-    )
-
-
-def context_line(contexts: ContextSelection) -> str:
-    """One line describing what per-test coverage contributed, if anything."""
-    if contexts.baseline_sha is None:
-        return (
-            "coverage contexts: no baseline cached "
-            "(run `just refresh-contexts-baseline`); static closure only"
-        )
-    freshness = "stale" if contexts.stale else "fresh"
-    distance = (
-        "unknown" if contexts.distance is None else f"{contexts.distance} commits"
-    )
-    return (
-        f"coverage contexts: baseline {contexts.baseline_sha[:12]} ({freshness}, "
-        f"{distance} behind HEAD) matched {len(contexts.matched_files)} changed "
-        f"file(s) and contributed {len(contexts.selected)} test file(s)"
-    )
-
-
-def explain_lines(selection: Selection, *, sample: int = 20) -> list[str]:
-    """Render why the selection looks the way it does."""
-    lines = [summary_line(selection)]
-    lines.append(f"rules fired: {', '.join(selection.rules) or 'none'}")
-    lines.append(context_line(selection.contexts))
-    if selection.escalated:
-        lines.append("no per-file selection: the run escalates to the full suite")
-        return lines
-    lines.append(f"selected files (showing up to {sample}):")
-    for path in selection.selected[:sample]:
-        seed, hop = selection.explanations.get(path, ("?", -1))
-        lines.append(f"  {path}  <- seed {seed} at hop {hop}")
-    if len(selection.selected) > sample:
-        lines.append(f"  ... and {len(selection.selected) - sample} more")
-    return lines

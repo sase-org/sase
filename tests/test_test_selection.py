@@ -13,8 +13,22 @@ from pathlib import Path
 import pytest
 
 from tests._test_selection import (
-    CONTRACT_MANIFEST_PATH,
     FULL_SUITE,
+    Selection,
+    SelectionOptions,
+    select_tests,
+)
+from tests._test_selection_graph import (
+    SelectionError,
+    build_import_graph,
+    is_test_file,
+    module_name_for_path,
+    parse_import_targets,
+    parser_fingerprint,
+)
+from tests._test_selection_report import summary_line
+from tests._test_selection_rules import (
+    CONTRACT_MANIFEST_PATH,
     RULE_BASE_UNRESOLVED,
     RULE_CONTRACT_SET_ALWAYS,
     RULE_CONTRACT_SET_ONLY,
@@ -27,18 +41,6 @@ from tests._test_selection import (
     RULE_ROOT_CONFTEST,
     RULE_SELECTION_TOOLING,
     RULE_SRC_DATA_ASSET,
-    Selection,
-    SelectionOptions,
-    select_tests,
-    summary_line,
-)
-from tests._test_selection_graph import (
-    SelectionError,
-    build_import_graph,
-    is_test_file,
-    module_name_for_path,
-    parse_import_targets,
-    parser_fingerprint,
 )
 
 

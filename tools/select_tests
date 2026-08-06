@@ -14,19 +14,20 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tests._test_selection import (  # noqa: E402
-    GRAPH_CACHE_FILENAME,
-    MANIFEST_FILENAME,
-    SELECTION_DIRECTORY,
     SelectionOptions,
-    explain_lines,
     select_tests,
-    summary_line,
-    write_manifest,
 )
 from tests._test_selection_graph import (  # noqa: E402
     SelectionError,
     build_import_graph,
 )
+from tests._test_selection_manifest import (  # noqa: E402
+    GRAPH_CACHE_FILENAME,
+    MANIFEST_FILENAME,
+    SELECTION_DIRECTORY,
+    write_manifest,
+)
+from tests._test_selection_report import explain_lines, summary_line  # noqa: E402
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
