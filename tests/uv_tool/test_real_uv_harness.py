@@ -111,11 +111,17 @@ def uv_env(tmp_path: Path) -> UvToolEnv:
     """Provide a throwaway uv tool environment isolated from the real install."""
     tool_dir = tmp_path / "tools"
     bin_dir = tmp_path / "bin"
+    tmp_dir = tmp_path / "tmp"
     tool_dir.mkdir()
     bin_dir.mkdir()
+    tmp_dir.mkdir()
     env = dict(os.environ)
     env["UV_TOOL_DIR"] = str(tool_dir)
     env["UV_TOOL_BIN_DIR"] = str(bin_dir)
+    # Without this, real uv subprocesses inherit the suite's TMPDIR (redirected
+    # to the managed SASE temp root) and drop build-backend lock files there,
+    # tripping the session temp-leak guard.
+    env["TMPDIR"] = str(tmp_dir)
     # tmp_path and the uv cache are often on different filesystems; copy instead
     # of hardlink so installs are silent and reliable.
     env["UV_LINK_MODE"] = "copy"
