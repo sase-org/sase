@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""Print the diff-scoped lane's one-line summary from its persisted manifest.
+
+`just check`'s final stage wraps `test-scoped` in `tools/run_silent`, which
+discards captured stdout+stderr on success — so a passing scoped run leaves
+no trace of what it selected, whether it escalated, or whether the contexts
+baseline was missing. `test-scoped` always finishes by writing the selection
+manifest to disk before returning, so a step run right after `run_silent`
+returns (outside its captured region) can read that manifest back and show
+the same facts the success path would otherwise hide.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests._test_selection_manifest import (  # noqa: E402
+    MANIFEST_FILENAME,
+    SELECTION_DIRECTORY,
+    read_manifest,
+)
+from tests._test_selection_report import manifest_summary_line  # noqa: E402
+
+
+def main() -> int:
+    manifest_path = REPO_ROOT / SELECTION_DIRECTORY / MANIFEST_FILENAME
+    manifest = read_manifest(manifest_path)
+    if manifest is None:
+        return 0
+    print(manifest_summary_line(manifest))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

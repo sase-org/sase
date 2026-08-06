@@ -151,6 +151,30 @@ def test_check_full_ends_in_the_full_test_lane() -> None:
     assert "just test-scoped" not in output
 
 
+def test_check_prints_the_scoped_summary_after_run_silent_returns() -> None:
+    """The scoped summary step must sit outside `run_silent`'s captured region.
+
+    `run_silent` discards a wrapped command's captured output on success, so
+    forwarding the scoped lane's summary from *inside* that call would still
+    get swallowed. It has to be a separate `check` line that runs only after
+    `run_silent "test (scoped)"` has already returned.
+    """
+    output = _dry_run("check")
+
+    scoped_line = 'tools/run_silent "test (scoped)"      just test-scoped'
+    summary_line = "tools/print_scoped_summary"
+    assert scoped_line in output
+    assert summary_line in output
+    assert output.index(scoped_line) < output.index(summary_line)
+
+
+def test_check_full_does_not_print_a_scoped_summary() -> None:
+    """`check-full` runs the full lane, not the scoped one; nothing to forward."""
+    output = _dry_run("check-full")
+
+    assert "tools/print_scoped_summary" not in output
+
+
 def test_check_and_check_full_share_an_identical_gate_list() -> None:
     """`check` and `check-full` must never drift on their non-test gates.
 
