@@ -46,7 +46,7 @@ def resolve_plan_agent_artifacts_dir(action_data: Mapping[str, str]) -> str | No
     if timestamp is None:
         return None
 
-    project_name = _plan_action_project_name(action_data)
+    project_name = resolve_plan_action_project_name(action_data)
     if project_name is None:
         return None
 
@@ -90,7 +90,14 @@ def _normalize_agent_timestamp(value: object) -> str | None:
         return value.strip() or None
 
 
-def _plan_action_project_name(action_data: Mapping[str, str]) -> str | None:
+def resolve_plan_action_project_name(action_data: Mapping[str, str]) -> str | None:
+    """Resolve the SASE project a plan-approval notification belongs to.
+
+    ``agent_project_file`` names the ProjectSpec directly and is preferred.
+    ``project_dir`` is the agent's *workspace* directory, so it is resolved
+    through the workspace provider and only then stripped of its numbered
+    suffix; never treat its basename as a project name.
+    """
     if project_file := _nonempty(action_data.get("agent_project_file")):
         return _canonical_plan_project_name(Path(project_file).expanduser().parent.name)
 

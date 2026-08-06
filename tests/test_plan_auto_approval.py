@@ -135,6 +135,10 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
             "sase.plan_approval_actions.prepare_epic_launch",
             return_value=SimpleNamespace(task_id="task-waiting-auto"),
         ),
+        # This fixture's action data names no project, so archiving cannot
+        # run; its failure report is out of scope for the notification
+        # assertions below.
+        patch("sase._plan_archive_approval.report_plan_archive_failure"),
     ):
         result = handle_plan_approval(
             plan_file,

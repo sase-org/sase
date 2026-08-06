@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -433,51 +432,20 @@ def _archive_plan_for_approval(
 ) -> str | None:
     if not notification.host_files:
         return None
+    tier: Literal["tale", "epic"] = "epic" if persisted_action == "epic" else "tale"
+    src_plan = durable_plan_file_for_context(notification) or Path(
+        notification.host_files[0]
+    )
     try:
-        from sase.running_field import get_workspace_directory
-        from sase.sdd.files import (
-            commit_sdd_store_files,
-            ensure_bare_git_sdd_initialized,
-        )
-        from sase.sdd.plan_archive import archive_plan_file
-        from sase.sdd.store import materialize_sdd_store
+        from sase._plan_archive_approval import archive_approved_plan
 
-        project_dir = notification.host_action_data.get("project_dir")
-        if not project_dir:
-            return None
-        artifacts_dir = resolve_plan_agent_artifacts_dir(notification.host_action_data)
-        project_basename = os.path.basename(str(project_dir))
-        workspace_dir = get_workspace_directory(project_basename, 1)
-        sdd_store = materialize_sdd_store(workspace_dir, 1)
-        if sdd_store.is_in_tree:
-            ensure_bare_git_sdd_initialized(
-                workspace_dir,
-                commit=True,
-                push=False,
-            )
-        tier: Literal["tale", "epic"] = "epic" if persisted_action == "epic" else "tale"
-        src_plan = durable_plan_file_for_context(notification) or Path(
-            notification.host_files[0]
-        )
-        archived = archive_plan_file(
+        return archive_approved_plan(
+            notification.host_action_data,
             src_plan,
-            sdd_store,
             tier=tier,
-            preserve_existing=False,
-            expect_prompt_snapshot=(tier == "epic"),
         )
-        if not sdd_store.is_in_tree:
-            commit_sdd_store_files(
-                sdd_store,
-                f"Archive approved plan {src_plan.stem}",
-                paths=[archived.path],
-                artifacts_dir=artifacts_dir,
-            )
-        return str(archived.path)
-    except Exception:
-        _logger.warning(
-            "Failed to archive approved plan %s",
-            notification.host_files[0],
-            exc_info=True,
-        )
+    except Exception as error:
+        from sase._plan_archive_approval import report_plan_archive_failure
+
+        report_plan_archive_failure(src_plan, notification.host_action_data, error)
         return None

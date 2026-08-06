@@ -377,12 +377,15 @@ def test_plan_approve_can_include_coder_prompt_and_model(tmp_path: Path) -> None
     plan = _plan_file(tmp_path)
     _append_plan_notification("abcdef12-plan", plan, response_dir)
 
-    result = _approve_plan_from_cli(
-        selector="abcdef12",
-        kind="approve",
-        coder_prompt="Focus on tests",
-        coder_model="worker",
-    )
+    # This fixture's action data names no project, so archiving cannot run;
+    # its failure report is out of scope for the notification assertion below.
+    with patch("sase._plan_archive_approval.report_plan_archive_failure"):
+        result = _approve_plan_from_cli(
+            selector="abcdef12",
+            kind="approve",
+            coder_prompt="Focus on tests",
+            coder_model="worker",
+        )
 
     assert result.response_json == {
         "action": "approve",

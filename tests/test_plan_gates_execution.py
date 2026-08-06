@@ -123,9 +123,15 @@ def test_auto_uses_the_manual_executor_and_tier_owned_aliases(
     expected_kind: str,
     gate_home: Path,
 ) -> None:
-    with patch(
-        "sase.plan_approval_actions.prepare_epic_launch",
-        return_value=SimpleNamespace(task_id="task-auto"),
+    with (
+        patch(
+            "sase.plan_approval_actions.prepare_epic_launch",
+            return_value=SimpleNamespace(task_id="task-auto"),
+        ),
+        # This fixture's action data names no project, so archiving cannot
+        # run; its failure report is out of scope for the notification
+        # assertion below.
+        patch("sase._plan_archive_approval.report_plan_archive_failure"),
     ):
         gate = create_plan_approval_gate(
             write_plan(gate_home, f"{expected_kind}-{argument}.md", content),

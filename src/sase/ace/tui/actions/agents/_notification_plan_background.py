@@ -24,52 +24,23 @@ def archive_plan_for_approval(
     notification: Notification, action: str = "approve"
 ) -> str | None:
     """Best-effort copy of an approved plan into the workspace plan archive."""
-    import os
-
-    project_dir = notification.action_data.get("project_dir")
-    if not project_dir or not notification.files:
+    if not notification.files:
         return None
 
+    src_plan = Path(notification.files[0])
     try:
-        from sase.plan_approval_actions import resolve_plan_agent_artifacts_dir
-        from sase.running_field import get_workspace_directory
-        from sase.sdd.files import (
-            commit_sdd_store_files,
-            ensure_bare_git_sdd_initialized,
-        )
-        from sase.sdd.plan_archive import archive_plan_file
-        from sase.sdd.store import materialize_sdd_store
+        from sase._plan_archive_approval import archive_approved_plan
 
-        project_basename = os.path.basename(str(project_dir))
-        workspace_dir = get_workspace_directory(project_basename, 1)
-        sdd_store = materialize_sdd_store(workspace_dir, 1)
-        if sdd_store.is_in_tree:
-            ensure_bare_git_sdd_initialized(
-                workspace_dir,
-                commit=True,
-                push=False,
-            )
-        src_plan = Path(notification.files[0])
-        tier = _plan_tier_for_action(action)
-        archived = archive_plan_file(
+        return archive_approved_plan(
+            notification.action_data,
             src_plan,
-            sdd_store,
-            tier=tier,
-            preserve_existing=False,
-            expect_prompt_snapshot=(tier == "epic"),
+            tier=_plan_tier_for_action(action),
+            push_after_commit="async",
         )
-        if not sdd_store.is_in_tree:
-            artifacts_dir = resolve_plan_agent_artifacts_dir(notification.action_data)
-            commit_sdd_store_files(
-                sdd_store,
-                f"Archive approved plan {src_plan.stem}",
-                paths=[archived.path],
-                push_after_commit="async",
-                artifacts_dir=artifacts_dir,
-            )
-        return str(archived.path)
-    except Exception:
-        log.warning("Failed to archive approved plan", exc_info=True)
+    except Exception as error:
+        from sase._plan_archive_approval import report_plan_archive_failure
+
+        report_plan_archive_failure(src_plan, notification.action_data, error)
         return None
 
 

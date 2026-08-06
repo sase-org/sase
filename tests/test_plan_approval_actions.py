@@ -107,6 +107,7 @@ def test_archive_plan_for_approval_rejects_invalid_cutover_plan(
             "sase.file_references.format_with_prettier",
             side_effect=lambda content: content,
         ),
+        patch("sase._plan_archive_approval.report_plan_archive_failure"),
     ):
         saved = _archive_plan_for_approval(context, "tale")
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -511,11 +512,14 @@ def test_telegram_gate_resolution_dismisses_and_finalizes_pending_tale_override(
     )
     [pending_notification] = load_notifications()
 
-    execution = execute_gate_selection(
-        gate.bundle_path,
-        ("approve", "commit"),
-        source="telegram",
-    )
+    # This fixture's action data names no project, so archiving cannot run;
+    # its failure report is out of scope for the notification assertions below.
+    with patch("sase._plan_archive_approval.report_plan_archive_failure"):
+        execution = execute_gate_selection(
+            gate.bundle_path,
+            ("approve", "commit"),
+            source="telegram",
+        )
 
     assert execution.response["source"] == "telegram"
     assert load_notifications() == []
