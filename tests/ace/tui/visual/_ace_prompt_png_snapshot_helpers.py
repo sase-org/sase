@@ -112,6 +112,17 @@ BULLET_HIGHLIGHT_SOLO = (
     "Then hand off to the release owner."
 )
 
+ORDERED_HIGHLIGHT_SOLO = (
+    "Release checklist for the prompt polish:\n"
+    "1. Draft the changelog and tag the #gh:sase milestone\n"
+    "2. Re-run the {% if flaky %}visual{% endif %} snapshots\n"
+    "   1. Confirm the committed gold renders match\n"
+    "   2. Capture the before and after screenshots\n"
+    "3) Ship the release notes with a fresh delimiter\n"
+    "Released in 2024. Keep that inline year plainly uncolored.\n"
+    "Then hand off to the release owner."
+)
+
 TODO_RESTORED_PROMPT = (
     "# Release readiness draft\n"
     "\n"

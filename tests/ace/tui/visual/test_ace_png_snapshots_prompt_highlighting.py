@@ -19,6 +19,7 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
     CODEBLOCK_HIGHLIGHT_SOLO,
     CODEBLOCK_HIGHLIGHT_STACK,
     MISSPELLING_HIGHLIGHT_PROMPT,
+    ORDERED_HIGHLIGHT_SOLO,
     SEARCH_PROMPT,
     TODO_HIGHLIGHT_STACK,
     TODO_RESTORED_PROMPT,
@@ -135,6 +136,41 @@ async def test_prompt_bullet_highlight_solo_png_snapshot(
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await mount_prompt_bar(page, BULLET_HIGHLIGHT_SOLO)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "prompt_ordered_highlight_solo_dark_120x40",
+            "ACE prompt input — ordered-marker highlighting, dark theme",
+        ),
+        (
+            "textual-light",
+            "prompt_ordered_highlight_solo_light_120x40",
+            "ACE prompt input — ordered-marker highlighting, light theme",
+        ),
+    ],
+)
+async def test_prompt_ordered_highlight_solo_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        await mount_prompt_bar(page, ORDERED_HIGHLIGHT_SOLO)
 
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 

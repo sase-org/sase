@@ -1,14 +1,15 @@
-"""Leading bullet-dash highlighting overlay for ``PromptTextArea``.
+"""Leading list-marker highlighting overlay for ``PromptTextArea``.
 
 Extends the shared overlay approach used by the Jinja/alt/xprompt highlighters:
 the bullet color is layered onto the same ``sase-jinja-prompt`` theme, and the
-dash spans are appended to ``self._highlights`` after the base markdown and
+marker spans are appended to ``self._highlights`` after the base markdown and
 code-block spans so a list marker stays visible even inside a fenced block.
 
-Only the ``-`` of a ``- `` bullet is colored -- a dash that opens a line with
-nothing but spaces to its left and a space to its right. That single, common
-structural glyph gets the theme's primary hue (unused by every other prompt
-overlay) lifted toward the foreground so it pops against the editor canvas.
+Only the ``-`` of a ``- `` bullet, or the digits and delimiter of an ``<N>. ``
+/ ``<N>) `` ordered marker, are colored -- never the marker's indent or its
+single trailing space. Both families share the same themed color: the theme's
+primary hue (unused by every other prompt overlay) lifted toward the
+foreground so it pops against the editor canvas.
 """
 
 from __future__ import annotations
@@ -36,6 +37,14 @@ else:
 # A leading bullet: start of line, only spaces before the dash, a space after.
 # The lookahead keeps the space out of the span so only the ``-`` is colored.
 _BULLET_DASH_RE = re.compile(r"(?m)^ *(-)(?= )")
+
+# A leading ordered marker: start of line, only spaces before 1-9 digits and a
+# ``.`` or ``)`` delimiter, a space after. The lookahead keeps the space out of
+# the span so only the digits and delimiter are colored, mirroring the dash.
+_ORDERED_MARKER_RE = re.compile(r"(?m)^ *(\d{1,9}[.)])(?= )")
+# Unanchored pre-check for the cheap early-out: any digit immediately followed
+# by a delimiter and a space, anywhere in the text.
+_ORDERED_MARKER_QUICK_RE = re.compile(r"\d[.)] ")
 
 # How far to nudge the primary hue toward the foreground. Lifting toward the
 # text color raises contrast against the *background* in both dark and light
@@ -69,6 +78,29 @@ def _scan_bullet_dash_spans(text: str) -> tuple[tuple[int, int], ...]:
     )
 
 
+def _ordered_marker_spans(text: str) -> tuple[tuple[int, int], ...]:
+    """Return character offsets of leading ordered-list markers in *text*.
+
+    Each span covers a marker's digits and delimiter only -- not its indent or
+    its single trailing space -- mirroring :func:`bullet_dash_spans`.
+    """
+    if not _ORDERED_MARKER_QUICK_RE.search(text):
+        return ()
+    if len(text) > _MAX_OVERLAY_BYTES:
+        return ()
+    if len(text.encode("utf-8")) > _MAX_OVERLAY_BYTES:
+        return ()
+    if text.count("\n") > _MAX_OVERLAY_LINES:
+        return ()
+    return _scan_ordered_marker_spans(text)
+
+
+def _scan_ordered_marker_spans(text: str) -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (match.start(1), match.end(1)) for match in _ORDERED_MARKER_RE.finditer(text)
+    )
+
+
 def _bullet_dash_color(primary: str | None, foreground: str | None) -> Color:
     """Return a theme-adaptive, high-contrast color for leading bullet dashes.
 
@@ -83,7 +115,7 @@ def _bullet_dash_color(primary: str | None, foreground: str | None) -> Color:
 
 
 class BulletHighlightMixin(_MixinBase):
-    """Overlay leading bullet-dash spans on top of TextArea highlighting."""
+    """Overlay leading bullet-dash and ordered-marker spans on top of highlighting."""
 
     if TYPE_CHECKING:
 
@@ -117,6 +149,8 @@ class BulletHighlightMixin(_MixinBase):
         super()._build_highlight_map()
         for start, end in bullet_dash_spans(self.text):
             self._append_highlight_span(start, end, "bullet.dash")
+        for start, end in _ordered_marker_spans(self.text):
+            self._append_highlight_span(start, end, "bullet.ordered")
 
     def _register_bullet_text_area_theme(
         self,
@@ -128,15 +162,17 @@ class BulletHighlightMixin(_MixinBase):
         base = self._resolve_bullet_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
+        marker_style = Style(
+            color=_bullet_dash_color(
+                app_theme.primary,
+                app_theme.foreground,
+            ).hex,
+            bold=True,
+        )
         syntax_styles.update(
             {
-                "bullet.dash": Style(
-                    color=_bullet_dash_color(
-                        app_theme.primary,
-                        app_theme.foreground,
-                    ).hex,
-                    bold=True,
-                ),
+                "bullet.dash": marker_style,
+                "bullet.ordered": marker_style,
             }
         )
         theme = dataclasses.replace(
