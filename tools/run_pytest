@@ -12,6 +12,7 @@ import stat
 import subprocess
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -34,13 +35,22 @@ from tests._test_selection import (  # noqa: E402
     select_tests,
 )
 from tests._test_selection_changes import ChangeSet, compute_change_set  # noqa: E402
+from tests._test_selection_gear import (  # noqa: E402
+    ScopedGear,
+    engage_scoped_gear,
+    manifest_with_gear,
+)
 from tests._test_selection_graph import SelectionError, run_git  # noqa: E402
 from tests._test_selection_manifest import (  # noqa: E402
     MANIFEST_FILENAME,
     SELECTION_DIRECTORY,
     write_manifest,
 )
-from tests._test_selection_report import context_line, summary_line  # noqa: E402
+from tests._test_selection_report import (  # noqa: E402
+    context_line,
+    gear_line,
+    summary_line,
+)
 from tests._test_selection_timings import (  # noqa: E402
     timings_directory,
     timings_enabled,
@@ -68,8 +78,11 @@ FAST_MARKER_EXPRESSION = "not slow and not visual"
 SLOW_MARKER_EXPRESSION = "slow"
 VISUAL_MARKER_EXPRESSION = "visual"
 TERMINAL_SMOKE_MARKER_EXPRESSION = "terminal_smoke"
-# `scoped` is serial by construction: `-n 1` makes `_xdist_worker_count` return
+# `scoped` is serial by default: `-n 1` makes `_xdist_worker_count` return
 # None, so no suite-gate path runs at all and the run never queues for tokens.
+# The one exception is the middle gear, which runs an over-budget selection at
+# a width the gate granted; `main` passes that width explicitly rather than
+# widening the mode. See `tests._test_selection_gear`.
 SERIAL_MODES = frozenset({"terminal-smoke", "scoped"})
 SCOPED_MODE = "scoped"
 #: Records the per-test coverage baseline the diff-scoped selector consumes.
@@ -80,9 +93,12 @@ CONTEXTS_COVERAGE_CONFIG = "coverage_contexts.toml"
 COVERAGE_CORE_ENV = "COVERAGE_CORE"
 CONTEXTS_COVERAGE_CORE = "ctrace"
 SCOPED_WORKER_REMEDY = (
-    "a governed parallel run of an arbitrary subset is exactly the "
-    "unaccounted-demand shape the suite gate exists to prevent; use "
-    "`just check-full` (or `just test`) for a governed parallel run."
+    "a scoped run's width is the suite gate's decision, not the caller's: it "
+    "is serial unless the middle gear wins a small non-blocking lease for an "
+    "over-budget selection, and a caller-chosen width over an arbitrary subset "
+    "is exactly the unaccounted-demand shape the gate exists to prevent. Use "
+    "`just check-full` (or `just test`) for a governed parallel run, or "
+    "SASE_TEST_SELECTION_SCOPED_WORKER_CEILING to bound the gear."
 )
 #: Modes that run the whole fast suite, and whose failures are therefore
 #: evidence about what a scoped run should not have skipped.
@@ -248,13 +264,22 @@ def _pytest_command(
     *,
     worker_count: int = 1,
     distribution_mode: str | None = None,
+    serial: bool | None = None,
 ) -> list[str]:
+    """Build the pytest command line.
+
+    ``serial`` overrides what the mode would imply, and exists for the one
+    caller that knows better than the mode does: a scoped run the middle gear
+    won a lease for is parallel even though ``scoped`` is in `SERIAL_MODES`.
+    """
     command = [
         sys.executable,
         "-m",
         "pytest",
     ]
-    if not _requires_serial_run(mode, args):
+    if serial is None:
+        serial = _requires_serial_run(mode, args)
+    if not serial:
         if worker_count < 1:
             raise ValueError("worker_count must be positive for a parallel run")
         if distribution_mode is None:
@@ -649,12 +674,36 @@ def _arm_timings_recorder(mode: str, *, worker_count: int | None) -> None:
 
 
 def _reject_scoped_worker_overrides(args: list[str]) -> None:
+    """Keep rejecting the width knobs, now that scoped runs are not all serial.
+
+    The middle gear made "scoped runs are serial" false, and it did not make
+    these overrides meaningful: the gear's width is whatever the gate grants
+    without waiting, so a request for eight workers is not something a scoped
+    run can honour or usefully clamp.
+    """
     _reject_numprocesses_args(args, remedy=SCOPED_WORKER_REMEDY)
     if os.environ.get("SASE_PYTEST_WORKERS") is not None:
         raise pytest.UsageError(
-            f"scoped runs are serial and take no suite-gate lease, so "
+            f"scoped runs never request an exact worker count, so "
             f"SASE_PYTEST_WORKERS does not apply; {SCOPED_WORKER_REMEDY}"
         )
+
+
+def _gear_manifest(
+    selection: Selection,
+    gear: ScopedGear,
+    *,
+    selected: Sequence[str] | None = None,
+) -> dict[str, object]:
+    """The selection's manifest, carrying a ``gear`` block only if it earned one.
+
+    A run the gear was never offered — nothing escalated, or a change-set rule
+    escalated it — records no ``gear`` block at all, rather than one whose
+    every field says "not this run".
+    """
+    if not gear.attempted:
+        return dict(selection.manifest)
+    return manifest_with_gear(selection.manifest, gear, selected=selected)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -682,6 +731,7 @@ def main(argv: list[str] | None = None) -> int:
 
     lease: WorkerTokenLease | None = None
     scoped_manifest: dict[str, object] | None = None
+    scoped_worker_count: int | None = None
     manifest_path = _scoped_manifest_path()
     try:
         if mode == SCOPED_MODE:
@@ -691,7 +741,23 @@ def main(argv: list[str] | None = None) -> int:
             # to stderr where a failure dump will carry it.
             print(summary_line(selection), file=sys.stderr)
             print(context_line(selection.contexts), file=sys.stderr)
-            if selection.escalated:
+            gear = ScopedGear()
+            if selection.escalated and selection.gear_candidate:
+                # The selection the serial budget rejected is sound, only slow.
+                # Try the middle gear before giving up on it: a few tokens the
+                # gate can spare right now beat both a 1,000s serial run and a
+                # whole-suite handoff. Refused means escalate, never wait.
+                gear, lease = engage_scoped_gear(
+                    serial_required=_requires_serial_pytest(pytest_args)
+                )
+                print(gear_line(gear), file=sys.stderr)
+            if gear.granted:
+                scoped_worker_count = gear.worker_count
+                scoped_manifest = _gear_manifest(
+                    selection, gear, selected=selection.gear_candidate
+                )
+                pytest_args = [*pytest_args, *selection.gear_candidate]
+            elif selection.escalated:
                 # Never let the fast path become the slow path: a large or
                 # broadened selection runs the governed full lane instead of a
                 # serial partial one.
@@ -704,7 +770,10 @@ def main(argv: list[str] | None = None) -> int:
                 # `execv`s away, and an unrecorded escalation would read as an
                 # escalation rate of zero.
                 _complete_scoped_manifest(
-                    manifest_path, selection.manifest, duration=0.0, outcome="escalated"
+                    manifest_path,
+                    _gear_manifest(selection, gear),
+                    duration=0.0,
+                    outcome="escalated",
                 )
                 mode = "fast"
             elif not selection.selected:
@@ -724,10 +793,17 @@ def main(argv: list[str] | None = None) -> int:
         timings_args = _timings_pytest_args(mode)
         pytest_args = [*timings_args, *pytest_args]
 
-        if _requires_serial_run(mode, pytest_args):
+        if scoped_worker_count is not None:
+            # The gear already holds `lease`; the width is the gate's answer.
+            serial = False
+            worker_count = scoped_worker_count
+            distribution_mode = _configured_distribution_mode()
+        elif _requires_serial_run(mode, pytest_args):
+            serial = True
             worker_count = 1
             distribution_mode = None
         else:
+            serial = False
             distribution_mode = _configured_distribution_mode()
             _reject_numprocesses_args(pytest_args)
             worker_count, lease = _parallel_worker_grant()
@@ -736,6 +812,7 @@ def main(argv: list[str] | None = None) -> int:
             pytest_args,
             worker_count=worker_count,
             distribution_mode=distribution_mode,
+            serial=serial,
         )
 
         _prepare_pytest_tmpdir()
@@ -745,9 +822,17 @@ def main(argv: list[str] | None = None) -> int:
             _arm_timings_recorder(mode, worker_count=worker_count)
         os.chdir(REPO_ROOT)
         if scoped_manifest is not None:
-            # Belt-and-braces against subprocess-spawning tests: `-n 1` already
-            # keeps every gate path dormant.
-            environment = {**os.environ, "SASE_TEST_GATE_DISABLED": "1"}
+            if scoped_worker_count is None:
+                # Belt-and-braces against subprocess-spawning tests: `-n 1`
+                # already keeps every gate path dormant.
+                environment = {**os.environ, "SASE_TEST_GATE_DISABLED": "1"}
+            else:
+                # Now that the workers are real, the belt-and-braces flag would
+                # be a claim of exemption rather than a statement of one. The
+                # gear's lease already marked this process's descendants
+                # governed and exempt, exactly as the full lane's lease does,
+                # and it is the lease — not the flag — that paid for the width.
+                environment = dict(os.environ)
             # `execv` cannot come back to finish the manifest, so scoped mode is
             # the one mode that keeps a parent process alive.
             started = time.monotonic()

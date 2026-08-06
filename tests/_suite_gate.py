@@ -81,56 +81,16 @@ class WorkerTokenLease:
 
     def acquire(self, floor: int, ceiling: int, *, exact: bool = False) -> int:
         """Atomically reach ``floor``, then greedily grow through ``ceiling``."""
-        if self._token_files:
-            raise RuntimeError("worker-token lease is already acquired")
-        if floor < 1 or ceiling < floor:
-            raise ValueError("token floor and ceiling must be positive and ordered")
-
-        self._directory.mkdir(parents=True, exist_ok=True)
+        self._prepare_request(floor, ceiling)
         deadline = time.monotonic() + self._timeout
         next_status = time.monotonic() + self._status_interval
-        last_holders: dict[Path, str] = {}
-        last_available = 0
 
         while True:
-            pool_file = (self._directory / _POOL_FILE_NAME).open("a+", encoding="utf-8")
-            try:
-                fcntl.flock(pool_file.fileno(), fcntl.LOCK_EX)
-                effective_budget = self._synchronize_capacity(pool_file)
-                effective_floor, effective_ceiling = _fit_request_to_budget(
-                    floor,
-                    ceiling,
-                    effective_budget,
-                    exact=exact,
-                    capacity_is_explicit=self._capacity_is_explicit,
-                )
-                token_files, holders = _try_acquire_tokens(
-                    self._directory, effective_budget, effective_ceiling
-                )
-                last_available = len(token_files)
-                last_holders = holders
-                if len(token_files) >= effective_floor:
-                    self._token_files = token_files
-                    self._effective_budget = effective_budget
-                    try:
-                        _write_holder_metadata(
-                            token_files,
-                            floor=effective_floor,
-                            ceiling=effective_ceiling,
-                            budget=effective_budget,
-                        )
-                        self._set_descendant_environment()
-                    except BaseException:
-                        _release_token_files(self._token_files)
-                        self._token_files = []
-                        self._effective_budget = None
-                        self._restore_descendant_environment()
-                        raise
-                    return self.granted
-                _release_token_files(token_files)
-            finally:
-                fcntl.flock(pool_file.fileno(), fcntl.LOCK_UN)
-                pool_file.close()
+            granted, last_available, last_holders = self._attempt(
+                floor, ceiling, exact=exact
+            )
+            if granted:
+                return granted
 
             now = time.monotonic()
             if now >= next_status:
@@ -153,6 +113,72 @@ class WorkerTokenLease:
                 )
 
             time.sleep(min(self._poll_interval, max(0.0, deadline - now)))
+
+    def try_acquire(self, floor: int, ceiling: int) -> int:
+        """Ask once for ``floor``..``ceiling`` tokens; return ``0`` if refused.
+
+        The same atomic attempt :meth:`acquire` loops over, made exactly once.
+        A caller that must never queue behind another agent's run — the
+        diff-scoped lane's middle gear, whose whole promise is that it does not
+        wait — asks with this instead and takes no for an answer.
+        """
+        self._prepare_request(floor, ceiling)
+        granted, _available, _holders = self._attempt(floor, ceiling, exact=False)
+        return granted
+
+    def _prepare_request(self, floor: int, ceiling: int) -> None:
+        if self._token_files:
+            raise RuntimeError("worker-token lease is already acquired")
+        if floor < 1 or ceiling < floor:
+            raise ValueError("token floor and ceiling must be positive and ordered")
+        self._directory.mkdir(parents=True, exist_ok=True)
+
+    def _attempt(
+        self, floor: int, ceiling: int, *, exact: bool
+    ) -> tuple[int, int, dict[Path, str]]:
+        """One pool-locked grant attempt: ``(granted, available, holders)``.
+
+        ``granted`` is zero when the pool could not cover ``floor``; the
+        remaining two describe what was in the way, which is what
+        :meth:`acquire` prints while it waits.
+        """
+        pool_file = (self._directory / _POOL_FILE_NAME).open("a+", encoding="utf-8")
+        try:
+            fcntl.flock(pool_file.fileno(), fcntl.LOCK_EX)
+            effective_budget = self._synchronize_capacity(pool_file)
+            effective_floor, effective_ceiling = _fit_request_to_budget(
+                floor,
+                ceiling,
+                effective_budget,
+                exact=exact,
+                capacity_is_explicit=self._capacity_is_explicit,
+            )
+            token_files, holders = _try_acquire_tokens(
+                self._directory, effective_budget, effective_ceiling
+            )
+            if len(token_files) >= effective_floor:
+                self._token_files = token_files
+                self._effective_budget = effective_budget
+                try:
+                    _write_holder_metadata(
+                        token_files,
+                        floor=effective_floor,
+                        ceiling=effective_ceiling,
+                        budget=effective_budget,
+                    )
+                    self._set_descendant_environment()
+                except BaseException:
+                    _release_token_files(self._token_files)
+                    self._token_files = []
+                    self._effective_budget = None
+                    self._restore_descendant_environment()
+                    raise
+                return self.granted, len(token_files), holders
+            _release_token_files(token_files)
+            return 0, len(token_files), holders
+        finally:
+            fcntl.flock(pool_file.fileno(), fcntl.LOCK_UN)
+            pool_file.close()
 
     def make_inheritable(self) -> None:
         """Keep every leased descriptor open across the runner's pytest exec."""

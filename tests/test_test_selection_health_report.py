@@ -13,8 +13,10 @@ from pathlib import Path
 import pytest
 
 from tests._selection_health_case_helpers import (
+    granted_gear,
     linear_ancestry,
     manifest,
+    refused_gear,
     write_full_run,
     write_selection,
 )
@@ -420,3 +422,92 @@ def test_health_payload_reports_flake_suppressed_matches(tmp_path: Path) -> None
     assert {m["nodeid"] for m in round_tripped["flake_suppressed"]} == {
         "tests/test_flaky.py::test_x"
     }
+
+
+def test_summary_charges_a_gear_run_its_leased_worker_seconds(tmp_path: Path) -> None:
+    """Four workers for 100s is 400 worker-seconds of host demand, not 100."""
+    store = tmp_path / "store"
+    write_selection(
+        store,
+        manifest(
+            head="aaa",
+            selected=("tests/test_a.py",),
+            duration=100.0,
+            rules=("serial-budget-exceeded",),
+            gear=granted_gear(4),
+        ),
+    )
+
+    health = summarize(load_records(store), is_ancestor=lambda _a, _b: False)
+
+    assert health.gear_runs == 1
+    assert health.gear_refused_runs == 0
+    assert health.duration_widths == {4: 1}
+    assert health.worker_seconds_saved == pytest.approx(
+        FULL_SUITE_WORKER_SECONDS - 400.0
+    )
+
+
+def test_summary_counts_a_refused_gear_separately_from_a_granted_one(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    write_selection(
+        store,
+        manifest(
+            head="aaa",
+            selected=("tests/test_a.py",),
+            duration=100.0,
+            gear=granted_gear(2),
+        ),
+        minute=0,
+    )
+    write_selection(
+        store,
+        manifest(
+            head="bbb",
+            escalated=True,
+            rules=("serial-budget-exceeded",),
+            duration=0.0,
+            gear=refused_gear(),
+        ),
+        minute=1,
+    )
+    write_selection(
+        store,
+        manifest(head="ccc", selected=("tests/test_c.py",), duration=40.0),
+        minute=2,
+    )
+
+    health = summarize(load_records(store), is_ancestor=lambda _a, _b: False)
+
+    assert health.gear_runs == 1
+    assert health.gear_refused_runs == 1
+    assert health.duration_widths == {1: 1, 2: 1}
+
+    report = "\n".join(render_report(health))
+    assert (
+        "middle gear: 1 run(s) leased a bounded width, 1 refused and escalated instead"
+        in report
+    )
+    assert "timed runs by width: 1 at 1 worker, 1 at 2 workers" in report
+    assert "the durations above pool these widths" in report
+
+
+def test_a_slow_gear_run_is_still_slower_than_the_full_lane(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    write_selection(
+        store,
+        manifest(
+            head="aaa",
+            selected=("tests/test_a.py",),
+            duration=300.0,
+            rules=("serial-budget-exceeded",),
+            gear=granted_gear(4),
+        ),
+    )
+
+    health = summarize(load_records(store), is_ancestor=lambda _a, _b: False)
+
+    assert health.slow_runs[0].worker_count == 4
+    assert "300.0s at 4 workers" in "\n".join(render_report(health))

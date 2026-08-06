@@ -73,6 +73,27 @@ class SelectionRecord:
         return str(self.manifest.get("outcome") or "unknown")
 
     @property
+    def worker_count(self) -> int:
+        """The width this run executed at; ``1`` unless the middle gear ran it.
+
+        A scoped run is serial unless `tests._test_selection_gear` won it a
+        bounded lease, and every record written before that gear existed is
+        serial by construction — so an absent ``gear`` block reads as one
+        worker rather than as an unknown.
+        """
+        gear = self.manifest.get("gear")
+        if not isinstance(gear, dict) or not gear.get("granted"):
+            return 1
+        worker_count = gear.get("worker_count")
+        return worker_count if isinstance(worker_count, int) and worker_count > 0 else 1
+
+    @property
+    def gear_refused(self) -> bool:
+        """The gear was offered this run's selection and could not lease it."""
+        gear = self.manifest.get("gear")
+        return isinstance(gear, dict) and not gear.get("granted")
+
+    @property
     def contexts(self) -> dict[str, Any]:
         contexts = self.manifest.get("contexts")
         return contexts if isinstance(contexts, dict) else {}

@@ -12,6 +12,7 @@ from typing import Any
 
 from tests._test_selection import Selection
 from tests._test_selection_contexts import ContextSelection, contexts_consulted
+from tests._test_selection_gear import ScopedGear
 from tests._test_selection_timings import REASON_ESCALATED
 
 
@@ -81,6 +82,24 @@ def budget_line(selection: Selection) -> str:
     )
 
 
+def gear_line(gear: ScopedGear) -> str:
+    """One line describing what the middle gear was granted, or why not.
+
+    Printed only on the runs that reached the gear at all — a selection the
+    serial budget rejected — so it always has something to say.
+    """
+    if gear.granted:
+        return (
+            f"middle gear: running the over-budget selection at "
+            f"{gear.worker_count} worker(s), leased from the suite gate "
+            f"(ceiling {gear.ceiling})"
+        )
+    return (
+        f"middle gear: no bounded lease ({gear.reason}); escalating rather "
+        "than queueing for one"
+    )
+
+
 def manifest_summary_line(manifest: dict[str, Any]) -> str:
     """The scoped lane's one-line summary, rebuilt from its persisted manifest.
 
@@ -116,7 +135,24 @@ def manifest_summary_line(manifest: dict[str, Any]) -> str:
     return (
         f"scoped: {selection_part}; contexts baseline {baseline_status}"
         f"{_manifest_budget_clause(manifest)}"
+        f"{_manifest_gear_clause(manifest)}"
     )
+
+
+def _manifest_gear_clause(manifest: dict[str, Any]) -> str:
+    """`; gear 4 workers` or `; gear refused (tokens-unavailable)`.
+
+    Silent on the runs that never reached the gear, which is most of them. On
+    the runs that did, it is the difference between "escalated" and "ran the
+    same selection four-wide", and that is not something to leave to whoever
+    later reads the manifest.
+    """
+    gear = manifest.get("gear")
+    if not isinstance(gear, dict):
+        return ""
+    if gear.get("granted"):
+        return f"; gear {gear.get('worker_count')} workers"
+    return f"; gear refused ({gear.get('reason') or 'unknown'})"
 
 
 def _manifest_budget_clause(manifest: dict[str, Any]) -> str:
@@ -147,7 +183,17 @@ def explain_lines(selection: Selection, *, sample: int = 20) -> list[str]:
     lines.append(context_line(selection.contexts))
     lines.append(budget_line(selection))
     if selection.escalated:
-        lines.append("no per-file selection: the run escalates to the full suite")
+        if selection.gear_candidate:
+            # `--explain` runs the selector without running anything, so this
+            # is the most it can honestly say: whether the run *would* be
+            # offered to the gear, not what the gate would answer.
+            lines.append(
+                f"the middle gear would be offered these "
+                f"{len(selection.gear_candidate)} file(s) at a bounded, "
+                "non-blocking lease before the run escalates"
+            )
+        else:
+            lines.append("no per-file selection: the run escalates to the full suite")
         return lines
     lines.append(f"selected files (showing up to {sample}):")
     for path in selection.selected[:sample]:

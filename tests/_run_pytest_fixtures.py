@@ -80,7 +80,13 @@ def scoped_selection(
     selected: tuple[str, ...] = (),
     escalated: bool = False,
     rules: tuple[str, ...] = ("contract-set-always",),
+    gear_candidate: tuple[str, ...] = (),
 ) -> object:
+    """A fabricated `Selection`, as `select_tests` would have returned it.
+
+    ``gear_candidate`` is what the serial budget rejected: non-empty only on
+    an escalated selection the middle gear is allowed to try to run.
+    """
     return runner.Selection(
         selected=selected,
         escalated=escalated,
@@ -94,6 +100,7 @@ def scoped_selection(
         },
         explanations={path: (path, 0) for path in selected},
         universe_count=2408,
+        gear_candidate=gear_candidate,
     )
 
 

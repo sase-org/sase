@@ -9,7 +9,8 @@ dicts rather than a synthetic repository fixture.
 
 from __future__ import annotations
 
-from tests._test_selection_report import manifest_summary_line
+from tests._test_selection_gear import ScopedGear
+from tests._test_selection_report import gear_line, manifest_summary_line
 
 
 def test_reports_selection_count_and_share() -> None:
@@ -191,3 +192,58 @@ def test_a_pre_schema_6_record_carries_no_budget() -> None:
     )
 
     assert "; est " not in line
+
+
+def test_reports_the_width_the_middle_gear_leased() -> None:
+    line = manifest_summary_line(
+        {
+            "escalated": False,
+            "selected_count": 494,
+            "universe_count": 2349,
+            "rules_fired": ["serial-budget-exceeded"],
+            "gear": {"granted": True, "worker_count": 4, "reason": None},
+        }
+    )
+
+    assert line.endswith("; gear 4 workers")
+
+
+def test_reports_a_refused_gear_with_its_reason() -> None:
+    """An escalation the gear tried to avoid reads differently from a plain one."""
+    line = manifest_summary_line(
+        {
+            "escalated": True,
+            "selected_count": 0,
+            "universe_count": 2349,
+            "rules_fired": ["serial-budget-exceeded"],
+            "gear": {
+                "granted": False,
+                "worker_count": None,
+                "reason": "tokens-unavailable",
+            },
+        }
+    )
+
+    assert line.endswith("; gear refused (tokens-unavailable)")
+
+
+def test_says_nothing_about_a_gear_that_was_never_offered_anything() -> None:
+    line = manifest_summary_line(
+        {"escalated": False, "selected_count": 1, "universe_count": 4}
+    )
+
+    assert "gear" not in line
+
+
+def test_gear_line_states_the_leased_width() -> None:
+    assert gear_line(ScopedGear(attempted=True, worker_count=3, ceiling=4)) == (
+        "middle gear: running the over-budget selection at 3 worker(s), "
+        "leased from the suite gate (ceiling 4)"
+    )
+
+
+def test_gear_line_states_why_a_refusal_escalates_rather_than_waits() -> None:
+    line = gear_line(ScopedGear(attempted=True, reason="tokens-unavailable"))
+
+    assert "no bounded lease (tokens-unavailable)" in line
+    assert "escalating rather than queueing" in line

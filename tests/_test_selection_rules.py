@@ -55,6 +55,12 @@ RULE_RATIO_EXCEEDED = "selection-ratio-exceeded"
 #: :func:`tests._test_selection_timings.estimate_serial_seconds` returns an
 #: available estimate; when it does not, ``RULE_RATIO_EXCEEDED`` decides
 #: instead, so a host with no table behaves exactly as it did before.
+#:
+#: It is also the one escalating rule that does not always end in the full
+#: lane. The selection it rejected is *sound*, merely slow, so when this rule
+#: fires alone ``tools/run_pytest`` offers it to the middle gear
+#: (:mod:`tests._test_selection_gear`) first and escalates only if the suite
+#: gate refuses a bounded, non-blocking grant.
 RULE_SERIAL_BUDGET_EXCEEDED = "serial-budget-exceeded"
 
 RULE_NO_BASELINE_DEPTH_BOOST = "no-baseline-depth-boost"
@@ -106,6 +112,10 @@ SELECTION_TOOLING_PATHS = frozenset(
         "tools/select_tests",
         "tests/_test_selection.py",
         "tests/_test_selection_changes.py",
+        # The middle gear decides how an over-budget selection actually runs,
+        # so a change to it changes the lane's behaviour as directly as a
+        # change to the selector does.
+        "tests/_test_selection_gear.py",
         "tests/_test_selection_contexts.py",
         "tests/_test_selection_graph.py",
         "tests/_test_selection_manifest.py",

@@ -217,6 +217,14 @@ class Selection:
     #: change-set rule escalated first, in which case there was never a
     #: selection to cost and the reason is `escalated`.
     timings: TimingEstimate = field(default_factory=TimingEstimate)
+    #: The selection the serial budget rejected, kept so the runner can offer
+    #: it to the middle gear (:mod:`tests._test_selection_gear`) before handing
+    #: the whole suite to the full lane. Empty unless
+    #: `RULE_SERIAL_BUDGET_EXCEEDED` was the *only* reason this run escalated:
+    #: a change-set rule escalates because the closure cannot be trusted for
+    #: that change, which no amount of parallelism answers, and the ratio
+    #: escalates precisely where there is no cost model to bound a gear with.
+    gear_candidate: tuple[str, ...] = ()
 
     @property
     def paths_output(self) -> str:
@@ -363,6 +371,7 @@ def select_tests(
     # was missing" — an escalated run ran every test and was never exposed to a
     # narrower selection at all.
     contexts = ContextSelection(consulted=False)
+    gear_candidate: tuple[str, ...] = ()
     selected: set[str] = set()
     explanations: dict[str, tuple[str, int]] = {}
     depth = options.depth
@@ -464,6 +473,10 @@ def select_tests(
             if timings.seconds > options.max_serial_seconds:
                 escalated = True
                 rules.append(RULE_SERIAL_BUDGET_EXCEEDED)
+                # The one escalation a bounded parallel run can answer: the
+                # selection is sound, it is only too slow serially. Keep it so
+                # `tools/run_pytest` can offer it to the middle gear.
+                gear_candidate = tuple(sorted(selected))
         elif len(selected) > options.max_ratio * len(universe):
             escalated = True
             rules.append(RULE_RATIO_EXCEEDED)
@@ -521,4 +534,5 @@ def select_tests(
         options=options,
         contexts=contexts,
         timings=timings,
+        gear_candidate=gear_candidate,
     )

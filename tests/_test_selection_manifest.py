@@ -25,8 +25,10 @@ from typing import Any
 #: `baseline.environment` became a per-input map (was a single opaque digest),
 #: `baseline.environment_changed_inputs` joined it, `max_serial_seconds` did,
 #: and the `timings` block stopped reading `escalated` for a run that escalated
-#: on that estimate.
-MANIFEST_SCHEMA = 6
+#: on that estimate, and to 7 when the `gear` block — whether the middle gear
+#: was offered an over-budget selection, and the worker width the suite gate
+#: granted it — joined it.
+MANIFEST_SCHEMA = 7
 
 SELECTION_DIRECTORY = Path(".pytest_cache") / "sase-selection"
 GRAPH_CACHE_FILENAME = "graph.json"

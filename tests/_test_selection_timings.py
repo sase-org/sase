@@ -26,7 +26,13 @@ The shape of the model:
   estimate for a selection is the sum of its files, and that sum is what a
   serial (``-n 1``) run of those files would take. A parallel full lane
   contributes the same per-test seconds a serial one would, so recording from
-  the 28-worker lane is sound even though its own wall clock is not.
+  the 28-worker lane is sound even though its own wall clock is not. The same
+  reasoning is why a scoped run the middle gear widened needs no correction
+  here: what a run at width N feeds back is still per-test seconds, not its
+  own wall clock. The width is recorded on every recording anyway, so a
+  reader who doubts that can check rather than take it on trust — and the
+  *manifest's* ``duration``, which is wall clock and is not width-invariant,
+  carries the granted width beside it for exactly the same reason.
 * **Host-local, keyed by nothing but the host.** This is a cost model, not
   ground truth about a commit; it has no per-commit identity to carry. It
   lives beside the selection-health records, under the same per-project store,

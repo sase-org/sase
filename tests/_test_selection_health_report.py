@@ -81,6 +81,9 @@ def render_report(health: SelectionHealth) -> list[str]:
     lines.extend(_render_slow_runs(health))
     lines.append("")
 
+    lines.extend(_render_gear(health))
+    lines.append("")
+
     lines.extend(_render_contexts(health))
     lines.append("")
 
@@ -110,11 +113,40 @@ def _render_slow_runs(health: SelectionHealth) -> list[str]:
             "time it)"
         )
     for slow in sorted(health.slow_runs, key=lambda run: run.duration, reverse=True):
+        width = "" if slow.worker_count == 1 else f" at {slow.worker_count} workers"
         lines.append(
-            f"  {slow.record}: {_format_seconds(slow.duration)}, "
+            f"  {slow.record}: {_format_seconds(slow.duration)}{width}, "
             f"{slow.selected_count} file(s) selected, "
             f"rules: {', '.join(slow.rules) or 'none'}"
         )
+    return lines
+
+
+def _render_gear(health: SelectionHealth) -> list[str]:
+    """How often the middle gear engaged, and at what widths runs were timed.
+
+    The durations above pool serial runs with gear runs, so the width mix is
+    stated rather than implied: without it, a lane that got faster by leasing
+    four workers and a lane that got faster by selecting fewer files read
+    identically.
+    """
+    if not health.scoped_runs:
+        return ["middle gear: no scoped runs recorded"]
+    lines = [
+        f"middle gear: {health.gear_runs} run(s) leased a bounded width, "
+        f"{health.gear_refused_runs} refused and escalated instead",
+    ]
+    if health.duration_widths:
+        widths = ", ".join(
+            f"{count} at {width} worker{'s' if width != 1 else ''}"
+            for width, count in sorted(health.duration_widths.items())
+        )
+        lines.append(f"  timed runs by width: {widths}")
+        if len(health.duration_widths) > 1:
+            lines.append(
+                "  the durations above pool these widths; a wide run's wall "
+                "clock is not a serial one's"
+            )
     return lines
 
 
@@ -288,9 +320,15 @@ def health_payload(health: SelectionHealth) -> dict[str, Any]:
                 "duration": slow.duration,
                 "selected_count": slow.selected_count,
                 "rules": list(slow.rules),
+                "worker_count": slow.worker_count,
             }
             for slow in health.slow_runs
         ],
+        "duration_widths": {
+            str(width): count for width, count in health.duration_widths.items()
+        },
+        "gear_runs": health.gear_runs,
+        "gear_refused_runs": health.gear_refused_runs,
         "worker_seconds_saved": health.worker_seconds_saved,
         "rule_histogram": health.rule_histogram,
         "outcome_histogram": health.outcome_histogram,

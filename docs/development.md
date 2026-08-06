@@ -57,8 +57,8 @@ instead of `just test`. `tools/select_tests` builds a cached import graph from `
 the changed and untracked files in the current diff against `$SASE_CHECK_BASE` (default `origin/master`), and walks
 reverse import edges out to a bounded depth (`SASE_TEST_SELECTION_DEPTH`, default `2`) to find the test files that
 plausibly exercise the change. The selection always includes the curated `contract` set (`tests/contract_manifest.txt`)
-and excludes `tests/ace/tui/visual/**` unconditionally. The scoped run itself is serial (`-n 1`) and takes no suite-gate
-lease, so it never queues behind other agents' runs.
+and excludes `tests/ace/tui/visual/**` unconditionally. The scoped run is serial (`-n 1`) unless the middle gear below
+wins it a small lease, and it never queues behind other agents' runs either way.
 
 Selection is a **heuristic**, not a guarantee: an unbounded closure would select the vast majority of the suite because
 of a large import cycle in `src/sase`, so depth-bounding is the mechanism, not a tuning knob. A handful of broadening
@@ -105,6 +105,30 @@ coverage fraction, and the identity of the table it came from, under `timings`.
 The estimate is what the `serial-budget-exceeded` rule above decides on. Where it is unavailable — a fresh host, a
 mostly-new selection, or `SASE_TEST_SELECTION_TIMINGS_DISABLED=1` — nothing changes: the file-count ratio decides, as it
 did before the table existed. `SASE_TEST_SELECTION_TIMINGS_DIR` relocates the table.
+
+#### The middle gear
+
+The lane used to have two gears: one worker with no lease, or the whole governed suite. `serial-budget-exceeded` is the
+one escalation a third gear can answer — the selection is sound, it is merely too slow to run serially — so when that
+rule fires **alone**, `tools/run_pytest` asks the suite gate for up to `SASE_TEST_SELECTION_SCOPED_WORKER_CEILING`
+(default `4`) worker tokens and runs the selection at whatever width it gets. The 494-file selection that ran 1,032.6s
+serially is ~258s at four workers, against 232s for the whole suite.
+
+The request is a **single non-blocking attempt** (`WorkerTokenLease.try_acquire`). If the tokens are not free right now,
+the run escalates exactly as it did before — the lane never queues behind another agent's run, which is the property the
+whole scoped lane exists to deliver. The gear also declines a one-token grant (a serial run wearing xdist's
+bookkeeping), a run that must stay serial anyway (`--inline-snapshot=fix/review`), and any run already under a governed
+parent (`SASE_TEST_GATE_DISABLED=1`). Setting the ceiling below `2` turns the gear off entirely.
+
+The width is the gate's decision, not the caller's, so scoped mode still rejects `-n` and `SASE_PYTEST_WORKERS`. A
+change-set escalation — a conftest, the `Justfile`, `core-identity-changed` — is never offered to the gear: those rules
+fire because the closure cannot be trusted for that change, and no amount of parallelism answers that.
+
+Every run that reached the gear records a `gear` block on its manifest (granted, width, ceiling, and the refusal reason
+when there is one), and it shows up in `just check`'s scoped summary line as `gear 4 workers` or
+`gear refused (tokens-unavailable)`. A granted run is recorded as **not** escalated, because it ran a selection: its
+real duration and its width both reach the health store, where `just selection-health` counts the gear's runs and
+refusals and reports the width mix behind the duration percentiles.
 
 #### The `core-identity-changed` escalation
 
@@ -440,12 +464,13 @@ just selection-health --json   # the same numbers, machine-readable
 ```
 
 The report covers how many scoped runs ran, how often they escalated to the governed full lane, median and p90 selection
-size, median scoped duration, worker-seconds of host demand avoided, which broadening rules fired, and — the number that
-decides whether the fast lane is trustworthy — the **false negatives**: tests that failed in a full run after a scoped
-run over _the same change_ excluded them. The target is zero of a sample that already excludes known flakes (see below).
-A non-zero count means the heuristic itself is unsound as tuned; the response is to raise `SASE_TEST_SELECTION_DEPTH` to
-3, or mark the missed tests `@pytest.mark.contract` and run `just refresh-contract-manifest`, and then re-measure — not
-to explain the failures away.
+size, scoped duration percentiles with the middle gear's width mix behind them, worker-seconds of host demand avoided
+(charged at the leased width, so a 100s run at four workers costs 400), which broadening rules fired, and — the number
+that decides whether the fast lane is trustworthy — the **false negatives**: tests that failed in a full run after a
+scoped run over _the same change_ excluded them. The target is zero of a sample that already excludes known flakes (see
+below). A non-zero count means the heuristic itself is unsound as tuned; the response is to raise
+`SASE_TEST_SELECTION_DEPTH` to 3, or mark the missed tests `@pytest.mark.contract` and run
+`just refresh-contract-manifest`, and then re-measure — not to explain the failures away.
 
 "The same change" is what makes that number mean anything, and the report states the rule on every run: a scoped run is
 charged with a full-run failure only when both records name the same workspace, the scoped run's HEAD is an ancestor of

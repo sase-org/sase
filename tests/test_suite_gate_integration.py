@@ -10,10 +10,16 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from tests._suite_gate import WorkerTokenLease
+from tests._test_selection_gear import (
+    REFUSED_TOKENS_UNAVAILABLE,
+    SCOPED_WORKER_FLOOR,
+)
+from tests._test_selection_timings import TIMINGS_SCHEMA, recording_host
 
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -85,6 +91,7 @@ def _build_scoped_repo(root: Path) -> None:
         "_test_selection.py",
         "_test_selection_changes.py",
         "_test_selection_contexts.py",
+        "_test_selection_gear.py",
         "_test_selection_graph.py",
         "_test_selection_health.py",
         "_test_selection_health_records.py",
@@ -127,7 +134,13 @@ def _git(root: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
 
-def _exhausted_pool_environment(root: Path, pool_dir: Path) -> dict[str, str]:
+def _miniature_pool_environment(
+    root: Path,
+    pool_dir: Path,
+    *,
+    slots: int = 1,
+    extra: dict[str, str] | None = None,
+) -> dict[str, str]:
     environment = os.environ.copy()
     for name in tuple(environment):
         if name.startswith("PYTEST_"):
@@ -138,6 +151,10 @@ def _exhausted_pool_environment(root: Path, pool_dir: Path) -> dict[str, str]:
         "SASE_TEST_GATE_GOVERNED",
         "SASE_TEST_SELECTION_DEPTH",
         "SASE_TEST_SELECTION_MAX_RATIO",
+        "SASE_TEST_SELECTION_MAX_SERIAL_SECONDS",
+        "SASE_TEST_SELECTION_SCOPED_WORKER_CEILING",
+        "SASE_TEST_SELECTION_TIMINGS_DIR",
+        "SASE_TEST_SELECTION_TIMINGS_DISABLED",
     ):
         environment.pop(name, None)
     environment.update(
@@ -148,24 +165,68 @@ def _exhausted_pool_environment(root: Path, pool_dir: Path) -> dict[str, str]:
             "SASE_HOME": str(root / "sase-home"),
             "SASE_PYTEST_TMPDIR": str(root / "scratch"),
             "SASE_TEST_GATE_DIR": str(pool_dir),
-            "SASE_TEST_GATE_SLOTS": "1",
+            "SASE_TEST_GATE_SLOTS": str(slots),
             # Zero seconds turns any acquisition attempt into an immediate,
             # loud failure instead of a 45-minute queue.
             "SASE_TEST_GATE_TIMEOUT": "0",
         }
     )
+    environment.update(extra or {})
     return environment
 
 
 def _run_miniature_runner(
-    root: Path, pool_dir: Path, mode: str
+    root: Path,
+    pool_dir: Path,
+    mode: str,
+    *,
+    slots: int = 1,
+    extra: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(root / "tools" / "run_pytest"), mode, "-q"],
         cwd=root,
-        env=_exhausted_pool_environment(root, pool_dir),
+        env=_miniature_pool_environment(root, pool_dir, slots=slots, extra=extra),
         capture_output=True,
         text=True,
+    )
+
+
+def _over_budget_environment(root: Path) -> dict[str, str]:
+    """Price the miniature repo's one real test above the serial budget.
+
+    The gear only ever sees a selection ``RULE_SERIAL_BUDGET_EXCEEDED``
+    rejected, so reaching it end to end means giving the selector a duration
+    table and a budget the table's answer exceeds.
+    """
+    directory = root / "timings"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "20260806T000000Z-1.json").write_text(
+        json.dumps(
+            {
+                "schema": TIMINGS_SCHEMA,
+                "recorded_at": "2026-08-06T00:00:00+00:00",
+                "host": recording_host(),
+                "mode": "fast",
+                "worker_count": 1,
+                "file_count": 1,
+                "durations": {"tests/test_thing.py": 900.0},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "SASE_TEST_SELECTION_TIMINGS_DIR": str(directory),
+        "SASE_TEST_SELECTION_MAX_SERIAL_SECONDS": "10",
+    }
+
+
+def _scoped_manifest(root: Path) -> dict[str, Any]:
+    return json.loads(
+        (root / ".pytest_cache" / "sase-selection" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
     )
 
 
@@ -201,15 +262,107 @@ def test_scoped_run_takes_no_token_while_the_pool_is_exhausted(
     assert governed.returncode != 0
     assert "worker token" in (governed.stdout + governed.stderr).lower()
 
-    manifest = json.loads(
-        (root / ".pytest_cache" / "sase-selection" / "manifest.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    manifest = _scoped_manifest(root)
     assert manifest["escalated"] is False
     assert manifest["selected"] == ["tests/test_thing.py"]
     assert manifest["outcome"] == "passed"
     assert manifest["duration"] > 0
+    # Nothing escalated, so the gear was never offered anything and the
+    # manifest says nothing about it.
+    assert "gear" not in manifest
+
+
+def test_over_budget_selection_runs_at_a_leased_width_and_releases_it(
+    tmp_path: Path,
+) -> None:
+    """The middle gear, end to end: leased workers instead of the full suite."""
+    root = tmp_path / "repo"
+    pool_dir = tmp_path / "tokens"
+    _build_scoped_repo(root)
+
+    scoped = _run_miniature_runner(
+        root, pool_dir, "scoped", slots=4, extra=_over_budget_environment(root)
+    )
+
+    assert scoped.returncode == 0, f"stdout:\n{scoped.stdout}\nstderr:\n{scoped.stderr}"
+    assert "middle gear: running the over-budget selection at 4 worker(s)" in (
+        scoped.stderr
+    )
+    assert "escalating to the governed full test lane" not in scoped.stderr
+    # The selection ran, and it ran wide: 10 filler files would have run too if
+    # this had escalated.
+    assert "1 passed" in scoped.stdout
+    # xdist only announces nodes when it has some: proof the run was parallel.
+    assert "bringing up nodes" in scoped.stdout
+
+    manifest = _scoped_manifest(root)
+    assert "serial-budget-exceeded" in manifest["rules_fired"]
+    # The rule that sent the run to the gear stays on the record: it is why
+    # the third gear engaged, not something the gear undid.
+    assert manifest["escalated"] is False
+    assert manifest["selected"] == ["tests/test_thing.py"]
+    assert manifest["outcome"] == "passed"
+    assert manifest["gear"] == {
+        "granted": True,
+        "worker_count": 4,
+        "ceiling": 4,
+        "floor": SCOPED_WORKER_FLOOR,
+        "reason": None,
+    }
+
+    # The lease outlived the run and no longer: the whole pool is free again.
+    reclaimed = WorkerTokenLease(
+        directory=pool_dir, budget=4, timeout=0.0, capacity_is_explicit=True
+    )
+    assert reclaimed.try_acquire(4, 4) == 4
+    reclaimed.release()
+
+
+def test_over_budget_selection_escalates_rather_than_queueing_for_a_lease(
+    tmp_path: Path,
+) -> None:
+    """A refused gear is an escalation, never a wait."""
+    root = tmp_path / "repo"
+    pool_dir = tmp_path / "tokens"
+    _build_scoped_repo(root)
+
+    holder = WorkerTokenLease(
+        directory=pool_dir, budget=1, timeout=0.0, capacity_is_explicit=True
+    )
+    holder.acquire(1, 1, exact=True)
+    started = time.monotonic()
+    try:
+        scoped = _run_miniature_runner(
+            root, pool_dir, "scoped", slots=1, extra=_over_budget_environment(root)
+        )
+    finally:
+        holder.release()
+    elapsed = time.monotonic() - started
+
+    assert "middle gear: no bounded lease (tokens-unavailable)" in scoped.stderr
+    assert "escalating to the governed full test lane" in scoped.stderr
+    # It escalated into an exhausted pool, whose zero-second timeout fails the
+    # run loudly. That is the pre-existing escalation contract; what this test
+    # pins is that the gear did not wait to get there.
+    assert scoped.returncode != 0
+    assert elapsed < _ADMISSION_DEADLINE_FLOOR_SECONDS
+    # The holder's token was never taken from it.
+    assert {
+        int(json.loads(path.read_text(encoding="utf-8"))["pid"])
+        for path in pool_dir.glob("token-*.lock")
+    } == {os.getpid()}
+
+    manifest = _scoped_manifest(root)
+    assert manifest["escalated"] is True
+    assert manifest["selected"] == []
+    assert manifest["outcome"] == "escalated"
+    assert manifest["gear"] == {
+        "granted": False,
+        "worker_count": None,
+        "ceiling": 4,
+        "floor": SCOPED_WORKER_FLOOR,
+        "reason": REFUSED_TOKENS_UNAVAILABLE,
+    }
 
 
 @dataclass(frozen=True)

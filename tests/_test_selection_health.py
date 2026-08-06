@@ -326,12 +326,18 @@ class SlowRun:
 
     The eight runs this shape describes cost the epic's research 75% of its
     measured scoped-lane wall clock; see `plans/202608/scoped_lane_latency.md`.
+
+    The comparison is wall clock against wall clock, so it stays meaningful at
+    any :attr:`worker_count`: a run the middle gear widened is still a run the
+    waiting agent would have had sooner from the full lane.
     """
 
     record: str
     duration: float
     selected_count: int
     rules: tuple[str, ...]
+    #: The width the run executed at; ``1`` for every serial scoped run.
+    worker_count: int = 1
 
 
 @dataclass(frozen=True)
@@ -347,6 +353,15 @@ class SelectionHealth:
     p90_duration: float | None = None
     max_duration: float | None = None
     slow_runs: tuple[SlowRun, ...] = ()
+    #: How many unescalated runs executed at each granted worker width. A
+    #: 130s run at four workers is not the same reading as a 130s serial one,
+    #: and the duration percentiles above pool both — so the mix is reported
+    #: rather than left for a reader to assume away.
+    duration_widths: dict[int, int] = field(default_factory=dict)
+    #: Runs the middle gear ran at a bounded width, and runs it was offered
+    #: but could not lease for (which escalated instead).
+    gear_runs: int = 0
+    gear_refused_runs: int = 0
     worker_seconds_saved: float = 0.0
     rule_histogram: dict[str, int] = field(default_factory=dict)
     outcome_histogram: dict[str, int] = field(default_factory=dict)
@@ -412,11 +427,18 @@ def summarize(
             duration=selection.duration,
             selected_count=selection.selected_count,
             rules=selection.rules,
+            worker_count=selection.worker_count,
         )
         for selection in unescalated
         if selection.duration is not None
         and selection.duration > FULL_LANE_WALL_SECONDS
     )
+    duration_widths: dict[int, int] = {}
+    for selection in unescalated:
+        if selection.duration is None:
+            continue
+        width = selection.worker_count
+        duration_widths[width] = duration_widths.get(width, 0) + 1
 
     rule_histogram: dict[str, int] = {}
     outcome_histogram: dict[str, int] = {}
@@ -427,8 +449,16 @@ def summarize(
             outcome_histogram.get(selection.outcome, 0) + 1
         )
 
+    # Worker-seconds, not wall seconds: a run the middle gear widened to four
+    # workers spent four times its wall clock of host demand, and crediting it
+    # as if it had been serial would inflate the one number this report leads
+    # with.
     saved = sum(
-        max(0.0, FULL_SUITE_WORKER_SECONDS - (selection.duration or 0.0))
+        max(
+            0.0,
+            FULL_SUITE_WORKER_SECONDS
+            - (selection.duration or 0.0) * selection.worker_count,
+        )
         for selection in unescalated
     )
     universes = [
@@ -460,6 +490,9 @@ def summarize(
         p90_duration=_percentile(durations, 0.9),
         max_duration=max(durations) if durations else None,
         slow_runs=slow_runs,
+        duration_widths=dict(sorted(duration_widths.items())),
+        gear_runs=sum(1 for selection in unescalated if selection.worker_count > 1),
+        gear_refused_runs=sum(1 for selection in scoped if selection.gear_refused),
         worker_seconds_saved=saved,
         rule_histogram=dict(sorted(rule_histogram.items())),
         outcome_histogram=dict(sorted(outcome_histogram.items())),

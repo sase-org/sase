@@ -46,6 +46,7 @@ def manifest(
     outcome: str = "passed",
     contexts: dict[str, object] | None = None,
     changed_files: tuple[str, ...] | None = CHANGED,
+    gear: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Build a scoped-run manifest of the shape ``record_selection`` expects."""
     payload: dict[str, object] = {
@@ -64,7 +65,30 @@ def manifest(
     payload["outcome"] = outcome
     if contexts is not None:
         payload["contexts"] = contexts
+    if gear is not None:
+        payload["gear"] = gear
     return payload
+
+
+def granted_gear(worker_count: int) -> dict[str, object]:
+    """The `gear` block a run the middle gear leased workers for records."""
+    return {
+        "granted": True,
+        "worker_count": worker_count,
+        "ceiling": 4,
+        "floor": 2,
+        "reason": None,
+    }
+
+
+def refused_gear(reason: str = "tokens-unavailable") -> dict[str, object]:
+    return {
+        "granted": False,
+        "worker_count": None,
+        "ceiling": 4,
+        "floor": 2,
+        "reason": reason,
+    }
 
 
 def write_selection(

@@ -20,6 +20,7 @@ from tests._run_pytest_fixtures import (
     load_run_pytest,
     scoped_selection,
 )
+from tests._test_selection_gear import REFUSED_TOKENS_UNAVAILABLE
 
 
 pytestmark = pytest.mark.contract
@@ -157,6 +158,153 @@ def test_scoped_escalation_runs_the_governed_fast_lane(
         distribution_mode="worksteal",
     )
     assert "escalating to the governed full test lane" in capsys.readouterr().err
+
+
+class _FakeLease:
+    """Stands in for a granted `WorkerTokenLease` without touching a pool."""
+
+    def __init__(self) -> None:
+        self.released = False
+
+    def release(self) -> None:
+        self.released = True
+
+
+class _ExecCalled(Exception):
+    """Raised in place of the `execv` that would replace the test process."""
+
+
+def _exec_called(_executable: str, _command: list[str]) -> None:
+    raise _ExecCalled
+
+
+def _refuse_exec(_executable: str, _command: list[str]) -> None:
+    raise AssertionError("scoped mode exec'd instead of waiting for pytest")
+
+
+def test_scoped_over_budget_selection_runs_at_the_granted_width(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The middle gear: a leased width instead of the whole suite."""
+    runner = load_run_pytest()
+    monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
+    candidate = ("tests/test_alpha.py", "tests/test_beta.py")
+    manifest_path = install_scoped_selection(
+        runner,
+        monkeypatch,
+        tmp_path,
+        scoped_selection(
+            runner,
+            escalated=True,
+            rules=("serial-budget-exceeded",),
+            gear_candidate=candidate,
+        ),
+    )
+    lease = _FakeLease()
+    observed: dict[str, object] = {}
+
+    class _Completed:
+        returncode = 0
+
+    def _run(command: list[str], **kwargs: object) -> _Completed:
+        observed["command"] = command
+        observed["env"] = kwargs.get("env")
+        return _Completed()
+
+    monkeypatch.setattr(
+        runner,
+        "engage_scoped_gear",
+        lambda **_kwargs: (runner.ScopedGear(attempted=True, worker_count=3), lease),
+    )
+    monkeypatch.setattr(runner.os, "execv", _refuse_exec)
+    monkeypatch.setattr(runner.subprocess, "run", _run)
+
+    assert runner.main(["scoped"]) == 0
+
+    command = observed["command"]
+    assert isinstance(command, list)
+    assert command[3:6] == ["-n", "3", "--dist=worksteal"]
+    assert command[-2:] == list(candidate)
+    # The gear's own lease marks the child governed; forcing the flag on top
+    # would claim an exemption the lease is what paid for.
+    environment = observed["env"]
+    assert isinstance(environment, dict)
+    assert "SASE_TEST_GATE_DISABLED" not in environment
+    assert lease.released
+
+    error = capsys.readouterr().err
+    assert "middle gear: running the over-budget selection at 3 worker(s)" in error
+    assert "escalating to the governed full test lane" not in error
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["escalated"] is False
+    assert manifest["selected"] == list(candidate)
+    assert manifest["selected_count"] == 2
+    assert manifest["outcome"] == "passed"
+    assert manifest["gear"]["granted"] is True
+    assert manifest["gear"]["worker_count"] == 3
+
+
+def test_scoped_over_budget_selection_escalates_when_the_gear_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runner = load_run_pytest()
+    manifest_path = install_scoped_selection(
+        runner,
+        monkeypatch,
+        tmp_path,
+        scoped_selection(
+            runner,
+            escalated=True,
+            rules=("serial-budget-exceeded",),
+            gear_candidate=("tests/test_alpha.py",),
+        ),
+    )
+    refused = runner.ScopedGear(attempted=True, reason=REFUSED_TOKENS_UNAVAILABLE)
+
+    monkeypatch.setattr(runner, "engage_scoped_gear", lambda **_kwargs: (refused, None))
+    monkeypatch.setattr(runner, "_parallel_worker_grant", lambda: (7, None))
+    monkeypatch.setattr(runner.os, "execv", _exec_called)
+
+    with pytest.raises(_ExecCalled):
+        runner.main(["scoped"])
+
+    error = capsys.readouterr().err
+    assert "middle gear: no bounded lease (tokens-unavailable)" in error
+    assert "escalating to the governed full test lane" in error
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["escalated"] is True
+    assert manifest["outcome"] == "escalated"
+    assert manifest["gear"]["granted"] is False
+    assert manifest["gear"]["reason"] == REFUSED_TOKENS_UNAVAILABLE
+
+
+def test_scoped_change_set_escalation_is_never_offered_to_the_gear(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A rule that distrusts the closure is not answered by more workers."""
+    runner = load_run_pytest()
+    manifest_path = install_scoped_selection(
+        runner,
+        monkeypatch,
+        tmp_path,
+        scoped_selection(runner, escalated=True, rules=("root-conftest",)),
+    )
+
+    def _unexpected_gear(**_kwargs: object) -> None:
+        raise AssertionError("a change-set escalation reached the middle gear")
+
+    monkeypatch.setattr(runner, "engage_scoped_gear", _unexpected_gear)
+    monkeypatch.setattr(runner, "_parallel_worker_grant", lambda: (7, None))
+    monkeypatch.setattr(runner.os, "execv", _exec_called)
+
+    with pytest.raises(_ExecCalled):
+        runner.main(["scoped"])
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["escalated"] is True
+    assert "gear" not in manifest
 
 
 def test_scoped_empty_selection_exits_zero_without_running_pytest(
