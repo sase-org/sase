@@ -45,8 +45,8 @@ reference notes that agents read only when relevant.
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 41
-- Approx. tokens: 475
+- Lines: 52
+- Approx. tokens: 684
 
 ### `sase/memory/glossary.md`
 
@@ -138,8 +138,8 @@ reference notes that agents read only when relevant.
 - Total notes: 11
 - Short notes: 5
 - Long notes: 6
-- Total lines: 646
-- Total approx. tokens: 9883
+- Total lines: 657
+- Total approx. tokens: 10092
 
 ## Commands
 

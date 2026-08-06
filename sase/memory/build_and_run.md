@@ -9,16 +9,27 @@ parent: AGENTS.md
 just install       # Install in editable mode with dev deps
 just lint          # ruff check + mypy
 just fmt           # Auto-format code
-just test          # Fast parallel pytest run, includes PNG visual snapshots
-                   # (resvg/Pillow auto-installed via _setup-visual)
-just test-cov      # pytest with coverage + 50% gate (used by CI); also runs
-                   # the visual snapshot suite
+just check         # Agent default: whole-repo lint gates + a diff-scoped
+                   # test lane that takes no suite-gate lease
+just check-full    # Exhaustive verification: every lint gate + the full
+                   # test suite; run before landing and in CI
+just test          # Fast parallel pytest run (excludes PNG visual snapshots)
+just test-cov      # pytest with coverage + 50% gate (used by CI); also
+                   # excludes the visual snapshot suite
 ```
 
-## IMPORTANT: You MUST Run `just check` if you Made File Changes
+## IMPORTANT: Two-Speed Verification — Run `just check` if you Made File Changes
 
 If you made file changes in this repo (the sase repo), make sure to run the `just check` command before terminating /
 replying to the user. See the below subsection for exceptions to this rule.
+
+`just check` runs every whole-repo lint gate plus a diff-scoped test lane (`just test-scoped`) that selects tests via a
+static import-graph closure and takes no suite-gate lease. Selection is a heuristic backstopped by CI:
+`tools/select_tests --explain` shows why a test was or was not chosen, and `just selection-health` shows whether the
+heuristic has ever been wrong.
+
+Run `just check-full` instead — every lint gate plus the full test suite — before landing an epic's combined tree, when
+the change touches the broadening set, or any time `just check`'s scoped run escalated or reported an unusual selection.
 
 **IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the sase.md file in this directory) is
 that you need to run `just install` before running other commands like `just check` (since it is possible we haven't
