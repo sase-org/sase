@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -64,6 +65,47 @@ def test_append_commits_entry_appends_when_expected_entry_id_missing(
 
     assert result == "1"
     assert "first commit" in project_file.read_text()
+
+
+def test_append_commits_entry_returns_entry_id_on_success(tmp_path: Path) -> None:
+    project_file = tmp_path / "proj.sase"
+    project_file.write_text("NAME: branch\nCOMMITS:\nSTATUS: Pending\n")
+    with patch(
+        "sase.workflows.commit_utils.entries.add_commit_entry_with_id",
+        return_value=(True, "99"),
+    ) as mock_add:
+        result = append_commits_entry(
+            str(project_file), "branch", {"message": "test"}, "create_commit", None
+        )
+        assert result == "99"
+        mock_add.assert_called_once()
+
+
+def test_append_commits_entry_returns_none_without_project_file() -> None:
+    assert (
+        append_commits_entry(None, None, {"message": "test"}, "create_commit", None)
+        is None
+    )
+
+
+def test_append_commits_entry_uses_proposal_mode_for_create_proposal(
+    tmp_path: Path,
+) -> None:
+    project_file = tmp_path / "proj.sase"
+    project_file.write_text("NAME: branch\nCOMMITS:\nSTATUS: Pending\n")
+    with patch(
+        "sase.workflows.commit_utils.entries.add_proposed_commit_entry",
+        return_value=(True, "0a"),
+    ) as mock_add:
+        result = append_commits_entry(
+            str(project_file),
+            "branch",
+            {"message": "test"},
+            "create_proposal",
+            None,
+        )
+        assert result == "0a"
+        mock_add.assert_called_once()
 
 
 def test_custom_sidecar_commit_cwd_uses_role_name(tmp_path: Path) -> None:
