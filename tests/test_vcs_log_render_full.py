@@ -6,11 +6,12 @@ from datetime import datetime
 
 import pytest
 
-import sase.vcs_log.render as render_mod
+import sase.vcs_log._render_console as console_mod
 from sase.vcs_log.models import LogRepo, VcsLogResult
 
 from ._vcs_log_render_helpers import (
     _entry,
+    _patch_clock,
     _render,
     _styles_covering,
     _tagged_result,
@@ -33,11 +34,12 @@ def test_full_format_shows_body_and_metadata(
         ),
         warnings=(),
     )
-    monkeypatch.setattr(render_mod, "_local_now", lambda: datetime(2026, 7, 8, 15, 0))
-    monkeypatch.setattr(
-        render_mod, "_to_local", lambda ts: datetime(2026, 7, 8, 14, 22)
+    _patch_clock(
+        monkeypatch,
+        local_now=lambda: datetime(2026, 7, 8, 15, 0),
+        to_local=lambda ts: datetime(2026, 7, 8, 14, 22),
+        relative_age=lambda dt: "38m ago",
     )
-    monkeypatch.setattr(render_mod, "_relative_age", lambda dt: "38m ago")
 
     text = _render(result, "full")
 
@@ -50,11 +52,12 @@ def test_full_format_shows_body_and_metadata(
 def test_full_tags_line_and_footer_cleanup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(render_mod, "_local_now", lambda: datetime(2026, 7, 8, 15, 0))
-    monkeypatch.setattr(
-        render_mod, "_to_local", lambda ts: datetime(2026, 7, 8, 14, 22)
+    _patch_clock(
+        monkeypatch,
+        local_now=lambda: datetime(2026, 7, 8, 15, 0),
+        to_local=lambda ts: datetime(2026, 7, 8, 14, 22),
+        relative_age=lambda dt: "38m ago",
     )
-    monkeypatch.setattr(render_mod, "_relative_age", lambda dt: "38m ago")
 
     text = _render(_tagged_result(), "full")
 
@@ -69,7 +72,7 @@ def test_full_tags_line_and_footer_cleanup(
 def test_full_tag_spans_use_semantic_chip_colors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(render_mod, "_relative_age", lambda dt: "38m ago")
+    _patch_clock(monkeypatch, relative_age=lambda dt: "38m ago")
     entry = _entry(
         "sase",
         "a1b2c3d4",
@@ -84,7 +87,7 @@ def test_full_tag_spans_use_semantic_chip_colors(
         ),
     )
 
-    lines = render_mod._full_commit_lines(
+    lines = console_mod._full_commit_lines(
         entry,
         {"sase": "#87D7FF"},
         datetime(2026, 7, 8, 14, 22),

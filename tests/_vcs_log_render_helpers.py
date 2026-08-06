@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import io
+from collections.abc import Callable
+from datetime import datetime
 
+import pytest
 from rich.text import Text
 
+import sase.vcs_log._render_console as console_mod
+import sase.vcs_log._render_util as util_mod
+import sase.vcs_log.render as render_mod
 from sase.core.vcs_log_wire import (
     AggregatedCommitWire,
     CommitPresence,
@@ -131,6 +137,27 @@ def _render(
         all_projects=all_projects,
     )
     return out.getvalue()
+
+
+def _patch_clock(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    to_local: Callable[[int], datetime] | None = None,
+    local_now: Callable[[], datetime] | None = None,
+    relative_age: Callable[[datetime], str] | None = None,
+    now_epoch: Callable[[], float] | None = None,
+) -> None:
+    """Pin the render clock helpers in every module that imported them."""
+    if to_local is not None:
+        for module in (render_mod, console_mod, util_mod):
+            monkeypatch.setattr(module, "to_local", to_local)
+    if local_now is not None:
+        for module in (render_mod, console_mod, util_mod):
+            monkeypatch.setattr(module, "local_now", local_now)
+    if relative_age is not None:
+        monkeypatch.setattr(console_mod, "relative_age", relative_age)
+    if now_epoch is not None:
+        monkeypatch.setattr(util_mod, "_now_epoch", now_epoch)
 
 
 def _styles_covering(text: Text, fragment: str) -> list[str]:

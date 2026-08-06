@@ -44,7 +44,7 @@ def _pin_rolling_default_query_time(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda: reference,
     )
     monkeypatch.setattr(
-        "sase.vcs_log.render._now_epoch",
+        "sase.vcs_log._render_util._now_epoch",
         reference.timestamp,
     )
 

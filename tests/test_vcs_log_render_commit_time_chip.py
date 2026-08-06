@@ -15,7 +15,7 @@ def _chip(
     dt_local: datetime,
     now_local: datetime,
 ) -> str:
-    monkeypatch.setattr(render_mod, "_to_local", lambda ts: dt_local)
+    monkeypatch.setattr(render_mod, "to_local", lambda ts: dt_local)
     return build_commit_time_chip(0, now_local=now_local).plain
 
 
