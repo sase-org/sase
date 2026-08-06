@@ -38,9 +38,11 @@ just test-slow     # Slow pytest subset only
 just test-visual   # ACE PNG visual regression snapshots only; the sole visual execution
 just test-terminal-smoke  # Optional real-terminal ACE smoke test
 just test-cov      # Parallel test run with coverage + 50% gate, excluding visual snapshots
+just test-contexts # Record the per-test coverage baseline the selector consumes
 just check         # Agent default: whole-repo lint gates + a diff-scoped test lane
 just check-full    # Exhaustive verification: whole-repo lint gates + the full test suite
 just selection-health  # Health of the diff-scoped test lane, including false negatives
+just refresh-contexts-baseline  # Cache CI's per-test coverage baseline for selection
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
 just build         # Build wheel and sdist
@@ -71,6 +73,58 @@ CI test leg's runtime; it is a backstop, not a silent gap.
 Use `tools/select_tests --explain` to see which rules fired and why a given file was pulled into (or excluded from) the
 current selection. The selection manifest — the resolved base, changed files, rules fired, and selected test files — is
 written to `.pytest_cache/sase-selection/manifest.json` on every scoped run.
+
+#### Coverage-context ground truth
+
+The import graph cannot see dynamic dispatch, plugin lookup, or config discovery. Per-test coverage can. CI's
+`coverage-contexts` job runs the fast suite with `--cov-context=test`, so its `.coverage` database records which test
+executed each line, and publishes it as the `sase-coverage-contexts-<sha>` artifact.
+
+That job is deliberately separate from the per-PR coverage leg, and runs on master pushes only. Measured on athena on
+2026-08-06 over the full fast suite at 12 workers:
+
+| Variant                            | Suite runtime | `.coverage` |  gzipped |
+| ---------------------------------- | ------------: | ----------: | -------: |
+| branch coverage (the PR leg today) |          470s |       17 MB |   7.7 MB |
+| branch coverage **+** contexts     |          538s |    _906 MB_ | _283 MB_ |
+| contexts, line coverage only       |          474s |       49 MB |  12.1 MB |
+
+Branch coverage stores every arc per context; line coverage stores one bitmap per (file, context). Selection only ever
+asks "which tests executed this line", so `coverage_contexts.toml` turns branch coverage off and the PR leg keeps its
+branch data and its 50% gate untouched. Baselines are resolved as ancestors of an agent's `HEAD`, so a per-PR database
+would be one nobody ever looks up.
+
+```bash
+just test-contexts                      # record a baseline locally (what CI runs)
+just refresh-contexts-baseline          # newest master baseline that is an ancestor of HEAD
+just refresh-contexts-baseline --force  # re-download even if already cached
+```
+
+Baselines are cached by SHA under `${SASE_HOME:-~/.sase}/test-selection/contexts/`. **Selection itself never touches the
+network**: it reads whichever cached baseline is the newest ancestor of `HEAD`, and an absent or unreadable one is not
+an error — the run records `context-baseline-missing` and proceeds on the static closure alone, so a fresh workspace
+with no connectivity still gets a working `just check`.
+
+Contexts are **unioned into** the selection, never substituted for it. They are ground truth only for the code that
+existed when the baseline was recorded; they say nothing about code added since, and a brand-new test file has no
+context rows at all. A baseline more than `SASE_TEST_SELECTION_CONTEXTS_MAX_DISTANCE` commits behind `HEAD` (default
+`50`), or one whose commit this workspace does not know, is still used but records `context-baseline-stale` so
+`just selection-health`'s rule histogram can show whether staleness correlates with false negatives. Set
+`SASE_TEST_SELECTION_CONTEXTS_DISABLED=1` to ignore the cache entirely, and `SASE_TEST_SELECTION_CONTEXTS_DIR` to point
+it elsewhere. The manifest's `contexts` block records the baseline SHA, its distance behind `HEAD`, whether it was
+stale, which changed files it matched, and how many test files it contributed.
+
+Line numbers are read on the **baseline side** of `git diff -U0 <baseline-sha>`, restricted to the change set's own
+files, because the database is keyed by line numbers as they were in the baseline.
+
+**Expect selections to grow.** Over the 2026-08-06 baseline, 1,237 of the ~2,400 measured `src/` files have at least one
+line whose per-test contexts (40 tests or fewer) include a test the depth-2 closure never selects. The sharpest case is
+`src/sase/ace/tui/widgets/_file_completion_refresh.py`, where the closure selects **zero** test files and contexts
+select 40 — a change there would previously have been checked by nothing but the contract set. In the other direction, a
+line in a widely-executed module really is executed by thousands of tests, and contexts say so, which will push some
+selections over the escalation ratio and into the governed full lane. Both directions are the heuristic being corrected
+rather than a malfunction; watch `just selection-health` for what it does to the escalation rate and the false-negative
+count.
 
 SASE places a pytest safety boundary around its telemetry mutations and common axe state/log writers when they target
 the OS account's real `~/.sase` tree. Telemetry flushes and deletions fail with an actionable error; guarded best-effort

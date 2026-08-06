@@ -9,6 +9,8 @@ from typing import Any
 import pytest
 import yaml
 
+from tests._test_selection_contexts import ARTIFACT_PREFIX
+
 
 pytestmark = pytest.mark.contract
 
@@ -16,7 +18,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Jobs that run source lanes against the wheel `build-core` built from
 # sase-core master rather than against a published sase-core-rs release.
-WHEEL_CONSUMER_JOBS = ("lint", "test", "visual-test", "perf-floors")
+WHEEL_CONSUMER_JOBS = (
+    "lint",
+    "test",
+    "visual-test",
+    "perf-floors",
+    "coverage-contexts",
+)
 
 
 def _load_ci_workflow() -> dict[str, Any]:
@@ -184,6 +192,52 @@ def test_test_job_only_collects_coverage_on_3_12_leg() -> None:
         if step.get("name") == "Run tests" and step.get("run") == "just test"
     )
     assert plain_step["if"] == "matrix.python-version != '3.12'"
+
+
+def test_contexts_job_publishes_the_per_test_database_on_master_only() -> None:
+    """The scoped lane's ground-truth source only exists if CI publishes it.
+
+    Master-only because baselines are resolved as ancestors of an agent's
+    ``HEAD``: a per-PR database is one nobody would ever look up. The artifact
+    name carries the commit SHA because the local cache is keyed by it, and
+    asserting the prefix against the consumer's own constant keeps the producer
+    and consumer from drifting apart silently.
+    """
+    job = _load_ci_workflow()["jobs"]["coverage-contexts"]
+
+    assert job["if"] == "github.ref == 'refs/heads/master'"
+    assert any(step.get("run") == "just test-contexts" for step in job["steps"])
+
+    step = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "Upload coverage contexts database"
+    )
+    assert step["uses"] == "actions/upload-artifact@v4"
+    assert step["with"]["name"] == f"{ARTIFACT_PREFIX}-${{{{ github.sha }}}}"
+    assert step["with"]["path"] == ".coverage"
+    # `always()` so a red suite still publishes: contexts are unioned into the
+    # selection, so partial ground truth is strictly better than none.
+    assert step["if"] == "always()"
+
+
+def test_contexts_job_does_not_slow_the_per_pr_coverage_leg() -> None:
+    """Contexts cost 68s and 889 MB when folded into the branch-coverage leg."""
+    steps = _load_ci_workflow()["jobs"]["test"]["steps"]
+
+    assert not any(
+        "contexts" in str(step.get("with", {}).get("name", "")) for step in steps
+    )
+    assert not any("test-contexts" in str(step.get("run", "")) for step in steps)
+
+
+def test_contexts_databases_are_portable_between_machines() -> None:
+    """The artifact is read on a different checkout than the one that wrote it."""
+    config = (REPO_ROOT / "coverage_contexts.toml").read_text()
+
+    assert "relative_files = true" in config
+    # Branch coverage times per-test contexts is the 906 MB artifact.
+    assert "branch = false" in config
 
 
 def test_ci_never_runs_the_diff_scoped_test_lane() -> None:

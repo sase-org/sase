@@ -526,7 +526,7 @@ def test_manifest_carries_every_documented_field(repo: Path) -> None:
 
     manifest = _select(repo).manifest
 
-    assert manifest["schema"] == 1
+    assert manifest["schema"] == 2
     assert set(manifest) == {
         "schema",
         "base",
@@ -540,6 +540,7 @@ def test_manifest_carries_every_documented_field(repo: Path) -> None:
         "universe_count",
         "baseline",
         "graph",
+        "contexts",
     }
     assert manifest["changed_files"] == ["src/pkg/a.py"]
     assert manifest["selected_count"] == len(manifest["selected"])

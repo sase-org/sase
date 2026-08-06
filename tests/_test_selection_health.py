@@ -291,6 +291,11 @@ class SelectionRecord:
     def outcome(self) -> str:
         return str(self.manifest.get("outcome") or "unknown")
 
+    @property
+    def contexts(self) -> dict[str, Any]:
+        contexts = self.manifest.get("contexts")
+        return contexts if isinstance(contexts, dict) else {}
+
 
 @dataclass(frozen=True)
 class FullRunRecord:
@@ -478,6 +483,9 @@ class SelectionHealth:
     worker_seconds_saved: float = 0.0
     rule_histogram: dict[str, int] = field(default_factory=dict)
     outcome_histogram: dict[str, int] = field(default_factory=dict)
+    context_runs: int = 0
+    context_stale_runs: int = 0
+    context_selected_total: int = 0
     false_negatives: tuple[FalseNegative, ...] = ()
 
     @property
@@ -525,6 +533,10 @@ def summarize(
         if selection.manifest.get("universe_count")
     ]
 
+    with_baseline = [
+        selection.contexts for selection in scoped if selection.contexts.get("baseline")
+    ]
+
     return SelectionHealth(
         scoped_runs=len(scoped),
         escalated_runs=len(scoped) - len(unescalated),
@@ -536,6 +548,13 @@ def summarize(
         worker_seconds_saved=saved,
         rule_histogram=dict(sorted(rule_histogram.items())),
         outcome_histogram=dict(sorted(outcome_histogram.items())),
+        context_runs=len(with_baseline),
+        context_stale_runs=sum(
+            1 for contexts in with_baseline if contexts.get("stale")
+        ),
+        context_selected_total=sum(
+            int(contexts.get("selected_count") or 0) for contexts in with_baseline
+        ),
         false_negatives=tuple(find_false_negatives(records, is_ancestor=is_ancestor)),
     )
 
@@ -596,7 +615,32 @@ def render_report(health: SelectionHealth) -> list[str]:
         lines.append("  (none)")
     lines.append("")
 
+    lines.extend(_render_contexts(health))
+    lines.append("")
+
     lines.extend(_render_false_negatives(health))
+    return lines
+
+
+def _render_contexts(health: SelectionHealth) -> list[str]:
+    """Whether per-test coverage ground truth is reaching these runs at all.
+
+    This is the reading that says whether contexts earn their CI cost: runs
+    with no baseline got the static closure alone, and a high stale count next
+    to a non-zero false-negative count is the signal to refresh more often.
+    """
+    if not health.scoped_runs:
+        return ["coverage contexts: no scoped runs recorded"]
+    without = health.scoped_runs - health.context_runs
+    lines = [
+        "coverage contexts:",
+        f"  runs with a baseline:  {health.context_runs} of {health.scoped_runs}",
+        f"  runs without one:      {without} (static closure alone)",
+        f"  runs on a stale one:   {health.context_stale_runs}",
+        f"  test files contributed: {health.context_selected_total} (cumulative)",
+    ]
+    if without and not health.context_runs:
+        lines.append("  Run `just refresh-contexts-baseline` to cache one.")
     return lines
 
 
@@ -657,6 +701,9 @@ def health_payload(health: SelectionHealth) -> dict[str, Any]:
         "worker_seconds_saved": health.worker_seconds_saved,
         "rule_histogram": health.rule_histogram,
         "outcome_histogram": health.outcome_histogram,
+        "context_runs": health.context_runs,
+        "context_stale_runs": health.context_stale_runs,
+        "context_selected_total": health.context_selected_total,
         "false_negatives": [
             {
                 "nodeid": false_negative.nodeid,

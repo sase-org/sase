@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""Download a per-test coverage-contexts baseline from CI into the local cache.
+
+The diff-scoped selector reads the newest cached baseline that is an ancestor of
+``HEAD`` and never touches the network itself, so a fresh workspace with no
+connectivity still gets a working ``just check``. This tool is the explicit act
+that fills the cache.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests._test_selection_contexts import (  # noqa: E402
+    ARTIFACT_PREFIX,
+    baseline_path,
+    cached_baselines,
+    contexts_directory,
+)
+from tests._test_selection_graph import SelectionError, run_git  # noqa: E402
+from tests._test_selection_health import store_directory  # noqa: E402
+
+
+DEFAULT_RUN_LIMIT = 20
+DEFAULT_KEEP = 5
+WORKFLOW = "ci.yml"
+
+
+def _gh(*args: str) -> str:
+    result = subprocess.run(
+        ["gh", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"gh {' '.join(args)} failed: {result.stderr.strip()}")
+    return result.stdout
+
+
+def _candidate_runs(branch: str, limit: int) -> list[dict[str, str]]:
+    raw = _gh(
+        "run",
+        "list",
+        "--workflow",
+        WORKFLOW,
+        "--branch",
+        branch,
+        "--limit",
+        str(limit),
+        "--json",
+        "databaseId,headSha,conclusion",
+    )
+    try:
+        runs = json.loads(raw)
+    except ValueError as error:
+        raise RuntimeError("could not parse `gh run list` output") from error
+    return [run for run in runs if run.get("headSha")]
+
+
+def _is_ancestor_of_head(sha: str) -> bool:
+    try:
+        run_git(REPO_ROOT, "merge-base", "--is-ancestor", sha, "HEAD")
+    except SelectionError:
+        return False
+    return True
+
+
+def _download(run_id: str, sha: str, destination: Path) -> bool:
+    """Fetch one run's contexts artifact into ``destination``; report success."""
+    with tempfile.TemporaryDirectory() as staging_name:
+        staging = Path(staging_name)
+        try:
+            _gh(
+                "run",
+                "download",
+                str(run_id),
+                "--name",
+                f"{ARTIFACT_PREFIX}-{sha}",
+                "--dir",
+                str(staging),
+            )
+        except RuntimeError:
+            return False
+        databases = sorted(staging.rglob("*"))
+        source = next(
+            (
+                entry
+                for entry in databases
+                if entry.is_file() and entry.name == ".coverage"
+            ),
+            None,
+        )
+        if source is None:
+            source = next((entry for entry in databases if entry.is_file()), None)
+        if source is None:
+            return False
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    return True
+
+
+def _prune(directory: Path, keep: int) -> list[Path]:
+    """Keep only the ``keep`` newest baselines; the cache is disposable."""
+    removed: list[Path] = []
+    for baseline in cached_baselines(directory)[keep:]:
+        try:
+            baseline.path.unlink()
+        except OSError:
+            continue
+        removed.append(baseline.path)
+    return removed
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--branch", default="master", help="branch whose CI runs to search (master)"
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=DEFAULT_RUN_LIMIT,
+        help=f"how many recent runs to consider (default: {DEFAULT_RUN_LIMIT})",
+    )
+    parser.add_argument(
+        "--keep",
+        type=int,
+        default=DEFAULT_KEEP,
+        help=f"how many cached baselines to retain (default: {DEFAULT_KEEP})",
+    )
+    parser.add_argument(
+        "--any-commit",
+        action="store_true",
+        help="accept a baseline that is not an ancestor of HEAD",
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="re-download even if already cached"
+    )
+    namespace = parser.parse_args(argv)
+
+    directory = contexts_directory(store_directory(REPO_ROOT))
+    try:
+        runs = _candidate_runs(namespace.branch, namespace.limit)
+    except RuntimeError as error:
+        print(f"could not list CI runs: {error}", file=sys.stderr)
+        return 1
+
+    for run in runs:
+        sha = str(run["headSha"])
+        if not namespace.any_commit and not _is_ancestor_of_head(sha):
+            continue
+        target = baseline_path(directory, sha)
+        if target.exists() and not namespace.force:
+            print(f"already cached: {target}")
+            _prune(directory, namespace.keep)
+            return 0
+        if _download(str(run["databaseId"]), sha, target):
+            print(f"cached coverage-contexts baseline {sha[:12]} at {target}")
+            for pruned in _prune(directory, namespace.keep):
+                print(f"pruned {pruned.name}")
+            return 0
+
+    print(
+        "no coverage-contexts artifact found in the "
+        f"{len(runs)} most recent {namespace.branch} runs; "
+        "`just check` continues on the static closure alone",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

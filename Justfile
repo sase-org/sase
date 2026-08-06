@@ -397,6 +397,17 @@ test-cov *args: _setup-visual (_header "test-cov")
     @printf "\n---------- Running pytest with coverage... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cov "$@"
 
+# Record the per-test coverage baseline the diff-scoped selector consumes.
+# Line coverage only, no gate, no reports: `coverage_contexts.toml` explains
+# why branch coverage is off here (906 MB of artifact against 49 MB, for an
+# answer selection never asks). CI runs this on master pushes and publishes
+# `.coverage` as `sase-coverage-contexts-<sha>`; `just refresh-contexts-baseline`
+# is how an agent gets it locally.
+[positional-arguments]
+test-contexts *args: _setup-visual (_header "test-contexts")
+    @printf "\n---------- Recording per-test coverage contexts... ----------\n"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cov-contexts "$@"
+
 # Run the default test suite and fail if it mutates the production sidecar
 # bead store.
 [positional-arguments]
@@ -418,6 +429,14 @@ test-py VER: _setup
 refresh-contract-manifest: _setup
     @printf "\n---------- Regenerating contract test manifest... ----------\n"
     {{ venv_bin }}/python tools/refresh_contract_manifest
+
+# Download the newest per-test coverage-contexts baseline published by the CI
+# coverage leg into the host-local cache. Selection itself never touches the
+# network: it reads whatever this recipe last cached, and falls back to the
+# static import closure when the cache is empty.
+[positional-arguments]
+refresh-contexts-baseline *args: _setup (_header "refresh-contexts-baseline")
+    @{{ venv_bin }}/python tools/fetch_coverage_contexts "$@"
 
 # Summarize diff-scoped selection health from the durable, host-local record
 # store: coverage, escalation rate, worker-seconds avoided, the broadening-rule

@@ -33,6 +33,7 @@ from tests._test_selection import (  # noqa: E402
     SELECTION_DIRECTORY,
     Selection,
     SelectionOptions,
+    context_line,
     select_tests,
     summary_line,
     write_manifest,
@@ -61,6 +62,9 @@ TERMINAL_SMOKE_MARKER_EXPRESSION = "terminal_smoke"
 # None, so no suite-gate path runs at all and the run never queues for tokens.
 SERIAL_MODES = frozenset({"terminal-smoke", "scoped"})
 SCOPED_MODE = "scoped"
+#: Records the per-test coverage baseline the diff-scoped selector consumes.
+CONTEXTS_MODE = "cov-contexts"
+CONTEXTS_COVERAGE_CONFIG = "coverage_contexts.toml"
 SCOPED_WORKER_REMEDY = (
     "a governed parallel run of an arbitrary subset is exactly the "
     "unaccounted-demand shape the suite gate exists to prevent; use "
@@ -68,7 +72,7 @@ SCOPED_WORKER_REMEDY = (
 )
 #: Modes that run the whole fast suite, and whose failures are therefore
 #: evidence about what a scoped run should not have skipped.
-FULL_LANE_MODES = frozenset({"fast", "cov"})
+FULL_LANE_MODES = frozenset({"fast", "cov", CONTEXTS_MODE})
 HEALTH_PLUGIN_MODULE = "tests._test_selection_health_plugin"
 HEALTH_DISABLED_ENV = "SASE_TEST_SELECTION_HEALTH_DISABLED"
 PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
@@ -257,6 +261,23 @@ def _pytest_command(
                 "--cov-report=html",
                 "--cov-report=xml",
                 "--cov-fail-under=50",
+            ]
+        )
+    elif mode == CONTEXTS_MODE:
+        # `--cov-context=test` records *which test* executed each line: the
+        # per-test ground truth `tests._test_selection_contexts` consumes. It
+        # deliberately does not share the `cov` lane. Branch coverage stores
+        # every arc per context, which measured at 906 MB against 49 MB for
+        # line coverage over the same suite, and selection never asks a
+        # branch question. See `coverage_contexts.toml`.
+        command.extend(
+            [
+                "-m",
+                FAST_MARKER_EXPRESSION,
+                f"--cov-config={CONTEXTS_COVERAGE_CONFIG}",
+                "--cov=src/sase",
+                "--cov-context=test",
+                "--cov-report=",
             ]
         )
 
@@ -547,7 +568,16 @@ def _reject_scoped_worker_overrides(args: list[str]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "mode", choices=("fast", "slow", "visual", "cov", "terminal-smoke", SCOPED_MODE)
+        "mode",
+        choices=(
+            "fast",
+            "slow",
+            "visual",
+            "cov",
+            CONTEXTS_MODE,
+            "terminal-smoke",
+            SCOPED_MODE,
+        ),
     )
     parser.add_argument("pytest_args", nargs=argparse.REMAINDER)
     namespace = parser.parse_args(argv)
@@ -568,6 +598,7 @@ def main(argv: list[str] | None = None) -> int:
             # `tools/run_silent` swallows stdout on success, so the summary goes
             # to stderr where a failure dump will carry it.
             print(summary_line(selection), file=sys.stderr)
+            print(context_line(selection.contexts), file=sys.stderr)
             if selection.escalated:
                 # Never let the fast path become the slow path: a large or
                 # broadened selection runs the governed full lane instead of a

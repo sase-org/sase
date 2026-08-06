@@ -188,6 +188,42 @@ jobs:
           files: coverage.xml
           fail_ci_if_error: false
 
+  # Per-test coverage contexts are the ground-truth source the diff-scoped
+  # selector unions into `just check`. This is a dedicated job, not an addition
+  # to the coverage leg, because the measurement said so: adding
+  # `--cov-context=test` to the branch-coverage leg took its database from
+  # 17 MB to 906 MB (283 MB gzipped) and its runtime from 470s to 538s. Line
+  # coverage alone answers the only question selection asks and costs 49 MB
+  # (12 MB gzipped) at 474s — noise against the same leg without contexts.
+  #
+  # Master pushes only. Baselines are looked up as ancestors of an agent's HEAD,
+  # so a per-PR run would burn a CI job to produce a database nobody resolves.
+  coverage-contexts:
+    needs: build-core
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
+          install-recipe: install-visual
+      - name: Record per-test coverage contexts
+        run: just test-contexts
+      # `always()` so a red suite still publishes: contexts are unioned into the
+      # selection, so partial ground truth is strictly better than none. Keep
+      # the SHA in the artifact name — the local cache is keyed by it.
+      - name: Upload coverage contexts database
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sase-coverage-contexts-${{ github.sha }}
+          path: .coverage
+          if-no-files-found: warn
+          retention-days: 14
+
   visual-test:
     needs: build-core
     runs-on: ubuntu-latest

@@ -223,6 +223,37 @@ def test_cov_mode_excludes_visual_tests_matching_dedicated_visual_test_job() -> 
     assert "--cov=src/sase" in result
 
 
+def test_contexts_mode_records_which_test_ran_each_line() -> None:
+    """Without ``--cov-context=test`` the database records *that* a line ran.
+
+    Which is useless to the selector: `tests._test_selection_contexts` would
+    silently contribute nothing forever.
+    """
+    result = load_run_pytest()._pytest_command("cov-contexts", [])
+
+    assert "--cov-context=test" in result
+    assert "--cov=src/sase" in result
+
+
+def test_contexts_mode_stays_off_the_branch_coverage_config() -> None:
+    """Branch coverage times contexts is a 906 MB artifact, measured.
+
+    Line coverage answers the only question selection asks — "which tests
+    executed this line" — at 49 MB. The separate config file is what keeps the
+    two apart; the PR coverage leg must not pick up contexts either.
+    """
+    runner = load_run_pytest()
+
+    contexts = runner._pytest_command("cov-contexts", [])
+    coverage = runner._pytest_command("cov", [])
+
+    assert f"--cov-config={runner.CONTEXTS_COVERAGE_CONFIG}" in contexts
+    assert "--cov-branch" not in contexts
+    assert "--cov-fail-under=50" not in contexts
+    assert "--cov-context=test" not in coverage
+    assert "--cov-branch" in coverage
+
+
 def test_visual_flag_selects_visual_mode() -> None:
     runner = load_run_pytest()
 

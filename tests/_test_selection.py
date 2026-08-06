@@ -30,6 +30,10 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from tests._test_selection_contexts import (
+    ContextSelection,
+    select_from_contexts,
+)
 from tests._test_selection_graph import (
     ImportGraph,
     SelectionError,
@@ -38,9 +42,11 @@ from tests._test_selection_graph import (
     is_visual_path,
     run_git,
 )
+from tests._test_selection_health import store_directory
 
 
-MANIFEST_SCHEMA = 1
+#: Bumped to 2 when the `contexts` block joined the manifest.
+MANIFEST_SCHEMA = 2
 
 DEFAULT_DEPTH = 2
 DEFAULT_MAX_RATIO = 0.25
@@ -101,6 +107,7 @@ SELECTION_TOOLING_PATHS = frozenset(
         "tools/run_pytest",
         "tools/select_tests",
         "tests/_test_selection.py",
+        "tests/_test_selection_contexts.py",
         "tests/_test_selection_graph.py",
         CONTRACT_MANIFEST_PATH,
     }
@@ -376,6 +383,7 @@ class Selection:
     manifest: dict[str, Any]
     explanations: dict[str, tuple[str, int]]
     universe_count: int
+    contexts: ContextSelection = ContextSelection()
 
     @property
     def paths_output(self) -> str:
@@ -471,6 +479,7 @@ def select_tests(
     contract_set: Sequence[str] | None = None,
     environment: str | None = None,
     previous_manifest: Mapping[str, Any] | None = None,
+    contexts_store: Path | None = None,
 ) -> Selection:
     """Select the test files that plausibly cover the current change set."""
     options = options or SelectionOptions.from_environment()
@@ -511,6 +520,7 @@ def select_tests(
     )
     rules = list(evaluation.rules)
 
+    contexts = ContextSelection()
     selected: set[str] = set()
     explanations: dict[str, tuple[str, int]] = {}
     if not evaluation.forces_full_suite:
@@ -547,6 +557,21 @@ def select_tests(
         if contract_set:
             rules.append(RULE_CONTRACT_SET_ALWAYS)
 
+        # Ground truth, unioned in — never substituted for the closure. See
+        # `tests._test_selection_contexts` for why the union is the whole point.
+        contexts = select_from_contexts(
+            root,
+            store=contexts_store
+            if contexts_store is not None
+            else store_directory(root),
+            changed_paths=change_set.paths,
+            known_test_files=frozenset(universe),
+        )
+        rules.extend(contexts.rules)
+        for path in contexts.selected:
+            selected.add(path)
+            explanations.setdefault(path, (f"contexts:{contexts.baseline_sha}", 0))
+
         selected = {path for path in selected if not is_visual_path(path)}
 
     escalated = evaluation.forces_full_suite
@@ -576,6 +601,7 @@ def select_tests(
             "tree_dirty": change_set.tree_dirty,
         },
         "graph": dict(graph.stats),
+        "contexts": contexts.payload(),
     }
     return Selection(
         selected=ordered_selected,
@@ -584,6 +610,7 @@ def select_tests(
         manifest=manifest,
         explanations=explanations,
         universe_count=len(universe),
+        contexts=contexts,
     )
 
 
@@ -680,10 +707,29 @@ def summary_line(selection: Selection) -> str:
     )
 
 
+def context_line(contexts: ContextSelection) -> str:
+    """One line describing what per-test coverage contributed, if anything."""
+    if contexts.baseline_sha is None:
+        return (
+            "coverage contexts: no baseline cached "
+            "(run `just refresh-contexts-baseline`); static closure only"
+        )
+    freshness = "stale" if contexts.stale else "fresh"
+    distance = (
+        "unknown" if contexts.distance is None else f"{contexts.distance} commits"
+    )
+    return (
+        f"coverage contexts: baseline {contexts.baseline_sha[:12]} ({freshness}, "
+        f"{distance} behind HEAD) matched {len(contexts.matched_files)} changed "
+        f"file(s) and contributed {len(contexts.selected)} test file(s)"
+    )
+
+
 def explain_lines(selection: Selection, *, sample: int = 20) -> list[str]:
     """Render why the selection looks the way it does."""
     lines = [summary_line(selection)]
     lines.append(f"rules fired: {', '.join(selection.rules) or 'none'}")
+    lines.append(context_line(selection.contexts))
     if selection.escalated:
         lines.append("no per-file selection: the run escalates to the full suite")
         return lines

@@ -190,6 +190,12 @@ def test_selection_health_recipe_runs_the_reporting_tool() -> None:
     assert "tools/selection_health" in output
 
 
+def test_refresh_contexts_baseline_recipe_runs_the_fetch_tool() -> None:
+    output = _dry_run("refresh-contexts-baseline")
+
+    assert "tools/fetch_coverage_contexts" in output
+
+
 def test_legacy_pyvision_wiring_is_absent() -> None:
     justfile = (ROOT / "Justfile").read_text()
 

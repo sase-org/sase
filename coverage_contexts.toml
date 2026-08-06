@@ -1,0 +1,29 @@
+# Coverage configuration for the per-test contexts baseline the diff-scoped
+# test selector consumes (`just test-contexts`, and CI's `coverage-contexts`
+# job). It exists as a separate file for one measured reason: branch coverage
+# and per-test contexts multiply.
+#
+# Measured on athena, 2026-08-06, full fast suite at 12 workers:
+#
+#   branch, no contexts (the PR coverage leg)  470s   17 MB   7.7 MB gzipped
+#   branch + contexts                          538s  906 MB   283 MB gzipped
+#   contexts, no branch (this config)          474s   49 MB  12.1 MB gzipped
+#
+# With `branch = true` every arc is stored per context; with line coverage it
+# is one bitmap per (file, context). Selection only ever asks "which tests
+# executed this line", so branch data is 19x the artifact for no added answer.
+#
+# `relative_files` is load-bearing: this database is published as a CI artifact
+# and read on a different checkout.
+[tool.coverage.run]
+source_pkgs = ["sase"]
+branch = false
+parallel = true
+relative_files = true
+omit = [
+    "*/test/*",
+    "*/tests/*",
+    "**/test_*.py",
+    "**/conftest.py",
+    "**/__init__.py",
+]

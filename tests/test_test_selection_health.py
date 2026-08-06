@@ -61,9 +61,10 @@ def _manifest(
     rules: tuple[str, ...] = ("contract-set-always",),
     duration: float | None = 80.0,
     outcome: str = "passed",
+    contexts: dict[str, object] | None = None,
 ) -> dict[str, object]:
     manifest: dict[str, object] = {
-        "schema": 1,
+        "schema": 2,
         "escalated": escalated,
         "rules_fired": list(rules),
         "selected": list(selected),
@@ -74,6 +75,8 @@ def _manifest(
     if duration is not None:
         manifest["duration"] = duration
     manifest["outcome"] = outcome
+    if contexts is not None:
+        manifest["contexts"] = contexts
     return manifest
 
 
@@ -370,6 +373,55 @@ def test_report_states_a_clean_bill_of_health_explicitly(tmp_path: Path) -> None
 
     assert "false negatives: 0" in report
     assert "worker-seconds avoided" in report
+
+
+def test_report_counts_coverage_context_baselines_and_staleness(
+    tmp_path: Path,
+) -> None:
+    """Whether contexts reach real runs is what says if they earn their CI cost."""
+    store = tmp_path / "store"
+    _write_selection(
+        store,
+        _manifest(
+            head="aaa",
+            selected=("tests/test_a.py",),
+            contexts={"baseline": "abc123", "stale": False, "selected_count": 3},
+        ),
+        minute=0,
+    )
+    _write_selection(
+        store,
+        _manifest(
+            head="bbb",
+            selected=("tests/test_b.py",),
+            contexts={"baseline": "abc123", "stale": True, "selected_count": 2},
+        ),
+        minute=1,
+    )
+    _write_selection(
+        store, _manifest(head="ccc", selected=("tests/test_c.py",)), minute=2
+    )
+
+    health = summarize(load_records(store), is_ancestor=lambda _a, _b: False)
+
+    assert (health.context_runs, health.context_stale_runs) == (2, 1)
+    assert health.context_selected_total == 5
+    report = "\n".join(render_report(health))
+    assert "runs with a baseline:  2 of 3" in report
+    assert "runs on a stale one:   1" in report
+
+
+def test_report_points_at_the_remedy_when_no_baseline_is_cached(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    _write_selection(store, _manifest(head="aaa", selected=("tests/test_a.py",)))
+
+    report = "\n".join(
+        render_report(summarize(load_records(store), is_ancestor=lambda _a, _b: False))
+    )
+
+    assert "just refresh-contexts-baseline" in report
 
 
 def test_report_lists_every_false_negative_and_what_to_do(tmp_path: Path) -> None:
