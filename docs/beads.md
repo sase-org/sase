@@ -622,7 +622,8 @@ Pages are generated projections, not hand-maintained state. They are rebuilt fro
 the primary repository's commit history, and they link to the bead's plan, artifact references, parent and child beads,
 dependencies, associated agents, and commits. Current commits use a structured `SASE_BEAD=<id>` footer tag instead of a
 subject-line parenthetical; historical commits with trailing `(<bead-id>)` subjects are still recognized when the ID
-exists in the store.
+exists in the store. Published agent and family pages in the agents sidecar link back to the bead they worked, so the
+bead↔agent relationship is navigable in both directions.
 
 Each page's identity block also renders the bead's creator as `**Created by:** <name>`, between `**Owner:**` and
 `**Assignee:**`. It links to the creator's hosted agents-sidecar page when one resolves and otherwise renders as inline

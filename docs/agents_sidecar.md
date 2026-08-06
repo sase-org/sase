@@ -140,8 +140,8 @@ Markdown.
 An agent page uses this anatomy:
 
 - Breadcrumb: root, user, machine, hood, optional family, and the current agent.
-- Summary: model, provider, timing, commit count, and variable count when variables were published. Non-zero counts link
-  to their page sections.
+- Summary: bead and epic links when the run is associated with a bead, above model, provider, timing, commit count, and
+  variable count when variables were published. Non-zero counts link to their page sections.
 - Files: links to the published prompt and chat when each file exists.
 - Commits: the run's commit table, when any commits were attributed to the run.
 - Variables: sanitized output variables, when the run published any.
@@ -159,9 +159,18 @@ that member's role, and lane-level rows — including commits whose member artif
 with a `—` role. Rows are deduplicated by SHA with the member-attributed row winning, then sorted and capped like every
 other commit table. Clan containers never accumulate commits this way; only families do.
 
+When any member is associated with a bead, the family header line also names the distinct bead ids across the family's
+members after `Members:` — one as `Bead: <link>`, several as `Beads: <link>, <link>` capped at five with a trailing
+`… +N more`, and none leaves the header line as it is today.
+
 Commit cells link to hosted commit pages only when the project primary repository has a recognized GitHub remote. If the
 primary remote is missing, not GitHub, or cannot be read, pages still render the same commit rows with plain short SHAs.
 The sidecar wire does not store commit URL bases.
+
+Bead links resolve similarly, but from two sources with different trust. A bead id recorded in the run's metadata is
+trusted lexically and always renders; it links whenever the beads sidecar resolves to a hosted URL and otherwise
+degrades to a plain bead id instead of a broken link. A bead id inferred from the agent's name is a guess and only
+renders once it is confirmed against the local bead store. The sidecar wire stores bead ids, not bead page URLs.
 
 Published variables are the sanitized `sase var set KEY=VALUE` values stored in `agent_meta.json["output_variables"]`.
 Variable names must match SASE's output-variable identifier rule, while values may be any supported JSON scalar, list,

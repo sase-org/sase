@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from sase.agents_sync.bead_links import BeadPageLink
 from sase.agents_sync.rendering_commits import render_agent_commits
 from sase.agents_sync.rendering_kinship import (
     HoodKinshipProjection,
     render_neighbors_section,
 )
 from sase.agents_sync.rendering_markdown import (
+    bead_link_markdown,
     md_code,
     md_escape,
     relative_page_url,
@@ -32,22 +34,34 @@ def render_agent_page(
     commit_url_base: str | None,
     commit_repo_name: str | None,
     kinship: HoodKinshipProjection,
+    bead_link: BeadPageLink | None = None,
 ) -> str:
     """Render one agent run page."""
 
     metadata = dict(run.metadata)
     variables = output_variables(run)
     source_path = f"agents/{run.global_name}/README.md"
-    summary = [
-        f"- Model: {md_escape(_text(metadata.get('model')) or '—')}",
-        f"- Provider: {md_escape(_text(metadata.get('llm_provider')) or '—')}",
-        f"- Timing: {md_escape(run_timing(run))}",
-        (
-            f"- Commits: [{len(run.commits)}](#commits)"
-            if run.commits
-            else "- Commits: 0"
-        ),
-    ]
+    summary = []
+    if bead_link is not None:
+        summary.append(
+            f"- Bead: {bead_link_markdown(bead_link.bead_id, bead_link.url)}"
+        )
+        if bead_link.epic_bead_id is not None:
+            summary.append(
+                f"- Epic: {bead_link_markdown(bead_link.epic_bead_id, bead_link.epic_url)}"
+            )
+    summary.extend(
+        [
+            f"- Model: {md_escape(_text(metadata.get('model')) or '—')}",
+            f"- Provider: {md_escape(_text(metadata.get('llm_provider')) or '—')}",
+            f"- Timing: {md_escape(run_timing(run))}",
+            (
+                f"- Commits: [{len(run.commits)}](#commits)"
+                if run.commits
+                else "- Commits: 0"
+            ),
+        ]
+    )
     if variables:
         summary.append(f"- Variables: [{len(variables)}](#variables)")
     lines = [

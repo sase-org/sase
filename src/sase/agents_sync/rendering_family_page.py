@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from sase.agents_sync.bead_links import BeadPageLink
 from sase.agents_sync.rendering_commits import render_family_commits
 from sase.agents_sync.rendering_kinship import (
     HoodKinshipProjection,
     render_neighbors_section,
 )
 from sase.agents_sync.rendering_markdown import (
+    bead_link_markdown,
     md_cell,
     md_code,
     md_escape,
@@ -37,6 +39,7 @@ def render_family_page(
     commit_url_base: str | None,
     commit_repo_name: str | None,
     kinship: HoodKinshipProjection,
+    member_bead_links: tuple[BeadPageLink | None, ...] = (),
 ) -> str:
     """Render one family container and its member lineage."""
 
@@ -44,14 +47,20 @@ def render_family_page(
     member_roles = tuple((_member_role(run), run) for run in members)
     local_family = _local_family_name(snapshot, family)
     source_path = f"families/{family.global_name}.md"
+    header_line = (
+        f"Owner: `{md_code(snapshot.owner.username)}."
+        f"{md_code(snapshot.owner.machine_name)}` · "
+        f"Hood: `{md_code(snapshot.local_hood)}` · Members: {len(members)}"
+    )
+    bead_fact = _bead_header_fact(member_bead_links)
+    if bead_fact is not None:
+        header_line += f" · {bead_fact}"
     lines = [
         f"# Family: {md_escape(local_family)}",
         "",
         _breadcrumb(snapshot, source_path, local_family),
         "",
-        f"Owner: `{md_code(snapshot.owner.username)}."
-        f"{md_code(snapshot.owner.machine_name)}` · "
-        f"Hood: `{md_code(snapshot.local_hood)}` · Members: {len(members)}",
+        header_line,
         "",
         "## Lineage",
         "",
@@ -161,6 +170,28 @@ def _family_file_link(reference: V2FileReference | None, label: str) -> str:
     if reference is None:
         return "—"
     return f"[{label}]({relative_page_url('families/x.md', reference.path)})"
+
+
+_MAX_HEADER_BEADS = 5
+
+
+def _bead_header_fact(member_bead_links: tuple[BeadPageLink | None, ...]) -> str | None:
+    distinct_beads = sorted(
+        {
+            link.bead_id: link.url for link in member_bead_links if link is not None
+        }.items()
+    )
+    if not distinct_beads:
+        return None
+    if len(distinct_beads) == 1:
+        bead_id, url = distinct_beads[0]
+        return f"Bead: {bead_link_markdown(bead_id, url)}"
+    shown = distinct_beads[:_MAX_HEADER_BEADS]
+    rendered = ", ".join(bead_link_markdown(bead_id, url) for bead_id, url in shown)
+    remaining = len(distinct_beads) - len(shown)
+    if remaining > 0:
+        rendered += f", … +{remaining} more"
+    return f"Beads: {rendered}"
 
 
 def _member_role(run: V2RunRecord) -> str:
