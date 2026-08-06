@@ -6,6 +6,12 @@ import re
 from collections.abc import Sequence
 
 from sase.ace.tui.widgets._paired_text_editing import TextEdit
+from sase.ace.tui.widgets._prompt_list_markers import (
+    MarkerFamily,
+    find_list_marker,
+    is_list_boundary_line,
+    list_marker_owner,
+)
 from sase.ace.tui.widgets._vim_transforms import INDENT_UNIT
 
 __all__ = [
@@ -19,49 +25,23 @@ __all__ = [
 ]
 
 
+_HYPHEN = MarkerFamily.HYPHEN
 _BULLET_MARKER_RE = re.compile(r"^( *)- ")
-_FENCE_RE = re.compile(r"^ *(?:`{3,}|~{3,})")
 _THEMATIC_BREAK_RE = re.compile(r"^ *(?:(?:- *){3,}|(?:\* *){3,}|(?:_ *){3,})$")
-_UNSUPPORTED_MARKER_RE = re.compile(r"^ *(?:[*+] |\d+[.)] |> ?)")
-_TIGHT_DASH_RE = re.compile(r"^ *-(?! )")
-
-
-def _leading_space_count(line: str) -> int:
-    return len(line) - len(line.lstrip(" "))
-
-
-def _has_tab_indentation(line: str) -> bool:
-    for char in line:
-        if char == "\t":
-            return True
-        if char != " ":
-            return False
-    return False
-
-
-def _is_bullet_boundary(line: str) -> bool:
-    """Return whether *line* stops backward hyphen-bullet ownership."""
-    if not line.strip() or _has_tab_indentation(line):
-        return True
-    return bool(
-        _FENCE_RE.match(line)
-        or _THEMATIC_BREAK_RE.match(line)
-        or _UNSUPPORTED_MARKER_RE.match(line)
-        or _TIGHT_DASH_RE.match(line)
-    )
 
 
 def is_prompt_bullet_marker_only(line: str) -> bool:
     """Return whether *line* is exactly a spaces-only hyphen bullet marker."""
-    return _BULLET_MARKER_RE.fullmatch(line) is not None
+    marker = find_list_marker(line, _HYPHEN)
+    return marker is not None and marker.content_column == len(line)
 
 
 def is_prompt_bullet_content_column(line: str, cursor_col: int) -> bool:
     """Return whether *cursor_col* is just after a supported bullet marker."""
-    if _is_bullet_boundary(line):
+    if is_list_boundary_line(line, _HYPHEN):
         return False
-    marker = _BULLET_MARKER_RE.match(line)
-    return marker is not None and cursor_col == marker.end()
+    marker = find_list_marker(line, _HYPHEN)
+    return marker is not None and cursor_col == marker.content_column
 
 
 def strip_prompt_bullet_marker(line: str) -> str:
@@ -73,10 +53,10 @@ def strip_prompt_bullet_marker(line: str) -> str:
     """
     if _THEMATIC_BREAK_RE.match(line):
         return line
-    marker = _BULLET_MARKER_RE.match(line)
+    marker = find_list_marker(line, _HYPHEN)
     if marker is None:
         return line
-    return line[marker.end() :]
+    return line[marker.content_column :]
 
 
 def plan_prompt_bullet_shift(
@@ -157,29 +137,8 @@ def prompt_bullet_sibling_prefix(
     unsupported markers, thematic breaks, tight dashes, and tab indentation
     terminate the search.
     """
-    if cursor_row < 0 or cursor_row >= len(lines):
-        return None
-
-    minimum_indent: int | None = None
-    for row in range(cursor_row, -1, -1):
-        line = lines[row]
-        if _is_bullet_boundary(line):
-            return None
-
-        marker = _BULLET_MARKER_RE.match(line)
-        marker_indent = len(marker.group(1)) if marker is not None else None
-        if marker_indent is not None and (
-            row == cursor_row
-            or (minimum_indent is not None and minimum_indent >= marker_indent + 2)
-        ):
-            return f"{' ' * marker_indent}- "
-
-        line_indent = _leading_space_count(line)
-        minimum_indent = (
-            line_indent if minimum_indent is None else min(minimum_indent, line_indent)
-        )
-
-    return None
+    owner = list_marker_owner(lines, cursor_row, _HYPHEN)
+    return None if owner is None else owner.text
 
 
 def prompt_bullet_row_has_bullet_above(

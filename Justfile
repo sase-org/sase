@@ -270,6 +270,16 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-gi.2(is_prompt_ordered_marker_only)' \
+        --epic-symbol 'sase-gi.2(is_prompt_ordered_content_column)' \
+        --epic-symbol 'sase-gi.2(prompt_ordered_row_has_item_above)' \
+        --epic-symbol 'sase-gi.2(prompt_ordered_sibling_prefix)' \
+        --epic-symbol 'sase-gi.2(plan_ordered_list_edit)' \
+        --epic-symbol 'sase-gi.4(OrderedRun)' \
+        --epic-symbol 'sase-gi.4(RenumberResult)' \
+        --epic-symbol 'sase-gi.4(find_ordered_run)' \
+        --epic-symbol 'sase-gi.4(renumber_ordered_runs)' \
+        --epic-symbol 'sase-gi.5(strip_prompt_ordered_marker)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
