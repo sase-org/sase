@@ -38,11 +38,38 @@ just test-slow     # Slow pytest subset only
 just test-visual   # ACE PNG visual regression snapshots only; the sole visual execution
 just test-terminal-smoke  # Optional real-terminal ACE smoke test
 just test-cov      # Parallel test run with coverage + 50% gate, excluding visual snapshots
-just check         # CI-style checks: formatting, lint, SDD validation, tests
+just check         # Agent default: whole-repo lint gates + a diff-scoped test lane
+just check-full    # Exhaustive verification: whole-repo lint gates + the full test suite
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
 just build         # Build wheel and sdist
 ```
+
+### Diff-scoped checks (`just check`)
+
+`just check` is the agent default: every whole-repo lint gate runs unchanged, but the test stage is `just test-scoped`
+instead of `just test`. `tools/select_tests` builds a cached import graph from `src/**` and `tests/**`, seeds it with
+the changed and untracked files in the current diff against `$SASE_CHECK_BASE` (default `origin/master`), and walks
+reverse import edges out to a bounded depth (`SASE_TEST_SELECTION_DEPTH`, default `2`) to find the test files that
+plausibly exercise the change. The selection always includes the curated `contract` set (`tests/contract_manifest.txt`)
+and excludes `tests/ace/tui/visual/**` unconditionally. The scoped run itself is serial (`-n 1`) and takes no suite-gate
+lease, so it never queues behind other agents' runs.
+
+Selection is a **heuristic**, not a guarantee: an unbounded closure would select the vast majority of the suite because
+of a large import cycle in `src/sase`, so depth-bounding is the mechanism, not a tuning knob. A handful of broadening
+rules escalate to the full suite when the change touches something the closure cannot safely reason about (a conftest,
+`pyproject.toml`, the `Justfile`, config schemas, the selection engine itself, or a changed `sase_core_rs` build), and
+the selection also escalates when it would otherwise exceed `SASE_TEST_SELECTION_MAX_RATIO` (default `0.25`) of all test
+files. An escalated run falls through to the same governed, fully parallel lane as `just test`.
+
+Run `just check-full` — every lint gate plus the full test suite, `just test` unchanged — before landing an epic's
+combined tree, whenever a change touches the broadening set above, and any time a scoped run escalated or reported a
+selection that looks wrong. CI always runs the full suite, so a scoped false negative surfaces there within roughly the
+CI test leg's runtime; it is a backstop, not a silent gap.
+
+Use `tools/select_tests --explain` to see which rules fired and why a given file was pulled into (or excluded from) the
+current selection. The selection manifest — the resolved base, changed files, rules fired, and selected test files — is
+written to `.pytest_cache/sase-selection/manifest.json` on every scoped run.
 
 SASE places a pytest safety boundary around its telemetry mutations and common axe state/log writers when they target
 the OS account's real `~/.sase` tree. Telemetry flushes and deletions fail with an actionable error; guarded best-effort

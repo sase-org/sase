@@ -505,7 +505,7 @@ sase core health -j          # same, JSON for scripting
 sase version                 # local host/core/plugin package inventory
 sase version -j              # same, JSON for support/debug tooling
 
-just check                   # formatting, lint, SDD validation, and tests
+just check-full              # formatting, lint, SDD validation, and the full test suite
 just rust-check              # cargo fmt --check + clippy + cargo test (requires sibling ../sase-core checkout)
 just bead-perf-smoke         # tiny Rust-backed bead shell/facade/work-plan benchmark
 just launch-perf-check       # launch fan-out regression floor against the Phase 1 baseline

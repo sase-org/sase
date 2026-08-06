@@ -19,7 +19,8 @@ just fmt           # Auto-format code
 just lint          # Run ruff + mypy
 just test          # Fast parallel test run (no coverage)
 just test-cov      # Parallel test run with coverage + 50% gate
-just check         # All checks (fmt-check + lint + test)
+just check         # All checks, agent default (fmt-check + lint + diff-scoped test lane)
+just check-full    # All checks, exhaustive (fmt-check + lint + full test suite); run before submitting
 ```
 
 ## Adding Dependencies

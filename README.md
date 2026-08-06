@@ -117,7 +117,7 @@ just install
 sase core health
 ```
 
-Run `just check` before submitting changes.
+Run `just check-full` before submitting changes.
 
 ## Acknowledgements
 

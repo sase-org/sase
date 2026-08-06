@@ -186,6 +186,20 @@ def test_test_job_only_collects_coverage_on_3_12_leg() -> None:
     assert plain_step["if"] == "matrix.python-version != '3.12'"
 
 
+def test_ci_never_runs_the_diff_scoped_test_lane() -> None:
+    """CI always exercises the exhaustive lane; the scoped lane is a local, agent-only fast path.
+
+    A diff-scoped selection is a heuristic backstopped by CI running everything
+    on every push; CI itself must never be the thing that skips tests.
+    """
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+    workflow_text = workflow_path.read_text()
+
+    assert "test-scoped" not in workflow_text
+    assert "run_pytest scoped" not in workflow_text
+    assert "just check\n" not in workflow_text
+
+
 def test_visual_suite_runs_only_in_dedicated_job() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]

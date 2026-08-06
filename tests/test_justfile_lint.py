@@ -115,6 +115,56 @@ def test_private_symvision_stage_uses_published_cli() -> None:
     assert "python tools/pyvision" not in output
 
 
+_CHECK_GATE_LINES = (
+    'tools/run_silent "fmt (python)"       just fmt-py-check',
+    'tools/run_silent "fmt (markdown)"     just fmt-md-check',
+    'tools/run_silent "lint (keep-sorted)" just lint-keep-sorted',
+    'tools/run_silent "lint (ruff)"        just _lint-ruff',
+    'tools/run_silent "lint (mypy)"        just _lint-mypy',
+    'tools/run_silent "lint (pyscripts)"   just _lint-pyscripts',
+    'tools/run_silent "lint (changelog)"   just _lint-changelog',
+    'tools/run_silent "lint (symvision)"   just _lint-symvision',
+    'tools/run_silent "lint (toobig)"      just _lint-toobig',
+    'tools/run_silent "SASE validation"     just validate',
+    'tools/run_silent "committed plans"      just validate-committed-plans',
+)
+
+
+def test_check_and_check_full_recipes_exist() -> None:
+    justfile = (ROOT / "Justfile").read_text()
+
+    assert "\ncheck: _setup\n" in justfile
+    assert "\ncheck-full: _setup\n" in justfile
+
+
+def test_check_ends_in_the_scoped_test_lane() -> None:
+    output = _dry_run("check")
+
+    assert 'tools/run_silent "test (scoped)"      just test-scoped' in output
+    assert 'tools/run_silent "test"               just test' not in output
+
+
+def test_check_full_ends_in_the_full_test_lane() -> None:
+    output = _dry_run("check-full")
+
+    assert 'tools/run_silent "test"               just test' in output
+    assert "just test-scoped" not in output
+
+
+def test_check_and_check_full_share_an_identical_gate_list() -> None:
+    """`check` and `check-full` must never drift on their non-test gates.
+
+    The failure mode this guards against is someone adding a tenth lint or
+    validation gate to one recipe and forgetting the other.
+    """
+    check_output = _dry_run("check")
+    check_full_output = _dry_run("check-full")
+
+    for gate_line in _CHECK_GATE_LINES:
+        assert gate_line in check_output
+        assert gate_line in check_full_output
+
+
 def test_test_scoped_runs_the_scoped_runner_mode() -> None:
     output = _dry_run("test-scoped")
 

@@ -419,8 +419,28 @@ refresh-contract-manifest: _setup
     @printf "\n---------- Regenerating contract test manifest... ----------\n"
     {{ venv_bin }}/python tools/refresh_contract_manifest
 
-# Run all checks (format check + lint + SASE validation + test) with context-efficient output for agents
+# Agent default: whole-repo lint gates plus a diff-scoped test lane that takes
+# no suite-gate lease. Run `just check-full` instead before landing an epic's
+# combined tree, when the change touches the broadening set (see
+# `tools/select_tests --explain`), or whenever the scoped run escalated or
+# reported an unusual selection.
 check: _setup
+    @tools/run_silent "fmt (python)"       just fmt-py-check
+    @tools/run_silent "fmt (markdown)"     just fmt-md-check
+    @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
+    @tools/run_silent "lint (ruff)"        just _lint-ruff
+    @tools/run_silent "lint (mypy)"        just _lint-mypy
+    @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
+    @tools/run_silent "lint (changelog)"   just _lint-changelog
+    @tools/run_silent "lint (symvision)"   just _lint-symvision
+    @tools/run_silent "lint (toobig)"      just _lint-toobig
+    @tools/run_silent "SASE validation"     just validate
+    @tools/run_silent "committed plans"      just validate-committed-plans
+    @tools/run_silent "test (scoped)"      just test-scoped
+
+# Exhaustive verification: every whole-repo lint gate plus the full test
+# suite. Run this before landing, and in CI.
+check-full: _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
