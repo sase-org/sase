@@ -1,4 +1,4 @@
-"""The scratch-file resource probe reports errno instead of guessing."""
+"""The scratch-file resource probe reports the state behind the errno."""
 
 from __future__ import annotations
 
@@ -30,8 +30,9 @@ def test_report_covers_every_scratch_resource_when_nothing_is_exhausted() -> Non
 
 
 def test_report_names_emfile_when_descriptors_are_exhausted() -> None:
-    # EMFILE at these two syscalls reproduces sase-core's
-    # CommitLogFailure::Scratch message exactly, guessed TMPDIR advice and all.
+    # EMFILE at these two syscalls is what sase-core's
+    # CommitLogFailure::Scratch now reports as "Too many open files (os error
+    # 24)" -- errno agreement is the point, not the surrounding prose.
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     held: list[int] = []
     try:

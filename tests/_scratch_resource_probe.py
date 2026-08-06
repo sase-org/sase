@@ -2,10 +2,11 @@
 
 sase-core's ``commit_log_output`` opens an anonymous scratch file for ``git
 log`` output and clones its descriptor.  When either step fails it reports
-``CommitLogFailure::Scratch``, which discards the underlying ``io::Error`` and
-guesses at an unwritable ``TMPDIR``.
+``CommitLogFailure::Scratch``, which since ``sase-core-rs`` 0.18.4 names both
+the failing step (create or clone) and the errno behind it. Before that it
+discarded the underlying ``io::Error`` and guessed at an unwritable ``TMPDIR``.
 
-That guess is usually wrong. The scratch_tmpdir_leak_fix phase traced one such
+That guess was usually wrong. The scratch_tmpdir_leak_fix phase traced one such
 empty-inventory CI failure to test pollution, not a bad ``TMPDIR``: an earlier
 test on the same xdist worker redirected ``TMPDIR`` without routing the change
 through ``monkeypatch``, and the redirect outlived that test's own teardown,
@@ -18,7 +19,9 @@ for the resource-exhaustion causes (EMFILE, ENOSPC, an O_TMPFILE quirk) that
 guard cannot catch.
 
 This module reproduces both syscalls from Python and reports the surrounding
-resource state, so a CI job log records the errno instead of the guess.
+resource state. sase-core's errno names *what* failed for one call; the fd
+table, ``statvfs`` counters and ``RLIMIT_NOFILE`` recorded here are what say
+*why*, and they are only observable from inside the failing process.
 """
 
 from __future__ import annotations

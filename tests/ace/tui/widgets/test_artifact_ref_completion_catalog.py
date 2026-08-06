@@ -316,9 +316,9 @@ def test_commit_completion_rows_match_shared_inventory_and_resolve(
     )
 
     # An empty inventory means sase-core gave up on `git log` -- on CI runners
-    # that has been CommitLogFailure::Scratch, whose message discards the
-    # errno.  Report the scratch-file resource state next to it rather than
-    # weakening the parity assertion below.
+    # that has been CommitLogFailure::Scratch, which names an errno but not the
+    # resource state that produced it.  Report that state next to it rather
+    # than weakening the parity assertion below.
     probe = ""
     if not lsp_payload_sequence or not prompt_payload_sequence:
         probe = "\n" + scratch_resource_report()
