@@ -1,0 +1,258 @@
+#!/usr/bin/env python3
+"""Install a locally recorded per-test coverage database as a selection baseline.
+
+``just test-contexts`` records per-test contexts into ``.coverage``, but until
+this tool existed nothing put that database where ``resolve_baseline`` looks, so
+the only supply route for ground truth was the CI artifact — published on master
+pushes, retained 14 days. A host that never fetched, or fetched more than a
+fortnight ago, ran the scoped lane on the static import closure alone.
+
+This tool is the local producer. ``just test-contexts`` runs it automatically on
+success, so the expensive instrumented run a human or agent already opted into
+fills the host-local cache for every workspace on the machine. It is also
+runnable on its own against a database recorded earlier.
+
+Two guards keep a bad database out of the cache, because a baseline that
+resolves but contributes nothing is worse than none at all: it silences
+``context-baseline-missing`` while adding no tests.
+
+* **A dirty ``src/`` tree is refused.** The database is keyed by the line
+  numbers of the commit it is installed under; uncommitted edits to instrumented
+  code mean the recorded lines are not that commit's lines, and every later
+  lookup reads the wrong rows.
+* **A partial run is refused.** Contexts from a handful of test files would
+  displace a full CI baseline — cached baselines are ranked by mtime, so the
+  newest wins — and shrink the selection back toward the closure.
+
+Both are overridable (``--allow-dirty``, ``--allow-partial``) for deliberate
+use; neither default is a guess about the caller's intent.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests._test_selection_contexts import (  # noqa: E402
+    baseline_path,
+    context_test_file,
+    contexts_directory,
+    prune_baselines,
+)
+from tests._test_selection_graph import (  # noqa: E402
+    SelectionError,
+    is_test_file,
+    is_visual_path,
+    run_git,
+)
+from tests._test_selection_health_store import store_directory  # noqa: E402
+
+
+DEFAULT_DATABASE = ".coverage"
+DEFAULT_KEEP = 5
+#: A database whose contexts name fewer than this share of the repository's test
+#: files did not come from a full-suite run, and would narrow the selection for
+#: every workspace on the host if it displaced a complete baseline.
+MIN_SUITE_SHARE = 0.5
+#: Set to ``0`` to keep a `just test-contexts` run from caching its own database.
+INSTALL_ENV = "SASE_TEST_SELECTION_INSTALL_CONTEXTS"
+
+
+def _head_sha(root: Path) -> str | None:
+    try:
+        return run_git(root, "rev-parse", "HEAD").strip() or None
+    except SelectionError:
+        return None
+
+
+def _dirty_instrumented_paths(root: Path) -> list[str]:
+    """Working-tree ``src/`` entries that differ from ``HEAD``.
+
+    Only instrumented code matters: coverage measures ``src/sase``, so an
+    uncommitted doc or test edit cannot desynchronize the database's line
+    numbers from the commit it is filed under.
+    """
+    try:
+        status = run_git(root, "status", "--porcelain", "--", "src")
+    except SelectionError:
+        return []
+    return sorted(
+        line[3:].strip() for line in status.splitlines() if line[3:].strip()
+    )
+
+
+def _tested_files(root: Path) -> set[str]:
+    """Every collectable, non-visual test file in the working tree."""
+    tests_root = root / "tests"
+    found: set[str] = set()
+    for path in tests_root.rglob("test_*.py"):
+        relative = path.relative_to(root).as_posix()
+        if is_test_file(relative) and not is_visual_path(relative):
+            found.add(relative)
+    return found
+
+
+def _context_test_files(database: Path) -> set[str] | None:
+    """Test files the database records contexts for, or ``None`` if unreadable."""
+    try:
+        from coverage import CoverageData
+    except ImportError:
+        return None
+    data = CoverageData(basename=str(database))
+    try:
+        data.read()
+        contexts = data.measured_contexts()
+    except Exception:
+        return None
+    return {
+        test_file
+        for context in contexts
+        if (test_file := context_test_file(context)) is not None
+    }
+
+
+def _install(database: Path, target: Path) -> None:
+    """Copy the database into place without ever exposing a partial file.
+
+    A scoped run in a sibling workspace may resolve this directory at any
+    moment, so the database lands under a temporary name in the same directory
+    and is renamed on top of the target, which is atomic within a filesystem.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    staging = target.with_name(f"{target.name}.partial-{os.getpid()}")
+    try:
+        shutil.copy2(database, staging)
+        staging.replace(target)
+    finally:
+        staging.unlink(missing_ok=True)
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--database",
+        default=DEFAULT_DATABASE,
+        help=f"coverage database to install (default: {DEFAULT_DATABASE})",
+    )
+    parser.add_argument(
+        "--sha",
+        default=None,
+        help="commit to file the baseline under (default: HEAD)",
+    )
+    parser.add_argument(
+        "--keep",
+        type=int,
+        default=DEFAULT_KEEP,
+        help=f"how many cached baselines to retain (default: {DEFAULT_KEEP})",
+    )
+    parser.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="install even though src/ has uncommitted changes",
+    )
+    parser.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="install a database recorded over part of the suite",
+    )
+    parser.add_argument(
+        "--if-enabled",
+        action="store_true",
+        help=(
+            f"do nothing (success) when {INSTALL_ENV}=0; how `just test-contexts` "
+            "invokes this tool"
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def _resolve_database(raw: str) -> Path:
+    database = Path(raw).expanduser()
+    return database if database.is_absolute() else REPO_ROOT / database
+
+
+def _run(namespace: argparse.Namespace) -> int:
+    database = _resolve_database(namespace.database)
+    if not database.is_file():
+        print(
+            f"no coverage database at {database}; run `just test-contexts` first",
+            file=sys.stderr,
+        )
+        return 1
+
+    sha = namespace.sha or _head_sha(REPO_ROOT)
+    if sha is None:
+        print("could not resolve HEAD; pass --sha explicitly", file=sys.stderr)
+        return 1
+
+    dirty = _dirty_instrumented_paths(REPO_ROOT)
+    if dirty and not namespace.allow_dirty:
+        shown = ", ".join(dirty[:3]) + (" ..." if len(dirty) > 3 else "")
+        print(
+            f"src/ has uncommitted changes ({shown}); the database's line numbers "
+            f"are not {sha[:12]}'s, so a baseline filed under it would read the "
+            "wrong rows. Commit first, or pass --allow-dirty.",
+            file=sys.stderr,
+        )
+        return 1
+
+    recorded = _context_test_files(database)
+    if not recorded:
+        print(
+            f"{database} records no per-test coverage contexts; a plain coverage "
+            "run is not a selection baseline (`just test-contexts` records one)",
+            file=sys.stderr,
+        )
+        return 1
+
+    known = _tested_files(REPO_ROOT)
+    share = len(recorded & known) / len(known) if known else 1.0
+    if share < MIN_SUITE_SHARE and not namespace.allow_partial:
+        print(
+            f"{database} holds contexts for {len(recorded & known)} of "
+            f"{len(known)} test files ({share:.0%}); a partial run would displace "
+            "a fuller baseline. Record the whole suite, or pass --allow-partial.",
+            file=sys.stderr,
+        )
+        return 1
+
+    directory = contexts_directory(store_directory(REPO_ROOT))
+    target = baseline_path(directory, sha)
+    try:
+        _install(database, target)
+    except OSError as error:
+        print(f"could not install {database} at {target}: {error}", file=sys.stderr)
+        return 1
+    print(
+        f"cached coverage-contexts baseline {sha[:12]} at {target} "
+        f"({len(recorded & known)} test files, {share:.0%} of the suite)"
+    )
+    for pruned in prune_baselines(directory, namespace.keep):
+        print(f"pruned {pruned.name}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    namespace = _parse_args(argv)
+    if namespace.if_enabled and os.environ.get(INSTALL_ENV) == "0":
+        print(f"{INSTALL_ENV}=0; not caching this run as a selection baseline")
+        return 0
+    status = _run(namespace)
+    if status and namespace.if_enabled:
+        # The recording run itself succeeded; a database this tool declines to
+        # cache is a warning about the cache, not a failed test lane.
+        print("continuing without caching a baseline from this run", file=sys.stderr)
+        return 0
+    return status
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

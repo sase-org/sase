@@ -68,6 +68,10 @@ SCOPED_MODE = "scoped"
 #: Records the per-test coverage baseline the diff-scoped selector consumes.
 CONTEXTS_MODE = "cov-contexts"
 CONTEXTS_COVERAGE_CONFIG = "coverage_contexts.toml"
+#: coverage's measurement-core selector, and the one value that attributes every
+#: line to every test that ran it. See `_apply_contexts_environment`.
+COVERAGE_CORE_ENV = "COVERAGE_CORE"
+CONTEXTS_COVERAGE_CORE = "ctrace"
 SCOPED_WORKER_REMEDY = (
     "a governed parallel run of an arbitrary subset is exactly the "
     "unaccounted-demand shape the suite gate exists to prevent; use "
@@ -291,6 +295,24 @@ def _pytest_command(
 def _sanitize_pytest_environment() -> None:
     for key in PYTEST_ENV_UNSET_KEYS:
         os.environ.pop(key, None)
+
+
+def _apply_contexts_environment(mode: str) -> None:
+    """Pin the measurement core that records per-test contexts faithfully.
+
+    On Python 3.14 coverage defaults to the ``sysmon`` core, which disables
+    monitoring for a code location once it has been seen. That is a large speed
+    win and it is wrong for this lane: the *second* test to execute a line is
+    never attributed to it, so per-test contexts thin out as the suite runs.
+    Measured on athena at ``6b0976bcb``, `tests/test_agent_lanes.py` recorded 6
+    contexts against `agent_lanes.py` under ``sysmon`` in a full-suite run and
+    32 under ``ctrace`` — the same 32 CI's Python 3.12 leg records, since
+    ``ctrace`` is already the default there. A baseline is ground truth or it is
+    nothing, so the core is pinned rather than left to the interpreter version.
+    """
+    if mode != CONTEXTS_MODE or COVERAGE_CORE_ENV in os.environ:
+        return
+    os.environ[COVERAGE_CORE_ENV] = CONTEXTS_COVERAGE_CORE
 
 
 def _configured_pytest_tmpdir() -> Path:
@@ -677,6 +699,7 @@ def main(argv: list[str] | None = None) -> int:
 
         _prepare_pytest_tmpdir()
         _sanitize_pytest_environment()
+        _apply_contexts_environment(mode)
         os.chdir(REPO_ROOT)
         if scoped_manifest is not None:
             # Belt-and-braces against subprocess-spawning tests: `-n 1` already

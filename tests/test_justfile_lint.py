@@ -196,6 +196,19 @@ def test_refresh_contexts_baseline_recipe_runs_the_fetch_tool() -> None:
     assert "tools/fetch_coverage_contexts" in output
 
 
+def test_test_contexts_recipe_caches_the_recorded_baseline() -> None:
+    """A local `cov-contexts` run is a baseline producer, not just a report.
+
+    Without this line the only supply route for ground truth is the CI
+    artifact, and a host that never fetched runs the scoped lane on the static
+    closure alone.
+    """
+    output = _dry_run("test-contexts")
+
+    assert "tools/run_pytest cov-contexts" in output
+    assert "tools/install_coverage_contexts --if-enabled" in output
+
+
 def test_legacy_pyvision_wiring_is_absent() -> None:
     justfile = (ROOT / "Justfile").read_text()
 
