@@ -76,7 +76,7 @@ def _select(
     Without one, ``no-baseline-depth-boost`` would buy every selection here an
     extra hop and these assertions would be measuring the compensation rather
     than the closure. The compensation has its own tests, in
-    ``tests/test_test_selection_contexts.py``.
+    ``tests/test_test_selection_contexts_depth_boost.py``.
     """
     options = SelectionOptions(base_ref=base_ref, depth=depth, max_ratio=max_ratio)
     kwargs.setdefault("contexts_store", root.parent / "selection-store" / "project")
