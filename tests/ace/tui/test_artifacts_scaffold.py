@@ -386,6 +386,56 @@ async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
         assert commits.filters == replace(retained_filters, project=None)
 
 
+async def test_startup_scope_normalizes_display_name_to_project_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A #gh project named by its query-token display name resolves to its key."""
+    result = _ArtifactsProjectChoices(
+        choices=(
+            InventoryProjectChoice(
+                project_key="gh_acme__widget",
+                display_name="widget",
+                state="enabled",
+            ),
+        ),
+        enabled_projects=("gh_acme__widget",),
+        display_names={"gh_acme__widget": "widget"},
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: result,
+    )
+
+    async with AcePage(query="project:widget", initial_tab="agents") as page:
+        assert page.app.artifacts_project_scope == "widget"
+
+        await page.press("tab")
+        await page.wait_for(
+            lambda _state: page.app._artifacts_project_choices is result
+        )
+        assert page.app.artifacts_project_scope == "gh_acme__widget"
+
+
+async def test_startup_scope_keeps_unresolvable_ref_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unknown project ref stays put instead of silently widening to None."""
+    result = _ArtifactsProjectChoices((), (), {})
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: result,
+    )
+
+    async with AcePage(query="project:mystery", initial_tab="agents") as page:
+        assert page.app.artifacts_project_scope == "mystery"
+
+        await page.press("tab")
+        await page.wait_for(
+            lambda _state: page.app._artifacts_project_choices is result
+        )
+        assert page.app.artifacts_project_scope == "mystery"
+
+
 async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
     async with AcePage(initial_tab="agents") as page:
         catalog = build_command_catalog(page.app._keymap_registry)

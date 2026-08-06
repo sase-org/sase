@@ -11,6 +11,7 @@ import pytest
 from sase.ace.tui.widgets.artifacts import beads_data, beads_data_sources
 from sase.ace.tui.widgets.artifacts.beads_data import load_beads_snapshot
 from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.notifications.models import Notification
 
 
@@ -126,6 +127,56 @@ def test_snapshot_isolates_per_project_read_errors(
 
     assert [item.issue.id for item in result.tasks] == ["alpha-task"]
     assert result.errors == {"beta": "Unable to read beads: broken event"}
+
+
+def test_snapshot_resolves_display_name_scope_to_project_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A #gh project scoped by display name must not report a missing store."""
+    record = ProjectRecordWire(
+        schema_version=3,
+        project_name="gh_acme__widget",
+        project_dir="/state/projects/gh_acme__widget",
+        project_file="/state/projects/gh_acme__widget/gh_acme__widget.sase",
+        archive_file=None,
+        workspace_dir=str(tmp_path / "workspace"),
+        state="enabled",
+        state_explicit=False,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+        aliases=[],
+        display_name="widget",
+    )
+    monkeypatch.setattr(
+        "sase.core.project_lifecycle_facade.list_project_records",
+        lambda *_a, **_kw: [record],
+    )
+    beads_dir = tmp_path / "beads"
+
+    def project_beads_dir(project: str) -> Path | None:
+        return beads_dir if project == "gh_acme__widget" else None
+
+    monkeypatch.setattr(beads_data, "_project_beads_dir", project_beads_dir)
+    monkeypatch.setattr(beads_data, "_project_document_roots", lambda _project: {})
+    monkeypatch.setattr(beads_data, "_store_mtime_key", lambda _path: ())
+    monkeypatch.setattr(beads_data, "_notifications_mtime_key", lambda: ())
+    monkeypatch.setattr(beads_data, "_load_pending_triage", lambda: {})
+    monkeypatch.setattr(
+        beads_data,
+        "_load_project_beads",
+        lambda _path: (
+            [Issue("widget-task", "Task", issue_type=IssueType.TASK)],
+            frozenset(),
+            frozenset(),
+        ),
+    )
+
+    snapshot = load_beads_snapshot("widget", force=True)
+
+    assert snapshot.errors == {}
+    assert [item.issue.id for item in snapshot.tasks] == ["widget-task"]
 
 
 def test_triage_gate_matches_request_payload_not_request_id(

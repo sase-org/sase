@@ -129,3 +129,64 @@ def test_create_and_update_use_fake_provider_round_trip(
     assert created.number == 1
     assert created.labels == ("bug",)
     assert updated.state == "closed"
+
+
+def test_snapshot_resolves_display_name_scope_for_local_bead_links(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A #gh project scoped by display name still keeps its local bead links."""
+    issue = IssueWire(
+        number=7,
+        title="Cache thrash",
+        state="open",
+        body="Body",
+        labels=("bug",),
+        updated_at="2026-07-15T10:00:00Z",
+        url="https://example.test/issues/7",
+    )
+    provider = _provider(FakeIssueProvider([issue]))
+    epic = Issue(
+        id="widget-1",
+        title="Widget epic",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        changespec_bug_id="7",
+    )
+    record = ProjectRecordWire(
+        schema_version=3,
+        project_name="gh_acme__widget",
+        project_dir="/state/projects/gh_acme__widget",
+        project_file="/state/projects/gh_acme__widget/gh_acme__widget.sase",
+        archive_file=None,
+        workspace_dir="/repos/widget",
+        state="enabled",
+        state_explicit=False,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+        aliases=[],
+        display_name="widget",
+    )
+    monkeypatch.setattr(
+        "sase.core.project_lifecycle_facade.list_project_records",
+        lambda *_a, **_kw: [record],
+    )
+    monkeypatch.setattr("sase.vcs_provider.get_vcs_provider", lambda _cwd: provider)
+
+    beads_dirs_calls: list[str] = []
+
+    def get_beads_dirs(project: str) -> list[Path] | None:
+        beads_dirs_calls.append(project)
+        return [Path(f"/{project}/beads")] if project == "gh_acme__widget" else None
+
+    monkeypatch.setattr(
+        "sase.bead.workspace.get_project_beads_dirs_for_project",
+        get_beads_dirs,
+    )
+    monkeypatch.setattr("sase.core.bead_read_facade.list_issues", lambda _path: [epic])
+
+    snapshot = collect_bug_snapshot("widget", "open", [])
+
+    assert snapshot.project_key == "gh_acme__widget"
+    assert beads_dirs_calls == ["gh_acme__widget"]
+    assert snapshot.links_for(7).epics == (epic,)
