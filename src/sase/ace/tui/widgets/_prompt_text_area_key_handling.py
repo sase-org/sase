@@ -19,7 +19,7 @@ from sase.ace.tui.widgets._prompt_bullet_editing import plan_prompt_bullet_shift
 from sase.ace.tui.widgets._prompt_ordered_shift_editing import (
     plan_prompt_ordered_shift,
 )
-from sase.ace.tui.widgets._prompt_text_area_actions import prompt_bar_class
+from sase.ace.tui.widgets._prompt_text_area_bar import prompt_bar_class
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
