@@ -25,6 +25,7 @@ from sase.agents_sync.incoming_cache import (
     validate_unpublished_cache_payload,
     with_cache_id,
 )
+from sase.agents_sync.inventory_io import is_imported
 from sase.agents_sync.io import (
     AgentsSyncFormatError,
     manifest_from_bytes,
@@ -511,7 +512,7 @@ def _legacy_proven_entry_count(
         for artifact_dir, meta, done in rows_by_timestamp.get(
             entry.artifact_timestamp, ()
         ):
-            if meta.get("imported_from_machine") is not None:
+            if is_imported(meta, done):
                 continue
             raw_name = meta.get("name") or done.get("name")
             if not isinstance(raw_name, str):

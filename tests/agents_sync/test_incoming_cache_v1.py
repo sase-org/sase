@@ -239,7 +239,114 @@ def test_unproven_or_other_machine_v1_stays_foreign(
     legacy = [item for item in current.pending_updates if item.format_version == 1]
     assert len(legacy) == 1
     assert (legacy[0].source_machine, legacy[0].top_hood) == (machine, hood)
+    assert legacy[0].source_username is None
     assert current.validated_foreign_count == 3
+
+
+def test_local_evidence_without_done_json_survives_dismissal_and_prunes_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for the athena unknown-user badge.
+
+    An agent dismissal that unlinks ``done.json`` must not turn this
+    machine's own legacy-v1 hood into a foreign import. This test must fail
+    before Fix 1.
+    """
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, entries = _setup_v1_only_remote(tmp_path, ("plan",))
+    patch_target(monkeypatch, target)
+
+    first = refresh(target, network_calls=[], now=100.0).projects[0]
+    assert first.pending_foreign_count == 1
+
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    artifact_dir = artifact_root / entries[0].artifact_timestamp
+    artifact_dir.mkdir()
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "crew--plan"}), encoding="utf-8"
+    )
+    (artifact_dir / "commit_result.json").write_text(
+        json.dumps({"result": "1" * 9}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        bundles,
+        "iter_agent_artifact_dirs",
+        lambda *_args, **_kwargs: iter([artifact_dir]),
+    )
+
+    second = refresh(target, network_calls=[], now=200.0).projects[0]
+
+    assert second.pending_foreign_count == 0
+    assert second.pending_updates == ()
+    assert second.exact_owner_count == 1
+    assert incoming_cache.read_project_receipts(PROJECT.key) == ()
+
+
+def test_name_fallback_to_done_json_still_proves_ownership(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, entries = _setup_v1_only_remote(tmp_path, ("plan",))
+    patch_target(monkeypatch, target)
+
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    artifact_dir = artifact_root / entries[0].artifact_timestamp
+    artifact_dir.mkdir()
+    (artifact_dir / "agent_meta.json").write_text(json.dumps({}), encoding="utf-8")
+    (artifact_dir / "done.json").write_text(
+        json.dumps({"name": "crew--plan", "outcome": "completed"}),
+        encoding="utf-8",
+    )
+    (artifact_dir / "commit_result.json").write_text(
+        json.dumps({"result": "1" * 9}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        bundles,
+        "iter_agent_artifact_dirs",
+        lambda *_args, **_kwargs: iter([artifact_dir]),
+    )
+
+    current = refresh(target, network_calls=[], now=100.0).projects[0]
+
+    assert current.pending_foreign_count == 0
+    assert current.exact_owner_count == 1
+
+
+def test_v2_import_markers_are_excluded_from_v1_ownership_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, entries = _setup_v1_only_remote(tmp_path, ("plan",))
+    patch_target(monkeypatch, target)
+
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    artifact_dir = artifact_root / entries[0].artifact_timestamp
+    artifact_dir.mkdir()
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "crew--plan", "imported_source_owner": "bob.zeus"}),
+        encoding="utf-8",
+    )
+    (artifact_dir / "commit_result.json").write_text(
+        json.dumps({"result": "1" * 9}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        bundles,
+        "iter_agent_artifact_dirs",
+        lambda *_args, **_kwargs: iter([artifact_dir]),
+    )
+
+    current = refresh(target, network_calls=[], now=100.0).projects[0]
+
+    legacy = [item for item in current.pending_updates if item.format_version == 1]
+    assert len(legacy) == 1
+    assert current.exact_owner_count == 0
 
 
 def test_same_machine_v1_is_not_covered_by_another_username_manifest(

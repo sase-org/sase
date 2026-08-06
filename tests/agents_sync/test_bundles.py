@@ -210,9 +210,16 @@ def test_v1_import_indexes_local_artifacts_once_for_multi_entry_manifest(
     assert created == ["zeus.worker", "zeus.worker--code"]
 
 
-def test_same_machine_v1_requires_local_commit_proof(
+def test_same_machine_v1_without_commit_proof_is_skipped_not_reimported(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Fix 2 backstop.
+
+    A same-machine entry that shares a local artifact's timestamp and
+    machine-qualified name is skipped even before any commit proof exists,
+    since the proof path only ever narrows the backstop's guarantee.
+    """
+
     target = _target(tmp_path)
     repo = target.sidecar_path
     ambiguous = _bundle()
@@ -267,26 +274,22 @@ def test_same_machine_v1_requires_local_commit_proof(
         lambda _path: None,
     )
 
-    imported = bundles.integrate_foreign_bundles(
+    skipped = bundles.integrate_foreign_bundles(
         target,
         repo,
         AgentsManifest((entry,)),
         LOCAL_OWNER,
     )
-    assert imported.integrated == 1
-    imported_meta = json.loads(
-        (artifact_root / "20260722123457" / "agent_meta.json").read_text()
-    )
-    assert imported_meta["imported_owner_kind"] == "username_unknown_v1"
+    assert skipped.integrated == 0
+    assert skipped.unchanged == 1
+    assert not (artifact_root / "20260722123457").exists()
 
-    # Once the original artifact carries matching durable commit evidence,
-    # the same v1 entry is only observed and is not duplicated again.
+    # Once the original artifact also carries matching durable commit
+    # evidence, the group instead classifies owner-observed outright.
     (local / "commit_results.json").write_text(
         json.dumps([{"result": ambiguous.commits[0].sha[:9]}]),
         encoding="utf-8",
     )
-    (artifact_root / "20260722123457" / "agent_meta.json").unlink()
-    (artifact_root / "20260722123457" / "done.json").unlink()
     observed = bundles.integrate_foreign_bundles(
         target,
         repo,
@@ -357,6 +360,78 @@ def test_one_proven_entry_marks_the_whole_v1_group_owner_observed(
     assert counts.integrated == 0
     assert counts.unchanged == 2
     assert counts.owner_observed_groups == 1
+
+
+def test_self_owned_entry_matching_a_local_artifact_is_never_reimported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fix 2 backstop.
+
+    Commit proof is withheld so the group still classifies FOREIGN, but a
+    local non-imported artifact matches the entry's timestamp and
+    machine-qualified name. That entry must be skipped, not reimported.
+    """
+
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    meta = PortableAgentMetadata(
+        "athena.worker",
+        "athena",
+        "20260722123456",
+        2,
+        (("model", "first"), ("workflow_name", "ace-run")),
+    )
+    commits = (CommitRecord("a" * 40, "subject", 100),)
+    chat = b"chat\n"
+    bundle = AgentBundle(
+        meta, commits, chat, _compute_bundle_digest(meta, commits, chat)
+    )
+    entry = _entry(bundle)
+    write_bundle(repo, bundle)
+
+    artifact_root = tmp_path / "artifacts"
+    local = artifact_root / entry.artifact_timestamp
+    local.mkdir(parents=True)
+    (local / "agent_meta.json").write_text(
+        json.dumps({"name": "worker"}), encoding="utf-8"
+    )
+    # Deliberately withhold commit proof (no commit_results.json), so
+    # proven_entry_count stays 0 and the group classifies FOREIGN.
+
+    monkeypatch.setattr(bundles, "sase_home", lambda: tmp_path / "state")
+    monkeypatch.setattr(
+        bundles,
+        "canonical_agent_artifact_path",
+        lambda _project, _workflow, timestamp: artifact_root / timestamp,
+    )
+    monkeypatch.setattr(
+        bundles,
+        "iter_agent_artifact_dirs",
+        lambda *_args, **_kwargs: iter(sorted(artifact_root.glob("*"))),
+    )
+    monkeypatch.setattr(
+        bundles,
+        "_create_imported_artifact",
+        lambda *_args, **_kwargs: pytest.fail("self-owned entry was reimported"),
+    )
+    monkeypatch.setattr(
+        bundles,
+        "_refresh_imported_artifact",
+        lambda *_args, **_kwargs: pytest.fail("self-owned entry was reimported"),
+    )
+
+    counts = bundles.integrate_foreign_bundles(
+        target,
+        repo,
+        AgentsManifest((entry,)),
+        LOCAL_OWNER,
+    )
+
+    assert counts.integrated == 0
+    assert counts.refreshed == 0
+    assert counts.unchanged == 1
+    assert counts.owner_observed_groups == 0
+    assert any("worker" in diagnostic for diagnostic in counts.diagnostics)
 
 
 def test_v2_hood_coverage_marks_v1_group_owner_observed_without_artifact_scan(

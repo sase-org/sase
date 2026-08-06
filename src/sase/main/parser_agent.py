@@ -185,20 +185,29 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     sync_parser.add_argument(
+        "--repair-digests",
+        action="store_true",
+        help=(
+            "Re-sign locally owned hood-snapshot file references that have "
+            "drifted from their on-disk payload, instead of running a normal sync"
+        ),
+    )
+    sync_parser.add_argument(
+        "-m",
+        "--repair-manifest",
+        action="store_true",
+        help=(
+            "Rebuild owner-manifest entries for on-disk hoods the manifest is "
+            "missing, instead of running a normal sync"
+        ),
+    )
+    sync_parser.add_argument(
         "-q",
         "--retry-quarantined",
         action="store_true",
         help=(
             "Clear quarantined publication requests and retry them during "
             "this full sync"
-        ),
-    )
-    sync_parser.add_argument(
-        "--repair-digests",
-        action="store_true",
-        help=(
-            "Re-sign locally owned hood-snapshot file references that have "
-            "drifted from their on-disk payload, instead of running a normal sync"
         ),
     )
 
