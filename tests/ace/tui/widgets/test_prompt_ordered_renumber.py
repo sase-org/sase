@@ -324,6 +324,42 @@ def test_plan_ordered_list_edit_renumbers_in_one_edit() -> None:
     assert plan.cursor == len("1. a\n2. ")
 
 
+def test_plan_ordered_list_edit_style_override_beats_a_duplicated_number() -> None:
+    text = "1. a\n2. b"
+    # An item opened *above* the run's first one duplicates its number, which
+    # reads exactly like Prettier's ``1. / 1.`` repeat convention.
+    new_lines = ["1. ", "1. a", "2. b"]
+
+    plan = plan_ordered_list_edit(
+        text,
+        new_lines,
+        anchor_rows=(0,),
+        cursor_row=0,
+        cursor_col=3,
+        style_override=False,
+    )
+
+    assert plan is not None
+    assert _apply(text, plan) == "1. \n2. a\n3. b"
+
+
+def test_plan_ordered_list_edit_style_override_can_force_repeat_style() -> None:
+    text = "1. a\n1. b"
+    new_lines = ["1. ", "1. a", "1. b"]
+
+    plan = plan_ordered_list_edit(
+        text,
+        new_lines,
+        anchor_rows=(0,),
+        cursor_row=0,
+        cursor_col=3,
+        style_override=True,
+    )
+
+    assert plan is not None
+    assert _apply(text, plan) == "1. \n1. a\n1. b"
+
+
 def test_plan_ordered_list_edit_tracks_the_cursor_across_a_width_change() -> None:
     text = "9. a\n10. b"
     # A sibling grown below item one, before renumbering widens its marker.

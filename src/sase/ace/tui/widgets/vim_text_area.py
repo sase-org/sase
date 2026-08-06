@@ -16,7 +16,7 @@ subclasses this and overrides the hooks to route through its ``PromptInputBar``.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
 from textual.widgets import TextArea
@@ -26,6 +26,9 @@ from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
 from sase.ace.tui.widgets._vim_normal_state import VisualMutation
 from sase.ace.tui.widgets._vim_registers import VimRegister
 from sase.ace.tui.widgets._vim_search import SearchDirection
+
+if TYPE_CHECKING:
+    from sase.ace.tui.widgets._paired_text_editing import TextEdit
 
 __all__ = ["VimTextArea"]
 
@@ -257,6 +260,26 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
     def _normal_open_above_insert_text(self, row: int) -> str:
         """Return the structural text inserted by NORMAL-mode ``O``."""
         return "\n"
+
+    def _normal_open_line_plan(self, row: int, *, above: bool) -> TextEdit | None:
+        """Return a planned NORMAL-mode ``o`` / ``O`` edit. Default: none.
+
+        Hosts whose open-line behavior is wider than "insert this string" -- the
+        prompt's ordered lists, which also renumber the run the new item joins
+        -- override this and return one :class:`TextEdit`, keeping the whole
+        press a single undo checkpoint. Returning ``None`` leaves the string
+        hooks above in charge.
+        """
+        return None
+
+    def _apply_normal_open_line_plan(self, plan: TextEdit) -> None:
+        """Apply a planned open-line edit as one keyboard replacement."""
+        self._replace_via_keyboard(
+            plan.text,
+            self._location_from_absolute(plan.start),
+            self._location_from_absolute(plan.end),
+        )
+        self.cursor_location = self._location_from_absolute(plan.cursor)
 
     def _normal_join_next_line_text(self, next_line: str) -> str:
         """Return the pulled-up line NORMAL-mode ``J`` folds in. Default: verbatim."""

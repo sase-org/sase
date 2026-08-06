@@ -15,7 +15,8 @@ the first item keeps its number and every later item stays ``1``; otherwise the
 run is *sequential* and item *i* is ``first_number + i``.
 
 Structural keymaps do not mutate the document directly. Each one has a planner
-(:func:`plan_ordered_insert_newline` for INSERT-mode ``Ctrl+J``) that builds
+(:func:`plan_ordered_insert_newline` for INSERT-mode ``Ctrl+J``,
+:func:`plan_ordered_open_line` for NORMAL-mode ``o`` / ``O``) that builds
 the changed lines and hands them to :func:`plan_ordered_list_edit`, which
 renumbers the run the change restructured and returns a single
 :class:`TextEdit` -- one keypress stays one undo checkpoint, because Textual
@@ -31,7 +32,7 @@ unbounded work on a keystroke.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from sase.ace.tui.widgets._paired_text_editing import TextEdit
 from sase.ace.tui.widgets._prompt_list_markers import (
@@ -48,8 +49,10 @@ __all__ = [
     "MAX_ORDERED_RUN_ITEMS",
     "MAX_ORDERED_SCAN_LINES",
     "find_ordered_run",
+    "normalize_prompt_ordered_replay_text",
     "plan_ordered_insert_newline",
     "plan_ordered_list_edit",
+    "plan_ordered_open_line",
     "strip_prompt_ordered_marker",
 ]
 
@@ -68,6 +71,7 @@ class _OrderedRun:
 
     items: tuple[ListMarker, ...]
     oversized: bool = False
+    style_override: bool | None = None
 
     @property
     def repeat_style(self) -> bool:
@@ -76,8 +80,13 @@ class _OrderedRun:
         Prettier detects that style from the *second* item being numbered ``1``
         -- the ``1. / 1. / 1.`` convention -- and then keeps every item after
         the first at ``1``. A run starting at ``0`` needs its third item to
-        agree too, mirroring Prettier's own special case.
+        agree too, mirroring Prettier's own special case. An explicit
+        ``style_override`` wins: a structural edit that duplicates a number
+        while inserting an item must not let that duplicate be mistaken for the
+        convention (see :func:`plan_ordered_list_edit`).
         """
+        if self.style_override is not None:
+            return self.style_override
         if len(self.items) < 2:
             return False
         if self.items[0].number == 0 and len(self.items) > 2:
@@ -308,6 +317,7 @@ def _record_shift(
 def _renumber_ordered_runs(
     lines: Sequence[str],
     anchor_rows: Iterable[int],
+    style_override: bool | None = None,
 ) -> _RenumberResult:
     """Renumber the run containing each row in *anchor_rows*.
 
@@ -315,6 +325,8 @@ def _renumber_ordered_runs(
     changes. When an item's marker width changes (``9.`` -> ``10.``) every line
     that item owns is shifted by the same delta so ownership and the
     formatter's indentation both stay correct. Oversized runs are left alone.
+    *style_override*, when given, replaces the numbering style detected from
+    these (already edited) lines.
     """
     working = list(lines)
     shifts: dict[int, _LineShift] = {}
@@ -327,6 +339,8 @@ def _renumber_ordered_runs(
         if run.items[0].row in renumbered_starts:
             continue
         renumbered_starts.add(run.items[0].row)
+        if style_override is not None:
+            run = replace(run, style_override=style_override)
 
         for index, item in enumerate(run.items):
             number = run.number_at(index)
@@ -426,6 +440,7 @@ def plan_ordered_list_edit(
     anchor_rows: Iterable[int],
     cursor_row: int,
     cursor_col: int,
+    style_override: bool | None = None,
 ) -> TextEdit | None:
     """Renumber *new_lines* around *anchor_rows* and plan one text edit.
 
@@ -434,8 +449,14 @@ def plan_ordered_list_edit(
     The cursor location is given in the same structurally-edited coordinates
     and is translated across any marker-width change the renumber pass makes.
     Returns ``None`` when the plan would leave *text* unchanged.
+
+    Pass *style_override* -- the run's repeat-vs-sequential style as measured
+    *before* the structural change -- whenever the change can duplicate a
+    number: an item inserted ahead of the run's first item leaves ``1. / 1.``
+    behind, which is indistinguishable from Prettier's repeat-style convention
+    when read off the edited lines alone.
     """
-    result = _renumber_ordered_runs(new_lines, anchor_rows)
+    result = _renumber_ordered_runs(new_lines, anchor_rows, style_override)
     return _plan_list_text_edit(
         text,
         result.lines,
@@ -579,6 +600,73 @@ def plan_ordered_insert_newline(
             return _plan_ordered_delist(text, lines, row)
 
     return _plan_ordered_split(text, lines, start, end, row)
+
+
+def plan_ordered_open_line(
+    lines: Sequence[str],
+    row: int,
+    *,
+    above: bool,
+) -> TextEdit | None:
+    """Plan one NORMAL-mode ``o`` / ``O`` press inside an ordered list.
+
+    The sibling opens directly below (``o``) or above (``O``) *row* -- the
+    cursor's own row, not the end of the block its item owns, mirroring the
+    hyphen open-line hooks -- and the run it joins is renumbered in the same
+    edit. ``O`` on an item's marker row lands *before* that item and takes its
+    number; every other press lands after the owning item's marker and takes
+    the next one. Returns ``None`` when no ordered item owns *row*, leaving the
+    hyphen path to run unchanged.
+    """
+    if row < 0 or row >= len(lines):
+        return None
+    owner = list_marker_owner(lines, row, _ORDERED)
+    if owner is None:
+        return None
+
+    prefix = _prompt_ordered_sibling_prefix(
+        lines,
+        row,
+        increment=not (above and owner.row == row),
+    )
+    if prefix is None:
+        return None
+
+    insert_row = row if above else row + 1
+    new_lines = list(lines)
+    new_lines.insert(insert_row, prefix)
+    # The style is the one the run had before this press: ``O`` above the run's
+    # first item duplicates its number, which must not be read back as
+    # Prettier's ``1. / 1.`` repeat convention.
+    run = find_ordered_run(lines, row)
+    return plan_ordered_list_edit(
+        "\n".join(lines),
+        new_lines,
+        anchor_rows=(insert_row,),
+        cursor_row=insert_row,
+        cursor_col=len(prefix),
+        style_override=None if run is None else run.repeat_style,
+    )
+
+
+def normalize_prompt_ordered_replay_text(
+    structural_line: str,
+    replay_text: str,
+) -> str:
+    """Remove a replayed marker already supplied by prompt ``o`` structure.
+
+    The ordered mirror of ``normalize_prompt_bullet_replay_text``: a mutation
+    first recorded on a plain line where the user typed ``2. `` manually, then
+    repeated where the destination's ordered context supplies the correctly
+    numbered sibling marker on its own, must not replay the typed marker on top
+    of the structural one.
+    """
+    if not _is_prompt_ordered_marker_only(structural_line):
+        return replay_text
+    marker = find_list_marker(replay_text, _ORDERED)
+    if marker is None:
+        return replay_text
+    return replay_text[marker.content_column :]
 
 
 def _row_offsets(lines: Sequence[str]) -> list[int]:

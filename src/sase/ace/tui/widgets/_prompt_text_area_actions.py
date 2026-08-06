@@ -22,7 +22,11 @@ from sase.ace.tui.widgets._prompt_bullet_editing import (
     prompt_bullet_sibling_prefix,
     strip_prompt_bullet_marker,
 )
-from sase.ace.tui.widgets._prompt_ordered_editing import plan_ordered_insert_newline
+from sase.ace.tui.widgets._prompt_ordered_editing import (
+    normalize_prompt_ordered_replay_text,
+    plan_ordered_insert_newline,
+    plan_ordered_open_line,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
 if TYPE_CHECKING:
@@ -128,25 +132,40 @@ class PromptTextAreaActionsMixin(_MixinBase):
         prefix = prompt_bullet_sibling_prefix(self.document.lines, row)
         return f"{prefix}\n" if prefix is not None else "\n"
 
+    def _normal_open_line_plan(self, row: int, *, above: bool) -> TextEdit | None:
+        """Open a correctly numbered ordered sibling for ``o`` / ``O``.
+
+        Overrides :class:`VimTextArea`'s no-op hook. The planner renumbers the
+        run the new item joins and returns the whole press as one edit; it
+        declines whenever no ordered item owns *row*, leaving the hyphen bullet
+        string hooks below to run exactly as before.
+        """
+        return plan_ordered_open_line(self.document.lines, row, above=above)
+
     def _normal_join_next_line_text(self, next_line: str) -> str:
         """Drop a pulled-up prompt hyphen bullet marker for ``J``."""
         return strip_prompt_bullet_marker(next_line)
 
-    def _normalize_normal_open_below_replay_text(self, insert_text: str) -> str:
-        """Avoid replaying a typed marker after structural prompt bullet text."""
-        row = self.cursor_location[0]
+    def _normalize_normal_open_replay_text(self, insert_text: str) -> str:
+        """Drop a replayed marker the destination's list structure supplies.
+
+        Both families are checked: only the one matching the structural line
+        the replay just landed on can strip anything, so the two normalizations
+        compose without interfering.
+        """
+        line = self.document.get_line(self.cursor_location[0])
         return normalize_prompt_bullet_replay_text(
-            self.document.get_line(row),
-            insert_text,
+            line,
+            normalize_prompt_ordered_replay_text(line, insert_text),
         )
 
+    def _normalize_normal_open_below_replay_text(self, insert_text: str) -> str:
+        """Avoid replaying a typed marker after structural prompt list text."""
+        return self._normalize_normal_open_replay_text(insert_text)
+
     def _normalize_normal_open_above_replay_text(self, insert_text: str) -> str:
-        """Avoid replaying a typed marker after structural prompt bullet text."""
-        row = self.cursor_location[0]
-        return normalize_prompt_bullet_replay_text(
-            self.document.get_line(row),
-            insert_text,
-        )
+        """Avoid replaying a typed marker after structural prompt list text."""
+        return self._normalize_normal_open_replay_text(insert_text)
 
     def _notify_host_text_undo(self, before_text: str, after_text: str) -> None:
         """Tell the parent bar a NORMAL-mode undo changed this pane's text.

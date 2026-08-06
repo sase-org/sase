@@ -8,6 +8,9 @@ from textual.events import Key
 
 from sase.ace.tui.widgets._vim_normal_motions import VimNormalMotionsMixin
 
+if TYPE_CHECKING:
+    from sase.ace.tui.widgets._paired_text_editing import TextEdit
+
 
 class VimNormalEditingMixin(VimNormalMotionsMixin):
     """Mixin for normal-mode edit commands and mode changes."""
@@ -18,9 +21,16 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
         _pending_operator: str
         _mutation_count: int
 
+        def _apply_normal_open_line_plan(self, plan: TextEdit) -> None: ...
         def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
         def _normal_open_above_insert_text(self, row: int) -> str: ...
         def _normal_open_below_insert_text(self, row: int) -> str: ...
+        def _normal_open_line_plan(
+            self,
+            row: int,
+            *,
+            above: bool,
+        ) -> TextEdit | None: ...
         def _update_count_display(self) -> None: ...
         def _record_insert_mutation_start(self, count: int) -> None: ...
         def _notify_host_text_undo(self, before_text: str, after_text: str) -> None: ...
@@ -98,6 +108,16 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
         if key == "o":
             row = self.cursor_location[0]
             line = self.document.get_line(row)
+            # A host planner (the prompt's ordered lists) may need a wider edit
+            # than the string hooks allow -- it renumbers the run the new item
+            # joins. INSERT mode comes first either way, because
+            # ``_replace_via_keyboard`` is a no-op while the pane is read-only.
+            plan = self._normal_open_line_plan(row, above=False)
+            if plan is not None:
+                self._enter_insert_mode()
+                self._apply_normal_open_line_plan(plan)
+                self._record_insert_mutation_start(count)
+                return True
             insert_text = self._normal_open_below_insert_text(row)
             self._enter_insert_mode()
             self.cursor_location = (row, len(line))
@@ -107,6 +127,12 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             return True
         if key == "O":
             row = self.cursor_location[0]
+            plan = self._normal_open_line_plan(row, above=True)
+            if plan is not None:
+                self._enter_insert_mode()
+                self._apply_normal_open_line_plan(plan)
+                self._record_insert_mutation_start(count)
+                return True
             insert_text = self._normal_open_above_insert_text(row)
             self._enter_insert_mode()
             self.cursor_location = (row, 0)
