@@ -35,7 +35,11 @@ _HASHED_ENVIRONMENT_PATTERNS = (
     "*.dist-info/entry_points.txt",
     "*.pth",
 )
-_STATED_EXTENSION_PATTERNS = (
+#: The extension installs as ``sase_core_rs/sase_core_rs.abi3.so`` — a nested
+#: package directory, not a flat file — so the search directories below must
+#: include that subdirectory too. Mirrors `tools/purge_sase_core_rs_extensions`,
+#: which has the same nested-vs-flat problem for the same package.
+_EXTENSION_PATTERNS = (
     "sase_core_rs*.dylib",
     "sase_core_rs*.pyd",
     "sase_core_rs*.so",
@@ -78,12 +82,77 @@ def _environment_metadata_files(venv_dir: Path) -> list[Path]:
     return sorted(files)
 
 
+def _extension_candidate_dirs(site_packages: Path) -> tuple[Path, Path]:
+    return (site_packages, site_packages / "sase_core_rs")
+
+
 def _extension_files(venv_dir: Path) -> list[Path]:
     files: set[Path] = set()
     for site_packages in _site_packages_dirs(venv_dir):
-        for pattern in _STATED_EXTENSION_PATTERNS:
-            files.update(site_packages.glob(pattern))
+        for directory in _extension_candidate_dirs(site_packages):
+            if not directory.is_dir():
+                continue
+            for pattern in _EXTENSION_PATTERNS:
+                files.update(path for path in directory.glob(pattern) if path.is_file())
     return sorted(files)
+
+
+def _fingerprint_inputs(
+    *,
+    venv_dir: Path,
+    pyproject: Path,
+    uv_lock: Path,
+    sase_core_dir: Path,
+) -> dict[str, str]:
+    """Digest every identity input separately, keyed by a short bucket name.
+
+    ``tests._test_selection_manifest.environment_fingerprint`` reuses this map
+    verbatim so the selector can say *which* input moved instead of only that
+    the environment did; see
+    ``tests._test_selection_manifest.ENVIRONMENT_ESCALATING_INPUTS`` for which
+    buckets are worth forcing the whole test suite over.
+    """
+    inputs: dict[str, str] = {}
+    for label, path in (
+        ("pyproject", pyproject),
+        ("uv-lock", uv_lock),
+        ("venv-config", venv_dir / "pyvenv.cfg"),
+        ("core-cargo", sase_core_dir / "Cargo.toml"),
+        *(
+            (f"validator:{name}", path)
+            for name, path in sorted(VALIDATOR_PATHS.items())
+        ),
+    ):
+        digest = hashlib.sha256()
+        _update_file_hash(digest, label, path)
+        inputs[label] = digest.hexdigest()
+
+    metadata_digest = hashlib.sha256()
+    for path in _environment_metadata_files(venv_dir):
+        _update_file_hash(
+            metadata_digest,
+            f"environment:{path.relative_to(venv_dir)}",
+            path,
+        )
+    inputs["environment-metadata"] = metadata_digest.hexdigest()
+
+    # Content-hashed, not `stat()`-ed: a rebuild that reproduces identical
+    # bytes must not read as a change (a verified no-op `just install` does
+    # not touch the extension's content).
+    extension_digest = hashlib.sha256()
+    for path in _extension_files(venv_dir):
+        _update_file_hash(
+            extension_digest,
+            f"extension:{path.relative_to(venv_dir)}",
+            path,
+        )
+    inputs["extension"] = extension_digest.hexdigest()
+
+    python_digest = hashlib.sha256()
+    _update_file_stat(python_digest, "python", venv_dir / "bin/python")
+    inputs["python"] = python_digest.hexdigest()
+
+    return inputs
 
 
 def _input_fingerprint(
@@ -93,33 +162,25 @@ def _input_fingerprint(
     uv_lock: Path,
     sase_core_dir: Path,
 ) -> str:
-    digest = hashlib.sha256()
-    content_inputs = [
-        ("pyproject", pyproject),
-        ("uv-lock", uv_lock),
-        ("venv-config", venv_dir / "pyvenv.cfg"),
-        ("core-cargo", sase_core_dir / "Cargo.toml"),
-        *(
-            (f"validator:{name}", path)
-            for name, path in sorted(VALIDATOR_PATHS.items())
-        ),
-    ]
-    for label, path in content_inputs:
-        _update_file_hash(digest, label, path)
+    """Combine every identity input into one digest for this script's own cache.
 
-    for path in _environment_metadata_files(venv_dir):
-        _update_file_hash(
-            digest,
-            f"environment:{path.relative_to(venv_dir)}",
-            path,
-        )
-    for path in _extension_files(venv_dir):
-        _update_file_stat(
-            digest,
-            f"extension:{path.relative_to(venv_dir)}",
-            path,
-        )
-    _update_file_stat(digest, "python", venv_dir / "bin/python")
+    This composite is only a cache-invalidation key for the verdict cache
+    below; it deliberately does not distinguish *which* input changed. Callers
+    that need that distinction use `_fingerprint_inputs` instead of forking a
+    second, divergent fingerprint.
+    """
+    inputs = _fingerprint_inputs(
+        venv_dir=venv_dir,
+        pyproject=pyproject,
+        uv_lock=uv_lock,
+        sase_core_dir=sase_core_dir,
+    )
+    digest = hashlib.sha256()
+    for name, value in sorted(inputs.items()):
+        digest.update(name.encode())
+        digest.update(b"\0")
+        digest.update(value.encode())
+        digest.update(b"\0")
     return digest.hexdigest()
 
 

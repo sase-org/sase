@@ -26,7 +26,8 @@ from tests._test_selection_graph import (
     parse_import_targets,
     parser_fingerprint,
 )
-from tests._test_selection_report import summary_line
+from tests._test_selection_manifest import MANIFEST_SCHEMA
+from tests._test_selection_report import explain_lines, summary_line
 from tests._test_selection_rules import (
     CONTRACT_MANIFEST_PATH,
     RULE_BASE_UNRESOLVED,
@@ -419,29 +420,79 @@ def test_unresolvable_base_escalates(repo: Path) -> None:
 def test_changed_core_identity_escalates(repo: Path) -> None:
     selection = _select(
         repo,
-        environment="new-digest",
-        previous_manifest={"baseline": {"environment": "old-digest"}},
+        environment={"pyproject": "new-digest"},
+        previous_manifest={"baseline": {"environment": {"pyproject": "old-digest"}}},
     )
 
     assert RULE_CORE_IDENTITY_CHANGED in selection.rules
     assert selection.escalated
+    assert selection.manifest["baseline"]["environment_changed_inputs"] == ["pyproject"]
 
 
 def test_unchanged_core_identity_does_not_escalate(repo: Path) -> None:
     selection = _select(
         repo,
-        environment="same-digest",
-        previous_manifest={"baseline": {"environment": "same-digest"}},
+        environment={"pyproject": "same-digest"},
+        previous_manifest={"baseline": {"environment": {"pyproject": "same-digest"}}},
     )
 
     assert RULE_CORE_IDENTITY_CHANGED not in selection.rules
     assert not selection.escalated
+    assert selection.manifest["baseline"]["environment_changed_inputs"] == []
 
 
 def test_missing_previous_environment_is_not_a_change(repo: Path) -> None:
-    selection = _select(repo, environment="digest", previous_manifest={})
+    selection = _select(repo, environment={"pyproject": "digest"}, previous_manifest={})
 
     assert RULE_CORE_IDENTITY_CHANGED not in selection.rules
+    assert selection.manifest["baseline"]["environment_changed_inputs"] == []
+
+
+def test_non_escalating_environment_change_does_not_escalate(repo: Path) -> None:
+    """A validator script or third-party METADATA moving is not core identity.
+
+    Only the inputs in ``ENVIRONMENT_ESCALATING_INPUTS`` force the full suite;
+    everything else is still recorded on the manifest for attribution, per the
+    ``identity`` phase of ``sase-gj``.
+    """
+    selection = _select(
+        repo,
+        environment={
+            "validator:core-version": "new-digest",
+            "pyproject": "same-digest",
+        },
+        previous_manifest={
+            "baseline": {
+                "environment": {
+                    "validator:core-version": "old-digest",
+                    "pyproject": "same-digest",
+                }
+            }
+        },
+    )
+
+    assert RULE_CORE_IDENTITY_CHANGED not in selection.rules
+    assert not selection.escalated
+    assert selection.manifest["baseline"]["environment_changed_inputs"] == [
+        "validator:core-version"
+    ]
+
+
+def test_explain_lines_report_changed_environment_inputs(repo: Path) -> None:
+    selection = _select(
+        repo,
+        environment={"pyproject": "new-digest", "validator:core-version": "same"},
+        previous_manifest={
+            "baseline": {
+                "environment": {
+                    "pyproject": "old-digest",
+                    "validator:core-version": "same",
+                }
+            }
+        },
+    )
+
+    assert "environment inputs changed: pyproject" in explain_lines(selection)
 
 
 def test_deletion_bumps_effective_depth_by_one(repo: Path) -> None:
@@ -549,7 +600,7 @@ def test_manifest_carries_every_documented_field(repo: Path) -> None:
 
     manifest = _select(repo).manifest
 
-    assert manifest["schema"] == 5
+    assert manifest["schema"] == MANIFEST_SCHEMA
     assert set(manifest) == {
         "schema",
         "base",
@@ -589,6 +640,12 @@ def test_manifest_carries_every_documented_field(repo: Path) -> None:
     # Nothing compensated here, so the walked depth is the configured one.
     assert manifest["effective_depth"] == manifest["depth"]
     assert manifest["selected_count"] == len(manifest["selected"])
+    assert set(manifest["baseline"]) == {
+        "environment",
+        "environment_changed_inputs",
+        "head",
+        "tree_dirty",
+    }
     assert manifest["baseline"]["tree_dirty"] is True
     assert manifest["graph"]["modules"] > 0
     assert manifest["graph"]["edges"] > 0

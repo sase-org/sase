@@ -24,6 +24,16 @@ RULE_PACKAGING_CONFIG = "packaging-config"
 RULE_JUSTFILE = "justfile"
 RULE_SRC_DATA_ASSET = "src-data-asset"
 RULE_SELECTION_TOOLING = "selection-tooling"
+#: Fires when a *core-identity* environment input differs from the previous
+#: manifest's baseline — not on every input the fingerprint digests. Only the
+#: buckets in `tests._test_selection_manifest.ENVIRONMENT_ESCALATING_INPUTS`
+#: qualify (`pyproject`, `uv-lock`, `venv-config`, `core-cargo`, `extension`,
+#: `python`); a validator script or an unrelated package's installed metadata
+#: changing does not fire this rule. `evaluate_broadening_rules` below takes
+#: the already-narrowed boolean as `core_identity_changed`; the manifest's
+#: `baseline.environment_changed_inputs` records every bucket that moved,
+#: escalating or not, so a non-escalating change stays visible instead of
+#: silent — see `sase-gj.4`.
 RULE_CORE_IDENTITY_CHANGED = "core-identity-changed"
 RULE_DIRECTORY_CONFTEST = "directory-conftest"
 RULE_CONTRACT_SET_ALWAYS = "contract-set-always"

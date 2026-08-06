@@ -23,6 +23,7 @@ from tests._test_selection_fixtures import (
     build_fixture_repo,
     install_fresh_baseline,
 )
+from tests._test_selection_manifest import MANIFEST_SCHEMA
 
 
 @pytest.fixture
@@ -97,7 +98,7 @@ def test_json_format_prints_the_manifest(
     assert tool.main(["--base", "HEAD", "--format", "json"]) == 0
 
     manifest = json.loads(capsys.readouterr().out)
-    assert manifest["schema"] == 5
+    assert manifest["schema"] == MANIFEST_SCHEMA
     assert manifest["changed_files"] == ["src/pkg/a.py"]
     assert manifest["selected_count"] == len(manifest["selected"])
 
@@ -123,7 +124,9 @@ def test_manifest_destination_is_overridable(
 
     tool.main(["--base", "HEAD", "--manifest", str(destination)])
 
-    assert json.loads(destination.read_text(encoding="utf-8"))["schema"] == 5
+    assert (
+        json.loads(destination.read_text(encoding="utf-8"))["schema"] == MANIFEST_SCHEMA
+    )
 
 
 def test_depth_and_max_ratio_flags_override_the_environment(

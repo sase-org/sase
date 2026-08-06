@@ -52,10 +52,12 @@ from tests._test_selection_graph import (
 )
 from tests._test_selection_health_store import store_directory
 from tests._test_selection_manifest import (
+    ENVIRONMENT_ESCALATING_INPUTS,
     GRAPH_CACHE_FILENAME,
     MANIFEST_FILENAME,
     MANIFEST_SCHEMA,
     SELECTION_DIRECTORY,
+    environment_changed_inputs,
     environment_fingerprint,
     read_manifest,
 )
@@ -254,7 +256,7 @@ def select_tests(
     graph: ImportGraph | None = None,
     change_set: ChangeSet | None = None,
     contract_set: Sequence[str] | None = None,
-    environment: str | None = None,
+    environment: Mapping[str, str] | None = None,
     previous_manifest: Mapping[str, Any] | None = None,
     contexts_store: Path | None = None,
     timings_store: Path | None = None,
@@ -281,8 +283,11 @@ def select_tests(
     previous_environment = (
         (previous_manifest or {}).get("baseline", {}).get("environment")
     )
+    changed_environment_inputs = environment_changed_inputs(
+        environment, previous_environment
+    )
     core_identity_changed = bool(
-        environment and previous_environment and environment != previous_environment
+        changed_environment_inputs & ENVIRONMENT_ESCALATING_INPUTS
     )
 
     evaluation = evaluate_broadening_rules(
@@ -422,6 +427,11 @@ def select_tests(
         "universe_count": len(universe),
         "baseline": {
             "environment": environment,
+            # Every bucket that moved since the previous manifest, escalating
+            # or not — the honest record for a change that did not force the
+            # full suite, not silence. `core-identity-changed` fired only if
+            # this set intersects `ENVIRONMENT_ESCALATING_INPUTS`.
+            "environment_changed_inputs": sorted(changed_environment_inputs),
             "head": change_set.head,
             "tree_dirty": change_set.tree_dirty,
         },

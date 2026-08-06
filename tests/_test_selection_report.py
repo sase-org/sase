@@ -89,6 +89,11 @@ def explain_lines(selection: Selection, *, sample: int = 20) -> list[str]:
     """Render why the selection looks the way it does."""
     lines = [summary_line(selection)]
     lines.append(f"rules fired: {', '.join(selection.rules) or 'none'}")
+    changed_inputs = selection.manifest.get("baseline", {}).get(
+        "environment_changed_inputs"
+    )
+    if changed_inputs:
+        lines.append(f"environment inputs changed: {', '.join(changed_inputs)}")
     lines.append(context_line(selection.contexts))
     if selection.escalated:
         lines.append("no per-file selection: the run escalates to the full suite")

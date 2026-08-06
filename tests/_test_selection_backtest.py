@@ -42,7 +42,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -79,7 +79,7 @@ EXECUTE_MARKER_EXPRESSION = "not slow and not visual"
 #: The environment fingerprint stamped on every replayed selection. A commit's
 #: real fingerprint is unrecoverable, so every replay shares one and
 #: ``core-identity-changed`` never fires. See the module docstring.
-REPLAY_ENVIRONMENT = "selection-backtest"
+REPLAY_ENVIRONMENT: Mapping[str, str] = {"replay": "selection-backtest"}
 
 ANCESTOR = "baseline-ancestor"
 DESCENDANT = "baseline-descendant"

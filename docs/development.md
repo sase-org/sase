@@ -63,9 +63,10 @@ lease, so it never queues behind other agents' runs.
 Selection is a **heuristic**, not a guarantee: an unbounded closure would select the vast majority of the suite because
 of a large import cycle in `src/sase`, so depth-bounding is the mechanism, not a tuning knob. A handful of broadening
 rules escalate to the full suite when the change touches something the closure cannot safely reason about (a conftest,
-`pyproject.toml`, the `Justfile`, config schemas, the selection engine itself, or a changed `sase_core_rs` build), and
-the selection also escalates when it would otherwise exceed `SASE_TEST_SELECTION_MAX_RATIO` (default `0.25`) of all test
-files. An escalated run falls through to the same governed, fully parallel lane as `just test`.
+`pyproject.toml`, the `Justfile`, config schemas, the selection engine itself, or a narrow set of environment-identity
+inputs — see "The `core-identity-changed` escalation" below), and the selection also escalates when it would otherwise
+exceed `SASE_TEST_SELECTION_MAX_RATIO` (default `0.25`) of all test files. An escalated run falls through to the same
+governed, fully parallel lane as `just test`.
 
 Run `just check-full` — every lint gate plus the full test suite, `just test` unchanged — before landing an epic's
 combined tree, whenever a change touches the broadening set above, and any time a scoped run escalated or reported a
@@ -94,6 +95,41 @@ coverage fraction, and the identity of the table it came from, under `timings`.
 The estimate is **measured and inert**: no escalation rule consults it yet, so a host with no table behaves exactly as
 it did before. `SASE_TEST_SELECTION_TIMINGS_DISABLED=1` turns recording and estimating off;
 `SASE_TEST_SELECTION_TIMINGS_DIR` relocates the table.
+
+#### The `core-identity-changed` escalation
+
+`tools/validate_test_environment` already digests the installed environment to invalidate its own validator-verdict
+cache — `pyproject.toml`, `uv.lock`, the venv's `pyvenv.cfg`, the sibling `sase-core/Cargo.toml`, its own four validator
+scripts, every installed distribution's `dist-info` metadata, the compiled `sase_core_rs` extension, and the venv's
+`bin/python`. The selector reuses those same digests rather than forking a second, divergent fingerprint, but as a
+**per-input map** (`tools/validate_test_environment._fingerprint_inputs`) instead of one opaque combined hash, so it can
+say _which_ input moved instead of only that the environment did.
+
+Only some of those inputs are worth forcing the whole suite over. `core-identity-changed` fires only when a bucket in
+`tests._test_selection_manifest.ENVIRONMENT_ESCALATING_INPUTS` differs from the previous scoped run's manifest:
+`pyproject`, `uv-lock`, `venv-config`, `core-cargo`, `extension`, and `python`. Each is either invisible to `git diff`
+against the merge base (the sibling repo's `Cargo.toml`, the compiled extension, the interpreter identity) or covers a
+case the diff-visible `packaging-config` rule cannot: `pyproject.toml`/`uv.lock` already broaden the selection via
+`packaging-config` when they are part of the current diff, but this fingerprint also catches the same files changing
+between runs without being part of it — a `git pull` that lands a dependency bump the working diff never touches. The
+four `validator:*` scripts and every installed package's metadata (`environment-metadata`) are recorded for attribution
+but do not escalate on their own: they are repository tooling and environment bookkeeping, not something that changes
+which tests exercise the diff. A run where only a non-escalating bucket changed falls back to the normal closure plus
+`contract-set-always`, the same as any other unremarkable diff — not to silence, since the manifest's
+`baseline.environment_changed_inputs` still lists every bucket that moved, escalating or not, and
+`tools/select_tests --explain` prints it as `environment inputs changed: ...` whenever it is non-empty.
+
+The compiled extension's identity was previously untracked in practice: `sase_core_rs` installs to the nested
+`site-packages/sase_core_rs/sase_core_rs.abi3.so`, but the old glob (`sase_core_rs*.so` applied directly to
+`site-packages`) does not cross the `/`, so it matched nothing and the `extension` input was silently empty — a rebuild
+was caught only indirectly, through the dist-info `METADATA` version. It now searches `site-packages` and
+`site-packages/sase_core_rs`, mirroring `tools/purge_sase_core_rs_extensions`'s candidate directories, and hashes the
+file's content instead of its `stat()`, so a rebuild that reproduces identical bytes is not a change.
+
+Measured on the epic's research (`2026-08-06`, 63 scoped runs against the real host store): `core-identity-changed`
+fired in 16 of them, and was the _sole_ reason for escalation in 8. The single-digest scheme those runs recorded could
+not say which input caused any of them — that attribution is unrecoverable for those historical runs, which is exactly
+the gap the per-input map above closes for every run recorded from here on.
 
 #### Coverage-context ground truth
 

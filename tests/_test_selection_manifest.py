@@ -19,10 +19,12 @@ from typing import Any
 
 
 #: Bumped to 2 when the `contexts` block joined the manifest, to 3 when
-#: `effective_depth` did, to 4 when `contexts.consulted` did, and to 5 when the
+#: `effective_depth` did, to 4 when `contexts.consulted` did, to 5 when the
 #: `timings` block — the estimated serial cost of the selection, and the
-#: identity of the table it was estimated from — joined it.
-MANIFEST_SCHEMA = 5
+#: identity of the table it was estimated from — joined it, and to 6 when
+#: `baseline.environment` became a per-input map (was a single opaque digest)
+#: and `baseline.environment_changed_inputs` joined it.
+MANIFEST_SCHEMA = 6
 
 SELECTION_DIRECTORY = Path(".pytest_cache") / "sase-selection"
 GRAPH_CACHE_FILENAME = "graph.json"
@@ -82,12 +84,35 @@ def _load_validator_module(root: Path) -> ModuleType | None:
     return module
 
 
-def environment_fingerprint(root: Path) -> str | None:
-    """Digest the installed environment, including the ``sase_core_rs`` identity.
+#: Environment inputs whose change is worth forcing the whole test suite.
+#:
+#: Each one either has no representation in ``git diff`` against the merge
+#: base at all — the sibling ``sase-core`` repo's ``Cargo.toml``, the compiled
+#: ``sase_core_rs`` extension, the venv's interpreter identity — or covers a
+#: case a diff-visible rule would otherwise miss: ``pyproject.toml`` and
+#: ``uv.lock`` already broaden the selection via ``packaging-config`` when
+#: they are part of the current diff, but this fingerprint also catches the
+#: same files changing between runs without being part of it, e.g. a
+#: ``git pull`` that lands a dependency bump the working diff never touches.
+#:
+#: Everything else ``tools/validate_test_environment`` digests — its own
+#: validator scripts and every installed package's ``dist-info`` metadata —
+#: is repository tooling or environment bookkeeping, not something that
+#: changes which tests exercise the diff, so it is recorded on the manifest
+#: for attribution but does not escalate on its own.
+ENVIRONMENT_ESCALATING_INPUTS = frozenset(
+    {"pyproject", "uv-lock", "venv-config", "core-cargo", "extension", "python"}
+)
 
-    The Rust extension's identity is invisible to ``git diff`` — the wheel
-    lives in the venv and its source lives in a sibling repo — so the selector
-    reuses the fingerprint ``tools/validate_test_environment`` already computes
+
+def environment_fingerprint(root: Path) -> dict[str, str] | None:
+    """Digest the installed environment as a small per-input map.
+
+    Each key is a short bucket name (``pyproject``, ``extension``, the four
+    ``validator:*`` scripts, ...). The Rust extension's identity is invisible
+    to ``git diff`` — the wheel lives in the venv and its source lives in a
+    sibling repo — so the selector reuses the per-input fingerprints
+    ``tools/validate_test_environment`` already computes for its own cache
     rather than inventing a second, divergent one. An unavailable fingerprint
     is recorded as ``None``, never as a change.
     """
@@ -95,13 +120,34 @@ def environment_fingerprint(root: Path) -> str | None:
     if module is None:
         return None
     try:
-        return str(
-            module._input_fingerprint(
+        return {
+            str(name): str(value)
+            for name, value in module._fingerprint_inputs(
                 venv_dir=root / ".venv",
                 pyproject=root / "pyproject.toml",
                 uv_lock=root / "uv.lock",
                 sase_core_dir=sase_core_directory(root),
-            )
-        )
+            ).items()
+        }
     except Exception:
         return None
+
+
+def environment_changed_inputs(
+    current: Mapping[str, str] | None,
+    previous: object,
+) -> frozenset[str]:
+    """Bucket names whose digest differs between two fingerprint maps.
+
+    ``previous`` is read back from a persisted manifest, so it may be a plain
+    string left by an older single-digest manifest, or missing entirely; both
+    read as "nothing to compare", the same as a fresh workspace with no
+    baseline at all — never as a change.
+    """
+    if not current or not isinstance(previous, Mapping):
+        return frozenset()
+    return frozenset(
+        key
+        for key in set(current) | set(previous)
+        if current.get(key) != previous.get(key)
+    )
