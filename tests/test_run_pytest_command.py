@@ -7,6 +7,7 @@ and when xdist is engaged or deliberately suppressed.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -252,6 +253,48 @@ def test_contexts_mode_stays_off_the_branch_coverage_config() -> None:
     assert "--cov-fail-under=50" not in contexts
     assert "--cov-context=test" not in coverage
     assert "--cov-branch" in coverage
+
+
+def test_contexts_mode_pins_the_faithful_coverage_core(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Python 3.14's default `sysmon` core drops repeat attributions.
+
+    It stops monitoring a location once seen, so only the first test to execute
+    a line is credited with it and a full-suite baseline thins out as it runs.
+    A locally recorded baseline has to be the same ground truth CI's 3.12 leg
+    (already on `ctrace`) publishes.
+    """
+    runner = load_run_pytest()
+    monkeypatch.delenv(runner.COVERAGE_CORE_ENV, raising=False)
+
+    runner._apply_contexts_environment("cov-contexts")
+
+    assert os.environ[runner.COVERAGE_CORE_ENV] == runner.CONTEXTS_COVERAGE_CORE
+
+
+def test_other_modes_leave_the_coverage_core_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only the baseline lane pays for the slower core."""
+    runner = load_run_pytest()
+    monkeypatch.delenv(runner.COVERAGE_CORE_ENV, raising=False)
+
+    runner._apply_contexts_environment("cov")
+
+    assert runner.COVERAGE_CORE_ENV not in os.environ
+
+
+def test_an_explicit_coverage_core_is_respected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pinning a default is not the same as overriding a deliberate choice."""
+    runner = load_run_pytest()
+    monkeypatch.setenv(runner.COVERAGE_CORE_ENV, "sysmon")
+
+    runner._apply_contexts_environment("cov-contexts")
+
+    assert os.environ[runner.COVERAGE_CORE_ENV] == "sysmon"
 
 
 def test_visual_flag_selects_visual_mode() -> None:

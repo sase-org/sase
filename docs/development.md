@@ -38,7 +38,7 @@ just test-slow     # Slow pytest subset only
 just test-visual   # ACE PNG visual regression snapshots only; the sole visual execution
 just test-terminal-smoke  # Optional real-terminal ACE smoke test
 just test-cov      # Parallel test run with coverage + 50% gate, excluding visual snapshots
-just test-contexts # Record the per-test coverage baseline the selector consumes
+just test-contexts # Record the per-test coverage baseline the selector consumes, and cache it host-locally
 just check         # Agent default: whole-repo lint gates + a diff-scoped test lane
 just check-full    # Exhaustive verification: whole-repo lint gates + the full test suite
 just selection-health  # Health of the diff-scoped test lane, including false negatives
@@ -96,15 +96,36 @@ branch data and its 50% gate untouched. Baselines are resolved as ancestors of a
 would be one nobody ever looks up.
 
 ```bash
-just test-contexts                      # record a baseline locally (what CI runs)
+just test-contexts                      # record a baseline locally (what CI runs) and cache it
 just refresh-contexts-baseline          # newest master baseline that is an ancestor of HEAD
 just refresh-contexts-baseline --force  # re-download even if already cached
 ```
 
-Baselines are cached by SHA under `${SASE_HOME:-~/.sase}/test-selection/contexts/`. **Selection itself never touches the
-network**: it reads whichever cached baseline is the newest ancestor of `HEAD`, and an absent or unreadable one is not
-an error — the run records `context-baseline-missing` and proceeds on the static closure alone, so a fresh workspace
-with no connectivity still gets a working `just check`.
+There are two supply routes, and neither is a network dependency at selection time. The artifact is published on master
+pushes and retained 14 days, so a host that has been idle longer than that — or is offline, or never fetched — would
+otherwise run the scoped lane on the static closure alone. `just test-contexts` closes that hole: on success it runs
+`tools/install_coverage_contexts`, which files its own `.coverage` in the cache as `<HEAD sha>.sqlite`. Because the
+cache is host-local rather than per-workspace, one instrumented run in one numbered workspace supplies every workspace
+on the machine. Instrumentation stays opt-in — nothing on the `just check` or `just check-full` path records contexts —
+and `SASE_TEST_SELECTION_INSTALL_CONTEXTS=0` records without caching.
+
+`cov-contexts` runs pin `COVERAGE_CORE=ctrace`. On Python 3.14 coverage otherwise defaults to the `sysmon` core, which
+stops monitoring a code location once it has been seen — so only the _first_ test to execute a line is credited with it,
+and per-test attribution thins out as the suite runs. Measured on athena at `6b0976bcb`: over the full suite,
+`tests/test_agent_lanes.py` recorded 6 contexts against `agent_lanes.py` under `sysmon` and 32 under `ctrace`, which is
+what CI's Python 3.12 leg (already on `ctrace`) records. A local baseline has to be the same ground truth, not a thinner
+one.
+
+The installer refuses two databases that would be worse than no baseline at all, since a baseline that resolves but
+contributes nothing silences `context-baseline-missing` while adding no tests: one recorded against a `src/` tree with
+uncommitted changes (its line numbers are not the commit's line numbers), and one recorded over part of the suite (it
+would displace a fuller baseline, since the cache is ranked by mtime). `--allow-dirty` and `--allow-partial` override
+them deliberately; a refusal never fails the recording recipe.
+
+Baselines are cached by SHA under `${SASE_HOME:-~/.sase}/test-selection/contexts/`, newest five retained however they
+arrived. **Selection itself never touches the network**: it reads whichever cached baseline is the newest ancestor of
+`HEAD`, and an absent or unreadable one is not an error — the run records `context-baseline-missing` and proceeds on the
+static closure alone, so a fresh workspace with no connectivity still gets a working `just check`.
 
 Contexts are **unioned into** the selection, never substituted for it. They are ground truth only for the code that
 existed when the baseline was recorded; they say nothing about code added since, and a brand-new test file has no

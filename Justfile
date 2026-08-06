@@ -397,16 +397,19 @@ test-cov *args: _setup-visual (_header "test-cov")
     @printf "\n---------- Running pytest with coverage... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cov "$@"
 
-# Record the per-test coverage baseline the diff-scoped selector consumes.
+# Record the per-test coverage baseline the diff-scoped selector consumes, and
+# cache it host-locally so this host stops depending on the CI artifact alone.
 # Line coverage only, no gate, no reports: `coverage_contexts.toml` explains
 # why branch coverage is off here (906 MB of artifact against 49 MB, for an
 # answer selection never asks). CI runs this on master pushes and publishes
 # `.coverage` as `sase-coverage-contexts-<sha>`; `just refresh-contexts-baseline`
-# is how an agent gets it locally.
+# is how an agent gets that artifact instead. Set
+# `SASE_TEST_SELECTION_INSTALL_CONTEXTS=0` to record without caching.
 [positional-arguments]
 test-contexts *args: _setup-visual (_header "test-contexts")
     @printf "\n---------- Recording per-test coverage contexts... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cov-contexts "$@"
+    @{{ venv_bin }}/python tools/install_coverage_contexts --if-enabled
 
 # Run the default test suite and fail if it mutates the production sidecar
 # bead store.

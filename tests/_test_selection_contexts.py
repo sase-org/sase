@@ -21,9 +21,12 @@ That caveat is the whole design:
 
 Baselines are the ``.coverage`` SQLite database the CI coverage leg publishes
 as the ``sase-coverage-contexts-<sha>`` artifact, cached by SHA under
-``${SASE_HOME:-~/.sase}/test-selection/contexts/``. Fetching one is an explicit
-act (``just refresh-contexts-baseline`` / ``tools/fetch_coverage_contexts``);
-selection itself never touches the network.
+``${SASE_HOME:-~/.sase}/test-selection/contexts/``. Obtaining one is an explicit
+act, from either of two producers — ``just refresh-contexts-baseline`` fetches
+CI's artifact, and ``just test-contexts`` files its own instrumented run under
+``HEAD`` via ``tools/install_coverage_contexts`` — so a host that never fetched,
+or whose 14-day artifact expired, is not left on the static closure alone.
+Selection itself never touches the network.
 """
 
 from __future__ import annotations
@@ -137,6 +140,23 @@ def _mtime(path: Path) -> float:
         return path.stat().st_mtime
     except OSError:
         return 0.0
+
+
+def prune_baselines(directory: Path, keep: int) -> list[Path]:
+    """Keep only the ``keep`` newest baselines; the cache is disposable.
+
+    Both producers — the CI fetch and a local ``cov-contexts`` run — call this,
+    so one bound holds however a baseline arrived. Each database is tens of
+    megabytes, and only the newest ancestor is ever read.
+    """
+    removed: list[Path] = []
+    for baseline in cached_baselines(directory)[keep:]:
+        try:
+            baseline.path.unlink()
+        except OSError:
+            continue
+        removed.append(baseline.path)
+    return removed
 
 
 def resolve_baseline(root: Path, directory: Path) -> ContextBaseline | None:
