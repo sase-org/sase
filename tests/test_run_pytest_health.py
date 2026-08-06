@@ -15,6 +15,7 @@ import pytest
 from tests._run_pytest_fixtures import (
     health_store,
     install_scoped_selection,
+    isolate_run_pytest_environment,  # noqa: F401 (registers autouse env-isolation fixture)
     load_run_pytest,
     scoped_selection,
 )

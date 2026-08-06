@@ -16,6 +16,7 @@ import pytest
 from tests._run_pytest_fixtures import (
     forbid_pytest_launch,
     install_scoped_selection,
+    isolate_run_pytest_environment,  # noqa: F401 (registers autouse env-isolation fixture)
     load_run_pytest,
     scoped_selection,
 )

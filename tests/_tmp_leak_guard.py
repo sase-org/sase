@@ -252,6 +252,10 @@ def check_tmp_env_leak_guard(item: pytest.Item) -> None:
     diffing a directory snapshot at session finish -- is what lets the
     failure name the actual offender rather than whichever later test happens
     to read the stale value.
+
+    Before failing, the watched vars are restored to their baseline: the
+    offender still fails loudly, but the blast radius stops there instead of
+    poisoning every later test on this worker with the leaked value.
     """
     baseline = getattr(item, _ENV_LEAK_BASELINE_ATTRIBUTE, None)
     if baseline is None:
@@ -264,11 +268,16 @@ def check_tmp_env_leak_guard(item: pytest.Item) -> None:
         for name in ENV_LEAK_WATCHED_VARS
         if baseline[name] != current[name]
     )
+    for name, value in baseline.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
     pytest.fail(
-        f"{item.nodeid} left {changed} changed after its own teardown. Route "
-        "the mutation through monkeypatch.setenv()/delenv() so teardown "
-        "restores it -- an unrestored TMPDIR points every later test on this "
-        "worker at a tmp_path pytest has already deleted.",
+        f"{item.nodeid} left {changed} changed after its own teardown. The "
+        "guard has already restored it to its pre-test value, so this is "
+        "contained -- route the mutation through monkeypatch.setenv()/"
+        "delenv() so teardown restores it itself.",
         pytrace=False,
     )
 

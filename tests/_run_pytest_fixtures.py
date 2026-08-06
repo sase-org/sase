@@ -8,6 +8,7 @@ and the scoped-mode plumbing several modules need to stub — in one place.
 from __future__ import annotations
 
 import importlib.util
+import os
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
@@ -19,6 +20,40 @@ from tests._test_selection_health_store import STORE_ENV
 
 ROOT = Path(__file__).resolve().parents[1]
 RUN_PYTEST_PATH = ROOT / "tools" / "run_pytest"
+
+# Every process global `tools/run_pytest`'s main() mutates on its way to
+# execv: TMPDIR and SASE_PYTEST_TMP_REDIRECTED (_prepare_pytest_tmpdir()), and
+# the four keys _sanitize_pytest_environment() pops
+# (run_pytest.PYTEST_ENV_UNSET_KEYS). Duplicated here rather than derived by
+# calling load_run_pytest(), which would re-exec the module on every test; a
+# contract test in test_run_pytest_main.py pins the two lists together.
+PINNED_ENV_VARS: tuple[str, ...] = (
+    "TMPDIR",
+    "SASE_PYTEST_TMP_REDIRECTED",
+    "SASE_COMMIT_METHOD",
+    "SASE_COMMIT_METHOD_ALLOW_OVERRIDE",
+    "SASE_PR_NAME",
+    "SASE_PR_STATUS",
+)
+
+
+@pytest.fixture(autouse=True)
+def isolate_run_pytest_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin every process global `main()` writes so teardown restores it.
+
+    `main()` writes straight to `os.environ` and calls `os.chdir()` as part of
+    its documented contract -- that mutation is real and exercised by every
+    `just test` invocation. The defect this closes is tests driving `main()`
+    without pinning those globals first, so a leak outlives the test's own
+    teardown and poisons every later test on the same xdist worker. Every
+    module that calls `load_run_pytest()` imports this fixture.
+    """
+    for name in PINNED_ENV_VARS:
+        current = os.environ.get(name)
+        monkeypatch.setenv(name, "" if current is None else current)
+        if current is None:
+            monkeypatch.delenv(name, raising=False)
+    monkeypatch.chdir(os.getcwd())
 
 
 def load_run_pytest() -> ModuleType:

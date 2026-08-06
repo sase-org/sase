@@ -11,7 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from tests._run_pytest_fixtures import load_run_pytest
+from tests._run_pytest_fixtures import (
+    isolate_run_pytest_environment,  # noqa: F401 (registers autouse env-isolation fixture)
+    load_run_pytest,
+)
 
 
 pytestmark = pytest.mark.contract

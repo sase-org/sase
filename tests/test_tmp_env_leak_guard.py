@@ -98,6 +98,25 @@ def test_check_names_every_var_that_leaked(monkeypatch: pytest.MonkeyPatch) -> N
     assert "SASE_PYTEST_TMP_REDIRECTED" in message
 
 
+def test_check_restores_the_baseline_before_failing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TMPDIR", "/tmp/pre-test-value")
+    monkeypatch.delenv("SASE_PYTEST_TMP_REDIRECTED", raising=False)
+    item: Any = _FakeItem("tests/test_leaky.py::test_leaks_tmpdir")
+    start_tmp_env_leak_guard(item)
+
+    os.environ["TMPDIR"] = "/tmp/leaked-by-test"
+    os.environ["SASE_PYTEST_TMP_REDIRECTED"] = "1"
+    with pytest.raises(pytest.fail.Exception):
+        check_tmp_env_leak_guard(item)
+
+    assert snapshot_env_leak_watch() == {
+        "TMPDIR": "/tmp/pre-test-value",
+        "SASE_PYTEST_TMP_REDIRECTED": None,
+    }
+
+
 def test_guard_wiring_fails_a_leaking_test_but_not_a_monkeypatched_one(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -106,9 +125,14 @@ def test_guard_wiring_fails_a_leaking_test_but_not_a_monkeypatched_one(
     Runs a nested pytest subprocess (so the deliberate leak below cannot
     reach this outer session) with a throwaway conftest that reproduces the
     exact pytest_runtest_setup/pytest_runtest_teardown wiring in
-    tests/conftest.py, calling the real guard functions under test.
+    tests/conftest.py, calling the real guard functions under test. A third
+    test that merely reads TMPDIR runs immediately after the leaking one and
+    must see the restored baseline, not the leaked value -- proof that the
+    guard contains the leak at its source instead of letting it cascade to
+    whichever innocent test happens to run next.
     """
     monkeypatch.setenv("PYTHONPATH", str(_ROOT))
+    monkeypatch.setenv("TMPDIR", "/tmp/pre-suite-baseline")
     pytester.makeconftest(
         """
         from tests._tmp_leak_guard import (
@@ -133,6 +157,9 @@ def test_guard_wiring_fails_a_leaking_test_but_not_a_monkeypatched_one(
         def test_leaks_tmpdir():
             os.environ["TMPDIR"] = "/tmp/leaked-by-this-test"
 
+        def test_reads_tmpdir_after_the_leak():
+            assert os.environ["TMPDIR"] == "/tmp/pre-suite-baseline"
+
         def test_uses_monkeypatch_correctly(monkeypatch):
             monkeypatch.setenv("TMPDIR", "/tmp/set-by-monkeypatch")
         """
@@ -144,6 +171,6 @@ def test_guard_wiring_fails_a_leaking_test_but_not_a_monkeypatched_one(
 
     # A failing teardown reports separately from a passing call phase, so the
     # leaking test contributes to both "passed" (its call) and "errors" (its
-    # teardown); the monkeypatched test only ever passes.
-    result.assert_outcomes(passed=2, failed=0, errors=1)
+    # teardown); the other two tests only ever pass.
+    result.assert_outcomes(passed=3, failed=0, errors=1)
     result.stdout.fnmatch_lines(["*ERROR*test_leaks_tmpdir*"])
