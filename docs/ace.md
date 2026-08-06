@@ -3109,8 +3109,10 @@ See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` confi
 
 The prompt input is a multiline TextArea widget with vim-style INSERT, NORMAL, VISUAL, and V-LINE modes. The widget
 provides markdown syntax highlighting for prompt content (headings, bold, italic, code blocks, lists, etc.). The first
-dash of an unindented or space-indented `- ` bullet is additionally bolded with a theme-aware accent, including inside
-fenced code; this presentation does not change the prompt text. A tab-indented dash is not treated as a bullet marker.
+dash of an unindented or space-indented `- ` bullet, and the digits plus delimiter of an unindented or space-indented
+`<N>.` / `<N>)` ordered marker, are additionally bolded with the same theme-aware accent, including inside fenced code;
+this presentation does not change the prompt text. A tab-indented dash or ordered marker is not treated as a list
+marker.
 
 When loaded prompt text contains literal top-level `---` multi-agent separators, ACE renders the text as a prompt stack:
 one pane per agent segment. YAML frontmatter at the start stays prompt-level metadata, and `---` lines inside fenced
@@ -3120,37 +3122,37 @@ multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent
 
 ### INSERT Mode (Default)
 
-| Key                          | Action                                                                                                     |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `Enter`                      | Submit; in a prompt stack, open the submit chooser                                                         |
-| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                |
-| `Ctrl+G Enter`               | Submit only the selected pane                                                                              |
-| `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                        |
-| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet, or leave the list from an empty marker below a bullet |
-| `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                   |
-| `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                             |
-| `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                               |
-| `Ctrl+G Enter`               | Submit only the selected pane                                                                              |
-| `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                    |
-| `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                 |
-| `Ctrl+G -`                   | Add an empty bottom pane                                                                                   |
-| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane               |
-| `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                             |
-| `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                   |
-| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                       |
-| `Ctrl+G X`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                       |
-| `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                              |
-| `Ctrl+G p`                   | Open the stashed-prompt picker                                                                             |
-| `Ctrl+Y`                     | Open the workflow YAML editor                                                                              |
-| `Ctrl+K`                     | Open prompt history from a single-line prompt, pre-filtered by that text                                   |
-| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping                      |
-| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping                      |
-| `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion)) |
-| `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                       |
-| `Tab`                        | Indent a bullet from its marker region; otherwise expand a snippet or advance its tabstop                  |
-| `Shift+Tab`                  | Dedent a bullet from its marker region; otherwise do nothing                                               |
-| `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                            |
-| `Escape`                     | Switch to vim NORMAL mode                                                                                  |
+| Key                          | Action                                                                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `Enter`                      | Submit; in a prompt stack, open the submit chooser                                                                      |
+| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                             |
+| `Ctrl+G Enter`               | Submit only the selected pane                                                                                           |
+| `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                                     |
+| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker |
+| `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                |
+| `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                                          |
+| `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                                            |
+| `Ctrl+G Enter`               | Submit only the selected pane                                                                                           |
+| `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                 |
+| `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                              |
+| `Ctrl+G -`                   | Add an empty bottom pane                                                                                                |
+| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                            |
+| `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                          |
+| `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                |
+| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                    |
+| `Ctrl+G X`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                    |
+| `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                           |
+| `Ctrl+G p`                   | Open the stashed-prompt picker                                                                                          |
+| `Ctrl+Y`                     | Open the workflow YAML editor                                                                                           |
+| `Ctrl+K`                     | Open prompt history from a single-line prompt, pre-filtered by that text                                                |
+| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping                                   |
+| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping                                   |
+| `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion))              |
+| `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                                    |
+| `Tab`                        | Indent a bullet, or nest an ordered item under a preceding marker; otherwise expand a snippet or advance its tabstop    |
+| `Shift+Tab`                  | Dedent a bullet, or unnest an ordered item into its enclosing run; otherwise do nothing                                 |
+| `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                         |
+| `Escape`                     | Switch to vim NORMAL mode                                                                                               |
 
 In prompt INSERT mode, ACE auto-pairs safe openers for `()`, `[]`, `{}`, `<>`, single quotes, double quotes, and
 backticks. Typing the matching closer over an auto-inserted closer moves the cursor across it instead of duplicating it,
@@ -3171,11 +3173,30 @@ sibling marker on the next line instead, so the exit still happens on the follow
 undo checkpoints. A selection uses the normal replacement path instead. Extra spaces after the marker, tab indentation,
 other Markdown markers, and markers containing text do not trigger either path.
 
+Ordered items (`<N>.` or `<N>)`, one to nine digits) mirror every one of those hyphen rules for `Ctrl+J`, `o`, `O`, and
+`J`, and add the one thing ordered lists need: after each structural edit, ACE renumbers the surrounding _run_ -- the
+maximal sequence of same-indent, same-delimiter siblings, joined across blank lines and each item's own owned
+continuation lines -- so the live numbers agree with what `gf` (Prettier formatting) would produce. When a run's second
+item repeats the first item's number, every item in the run keeps that number (the `1. / 1. / 1.` convention Prettier
+preserves); otherwise later items are numbered sequentially from the first item's start. `Ctrl+J`, `o`, and `O` give a
+newly inserted item the number after its nearest preceding sibling, or the run's first number when there is none. `J`
+drops the pulled-up marker and renumbers the run it left behind. A renumber that changes a marker's width (`9.` ->
+`10.`) shifts every line that item owns by the same amount so indentation stays correct, and leading zeros (`007. `) are
+recognized as a marker but always renumber to plain decimal.
+
 On a line beginning with zero or more spaces followed by `- `, INSERT-mode `Tab` and `Shift+Tab` indent or dedent the
 bullet when the selection is collapsed and the cursor is anywhere from column zero through the marker's content column.
 Each press shifts only that line by the same two-space unit as vim `>>` / `<<`; dedent removes up to one unit, and the
 cursor follows the shifted content. Wrapped continuation lines and other Markdown marker styles are excluded. Once the
 cursor is inside a bullet's content, use NORMAL-mode `>>` / `<<` (or VISUAL `>` / `<`) instead.
+
+`Tab` and `Shift+Tab` extend the same way to an ordered item, but nest at the _content column_ of the nearest preceding
+marker line (either family, same or lower indent) instead of a fixed two-space unit, because an ordered item can only
+interrupt its parent's paragraph when numbered `1`: `Tab` with no preceding marker line to nest under is a no-op, `Tab`
+landing under an existing nested run continues that run at its next number, and `Tab` that starts a new nested list
+numbers the moved item `1`. `Shift+Tab` moves the item back out to its parent's indent and gives it the next number in
+that outer run; at the outermost level it is a no-op. Both carry the item's owned block along and renumber the source
+and destination runs as one undo checkpoint.
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line. The native cursor cell is color-coded by prompt Vim mode: INSERT uses cyan, NORMAL uses gold,
@@ -3644,39 +3665,42 @@ Text objects compose with `d`, `c`, and `y`.
 
 #### Other Commands
 
-| Key        | Action                                                                                      |
-| ---------- | ------------------------------------------------------------------------------------------- |
-| `i`        | Enter INSERT mode; inserted text is repeatable with `.`                                     |
-| `v`        | Enter charwise VISUAL mode                                                                  |
-| `V`        | Enter linewise V-LINE mode                                                                  |
-| `a`        | Append after cursor; inserted text is repeatable with `.`                                   |
-| `A`        | Append at end of line; inserted text is repeatable with `.`                                 |
-| `I`        | Insert at line start; inserted text is repeatable with `.`                                  |
-| `o`        | Open below; prompt hyphen bullets auto-continue, and inserted text repeats with `.`         |
-| `O`        | Open above; prompt hyphen bullets auto-continue, and inserted text repeats with `.`         |
-| `[<Space>` | Insert blank line(s) above current line without leaving NORMAL mode                         |
-| `]<Space>` | Insert blank line(s) below current line without leaving NORMAL mode                         |
-| `u`        | Undo                                                                                        |
-| `Ctrl+R`   | Redo                                                                                        |
-| `Ctrl+A`   | Increment the number at/after cursor, wrapping to the prompt top (supports count and `.`)   |
-| `Ctrl+X`   | Decrement the number at/after cursor, wrapping to the prompt top (supports count and `.`)   |
-| `x`        | Delete character                                                                            |
-| `X`        | Delete character before cursor                                                              |
-| `r{c}`     | Replace character(s) at cursor (supports count: `3rx`)                                      |
-| `p`        | Paste after cursor / below line from the internal register                                  |
-| `P`        | Paste before cursor / above line from the internal register                                 |
-| `~`        | Toggle case of character(s) at cursor (supports count: `5~`)                                |
-| `.`        | Repeat last mutation, including inserted text; a count replaces the recorded count          |
-| `J`        | Join current line with next, removing a pulled-up prompt `- ` marker (supports count: `5J`) |
-| `K`        | Preview the xprompt, workflow, skill, file, or plain word under the cursor                  |
-| `Ctrl+]`   | Jump to the xprompt/workflow/skill definition or file under the cursor                      |
-| `/` / `?`  | Search forward / backward in the current prompt pane                                        |
-| `n` / `N`  | Repeat the last confirmed search in its original / opposite direction                       |
+| Key        | Action                                                                                                |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| `i`        | Enter INSERT mode; inserted text is repeatable with `.`                                               |
+| `v`        | Enter charwise VISUAL mode                                                                            |
+| `V`        | Enter linewise V-LINE mode                                                                            |
+| `a`        | Append after cursor; inserted text is repeatable with `.`                                             |
+| `A`        | Append at end of line; inserted text is repeatable with `.`                                           |
+| `I`        | Insert at line start; inserted text is repeatable with `.`                                            |
+| `o`        | Open below; prompt bullets and ordered items auto-continue, and inserted text repeats with `.`        |
+| `O`        | Open above; prompt bullets and ordered items auto-continue, and inserted text repeats with `.`        |
+| `[<Space>` | Insert blank line(s) above current line without leaving NORMAL mode                                   |
+| `]<Space>` | Insert blank line(s) below current line without leaving NORMAL mode                                   |
+| `u`        | Undo                                                                                                  |
+| `Ctrl+R`   | Redo                                                                                                  |
+| `Ctrl+A`   | Increment the number at/after cursor, wrapping to the prompt top (supports count and `.`)             |
+| `Ctrl+X`   | Decrement the number at/after cursor, wrapping to the prompt top (supports count and `.`)             |
+| `x`        | Delete character                                                                                      |
+| `X`        | Delete character before cursor                                                                        |
+| `r{c}`     | Replace character(s) at cursor (supports count: `3rx`)                                                |
+| `p`        | Paste after cursor / below line from the internal register                                            |
+| `P`        | Paste before cursor / above line from the internal register                                           |
+| `~`        | Toggle case of character(s) at cursor (supports count: `5~`)                                          |
+| `.`        | Repeat last mutation, including inserted text; a count replaces the recorded count                    |
+| `J`        | Join current line with next, removing a pulled-up prompt `- ` or `<N>.` marker (supports count: `5J`) |
+| `K`        | Preview the xprompt, workflow, skill, file, or plain word under the cursor                            |
+| `Ctrl+]`   | Jump to the xprompt/workflow/skill definition or file under the cursor                                |
+| `/` / `?`  | Search forward / backward in the current prompt pane                                                  |
+| `n` / `N`  | Repeat the last confirmed search in its original / opposite direction                                 |
 
-In prompt panes, `o` and `O` continue the containing hyphen bullet below or above at the same indentation, including
-when the cursor is on a physical continuation line produced by Prettier wrapping. Non-bullet lines retain ordinary bare
-open-line behavior. Prompt `J` removes a supported `- ` marker when joining onto a nonblank current line; a blank
-current line keeps the marker, and non-prompt editors retain vanilla `J` behavior.
+In prompt panes, `o` and `O` continue the containing hyphen bullet or ordered item below or above at the same
+indentation, including when the cursor is on a physical continuation line produced by Prettier wrapping. Non-list lines
+retain ordinary bare open-line behavior. For an ordered item, `O` on the marker row takes that item's own number, `O` on
+a line the item owns takes the next number (the new marker lands after that item's marker), and `o` always takes the
+next number; the surrounding run is renumbered either way. Prompt `J` removes a supported `- ` or `<N>.` marker when
+joining onto a nonblank current line, renumbering the run an ordered item left behind; a blank current line keeps the
+marker, and non-prompt editors retain vanilla `J` behavior.
 
 For `Ctrl+]`, ACE opens the target directly in `$EDITOR` when there is only one available action. Inside tmux, or for
 loadable Markdown xprompt definitions, it can show a small chooser for editor, tmux-pane, or load-into-prompt actions.
