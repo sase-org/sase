@@ -336,6 +336,11 @@ test *args: _setup-visual (_header "test")
 # without taking a suite-gate lease, and escalates to the governed full lane
 # when the selection is too large or a broadening rule fires.
 #
+# The middle gear is the one exception to the serial no-lease shape: a
+# selection only the serial-runtime budget rejected asks the gate once for a
+# small bundle of worker tokens and runs at the granted width instead of
+# escalating. It never queues for one — a refused grant escalates.
+#
 # Depends on `_setup`, not `_setup-visual`, because the selector excludes
 # `tests/ace/tui/visual/**` unconditionally, so nothing collected here imports
 # Pillow. If that exclusion is ever removed, this recipe must go back to
@@ -465,8 +470,10 @@ selection-health *args: _setup (_header "selection-health")
 selection-backtest *args: _setup (_header "selection-backtest")
     @{{ venv_bin }}/python tools/selection_backtest "$@"
 
-# Agent default: whole-repo lint gates plus a diff-scoped test lane that takes
-# no suite-gate lease. Run `just check-full` instead before landing an epic's
+# Agent default: whole-repo lint gates plus a diff-scoped test lane that never
+# queues behind another agent's run — it is serial and takes no suite-gate
+# lease, except for the middle gear's small non-blocking one (see
+# `test-scoped`). Run `just check-full` instead before landing an epic's
 # combined tree, when the change touches the broadening set (see
 # `tools/select_tests --explain`), or whenever the scoped run escalated or
 # reported an unusual selection.
