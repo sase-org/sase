@@ -94,7 +94,15 @@ def run_timing(run: V2RunRecord) -> str:
     return run.started_at or run.finished_at or run.dismissed_at or "—"
 
 
+def bead_link_markdown(bead_id: str, url: str | None) -> str:
+    """Render one bead id, linked when *url* resolved and plain otherwise."""
+
+    label = md_escape(bead_id)
+    return f"[{label}]({url})" if url else label
+
+
 __all__ = [
+    "bead_link_markdown",
     "md_cell",
     "md_code",
     "md_escape",

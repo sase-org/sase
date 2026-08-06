@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase._git_remote import github_commit_url
+from sase.agents_sync.bead_links import build_bead_page_links
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.links import hosted_provider
 from sase.agents_sync.models import ProjectTarget
@@ -93,12 +94,18 @@ def plan_hoods(
         override_snapshots=current_snapshots,
         override_payload=payload,
     )
+    bead_links, bead_diagnostics = build_bead_page_links(
+        snapshots.values(),
+        primary_root=target.primary_checkout,
+        project=target.project,
+    )
     payload.update(
         render_browsing_payload(
             manifests,
             snapshots,
             commit_url_base=_commit_url_base(inventory.primary_remote_url),
             commit_repo_name=inventory.primary_repo_name,
+            bead_links=bead_links,
         )
     )
     counts = V2PublicationCounts(
@@ -107,7 +114,9 @@ def plan_hoods(
         hoods_unchanged=unchanged,
         families_published=families,
         runs_published=runs,
-        diagnostics=tuple(dict.fromkeys((*inventory.diagnostics, *diagnostics))),
+        diagnostics=tuple(
+            dict.fromkeys((*inventory.diagnostics, *diagnostics, *bead_diagnostics))
+        ),
     )
     return payload, counts
 

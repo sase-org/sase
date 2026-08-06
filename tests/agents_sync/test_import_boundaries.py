@@ -29,7 +29,7 @@ def _subprocess_env(tmp_path: Path) -> dict[str, str]:
 
 @pytest.mark.parametrize(
     "module_name",
-    ("sase.agents_sync", "sase.agents_sync.links"),
+    ("sase.agents_sync", "sase.agents_sync.links", "sase.agents_sync.bead_links"),
 )
 def test_agents_sync_imports_in_fresh_interpreter(
     module_name: str,

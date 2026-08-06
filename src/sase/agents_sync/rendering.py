@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
 
+from sase.agents_sync.bead_links import BeadPageLink
 from sase.agents_sync.rendering_agent_page import render_agent_page
 from sase.agents_sync.rendering_family_page import render_family_page
 from sase.agents_sync.rendering_index_pages import (
@@ -27,6 +29,7 @@ def render_browsing_payload(
     *,
     commit_url_base: str | None = None,
     commit_repo_name: str | None = None,
+    bead_links: Mapping[str, BeadPageLink] | None = None,
 ) -> dict[str, bytes]:
     """Render every derived page from validated manifests and snapshots."""
 
@@ -65,6 +68,7 @@ def render_browsing_payload(
                         snapshot,
                         commit_url_base=commit_url_base,
                         commit_repo_name=commit_repo_name,
+                        bead_links=bead_links or {},
                     )
                 )
     return payload
@@ -75,6 +79,7 @@ def _render_run_pages(
     *,
     commit_url_base: str | None,
     commit_repo_name: str | None,
+    bead_links: Mapping[str, BeadPageLink],
 ) -> dict[str, bytes]:
     payload: dict[str, bytes] = {}
     by_id = {run.source_run_id: run for run in snapshot.runs}
@@ -85,6 +90,10 @@ def _render_run_pages(
             continue
         for source_id in container.member_source_run_ids:
             families_by_member[source_id] = container
+        member_bead_links = tuple(
+            bead_links.get(by_id[source_id].global_name)
+            for source_id in container.member_source_run_ids
+        )
         payload[f"families/{container.global_name}.md"] = page_bytes(
             render_family_page(
                 snapshot,
@@ -93,6 +102,7 @@ def _render_run_pages(
                 commit_url_base=commit_url_base,
                 commit_repo_name=commit_repo_name,
                 kinship=kinship,
+                member_bead_links=member_bead_links,
             )
         )
     for run in snapshot.runs:
@@ -104,6 +114,7 @@ def _render_run_pages(
                 commit_url_base=commit_url_base,
                 commit_repo_name=commit_repo_name,
                 kinship=kinship,
+                bead_link=bead_links.get(run.global_name),
             )
         )
     return payload
