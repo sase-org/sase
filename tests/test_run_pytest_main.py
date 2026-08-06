@@ -12,10 +12,16 @@ from pathlib import Path
 
 import pytest
 
-from tests._run_pytest_fixtures import load_run_pytest
+from tests._run_pytest_fixtures import load_run_pytest, pin_process_env
 
 
 pytestmark = pytest.mark.contract
+
+
+@pytest.fixture(autouse=True)
+def _contained_process_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the runner's raw scratch redirect from outliving each test."""
+    pin_process_env(monkeypatch)
 
 
 def test_sanitizes_commit_workflow_environment(

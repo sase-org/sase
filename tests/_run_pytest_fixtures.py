@@ -8,6 +8,7 @@ and the scoped-mode plumbing several modules need to stub — in one place.
 from __future__ import annotations
 
 import importlib.util
+import os
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
@@ -15,10 +16,13 @@ from types import ModuleType
 import pytest
 
 from tests._test_selection_health import STORE_ENV
+from tests._tmp_leak_guard import PYTEST_TMP_REDIRECTED_ENV
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RUN_PYTEST_PATH = ROOT / "tools" / "run_pytest"
+# The keys ``_prepare_pytest_tmpdir`` assigns straight into ``os.environ``.
+PROCESS_ENV_KEYS = ("TMPDIR", PYTEST_TMP_REDIRECTED_ENV)
 
 
 def load_run_pytest() -> ModuleType:
@@ -32,6 +36,30 @@ def load_run_pytest() -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def pin_process_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Confine ``run_pytest``'s raw ``TMPDIR`` redirect to the calling test.
+
+    ``_prepare_pytest_tmpdir`` redirects scratch by assigning ``os.environ``
+    directly, which is right for the runner process but leaks out of any test
+    that reaches it: monkeypatch never saw the write, so the redirect outlives
+    the test and every later test in the same xdist worker inherits a
+    ``TMPDIR`` pointing at a ``tmp_path`` pytest has since deleted. Python's
+    ``tempfile`` caches its directory on first use and never notices, but
+    native code re-reads ``TMPDIR`` on every call — sase-core's ``git log``
+    scratch file is one, and it silently dropped every commit row from the
+    artifact-ref inventory once a leaked value reached it.
+
+    Registering the keys up front gives monkeypatch a baseline to roll back to.
+    """
+    for key in PROCESS_ENV_KEYS:
+        was_set = key in os.environ
+        # Records the pre-test value (``notset`` when the key was absent).
+        monkeypatch.setenv(key, os.environ.get(key, ""))
+        if not was_set:
+            # Undo the placeholder without dropping the recorded baseline.
+            monkeypatch.delenv(key)
 
 
 def health_store(tmp_path: Path) -> Path:

@@ -16,12 +16,19 @@ from tests._run_pytest_fixtures import (
     health_store,
     install_scoped_selection,
     load_run_pytest,
+    pin_process_env,
     scoped_selection,
 )
 from tests._test_selection_health import STORE_ENV, load_records
 
 
 pytestmark = pytest.mark.contract
+
+
+@pytest.fixture(autouse=True)
+def _contained_process_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the runner's raw scratch redirect from outliving each test."""
+    pin_process_env(monkeypatch)
 
 
 def test_scoped_run_lands_in_the_durable_health_store(

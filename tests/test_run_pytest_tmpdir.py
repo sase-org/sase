@@ -15,12 +15,22 @@ from pathlib import Path
 
 import pytest
 
-from tests._run_pytest_fixtures import load_run_pytest
+from tests._run_pytest_fixtures import (
+    PROCESS_ENV_KEYS,
+    load_run_pytest,
+    pin_process_env,
+)
 
 
 pytestmark = pytest.mark.contract
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def _contained_process_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the runner's raw scratch redirect from outliving each test."""
+    pin_process_env(monkeypatch)
 
 
 def test_configured_pytest_tmpdir_defaults_to_disk_backed_workspace_root(
@@ -47,6 +57,32 @@ def test_prepare_pytest_tmpdir_honors_override(
     assert scratch_root.is_dir()
     assert runner.os.environ["TMPDIR"] == str(scratch_root)
     assert runner.os.environ[runner.PYTEST_TMP_REDIRECTED_ENV] == "1"
+
+
+def test_prepare_pytest_tmpdir_redirect_does_not_outlive_the_test(
+    tmp_path: Path,
+) -> None:
+    """The redirect must not escape into later tests in the same worker.
+
+    ``_prepare_pytest_tmpdir`` writes ``os.environ`` directly, so without
+    :func:`pin_process_env` every test that reaches it leaves the worker
+    pointing ``TMPDIR`` at a ``tmp_path`` pytest later deletes. Native code
+    re-reads ``TMPDIR`` on every call and then fails to open scratch at all,
+    which is invisible to the leaking test and reddens an unrelated one.
+    """
+    runner = load_run_pytest()
+    scratch_root = tmp_path / "scratch"
+    before = {key: os.environ.get(key) for key in PROCESS_ENV_KEYS}
+
+    with pytest.MonkeyPatch.context() as inner:
+        pin_process_env(inner)
+        inner.setenv(runner.PYTEST_TMPDIR_ENV, str(scratch_root))
+
+        runner._prepare_pytest_tmpdir()
+
+        assert os.environ["TMPDIR"] == str(scratch_root)
+
+    assert {key: os.environ.get(key) for key in PROCESS_ENV_KEYS} == before
 
 
 def test_configured_pytest_tmpdir_resolves_relative_override_from_repo(

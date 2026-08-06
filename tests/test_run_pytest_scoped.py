@@ -17,11 +17,18 @@ from tests._run_pytest_fixtures import (
     forbid_pytest_launch,
     install_scoped_selection,
     load_run_pytest,
+    pin_process_env,
     scoped_selection,
 )
 
 
 pytestmark = pytest.mark.contract
+
+
+@pytest.fixture(autouse=True)
+def _contained_process_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the runner's raw scratch redirect from outliving each test."""
+    pin_process_env(monkeypatch)
 
 
 def test_scoped_mode_selects_fast_markers_without_xdist() -> None:
