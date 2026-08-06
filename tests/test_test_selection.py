@@ -315,6 +315,16 @@ def test_untracked_new_test_file_is_selected(repo: Path) -> None:
     assert "tests/test_untracked.py" in selection.selected
 
 
+def test_deleted_test_file_is_not_selected(repo: Path) -> None:
+    """A deleted path must not reach pytest, which exits 4 on a missing file."""
+    _git(repo, "rm", "-q", "tests/test_d.py")
+
+    selection = _select(repo)
+
+    assert "tests/test_d.py" not in selection.selected
+    assert RULE_RENAME_OR_DELETE in selection.rules
+
+
 def test_docs_only_change_selects_nothing(repo: Path) -> None:
     _touch(repo, "docs/development.md")
 

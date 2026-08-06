@@ -354,7 +354,19 @@ def select_tests(
             selected.add(path)
             explanations.setdefault(path, (f"contexts:{contexts.baseline_sha}", 0))
 
-        selected = {path for path in selected if not is_visual_path(path)}
+        # A changed path can be a deletion or a rename-away: it still shows up
+        # verbatim in `change_set.paths` (git diff and status don't distinguish
+        # "gone" from "touched" at this call site), so nothing upstream stops a
+        # test file that no longer exists from reaching here. `graph.paths` is
+        # built from the current working tree (`discover_python_files`), so
+        # membership in it is exactly "still on disk" — filtering against it
+        # drops deleted/renamed-away paths without touching the closure, which
+        # already only ever produces terminals that exist.
+        selected = {
+            path
+            for path in selected
+            if not is_visual_path(path) and path in graph.paths
+        }
 
     escalated = evaluation.forces_full_suite
     if not escalated and len(selected) > options.max_ratio * len(universe):
