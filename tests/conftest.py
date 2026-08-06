@@ -30,6 +30,9 @@ _DIRECTORY_MAP_PLACEHOLDER = (
     _REPO_ROOT / "tests" / "fixtures" / "directory-map-placeholder.bin"
 )
 _PYTEST_SANDBOX_DIR_ENV_VAR = "SASE_PYTEST_SANDBOX_DIR"
+# Process-wide state that ``tools/run_pytest`` sets outside ``monkeypatch``'s
+# reach; see ``_restore_scratch_environment``.
+_SCRATCH_ROOT_ENV_VARS = ("TMPDIR", "SASE_PYTEST_TMP_REDIRECTED")
 
 _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
     Path(path)
@@ -190,6 +193,32 @@ def _restore_working_directory(request: pytest.FixtureRequest) -> Iterator[None]
         RuntimeWarning,
         stacklevel=2,
     )
+
+
+@pytest.fixture(autouse=True)
+def _restore_scratch_environment() -> Iterator[None]:
+    """Restore the scratch-root environment after tests that leak it.
+
+    ``tools/run_pytest`` redirects the suite onto its private scratch root by
+    assigning ``os.environ`` directly, so the tests that drive that code path
+    repoint the whole worker process at their own ``tmp_path``. Nothing rolls
+    that back — ``monkeypatch`` never saw the assignment — and
+    ``tmp_path_retention_policy`` deletes the tree as soon as the test passes,
+    so every later test on that worker inherits a ``TMPDIR`` that no longer
+    exists. Callers that open scratch files there then degrade silently:
+    sase-core's ``git log`` capture, for one, drops every commit row and leaves
+    the artifact-reference completion menu empty.
+    """
+    start = {name: os.environ.get(name) for name in _SCRATCH_ROOT_ENV_VARS}
+    yield
+
+    for name, value in start.items():
+        if os.environ.get(name) == value:
+            continue
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
 
 
 def redirect_sase_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> Path:
