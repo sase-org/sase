@@ -450,6 +450,21 @@ refresh-contexts-baseline *args: _setup (_header "refresh-contexts-baseline")
 selection-health *args: _setup (_header "selection-health")
     @{{ venv_bin }}/python tools/selection_health "$@"
 
+# Measure diff-scoped selection recall against per-test coverage ground truth by
+# replaying real history: each of the last N commits is checked out into a
+# throwaway detached worktree, its own diff against its parent becomes the
+# change set, and the selection that produces is compared against the test files
+# coverage recorded as executing those lines. Reports recall twice — closure
+# only, and closure plus contexts — because the gap between them is exactly the
+# exposure a workspace with no cached baseline runs with.
+#
+# This is a measurement tool, not a gate: it is deliberately absent from `check`
+# and `check-full`, and `--execute` (which really runs the missed tests) is
+# opt-in and must stay that way.
+[positional-arguments]
+selection-backtest *args: _setup (_header "selection-backtest")
+    @{{ venv_bin }}/python tools/selection_backtest "$@"
+
 # Agent default: whole-repo lint gates plus a diff-scoped test lane that takes
 # no suite-gate lease. Run `just check-full` instead before landing an epic's
 # combined tree, when the change touches the broadening set (see

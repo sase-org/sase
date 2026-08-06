@@ -42,6 +42,7 @@ just test-contexts # Record the per-test coverage baseline the selector consumes
 just check         # Agent default: whole-repo lint gates + a diff-scoped test lane
 just check-full    # Exhaustive verification: whole-repo lint gates + the full test suite
 just selection-health  # Health of the diff-scoped test lane, including false negatives
+just selection-backtest  # Replay real history and measure selection recall against coverage
 just refresh-contexts-baseline  # Cache CI's per-test coverage baseline for selection
 just refresh-contract-manifest  # Regenerate tests/contract_manifest.txt from the marker
 just test-tox      # Test across Python 3.12, 3.13, 3.14
@@ -342,6 +343,59 @@ change set, the report says so and tells you to suspect a flake before a miss.
 Use `tools/select_tests --explain` to see why an individual test was or was not selected. Set
 `SASE_TEST_SELECTION_HEALTH_DISABLED=1` to skip recording entirely, and `SASE_TEST_SELECTION_HEALTH_DIR` to point the
 store somewhere else.
+
+### Selection Backtest
+
+`just selection-health`'s false-negative count can only grow when a full run happens **in the same workspace** as an
+earlier scoped run over a subset change. In ephemeral workspaces that combination essentially only occurs at landing, so
+the correlatable sample grows about as fast as epics land. `just selection-backtest` answers the same question from
+history instead, today.
+
+```bash
+just selection-backtest                                  # replay the last 50 commits
+just selection-backtest --limit 150                       # a longer window
+just selection-backtest --json                            # the same numbers, machine-readable
+just selection-backtest --execute --execute-limit 1       # actually run the missed tests
+```
+
+For each replayed commit the harness checks the commit out into **its own throwaway detached worktree** (never the
+invoking checkout), takes the commit's own diff against its parent as the change set, rebuilds the import graph as of
+that commit, and computes the selection the scoped lane would have produced. Ground truth for the same change set comes
+from the cached coverage baseline: the test files coverage recorded as executing the lines that commit touched. Recall
+is the share of that ground truth the selection contained.
+
+Recall is reported **twice**. `closure-only` runs with the contexts cache forced absent and is what a workspace with no
+cached baseline actually gets. `closure+contexts` is `1.0` by construction — the selector unions in the very same
+coverage query the ground truth comes from — so it is not independent corroboration. The **gap between the two arms is
+the exposure**, and it is the number a compensating action for a missing baseline has to be tuned against.
+
+Three limits bound what a reading proves, and the report states each of them rather than burying them:
+
+- **Ground truth needs a usable baseline.** By default only commits the baseline is an ancestor of are replayed. Since
+  baselines arrive as a CI artifact on master pushes, that is a small window. `--include-descendant-baseline` also
+  replays commits the baseline sits _ahead_ of; ground truth for those is widened by every later change to the same
+  file, so recall reads pessimistically, and the report counts the two directions separately.
+- **The replay is conservative.** `core-identity-changed` cannot fire historically — the venv a commit was tested
+  against is gone — so runs that escalated in reality may replay as narrow selections. The harness under-reports recall.
+- **Recall is a proxy.** A missed test file is a true false negative only if it would have failed. `--execute` checks
+  that for the worst few blind spots by running the missed files at their commit. It is opt-in, slow, and deliberately
+  absent from `just check` and `just check-full` (`tests/test_justfile_lint.py` pins that).
+
+Measured on 2026-08-06 at `6b0976bcb`, over `--limit 150 --include-descendant-baseline` against the `96183d71b` baseline
+— 65 commits with usable ground truth (1 faithful, 64 reverse-direction), 85 skipped and itemised:
+
+| arm                | median recall | mean  | p10   | worst | commits with a blind spot | missed test files |
+| ------------------ | ------------- | ----- | ----- | ----- | ------------------------- | ----------------- |
+| `closure-only`     | 100.0%        | 96.2% | 86.7% | 23.5% | 13 / 65                   | 118               |
+| `closure+contexts` | 100.0%        | 100%  | 100%  | 100%  | 0 / 65                    | 0                 |
+
+25 of the 65 reached perfect recall by escalating rather than by selecting well. The worst case — `6719992521ad`,
+`feat(sidecars): surface publication queue observability` — recalled 23.5%, missing 75 of 98 covering test files. Median
+selection size was 6.4% of the suite (p90 11.9%), so the closure-only arm is not paying for its misses with breadth.
+
+Note what the skip counts say about the sample: of the 150 commits examined, 46 changed no `src/**.py` at all and 36
+touched no file with a baseline-side line to query. A recall figure here is a figure over commits that change
+already-covered production code, not over all commits.
 
 ## Visual Snapshot Workflow
 
