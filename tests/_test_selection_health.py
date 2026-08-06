@@ -56,6 +56,15 @@ from tests._test_selection_health_records import HealthRecords
 #: point of the metric is host demand avoided, not a re-measured wall time.
 FULL_SUITE_WORKER_SECONDS = 3650.0
 
+#: The governed full lane's measured wall clock: 232s at 28 workers, 26,042
+#: tests, measured on athena at master `5da193482` on 2026-08-06 (see
+#: `plans/202608/scoped_lane_latency.md`). A scoped run slower than this would
+#: have finished sooner on the full lane instead, which is the defect this
+#: module's `slow_runs` exists to surface. Deliberately a constant for the same
+#: reason as `FULL_SUITE_WORKER_SECONDS`: it is a fixed crossover to measure
+#: against, not a re-measured wall time on every report.
+FULL_LANE_WALL_SECONDS = 232.0
+
 
 # --------------------------------------------------------------------------
 # False-negative detection
@@ -225,6 +234,20 @@ def _median(values: Sequence[float]) -> float | None:
 
 
 @dataclass(frozen=True)
+class SlowRun:
+    """A scoped run that took longer than the governed full lane would have.
+
+    The eight runs this shape describes cost the epic's research 75% of its
+    measured scoped-lane wall clock; see `plans/202608/scoped_lane_latency.md`.
+    """
+
+    record: str
+    duration: float
+    selected_count: int
+    rules: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class SelectionHealth:
     scoped_runs: int = 0
     escalated_runs: int = 0
@@ -233,6 +256,10 @@ class SelectionHealth:
     median_selected: float | None = None
     p90_selected: float | None = None
     median_duration: float | None = None
+    p75_duration: float | None = None
+    p90_duration: float | None = None
+    max_duration: float | None = None
+    slow_runs: tuple[SlowRun, ...] = ()
     worker_seconds_saved: float = 0.0
     rule_histogram: dict[str, int] = field(default_factory=dict)
     outcome_histogram: dict[str, int] = field(default_factory=dict)
@@ -284,6 +311,21 @@ def summarize(
         for selection in unescalated
         if selection.duration is not None
     ]
+    # Escalated runs record `duration: 0.0` (the runner hands off with `execv`
+    # before it can time the full lane it triggered), so they are excluded
+    # here rather than counted as fast; `escalated_runs` already says how many
+    # runs' cost this leaves unmeasured, and the report states it explicitly.
+    slow_runs = tuple(
+        SlowRun(
+            record=selection.name,
+            duration=selection.duration,
+            selected_count=selection.selected_count,
+            rules=selection.rules,
+        )
+        for selection in unescalated
+        if selection.duration is not None
+        and selection.duration > FULL_LANE_WALL_SECONDS
+    )
 
     rule_histogram: dict[str, int] = {}
     outcome_histogram: dict[str, int] = {}
@@ -323,6 +365,10 @@ def summarize(
         median_selected=_median(selected_counts),
         p90_selected=_percentile(selected_counts, 0.9),
         median_duration=_median(durations),
+        p75_duration=_percentile(durations, 0.75),
+        p90_duration=_percentile(durations, 0.9),
+        max_duration=max(durations) if durations else None,
+        slow_runs=slow_runs,
         worker_seconds_saved=saved,
         rule_histogram=dict(sorted(rule_histogram.items())),
         outcome_histogram=dict(sorted(outcome_histogram.items())),

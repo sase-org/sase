@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from tests._test_selection_health import (
+    FULL_LANE_WALL_SECONDS,
     FULL_SUITE_WORKER_SECONDS,
     FalseNegative,
     SelectionHealth,
@@ -48,6 +49,9 @@ def render_report(health: SelectionHealth) -> list[str]:
             "  p90 selected:         "
             + _format_count(health.p90_selected, universe=health.universe_count),
             f"  median duration:      {_format_seconds(health.median_duration)}",
+            f"  p75 duration:         {_format_seconds(health.p75_duration)}",
+            f"  p90 duration:         {_format_seconds(health.p90_duration)}",
+            f"  max duration:         {_format_seconds(health.max_duration)}",
             f"full-lane runs recorded: {health.full_runs}",
             "",
             "worker-seconds avoided vs. running the full suite instead: "
@@ -74,10 +78,42 @@ def render_report(health: SelectionHealth) -> list[str]:
         lines.append("  (none)")
     lines.append("")
 
+    lines.extend(_render_slow_runs(health))
+    lines.append("")
+
     lines.extend(_render_contexts(health))
     lines.append("")
 
     lines.extend(_render_false_negatives(health))
+    return lines
+
+
+def _render_slow_runs(health: SelectionHealth) -> list[str]:
+    """The latency-regression counter: scoped runs slower than the full lane.
+
+    A scoped run this slow would have finished sooner running everything, so
+    this is the number that would have caught the epic's defect on day one —
+    a latency signal, distinct from `false negatives`' correctness one.
+    """
+    if not health.scoped_runs:
+        return ["scoped runs slower than the full lane: no scoped runs recorded"]
+    lines = [
+        "scoped runs slower than the full lane "
+        f"({_format_seconds(FULL_LANE_WALL_SECONDS)}): "
+        f"{len(health.slow_runs)} of {health.scoped_runs}",
+    ]
+    if health.escalated_runs:
+        lines.append(
+            f"  {health.escalated_runs} escalated run(s) not counted here: cost "
+            "not measured (handed off to the full lane before the runner could "
+            "time it)"
+        )
+    for slow in sorted(health.slow_runs, key=lambda run: run.duration, reverse=True):
+        lines.append(
+            f"  {slow.record}: {_format_seconds(slow.duration)}, "
+            f"{slow.selected_count} file(s) selected, "
+            f"rules: {', '.join(slow.rules) or 'none'}"
+        )
     return lines
 
 
@@ -199,6 +235,19 @@ def health_payload(health: SelectionHealth) -> dict[str, Any]:
         "median_selected_ratio": health.median_selected_ratio,
         "p90_selected": health.p90_selected,
         "median_duration": health.median_duration,
+        "p75_duration": health.p75_duration,
+        "p90_duration": health.p90_duration,
+        "max_duration": health.max_duration,
+        "full_lane_wall_seconds": FULL_LANE_WALL_SECONDS,
+        "slow_runs": [
+            {
+                "record": slow.record,
+                "duration": slow.duration,
+                "selected_count": slow.selected_count,
+                "rules": list(slow.rules),
+            }
+            for slow in health.slow_runs
+        ],
         "worker_seconds_saved": health.worker_seconds_saved,
         "rule_histogram": health.rule_histogram,
         "outcome_histogram": health.outcome_histogram,

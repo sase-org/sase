@@ -18,7 +18,11 @@ from tests._selection_health_case_helpers import (
     write_full_run,
     write_selection,
 )
-from tests._test_selection_health import FULL_SUITE_WORKER_SECONDS, summarize
+from tests._test_selection_health import (
+    FULL_LANE_WALL_SECONDS,
+    FULL_SUITE_WORKER_SECONDS,
+    summarize,
+)
 from tests._test_selection_health_records import load_records
 from tests._test_selection_health_report import health_payload, render_report
 
@@ -58,6 +62,51 @@ def test_summary_reports_coverage_escalation_and_savings(tmp_path: Path) -> None
     assert health.rule_histogram == {"contract-set-always": 2, "justfile": 1}
     assert health.universe_count == 2400
     assert health.median_selected_ratio == pytest.approx(2 / 2400)
+
+
+def test_summary_reports_duration_percentiles_and_the_slow_run_tail(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    for minute, duration in enumerate((50.0, 100.0, 150.0, 200.0, 300.0)):
+        write_selection(
+            store,
+            manifest(
+                head=f"h{minute}",
+                selected=(f"tests/test_{minute}.py",),
+                duration=duration,
+                rules=(
+                    ("compensate-narrow-diff",)
+                    if duration > FULL_LANE_WALL_SECONDS
+                    else ("contract-set-always",)
+                ),
+            ),
+            minute=minute,
+        )
+    write_selection(
+        store,
+        manifest(head="esc", escalated=True, rules=("justfile",), duration=0.0),
+        minute=5,
+    )
+
+    health = summarize(load_records(store), is_ancestor=lambda _a, _b: False)
+
+    assert health.median_duration == pytest.approx(150.0)
+    assert health.p75_duration == pytest.approx(200.0)
+    assert health.p90_duration == pytest.approx(260.0)
+    assert health.max_duration == pytest.approx(300.0)
+    assert len(health.slow_runs) == 1
+    assert health.slow_runs[0].duration == pytest.approx(300.0)
+    assert health.slow_runs[0].selected_count == 1
+    assert health.slow_runs[0].rules == ("compensate-narrow-diff",)
+
+    report = "\n".join(render_report(health))
+    assert "p75 duration:         200.0s" in report
+    assert "p90 duration:         260.0s" in report
+    assert "max duration:         300.0s" in report
+    assert "scoped runs slower than the full lane (232.0s): 1 of 6" in report
+    assert "1 escalated run(s) not counted here: cost not measured" in report
+    assert "1 file(s) selected, rules: compensate-narrow-diff" in report
 
 
 def test_summary_of_an_empty_store_is_reportable(tmp_path: Path) -> None:
@@ -255,6 +304,36 @@ def test_report_flags_a_nodeid_matched_across_unrelated_changes(
     assert "false negatives: 1 (2 scoped run/failure matches)" in report
     assert "distinct change sets: 2" in report
     assert "suspect a flake before a miss" in report
+
+
+def test_health_payload_includes_duration_percentiles_and_slow_runs(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    write_selection(
+        store,
+        manifest(
+            head="aaa",
+            selected=("tests/test_a.py",),
+            duration=300.0,
+            rules=("compensate-narrow-diff",),
+        ),
+    )
+
+    payload = health_payload(
+        summarize(load_records(store), is_ancestor=lambda _a, _b: False)
+    )
+    round_tripped = json.loads(json.dumps(payload))
+
+    assert round_tripped["max_duration"] == pytest.approx(300.0)
+    assert round_tripped["full_lane_wall_seconds"] == pytest.approx(
+        FULL_LANE_WALL_SECONDS
+    )
+    assert len(round_tripped["slow_runs"]) == 1
+    slow_run = round_tripped["slow_runs"][0]
+    assert slow_run["duration"] == pytest.approx(300.0)
+    assert slow_run["selected_count"] == 1
+    assert slow_run["rules"] == ["compensate-narrow-diff"]
 
 
 def test_health_payload_is_machine_readable(tmp_path: Path) -> None:
