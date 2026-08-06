@@ -141,6 +141,43 @@ def test_plan_file_mode_rejects_malformed_header_block_before_lock_or_archive(
     )
 
 
+def test_plan_file_mode_archive_boundary_failure_is_actionable_end_to_end(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The up-front header gate normally rejects this before archiving (see
+    the test above). This pins the defense-in-depth case: if a malformed
+    header ever reaches the archive boundary anyway, the launch path's
+    wrapped error still names the plan and the parser's reason instead of a
+    bare, location-less ``validation: ...`` message."""
+    source = project_dir / "incoming" / "malformed.md"
+    source.parent.mkdir()
+    source.write_text(MALFORMED_HEADER_EPIC_PLAN, encoding="utf-8")
+
+    from sase.sdd.plan_validate import validate_plan
+
+    monkeypatch.setattr(
+        "sase.sdd.plan_validate.validate_plan_file",
+        lambda _path, tier, *, mode="authoring": validate_plan(
+            EPIC_PLAN, tier, mode=mode
+        ),
+    )
+
+    with pytest.raises(PlanFileWorkError) as exc_info:
+        work_from_plan_file(
+            str(source),
+            dry_run=False,
+            yes=True,
+            no_push=False,
+            render=False,
+        )
+
+    message = str(exc_info.value)
+    assert str(source) in message
+    assert "header-invalid" in message
+    assert "trailing text" in message
+
+
 def test_plan_file_mode_persists_durable_stage_timing(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -289,6 +289,36 @@ def test_archive_produces_valid_bidirectional_pair(tmp_path: Path) -> None:
     assert link.target == _PROMPT_URL
 
 
+def test_archive_rejects_malformed_header_before_writing_destination(
+    tmp_path: Path,
+) -> None:
+    strict_month = "202608"
+    store = _sidecar_store(tmp_path)
+    source = _write_source(
+        tmp_path,
+        "---\ntier: tale\ntitle: Malformed header archive test\n"
+        "goal: Exercise the archive-boundary header guard\n---\n\n"
+        "- **PARENT:** [202608/parent.md](https://example.test/parent) "
+        "(epic open)\n\n"
+        "# Plan\n",
+    )
+
+    with pytest.raises(Exception) as excinfo:
+        archive_plan_file(
+            source,
+            store,
+            tier="tale",
+            yyyymm=strict_month,
+            primary_root=tmp_path,
+        )
+
+    message = str(excinfo.value)
+    assert str(source) in message
+    assert "header-invalid" in message
+    assert "trailing text" in message
+    assert not (store.sdd_dir / strict_month / "child.md").exists()
+
+
 def test_archive_preserves_both_no_op_contracts(tmp_path: Path) -> None:
     store = _sidecar_store(tmp_path)
     archived = store.sdd_dir / _MONTH / "canonical.md"

@@ -109,6 +109,18 @@ def archive_plan_file(
     content = format_with_prettier(source.read_text(encoding="utf-8"))
     content = add_create_time_frontmatter(content)
     content = set_frontmatter_fields(content, {"tier": tier})
+    # Validate before projection: projection only rewrites derived header
+    # sections into canonical form, so a document that fails here would fail
+    # identically after projection, but projection itself raises a bare,
+    # location-less ValueError on a malformed header block. Validating first
+    # turns that into the same actionable diagnostic every other validation
+    # surface uses, and does it before anything is written to disk.
+    validate_plan_for_commit(
+        content,
+        tier=tier,
+        path=source,
+        yyyymm=archive_month,
+    )
     content = project_plan_header_sections(
         content,
         sdd_dir=store.sdd_dir,
@@ -121,12 +133,6 @@ def archive_plan_file(
         primary_root=primary_root or resolve_checkout_anchor().primary_root,
     )
     content = format_with_prettier(content)
-    validate_plan_for_commit(
-        content,
-        tier=tier,
-        path=destination,
-        yyyymm=archive_month,
-    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(content, encoding="utf-8")
     return _PlanArchiveResult(path=destination, written=True)
