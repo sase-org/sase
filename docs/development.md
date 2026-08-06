@@ -290,8 +290,10 @@ selection is a heuristic, so its cost and its mistakes are both measured rather 
 
 Every scoped run copies its selection manifest, and every full-lane run (`just test`, `just test-cov`) copies the node
 IDs it saw fail, into a durable host-local store at `${SASE_HOME:-~/.sase}/test-selection/<project-key>/`. The store is
-shared by every numbered workspace of the project — which is the point, since a land agent in one workspace needs to see
-what phase agents in the others skipped — and records older than 30 days are pruned on write.
+shared by every numbered workspace of the project, so the report reads one project-wide sample rather than one
+workspace's, and records older than 30 days are pruned on write. Sharing the store is not the same as correlating across
+it: records carry the workspace and change set that the false-negative rule below needs precisely so that one
+workspace's flake is never charged to another workspace's selection.
 
 ```bash
 just selection-health          # readable report
@@ -301,9 +303,20 @@ just selection-health --json   # the same numbers, machine-readable
 The report covers how many scoped runs ran, how often they escalated to the governed full lane, median and p90 selection
 size, median scoped duration, worker-seconds of host demand avoided, which broadening rules fired, and — the number that
 decides whether the fast lane is trustworthy — the **false negatives**: tests that failed in a full run after a scoped
-run over an ancestor commit excluded them. The target is zero. A non-zero count means the heuristic is unsound as tuned;
+run over _the same change_ excluded them. The target is zero. A non-zero count means the heuristic is unsound as tuned;
 the response is to raise `SASE_TEST_SELECTION_DEPTH` to 3, or mark the missed tests `@pytest.mark.contract` and run
 `just refresh-contract-manifest`, and then re-measure — not to explain the failures away.
+
+"The same change" is what makes that number mean anything, and the report states the rule on every run: a scoped run is
+charged with a full-run failure only when both records name the same workspace, the scoped run's HEAD is an ancestor of
+the full run's, and the full run's change set covers the scoped run's. Ancestry alone is not enough — sibling workspaces
+normally sit on the same master HEAD, so `is_ancestor(head, head)` is trivially true and every workspace's flakes would
+be charged to every other workspace's selection.
+
+Read the count together with the two lines under it. Records written before health schema 2 carry no workspace or change
+set, cannot satisfy the rule, and are excluded from correlation; the report says how many there are, so a zero is read
+as zero-of-a-known-sample rather than mistaken for a clean one. When a single missed test matches across more than one
+change set, the report says so and tells you to suspect a flake before a miss.
 
 Use `tools/select_tests --explain` to see why an individual test was or was not selected. Set
 `SASE_TEST_SELECTION_HEALTH_DISABLED=1` to skip recording entirely, and `SASE_TEST_SELECTION_HEALTH_DIR` to point the
