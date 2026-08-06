@@ -229,6 +229,10 @@ async def test_codeblock_band_replaces_cursor_line_fill_but_not_cursor() -> None
     async with app.run_test(size=(50, 12)) as pilot:
         text_area = app.query_one(PromptTextArea)
         text_area.focus()
+        # Cursor-style rendering otherwise depends on the 0.5s blink timer's
+        # `_cursor_visible` phase, which is a real-time race under host
+        # contention (see sase-ct).
+        text_area.cursor_blink = False
         text_area.cursor_location = (1, 2)
         text_area._build_highlight_map()
         await pilot.pause()
