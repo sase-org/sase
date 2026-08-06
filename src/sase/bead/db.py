@@ -9,8 +9,13 @@ import json
 import sqlite3
 from pathlib import Path
 
+from sase.bead.close_history_codec import (
+    close_history_from_dicts,
+    close_history_to_dicts,
+)
 from sase.bead.model import (
     BeadTier,
+    CloseRecord,
     Dependency,
     Issue,
     IssueType,
@@ -47,6 +52,7 @@ CREATE TABLE IF NOT EXISTS issues (
     design      TEXT,
     refs        TEXT NOT NULL DEFAULT '',
     plus_one_evidence TEXT NOT NULL DEFAULT '[]',
+    close_history TEXT NOT NULL DEFAULT '[]',
     model       TEXT NOT NULL DEFAULT '',
     size        TEXT
                   CHECK(
@@ -152,6 +158,23 @@ def _migrate_add_refs(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_add_close_history(conn: sqlite3.Connection) -> None:
+    """Add archived close-record storage to a pre-existing issues table.
+
+    A plain ``ALTER TABLE`` suffices here: unlike ``plus_one_evidence`` this
+    column carries no CHECK constraint, so no table rebuild is needed.
+    """
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
+    }
+    if not columns or "close_history" in columns:
+        return
+    conn.execute(
+        "ALTER TABLE issues ADD COLUMN close_history TEXT NOT NULL DEFAULT '[]'"
+    )
+    conn.commit()
+
+
 def _migrate_add_plus_one_evidence(conn: sqlite3.Connection) -> None:
     """Add structured task +1 evidence to the compatibility mirror."""
     row = conn.execute(
@@ -180,6 +203,22 @@ def plus_one_evidence_json(evidence: list[TaskPlusOneEvidence]) -> str:
         separators=(",", ":"),
         ensure_ascii=False,
     )
+
+
+def close_history_json(history: list[CloseRecord]) -> str:
+    return json.dumps(
+        close_history_to_dicts(history),
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+
+def _close_history_from_json(value: object) -> list[CloseRecord]:
+    try:
+        records = json.loads(str(value or "[]"))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return []
+    return close_history_from_dicts(records)
 
 
 def _plus_one_evidence_from_json(value: object) -> list[TaskPlusOneEvidence]:
@@ -343,6 +382,9 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_plus_one_evidence(conn)
     _migrate_task_ready(conn)
     _migrate_relax_size_check(conn)
+    # Runs after the table-rebuilding migrations above: those copy an explicit
+    # legacy column list, so a column added before them would be dropped.
+    _migrate_add_close_history(conn)
     conn.executescript(_SCHEMA)
     return conn
 
@@ -368,6 +410,7 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         design=row["design"] or "",
         refs=(row["refs"] or "").splitlines(),
         plus_one_evidence=_plus_one_evidence_from_json(row["plus_one_evidence"]),
+        close_history=_close_history_from_json(row["close_history"]),
         model=row["model"] or "",
         size=PhaseSize(row["size"]) if row["size"] else None,
         is_ready_to_work=bool(row["is_ready_to_work"]),
@@ -405,9 +448,10 @@ def create_issue(
         "(id, title, status, issue_type, parent_id, owner, assignee, "
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
         "resolution, "
-        "description, notes, design, refs, plus_one_evidence, model, size, is_ready_to_work, "
+        "description, notes, design, refs, plus_one_evidence, close_history, "
+        "model, size, is_ready_to_work, "
         "changespec_name, changespec_bug_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -428,6 +472,7 @@ def create_issue(
             issue.design,
             "\n".join(issue.refs),
             plus_one_evidence_json(issue.plus_one_evidence),
+            close_history_json(issue.close_history),
             issue.model,
             issue.size.value if issue.size else None,
             int(issue.is_ready_to_work),
@@ -502,6 +547,7 @@ def update_issue(
         "design",
         "refs",
         "plus_one_evidence",
+        "close_history",
         "model",
         "size",
         "tier",

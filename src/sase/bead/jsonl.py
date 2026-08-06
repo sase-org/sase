@@ -11,6 +11,10 @@ import sqlite3
 from pathlib import Path
 
 from sase.bead import db as db_mod
+from sase.bead.close_history_codec import (
+    close_history_from_dicts,
+    close_history_to_dicts,
+)
 from sase.bead.model import (
     BeadTier,
     Dependency,
@@ -64,6 +68,14 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "closed_at": issue.closed_at,
         "close_reason": issue.close_reason,
         **({"resolution": issue.resolution.value} if issue.resolution else {}),
+        # Omitted when empty to match ``skip_serializing_if = "Vec::is_empty"``
+        # on the Rust wire, so rows for beads that were never reopened stay
+        # byte-identical to what they were before close history existed.
+        **(
+            {"close_history": close_history_to_dicts(issue.close_history)}
+            if issue.close_history
+            else {}
+        ),
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
@@ -134,6 +146,7 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         design=_optional_str(data.get("design", "")),
         refs=_optional_str_list(data.get("refs")),
         plus_one_evidence=_plus_one_evidence_list(data.get("plus_one_evidence")),
+        close_history=close_history_from_dicts(data.get("close_history")),
         model=_optional_str(data.get("model", "")),
         size=PhaseSize(str(data["size"])) if data.get("size") else None,
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
@@ -218,6 +231,7 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                     plus_one_evidence=db_mod.plus_one_evidence_json(
                         issue.plus_one_evidence
                     ),
+                    close_history=db_mod.close_history_json(issue.close_history),
                     model=issue.model,
                     size=issue.size.value if issue.size else None,
                     tier=issue.tier.value if issue.tier else None,

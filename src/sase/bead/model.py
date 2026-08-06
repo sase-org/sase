@@ -31,6 +31,18 @@ class Resolution(Enum):
     SUPERSEDED = "superseded"
 
 
+class ReopenCause(Enum):
+    """Why an archived close was undone.
+
+    One variant per reducer branch in sase-core that reopens a bead.
+    """
+
+    PLUS_ONE = "plus_one"
+    OPEN = "open"
+    UPDATE = "update"
+    EPIC_PRECLAIM = "epic_preclaim"
+
+
 class PhaseSize(Enum):
     XSMALL = "xsmall"
     SMALL = "small"
@@ -69,6 +81,32 @@ class TaskPlusOneEvidence:
             )
 
 
+@dataclass(frozen=True)
+class CloseRecord:
+    """One close episode that has since been undone.
+
+    The flat ``closed_at`` / ``close_reason`` / ``resolution`` fields on
+    :class:`Issue` always describe the *current* close; a close record is
+    strictly the past. Every record carries a ``reopened_at``, because a
+    record only comes into existence once the close is undone.
+    """
+
+    closed_at: str
+    reopened_at: str
+    reopened_via: ReopenCause
+    close_reason: str | None = None
+    resolution: Resolution | None = None
+    reopened_by: str | None = None
+
+    def validate(self) -> None:
+        if not self.closed_at.strip():
+            raise ValueError("close history closed_at cannot be empty or blank")
+        if not self.reopened_at.strip():
+            raise ValueError("close history reopened_at cannot be empty or blank")
+        if self.reopened_by is not None and not self.reopened_by.strip():
+            raise ValueError("close history reopened_by cannot be empty or blank")
+
+
 @dataclass
 class Issue:
     id: str
@@ -90,6 +128,7 @@ class Issue:
     design: str = ""
     refs: list[str] = field(default_factory=list)
     plus_one_evidence: list[TaskPlusOneEvidence] = field(default_factory=list)
+    close_history: list[CloseRecord] = field(default_factory=list)
     model: str = ""
     size: PhaseSize | None = None
     is_ready_to_work: bool = False
@@ -127,6 +166,10 @@ class Issue:
             if evidence.reporter in reporters:
                 raise ValueError(f"duplicate task +1 reporter: {evidence.reporter}")
             reporters.add(evidence.reporter)
+        # close_history is deliberately unrestricted by issue type: plans and
+        # phases are reopened by ``sase bead open`` and by epic work preclaims.
+        for record in self.close_history:
+            record.validate()
         if self.issue_type != IssueType.PLAN and self.is_ready_to_work:
             raise ValueError("Only plan issues can be marked is_ready_to_work")
         if self.issue_type == IssueType.PLAN and self.size is not None:

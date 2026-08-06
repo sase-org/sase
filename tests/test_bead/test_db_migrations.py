@@ -31,6 +31,26 @@ _RESOLUTION_COLUMN_DEFINITION = """\
 _REFS_COLUMN_DEFINITION = "    refs        TEXT NOT NULL DEFAULT '',\n"
 
 
+def _assert_columns_survive_rebuild(
+    conn: sqlite3.Connection, expected_columns: list[str]
+) -> None:
+    """Assert a table rebuild kept every column, close_history aside.
+
+    The Rust rebuild migrations copy an explicit column list that predates
+    close_history, so the rebuild drops that column and
+    ``_migrate_add_close_history`` re-adds it afterwards — at the end of the
+    table rather than in its declared position.
+    """
+    migrated_columns = [
+        row["name"] for row in conn.execute("PRAGMA table_info(issues)")
+    ]
+    assert set(migrated_columns) == set(expected_columns)
+    assert migrated_columns[-1] == "close_history"
+    assert [column for column in migrated_columns if column != "close_history"] == [
+        column for column in expected_columns if column != "close_history"
+    ]
+
+
 class TestMigrationAddsColumn:
     def test_pre_refs_db_gets_empty_reference_list(self, tmp_path) -> None:
         db_path = tmp_path / "old_refs.db"
@@ -282,9 +302,7 @@ class TestSizeConstraintMigration:
                 dependency.depends_on_id for dependency in loaded_phase.dependencies
             ] == [plan.id]
 
-            assert [
-                row["name"] for row in conn.execute("PRAGMA table_info(issues)")
-            ] == expected_columns
+            _assert_columns_survive_rebuild(conn, expected_columns)
             assert {
                 row["name"]
                 for row in conn.execute(
@@ -394,9 +412,7 @@ class TestStatusConstraintMigration:
                 dependency.depends_on_id for dependency in loaded_phase.dependencies
             ] == [plan.id]
 
-            assert [
-                row["name"] for row in conn.execute("PRAGMA table_info(issues)")
-            ] == expected_columns
+            _assert_columns_survive_rebuild(conn, expected_columns)
             assert {
                 row["name"]
                 for row in conn.execute(

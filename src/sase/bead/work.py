@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 from sase.bead import db
+from sase.bead.close_history_codec import close_history_to_dicts
 from sase.bead.config import get_big_epic_phase_threshold
 from sase.bead.model import Dependency, Issue, PhaseSize
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
@@ -252,6 +253,7 @@ def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
             }
             for evidence in issue.plus_one_evidence
         ],
+        "close_history": close_history_to_dicts(issue.close_history),
     }
 
 

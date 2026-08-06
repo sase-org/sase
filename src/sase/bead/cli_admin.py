@@ -259,7 +259,10 @@ def _render_projection_repair_preview(
 def _projection_repair_refusal(
     preview: list[dict[str, Any]],
 ) -> str | None:
-    allowed_fields = {"closed_at", "close_reason", "updated_at"}
+    # close_history is allowed because the first repair after the close-history
+    # upgrade legitimately materializes archived records for beads whose close
+    # reasons were destroyed by a reopen before sase-core started archiving them.
+    allowed_fields = {"closed_at", "close_reason", "close_history", "updated_at"}
     for row in preview:
         issue_id = str(row.get("issue_id", "<unknown>"))
         current = row.get("current")

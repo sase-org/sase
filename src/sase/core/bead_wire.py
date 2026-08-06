@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from sase.bead.close_history_codec import close_history_from_dicts
 from sase.bead.model import (
     BeadSearchMatch,
     BeadTier,
@@ -105,6 +106,7 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
             )
             for evidence in data.get("plus_one_evidence") or []
         ],
+        close_history=close_history_from_dicts(data.get("close_history")),
         model="" if data.get("model") is None else str(data.get("model", "")),
         size=PhaseSize(str(data["size"])) if data.get("size") else None,
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
