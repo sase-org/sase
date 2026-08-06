@@ -94,11 +94,11 @@ async def test_join_keeps_asterisk_marker() -> None:
         assert page.text == "hello * world"
 
 
-async def test_join_keeps_ordered_marker() -> None:
-    """J leaves ordered-list markers verbatim."""
+async def test_join_strips_ordered_marker() -> None:
+    """J drops an ordered-list marker folded into another line."""
     async with PromptPage("hello\n1. world") as page:
         await page.press("J")
-        assert page.text == "hello 1. world"
+        assert page.text == "hello world"
 
 
 async def test_join_keeps_thematic_break() -> None:

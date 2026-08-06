@@ -22,10 +22,18 @@ from sase.ace.tui.widgets._prompt_bullet_editing import (
     prompt_bullet_sibling_prefix,
     strip_prompt_bullet_marker,
 )
+from sase.ace.tui.widgets._prompt_list_markers import (
+    ListMarker,
+    MarkerFamily,
+    find_list_marker,
+)
 from sase.ace.tui.widgets._prompt_ordered_editing import (
+    find_ordered_predecessor,
     normalize_prompt_ordered_replay_text,
     plan_ordered_insert_newline,
+    plan_ordered_list_edit,
     plan_ordered_open_line,
+    strip_prompt_ordered_marker,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
@@ -143,8 +151,54 @@ class PromptTextAreaActionsMixin(_MixinBase):
         return plan_ordered_open_line(self.document.lines, row, above=above)
 
     def _normal_join_next_line_text(self, next_line: str) -> str:
-        """Drop a pulled-up prompt hyphen bullet marker for ``J``."""
-        return strip_prompt_bullet_marker(next_line)
+        """Drop a pulled-up prompt list marker (hyphen or ordered) for ``J``."""
+        return strip_prompt_ordered_marker(strip_prompt_bullet_marker(next_line))
+
+    def _normal_join_marker_dropped(
+        self,
+        row: int,
+        next_line: str,
+        folded_next: str,
+    ) -> ListMarker | None:
+        """Return the ordered marker NORMAL-mode ``J`` just folded away.
+
+        *row* is the join's fixed anchor row, so the dropped marker always sat
+        one row below it -- exactly where :func:`find_ordered_predecessor`
+        expects to start its search once the fold is complete.
+        """
+        return find_list_marker(next_line, MarkerFamily.ORDERED, row=row + 1)
+
+    def _normal_join_renumber_plan(
+        self,
+        row: int,
+        join_col: int,
+        joined: str,
+        dropped_marker: ListMarker | None,
+    ) -> TextEdit | None:
+        """Renumber the run a dropped ordered marker left behind for ``J``.
+
+        Overrides :class:`VimTextArea`'s no-op hook. *joined* is the fold's
+        already marker-stripped result for *row*; folding it into the still-live
+        document's remaining lines reproduces the document exactly as the join
+        will leave it, so the run can be renumbered against that final text in
+        the same edit the fold itself produces. Declines when there is no
+        *dropped_marker*, or it has no preceding sibling to anchor renumbering
+        on, leaving the plain per-line join in charge.
+        """
+        if dropped_marker is None:
+            return None
+        lines = self.document.lines
+        new_lines = [*lines[:row], joined, *lines[row + 2 :]]
+        anchor = find_ordered_predecessor(new_lines, dropped_marker)
+        if anchor is None:
+            return None
+        return plan_ordered_list_edit(
+            self.text,
+            new_lines,
+            anchor_rows=(anchor.row,),
+            cursor_row=row,
+            cursor_col=join_col,
+        )
 
     def _normalize_normal_open_replay_text(self, insert_text: str) -> str:
         """Drop a replayed marker the destination's list structure supplies.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.widgets._vim_motions import (
@@ -17,6 +17,9 @@ from sase.ace.tui.widgets._vim_transforms import (
     apply_indent_operator,
 )
 
+if TYPE_CHECKING:
+    from sase.ace.tui.widgets._paired_text_editing import TextEdit
+
 
 class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
     """Mixin providing vim normal-mode operator execution helpers."""
@@ -30,6 +33,19 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
             end: tuple[int, int],
         ) -> None: ...
         def _normal_join_next_line_text(self, next_line: str) -> str: ...
+        def _normal_join_marker_dropped(
+            self,
+            row: int,
+            next_line: str,
+            folded_next: str,
+        ) -> Any: ...
+        def _normal_join_renumber_plan(
+            self,
+            row: int,
+            join_col: int,
+            joined: str,
+            dropped_marker: Any,
+        ) -> TextEdit | None: ...
 
     def _execute_charwise_operator(
         self,
@@ -410,6 +426,11 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         Replaces each newline with a single space.  Trailing whitespace on the
         current line and leading whitespace on the joined line are collapsed.
         The cursor is placed at the join point.
+
+        A dropped list marker's renumbering is folded into the final fold's
+        own replacement rather than issued as a separate edit -- and, since
+        that renumbering must reflect the fully joined text, it is only ever
+        computed once per press, on that final fold, never once per fold.
         """
         doc = self.document
         row = self.cursor_location[0]
@@ -419,7 +440,8 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         self.read_only = False
 
         join_col = 0
-        for _ in range(joins):
+        dropped_marker: Any = None
+        for i in range(joins):
             if row >= doc.line_count - 1:
                 break
             cur_line = doc.get_line(row)
@@ -434,6 +456,10 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
                 if stripped_cur
                 else next_line
             )
+            if stripped_cur and folded_next != next_line:
+                marker = self._normal_join_marker_dropped(row, next_line, folded_next)
+                if marker is not None:
+                    dropped_marker = marker
             stripped_next = folded_next.lstrip()
             if stripped_cur and stripped_next:
                 joined = stripped_cur + " " + stripped_next
@@ -444,8 +470,24 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
             else:
                 joined = stripped_next
                 join_col = 0
-            self.delete((row, 0), (row + 1, len(next_line)))
-            self._replace_via_keyboard(joined, (row, 0), (row, 0))
+
+            is_final_fold = i == joins - 1 or row >= doc.line_count - 2
+            plan = (
+                self._normal_join_renumber_plan(row, join_col, joined, dropped_marker)
+                if is_final_fold and dropped_marker is not None
+                else None
+            )
+            if plan is not None:
+                self._replace_via_keyboard(
+                    plan.text,
+                    self._location_from_absolute(plan.start),
+                    self._location_from_absolute(plan.end),
+                )
+                self.cursor_location = self._location_from_absolute(plan.cursor)
+                row, join_col = self.cursor_location
+            else:
+                self.delete((row, 0), (row + 1, len(next_line)))
+                self._replace_via_keyboard(joined, (row, 0), (row, 0))
 
         self.cursor_location = (row, join_col)
         self.read_only = was_readonly

@@ -285,6 +285,40 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         """Return the pulled-up line NORMAL-mode ``J`` folds in. Default: verbatim."""
         return next_line
 
+    def _normal_join_marker_dropped(
+        self,
+        row: int,
+        next_line: str,
+        folded_next: str,
+    ) -> Any:
+        """Report the list marker NORMAL-mode ``J`` just dropped. Default: none.
+
+        Hosts whose folded marker affects live numbering -- the prompt's
+        ordered lists -- override this to return an opaque token identifying
+        the dropped marker; the generic join loop only remembers the most
+        recent one and hands it to :meth:`_normal_join_renumber_plan` once the
+        press's final fold has run.
+        """
+        return None
+
+    def _normal_join_renumber_plan(
+        self,
+        row: int,
+        join_col: int,
+        joined: str,
+        dropped_marker: Any,
+    ) -> TextEdit | None:
+        """Return a planned replacement renumbering a dropped marker's run.
+
+        Default: none. Called once, on the fold that finishes a NORMAL-mode
+        ``J`` press, only when :meth:`_normal_join_marker_dropped` reported a
+        drop somewhere during the press. Hosts override this to fold the
+        renumbering into the join's existing replacement span rather than
+        adding a separate edit. Returning ``None`` falls back to the plain
+        per-line join.
+        """
+        return None
+
     def _normalize_normal_open_below_replay_text(self, insert_text: str) -> str:
         """Normalize captured ``o`` text after structural replay. Default: identity."""
         return insert_text

@@ -48,6 +48,7 @@ from sase.ace.tui.widgets._prompt_list_markers import (
 __all__ = [
     "MAX_ORDERED_RUN_ITEMS",
     "MAX_ORDERED_SCAN_LINES",
+    "find_ordered_predecessor",
     "find_ordered_run",
     "normalize_prompt_ordered_replay_text",
     "plan_ordered_insert_newline",
@@ -204,6 +205,23 @@ def _previous_sibling(lines: Sequence[str], item: ListMarker) -> ListMarker | No
         )
         row -= 1
     return None
+
+
+def find_ordered_predecessor(
+    lines: Sequence[str],
+    removed: ListMarker,
+) -> ListMarker | None:
+    """Return the ordered item that preceded *removed* before it was folded away.
+
+    NORMAL-mode ``J`` drops a pulled-up ordered marker without ever inserting
+    or removing a line -- the marker's own line is folded into the one above
+    it -- so by the time this runs, *removed* no longer appears in *lines*.
+    Searching backward from ``removed.row`` for the nearest earlier item at its
+    indent and delimiter finds the same "nearest preceding ordered item" every
+    other removal path anchors renumbering on. Returns ``None`` when there is
+    no such item, meaning nothing should be renumbered.
+    """
+    return _previous_sibling(lines, removed)
 
 
 def _next_sibling(lines: Sequence[str], item: ListMarker) -> ListMarker | None:
