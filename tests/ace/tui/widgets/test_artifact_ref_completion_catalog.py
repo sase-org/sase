@@ -8,6 +8,7 @@ import subprocess
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
 from sase_core_rs import artifact_ref_payload_inventory
 
 from sase.artifact_ref_prompt import _resolve_for_launch
@@ -243,7 +244,13 @@ def test_dynamic_payload_index_is_memoized_by_snapshot_identity() -> None:
 
 def test_commit_completion_rows_match_shared_inventory_and_resolve(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Set the budget explicitly rather than relying on sase-core's default
+    # (currently 30s) being generous enough on a heavily oversubscribed CI
+    # runner; see SASE_ARTIFACT_REF_COMMIT_TIMEOUT in sase-core's
+    # editor/completion.rs.
+    monkeypatch.setenv("SASE_ARTIFACT_REF_COMMIT_TIMEOUT", "30")
     first = tmp_path / "sase"
     second = tmp_path / "sase-core"
     sidecar = tmp_path / "plans"
