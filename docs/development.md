@@ -472,6 +472,14 @@ below). A non-zero count means the heuristic itself is unsound as tuned; the res
 `SASE_TEST_SELECTION_DEPTH` to 3, or mark the missed tests `@pytest.mark.contract` and run
 `just refresh-contract-manifest`, and then re-measure — not to explain the failures away.
 
+The report also names the lane's own worst behaviour instead of letting the median hide it: alongside p75/p90/max scoped
+duration it prints "scoped runs slower than the full lane (`FULL_LANE_WALL_SECONDS`)", with each offending run's
+selected-file count and the rules that produced it, so a latency regression like the one `budget` was built to fix is
+visible in the project's own health metric rather than only in one-off timed measurements. Escalated runs are called out
+separately as "cost not measured" rather than folded into the percentiles at their recorded `duration: 0.0` — that zero
+is a placeholder for a run handed off before the runner could time it, not a real duration, and counting it as fast
+would silently hide exactly the regression this counter exists to show.
+
 "The same change" is what makes that number mean anything, and the report states the rule on every run: a scoped run is
 charged with a full-run failure only when both records name the same workspace, the scoped run's HEAD is an ancestor of
 the full run's, and the full run's change set covers the scoped run's. Ancestry alone is not enough — sibling workspaces
