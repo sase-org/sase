@@ -56,4 +56,11 @@ runs:
             ;;
         esac
         echo "Using sase-core commit $(<"$CORE_ARTIFACT_DIR/sase-core-sha.txt")"
+        # Export the wheel for the whole job, not just this step. Every later
+        # step runs another `just` recipe, and every recipe re-enters `_setup`.
+        # Without SASE_CORE_WHEEL set there, `_core-overrides-arg` emits no
+        # overrides file and the editable install silently re-resolves
+        # sase-core-rs back inside the published pyproject window, discarding
+        # the wheel build-core built from sase-core master.
+        echo "SASE_CORE_WHEEL=${wheels[0]}" >> "$GITHUB_ENV"
         SASE_CORE_WHEEL="${wheels[0]}" just "$INSTALL_RECIPE"
