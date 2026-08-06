@@ -84,6 +84,19 @@ class ContextSelection:
     distance: int | None = None
     matched_files: tuple[str, ...] = ()
 
+    @property
+    def usable(self) -> bool:
+        """Whether ground truth actually backed this selection.
+
+        A missing baseline contributed nothing at all, and a stale one was
+        recorded too far back for its rows to describe today's code. Either way
+        the static closure is the only real source, which is the condition
+        ``no-baseline-depth-boost`` compensates for. A *fresh* baseline counts as
+        usable even when it matched no changed file: it looked and found
+        nothing, which is an answer rather than an absence.
+        """
+        return self.baseline_sha is not None and not self.stale
+
     def payload(self) -> dict[str, Any]:
         """The manifest's ``contexts`` block."""
         return {

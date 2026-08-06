@@ -61,6 +61,7 @@ from tests._test_selection_manifest import (
 from tests._test_selection_rules import (
     CONTRACT_MANIFEST_PATH,
     RULE_CONTRACT_SET_ALWAYS,
+    RULE_NO_BASELINE_DEPTH_BOOST,
     RULE_RATIO_EXCEEDED,
     evaluate_broadening_rules,
 )
@@ -288,11 +289,33 @@ def select_tests(
     contexts = ContextSelection()
     selected: set[str] = set()
     explanations: dict[str, tuple[str, int]] = {}
+    depth = options.depth
     if not evaluation.forces_full_suite:
+        # Ground truth is consulted *before* the closure because whether a
+        # usable baseline exists decides how deep the closure has to walk. It is
+        # still unioned in below and never substituted for the closure — see
+        # `tests._test_selection_contexts` for why the union is the whole point.
+        contexts = select_from_contexts(
+            root,
+            store=contexts_store
+            if contexts_store is not None
+            else store_directory(root),
+            changed_paths=change_set.paths,
+            known_test_files=frozenset(universe),
+        )
+        rules.extend(contexts.rules)
+
         # A rename or deletion moves importers around in ways one hop of the
         # graph no longer describes; buy back that hop rather than build
         # bespoke machinery for it.
-        depth = options.depth + (1 if change_set.has_rename_or_delete else 0)
+        depth += 1 if change_set.has_rename_or_delete else 0
+        # With no usable baseline the closure is the only source there is, so it
+        # buys a hop as well. Measured, not assumed: over 65 replayed commits
+        # (`just selection-backtest`) the extra hop is what recovers the tests a
+        # baseline-less workspace would otherwise skip in silence.
+        if not contexts.usable:
+            depth += 1
+            rules.append(RULE_NO_BASELINE_DEPTH_BOOST)
         seeds = [
             graph.paths[path]
             for path in change_set.paths
@@ -322,17 +345,6 @@ def select_tests(
         if contract_set:
             rules.append(RULE_CONTRACT_SET_ALWAYS)
 
-        # Ground truth, unioned in — never substituted for the closure. See
-        # `tests._test_selection_contexts` for why the union is the whole point.
-        contexts = select_from_contexts(
-            root,
-            store=contexts_store
-            if contexts_store is not None
-            else store_directory(root),
-            changed_paths=change_set.paths,
-            known_test_files=frozenset(universe),
-        )
-        rules.extend(contexts.rules)
         for path in contexts.selected:
             selected.add(path)
             explanations.setdefault(path, (f"contexts:{contexts.baseline_sha}", 0))
@@ -354,6 +366,11 @@ def select_tests(
         "base": {"ref": change_set.base_ref, "merge_base": change_set.merge_base},
         "changed_files": list(change_set.paths),
         "depth": options.depth,
+        # The depth the closure actually walked: the configured depth plus the
+        # hops the rename/delete and no-baseline compensations bought. Recorded
+        # separately so a reader can tell a configured depth from a compensated
+        # one without re-deriving it from `rules_fired`.
+        "effective_depth": depth,
         "max_ratio": options.max_ratio,
         "rules_fired": list(ordered_rules),
         "escalated": escalated,
