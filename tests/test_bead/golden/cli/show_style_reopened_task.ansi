@@ -1,0 +1,21 @@
+[96m◇[0m [1;34mbd-reopened[0m [2m·[0m [1mFlaky retry test in CI[0m   [96m[READY][0m [1;38;5;212m[+2][0m [1;38;5;208m[↺2][0m
+[2mType:[0m [38;5;177mtask[0m [2m·[0m [2mOwner:[0m owner@example.com
+[2mSize:[0m [38;5;117msmall[0m
+
+[1;38;5;69mCREATED[0m
+  [38;5;73m2026-07-13 20:00:00 EDT · 18d ago[0m
+
+[1;38;5;208mPREVIOUSLY CLOSED[0m
+  [1;38;5;208m↺ Closed 2026-07-30T09:12:04Z · canceled[0m
+    [2mReason:[0m
+      [49mNot reproducible on main; the retry shim already covers this.[0m[0m
+    Reopened 2026-07-31T17:04:11Z by a +1 from @claude.probe
+  [1;38;5;208m↺ Closed 2026-07-16T11:00:00Z · (unrecorded)[0m
+    [2mReason:[0m [2;3m(none)[0m
+    Reopened 2026-07-18T12:00:00Z by `sase bead open`
+
+[1;38;5;212m+1 EVIDENCE[0m
+  [1;38;5;212m+1 axe.scout · 2026-07-20T08:00:00Z[0m
+    [49mSeen once before the first close.[0m[0m
+  [1;38;5;212m+1 claude.probe · 2026-07-31T17:04:11Z[0m  [1;38;5;208m↺ reopened this task[0m
+    [49mSaw the same flake in CI run 4821 with a clean worktree.[0m[0m

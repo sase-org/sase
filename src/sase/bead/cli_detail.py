@@ -35,6 +35,16 @@ from sase.bead.plus_one_presentation import (
     plus_one_badge,
     plus_one_evidence_label,
 )
+from sase.bead.reopen_presentation import (
+    REOPEN_CLI_STYLE,
+    REOPEN_EVIDENCE_MARKER,
+    REOPEN_SECTION_LABEL,
+    close_history_display_order,
+    close_record_label,
+    close_record_reopened_label,
+    evidence_reopened_bead,
+    reopen_badge,
+)
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_time_presentation import (
     BEAD_TIME_CLI_STYLE,
@@ -68,6 +78,7 @@ def render_issue_detail(
     palette = DetailPalette.for_style(style)
     status = bead_status_presentation(issue.status)
     badge = plus_one_badge(issue.plus_one_count)
+    reopened = reopen_badge(len(issue.close_history))
     lines = [
         (
             f"{palette.accent(status_icon(issue.status), status.cli_style)} "
@@ -75,6 +86,11 @@ def render_issue_detail(
             f"{palette.separator('·')} {palette.title(issue.title)}"
             f"   {palette.accent(f'[{issue.status.value.upper()}]', status.cli_style)}"
             + (f" {palette.accent(f'[{badge}]', PLUS_ONE_CLI_STYLE)}" if badge else "")
+            + (
+                f" {palette.accent(f'[{reopened}]', REOPEN_CLI_STYLE)}"
+                if reopened
+                else ""
+            )
         )
     ]
     type_value = palette.accent(
@@ -143,6 +159,16 @@ def render_issue_detail(
                 f"  {palette.label('Close reason:')} {close_reason_value}",
                 f"  {palette.label('Closed at:')} {closed_at_value}",
             ]
+        )
+
+    if issue.close_history:
+        lines.extend(
+            _render_close_history_lines(
+                issue,
+                palette=palette,
+                style=style,
+                wrap=wrap,
+            )
         )
 
     if issue.parent_id:
@@ -334,6 +360,48 @@ def render_issue_detail(
     return "\n".join(lines) + "\n"
 
 
+def _render_close_history_lines(
+    issue: Issue,
+    *,
+    palette: DetailPalette,
+    style: DetailStyle,
+    wrap: int | None,
+) -> list[str]:
+    """Render archived close episodes newest first.
+
+    This block never renders relative time: it is persisted verbatim into gate
+    previews that gate validation re-derives and byte-compares, and the
+    absolute date is the more useful fact at a go/no-go decision anyway.
+    """
+
+    lines = [
+        "",
+        palette.accent(REOPEN_SECTION_LABEL, REOPEN_CLI_STYLE),
+    ]
+    for record in close_history_display_order(issue.close_history):
+        lines.append(
+            f"  {palette.accent(close_record_label(record), REOPEN_CLI_STYLE)}"
+        )
+        if record.close_reason:
+            lines.append(f"    {palette.label('Reason:')}")
+            lines.extend(
+                _prose_lines(
+                    record.close_reason,
+                    style=style,
+                    wrap=wrap,
+                    indent="      ",
+                )
+            )
+        else:
+            # "No reason was ever recorded" is itself information, so this
+            # renders a placeholder line rather than omitting the field.
+            lines.append(
+                f"    {palette.label('Reason:')} {palette.placeholder('(none)')}"
+            )
+        lines.append(f"    {close_record_reopened_label(record)}")
+    return lines
+
+
 def _render_plus_one_evidence_lines(
     issue: Issue,
     *,
@@ -355,9 +423,10 @@ def _render_plus_one_evidence_lines(
         palette.accent(PLUS_ONE_SECTION_LABEL, PLUS_ONE_CLI_STYLE),
     ]
     for evidence in issue.plus_one_evidence:
-        lines.append(
-            f"  {palette.accent(plus_one_evidence_label(evidence), PLUS_ONE_CLI_STYLE)}"
-        )
+        label = palette.accent(plus_one_evidence_label(evidence), PLUS_ONE_CLI_STYLE)
+        if evidence_reopened_bead(evidence, issue.close_history):
+            label += f"  {palette.accent(REOPEN_EVIDENCE_MARKER, REOPEN_CLI_STYLE)}"
+        lines.append(f"  {label}")
         lines.extend(_prose_lines(evidence.note, style=style, wrap=wrap, indent="    "))
         if not evidence.refs:
             continue

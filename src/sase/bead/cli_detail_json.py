@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 
 from sase.bead.cli_detail_resolution import IssueDetail, PlanLink
+from sase.bead.close_history_codec import close_history_to_dicts
 from sase.bead.model import Dependency, Issue
+from sase.bead.reopen_presentation import evidence_reopened_bead
 
 
 def render_issue_detail_json(
@@ -58,6 +60,7 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "closed_at": issue.closed_at,
         "close_reason": issue.close_reason,
         "resolution": issue.resolution.value if issue.resolution else None,
+        "close_history": close_history_to_dicts(issue.close_history),
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
@@ -69,6 +72,10 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
                 "reporter": evidence.reporter,
                 "note": evidence.note,
                 "refs": list(evidence.refs),
+                # Derived here rather than left to the reader: agents use this
+                # JSON to decide whether a duplicate is worth reviving, and
+                # re-deriving the join is how renderings drift apart.
+                "reopened_bead": evidence_reopened_bead(evidence, issue.close_history),
             }
             for evidence in issue.plus_one_evidence
         ],

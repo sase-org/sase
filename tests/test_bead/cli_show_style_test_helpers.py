@@ -12,12 +12,15 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import (
     BeadTier,
+    CloseRecord,
     Dependency,
     Issue,
     IssueType,
     PhaseSize,
+    ReopenCause,
     Resolution,
     Status,
+    TaskPlusOneEvidence,
 )
 from sase.main.parser import create_parser
 
@@ -228,6 +231,55 @@ def build_cjk_emoji_title() -> tuple[dict[str, Issue], str]:
     return {issue.id: issue}, issue.id
 
 
+REOPENED_TASK_ID = "bd-reopened"
+REOPENING_REPORTER = "claude.probe"
+REOPENING_TIMESTAMP = "2026-07-31T17:04:11Z"
+
+
+def build_reopened_task() -> tuple[dict[str, Issue], str]:
+    """A task closed twice, reopened by a ``+1`` and then by ``sase bead open``."""
+
+    issue = Issue(
+        id=REOPENED_TASK_ID,
+        title="Flaky retry test in CI",
+        issue_type=IssueType.TASK,
+        status=Status.READY,
+        size=PhaseSize.SMALL,
+        owner="owner@example.com",
+        created_at="2026-07-14T00:00:00Z",
+        plus_one_evidence=[
+            TaskPlusOneEvidence(
+                timestamp="2026-07-20T08:00:00Z",
+                reporter="axe.scout",
+                note="Seen once before the first close.",
+            ),
+            TaskPlusOneEvidence(
+                timestamp=REOPENING_TIMESTAMP,
+                reporter=REOPENING_REPORTER,
+                note="Saw the same flake in CI run 4821 with a clean worktree.",
+            ),
+        ],
+        close_history=[
+            CloseRecord(
+                closed_at="2026-07-16T11:00:00Z",
+                reopened_at="2026-07-18T12:00:00Z",
+                reopened_via=ReopenCause.OPEN,
+            ),
+            CloseRecord(
+                closed_at="2026-07-30T09:12:04Z",
+                reopened_at=REOPENING_TIMESTAMP,
+                reopened_via=ReopenCause.PLUS_ONE,
+                close_reason=(
+                    "Not reproducible on main; the retry shim already covers this."
+                ),
+                resolution=Resolution.CANCELED,
+                reopened_by=REOPENING_REPORTER,
+            ),
+        ],
+    )
+    return {issue.id: issue}, issue.id
+
+
 CORPUS: list[tuple[str, CorpusBuilder]] = [
     ("minimal_task", build_minimal_task),
     ("closed_with_resolution", build_closed_with_resolution),
@@ -238,6 +290,7 @@ CORPUS: list[tuple[str, CorpusBuilder]] = [
     ("with_refs", build_with_refs),
     ("markdown_description", build_markdown_description),
     ("cjk_emoji_title", build_cjk_emoji_title),
+    ("reopened_task", build_reopened_task),
 ]
 
 

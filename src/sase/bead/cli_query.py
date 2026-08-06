@@ -37,6 +37,11 @@ from sase.bead.plus_one_presentation import (
     plus_one_badge,
     plus_one_evidence_search_text,
 )
+from sase.bead.reopen_presentation import (
+    REOPEN_CLI_STYLE,
+    close_history_search_text,
+    reopen_badge,
+)
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_type_presentation import (
     BEAD_TYPE_VALUES,
@@ -242,11 +247,9 @@ def handle_bead_ready(args: argparse.Namespace) -> None:
             return
         for issue in issues:
             parent = f" ← {issue.parent_id}" if issue.parent_id else ""
-            badge = plus_one_badge(issue.plus_one_count)
-            suffix = f" [{badge}]" if badge else ""
             print(
                 f"{status_icon(issue.status)} {issue.id} · "
-                f"{issue.title}{suffix}{parent}"
+                f"{issue.title}{_row_badges(issue)}{parent}"
             )
         print(f"\n{'-' * 60}")
         suffix = "" if len(issues) == 1 else "s"
@@ -262,9 +265,10 @@ def handle_bead_blocked(args: argparse.Namespace) -> None:
         for issue in issues:
             blockers = [d.depends_on_id for d in issue.dependencies]
             blocker_str = ", ".join(blockers)
-            badge = plus_one_badge(issue.plus_one_count)
-            suffix = f" [{badge}]" if badge else ""
-            print(f"● {issue.id} · {issue.title}{suffix}  [blocked by: {blocker_str}]")
+            print(
+                f"● {issue.id} · {issue.title}{_row_badges(issue)}"
+                f"  [blocked by: {blocker_str}]"
+            )
 
 
 def handle_bead_stats(args: argparse.Namespace) -> None:
@@ -283,6 +287,20 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
         print(f"  +1 Reports:  {s.get('plus_one', 0)}")
 
 
+def _row_badges(issue: Issue, *, use_color: bool = False) -> str:
+    """Return the shared ``[+N]``/``[↺N]`` suffix for one bead row.
+
+    Every row surface (list, ready, blocked, search) shares this so the two
+    badges cannot appear in different orders or with different spacing.
+    """
+    badges = []
+    if badge := plus_one_badge(issue.plus_one_count):
+        badges.append(styled(f"[{badge}]", PLUS_ONE_CLI_STYLE, use_color))
+    if reopened := reopen_badge(len(issue.close_history)):
+        badges.append(styled(f"[{reopened}]", REOPEN_CLI_STYLE, use_color))
+    return "".join(f" {badge}" for badge in badges)
+
+
 def _render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
     # Measured (not assumed) so the column stays aligned even though the three
     # type glyphs may not always share a Unicode width class.
@@ -298,13 +316,10 @@ def _render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
         status_glyph = styled(status.glyph, status.cli_style, use_color)
         issue_id = styled(issue.id, ANSI_BOLD_BLUE, use_color)
         parent = f" ← {issue.parent_id}" if issue.parent_id else ""
-        badge = plus_one_badge(issue.plus_one_count)
-        badge_text = (
-            f" {styled(f'[{badge}]', PLUS_ONE_CLI_STYLE, use_color)}" if badge else ""
-        )
         lines.append(
             f"{type_cell} {status_glyph} {issue_id} · {issue.title}"
-            f"{badge_text}{parent}{created_cell(issue, use_color=use_color)}"
+            f"{_row_badges(issue, use_color=use_color)}{parent}"
+            f"{created_cell(issue, use_color=use_color)}"
         )
     return "\n".join(lines) + "\n"
 
@@ -366,13 +381,10 @@ def _render_search_compact(
             use_color=use_color,
             width=type_width,
         )
-        badge = plus_one_badge(issue.plus_one_count)
-        badge_text = (
-            f" {styled(f'[{badge}]', PLUS_ONE_CLI_STYLE, use_color)}" if badge else ""
-        )
         lines.append(
             f"{type_cell} {status_icon(issue.status)} {issue.id} · "
-            f"{issue.title}{badge_text}{created_cell(issue, use_color=use_color)}"
+            f"{issue.title}{_row_badges(issue, use_color=use_color)}"
+            f"{created_cell(issue, use_color=use_color)}"
         )
         snippet = _compact_snippet(match, query)
         if snippet:
@@ -432,6 +444,7 @@ def _search_field_value(issue: Issue, field: str) -> str:
         "design": issue.design,
         "refs": "\n".join(issue.refs),
         "plus_one_evidence": plus_one_evidence_search_text(issue.plus_one_evidence),
+        "close_history": close_history_search_text(issue.close_history),
         "owner": issue.owner,
         "assignee": issue.assignee,
         "model": issue.model,
