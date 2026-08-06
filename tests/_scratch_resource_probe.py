@@ -3,9 +3,19 @@
 sase-core's ``commit_log_output`` opens an anonymous scratch file for ``git
 log`` output and clones its descriptor.  When either step fails it reports
 ``CommitLogFailure::Scratch``, which discards the underlying ``io::Error`` and
-guesses at an unwritable ``TMPDIR``.  On GitHub runners that guess is wrong:
-``TMPDIR`` demonstrably exists and is writable, yet the inventory still comes
-back empty.
+guesses at an unwritable ``TMPDIR``.
+
+That guess is usually wrong. The scratch_tmpdir_leak_fix phase traced one such
+empty-inventory CI failure to test pollution, not a bad ``TMPDIR``: an earlier
+test on the same xdist worker redirected ``TMPDIR`` without routing the change
+through ``monkeypatch``, and the redirect outlived that test's own teardown,
+left pointing at a ``tmp_path`` pytest had since deleted. Python's own
+``tempfile.gettempdir()`` never noticed, because it caches its answer on first
+use -- only non-Python code that re-reads ``$TMPDIR`` on every call, like
+sase-core's Rust extension, does. That specific leak is now caught directly by
+``tests/_tmp_leak_guard.py``'s per-test guard; this probe stays as a fallback
+for the resource-exhaustion causes (EMFILE, ENOSPC, an O_TMPFILE quirk) that
+guard cannot catch.
 
 This module reproduces both syscalls from Python and reports the surrounding
 resource state, so a CI job log records the errno instead of the guess.

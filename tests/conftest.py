@@ -19,11 +19,18 @@ from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 from sase.llm_provider.launch_alias_overrides import SASE_MODEL_ALIAS_OVERRIDES_ENV
 from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
 from tests._tmp_leak_guard import (
+    check_tmp_env_leak_guard,
     finish_tmp_leak_guard,
     report_tmp_leak_guard,
+    start_tmp_env_leak_guard,
     start_tmp_leak_guard,
 )
 from tests._project_display_case import ProjectDisplayCase
+
+# Enables the ``pytester`` fixture, used by tests that pin ordering-dependent
+# regressions (see e.g. test_scratch_tmpdir_leak_regression.py) by running a
+# handful of real node IDs through a nested pytest subprocess.
+pytest_plugins = ["pytester"]
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DIRECTORY_MAP_PLACEHOLDER = (
@@ -109,6 +116,26 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 def pytest_sessionfinish(session: pytest.Session) -> None:
     """Fail the run when the suite leaked system temp-directory entries."""
     finish_tmp_leak_guard(session)
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Snapshot the per-test TMPDIR env-leak guard baseline before ``item`` runs."""
+    start_tmp_env_leak_guard(item)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_teardown(
+    item: pytest.Item, nextitem: pytest.Item | None
+) -> Iterator[None]:
+    """Fail ``item`` if it leaked TMPDIR/SASE_PYTEST_TMP_REDIRECTED past teardown.
+
+    Runs as a hookwrapper so the check fires strictly after this item's own
+    fixture teardown (including ``monkeypatch``'s automatic restoration) has
+    completed, regardless of where this hook's fixtures would otherwise land
+    relative to ``monkeypatch`` in the teardown stack.
+    """
+    yield
+    check_tmp_env_leak_guard(item)
 
 
 def pytest_terminal_summary(

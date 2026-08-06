@@ -42,6 +42,13 @@ def test_prepare_pytest_tmpdir_honors_override(
     runner = load_run_pytest()
     scratch_root = tmp_path / "pytest scratch"
     monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(scratch_root))
+    # _prepare_pytest_tmpdir() mutates these two process-global env vars as
+    # its contract; pre-register them with monkeypatch (the placeholder
+    # values are immediately overwritten by the call below) so teardown
+    # restores whatever was really there instead of leaking a deleted
+    # tmp_path into every later test on this worker.
+    monkeypatch.setenv("TMPDIR", "overwritten-by-_prepare_pytest_tmpdir")
+    monkeypatch.setenv(runner.PYTEST_TMP_REDIRECTED_ENV, "0")
 
     assert runner._prepare_pytest_tmpdir() == scratch_root
     assert scratch_root.is_dir()
