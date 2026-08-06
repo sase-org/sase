@@ -8,6 +8,7 @@ import hashlib
 import os
 import shutil
 import stat
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -26,6 +27,16 @@ from tests._suite_gate import (  # noqa: E402
     gate_directory,
     gate_timeout,
 )
+from tests._test_selection import (  # noqa: E402
+    MANIFEST_FILENAME,
+    SELECTION_DIRECTORY,
+    Selection,
+    SelectionOptions,
+    select_tests,
+    summary_line,
+    write_manifest,
+)
+from tests._test_selection_graph import SelectionError  # noqa: E402
 
 
 PYTEST_ENV_UNSET_KEYS = (
@@ -38,7 +49,15 @@ FAST_MARKER_EXPRESSION = "not slow and not visual"
 SLOW_MARKER_EXPRESSION = "slow"
 VISUAL_MARKER_EXPRESSION = "visual"
 TERMINAL_SMOKE_MARKER_EXPRESSION = "terminal_smoke"
-SERIAL_MODES = frozenset({"terminal-smoke"})
+# `scoped` is serial by construction: `-n 1` makes `_xdist_worker_count` return
+# None, so no suite-gate path runs at all and the run never queues for tokens.
+SERIAL_MODES = frozenset({"terminal-smoke", "scoped"})
+SCOPED_MODE = "scoped"
+SCOPED_WORKER_REMEDY = (
+    "a governed parallel run of an arbitrary subset is exactly the "
+    "unaccounted-demand shape the suite gate exists to prevent; use "
+    "`just check-full` (or `just test`) for a governed parallel run."
+)
 PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
 DEFAULT_PYTEST_DIST = "worksteal"
 SUPPORTED_PYTEST_DIST_MODES = ("loadfile", "worksteal")
@@ -212,7 +231,7 @@ def _pytest_command(
         command.extend(["-m", VISUAL_MARKER_EXPRESSION])
     elif mode == "terminal-smoke":
         command.extend(["-m", TERMINAL_SMOKE_MARKER_EXPRESSION])
-    elif mode == "fast":
+    elif mode in ("fast", SCOPED_MODE):
         command.extend(["-m", FAST_MARKER_EXPRESSION])
     elif mode == "cov":
         command.extend(
@@ -369,7 +388,15 @@ def _configured_worker_count() -> int | None:
     return worker_count
 
 
-def _reject_numprocesses_args(args: list[str]) -> None:
+DEFAULT_WORKER_REMEDY = (
+    "use SASE_PYTEST_WORKERS for an exact worker request instead of passing "
+    "-n/--numprocesses."
+)
+
+
+def _reject_numprocesses_args(
+    args: list[str], *, remedy: str = DEFAULT_WORKER_REMEDY
+) -> None:
     for arg in args:
         if (
             arg in {"-n", "--numprocesses"}
@@ -379,8 +406,7 @@ def _reject_numprocesses_args(args: list[str]) -> None:
         ):
             raise pytest.UsageError(
                 "tools/run_pytest governs its xdist count from the shared token "
-                "pool; use SASE_PYTEST_WORKERS for an exact worker request "
-                "instead of passing -n/--numprocesses."
+                f"pool; {remedy}"
             )
 
 
@@ -412,10 +438,52 @@ def _parallel_worker_grant() -> tuple[int, WorkerTokenLease | None]:
     return granted, lease
 
 
+def _scoped_manifest_path() -> Path:
+    return REPO_ROOT / SELECTION_DIRECTORY / MANIFEST_FILENAME
+
+
+def _scoped_selection(manifest_path: Path) -> Selection:
+    """Compute and persist the diff-scoped selection for a `scoped` run.
+
+    Configuration problems (a bad depth or ratio, an unusable graph) are usage
+    errors. An unresolvable base ref is *not* one: the engine escalates on it,
+    so a stale remote fails toward more testing rather than less.
+    """
+    try:
+        selection = select_tests(REPO_ROOT, SelectionOptions.from_environment())
+    except SelectionError as error:
+        raise pytest.UsageError(f"test selection failed: {error}") from error
+    write_manifest(manifest_path, selection.manifest)
+    return selection
+
+
+def _complete_scoped_manifest(
+    manifest_path: Path,
+    manifest: dict[str, object],
+    *,
+    duration: float,
+    outcome: str,
+) -> None:
+    """Append the two fields only the runner knows to the selection manifest."""
+    write_manifest(
+        manifest_path,
+        {**manifest, "duration": round(duration, 3), "outcome": outcome},
+    )
+
+
+def _reject_scoped_worker_overrides(args: list[str]) -> None:
+    _reject_numprocesses_args(args, remedy=SCOPED_WORKER_REMEDY)
+    if os.environ.get("SASE_PYTEST_WORKERS") is not None:
+        raise pytest.UsageError(
+            f"scoped runs are serial and take no suite-gate lease, so "
+            f"SASE_PYTEST_WORKERS does not apply; {SCOPED_WORKER_REMEDY}"
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "mode", choices=("fast", "slow", "visual", "cov", "terminal-smoke")
+        "mode", choices=("fast", "slow", "visual", "cov", "terminal-smoke", SCOPED_MODE)
     )
     parser.add_argument("pytest_args", nargs=argparse.REMAINDER)
     namespace = parser.parse_args(argv)
@@ -427,7 +495,38 @@ def main(argv: list[str] | None = None) -> int:
     pytest_args = _normalize_args(pytest_args, invocation_dir)
 
     lease: WorkerTokenLease | None = None
+    scoped_manifest: dict[str, object] | None = None
+    manifest_path = _scoped_manifest_path()
     try:
+        if mode == SCOPED_MODE:
+            _reject_scoped_worker_overrides(pytest_args)
+            selection = _scoped_selection(manifest_path)
+            # `tools/run_silent` swallows stdout on success, so the summary goes
+            # to stderr where a failure dump will carry it.
+            print(summary_line(selection), file=sys.stderr)
+            if selection.escalated:
+                # Never let the fast path become the slow path: a large or
+                # broadened selection runs the governed full lane instead of a
+                # serial partial one.
+                print(
+                    "escalating to the governed full test lane "
+                    f"(rules: {', '.join(selection.rules) or 'none'})",
+                    file=sys.stderr,
+                )
+                mode = "fast"
+            elif not selection.selected:
+                print(
+                    "no test files selected; skipping pytest entirely",
+                    file=sys.stderr,
+                )
+                _complete_scoped_manifest(
+                    manifest_path, selection.manifest, duration=0.0, outcome="empty"
+                )
+                return 0
+            else:
+                scoped_manifest = selection.manifest
+                pytest_args = [*pytest_args, *selection.selected]
+
         if _requires_serial_run(mode, pytest_args):
             worker_count = 1
             distribution_mode = None
@@ -445,6 +544,21 @@ def main(argv: list[str] | None = None) -> int:
         _prepare_pytest_tmpdir()
         _sanitize_pytest_environment()
         os.chdir(REPO_ROOT)
+        if scoped_manifest is not None:
+            # Belt-and-braces against subprocess-spawning tests: `-n 1` already
+            # keeps every gate path dormant.
+            environment = {**os.environ, "SASE_TEST_GATE_DISABLED": "1"}
+            # `execv` cannot come back to finish the manifest, so scoped mode is
+            # the one mode that keeps a parent process alive.
+            started = time.monotonic()
+            returncode = subprocess.run(command, env=environment).returncode
+            _complete_scoped_manifest(
+                manifest_path,
+                scoped_manifest,
+                duration=time.monotonic() - started,
+                outcome="passed" if returncode == 0 else "failed",
+            )
+            return returncode
         os.execv(sys.executable, command)
         raise AssertionError("unreachable")
     except pytest.UsageError as error:

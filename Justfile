@@ -332,6 +332,19 @@ test *args: _setup-visual (_header "test")
     @printf "\n---------- Running pytest (parallel, no coverage)... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest fast "$@"
 
+# Diff-scoped test lane: selects tests from the change set, runs them serially
+# without taking a suite-gate lease, and escalates to the governed full lane
+# when the selection is too large or a broadening rule fires.
+#
+# Depends on `_setup`, not `_setup-visual`, because the selector excludes
+# `tests/ace/tui/visual/**` unconditionally, so nothing collected here imports
+# Pillow. If that exclusion is ever removed, this recipe must go back to
+# `_setup-visual`.
+[positional-arguments]
+test-scoped *args: _setup (_header "test-scoped")
+    @printf "\n---------- Running diff-scoped pytest selection... ----------\n"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest scoped "$@"
+
 # Run slow tests (excluded from the default `just test` run)
 [positional-arguments]
 test-slow *args: _setup (_header "test-slow")

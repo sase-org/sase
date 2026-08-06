@@ -115,6 +115,25 @@ def test_private_symvision_stage_uses_published_cli() -> None:
     assert "python tools/pyvision" not in output
 
 
+def test_test_scoped_runs_the_scoped_runner_mode() -> None:
+    output = _dry_run("test-scoped")
+
+    assert "tools/run_pytest scoped" in output
+
+
+def test_test_scoped_skips_the_visual_dependency_install() -> None:
+    """The scoped lane is Pillow-free because the selector drops the visual tree.
+
+    `_setup-visual` runs the `[dev,visual]` install; `_setup` does not. If the
+    selector ever stops excluding `tests/ace/tui/visual/**`, this recipe has to
+    go back to `_setup-visual` and this assertion is the tripwire.
+    """
+    output = _dry_run("test-scoped")
+
+    assert '-e ".[dev,visual]"' not in output
+    assert '-e ".[dev]"' in output
+
+
 def test_legacy_pyvision_wiring_is_absent() -> None:
     justfile = (ROOT / "Justfile").read_text()
 
