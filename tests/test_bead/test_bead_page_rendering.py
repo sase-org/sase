@@ -8,10 +8,12 @@ from typing import cast
 
 from sase.bead.model import (
     BeadTier,
+    CloseRecord,
     Dependency,
     Issue,
     IssueType,
     PhaseSize,
+    ReopenCause,
     Resolution,
     Status,
     TaskPlusOneEvidence,
@@ -507,6 +509,7 @@ def test_empty_optional_sections_are_omitted() -> None:
     )
 
     for heading in (
+        "## Previously Closed",
         "## Description",
         "## Notes",
         "## Phases",
@@ -595,6 +598,106 @@ def test_task_bead_page_renders_bounded_linked_plus_one_callouts() -> None:
     assert (
         "[plans:202608/cache.md](https://example.test/plans/202608/cache.md)"
         in rendered
+    )
+
+
+def test_task_bead_page_renders_bounded_previously_closed_callouts() -> None:
+    task = Issue(
+        "sase-task",
+        "Flaky retry test in CI",
+        status=Status.READY,
+        issue_type=IssueType.TASK,
+        size=PhaseSize.SMALL,
+        description="Discovered while investigating flaky retries.",
+        close_history=[
+            CloseRecord(
+                closed_at="2026-06-01T00:00:00Z",
+                reopened_at="2026-06-10T00:00:00Z",
+                reopened_via=ReopenCause.OPEN,
+            ),
+            CloseRecord(
+                closed_at="2026-07-30T09:12:04Z",
+                reopened_at="2026-08-05T17:04:11Z",
+                reopened_via=ReopenCause.PLUS_ONE,
+                close_reason="# injected\nNot reproducible on main.",
+                resolution=Resolution.CANCELED,
+                reopened_by="claude.probe",
+            ),
+        ],
+    )
+    view = _View((task,))
+
+    rendered = render_bead_page(
+        cast(BeadProject, view),
+        task,
+        BeadAssociationIndex(MappingProxyType({})),
+    )
+
+    assert "**↺ Reopened:** ↺2" in rendered
+    assert "## Previously Closed" in rendered
+    assert rendered.index("## Previously Closed") < rendered.index("## Description")
+    assert "> ↺ Closed 2026-07-30T09:12:04Z · canceled" in rendered
+    assert "> \\# injected" in rendered
+    assert "> Reopened 2026-08-05T17:04:11Z by a +1 from @claude.probe" in rendered
+    assert "> ↺ Closed 2026-06-01T00:00:00Z · (unrecorded)" in rendered
+    assert "> Reopened 2026-06-10T00:00:00Z by `sase bead open`" in rendered
+    # Newest record renders first even though storage is oldest-first.
+    assert rendered.index("2026-07-30T09:12:04Z") < rendered.index(
+        "2026-06-01T00:00:00Z"
+    )
+
+
+def test_previously_closed_section_omits_reason_line_when_none_was_recorded() -> None:
+    task = Issue(
+        "sase-task",
+        "Flaky retry test in CI",
+        issue_type=IssueType.TASK,
+        close_history=[
+            CloseRecord(
+                closed_at="2026-06-01T00:00:00Z",
+                reopened_at="2026-06-10T00:00:00Z",
+                reopened_via=ReopenCause.OPEN,
+            ),
+        ],
+    )
+    view = _View((task,))
+
+    rendered = render_bead_page(
+        cast(BeadProject, view),
+        task,
+        BeadAssociationIndex(MappingProxyType({})),
+    )
+
+    assert "> (none)" in rendered
+
+
+def test_roster_reopen_column_reports_the_archived_close_count() -> None:
+    task = Issue(
+        "sase-task",
+        "Flaky retry test in CI",
+        issue_type=IssueType.TASK,
+        close_history=[
+            CloseRecord(
+                closed_at="2026-07-30T09:12:04Z",
+                reopened_at="2026-08-05T17:04:11Z",
+                reopened_via=ReopenCause.PLUS_ONE,
+                reopened_by="claude.probe",
+            )
+        ],
+    )
+
+    rendered = render_bead_pages_roster_bytes(
+        (task,),
+        BeadAssociationIndex(MappingProxyType({})),
+    ).decode()
+
+    assert (
+        "| Bead | Title | Type | Tier | Status | Created | +1 | ↺ | Phases"
+        " | Agents | Commits |" in rendered
+    )
+    assert (
+        "| [sase-task](sase-task/README.md) | Flaky retry test in CI | ◆ task |"
+        " — | open | unknown | 0 | 1 | 0 | 0 | 0 |" in rendered
     )
 
 

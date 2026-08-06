@@ -13,6 +13,14 @@ from sase.bead.plus_one_presentation import (
     PLUS_ONE_SECTION_LABEL,
     plus_one_badge,
 )
+from sase.bead.reopen_presentation import (
+    REOPEN_GLYPH,
+    REOPEN_SECTION_LABEL,
+    close_history_display_order,
+    close_record_label,
+    close_record_reopened_label,
+    reopen_badge,
+)
 from sase.bead_pages.paths import bead_lineage_root
 from sase.bead_time_presentation import BEAD_TIME_UNKNOWN_LABEL, bead_instant_label
 from sase.bead_type_presentation import bead_type_presentation
@@ -135,6 +143,27 @@ def render_plus_one_evidence(
     return lines
 
 
+def render_close_history(issue: Issue) -> list[str]:
+    """Render bounded, structurally safe archived close callouts."""
+
+    if not issue.close_history:
+        return []
+    lines = ["", f"## {REOPEN_SECTION_LABEL.title()}", ""]
+    records = close_history_display_order(issue.close_history)
+    for index, record in enumerate(records):
+        if index:
+            lines.append("")
+        lines.append(f"> {close_record_label(record)}")
+        lines.append(">")
+        reason = record.close_reason if record.close_reason else "(none)"
+        lines.extend(
+            f"> {line}" if line else ">" for line in _bounded_prose(reason).splitlines()
+        )
+        lines.append(">")
+        lines.append(f"> {close_record_reopened_label(record)}")
+    return lines
+
+
 def _breadcrumb(issue: Issue) -> str:
     root = bead_lineage_root(issue.id)
     if issue.id == root:
@@ -157,6 +186,8 @@ def _primary_facts(issue: Issue) -> str:
         values.append(f"**Tier:** {issue.tier.value}")
     if badge := plus_one_badge(issue.plus_one_count):
         values.append(f"**+1 reports:** {badge}")
+    if badge := reopen_badge(len(issue.close_history)):
+        values.append(f"**{REOPEN_GLYPH} Reopened:** {badge}")
     if issue.status == Status.CLOSED:
         resolution = issue.resolution.value if issue.resolution else "(unrecorded)"
         values.insert(1, f"**Resolution:** {resolution}")
@@ -272,6 +303,7 @@ def _neutralize_structural_line(line: str) -> str:
 __all__ = [
     "MAX_RENDERED_PROSE_CHARS",
     "PlanLinkResolver",
+    "render_close_history",
     "render_identity",
     "render_plus_one_evidence",
     "render_prose_sections",

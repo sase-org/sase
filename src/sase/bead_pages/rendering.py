@@ -11,6 +11,7 @@ from sase.bead_pages.paths import bead_lineage_root
 from sase.bead_pages.rendering_graph import render_lineage_graph
 from sase.bead_pages.rendering_identity import (
     PlanLinkResolver,
+    render_close_history,
     render_identity,
     render_plus_one_evidence,
     render_prose_sections,
@@ -54,6 +55,7 @@ def _render_bead_page_from_detail(
     issue = detail.issue
     associations = association_index.for_bead(issue.id)
     lines = render_identity(detail, plan_links=link_resolver)
+    lines.extend(render_close_history(issue))
     lines.extend(render_prose_sections(issue))
     lines.extend(render_plus_one_evidence(issue, plan_links=link_resolver))
     lines.extend(render_references(issue, plan_links=link_resolver))
