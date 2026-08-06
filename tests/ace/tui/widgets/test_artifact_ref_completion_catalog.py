@@ -5,11 +5,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import subprocess
+import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 from sase_core_rs import artifact_ref_payload_inventory
+
+from tests._scratch_resource_probe import scratch_resource_report
 
 from sase.artifact_ref_prompt import _resolve_for_launch
 from sase.ace.tui.widgets import artifact_ref_completion as artifact_completion
@@ -312,11 +315,20 @@ def test_commit_completion_rows_match_shared_inventory_and_resolve(
         candidate.insertion for candidate in result.candidates
     )
 
-    assert lsp_payload_sequence == prompt_payload_sequence
+    # An empty inventory means sase-core gave up on `git log` -- on CI runners
+    # that has been CommitLogFailure::Scratch, whose message discards the
+    # errno.  Report the scratch-file resource state next to it rather than
+    # weakening the parity assertion below.
+    probe = ""
+    if not lsp_payload_sequence or not prompt_payload_sequence:
+        probe = "\n" + scratch_resource_report()
+        print(probe, file=sys.stderr)
+
+    assert lsp_payload_sequence == prompt_payload_sequence, probe
     assert prompt_payload_sequence == (
         f"@commit:sase-core@{recent_sha[:12]}",
         f"@commit:sase@{older_sha[:12]}",
-    )
+    ), probe
     assert sidecar_sha[:12] not in " ".join(lsp_payload_sequence)
     assert raw_inventory["truncated_payloads"] == 0
     assert snapshot.truncated_payloads == 0
