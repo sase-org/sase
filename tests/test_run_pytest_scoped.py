@@ -73,9 +73,18 @@ def test_scoped_mode_runs_the_selection_serially_and_never_acquires(
     assert isinstance(command, list)
     assert "-n" not in command
     assert not any(arg.startswith("--dist") for arg in command)
-    assert command[-4:] == ["-m", runner.FAST_MARKER_EXPRESSION, *selected]
+    assert command[-(4 + len(selected)) :] == [
+        "-m",
+        runner.FAST_MARKER_EXPRESSION,
+        # A scoped run feeds the cost model the durations of the files the
+        # lane actually touches; it still takes no lease to do it.
+        "-p",
+        runner.TIMINGS_PLUGIN_MODULE,
+        *selected,
+    ]
     environment = observed["env"]
     assert isinstance(environment, dict)
+    assert runner.TIMINGS_RECORD_ENV in environment
     assert environment["SASE_TEST_GATE_DISABLED"] == "1"
     assert "SASE_TEST_GATE_DISABLED" not in runner.os.environ
 
@@ -143,7 +152,7 @@ def test_scoped_escalation_runs_the_governed_fast_lane(
 
     assert observed["command"] == runner._pytest_command(
         "fast",
-        ["-p", runner.HEALTH_PLUGIN_MODULE],
+        ["-p", runner.TIMINGS_PLUGIN_MODULE, "-p", runner.HEALTH_PLUGIN_MODULE],
         worker_count=7,
         distribution_mode="worksteal",
     )

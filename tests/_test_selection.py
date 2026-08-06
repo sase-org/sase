@@ -26,6 +26,7 @@ hold the parts that stand on their own:
 * :mod:`tests._test_selection_manifest` — cache paths, manifest I/O, and the
   environment fingerprint the manifest baseline is keyed to.
 * :mod:`tests._test_selection_contexts` — per-test coverage as a second source.
+* :mod:`tests._test_selection_timings` — what the selected files cost to run.
 * :mod:`tests._test_selection_report` — rendering a selection for a reader.
 """
 
@@ -33,7 +34,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +65,12 @@ from tests._test_selection_rules import (
     RULE_NO_BASELINE_DEPTH_BOOST,
     RULE_RATIO_EXCEEDED,
     evaluate_broadening_rules,
+)
+from tests._test_selection_timings import (
+    REASON_ESCALATED,
+    TimingEstimate,
+    estimate_serial_seconds,
+    timings_directory,
 )
 
 
@@ -150,6 +157,10 @@ class Selection:
     explanations: dict[str, tuple[str, int]]
     universe_count: int
     contexts: ContextSelection = ContextSelection()
+    #: What a serial run of `selected` is estimated to cost, or why that
+    #: cannot be said. Measured and inert: nothing in this selection depends
+    #: on it.
+    timings: TimingEstimate = field(default_factory=TimingEstimate)
 
     @property
     def paths_output(self) -> str:
@@ -246,6 +257,7 @@ def select_tests(
     environment: str | None = None,
     previous_manifest: Mapping[str, Any] | None = None,
     contexts_store: Path | None = None,
+    timings_store: Path | None = None,
 ) -> Selection:
     """Select the test files that plausibly cover the current change set."""
     options = options or SelectionOptions.from_environment()
@@ -378,6 +390,20 @@ def select_tests(
 
     ordered_rules = tuple(sorted(set(rules)))
     ordered_selected = tuple(sorted(selected))
+
+    # Measured and inert. The estimate is recorded so a reader can see what a
+    # selection was about to cost; no rule above consults it, and none should
+    # until a phase deliberately makes it one.
+    if escalated:
+        timings = TimingEstimate(reason=REASON_ESCALATED)
+    else:
+        timings = estimate_serial_seconds(
+            ordered_selected,
+            directory=timings_directory(
+                store_directory(root) if timings_store is None else timings_store
+            ),
+        )
+
     manifest = {
         "schema": MANIFEST_SCHEMA,
         "base": {"ref": change_set.base_ref, "merge_base": change_set.merge_base},
@@ -401,6 +427,7 @@ def select_tests(
         },
         "graph": dict(graph.stats),
         "contexts": contexts.payload(),
+        "timings": timings.payload(),
     }
     return Selection(
         selected=ordered_selected,
@@ -410,4 +437,5 @@ def select_tests(
         explanations=explanations,
         universe_count=len(universe),
         contexts=contexts,
+        timings=timings,
     )

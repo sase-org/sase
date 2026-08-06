@@ -19,8 +19,10 @@ from typing import Any
 
 
 #: Bumped to 2 when the `contexts` block joined the manifest, to 3 when
-#: `effective_depth` did, and to 4 when `contexts.consulted` did.
-MANIFEST_SCHEMA = 4
+#: `effective_depth` did, to 4 when `contexts.consulted` did, and to 5 when the
+#: `timings` block — the estimated serial cost of the selection, and the
+#: identity of the table it was estimated from — joined it.
+MANIFEST_SCHEMA = 5
 
 SELECTION_DIRECTORY = Path(".pytest_cache") / "sase-selection"
 GRAPH_CACHE_FILENAME = "graph.json"

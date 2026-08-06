@@ -41,6 +41,13 @@ from tests._test_selection_manifest import (  # noqa: E402
     write_manifest,
 )
 from tests._test_selection_report import context_line, summary_line  # noqa: E402
+from tests._test_selection_timings import (  # noqa: E402
+    timings_directory,
+    timings_enabled,
+)
+from tests._test_selection_timings_plugin import (  # noqa: E402
+    TIMINGS_RECORD_ENV,
+)
 from tests._test_selection_health_store import (  # noqa: E402
     KIND_FULL_RUN,
     RECORD_ENV,
@@ -82,6 +89,11 @@ SCOPED_WORKER_REMEDY = (
 FULL_LANE_MODES = frozenset({"fast", "cov", CONTEXTS_MODE})
 HEALTH_PLUGIN_MODULE = "tests._test_selection_health_plugin"
 HEALTH_DISABLED_ENV = "SASE_TEST_SELECTION_HEALTH_DISABLED"
+TIMINGS_PLUGIN_MODULE = "tests._test_selection_timings_plugin"
+#: Modes that contribute per-test-file durations to the cost model. The full
+#: lanes cover every test file in one pass, which is what bootstraps the table;
+#: a scoped run refreshes the handful of files the lane touches most.
+TIMINGS_RECORDING_MODES = frozenset({*FULL_LANE_MODES, SCOPED_MODE})
 PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
 DEFAULT_PYTEST_DIST = "worksteal"
 SUPPORTED_PYTEST_DIST_MODES = ("loadfile", "worksteal")
@@ -609,6 +621,33 @@ def _full_lane_recording_args(mode: str) -> list[str]:
     return ["-p", HEALTH_PLUGIN_MODULE]
 
 
+def _timings_pytest_args(mode: str) -> list[str]:
+    """The pytest args that load the duration recorder, if this mode records.
+
+    Only the args here. The recorder's request carries the granted worker
+    count, which the runner does not know until after the gate has answered,
+    so arming it is a second step — see `_arm_timings_recorder`.
+    """
+    if mode not in TIMINGS_RECORDING_MODES or not timings_enabled():
+        return []
+    return ["-p", TIMINGS_PLUGIN_MODULE]
+
+
+def _arm_timings_recorder(mode: str, *, worker_count: int | None) -> None:
+    """Hand the loaded recorder its store, resolved here in the parent.
+
+    Same reason the health recorder resolves its path here: this process sees
+    the real ``SASE_HOME``, while the suite's own fixtures redirect it per test.
+    """
+    os.environ[TIMINGS_RECORD_ENV] = json.dumps(
+        {
+            "directory": str(timings_directory(_health_store())),
+            "mode": mode,
+            "worker_count": worker_count,
+        }
+    )
+
+
 def _reject_scoped_worker_overrides(args: list[str]) -> None:
     _reject_numprocesses_args(args, remedy=SCOPED_WORKER_REMEDY)
     if os.environ.get("SASE_PYTEST_WORKERS") is not None:
@@ -682,6 +721,8 @@ def main(argv: list[str] | None = None) -> int:
                 pytest_args = [*pytest_args, *selection.selected]
 
         pytest_args = [*_full_lane_recording_args(mode), *pytest_args]
+        timings_args = _timings_pytest_args(mode)
+        pytest_args = [*timings_args, *pytest_args]
 
         if _requires_serial_run(mode, pytest_args):
             worker_count = 1
@@ -700,6 +741,8 @@ def main(argv: list[str] | None = None) -> int:
         _prepare_pytest_tmpdir()
         _sanitize_pytest_environment()
         _apply_contexts_environment(mode)
+        if timings_args:
+            _arm_timings_recorder(mode, worker_count=worker_count)
         os.chdir(REPO_ROOT)
         if scoped_manifest is not None:
             # Belt-and-braces against subprocess-spawning tests: `-n 1` already

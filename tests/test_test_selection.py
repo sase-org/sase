@@ -549,7 +549,7 @@ def test_manifest_carries_every_documented_field(repo: Path) -> None:
 
     manifest = _select(repo).manifest
 
-    assert manifest["schema"] == 4
+    assert manifest["schema"] == 5
     assert set(manifest) == {
         "schema",
         "base",
@@ -565,6 +565,7 @@ def test_manifest_carries_every_documented_field(repo: Path) -> None:
         "baseline",
         "graph",
         "contexts",
+        "timings",
     }
     assert manifest["changed_files"] == ["src/pkg/a.py"]
     assert set(manifest["contexts"]) == {
@@ -574,6 +575,16 @@ def test_manifest_carries_every_documented_field(repo: Path) -> None:
         "distance",
         "selected_count",
         "matched_files",
+    }
+    assert set(manifest["timings"]) == {
+        "estimated_serial_seconds",
+        "available",
+        "reason",
+        "coverage",
+        "covered_count",
+        "missing_count",
+        "min_coverage",
+        "table",
     }
     # Nothing compensated here, so the walked depth is the configured one.
     assert manifest["effective_depth"] == manifest["depth"]

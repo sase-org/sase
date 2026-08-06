@@ -76,6 +76,25 @@ Use `tools/select_tests --explain` to see which rules fired and why a given file
 current selection. The selection manifest — the resolved base, changed files, rules fired, and selected test files — is
 written to `.pytest_cache/sase-selection/manifest.json` on every scoped run.
 
+#### Per-test-file timings
+
+File count is a poor proxy for how long a selection takes to run: measured on athena on 2026-08-06, a 94-file selection
+ran 465s serially while a 517-file one ran 404s. So the lane also measures cost. Every full-lane run and every scoped
+run loads `tests/_test_selection_timings_plugin`, which sums each test's setup/call/teardown wall seconds up to the
+**test file** and writes them to `${SASE_HOME:-~/.sase}/test-selection/<project-key>/timings/`. One `just test` covers
+every test file in a single pass, so the table bootstraps from a run that already happens; a scoped run then refreshes
+the files the lane touches most. The newest eight recordings are merged newest-wins and the rest pruned.
+
+`tests._test_selection_timings.estimate_serial_seconds()` turns that table into what a serial run of a given selection
+would cost. It never guesses silently: files the table has not seen are extrapolated at the covered files' mean only
+while at least `SASE_TEST_SELECTION_TIMINGS_MIN_COVERAGE` (default `0.8`) of the selection is covered, and below that
+the answer is an explicit "insufficient data" rather than a number. Every scoped manifest records the estimate, the
+coverage fraction, and the identity of the table it came from, under `timings`.
+
+The estimate is **measured and inert**: no escalation rule consults it yet, so a host with no table behaves exactly as
+it did before. `SASE_TEST_SELECTION_TIMINGS_DISABLED=1` turns recording and estimating off;
+`SASE_TEST_SELECTION_TIMINGS_DIR` relocates the table.
+
 #### Coverage-context ground truth
 
 The import graph cannot see dynamic dispatch, plugin lookup, or config discovery. Per-test coverage can. CI's

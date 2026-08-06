@@ -93,6 +93,8 @@ def _build_scoped_repo(root: Path) -> None:
         "_test_selection_manifest.py",
         "_test_selection_report.py",
         "_test_selection_rules.py",
+        "_test_selection_timings.py",
+        "_test_selection_timings_plugin.py",
     ):
         shutil.copy(_ROOT / "tests" / module, root / "tests" / module)
 
