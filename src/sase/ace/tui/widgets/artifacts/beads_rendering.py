@@ -12,6 +12,7 @@ from sase.bead.plus_one_presentation import (
     plus_one_badge,
 )
 from sase.bead.reopen_presentation import REOPEN_RICH_STYLE, reopen_badge
+from sase.bead.snooze_presentation import SNOOZE_ACCENT, snooze_wake_chip
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_time_presentation import (
     bead_created_chip,
@@ -313,6 +314,8 @@ def _append_status(text: Text, status: Status) -> None:
 
 
 def _append_metadata(text: Text, issue: Issue, project_label: str | None) -> None:
+    if issue.snooze is not None and (wake := snooze_wake_chip(issue.snooze.until)):
+        text.append(f"  {wake}", style=SNOOZE_ACCENT)
     if issue.assignee:
         text.append(f"  {issue.assignee}", style="dim")
     if created := bead_created_chip(issue.created_at):

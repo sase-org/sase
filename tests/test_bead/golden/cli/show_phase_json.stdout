@@ -15,6 +15,7 @@
     "close_reason": null,
     "resolution": null,
     "close_history": [],
+    "snooze": null,
     "description": "",
     "notes": "",
     "design": "",

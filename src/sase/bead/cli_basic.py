@@ -16,6 +16,7 @@ from sase.bead.cli_crud import (
     handle_bead_plus_one,
     handle_bead_open,
     handle_bead_rm,
+    handle_bead_snooze,
     handle_bead_update,
     parse_type_arg,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "handle_bead_resolve_conflicts",
     "handle_bead_rm",
     "handle_bead_search",
+    "handle_bead_snooze",
     "handle_bead_show",
     "handle_bead_stats",
     "handle_bead_sync",

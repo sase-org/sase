@@ -21,6 +21,14 @@ from sase.bead.reopen_presentation import (
     close_record_reopened_label,
     reopen_badge,
 )
+from sase.bead.snooze_presentation import (
+    SNOOZE_ACCENT,
+    SNOOZE_RICH_STYLE,
+    snooze_plus_one_label,
+    snooze_readiness_label,
+    snooze_until_label,
+    snooze_wake_chip,
+)
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_time_presentation import (
     BEAD_TIME_RICH_STYLE,
@@ -56,6 +64,8 @@ def bead_properties_header(
     title.append(f" · {issue.title}", style="bold white")
     if badge := plus_one_badge(issue.plus_one_count):
         title.append(f"  [{badge}]", style=PLUS_ONE_RICH_STYLE)
+    if issue.snooze is not None and (chip := snooze_wake_chip(issue.snooze.until)):
+        title.append(f"  [{chip}]", style=SNOOZE_RICH_STYLE)
     properties: list[DetailProperty] = [
         ("ID", issue.id),
         ("Type", bead_type_chip(issue.issue_type)),
@@ -68,6 +78,8 @@ def bead_properties_header(
         properties.append(("Size", phase_size_chip(issue.size or PhaseSize.SMALL)))
     if issue.plus_one_count:
         properties.append(("+1 reports", plus_one_reports_label(issue.plus_one_count)))
+    if issue.snooze is not None:
+        properties.append(("Snooze", _snooze_text(issue)))
     if (
         issue.issue_type is IssueType.PLAN
         and issue.tier is BeadTier.EPIC
@@ -167,6 +179,8 @@ def bead_preview_markdown(
         lines.append(f"**Size:** {issue.size.value}  ")
     if issue.plus_one_count:
         lines.append(f"**+1 reports:** {issue.plus_one_count}  ")
+    if issue.snooze is not None:
+        lines.append(f"**Snooze:** {_snooze_text(issue).plain}  ")
     if issue.assignee:
         lines.append(f"**Assignee:** {issue.assignee}  ")
     if issue.owner:
@@ -414,6 +428,18 @@ def _status_chip(status: Status) -> Text:
     )
 
 
+def _snooze_text(issue: Issue) -> Text:
+    """Render the wake conditions in one cell, wake time first."""
+    record = issue.snooze
+    assert record is not None
+    parts = [snooze_until_label(record.until)]
+    if plus_one := snooze_plus_one_label(issue):
+        parts.append(f"+1 target: {plus_one}")
+    if record.reason:
+        parts.append(record.reason)
+    return Text(" · ".join(parts), style=SNOOZE_ACCENT, overflow="fold")
+
+
 def _readiness_chip(
     issue: Issue,
     snapshot: BeadsSnapshot | None,
@@ -425,6 +451,7 @@ def _readiness_chip(
         Status.CLOSED,
         Status.CLAIMED,
         Status.READY,
+        Status.SNOOZED,
         Status.IN_PROGRESS,
     }:
         presentation = bead_status_presentation(issue.status)
@@ -450,6 +477,8 @@ def _readiness_label(
         return "claimed"
     if issue.status is Status.READY:
         return "ready"
+    if issue.status is Status.SNOOZED:
+        return snooze_readiness_label(issue.snooze)
     if issue.status is Status.IN_PROGRESS:
         return "in progress"
     if snapshot is None:

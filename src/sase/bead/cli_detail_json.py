@@ -8,6 +8,7 @@ from sase.bead.cli_detail_resolution import IssueDetail, PlanLink
 from sase.bead.close_history_codec import close_history_to_dicts
 from sase.bead.model import Dependency, Issue
 from sase.bead.reopen_presentation import evidence_reopened_bead
+from sase.bead.snooze_presentation import snooze_plus_ones_remaining
 
 
 def render_issue_detail_json(
@@ -61,6 +62,7 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "close_reason": issue.close_reason,
         "resolution": issue.resolution.value if issue.resolution else None,
         "close_history": close_history_to_dicts(issue.close_history),
+        "snooze": _snooze_to_wire_dict(issue),
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
@@ -88,6 +90,28 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
     if issue.size is not None:
         payload["size"] = issue.size.value
     return payload
+
+
+def _snooze_to_wire_dict(issue: Issue) -> dict[str, object] | None:
+    """Return the wake conditions, or ``None`` when the bead is not snoozed.
+
+    ``plus_ones_remaining`` is derived here against the bead's live +1 count
+    rather than left to the reader, for the same reason ``reopened_bead`` is:
+    agents read this JSON to decide whether a snooze is nearly over, and
+    re-deriving the subtraction is how renderings drift apart.
+    """
+    record = issue.snooze
+    if record is None:
+        return None
+    return {
+        "until": record.until,
+        "snoozed_at": record.snoozed_at,
+        "snoozed_by": record.snoozed_by,
+        "plus_one_target": record.plus_one_target,
+        "plus_one_baseline": record.plus_one_baseline,
+        "reason": record.reason,
+        "plus_ones_remaining": snooze_plus_ones_remaining(issue),
+    }
 
 
 def _dependency_to_wire_dict(dep: Dependency) -> dict[str, str]:

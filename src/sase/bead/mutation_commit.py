@@ -19,6 +19,10 @@ def mutation_commit_message(operation: str, issue_ids: list[str]) -> str | None:
         return f"chore(beads): reopen {issue_ids[0]}"
     if operation == "close" and issue_ids:
         return f"chore(beads): close {' '.join(issue_ids)}"
+    if operation == "snooze" and issue_ids:
+        return f"chore(beads): snooze {' '.join(issue_ids)}"
+    if operation == "snooze_cancel" and issue_ids:
+        return f"chore(beads): wake {' '.join(issue_ids)}"
     if operation == "rm" and issue_ids:
         return f"chore(beads): remove {' '.join(issue_ids)}"
     if operation == "dep_add" and len(issue_ids) >= 2:

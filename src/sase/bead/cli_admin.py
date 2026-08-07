@@ -408,6 +408,9 @@ Quick Start:
   sase bead show <id> --format=json              Machine-readable bead detail
   sase bead update <id> --status=in_progress     Claim an issue
   sase bead open <id>                            Reopen an issue
+  sase bead snooze <id> -u 3d -r "why"           Defer a task until a wake time
+  sase bead snooze <id> -u 3d -p 2               Also wake it at 2 more +1s
+  sase bead snooze <id> --cancel                 Wake a snoozed task now
   sase bead close <id> --note "verified"         Close with completion evidence
   sase bead rm <id> [<id2> ...]                 Remove issues (and children)
   sase bead dep add <issue> <depends-on>         Add dependency

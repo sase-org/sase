@@ -13,6 +13,7 @@ from sase.main.parser_bead_lifecycle import (
     register_bead_open_parser,
     register_bead_plus_one_parser,
     register_bead_rm_parser,
+    register_bead_snooze_parser,
     register_bead_update_parser,
     register_bead_work_parser,
 )
@@ -66,6 +67,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     register_bead_rm_parser(bead_subparsers)
     register_bead_search_parser(bead_subparsers)
     register_bead_show_parser(bead_subparsers)
+    register_bead_snooze_parser(bead_subparsers)
     register_bead_stats_parser(bead_subparsers)
     register_bead_sync_parser(bead_subparsers)
     register_bead_work_parser(bead_subparsers)

@@ -45,11 +45,18 @@ from sase.bead.reopen_presentation import (
     evidence_reopened_bead,
     reopen_badge,
 )
+from sase.bead.snooze_presentation import (
+    SNOOZE_CLI_STYLE,
+    SNOOZE_SECTION_LABEL,
+    snooze_plus_one_label,
+    snooze_until_label,
+)
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_time_presentation import (
     BEAD_TIME_CLI_STYLE,
     BEAD_TIME_UNKNOWN_LABEL,
     bead_created_label,
+    bead_instant_label,
 )
 from sase.bead_type_presentation import bead_type_presentation
 from sase.core.agent_identity_facade import present_agent_name
@@ -159,6 +166,16 @@ def render_issue_detail(
                 f"  {palette.label('Close reason:')} {close_reason_value}",
                 f"  {palette.label('Closed at:')} {closed_at_value}",
             ]
+        )
+
+    if issue.snooze is not None:
+        lines.extend(
+            _render_snooze_lines(
+                issue,
+                palette=palette,
+                style=style,
+                wrap=wrap,
+            )
         )
 
     if issue.close_history:
@@ -358,6 +375,35 @@ def render_issue_detail(
         )
 
     return "\n".join(lines) + "\n"
+
+
+def _render_snooze_lines(
+    issue: Issue,
+    *,
+    palette: DetailPalette,
+    style: DetailStyle,
+    wrap: int | None,
+) -> list[str]:
+    """Render the wake conditions a snoozed task is currently waiting on."""
+
+    record = issue.snooze
+    assert record is not None
+    lines = [
+        "",
+        palette.accent(SNOOZE_SECTION_LABEL, SNOOZE_CLI_STYLE),
+        f"  {palette.label('Until:')} "
+        f"{palette.accent(snooze_until_label(record.until), SNOOZE_CLI_STYLE)}",
+    ]
+    if plus_one := snooze_plus_one_label(issue):
+        lines.append(f"  {palette.label('+1 target:')} {plus_one}")
+    lines.append(
+        f"  {palette.label('Snoozed by:')} {record.snoozed_by} "
+        f"{palette.separator('·')} {bead_instant_label(record.snoozed_at)}"
+    )
+    if record.reason:
+        lines.append(f"  {palette.label('Reason:')}")
+        lines.extend(_prose_lines(record.reason, style=style, wrap=wrap, indent="    "))
+    return lines
 
 
 def _render_close_history_lines(

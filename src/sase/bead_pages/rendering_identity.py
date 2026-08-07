@@ -21,6 +21,10 @@ from sase.bead.reopen_presentation import (
     close_record_reopened_label,
     reopen_badge,
 )
+from sase.bead.snooze_presentation import (
+    SNOOZE_SECTION_LABEL,
+    snooze_plus_one_label,
+)
 from sase.bead_pages.paths import bead_lineage_root
 from sase.bead_time_presentation import BEAD_TIME_UNKNOWN_LABEL, bead_instant_label
 from sase.bead_type_presentation import bead_type_presentation
@@ -140,6 +144,34 @@ def render_plus_one_evidence(
                 _reference_item(reference, plan_links) for reference in evidence.refs
             )
             lines.append(f"> **References:** {refs}")
+    return lines
+
+
+def render_snooze(issue: Issue) -> list[str]:
+    """Render the wake conditions of a snoozed task.
+
+    A published page is byte-stable, so this renders the absolute wake
+    instant only; the relative "in 3d" form belongs to surfaces that are
+    re-rendered on every read.
+    """
+
+    record = issue.snooze
+    if record is None:
+        return []
+    lines = ["", f"## {SNOOZE_SECTION_LABEL.title()}", ""]
+    lines.append(f"> **Until:** {_render_instant(record.until)}")
+    lines.append(
+        f"> **Snoozed by:** `{md_code(record.snoozed_by)}`"
+        f" · {_render_instant(record.snoozed_at)}"
+    )
+    if plus_one := snooze_plus_one_label(issue):
+        lines.append(f"> **+1 target:** {md_escape(plus_one)}")
+    if record.reason:
+        lines.append(">")
+        lines.extend(
+            f"> {line}" if line else ">"
+            for line in _bounded_prose(record.reason).splitlines()
+        )
     return lines
 
 

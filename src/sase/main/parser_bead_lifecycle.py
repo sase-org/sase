@@ -342,6 +342,65 @@ def register_bead_work_parser(
     )
 
 
+def register_bead_snooze_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead snooze``."""
+    parser = subparsers.add_parser(
+        "snooze",
+        help="Defer a task bead until a wake time or a +1 threshold",
+        description=(
+            "Defer one or more open or ready task beads. A snoozed task keeps "
+            "its place in every listing but stops raising triage gates until "
+            "its wake time arrives or its +1 target is reached, whichever "
+            "comes first. Use --cancel to wake one early."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead snooze sase-ab -u 3d\n"
+            '  sase bead snooze sase-ab -u 2h -r "waiting on the upstream fix"\n'
+            "  sase bead snooze sase-ab -u 7d -p 2\n"
+            "  sase bead snooze sase-ab -u 2026-08-09T09:00:00-04:00\n"
+            "  sase bead snooze sase-ab sase-cd --cancel"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "ids",
+        nargs="+",
+        metavar="ID",
+        help="One or more full or shorthand task bead IDs to snooze",
+    )
+    parser.add_argument(
+        "-c",
+        "--cancel",
+        action="store_true",
+        help="Wake these beads now, returning them to ready",
+    )
+    parser.add_argument(
+        "-p",
+        "--plus-ones",
+        type=int,
+        metavar="COUNT",
+        help="Also wake when this many additional +1 reports arrive",
+    )
+    parser.add_argument(
+        "-r",
+        "--reason",
+        metavar="TEXT",
+        help="Why this task is being deferred",
+    )
+    parser.add_argument(
+        "-u",
+        "--until",
+        metavar="TIME",
+        help=(
+            "Wake time: a duration (30m, 2h, 1h30m, 3d, 1d12h) or an absolute "
+            "ISO-8601 timestamp; required unless --cancel is given"
+        ),
+    )
+
+
 def register_bead_update_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:
@@ -389,6 +448,10 @@ def register_bead_update_parser(
         "-s",
         "--status",
         choices=["open", "claimed", "ready", "in_progress", "closed"],
+        help=(
+            "New status; `snoozed` is absent on purpose because it needs a "
+            "wake time — use `sase bead snooze <id> -u <time>`"
+        ),
     )
     parser.add_argument("-r", "--tier", choices=["plan", "epic"])
     parser.add_argument("-t", "--title")

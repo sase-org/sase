@@ -16,6 +16,7 @@ from sase.bead_pages.rendering_identity import (
     render_plus_one_evidence,
     render_prose_sections,
     render_references,
+    render_snooze,
 )
 from sase.bead_pages.rendering_tables import (
     render_agents,
@@ -55,6 +56,7 @@ def _render_bead_page_from_detail(
     issue = detail.issue
     associations = association_index.for_bead(issue.id)
     lines = render_identity(detail, plan_links=link_resolver)
+    lines.extend(render_snooze(issue))
     lines.extend(render_close_history(issue))
     lines.extend(render_prose_sections(issue))
     lines.extend(render_plus_one_evidence(issue, plan_links=link_resolver))

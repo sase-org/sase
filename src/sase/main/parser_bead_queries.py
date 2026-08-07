@@ -123,7 +123,14 @@ def register_bead_list_parser(
     parser.add_argument(
         "-s",
         "--status",
-        choices=["open", "claimed", "ready", "in_progress", "closed"],
+        choices=[
+            "open",
+            "claimed",
+            "ready",
+            "snoozed",
+            "in_progress",
+            "closed",
+        ],
         action="append",
         help="Filter by status (repeatable)",
     )
@@ -201,7 +208,14 @@ def register_bead_search_parser(
     parser.add_argument(
         "-s",
         "--status",
-        choices=["open", "claimed", "ready", "in_progress", "closed"],
+        choices=[
+            "open",
+            "claimed",
+            "ready",
+            "snoozed",
+            "in_progress",
+            "closed",
+        ],
         action="append",
         help="Filter by status (repeatable)",
     )
