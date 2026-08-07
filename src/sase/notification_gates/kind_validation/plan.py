@@ -18,7 +18,7 @@ def validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
     _validate_plan_payload(spec, tier, adapter.kind)
     expected_commands = _validate_plan_options(spec, tier)
     _validate_plan_groups(spec, tier)
-    _validate_plan_operations(spec)
+    _validate_plan_operations(spec, tier)
     _validate_plan_resources(spec, expected_commands)
 
 
@@ -105,18 +105,21 @@ def _validate_plan_groups(spec: GateSpec, tier: PlanGateTier) -> None:
         )
 
 
-def _validate_plan_operations(spec: GateSpec) -> None:
-    from sase.plan_gate import PLAN_EDIT_OPERATION_ID, PLAN_RESOURCE_PATH
+def _validate_plan_operations(spec: GateSpec, tier: PlanGateTier) -> None:
+    """Pin both tiers to the registered edit action, shape and all.
 
-    if len(spec.operations) != 1 or (
-        spec.operations[0].id,
-        spec.operations[0].kind,
-        spec.operations[0].target,
-    ) != (PLAN_EDIT_OPERATION_ID, "edit_file", PLAN_RESOURCE_PATH):
+    The edit action is declared rather than hardcoded per surface, so its
+    presentation and its origin edit target are part of the trusted contract.
+    """
+    from sase.notification_gates.model_operations import GateOperation
+    from sase.plan_gate import plan_gate_edit_operation
+
+    expected = GateOperation.from_mapping(plan_gate_edit_operation(tier), 0)
+    if len(spec.operations) != 1 or spec.operations[0] != expected:
         raise GateError(
             "invalid_plan_operation",
             "operations",
-            "plan gates require the registered edit_plan operation",
+            f"{tier} plan gates require the registered edit_plan action",
         )
 
 

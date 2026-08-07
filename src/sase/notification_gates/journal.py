@@ -6,6 +6,11 @@ a second submission silently re-runs work that already happened. The journal
 is that record: one append-only line per attempt boundary, written under the
 bundle's ``.response.lock`` beside the response it may eventually produce.
 
+Repeatable non-terminal actions append an ``operation_ran`` record here too.
+Those carry their own one-off ``attempt_id`` and never open an attempt, so
+they never affect retry resolution; they are the audit trail for what a
+reviewer ran before deciding.
+
 Raw submitted input is never written here. Input is reduced to a digest,
 which is all a retry needs to decide whether a second submission is the same
 submission, and which keeps secret-typed fields out of durable audit data.
@@ -78,6 +83,7 @@ def append_journal_event(
     request_hash: str,
     event: str,
     option_id: str | None = None,
+    operation_id: str | None = None,
     input_digest: str | None = None,
     result_digest: str | None = None,
     result: object | None = None,
@@ -92,6 +98,7 @@ def append_journal_event(
         "request_hash": request_hash,
         "event": event,
         "option_id": option_id,
+        "operation_id": operation_id,
         "input_digest": input_digest,
         "result_digest": result_digest,
         "code": code,

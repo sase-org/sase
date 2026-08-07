@@ -152,13 +152,7 @@ def _build_plan_gate_spec(
             _plan_gate_option(option_id, tier=tier) for option_id in option_ids
         ],
         "groups": ([TALE_PLAN_SUBMIT_GROUP.to_dict()] if tier == "tale" else []),
-        "operations": [
-            {
-                "id": PLAN_EDIT_OPERATION_ID,
-                "kind": "edit_file",
-                "target": PLAN_RESOURCE_PATH,
-            }
-        ],
+        "operations": [plan_gate_edit_operation(tier)],
         "resources": [
             {
                 "path": PLAN_RESOURCE_PATH,
@@ -178,6 +172,25 @@ def _build_plan_gate_spec(
             "enabled": auto_enabled,
             "argument": auto_argument,
         },
+    }
+
+
+def plan_gate_edit_operation(tier: PlanGateTier) -> dict[str, Any]:
+    """Return the declared edit action registered for a plan tier.
+
+    Both tiers declare it, and both point at ``edit_target: "origin"``: the
+    durable file under ``~/.sase/plans/`` that ``sase plan propose`` wrote, not
+    the bundle copy that approval overwrites it from.
+    """
+    return {
+        "id": PLAN_EDIT_OPERATION_ID,
+        "kind": "edit_file",
+        "target": PLAN_RESOURCE_PATH,
+        "edit_target": "origin",
+        "label": "Edit epic plan" if tier == "epic" else "Edit plan",
+        "icon": "✏️",
+        "key": "e",
+        "description": "Accepted only when `sase plan validate` passes.",
     }
 
 
@@ -650,6 +663,7 @@ __all__ = [
     "original_plan_file_from_bundle",
     "plan_context_from_envelope",
     "plan_gate_command_script",
+    "plan_gate_edit_operation",
     "plan_gate_option_icon",
     "plan_gate_option_label",
     "plan_gate_option_ids",

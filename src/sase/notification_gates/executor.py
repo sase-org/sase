@@ -2,24 +2,26 @@
 
 from __future__ import annotations
 
-import errno
-import hashlib
 import json
 import logging
-import os
-import shutil
 import subprocess
-import threading
 import time
-from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
+from sase.notification_gates.command_runner import (
+    decode_json_result,
+    decode_output,
+    record_execution_error,
+    recorded_rejection,
+    reject_command_terminal_state,
+    run_owned_command,
+    validate_json_instance,
+)
 from sase.notification_gates.durability import (
     atomic_write_json,
-    canonical_json_bytes,
     file_lock,
     read_json_object,
 )
@@ -47,8 +49,6 @@ from sase.notification_gates.paths import (
     CANCELLATION_FILENAME,
     RESPONSE_FILENAME,
     assert_owned_bundle,
-    open_regular_nofollow,
-    owned_resource_path,
 )
 
 if TYPE_CHECKING:
@@ -125,9 +125,9 @@ def execute_gate_selection(
             )
 
         normalized_input = {} if input_data is None else input_data
-        with _recorded_rejection(bundle_path, selected[0].id, source):
+        with recorded_rejection(bundle_path, selected[0].id, source):
             normalized_feedback = _normalize_feedback(selected, feedback)
-        with _recorded_rejection(bundle_path, selected[0].id, source):
+        with recorded_rejection(bundle_path, selected[0].id, source):
             resolved_inputs = resolve_option_inputs(selected, input_data, option_inputs)
         resolved_inputs = apply_feedback_input(
             selected,
@@ -136,12 +136,12 @@ def execute_gate_selection(
         )
         for option in selected:
             target = f"option {option.id} input"
-            with _recorded_rejection(bundle_path, option.id, source):
+            with recorded_rejection(bundle_path, option.id, source):
                 check_input_bounds(resolved_inputs[option.id], target)
-                _validate_json_instance(
+                validate_json_instance(
                     resolved_inputs[option.id], option.input_schema, target
                 )
-        with _recorded_rejection(bundle_path, selected[0].id, source):
+        with recorded_rejection(bundle_path, selected[0].id, source):
             adapter.validate_selection(
                 selected_option_ids=tuple(option.id for option in selected),
                 feedback=normalized_feedback,
@@ -232,7 +232,7 @@ def execute_gate_selection(
                 epic_launch_origin=epic_launch_origin,
             )
         except GateError as exc:
-            _record_execution_error(
+            record_execution_error(
                 bundle_path,
                 option_id=selected[0].id,
                 code=exc.code,
@@ -241,7 +241,7 @@ def execute_gate_selection(
             )
             raise
         except Exception as exc:
-            _record_execution_error(
+            record_execution_error(
                 bundle_path,
                 option_id=selected[0].id,
                 code="side_effect_failed",
@@ -278,7 +278,7 @@ def _execute_one_option(
     try:
         if on_command_start is not None:
             on_command_start("option", option.id, option.label, option.command.argv)
-        completed = _run_owned_command(
+        completed = run_owned_command(
             bundle_path,
             option.command.argv,
             expected_hash=envelope["hashes"]["resources"][option.command.argv[0]],
@@ -286,13 +286,13 @@ def _execute_one_option(
             on_output_line=stream_output,
             on_process_state=on_process_state,
         )
-        _reject_command_terminal_state(
+        reject_command_terminal_state(
             response_path,
             cancellation_path,
             target=option.id,
         )
     except GateError as exc:
-        _record_execution_error(
+        record_execution_error(
             bundle_path,
             option_id=option.id,
             code=exc.code,
@@ -301,32 +301,32 @@ def _execute_one_option(
         )
         raise
     if completed.returncode != 0:
-        message = _decode_output(completed.stderr) or (
+        message = decode_output(completed.stderr) or (
             f"command exited with status {completed.returncode}"
         )
-        _record_execution_error(
+        record_execution_error(
             bundle_path,
             option_id=option.id,
             code="command_failed",
             message=message,
             source=source,
             returncode=completed.returncode,
-            stdout=_decode_output(completed.stdout),
-            stderr=_decode_output(completed.stderr),
+            stdout=decode_output(completed.stdout),
+            stderr=decode_output(completed.stderr),
         )
         raise GateError("command_failed", option.id, message)
 
     try:
-        result = _decode_json_result(completed.stdout)
+        result = decode_json_result(completed.stdout)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        _record_execution_error(
+        record_execution_error(
             bundle_path,
             option_id=option.id,
             code="invalid_command_output",
             message=str(exc),
             source=source,
-            stdout=_decode_output(completed.stdout),
-            stderr=_decode_output(completed.stderr),
+            stdout=decode_output(completed.stdout),
+            stderr=decode_output(completed.stderr),
         )
         raise GateError(
             "invalid_command_output",
@@ -334,20 +334,20 @@ def _execute_one_option(
             "command stdout must contain one JSON value",
         ) from exc
     try:
-        _validate_json_instance(
+        validate_json_instance(
             result,
             option.result_schema,
             f"option {option.id} result",
         )
     except GateError as exc:
-        _record_execution_error(
+        record_execution_error(
             bundle_path,
             option_id=option.id,
             code=exc.code,
             message=str(exc),
             source=source,
-            stdout=_decode_output(completed.stdout),
-            stderr=_decode_output(completed.stderr),
+            stdout=decode_output(completed.stdout),
+            stderr=decode_output(completed.stderr),
         )
         raise
 
@@ -359,29 +359,6 @@ def _execute_one_option(
             "request changed during execution",
         )
     return result
-
-
-@contextmanager
-def _recorded_rejection(
-    bundle_path: Path, option_id: str, source: str
-) -> Iterator[None]:
-    """Write a pre-execution rejection to ``errors/`` before it propagates.
-
-    Input-schema, bounds, feedback, and adapter-selection failures all happen
-    before the first command runs, so without this they leave no trace and a
-    reviewer pressing ``d`` sees nothing at all.
-    """
-    try:
-        yield
-    except GateError as exc:
-        _record_execution_error(
-            bundle_path,
-            option_id=option_id,
-            code=exc.code,
-            message=str(exc),
-            source=source,
-        )
-        raise
 
 
 def _begin_attempt(
@@ -592,232 +569,6 @@ def _bind_output_callback(
         callback("option", option_id, stream, line)
 
     return emit
-
-
-def _run_owned_command(
-    bundle_path: Path,
-    command_argv: tuple[str, ...],
-    *,
-    expected_hash: str,
-    input_data: object,
-    on_output_line: Callable[[str, str], None] | None = None,
-    on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None = None,
-) -> subprocess.CompletedProcess[bytes]:
-    command_path = owned_resource_path(bundle_path, command_argv[0])
-    command_fd = open_regular_nofollow(command_path)
-    try:
-        if _sha256_fd(command_fd) != expected_hash:
-            raise GateError(
-                "hash_mismatch",
-                command_argv[0],
-                "command changed before execution",
-            )
-        os.lseek(command_fd, 0, os.SEEK_SET)
-        argv = (f"/proc/self/fd/{command_fd}", *command_argv[1:])
-        try:
-            if on_output_line is not None:
-                return _run_command_streaming(
-                    argv,
-                    input_data=canonical_json_bytes(input_data) + b"\n",
-                    cwd=bundle_path,
-                    pass_fds=(command_fd,),
-                    on_output_line=on_output_line,
-                    on_process_state=on_process_state,
-                )
-            return subprocess.run(
-                argv,
-                input=canonical_json_bytes(input_data) + b"\n",
-                capture_output=True,
-                cwd=bundle_path,
-                pass_fds=(command_fd,),
-                shell=False,
-                check=False,
-            )
-        except OSError as exc:
-            raise GateError(
-                "command_start_failed",
-                command_argv[0],
-                f"cannot start command: {exc}",
-            ) from exc
-    finally:
-        os.close(command_fd)
-
-
-def _ignorable_stdin_error(exc: OSError) -> bool:
-    """Report whether one stdin error just means the command ignored its input."""
-    return isinstance(exc, BrokenPipeError) or exc.errno == errno.EINVAL
-
-
-def _write_command_stdin(process: subprocess.Popen[bytes], input_data: bytes) -> None:
-    """Hand one payload to a command that is free to never read it.
-
-    A command may exit before draining stdin. The buffered writer then raises
-    BrokenPipeError from ``flush()`` and, because the payload stays buffered,
-    raises it a second time from ``close()``. Both have to be tolerated, exactly
-    as ``subprocess.Popen._stdin_write`` does for ``communicate()``.
-    """
-    assert process.stdin is not None
-    try:
-        try:
-            process.stdin.write(input_data)
-            process.stdin.flush()
-        except OSError as exc:
-            if not _ignorable_stdin_error(exc):
-                raise
-    finally:
-        try:
-            process.stdin.close()
-        except OSError as exc:
-            if not _ignorable_stdin_error(exc):
-                raise
-
-
-def _run_command_streaming(
-    argv: tuple[str, ...],
-    *,
-    input_data: bytes,
-    cwd: Path,
-    pass_fds: tuple[int, ...],
-    on_output_line: Callable[[str, str], None],
-    on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None,
-) -> subprocess.CompletedProcess[bytes]:
-    """Run one trusted gate command while streaming both output channels."""
-    process = subprocess.Popen(
-        argv,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=cwd,
-        pass_fds=pass_fds,
-        shell=False,
-    )
-    if on_process_state is not None:
-        on_process_state(process, True)
-
-    stdout_chunks: list[bytes] = []
-    stderr_chunks: list[bytes] = []
-
-    def drain(stream: Any, chunks: list[bytes], stream_name: str) -> None:
-        for chunk in iter(stream.readline, b""):
-            chunks.append(chunk)
-            line = chunk.decode("utf-8", errors="replace").rstrip("\r\n")
-            if line:
-                on_output_line(stream_name, line)
-
-    assert process.stdin is not None
-    assert process.stdout is not None
-    assert process.stderr is not None
-    stdout_thread = threading.Thread(
-        target=drain,
-        args=(process.stdout, stdout_chunks, "stdout"),
-        name=f"sase-gate-stdout-{process.pid}",
-        daemon=True,
-    )
-    stderr_thread = threading.Thread(
-        target=drain,
-        args=(process.stderr, stderr_chunks, "stderr"),
-        name=f"sase-gate-stderr-{process.pid}",
-        daemon=True,
-    )
-    stdout_thread.start()
-    stderr_thread.start()
-    try:
-        try:
-            _write_command_stdin(process, input_data)
-        except BaseException:
-            process.kill()
-            raise
-        finally:
-            returncode = process.wait()
-            stdout_thread.join()
-            stderr_thread.join()
-    finally:
-        if on_process_state is not None:
-            on_process_state(process, False)
-    return subprocess.CompletedProcess(
-        argv,
-        returncode,
-        stdout=b"".join(stdout_chunks),
-        stderr=b"".join(stderr_chunks),
-    )
-
-
-def _reject_command_terminal_state(
-    response_path: Path,
-    cancellation_path: Path,
-    *,
-    target: str,
-) -> None:
-    if not response_path.exists() and not cancellation_path.exists():
-        return
-    _remove_untrusted_terminal(response_path)
-    _remove_untrusted_terminal(cancellation_path)
-    raise GateError(
-        "terminal_state_changed",
-        target,
-        "command may not create response.json or cancellation.json",
-    )
-
-
-def _decode_json_result(value: bytes) -> Any:
-    return json.loads(value)
-
-
-def _validate_json_instance(value: object, schema: dict[str, Any], target: str) -> None:
-    try:
-        from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
-
-        Draft202012Validator(schema).validate(value)
-    except Exception as exc:
-        raise GateError("schema_validation_failed", target, str(exc)) from exc
-
-
-def _sha256_fd(fd: int) -> str:
-    digest = hashlib.sha256()
-    os.lseek(fd, 0, os.SEEK_SET)
-    while True:
-        block = os.read(fd, 1024 * 1024)
-        if not block:
-            break
-        digest.update(block)
-    return digest.hexdigest()
-
-
-def _decode_output(value: bytes, *, limit: int = 16_384) -> str:
-    return value[:limit].decode("utf-8", errors="replace").strip()
-
-
-def _remove_untrusted_terminal(path: Path) -> None:
-    if path.is_symlink() or path.is_file():
-        path.unlink(missing_ok=True)
-    elif path.is_dir():
-        shutil.rmtree(path)
-
-
-def _record_execution_error(
-    bundle_path: Path,
-    *,
-    option_id: str,
-    code: str,
-    message: str,
-    source: str,
-    returncode: int | None = None,
-    stdout: str | None = None,
-    stderr: str | None = None,
-) -> None:
-    errors = bundle_path / "errors"
-    payload = {
-        "schema_version": GATE_RESPONSE_SCHEMA_VERSION,
-        "option_id": option_id,
-        "code": code,
-        "message": message,
-        "source": source,
-        "returncode": returncode,
-        "stdout": stdout,
-        "stderr": stderr,
-        "created_at_unix": time.time(),
-    }
-    atomic_write_json(errors / f"{time.time_ns()}-{uuid4().hex}.json", payload)
 
 
 def _settle_gate_notification(

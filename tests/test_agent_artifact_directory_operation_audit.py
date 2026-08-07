@@ -185,7 +185,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "update.dev_root, not an agent artifact directory."
         ),
     ),
-    "src/sase/notification_gates/executor.py:_remove_untrusted_terminal": DirOpReview(
+    "src/sase/notification_gates/command_runner.py:_remove_untrusted_terminal": DirOpReview(
         exemption=(
             "Removes only an untrusted response/cancellation path created inside "
             "a SASE-owned interaction_requests bundle by its command; interaction "

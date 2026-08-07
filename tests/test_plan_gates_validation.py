@@ -9,7 +9,8 @@ import pytest
 
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import GateError
-from sase.notification_gates.service import create_gate, refresh_gate_after_edit
+from sase.notification_gates.edits import refresh_gate_after_edit
+from sase.notification_gates.service import create_gate
 from sase.plan_approval_actions import (
     PlanApprovalValidationError,
     require_plan_approval_validation,

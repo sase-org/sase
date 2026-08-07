@@ -21,7 +21,6 @@ from sase.notification_gates.durability import (
     request_sha256,
     sha256_bytes,
     sha256_file,
-    verify_mode,
 )
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import (
@@ -44,8 +43,6 @@ from sase.notification_gates.presentation import (
     normalize_gate_title,
 )
 from sase.notification_gates.paths import (
-    RESPONSE_FILENAME,
-    assert_owned_bundle,
     bundle_paths,
     interaction_requests_dir,
     owned_resource_path,
@@ -419,70 +416,6 @@ def _creation_result(
     )
 
 
-def refresh_gate_after_edit(bundle_path: Path, operation_id: str) -> dict[str, Any]:
-    """Advance reviewed hashes after an adapter-approved ``edit_file`` operation."""
-    bundle_path = assert_owned_bundle(bundle_path)
-    with file_lock(bundle_path / ".response.lock"):
-        if (bundle_path / RESPONSE_FILENAME).exists():
-            raise GateError(
-                "already_answered", str(bundle_path), "answered gates cannot be edited"
-            )
-        request_path = bundle_path / "request.json"
-        envelope = read_json_object(request_path)
-        if request_sha256(envelope) != envelope.get("hashes", {}).get("request"):
-            raise GateError(
-                "hash_mismatch", str(request_path), "canonical request hash changed"
-            )
-        adapter = adapter_for_kind(str(envelope.get("kind")))
-        operations = envelope.get("operations")
-        if not isinstance(operations, list):
-            raise GateError("invalid_request", "operations", "operations are missing")
-        operation = next(
-            (
-                raw
-                for raw in operations
-                if isinstance(raw, dict) and raw.get("id") == operation_id
-            ),
-            None,
-        )
-        if operation is None or operation.get("kind") != "edit_file":
-            raise GateError(
-                "unknown_operation", operation_id, "edit operation is not present"
-            )
-        target = str(operation.get("target"))
-        resources = envelope.get("resources")
-        if not isinstance(resources, list):
-            raise GateError("invalid_request", "resources", "resources are missing")
-        expected_hashes = dict(envelope.get("hashes", {}).get("resources", {}))
-        for raw_resource in resources:
-            if not isinstance(raw_resource, dict):
-                raise GateError("invalid_request", "resources", "invalid resource")
-            relative = str(raw_resource.get("path"))
-            path = owned_resource_path(bundle_path, relative)
-            verify_mode(path, executable=bool(raw_resource.get("executable", False)))
-            if relative != target and sha256_file(path) != expected_hashes.get(
-                relative
-            ):
-                raise GateError(
-                    "hash_mismatch", relative, f"unrelated resource changed: {relative}"
-                )
-        target_path = owned_resource_path(bundle_path, target)
-        adapter.validate_edited_resource(path=target_path)
-        adapter.regenerate_previews(bundle_path=bundle_path)
-        resource_hashes = {
-            str(raw["path"]): sha256_file(
-                owned_resource_path(bundle_path, str(raw["path"]))
-            )
-            for raw in resources
-            if isinstance(raw, dict) and "path" in raw
-        }
-        envelope["review_revision"] = int(envelope.get("review_revision", 1)) + 1
-        envelope["hashes"] = {"resources": resource_hashes}
-        envelope["hashes"]["request"] = request_sha256(envelope)
-        atomic_write_json(request_path, envelope)
-        return dict(envelope["hashes"])
-
-
 def _preview_relative_path(spec: GateSpec) -> str | None:
     explicit = spec.presentation.get("preview")
     if isinstance(explicit, str):
@@ -591,4 +524,4 @@ def _compensate_published_gate(notification_id: str | None, paths: Any) -> None:
         pass
 
 
-__all__ = ["create_gate", "refresh_gate_after_edit"]
+__all__ = ["create_gate"]

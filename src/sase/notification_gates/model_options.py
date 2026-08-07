@@ -26,13 +26,13 @@ from sase.notification_gates.query import GateQueryError, parse_gate_query
 
 
 @dataclass(frozen=True)
-class _GateCommand:
+class GateCommand:
     """A shell-free command descriptor."""
 
     argv: tuple[str, ...]
 
     @classmethod
-    def from_value(cls, value: object, target: str) -> _GateCommand:
+    def from_value(cls, value: object, target: str) -> GateCommand:
         if isinstance(value, list):
             argv = string_list(value, target)
         else:
@@ -74,7 +74,7 @@ class GateOption:
 
     id: str
     label: str
-    command: _GateCommand
+    command: GateCommand
     input_schema: dict[str, Any] = field(default_factory=dict)
     result_schema: dict[str, Any] = field(default_factory=dict)
     icon: str | None = None
@@ -156,7 +156,7 @@ class GateOption:
         return cls(
             id=option_id,
             label=label,
-            command=_GateCommand.from_value(data.get("command"), f"{target}.command"),
+            command=GateCommand.from_value(data.get("command"), f"{target}.command"),
             input_schema=input_schema,
             result_schema=result_schema,
             icon=validate_icon(data.get("icon"), f"{target}.icon"),

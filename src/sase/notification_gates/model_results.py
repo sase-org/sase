@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.notification_gates.model_operations import GateActionDisplay
 from sase.notification_gates.model_validation import GateError, json_object
 
 
@@ -79,6 +80,18 @@ class GateExecutionResult:
 
     response: dict[str, Any]
     already_completed: bool = False
+
+
+@dataclass(frozen=True)
+class GateOperationResult:
+    """Result of one repeatable action run against a still-pending gate."""
+
+    operation_id: str
+    result: Any
+    display: GateActionDisplay
+    display_format: str
+    review_revision: int
+    hashes: dict[str, Any]
 
 
 def effective_response_input(

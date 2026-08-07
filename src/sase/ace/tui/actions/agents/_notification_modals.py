@@ -186,7 +186,7 @@ def handle_plan_approval(
                 subprocess.run([editor, plan_file], check=False)
             if not bundle.legacy:
                 try:
-                    from sase.notification_gates.service import refresh_gate_after_edit
+                    from sase.notification_gates.edits import refresh_gate_after_edit
 
                     refresh_gate_after_edit(bundle.root, "edit_plan")
                 except Exception as exc:

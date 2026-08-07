@@ -16,6 +16,7 @@ from sase.notification_gates.kind_validation import (
 from sase.notification_gates.models import (
     GATE_REQUEST_SCHEMA_VERSION,
     GateError,
+    GateResource,
     GateSpec,
     validate_color,
     validate_icon,
@@ -81,14 +82,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
                 f"options.{option.id}.command",
                 f"command must reference an executable command resource: {command_path}",
             )
-    for operation in spec.operations:
-        resource = resources.get(operation.target)
-        if resource is None or resource.role != "editable":
-            raise GateError(
-                "unowned_edit_target",
-                f"operations.{operation.id}.target",
-                f"edit target must reference an editable resource: {operation.target}",
-            )
+    _validate_operations(spec, resources)
 
     presentation = spec.presentation
     declared_action = presentation.get("action")
@@ -245,6 +239,54 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
     if spec.auto.enabled:
         adapter.resolve_auto_selection(spec, spec.auto.argument)
         adapter.automatic_input(spec)
+
+
+def _validate_operations(spec: GateSpec, resources: Mapping[str, GateResource]) -> None:
+    """Keep every declared action owned by the bundle and free of key clashes."""
+    keys: dict[str, str] = {}
+    for operation in spec.operations:
+        if operation.kind == "edit_file":
+            resource = resources.get(str(operation.target))
+            if resource is None or resource.role != "editable":
+                raise GateError(
+                    "unowned_edit_target",
+                    f"operations.{operation.id}.target",
+                    "edit target must reference an editable resource: "
+                    f"{operation.target}",
+                )
+        else:
+            assert operation.command is not None
+            command_path = operation.command.argv[0]
+            resource = resources.get(command_path)
+            if (
+                resource is None
+                or resource.role != "command"
+                or not resource.executable
+            ):
+                raise GateError(
+                    "unowned_command",
+                    f"operations.{operation.id}.command",
+                    "action command must reference an executable command "
+                    f"resource: {command_path}",
+                )
+            for target in operation.targets:
+                edited = resources.get(target)
+                if edited is None or edited.role != "editable":
+                    raise GateError(
+                        "unowned_edit_target",
+                        f"operations.{operation.id}.targets",
+                        f"action target must reference an editable resource: {target}",
+                    )
+        if operation.key is None:
+            continue
+        owner = keys.get(operation.key)
+        if owner is not None:
+            raise GateError(
+                "duplicate_action_key",
+                f"operations.{operation.id}.key",
+                f"action key {operation.key!r} is already declared by {owner}",
+            )
+        keys[operation.key] = operation.id
 
 
 def _reject_duplicates(values: list[str], target: str, label: str) -> None:

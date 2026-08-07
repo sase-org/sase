@@ -105,9 +105,21 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     ]
     assert epic_request["groups"] == []
     assert tale_request["operations"] == [
-        {"id": "edit_plan", "kind": "edit_file", "target": "plan.md"}
+        {
+            "id": "edit_plan",
+            "kind": "edit_file",
+            "label": "Edit plan",
+            "icon": "✏️",
+            "key": "e",
+            "description": "Accepted only when `sase plan validate` passes.",
+            "target": "plan.md",
+            "edit_target": "origin",
+        }
     ]
-    assert epic_request["operations"] == tale_request["operations"]
+    # Both tiers declare the same action; only its label differs.
+    assert epic_request["operations"] == [
+        {**tale_request["operations"][0], "label": "Edit epic plan"}
+    ]
     assert (tale.bundle_path / "plan.md").read_text() == VALID_TALE_PLAN
     assert (epic.bundle_path / "plan.md").read_text() == VALID_EPIC_PLAN
     assert tale_request["presentation"]["action_data"]["original_plan_file"] == str(

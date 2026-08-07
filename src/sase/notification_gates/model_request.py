@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.notification_gates.model_operations import GateOperation
 from sase.notification_gates.model_options import (
     GateGroup,
     GateOption,
@@ -20,34 +21,6 @@ from sase.notification_gates.model_validation import (
     validate_identifier,
     validate_relative_path,
 )
-
-
-@dataclass(frozen=True)
-class _GateOperation:
-    """A non-terminal operation supported by a local gate surface."""
-
-    id: str
-    kind: str
-    target: str
-
-    @classmethod
-    def from_mapping(cls, value: object, index: int) -> _GateOperation:
-        field = f"operations[{index}]"
-        data = json_object(value, field)
-        reject_unknown_fields(data, {"id", "kind", "target"}, field)
-        operation_id = validate_identifier(data.get("id"), f"{field}.id")
-        kind = data.get("kind")
-        if kind != "edit_file":
-            raise GateError(
-                "invalid_operation",
-                f"{field}.kind",
-                "only the edit_file operation is supported",
-            )
-        target = validate_relative_path(data.get("target"), f"{field}.target")
-        return cls(id=operation_id, kind=kind, target=target)
-
-    def to_dict(self) -> dict[str, str]:
-        return {"id": self.id, "kind": self.kind, "target": self.target}
 
 
 @dataclass(frozen=True)
@@ -119,11 +92,22 @@ class GateResource:
         )
 
     def envelope_dict(self) -> dict[str, Any]:
-        return {
+        """Project the durable resource record stored in the envelope.
+
+        A resource copied from ``source:`` records that path as its
+        ``origin``. It is the generic mechanism by which an ``edit_file``
+        action declaring ``edit_target: "origin"`` knows which durable file to
+        open, instead of the bundle copy the reviewer's edit would be
+        overwritten from after approval.
+        """
+        record: dict[str, Any] = {
             "path": self.path,
             "role": self.role,
             "executable": self.executable,
         }
+        if self.source is not None:
+            record["origin"] = str(self.source)
+        return record
 
 
 @dataclass(frozen=True)
@@ -174,7 +158,7 @@ class GateSpec:
     groups: tuple[GateGroup, ...]
     branches: tuple[tuple[str, ...], ...]
     primary_branch: tuple[str, ...]
-    operations: tuple[_GateOperation, ...]
+    operations: tuple[GateOperation, ...]
     resources: tuple[GateResource, ...]
     auto: _GateAuto
 
@@ -261,7 +245,7 @@ class GateSpec:
                 "invalid_request", "operations", "operations must be an array"
             )
         operations = tuple(
-            _GateOperation.from_mapping(operation, index)
+            GateOperation.from_mapping(operation, index)
             for index, operation in enumerate(raw_operations)
         )
         raw_resources = data.get("resources", data.get("assets", []))
