@@ -9,11 +9,11 @@ from sase.xprompt._disabled_regions import protect_disabled_regions
 from sase.xprompt._fenced_blocks import protect_fenced_blocks
 from sase.xprompt._literal_zones import literal_zone_ranges
 from sase.xprompt._parsing import (
-    _DIRECTIVE_PREFIX_RE,
-    extract_known_project_vcs_ref,
     XPromptReference,
     XPromptReferenceArgKind,
     XPromptReferenceMarker,
+    extract_known_project_vcs_ref,
+    find_matching_paren_for_args,
     iter_xprompt_references,
     normalize_vcs_underscore_refs,
 )
@@ -51,6 +51,37 @@ def _directive_tokens(text: str) -> list[str]:
     return re.findall(r"%\S+", text)
 
 
+def _directive_run_end(segment: str, pos: int) -> int | None:
+    """Return the offset just past the ``%directive`` run starting at *pos*.
+
+    Deliberately byte-identical to ``_DIRECTIVE_PREFIX_RE`` except for how
+    parenthesized argument lists are delimited: they are resolved with
+    :func:`find_matching_paren_for_args` instead of a paren-naive regex, so a
+    directive whose argument list spans multiple physical lines (e.g. a
+    wrapped ``%clan(...)``) is still consumed as a single run instead of
+    being split mid-argument-list.
+    """
+    token_match = re.match(r"%[^\s(]+", segment[pos:])
+    if token_match is None:
+        return None
+    end = pos + token_match.end()
+
+    if end < len(segment) and segment[end] == "(":
+        paren_end = find_matching_paren_for_args(segment, end)
+        if paren_end is None:
+            return None
+        end = paren_end + 1
+
+    ws_match = re.match(r"[^\S\n]*\n|[^\S\n]+", segment[end:])
+    if ws_match is None:
+        return None
+    end += ws_match.end()
+
+    indent_match = re.match(r"[ \t]*", segment[end:])
+    assert indent_match is not None
+    return end + indent_match.end()
+
+
 def _split_leading_directive_prefix(segment: str) -> _LeadingDirectiveSplit:
     """Split leading whitespace/directives from the prompt body.
 
@@ -66,31 +97,29 @@ def _split_leading_directive_prefix(segment: str) -> _LeadingDirectiveSplit:
     directives: list[str] = []
 
     while pos < len(segment):
-        line_end = segment.find("\n", pos)
-        if line_end == -1:
-            line = segment[pos:]
-        else:
-            line = segment[pos : line_end + 1]
-
-        line_indent_match = re.match(r"[ \t]*", line)
-        assert line_indent_match is not None
-        line_indent = line_indent_match.group(0)
-        directive_match = _DIRECTIVE_PREFIX_RE.match(line[line_indent_match.end() :])
-        if directive_match is not None:
-            directive_prefix = line_indent + directive_match.group(0)
+        directive_end = _directive_run_end(segment, pos)
+        if directive_end is not None:
+            directive_prefix = segment[pos:directive_end]
             prefix += directive_prefix
             directives.extend(_directive_tokens(directive_prefix))
-            pos += len(directive_prefix)
+            pos = directive_end
             if segment[pos:].lstrip(" \t").startswith("%"):
                 continue
             break
 
+        line_end = segment.find("\n", pos)
+        line = segment[pos:] if line_end == -1 else segment[pos : line_end + 1]
         stripped = line.strip()
         if stripped and _DIRECTIVE_LINE_RE.match(stripped):
-            prefix += line
-            directives.append(stripped)
-            pos += len(line)
-            continue
+            open_paren = stripped.find("(")
+            if (
+                open_paren == -1
+                or find_matching_paren_for_args(stripped, open_paren) is not None
+            ):
+                prefix += line
+                directives.append(stripped)
+                pos += len(line)
+                continue
 
         break
 

@@ -6,6 +6,10 @@ import re
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from sase.agent.multi_prompt_reference_directives import extract_static_clan_directive
+from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
 from sase.xprompt.models import InputArg, InputType
 
@@ -190,3 +194,95 @@ def test_vcs_prefixed_xprompt_swarm_with_prose_inherits_vcs() -> None:
     with patch_catalog(catalog), patch_vcs_patterns():
         out = expand_xprompt_swarms(["#gh:sase please #!three"])
     assert out == ["#gh:sase please a", "#gh:sase b", "#gh:sase c"]
+
+
+def test_inherited_vcs_ref_does_not_split_multiline_clan_directive() -> None:
+    """Regression: a wrapped ``%clan(...)`` must stay intact when the launch
+    prompt's VCS ref is inherited into the swarm's first segment (the
+    Telegram-shaped ``#gh:sase #swarm:: ...`` launch)."""
+    catalog = {
+        "swarm": xp(
+            "swarm",
+            "%clan(swarm.abc, tribe=research,\n"
+            "summary=[[RESEARCH PROMPT: {{ prompt }}]]) %id:swarm.abc.cdx\n"
+            "%wait(priority=20) %model:@research_a {{ prompt }} #research"
+            "\n---\nfollow-up {{ prompt }}",
+            inputs=[InputArg(name="prompt", type=InputType.TEXT)],
+        )
+    }
+    with patch_catalog(catalog), patch_vcs_patterns():
+        out = expand_xprompt_swarms(["#gh:sase #swarm:: review the changes"])
+    assert len(out) == 2
+    segment = out[0]
+    assert ",\n#gh:sase" not in segment
+    assert (
+        "%clan(swarm.abc, tribe=research,\n"
+        "summary=[[RESEARCH PROMPT: review the changes]]) %id:swarm.abc.cdx\n"
+        "%wait(priority=20) %model:@research_a #gh:sase review the changes #research"
+    ) == segment
+
+
+def test_inherited_vcs_ref_multiline_clan_directive_parses_cleanly() -> None:
+    """The expanded segment must parse to a real clan directive, not the
+    corrupted-keyword error the splicing bug produced."""
+    catalog = {
+        "swarm": xp(
+            "swarm",
+            "%clan(swarm.abc, tribe=research,\n"
+            "summary=[[RESEARCH PROMPT: {{ prompt }}]]) %id:swarm.abc.cdx\n"
+            "%wait(priority=20) %model:@research_a {{ prompt }} #research"
+            "\n---\nfollow-up {{ prompt }}",
+            inputs=[InputArg(name="prompt", type=InputType.TEXT)],
+        )
+    }
+    with patch_catalog(catalog), patch_vcs_patterns():
+        out = expand_xprompt_swarms(["#gh:sase #swarm:: review the changes"])
+    directive = extract_static_clan_directive(out[0])
+    assert directive is not None
+    assert directive.name == "swarm.abc"
+    assert directive.tribe == "research"
+
+
+def test_inherited_vcs_ref_multiline_clan_directive_with_unbalanced_paren() -> None:
+    """The fix must rely on text-block-aware paren matching, not a regex that
+    happens to balance: an unmatched '(' in the user's prose (inside the
+    ``summary=[[...]]`` text block) must not defeat the scan."""
+    catalog = {
+        "swarm": xp(
+            "swarm",
+            "%clan(swarm.abc, tribe=research,\n"
+            "summary=[[RESEARCH PROMPT: {{ prompt }}]]) %id:swarm.abc.cdx\n"
+            "{{ prompt }}\n---\nfollow-up",
+            inputs=[InputArg(name="prompt", type=InputType.TEXT)],
+        )
+    }
+    with patch_catalog(catalog), patch_vcs_patterns():
+        out = expand_xprompt_swarms(
+            ["#gh:sase #swarm:: fix (the gates without closing it"]
+        )
+    assert len(out) == 2
+    segment = out[0]
+    assert ",\n#gh:sase" not in segment
+    directive = extract_static_clan_directive(segment)
+    assert directive is not None
+    assert directive.name == "swarm.abc"
+
+
+def test_inherited_vcs_ref_leaves_malformed_clan_directive_malformed() -> None:
+    """A ``%clan(`` that never closes must not get a VCS ref spliced into its
+    argument list; the ref is placed ahead of the directive run instead, and
+    the prompt still fails with the parser's own malformed-directive error."""
+    catalog = {
+        "swarm": xp(
+            "swarm",
+            "%clan(swarm.abc, tribe=research\n{{ prompt }}\n---\nfollow-up",
+            inputs=[InputArg(name="prompt", type=InputType.TEXT)],
+        )
+    }
+    with patch_catalog(catalog), patch_vcs_patterns():
+        out = expand_xprompt_swarms(["#gh:sase #swarm:: review the changes"])
+    assert len(out) == 2
+    segment = out[0]
+    assert segment.startswith("#gh:sase %clan(")
+    with pytest.raises(DirectiveError, match="missing closing"):
+        extract_static_clan_directive(segment)
