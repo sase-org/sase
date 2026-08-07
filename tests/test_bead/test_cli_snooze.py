@@ -107,6 +107,99 @@ def test_absolute_iso_timestamp_is_stored_verbatim(project_dir: Path) -> None:
     assert stored.snooze.until == until.isoformat()
 
 
+def test_snooze_leaves_one_note_naming_wake_time_length_target_and_reason(
+    project_dir: Path,
+) -> None:
+    task = _ready_task(project_dir)
+
+    bead_cli.handle_bead_snooze(
+        _snooze_args(
+            [task.id],
+            until="3d",
+            plus_ones=2,
+            reason="waiting on the upstream fix",
+        )
+    )
+
+    with BeadProject(project_dir) as proj:
+        stored = proj.show(task.id)
+    assert stored.snooze is not None
+    notes = stored.notes.split("\n\n")
+    assert len(notes) == 1
+    note = notes[0]
+    assert note.startswith(
+        f"[{stored.snooze.snoozed_at} · {stored.snooze.snoozed_by}] "
+    )
+    assert f"Snoozed until {stored.snooze.until} (in 3d)." in note
+    assert "Also wakes at 2 more +1s." in note
+    assert "Reason: waiting on the upstream fix" in note
+
+
+def test_bare_snooze_with_no_reason_or_target_still_leaves_a_note(
+    project_dir: Path,
+) -> None:
+    task = _ready_task(project_dir)
+
+    bead_cli.handle_bead_snooze(_snooze_args([task.id], until="3d"))
+
+    with BeadProject(project_dir) as proj:
+        stored = proj.show(task.id)
+    assert stored.snooze is not None
+    assert stored.notes == (
+        f"[{stored.snooze.snoozed_at} · {stored.snooze.snoozed_by}] "
+        f"Snoozed until {stored.snooze.until} (in 3d)."
+    )
+
+
+def test_re_snoozing_appends_a_second_note_naming_the_replaced_wake_time(
+    project_dir: Path,
+) -> None:
+    task = _ready_task(project_dir)
+    bead_cli.handle_bead_snooze(_snooze_args([task.id], until="3d"))
+    with BeadProject(project_dir) as proj:
+        first_until = proj.show(task.id).snooze.until  # type: ignore[union-attr]
+
+    bead_cli.handle_bead_snooze(_snooze_args([task.id], until="7d"))
+
+    with BeadProject(project_dir) as proj:
+        stored = proj.show(task.id)
+    assert stored.snooze is not None
+    notes = stored.notes.split("\n\n")
+    assert len(notes) == 2
+    assert f"Snoozed until {first_until}" in notes[0]
+    assert f"Re-snoozed until {stored.snooze.until}" in notes[1]
+    assert f"replacing the wake time {first_until}" in notes[1]
+
+
+def test_cancel_appends_no_note(project_dir: Path) -> None:
+    task = _ready_task(project_dir)
+    bead_cli.handle_bead_snooze(_snooze_args([task.id], until="3d"))
+    with BeadProject(project_dir) as proj:
+        notes_before = proj.show(task.id).notes
+
+    bead_cli.handle_bead_snooze(_snooze_args([task.id], cancel=True))
+
+    with BeadProject(project_dir) as proj:
+        stored = proj.show(task.id)
+    assert stored.notes == notes_before
+
+
+def test_a_multiline_reason_collapses_to_one_note_but_keeps_the_raw_reason(
+    project_dir: Path,
+) -> None:
+    task = _ready_task(project_dir)
+    reason = "line one\nline two"
+
+    bead_cli.handle_bead_snooze(_snooze_args([task.id], until="3d", reason=reason))
+
+    with BeadProject(project_dir) as proj:
+        stored = proj.show(task.id)
+    assert stored.snooze is not None
+    assert stored.snooze.reason == reason
+    assert "\n\n" not in stored.notes
+    assert "Reason: line one line two" in stored.notes
+
+
 def test_cancel_returns_the_bead_to_ready(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],

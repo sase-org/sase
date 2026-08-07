@@ -47,7 +47,18 @@ def test_snooze_round_trips_through_every_persistence_surface(
         assert issue.snooze.plus_one_target == 2
         assert issue.snooze.plus_one_baseline == 0
 
+        # The snooze note is what survives the wake that clears the record
+        # above, so every persistence surface below must carry it unchanged.
+        assert issue.notes.startswith(
+            f"[{issue.snooze.snoozed_at} · {issue.snooze.snoozed_by}] "
+            f"Snoozed until {UNTIL} (in "
+        )
+        assert issue.notes.endswith(
+            "Also wakes at 2 more +1s. Reason: waiting on upstream"
+        )
+
         assert project.show(task_id).snooze == issue.snooze
+        assert project.show(task_id).notes == issue.notes
 
         # A snoozed bead stays live work: default filters must not hide it.
         assert task_id in {row.id for row in project.list_issues()}
@@ -63,6 +74,7 @@ def test_snooze_round_trips_through_every_persistence_surface(
     assert mirrored is not None
     assert mirrored.status is Status.SNOOZED
     assert mirrored.snooze == issue.snooze
+    assert mirrored.notes == issue.notes
 
 
 def test_cancel_snooze_returns_the_bead_to_ready(tmp_path: Path) -> None:

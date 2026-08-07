@@ -14,7 +14,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from sase.bead.model import SnoozeRecord, TaskPlusOneEvidence
+from sase.bead.model import IssueType, SnoozeRecord, Status, TaskPlusOneEvidence
+from sase.bead.project import BeadProject
 from sase.bead.snooze_time import (
     SnoozeTimeError,
     parse_snooze_request,
@@ -172,6 +173,44 @@ def test_bead_snooze_preview_omits_blank_notes_section() -> None:
     assert "## Notes" not in preview
     assert "_No notes._" not in preview
     assert preview.endswith("## Description\n\nMake invalidation deterministic.\n")
+
+
+def test_bead_snooze_gate_preview_carries_the_real_snooze_note(
+    project_dir: Path,
+    gate_home: Path,
+) -> None:
+    del gate_home
+    with BeadProject(project_dir) as proj:
+        task = proj.create("Follow up on the cache", IssueType.TASK, size="small")
+        proj.update(task.id, status=Status.READY.value)
+        issue = proj.snooze(
+            task.id,
+            until=WAKE_TIME,
+            actor="bryanbugyi34@gmail.com",
+            plus_ones=2,
+            reason="waiting on the upstream fix",
+        )
+    assert issue.snooze is not None
+
+    gate = create_bead_snooze_gate(
+        request_id="bead-snooze-real-notes",
+        bead_id=issue.id,
+        project="sase",
+        title=issue.title,
+        snooze=issue.snooze,
+        notes=issue.notes,
+        created_by=issue.created_by,
+        created_at=issue.created_at,
+    )
+
+    preview = (gate.bundle_path / BEAD_SNOOZE_PREVIEW_PATH).read_text(encoding="utf-8")
+    # This is the payoff path: the wake reviewer sees the deferral's
+    # conditions and reason at the moment they choose Close / Ready / Snooze
+    # again, not just the raw wake time in the snooze block above it.
+    assert "## Notes" in preview
+    assert f"Snoozed until {WAKE_TIME}" in preview
+    assert "Also wakes at 2 more +1s." in preview
+    assert "Reason: waiting on the upstream fix" in preview
 
 
 def test_bead_snooze_gate_rejects_automatic_resolution(gate_home: Path) -> None:

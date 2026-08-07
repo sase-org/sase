@@ -327,6 +327,18 @@ required unless `--cancel` is given; a non-positive duration or a past absolute 
 `--cancel` returns the bead to `ready` immediately and clears the snooze record; the same happens
 automatically once a wake condition fires.
 
+Every successful snooze (including a re-snooze) appends one attributed note recording the wake time,
+the deferral length, any `+1` target, and the reason, in the same store mutation that sets
+`status: snoozed`. This is what preserves the "why and until when" after a wake clears the snooze
+record — `sase bead show` only renders the `SNOOZE` block while the bead is still snoozed, so the
+note is the only place a past deferral's conditions survive. For example:
+
+```text
+[2026-08-07T13:21:54Z · bryanbugyi34@gmail.com] Snoozed until 2026-08-10T09:21:53-04:00 (in 3d). Reason: waiting on the upstream fix
+```
+
+`--cancel` appends no note of its own; it only clears the snooze record.
+
 Snoozing always snoozes the bead's own notification in the same step — there is no separate
 scheduler, and the bead's row stays visible in the notification panel's `Snoozed` tab (see
 [Tabs and Ordering](notifications.md#tabs-and-ordering) in the notifications doc) for the whole
@@ -1224,7 +1236,7 @@ matching `sase bead update`'s batch semantics.
 | ----------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `-u, --until TIME`      | Wake time: a duration (`30m`, `2h`, `1h30m`, `3d`) or absolute ISO-8601 timestamp; required unless `--cancel` |
 | `-p, --plus-ones COUNT` | Also wake when this many additional `+1` reports arrive                                                       |
-| `-r, --reason TEXT`     | Why this task is being deferred                                                                               |
+| `-r, --reason TEXT`     | Why this task is being deferred; embedded in the note this snooze appends                                     |
 | `-c, --cancel`          | Wake these beads now, returning them to `ready`                                                               |
 
 ### `sase bead stats`
