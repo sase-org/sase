@@ -1,6 +1,7 @@
 """Tests for NotificationModal tab rendering and row selection."""
 
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -775,3 +776,89 @@ def test_tag_strip_rerenders_only_when_its_width_changes() -> None:
     strip.update.reset_mock()
     strip.on_resize(SimpleNamespace(size=SimpleNamespace(width=43)))
     strip.update.assert_not_called()
+
+
+def test_refresh_tag_strip_keeps_a_single_tab_visible() -> None:
+    """A lone tab must not hide the strip; only zero tabs should."""
+    only = _make_notification("only", action="JumpToAgent")
+    modal = NotificationModal([only])
+    strip = MagicMock()
+    modal.query_one = MagicMock(return_value=strip)  # type: ignore[method-assign]
+
+    modal._refresh_tag_strip()
+
+    strip.remove_class.assert_called_once_with("hidden")
+    strip.add_class.assert_not_called()
+
+
+def test_refresh_tag_strip_hides_when_there_are_zero_tabs() -> None:
+    """No notifications means no tabs, so the strip is the one case that hides."""
+    modal = NotificationModal([])
+    strip = MagicMock()
+    modal.query_one = MagicMock(return_value=strip)  # type: ignore[method-assign]
+
+    modal._refresh_tag_strip()
+
+    strip.add_class.assert_called_once_with("hidden")
+    strip.remove_class.assert_not_called()
+
+
+def test_refresh_tag_strip_keeps_two_tabs_visible() -> None:
+    """The already-working multi-tab case is unaffected by the predicate flip."""
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    modal = NotificationModal([done, review])
+    strip = MagicMock()
+    modal.query_one = MagicMock(return_value=strip)  # type: ignore[method-assign]
+
+    modal._refresh_tag_strip()
+
+    strip.remove_class.assert_called_once_with("hidden")
+    strip.add_class.assert_not_called()
+
+
+def _wire_full_rebuild(modal: NotificationModal) -> tuple[_FakeOptionList, MagicMock]:
+    """Stub every widget `_rebuild_list()` touches for a plain, attachment-free row."""
+    option_list = _FakeOptionList([])
+    strip = MagicMock()
+    widgets: dict[str, Any] = {
+        "#notification-list": option_list,
+        "#notification-tag-tabs": strip,
+        "#notification-file-title": MagicMock(),
+        "#notification-file-content": MagicMock(),
+    }
+
+    def query_one(selector: str, *_args: Any, **_kwargs: Any) -> Any:
+        try:
+            return widgets[selector]
+        except KeyError:
+            raise LookupError(selector) from None
+
+    modal.query_one = MagicMock(side_effect=query_one)  # type: ignore[method-assign]
+    return option_list, strip
+
+
+def test_dismiss_that_collapses_two_tabs_to_one_leaves_the_strip_visible() -> None:
+    """Regression test: dismissing the last row of one tag must not hide the strip.
+
+    Drives the real dismiss action and `_rebuild_list()` wiring rather than calling
+    `_refresh_tag_strip()` directly, so it covers the call site and not just the
+    predicate.
+    """
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    review = _make_notification("review", action="JumpToAgent")
+    review.tags = ["review"]
+    modal = NotificationModal([done, review])
+    modal._active_notification_tag = "done"
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    _option_list, strip = _wire_full_rebuild(modal)
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed"):
+        modal.action_dismiss_notification()
+
+    assert modal._active_notification_tag == "review"
+    strip.remove_class.assert_called_with("hidden")
+    strip.add_class.assert_not_called()

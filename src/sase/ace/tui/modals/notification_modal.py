@@ -119,7 +119,7 @@ class NotificationModal(
                             tabs,
                             self._active_notification_tag,
                             id="notification-tag-tabs",
-                            classes="hidden" if len(tabs) <= 1 else None,
+                            classes=None if tabs else "hidden",
                         )
                         yield OptionList(
                             *self._create_notification_options(),
@@ -363,7 +363,14 @@ class NotificationModal(
         self._active_notification_tag = current_tags[0]
 
     def _refresh_tag_strip(self) -> None:
-        """Refresh the visible tag strip when mounted."""
+        """Refresh the visible tag strip when mounted.
+
+        The strip stays visible whenever there is at least one tab; it is only
+        hidden when there are zero tabs. (Cycling with `[`/`]` is a separate
+        concern, gated on `len(tags) <= 1` in the prev/next tab actions below,
+        since cycling among one tab is a no-op even though the strip itself
+        stays visible.)
+        """
         try:
             strip = self.query_one("#notification-tag-tabs", NotificationTagStrip)
         except Exception:
@@ -371,10 +378,13 @@ class NotificationModal(
 
         tabs = self._tag_tabs()
         strip.set_tabs(tabs, self._active_notification_tag)
-        if len(tabs) <= 1:
-            strip.add_class("hidden")
-        else:
+        if tabs:
             strip.remove_class("hidden")
+        else:
+            # Zero tabs means zero notifications, which hides `#notification-list`
+            # entirely in favor of the "No unread notifications" message — an empty
+            # strip here would just be a blank line and its margin above that message.
+            strip.add_class("hidden")
 
     def _first_visible_notification_index(self) -> int | None:
         """Return the first selectable notification for the active tab."""
