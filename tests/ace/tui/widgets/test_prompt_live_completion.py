@@ -95,6 +95,16 @@ def _compute_soft_now(ta: PromptTextArea) -> None:
     )
 
 
+def _subtitle_text(bar: PromptInputBar) -> str:
+    """Return the plain text of *bar*'s composed subtitle.
+
+    ``border_subtitle`` round-trips through Textual's markup serialization
+    once a ``Text`` is assigned to it, so tests recompute the same ``Text``
+    the bar just assigned instead of parsing that serialization back out.
+    """
+    return bar._render_subtitle(bar._subtitle_base).plain
+
+
 def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     assert parse_prompt_completion_settings({}) == PromptCompletionSettings()
     assert parse_prompt_completion_settings({}).auto_directive_menu is True
@@ -176,7 +186,7 @@ async def test_soft_xprompt_suggestion_accepts_with_ctrl_l_not_enter() -> None:
         ta.cursor_location = (0, 2)
         _compute_soft_now(ta)
 
-        assert bar.border_subtitle == "[^L] accept #review"
+        assert _subtitle_text(bar).startswith("[^L] accept #review")
         await pilot.press("enter")
         assert app.submitted == ["#r"]
         assert ta._soft_completion is None
@@ -286,7 +296,7 @@ async def test_soft_directive_suggestion_replaces_only_with_ctrl_l() -> None:
         ta.cursor_location = (0, 3)
         _compute_soft_now(ta)
 
-        assert bar.border_subtitle == "[^L] accept %model"
+        assert _subtitle_text(bar).startswith("[^L] accept %model")
         await pilot.press("ctrl+l")
 
     assert ta.text == "%model"
@@ -310,14 +320,14 @@ async def test_soft_xprompt_arg_name_and_bool_value_suggestions() -> None:
         ta.load_text("#review(e")
         ta.cursor_location = (0, len("#review(e"))
         _compute_soft_now(ta)
-        assert bar.border_subtitle == "[^L] accept enabled="
+        assert _subtitle_text(bar).startswith("[^L] accept enabled=")
         await pilot.press("ctrl+l")
         assert ta.text == "#review(enabled="
 
         ta.load_text("#review(enabled=)")
         ta.cursor_location = (0, len("#review(enabled="))
         _compute_soft_now(ta)
-        assert bar.border_subtitle == "[^L] accept true"
+        assert _subtitle_text(bar).startswith("[^L] accept true")
         await pilot.press("ctrl+l")
 
     assert ta.text == "#review(enabled=true)"
@@ -388,11 +398,11 @@ async def test_soft_xprompt_suggestion_uses_canonical_project_namespace(
             ta.load_text("#proj/r")
             ta.cursor_location = (0, 7)
             _compute_soft_now(ta)
-            subtitle = bar.border_subtitle
+            subtitle = _subtitle_text(bar)
 
             await pilot.press("ctrl+l")
 
-    assert subtitle == "[^L] accept #proj/reads"
+    assert subtitle.startswith("[^L] accept #proj/reads")
     assert ta.text == "#proj/reads "
     assert app.requested_projects == ["proj"] * len(app.requested_projects)
     assert app.requested_projects

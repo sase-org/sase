@@ -11,6 +11,11 @@ from textual.dom import NoScreen
 from textual.widget import Widget
 from textual.widgets import Static, TextArea
 
+from sase.ace.tui.widgets._prompt_cursor_readout import (
+    cursor_readout_cell_width,
+    cursor_readout_position,
+    format_cursor_readout,
+)
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
@@ -42,12 +47,24 @@ class _PromptStackSeparator(Static):
         super().__init__("", **kwargs)
         self.agent_number = agent_number
         self.active = active
+        self.position: tuple[int, int] | None = None
+        self.vim_mode: str = "insert"
 
     def set_active(self, active: bool) -> None:
         """Update active state and refresh the rendered rule when it changes."""
         if self.active == active:
             return
         self.active = active
+        self.refresh()
+
+    def set_position(
+        self, position: tuple[int, int] | None, vim_mode: str = "insert"
+    ) -> None:
+        """Update the parked-pane cursor readout, no-op when nothing changed."""
+        if self.position == position and self.vim_mode == vim_mode:
+            return
+        self.position = position
+        self.vim_mode = vim_mode
         self.refresh()
 
     def render(self) -> Text:
@@ -72,8 +89,32 @@ class _PromptStackSeparator(Static):
         text = Text(no_wrap=True, overflow="crop")
         text.append(_STACK_SEPARATOR_RULE * left_width, style="dim")
         text.append(padded_label, style=label_style)
-        text.append(_STACK_SEPARATOR_RULE * right_width, style="dim")
+        text.append_text(self._render_right_rule(right_width))
         return text
+
+    def _render_right_rule(self, right_width: int) -> Text:
+        """Return the right-hand rule run, carrying the readout when it fits.
+
+        The centered-label math above never changes: this only decides how
+        the *already allotted* right-hand rule cells are spent.  When the
+        readout does not fit alongside at least one rule cell on each side,
+        it is omitted entirely -- never abbreviated to a second format.
+        """
+        if self.position is not None:
+            line, column = self.position
+            chip_cells = cursor_readout_cell_width(line, column) + 2
+            if right_width >= chip_cells + 2:
+                dash_count = right_width - chip_cells - 1
+                text = Text(no_wrap=True, overflow="crop")
+                text.append(_STACK_SEPARATOR_RULE * dash_count, style="dim")
+                text.append(" ")
+                text.append_text(
+                    format_cursor_readout(line, column, vim_mode=self.vim_mode)
+                )
+                text.append(" ")
+                text.append(_STACK_SEPARATOR_RULE, style="dim")
+                return text
+        return Text(_STACK_SEPARATOR_RULE * right_width, style="dim")
 
 
 class PromptInputBarStackRenderingMixin(_MixinBase):
@@ -90,6 +131,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         _search_command_line_count: int
         _search_command_visible: bool
         _stack: PromptStackState
+        _subtitle_base: str
         _title_mode_suffix: str
 
         @property
@@ -100,6 +142,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
             self, height_cap: int | None = None
         ) -> int: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
+        def _render_subtitle(self, base: str) -> Text: ...
         def _sync_todo_counts_from_mounted_panes(self) -> None: ...
         def _sync_todo_counts_from_stack(self) -> None: ...
         def _update_todo_count_for_text_area(self, text_area: object) -> None: ...
@@ -252,6 +295,35 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
             separator.set_class(active, "active")
             separator.set_class(not active, "inactive")
             separator.set_active(active)
+        self.refresh_cursor_readouts()
+
+    def refresh_cursor_readouts(self) -> None:
+        """Sync the active pane's subtitle readout and each parked separator's rule.
+
+        A cursor readout paints immediately on the UI thread, like a
+        highlight move -- never debounced.  Every pane lookup is guarded
+        since the bar is routinely asked to refresh while panes are
+        mid-mount or mid-detach.
+        """
+        self.border_subtitle = self._render_subtitle(self._subtitle_base)
+        if len(self._stack) <= 1:
+            return
+        for index, item in enumerate(self._stack.items):
+            try:
+                separator = self.query_one(
+                    f"#{self._sep_id(item)}", _PromptStackSeparator
+                )
+            except Exception:
+                continue
+            if index == self._stack.selected_index:
+                separator.set_position(None)
+                continue
+            try:
+                text_area = self.query_one(f"#{self._pane_id(item)}", PromptTextArea)
+            except Exception:
+                continue
+            line, column = cursor_readout_position(text_area)
+            separator.set_position((line, column), text_area._vim_mode)
 
     # -- stack-aware public API ----------------------------------------------
 
@@ -481,11 +553,13 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         self._update_todo_count_for_text_area(text_area)
         self._refresh_title(self._title_mode_suffix)
         self._schedule_height_update()
+        self.refresh_cursor_readouts()
 
     def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
-        """Refresh soft completion when the prompt cursor moves."""
+        """Refresh soft completion and the cursor readout when the cursor moves."""
         if isinstance(event.text_area, PromptTextArea):
             event.text_area._on_prompt_completion_context_changed()
+        self.refresh_cursor_readouts()
 
     def _maybe_show_active_jinja_diagnostics(self) -> None:
         """Restore active Jinja diagnostics after a higher-priority panel hides."""
@@ -622,3 +696,4 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
     def on_resize(self) -> None:
         """Recalculate height when the terminal is resized."""
         self._schedule_height_update()
+        self.refresh_cursor_readouts()

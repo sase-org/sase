@@ -3457,6 +3457,18 @@ invocation stays a single pane and expands only when it is launched. During live
 `---` lines stay literal text; add prompt panes with `g-` in prompt NORMAL mode. The detailed
 multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent-prompts).
 
+### Cursor Readout
+
+Every mounted pane advertises its cursor position as `Ln <line>, Col <column>`, both 1-based and
+counted in document columns (the character index within the logical line, not the soft-wrapped
+screen column). The active pane's readout sits flush right on the bar's bottom border, next to the
+mode hints; each parked pane's readout sits on the right end of its own `─── ▍ agent N ───`
+separator rule. The digits are painted the color of that pane's own vim-mode cursor -- gold for
+NORMAL, cyan for INSERT, magenta for VISUAL / V-LINE -- so the readout and the cursor it describes
+always match. On a narrow terminal the active-pane readout always wins over the mode hints (which
+truncate first); a parked pane's readout is dropped entirely rather than abbreviated if its
+separator cannot fit both the readout and the `agent N` label.
+
 ### INSERT Mode (Default)
 
 | Key                          | Action                                                                                                                  |
@@ -3617,14 +3629,15 @@ re-parsing each pane's text. Panes are ordered top-to-bottom for whole-stack sub
 pane is active by default so you can keep drafting the newest segment; it is not a priority marker,
 and pressing `Enter` immediately opens the submit chooser.
 
-Inactive panes stay compact, and the active pane takes the available height. A `---` line typed
-while INSERT mode is active stays literal prompt text; use `Ctrl+G -` while drafting, or `g-` from
-prompt NORMAL mode, to add a new bottom pane. `Ctrl+G g` and `Ctrl+G Ctrl+G` open the whole stack in
-`$EDITOR` when the bar already has multiple panes (a single-pane bar opens just the current prompt).
-Returning from a whole-bar editor session, or from a single-pane editor buffer with a ` @` review
-marker, reloads xprompt-style Markdown and parses `---` separators into fresh panes. History loads
-parse only real multi-agent prompts; a single history item with leading YAML frontmatter stays one
-verbatim pane instead of auto-opening the Frontmatter Panel.
+Inactive panes stay compact, and the active pane takes the available height; each parked pane's
+separator rule also carries a live [cursor readout](#cursor-readout) of that pane's own position. A
+`---` line typed while INSERT mode is active stays literal prompt text; use `Ctrl+G -` while
+drafting, or `g-` from prompt NORMAL mode, to add a new bottom pane. `Ctrl+G g` and `Ctrl+G Ctrl+G`
+open the whole stack in `$EDITOR` when the bar already has multiple panes (a single-pane bar opens
+just the current prompt). Returning from a whole-bar editor session, or from a single-pane editor
+buffer with a ` @` review marker, reloads xprompt-style Markdown and parses `---` separators into
+fresh panes. History loads parse only real multi-agent prompts; a single history item with leading
+YAML frontmatter stays one verbatim pane instead of auto-opening the Frontmatter Panel.
 
 A single-pane editor session normally launches the moment you close `$EDITOR`. To review it in the
 prompt bar first, end any line of the buffer with the exact suffix ` @` (a space followed by `@`).

@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from rich.cells import cell_len
 from rich.text import Text
 from textual.css.query import NoMatches
 from textual.widgets import Static
 
 from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.models.tribe_display import named_tribe_identity_colors
+from sase.ace.tui.widgets._prompt_cursor_readout import (
+    cursor_readout_cell_width,
+    cursor_readout_position,
+    format_cursor_readout,
+)
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_agent_completion_row,
     append_artifact_ref_completion_row,
@@ -66,6 +72,8 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
+
+    from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 else:
     _MixinBase = object
 
@@ -76,6 +84,11 @@ else:
 _PANEL_MARGIN_ROWS = 1
 _JINJA_PANEL_MAX_HEIGHT = 5
 _PLACEHOLDER_SOURCE_LEGEND = "<> prompt   ◆ saved"
+
+# Border corners + label padding that ``render_border_label`` reserves before
+# truncating the subtitle; pinned empirically by the narrow-width widget test.
+_SUBTITLE_BORDER_RESERVED_CELLS = 6
+_CURSOR_READOUT_DIVIDER = "  ·  "
 
 
 def _model_completion_subtitle(
@@ -232,9 +245,11 @@ class PromptInputBarCompletionMixin(_MixinBase):
         _completion_visible: bool
         _mode_subtitle: str
         _soft_completion_visible: bool
+        _subtitle_base: str
 
         def _update_height(self) -> None: ...
         def _maybe_show_active_jinja_diagnostics(self) -> None: ...
+        def active_text_area(self) -> PromptTextArea: ...
 
     def _completion_panel(self) -> Static | None:
         """Return the completion panel when it is still attached."""
@@ -574,7 +589,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
         """Set the prompt mode subtitle, preserving any visible soft suggestion."""
         self._mode_subtitle = subtitle
         if not self._soft_completion_visible:
-            self.border_subtitle = subtitle
+            self._subtitle_base = subtitle
+            self.border_subtitle = self._render_subtitle(subtitle)
 
     def show_soft_completion(self, suggestion: PromptSoftCompletion) -> None:
         """Render a soft completion in the prompt bar subtitle."""
@@ -584,14 +600,59 @@ class PromptInputBarCompletionMixin(_MixinBase):
         if len(display) > 48:
             display = f"{display[:45]}..."
         self._soft_completion_visible = True
-        self.border_subtitle = f"[^L] accept {display}"
+        base = f"[^L] accept {display}"
+        self._subtitle_base = base
+        self.border_subtitle = self._render_subtitle(base)
 
     def hide_soft_completion(self) -> None:
         """Restore the mode subtitle when no soft completion is visible."""
         if not self._soft_completion_visible:
             return
         self._soft_completion_visible = False
-        self.border_subtitle = self._mode_subtitle
+        self._subtitle_base = self._mode_subtitle
+        self.border_subtitle = self._render_subtitle(self._mode_subtitle)
+
+    def _render_subtitle(self, base: str) -> Text:
+        """Compose *base* with the active pane's cursor readout, width-aware.
+
+        The readout wins over *base*: when both cannot fit the bar's usable
+        border-label width, ``base`` is truncated (with an ellipsis) first,
+        since every hint it carries is also reachable from the ``?`` help
+        modal and the ``g``-prefix hint panel; the readout has no other home.
+        Builds a ``rich.text.Text`` rather than a markup string so literal
+        ``[`` characters in *base* (e.g. ``"[Enter] send"``) are never parsed
+        as markup.
+        """
+        try:
+            text_area = self.active_text_area()
+        except Exception:
+            return Text(base, no_wrap=True)
+        line, column = cursor_readout_position(text_area)
+        readout = format_cursor_readout(line, column, vim_mode=text_area._vim_mode)
+        readout_width = cursor_readout_cell_width(line, column)
+        divider_width = cell_len(_CURSOR_READOUT_DIVIDER)
+        usable = max(0, self.size.width - _SUBTITLE_BORDER_RESERVED_CELLS)
+
+        if cell_len(base) + divider_width + readout_width <= usable:
+            result = Text(base, no_wrap=True)
+            result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+            result.append_text(readout)
+            return result
+
+        remaining = usable - divider_width - readout_width
+        if remaining > 0:
+            base_text = Text(base, no_wrap=True, overflow="ellipsis")
+            base_text.truncate(remaining, overflow="ellipsis")
+            result = Text(no_wrap=True)
+            result.append_text(base_text)
+            result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+            result.append_text(readout)
+            return result
+
+        result = Text(no_wrap=True, overflow="ellipsis")
+        result.append_text(readout)
+        result.truncate(usable, overflow="ellipsis")
+        return result
 
     def show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
         """Show the post-accept xprompt argument hint panel."""

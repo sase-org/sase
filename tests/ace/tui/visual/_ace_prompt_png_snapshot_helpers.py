@@ -57,6 +57,23 @@ SEARCH_PROMPT = (
 )
 CURSOR_PROMPT = "Readable cursor colors make vim modes obvious"
 
+CURSOR_READOUT_SOLO_PROMPT = (
+    "Confirm the readout tracks cursor motion across lines\n"
+    "Move the caret here to check the mid-document line and column\n"
+    "Then verify the relative gutter numbers surround this row\n"
+    "Finish by scanning the final line for its own position"
+)
+CURSOR_READOUT_STACK_PROMPT = (
+    "First pane parks near the start of its opening line\n"
+    "with a second line for context here"
+    "\n---\n"
+    "Second pane parks further into its own second line\n"
+    "so the two parked rules show different values"
+    "\n---\n"
+    "Third pane stays active at the end of its final line\n"
+    "and reports its position on the bar border"
+)
+
 XPROMPT_HIGHLIGHT_SOLO = (
     "#gh:sase %auto #pr:my_change %m:opus fix the bug use /sase_plan\n"
     "```text\n#literal %wait:no\n---\n```"

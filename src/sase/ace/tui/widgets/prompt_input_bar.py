@@ -106,6 +106,7 @@ class PromptInputBar(
         self._search_command_visible = False
         self._search_command_line_count = 0
         self._mode_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
+        self._subtitle_base = self._mode_subtitle
         self._soft_completion_visible = False
         self._title_mode_suffix = ""
         # Monotonic per-rebuild id namespace so a fresh stack mounted while the
@@ -326,6 +327,7 @@ class PromptInputBar(
         self._apply_active_classes()
         self.auto_show_frontmatter_panel()
         self._schedule_height_update()
+        self.refresh_cursor_readouts()
 
     def _app_theme_changed(self) -> None:
         """Recompose theme-derived title chrome after an app theme switch."""
