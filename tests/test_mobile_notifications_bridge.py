@@ -422,7 +422,7 @@ def test_execute_mobile_task_triage_reports_registered_action_kind(
         ),
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
         patch(
-            "sase.bead.task_gate._resolve_task_triage_project_cwd",
+            "sase.bead._task_gate_actions._resolve_task_triage_project_cwd",
             return_value=Path("/canonical/sase"),
         ),
         patch(

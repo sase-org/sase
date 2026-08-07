@@ -15,12 +15,12 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from sase.bead.model import CloseRecord, ReopenCause, Resolution, TaskPlusOneEvidence
+from sase.bead._task_gate_actions import _resolve_task_triage_project_cwd
+from sase.bead._task_gate_spec import build_task_triage_gate_spec
 from sase.bead.task_gate import (
     TASK_TRIAGE_COMMAND_PATHS,
     TASK_TRIAGE_PREVIEW_PATH,
     TASK_TRIAGE_SNOOZE_REASON,
-    _build_task_triage_gate_spec,
-    _resolve_task_triage_project_cwd,
     create_task_triage_gate,
     render_task_triage_preview,
     snooze_task_triage,
@@ -36,7 +36,7 @@ from sase.notifications.store import load_notifications
 
 
 def _spec(*, request_id: str = "task-triage-1") -> dict[str, Any]:
-    return _build_task_triage_gate_spec(
+    return build_task_triage_gate_spec(
         request_id=request_id,
         bead_id="sase-task.1",
         project="sase",
@@ -424,7 +424,7 @@ def test_task_triage_launch_executes_real_command_translates_and_persists_task_i
 
     with (
         patch(
-            "sase.bead.task_gate._resolve_task_triage_project_cwd",
+            "sase.bead._task_gate_actions._resolve_task_triage_project_cwd",
             return_value=primary,
         ) as resolve_project,
         patch(
@@ -488,7 +488,7 @@ def test_task_triage_close_uses_canceled_resolution_reason_and_canonical_commit(
     start_cwd = Path.cwd()
     with (
         patch(
-            "sase.bead.task_gate._resolve_task_triage_project_cwd",
+            "sase.bead._task_gate_actions._resolve_task_triage_project_cwd",
             return_value=primary,
         ),
         patch(
@@ -583,7 +583,7 @@ def test_task_triage_snooze_defers_the_bead_with_the_typed_duration_and_target(
 
     with (
         patch(
-            "sase.bead.task_gate._resolve_task_triage_project_cwd",
+            "sase.bead._task_gate_actions._resolve_task_triage_project_cwd",
             return_value=Path("/canonical/sase"),
         ),
         patch("sase.bead.cli_common.bead_store_mutation", side_effect=mutation_scope),
@@ -626,7 +626,7 @@ def test_task_triage_snooze_accepts_a_bare_duration_without_a_plus_one_target(
 
     with (
         patch(
-            "sase.bead.task_gate._resolve_task_triage_project_cwd",
+            "sase.bead._task_gate_actions._resolve_task_triage_project_cwd",
             return_value=Path("/canonical/sase"),
         ),
         patch("sase.bead.cli_common.bead_store_mutation", side_effect=mutation_scope),

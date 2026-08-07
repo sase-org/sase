@@ -13,7 +13,7 @@ from sase.ace.tui.modals.custom_gate_modal import (
 )
 from sase.ace.tui.modals.gate_branch_controls import GateBranchData
 from sase.ace.tui.modals.notification_modal import NotificationModal
-from sase.bead.task_gate import _build_task_triage_gate_spec
+from sase.bead._task_gate_spec import build_task_triage_gate_spec
 from sase.bead.model import TaskPlusOneEvidence
 from sase.notification_gates.models import GateOption
 from sase.notification_gates.registry import adapter_for_kind
@@ -192,7 +192,7 @@ async def test_notification_filed_by_png_snapshot(
 
 
 def _task_triage_modal_data() -> CustomGateModalData:
-    spec = _build_task_triage_gate_spec(
+    spec = build_task_triage_gate_spec(
         request_id="bead-task-triage-sase-cx-e9a1f-g1",
         bead_id="sase-cx",
         project="sase",

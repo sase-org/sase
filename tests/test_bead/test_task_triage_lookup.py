@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.bead._task_gate_actions import _find_pending_task_triage
 from sase.bead.task_gate import (
     cancel_task_triage,
     create_task_triage_gate,
-    _find_pending_task_triage,
 )
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
