@@ -49,7 +49,7 @@ from sase.bead_type_presentation import (
     bead_type_presentation,
 )
 from sase.main.parser_bead_common import resolve_wrap_width
-from sase.markdown_wrap import DEFAULT_PROSE_WRAP_WIDTH
+from sase.markdown_width import markdown_print_width
 
 # Closed bead listings can grow without bound, so default to the newest few
 # rows when the user did not request an explicit ``--limit``.
@@ -153,7 +153,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             style=getattr(args, "style", "auto"),
             color=getattr(args, "color", "auto"),
         )
-        wrap = resolve_wrap_width(getattr(args, "wrap", DEFAULT_PROSE_WRAP_WIDTH))
+        wrap = resolve_wrap_width(getattr(args, "wrap", markdown_print_width()))
         match args.format:
             case "compact":
                 print(

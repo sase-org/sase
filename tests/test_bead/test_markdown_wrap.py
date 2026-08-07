@@ -6,13 +6,7 @@ import unicodedata
 
 import pytest
 
-from sase.file_references import DEFAULT_MARKDOWN_WRAP_WIDTH
-from sase.markdown_width import MARKDOWN_PRINT_WIDTH
-from sase.markdown_wrap import (
-    DEFAULT_PROSE_WRAP_WIDTH,
-    MIN_PROSE_WRAP_WIDTH,
-    wrap_markdown,
-)
+from sase.markdown_wrap import MIN_PROSE_WRAP_WIDTH, wrap_markdown
 
 
 def _cell_width(text: str) -> int:
@@ -199,9 +193,3 @@ def test_final_trailing_whitespace_is_preserved() -> None:
     wrapped = wrap_markdown(text, width=20)
 
     assert wrapped.endswith("  ")
-
-
-def test_default_width_matches_markdown_file_formatting_default() -> None:
-    """Display wrapping and file formatting both derive from one authority."""
-    assert DEFAULT_PROSE_WRAP_WIDTH == MARKDOWN_PRINT_WIDTH
-    assert DEFAULT_MARKDOWN_WRAP_WIDTH == MARKDOWN_PRINT_WIDTH

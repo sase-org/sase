@@ -10,7 +10,7 @@ from typing import Any, Literal, cast
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.markdown_width import MARKDOWN_PRINT_WIDTH
+from sase.markdown_width import markdown_print_width
 from sase.memory.paths import (
     CANONICAL_MEMORY_RELATIVE_ROOT,
     canonical_memory_reference,
@@ -32,9 +32,6 @@ _NON_EXTENSION_FRONTMATTER_KEYS = (
     _CANONICAL_FRONTMATTER_KEYS | _RETIRED_FRONTMATTER_KEYS
 )
 _YAML_WIDTH = 1_000_000
-# Shaped deliberately to match what prettier would keep at the repo-wide prose
-# width, so wrapped `description:` frontmatter survives `fmt-md-check`.
-_FRONTMATTER_WRAP_WIDTH = MARKDOWN_PRINT_WIDTH
 
 
 @dataclass(frozen=True)
@@ -247,6 +244,11 @@ def _render_memory_frontmatter(
 
 def _prettier_stable_frontmatter(dumped: str) -> str:
     """Return frontmatter shaped the same way Prettier will keep it."""
+    # Shaped deliberately to match what prettier would keep at the configured
+    # prose width, so wrapped `description:` frontmatter survives
+    # `fmt-md-check`. Resolved here rather than at import time so the value
+    # follows `markdown.print_width`.
+    frontmatter_wrap_width = markdown_print_width()
     lines: list[str] = []
     in_sequence = False
     for line in dumped.splitlines():
@@ -254,12 +256,12 @@ def _prettier_stable_frontmatter(dumped: str) -> str:
         value = line.removeprefix(prefix)
         if (
             line.startswith(prefix)
-            and len(line) > _FRONTMATTER_WRAP_WIDTH
+            and len(line) > frontmatter_wrap_width
             and _can_wrap_plain_description(value)
         ):
             lines.append("description:")
             wrapper = textwrap.TextWrapper(
-                width=_FRONTMATTER_WRAP_WIDTH,
+                width=frontmatter_wrap_width,
                 initial_indent="  ",
                 subsequent_indent="  ",
                 break_long_words=False,

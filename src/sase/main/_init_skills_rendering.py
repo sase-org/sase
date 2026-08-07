@@ -12,7 +12,7 @@ import jinja2
 import yaml  # type: ignore[import-untyped]
 
 from sase.main.init_plan import InitOperation
-from sase.markdown_width import MARKDOWN_PRINT_WIDTH, prettier_markdown_argv
+from sase.markdown_width import markdown_print_width, prettier_markdown_argv
 from sase.mdtemplates import render_markdown_template
 from sase.xprompt.models import XPrompt
 
@@ -91,15 +91,14 @@ def _build_output(
     name: str, description: str, body: str, log_skill_use: bool = True
 ) -> str:
     """Build final ``SKILL.md`` content with frontmatter and audit directive."""
+    width = markdown_print_width()
     if "\n" in description.strip():
         header = f"---\nname: {name}\ndescription: |\n"
         for line in description.strip().splitlines():
             header += f"  {line}\n"
         header += "---"
-    elif len(f"description: {description}") > MARKDOWN_PRINT_WIDTH:
-        wrapped = textwrap.fill(
-            description, width=MARKDOWN_PRINT_WIDTH - len(_YAML_BLOCK_INDENT)
-        )
+    elif len(f"description: {description}") > width:
+        wrapped = textwrap.fill(description, width=width - len(_YAML_BLOCK_INDENT))
         indented = textwrap.indent(wrapped, _YAML_BLOCK_INDENT)
         frontmatter = f"name: {name}\ndescription:\n{indented}"
         try:

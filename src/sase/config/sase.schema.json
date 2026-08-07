@@ -2093,6 +2093,19 @@
         }
       }
     },
+    "markdown": {
+      "type": "object",
+      "description": "Markdown prose formatting policy for SASE-generated Markdown.",
+      "additionalProperties": false,
+      "properties": {
+        "print_width": {
+          "type": "integer",
+          "minimum": 20,
+          "default": 100,
+          "description": "Column width SASE wraps generated Markdown prose at: plan files, bead notes and pages, memory shims, generated skills, prompt archives, and the default --wrap for 'sase bead show' and 'sase plan show'. The prettier CLI cannot read this value, so repos whose Markdown SASE writes into need their own prettier config to match."
+        }
+      }
+    },
     "artifacts": {
       "type": "object",
       "additionalProperties": false,

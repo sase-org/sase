@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 
 from sase.main.parser_bead_common import nonnegative_int, wrap_width
-from sase.markdown_wrap import DEFAULT_PROSE_WRAP_WIDTH
+from sase.markdown_width import markdown_print_width
 
 
 def register_bead_blocked_parser(
@@ -239,6 +239,9 @@ def register_bead_show_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:
     """Register ``sase bead show``."""
+    # Resolved at parser-build time, which is per-process and lazy per
+    # subcommand, so `--help` reports the live configured width.
+    default_wrap_width = markdown_print_width()
     parser = subparsers.add_parser(
         "show",
         help="Show issue details",
@@ -251,7 +254,7 @@ def register_bead_show_parser(
             "dependency, blocker, and plan graph as machine-readable data. "
             "--color now applies to --format full as well as compact. "
             "DESCRIPTION, NOTES, and +1 evidence prose wrap at "
-            f"{DEFAULT_PROSE_WRAP_WIDTH} columns by default without breaking "
+            f"{default_wrap_width} columns by default without breaking "
             "URLs or inline code spans."
         ),
         epilog=(
@@ -294,10 +297,10 @@ def register_bead_show_parser(
         "--wrap",
         metavar="WIDTH",
         type=wrap_width,
-        default=DEFAULT_PROSE_WRAP_WIDTH,
+        default=default_wrap_width,
         help=(
             "Wrap DESCRIPTION, NOTES, and +1 evidence prose at WIDTH columns: "
-            f"integer >= 20, 'auto', 'none', or 0 (default: {DEFAULT_PROSE_WRAP_WIDTH})"
+            f"integer >= 20, 'auto', 'none', or 0 (default: {default_wrap_width})"
         ),
     )
     parser.add_argument("id", help="Full or shorthand issue ID")

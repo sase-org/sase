@@ -51,6 +51,8 @@ from sase.config.xprompt_sources import (
 from sase.content_layout import discover_project_root, resolve_project_layout
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.paths import machine_name_path
+from sase.markdown_width import DEFAULT_MARKDOWN_PRINT_WIDTH
+from sase.markdown_wrap import MIN_PROSE_WRAP_WIDTH
 
 
 log = logging.getLogger(__name__)
@@ -334,6 +336,29 @@ def get_task_history_limit() -> int:
     if type(value) is int and value >= 1:
         return value
     return DEFAULT_TASK_HISTORY_LIMIT
+
+
+def get_markdown_print_width() -> int:
+    """Return the validated configured Markdown prose width.
+
+    Formatting must never hard-fail: a malformed ``~/.config/sase/sase.yml``
+    turning ``sase plan propose`` into a traceback would be far worse than
+    wrapping at the shipped default, so this accessor is fail-open.
+    """
+    try:
+        markdown = load_merged_config().get("markdown", {})
+    except Exception:  # noqa: BLE001 - prose width is fail-open.
+        return DEFAULT_MARKDOWN_PRINT_WIDTH
+    value = (
+        markdown.get("print_width", DEFAULT_MARKDOWN_PRINT_WIDTH)
+        if isinstance(markdown, dict)
+        else DEFAULT_MARKDOWN_PRINT_WIDTH
+    )
+    # Below ``MIN_PROSE_WRAP_WIDTH`` ``wrap_markdown()`` silently returns text
+    # unwrapped, so the floor is the schema's ``minimum`` too.
+    if type(value) is int and value >= MIN_PROSE_WRAP_WIDTH:
+        return value
+    return DEFAULT_MARKDOWN_PRINT_WIDTH
 
 
 def get_artifact_capture_max_stored_per_agent() -> int:

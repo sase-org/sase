@@ -8,12 +8,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.file_references import (
-    DEFAULT_MARKDOWN_WRAP_WIDTH,
     format_agent_prompt_markdown,
     format_markdown_files_with_prettier,
     format_with_prettier,
 )
-from sase.markdown_width import MARKDOWN_PRINT_WIDTH
+from sase.markdown_width import markdown_print_width
 
 
 @pytest.fixture(autouse=True)
@@ -32,9 +31,7 @@ def _fake_run_capturing(captured: list[list[str]]) -> Any:
 
 
 def test_format_with_prettier_default_uses_the_width_authority() -> None:
-    """The default call wraps prose at the single declared width."""
-    assert DEFAULT_MARKDOWN_WRAP_WIDTH == MARKDOWN_PRINT_WIDTH
-
+    """The default call wraps prose at the single resolved width."""
     captured: list[list[str]] = []
     with (
         patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
@@ -46,7 +43,7 @@ def test_format_with_prettier_default_uses_the_width_authority() -> None:
         format_with_prettier("some prose")
 
     assert captured, "prettier should have been invoked"
-    assert f"--print-width={MARKDOWN_PRINT_WIDTH}" in captured[0]
+    assert f"--print-width={markdown_print_width()}" in captured[0]
     assert "--print-width=80" not in captured[0]
 
 
@@ -63,7 +60,7 @@ def test_agent_prompt_formatter_uses_default_width() -> None:
         format_agent_prompt_markdown("some prose")
 
     assert captured, "prettier should have been invoked"
-    assert f"--print-width={MARKDOWN_PRINT_WIDTH}" in captured[0]
+    assert f"--print-width={markdown_print_width()}" in captured[0]
     assert "--print-width=80" not in captured[0]
 
 

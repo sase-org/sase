@@ -5,7 +5,7 @@ import argparse
 from sase.main.parser_bead import nonnegative_int
 from sase.main.parser_bead_common import wrap_width
 from sase.main.plan_search_handler import plan_date_arg
-from sase.markdown_wrap import DEFAULT_PROSE_WRAP_WIDTH
+from sase.markdown_width import markdown_print_width
 from sase.plan_approval_choices import PLAN_APPROVAL_CLI_KINDS
 
 _TARGET_KINDS = ("auto", "bead", "name", "path", "proposal", "ref")
@@ -450,15 +450,18 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Force one interpretation of TARGET instead of walking the "
         "ladder (default: auto)",
     )
+    # Resolved at parser-build time, which is per-process and lazy per
+    # subcommand, so `--help` reports the live configured width.
+    default_wrap_width = markdown_print_width()
     show_parser.add_argument(
         "-w",
         "--wrap",
         metavar="WIDTH",
         type=wrap_width,
-        default=DEFAULT_PROSE_WRAP_WIDTH,
+        default=default_wrap_width,
         help=(
             "Wrap goal, phase, and diagnostics prose at WIDTH columns: "
-            f"integer >= 20, 'auto', 'none', or 0 (default: {DEFAULT_PROSE_WRAP_WIDTH})"
+            f"integer >= 20, 'auto', 'none', or 0 (default: {default_wrap_width})"
         ),
     )
 

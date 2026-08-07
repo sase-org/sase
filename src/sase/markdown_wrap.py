@@ -5,9 +5,6 @@ from __future__ import annotations
 import re
 import unicodedata
 
-from sase.markdown_width import MARKDOWN_PRINT_WIDTH
-
-DEFAULT_PROSE_WRAP_WIDTH = MARKDOWN_PRINT_WIDTH
 MIN_PROSE_WRAP_WIDTH = 20
 
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
@@ -187,7 +184,6 @@ def _cell_width(text: str) -> int:
 
 
 __all__ = [
-    "DEFAULT_PROSE_WRAP_WIDTH",
     "MIN_PROSE_WRAP_WIDTH",
     "wrap_markdown",
 ]

@@ -5,11 +5,8 @@ from __future__ import annotations
 import re
 import textwrap
 
-from sase.markdown_width import MARKDOWN_PRINT_WIDTH
+from sase.markdown_width import markdown_print_width
 
-# These generated shims are checked by prettier, so this hand-rolled wrapping
-# must stay a fixpoint of the repo-wide prose width.
-_MARKDOWN_WRAP_WIDTH = MARKDOWN_PRINT_WIDTH
 _FENCE_MARKERS = ("```", "~~~")
 _STANDALONE_STRONG_LABEL_RE = re.compile(r"^\*\*[^*].*?\*\*[ \t]*$")
 _INLINE_CODE_SPAN_RE = re.compile(r"`[^`\n]+`")
@@ -48,7 +45,11 @@ def _is_standalone_strong_label(line: str) -> bool:
 
 
 def _wrap_text(
-    text: str, *, initial_indent: str = "", subsequent_indent: str = ""
+    text: str,
+    *,
+    width: int,
+    initial_indent: str = "",
+    subsequent_indent: str = "",
 ) -> list[str]:
     normalized = " ".join(text.split())
     if not normalized:
@@ -60,7 +61,7 @@ def _wrap_text(
         normalized,
     )
     wrapper = textwrap.TextWrapper(
-        width=_MARKDOWN_WRAP_WIDTH,
+        width=width,
         initial_indent=initial_indent,
         subsequent_indent=subsequent_indent,
         break_long_words=False,
@@ -92,6 +93,10 @@ def _standalone_strong_label_needs_hard_break(
 
 def format_generated_memory_markdown(content: str) -> str:
     """Format generated memory Markdown without invoking external tools."""
+    # These generated shims are checked by prettier, so this hand-rolled
+    # wrapping must stay a fixpoint of the configured prose width. Resolved
+    # once here rather than per paragraph.
+    width = markdown_print_width()
     frontmatter, body = _split_frontmatter(content)
     source_lines = body.splitlines()
     formatted: list[str] = []
@@ -144,6 +149,7 @@ def format_generated_memory_markdown(content: str) -> str:
             formatted.extend(
                 _wrap_text(
                     " ".join(paragraph_parts),
+                    width=width,
                     initial_indent="- ",
                     subsequent_indent="  ",
                 )
@@ -158,7 +164,7 @@ def format_generated_memory_markdown(content: str) -> str:
                 break
             paragraph_parts.append(next_line.strip())
             index += 1
-        formatted.extend(_wrap_text(" ".join(paragraph_parts)))
+        formatted.extend(_wrap_text(" ".join(paragraph_parts), width=width))
 
     while formatted and formatted[-1] == "":
         formatted.pop()

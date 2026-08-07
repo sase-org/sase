@@ -15,7 +15,7 @@ from sase.main import init_skills_handler
 from sase.main import _init_skills_rendering as skills_rendering
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_registry import InitCommandSpec
-from sase.markdown_width import MARKDOWN_PRINT_WIDTH
+from sase.markdown_width import markdown_print_width
 from sase.main.init_skills_handler import (
     _get_target_path,
     plan_init_skills,
@@ -159,7 +159,7 @@ def test_skill_frame_default_render_is_stable() -> None:
     assert yaml.safe_load(long_output.split("---\n")[1])["description"] == (
         long_description
     )
-    assert all(len(line) <= MARKDOWN_PRINT_WIDTH for line in long_output.split("\n"))
+    assert all(len(line) <= markdown_print_width() for line in long_output.split("\n"))
     colon_description = (
         "This is a deliberately long generated skill description whose YAML needs "
         "a block scalar because it contains a mapping-like value: linked repos and "

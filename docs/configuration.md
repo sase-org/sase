@@ -37,6 +37,7 @@ environment variables, and CLI flags.
   - [max_running_agents](#max_running_agents)
   - [runner_slots](#runner_slots)
   - [tasks](#tasks)
+  - [markdown](#markdown)
   - [timezone](#timezone)
   - [chat_install](#chat_install)
   - [telegram](#telegram)
@@ -2279,6 +2280,39 @@ tasks:
 | Field                 | Type | Default | Minimum | Description                                      |
 | --------------------- | ---- | ------- | ------- | ------------------------------------------------ |
 | `tasks.history_limit` | int  | `100`   | `1`     | Number of finished background tasks to preserve. |
+
+### markdown
+
+The column width SASE wraps generated Markdown prose at. It governs every Markdown surface SASE
+writes or renders itself: plan files, bead notes and pages, memory shims and the generated
+`AGENTS.md`/provider instruction files, generated skills, prompt archives, SDD documents, and the
+default `--wrap` for `sase bead show` and `sase plan show`. The value is resolved on each call, so
+an edit takes effect on the next command without restarting anything.
+
+Values below the minimum, of the wrong type, or in a malformed config fall back to the shipped
+default rather than raising: a broken `sase.yml` must never turn `sase plan propose` into a
+traceback.
+
+```yaml
+markdown:
+  print_width: 100
+```
+
+| Field                  | Type | Default | Minimum | Description                                          |
+| ---------------------- | ---- | ------- | ------- | ---------------------------------------------------- |
+| `markdown.print_width` | int  | `100`   | `20`    | Column width SASE wraps generated Markdown prose at. |
+
+The minimum of `20` is the floor below which SASE's display wrapper stops wrapping entirely, so a
+smaller value would silently do nothing.
+
+**Sharp edge: the prettier CLI cannot read this field.** `prettier` (via `just fmt-md`, CI, or an
+editor integration) discovers its configuration from files on disk — a repo's `package.json`,
+`.prettierrc`, and friends — and those declarations mirror SASE's _shipped default_, not your
+effective configured value, so that a stock checkout is self-consistent for a contributor with no
+SASE config at all. If you configure a non-default `markdown.print_width` and then run `sase init`
+inside a repo whose prettier config still declares the default, the regenerated `AGENTS.md` will be
+wrapped at your width and that repo's `fmt-md-check` will fail on it. Change the repo's prettier
+config to match, or leave the field at its default.
 
 ### timezone
 

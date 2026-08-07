@@ -9,18 +9,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from sase.markdown_width import MARKDOWN_PRINT_WIDTH, prettier_markdown_argv
+from sase.markdown_width import prettier_markdown_argv
 from sase.output import (
     print_file_operation,
     print_status,
 )
-
-# Prose wrap width used by the shared Markdown formatter for both saved
-# Markdown artifacts (plans, SDD files, generated skills, notifications) and
-# agent prompts. Derived from the single width authority in
-# ``sase.markdown_width``; kept under this name because it reads naturally at
-# its call sites.
-DEFAULT_MARKDOWN_WRAP_WIDTH = MARKDOWN_PRINT_WIDTH
 
 # Pattern to match '@' followed by a file path
 # This captures paths like @/path/to/file.txt or @path/to/file
@@ -517,22 +510,21 @@ def process_command_substitution(prompt: str) -> str:
     return prompt
 
 
-def format_with_prettier(
-    text: str, *, print_width: int = DEFAULT_MARKDOWN_WRAP_WIDTH
-) -> str:
+def format_with_prettier(text: str, *, print_width: int | None = None) -> str:
     """Format text with prettier if available.
 
     Uses the shared ``prettier_markdown_argv()`` policy to format the text as
     markdown with always-on prose wrapping, wrapping prose at *print_width*
-    columns (default ``DEFAULT_MARKDOWN_WRAP_WIDTH``).
-    Falls back to returning the original text if prettier is disabled via
-    ``SASE_DISABLE_PRETTIER``, is not installed, or fails.
+    columns. Falls back to returning the original text if prettier is disabled
+    via ``SASE_DISABLE_PRETTIER``, is not installed, or fails.
 
     Args:
         text: The markdown text to format.
-        print_width: The column width to wrap prose at. Defaults to
-            ``DEFAULT_MARKDOWN_WRAP_WIDTH``, which every caller (plans, SDD
-            files, skills, notifications, agent prompts) uses today.
+        print_width: The column width to wrap prose at. ``None`` (the default)
+            resolves the configured width, which is what every caller (plans,
+            SDD files, skills, notifications, agent prompts) uses today. It is
+            passed straight through to ``prettier_markdown_argv()`` so there is
+            exactly one resolution point.
     """
     if os.environ.get("SASE_DISABLE_PRETTIER") or shutil.which("prettier") is None:
         return text
@@ -563,7 +555,7 @@ def format_with_prettier(
 def format_markdown_files_with_prettier(
     paths: Iterable[Path],
     *,
-    print_width: int = DEFAULT_MARKDOWN_WRAP_WIDTH,
+    print_width: int | None = None,
 ) -> bool:
     """Format many Markdown files in one prettier process.
 
