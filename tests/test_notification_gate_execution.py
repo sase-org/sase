@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -225,3 +227,41 @@ def test_persisted_v2_bundle_projects_first_branch_and_remains_answerable(
         ["proceed", "audit"],
     ).response
     assert response["selected_option_ids"] == ["proceed", "audit"]
+
+
+class _ExitedPopen(subprocess.Popen):  # type: ignore[type-arg]
+    """Popen that returns only once the command has exited."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        # Gate command output is a single short line, so this cannot deadlock.
+        while self.poll() is None:
+            pass
+
+
+def test_gate_command_may_exit_without_reading_its_stdin_payload(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created = create_gate(
+        gate_spec(
+            request_id="stdin-ignored",
+            command='#!/bin/sh\nprintf \'{"status": "ok"}\\n\'\n',
+        )
+    )
+    monkeypatch.setattr(
+        "sase.notification_gates.executor.subprocess.Popen", _ExitedPopen
+    )
+    lines: list[tuple[str, str]] = []
+
+    execution = execute_gate_selection(
+        created.bundle_path,
+        ["accept"],
+        on_output_line=lambda _kind, _id, stream, line: lines.append((stream, line)),
+    )
+
+    assert execution.response["option_results"] == [
+        {"id": "accept", "result": {"status": "ok"}}
+    ]
+    assert lines == [("stdout", '{"status": "ok"}')]
+    assert created.response_path.is_file()

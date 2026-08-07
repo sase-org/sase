@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import logging
@@ -437,6 +438,35 @@ def _run_owned_command(
         os.close(command_fd)
 
 
+def _ignorable_stdin_error(exc: OSError) -> bool:
+    """Report whether one stdin error just means the command ignored its input."""
+    return isinstance(exc, BrokenPipeError) or exc.errno == errno.EINVAL
+
+
+def _write_command_stdin(process: subprocess.Popen[bytes], input_data: bytes) -> None:
+    """Hand one payload to a command that is free to never read it.
+
+    A command may exit before draining stdin. The buffered writer then raises
+    BrokenPipeError from ``flush()`` and, because the payload stays buffered,
+    raises it a second time from ``close()``. Both have to be tolerated, exactly
+    as ``subprocess.Popen._stdin_write`` does for ``communicate()``.
+    """
+    assert process.stdin is not None
+    try:
+        try:
+            process.stdin.write(input_data)
+            process.stdin.flush()
+        except OSError as exc:
+            if not _ignorable_stdin_error(exc):
+                raise
+    finally:
+        try:
+            process.stdin.close()
+        except OSError as exc:
+            if not _ignorable_stdin_error(exc):
+                raise
+
+
 def _run_command_streaming(
     argv: tuple[str, ...],
     *,
@@ -488,15 +518,14 @@ def _run_command_streaming(
     stderr_thread.start()
     try:
         try:
-            process.stdin.write(input_data)
-            process.stdin.flush()
-        except BrokenPipeError:
-            pass
+            _write_command_stdin(process, input_data)
+        except BaseException:
+            process.kill()
+            raise
         finally:
-            process.stdin.close()
-        returncode = process.wait()
-        stdout_thread.join()
-        stderr_thread.join()
+            returncode = process.wait()
+            stdout_thread.join()
+            stderr_thread.join()
     finally:
         if on_process_state is not None:
             on_process_state(process, False)
