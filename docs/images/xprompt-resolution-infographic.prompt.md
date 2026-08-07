@@ -7,21 +7,22 @@ pdf: false
 ## Target
 
 - Document: `docs/xprompt.md`
-- Insertion point: after the introductory use-case list and before the authoritative text pipeline.
+- Insertion point: after the introductory use-case list and before the authoritative
+  text pipeline.
 - Final asset path: `docs/images/xprompt-resolution-infographic.png`
 - Final size: 1672×941 PNG, sRGB.
-- Status: regenerated, edited to remove legacy paths, deterministically labeled, reviewed, and
-  embedded.
+- Status: regenerated, edited to remove legacy paths, deterministically labeled,
+  reviewed, and embedded.
 
 ## Intended Alt Text
 
-SASE xprompt inputs flowing through workspace dispatch, first-wins discovery, iterative expansion,
-and directive extraction into runtime outcomes.
+SASE xprompt inputs flowing through workspace dispatch, first-wins discovery, iterative
+expansion, and directive extraction into runtime outcomes.
 
 ## Initial GPT Image Prompt
 
-The built-in GPT Image tool generated a completely text-free structural base. All visible labels in
-the committed PNG were added locally afterward.
+The built-in GPT Image tool generated a completely text-free structural base. All
+visible labels in the committed PNG were added locally afterward.
 
 ```text
 Use case: infographic-diagram
@@ -35,9 +36,10 @@ Constraints: absolutely no readable text, pseudo-text, glyphs, letters, numerals
 
 ## Legacy-Path Removal Edit
 
-The built-in GPT Image tool then cleared the discovery inset so its legacy rows could be removed
-without regenerating the surrounding infographic. Only the edited inset was composited back into the
-original canvas; its replacement title, cards, and canonical path labels were added locally.
+The built-in GPT Image tool then cleared the discovery inset so its legacy rows could be
+removed without regenerating the surrounding infographic. Only the edited inset was
+composited back into the original canvas; its replacement title, cards, and canonical
+path labels were added locally.
 
 ```text
 Use case: precise-object-edit
@@ -49,11 +51,11 @@ Constraints: Change only the discovery inset. No new text, numbers, glyphs, icon
 
 ## Deterministic Post-Processing Record
 
-The initial 1672×941 base was kept at full opacity. The cleared GPT Image output was normalized to
-the final canvas size, then a rounded mask limited it to the discovery inset. A transparent SVG
-overlay supplied the replacement canonical discovery panel and its exact labels. ImageMagick 7
-rendered the overlay using DejaVu Sans for prose and Fira Code for paths and commands, then
-composited and stripped the final PNG:
+The initial 1672×941 base was kept at full opacity. The cleared GPT Image output was
+normalized to the final canvas size, then a rounded mask limited it to the discovery
+inset. A transparent SVG overlay supplied the replacement canonical discovery panel and
+its exact labels. ImageMagick 7 rendered the overlay using DejaVu Sans for prose and
+Fira Code for paths and commands, then composited and stripped the final PNG:
 
 ```bash
 magick "$EDIT_PNG" -resize '1672x941!' "$EDIT_RESIZED_PNG"
@@ -68,25 +70,27 @@ magick "$UNLABELED_PNG" "$LABELS_PNG" -compose over -composite \
 
 The deterministic label groups are:
 
-- Inputs: `#name / #name(args)`, `#!name`, `%directives`, and `#cd / #gh / #git refs`; the obsolete
-  keyword-trigger and dynamic-memory rows are absent.
-- Launch setup: workspace dispatch occurs before xprompt expansion; bare prompts default to
-  `#git:home`.
+- Inputs: `#name / #name(args)`, `#!name`, `%directives`, and `#cd / #gh / #git refs`;
+  the obsolete keyword-trigger and dynamic-memory rows are absent.
+- Launch setup: workspace dispatch occurs before xprompt expansion; bare prompts default
+  to `#git:home`.
 - Expansion: alias substitution → protected-text masking → iterative parse, lookup,
-  argument/`$(cmd)` processing, typed-input validation, and Jinja2/legacy rendering → unmask →
-  directive extraction → expanded prompt text.
+  argument/`$(cmd)` processing, typed-input validation, and Jinja2/legacy rendering →
+  unmask → directive extraction → expanded prompt text.
 - Discovery: the 11 canonical project, home, config, plugin, and package sources from
   `docs/xprompt.md`, retaining their relative first-wins order while omitting all legacy
   compatibility paths.
-- Outcomes: inline expansion, standalone workflow launch, depth-capped multi-agent fan-out, and a
-  visually separate developer-tools card for `sase xprompt graph` / `sase xprompt explain`.
+- Outcomes: inline expansion, standalone workflow launch, depth-capped multi-agent
+  fan-out, and a visually separate developer-tools card for `sase xprompt graph` /
+  `sase xprompt explain`.
 
 ## Final Review
 
-- Full-resolution inspection confirmed legible labels, uncropped panels, high-contrast text, and no
-  generated pseudo-text.
-- The protected-content callout points to the mask stage, the iterative stages flow downward with a
-  loop-back arrow, and developer tooling is visually separate from runtime outcomes.
-- Every technical label was compared with the launch/expansion pipelines and canonical entries in
-  the discovery table in `docs/xprompt.md`.
+- Full-resolution inspection confirmed legible labels, uncropped panels, high-contrast
+  text, and no generated pseudo-text.
+- The protected-content callout points to the mask stage, the iterative stages flow
+  downward with a loop-back arrow, and developer tooling is visually separate from
+  runtime outcomes.
+- Every technical label was compared with the launch/expansion pipelines and canonical
+  entries in the discovery table in `docs/xprompt.md`.
 - Final SHA-256: `2c162d3c7f44f703fb8fc2e2a33cf75bd28ae5a32e8693ffd1c1a6e13fb8d002`.

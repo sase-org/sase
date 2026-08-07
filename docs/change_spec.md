@@ -1,14 +1,15 @@
 # ChangeSpec Format Documentation
 
-A **ChangeSpec** is a structured record for one pull request (PR). It lives inside a project `.sase`
-file and records the change's description, dependency metadata, review URL, lifecycle status,
-commits, hooks, comments, mentor runs, timestamps, and computed file deltas.
+A **ChangeSpec** is a structured record for one pull request (PR). It lives inside a
+project `.sase` file and records the change's description, dependency metadata, review
+URL, lifecycle status, commits, hooks, comments, mentor runs, timestamps, and computed
+file deltas.
 
 ## Format Overview
 
-Each ChangeSpec is a block of top-level fields and optional sections. `NAME`, `DESCRIPTION`, and
-`STATUS` are the normal minimum for a hand-written entry; `sase commit` creates and updates most
-other sections automatically.
+Each ChangeSpec is a block of top-level fields and optional sections. `NAME`,
+`DESCRIPTION`, and `STATUS` are the normal minimum for a hand-written entry;
+`sase commit` creates and updates most other sections automatically.
 
 The canonical order is:
 
@@ -38,11 +39,12 @@ TIMESTAMPS:
   <TIMESTAMP_ENTRIES>
 ```
 
-The parser is tolerant of some older ordering and timestamp variants, but new docs, scripts, and
-examples should use the order above. See individual field specifications below for optionality and
-automatic behavior.
+The parser is tolerant of some older ordering and timestamp variants, but new docs,
+scripts, and examples should use the order above. See individual field specifications
+below for optionality and automatic behavior.
 
-**IMPORTANT**: When outputting multiple ChangeSpecs, separate each one with **two blank lines**.
+**IMPORTANT**: When outputting multiple ChangeSpecs, separate each one with **two blank
+lines**.
 
 ## Field Specifications
 
@@ -55,7 +57,8 @@ The unique identifier for the ChangeSpec.
 - Prefer a project- or area-specific prefix followed by an underscore
 - Suffix should use underscores to separate words
 - Suffix should be descriptive but concise
-- `sase commit` appends a numeric suffix such as `_1` when it needs to make a new name unique
+- `sase commit` appends a numeric suffix such as `_1` when it needs to make a new name
+  unique
 
 **Examples**:
 
@@ -83,12 +86,12 @@ A comprehensive description of what the PR does and why.
   - High-level approach or implementation details
   - What will be tested (if applicable)
 
-**PR tag stripping:** When a ChangeSpec is created from a PR workflow or its description is synced
-after a reword, any trailing `KEY=VALUE` metadata lines (matching `^[A-Z][A-Z0-9_]*=`) are
-automatically stripped. The pattern matches both the legacy unprefixed spelling and the new
-`SASE_`-prefixed footer tags (e.g. `SASE_AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT`, `SASE_MARKDOWN=true`), so
-neither pollutes the description. See [commit_workflows.md](commit_workflows.md#pull-request-pr) for
-details.
+**PR tag stripping:** When a ChangeSpec is created from a PR workflow or its description
+is synced after a reword, any trailing `KEY=VALUE` metadata lines (matching
+`^[A-Z][A-Z0-9_]*=`) are automatically stripped. The pattern matches both the legacy
+unprefixed spelling and the new `SASE_`-prefixed footer tags (e.g.
+`SASE_AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT`, `SASE_MARKDOWN=true`), so neither pollutes the
+description. See [commit_workflows.md](commit_workflows.md#pull-request-pr) for details.
 
 **Example**:
 
@@ -110,19 +113,22 @@ Specifies the dependency relationship between ChangeSpecs.
 
 **Values**:
 
-- Omit this field entirely - This PR has no dependencies (default, preferred for parallelization)
-- `<parent_changespec_name>` - The `NAME` of a parent ChangeSpec that must be completed first
+- Omit this field entirely - This PR has no dependencies (default, preferred for
+  parallelization)
+- `<parent_changespec_name>` - The `NAME` of a parent ChangeSpec that must be completed
+  first
 
 The PARENT field is a ChangeSpec **name** — never a VCS ref. Values like `origin/main`,
-`origin/master`, or the Mercurial sentinel `p4head` are not valid here; they describe checkout
-targets for the VCS, not dependency relationships between PRs. "No parent ChangeSpec" is represented
-by omitting the field entirely. `sase commit` drops the PARENT field and warns when the value passed
-via `-p` does not resolve to an existing ChangeSpec.
+`origin/master`, or the Mercurial sentinel `p4head` are not valid here; they describe
+checkout targets for the VCS, not dependency relationships between PRs. "No parent
+ChangeSpec" is represented by omitting the field entirely. `sase commit` drops the
+PARENT field and warns when the value passed via `-p` does not resolve to an existing
+ChangeSpec.
 
-**Auto-detection:** When creating a new ChangeSpec via `sase commit`, the PARENT field is
-automatically set if the current branch corresponds to an existing ChangeSpec. This can be
-overridden with the `-p`/`--parent` flag (see [commit_workflows.md](commit_workflows.md) for
-details).
+**Auto-detection:** When creating a new ChangeSpec via `sase commit`, the PARENT field
+is automatically set if the current branch corresponds to an existing ChangeSpec. This
+can be overridden with the `-p`/`--parent` flag (see
+[commit_workflows.md](commit_workflows.md) for details).
 
 **CRITICAL Dependency Guidelines**:
 
@@ -146,8 +152,9 @@ PARENT: my_project_add_config_parser   # Depends on another PR
 
 ### PR
 
-The PR identifier (usually a PR URL). New and updated ChangeSpecs use `PR:`. Legacy `CL:` fields are
-still accepted during the compatibility window and are rewritten as `PR:` when touched.
+The PR identifier (usually a PR URL). New and updated ChangeSpecs use `PR:`. Legacy
+`CL:` fields are still accepted during the compatibility window and are rewritten as
+`PR:` when touched.
 
 **Values**:
 
@@ -164,9 +171,9 @@ PR: https://github.com/org/repo/pull/42
 
 ### BUG
 
-An optional bug reference linking the PR to an issue tracker. SASE stores this as plain text. PR
-workflows that receive `SASE_BUG_ID` or `sase commit --bug-id` write it as `http://b/<id>` in the
-ChangeSpec and add `SASE_BUG=<id>` to provider tag metadata.
+An optional bug reference linking the PR to an issue tracker. SASE stores this as plain
+text. PR workflows that receive `SASE_BUG_ID` or `sase commit --bug-id` write it as
+`http://b/<id>` in the ChangeSpec and add `SASE_BUG=<id>` to provider tag metadata.
 
 **Example**:
 
@@ -202,22 +209,23 @@ Reverted → (terminal)
 Archived → (terminal)
 ```
 
-These transitions are enforced by the status state machine. Terminal statuses are moved to the
-archive project file.
+These transitions are enforced by the status state machine. Terminal statuses are moved
+to the archive project file.
 
 **Status Selection Rules**:
 
 - New PRs typically start as `WIP`
-- PR workflows default new ChangeSpecs to `Draft` unless `sase commit --status` or `SASE_PR_STATUS`
-  says otherwise
+- PR workflows default new ChangeSpecs to `Draft` unless `sase commit --status` or
+  `SASE_PR_STATUS` says otherwise
 - Move to `Ready` when the PR is ready for review
 - Move to `Mailed` when sent out for review
 - Update status as work progresses through the lifecycle
 
 ### REFS
 
-Stores durable artifact references that justify or contextualize the change. Entries are one
-canonical reference token per 2-space-indented line, without the prompt-time `@` sigil.
+Stores durable artifact references that justify or contextualize the change. Entries are
+one canonical reference token per 2-space-indented line, without the prompt-time `@`
+sigil.
 
 **Entry format:**
 
@@ -228,11 +236,12 @@ REFS:
   bead:sase-b7
 ```
 
-Accepted kinds include `file:`, `chat:`, `bug:`, `commit:`, `agent:`, `bead:`, and configured
-document roles such as `plans:` and `research:`. `sase changespec ref add` normalizes entries before
-writing, deduplicates them while preserving first-write order, and stores the canonical rendered
-form. Hand-edited entries are preserved by the parser so `sase doctor -C project.changespec_refs`
-can report malformed or unresolved references instead of silently erasing them.
+Accepted kinds include `file:`, `chat:`, `bug:`, `commit:`, `agent:`, `bead:`, and
+configured document roles such as `plans:` and `research:`. `sase changespec ref add`
+normalizes entries before writing, deduplicates them while preserving first-write order,
+and stores the canonical rendered form. Hand-edited entries are preserved by the parser
+so `sase doctor -C project.changespec_refs` can report malformed or unresolved
+references instead of silently erasing them.
 
 Use the command group instead of editing the section by hand:
 
@@ -244,8 +253,8 @@ sase changespec ref rm -c <name> research:202607/report.md
 
 ### COMMITS
 
-Tracks the commit history associated with this PR. This section is managed automatically by
-`sase commit`.
+Tracks the commit history associated with this PR. This section is managed automatically
+by `sase commit`.
 
 **Entry format:**
 
@@ -272,11 +281,13 @@ COMMITS:
 - Proposal entries use the last regular number plus a letter suffix: `(2a)`, `(2b)`, ...
 - Proposals are marked with `(!: NEW PROPOSAL)` to flag them for review.
 
-**Multi-line body:** The first line of the commit message becomes the note. Subsequent paragraphs
-(separated by a blank line in the original message) become 6-space-indented body lines below the
-note. Empty body lines are stored as a dot (`.`) placeholder to preserve structure.
+**Multi-line body:** The first line of the commit message becomes the note. Subsequent
+paragraphs (separated by a blank line in the original message) become 6-space-indented
+body lines below the note. Empty body lines are stored as a dot (`.`) placeholder to
+preserve structure.
 
-**Drawers:** Each entry can have zero or more drawer lines (6-space indent, `| ` prefix):
+**Drawers:** Each entry can have zero or more drawer lines (6-space indent, `| `
+prefix):
 
 | Drawer | Format                         | Description                                     |
 | ------ | ------------------------------ | ----------------------------------------------- |
@@ -284,14 +295,14 @@ note. Empty body lines are stored as a dot (`.`) placeholder to preserve structu
 | `DIFF` | `\| DIFF: <path>`              | Saved diff file                                 |
 | `PLAN` | `\| PLAN: <path>`              | Plan file associated with this commit (via SDD) |
 
-The CHAT drawer's duration (e.g., `2m15s`) is calculated from the chat filename timestamp to the
-commit time. The PLAN drawer is emitted when the `SASE_PLAN` environment variable is set during the
-commit workflow.
+The CHAT drawer's duration (e.g., `2m15s`) is calculated from the chat filename
+timestamp to the commit time. The PLAN drawer is emitted when the `SASE_PLAN`
+environment variable is set during the commit workflow.
 
 ### TIMESTAMPS
 
-Records a chronological audit trail of lifecycle events. Each entry includes a timestamp, event
-type, and detail string.
+Records a chronological audit trail of lifecycle events. Each entry includes a
+timestamp, event type, and detail string.
 
 **Entry format:**
 
@@ -318,15 +329,16 @@ TIMESTAMPS:
 | `RENAME` | The ChangeSpec name changed; detail records `old -> new`         |
 | `REBASE` | The parent relationship changed; detail records `old -> new`     |
 
-New entries use the format `[YYMMDD_HHMMSS]` in the configured SASE timezone. The parser also
-accepts older bare `YYMMDD_HHMMSS` and `[YYYY-MM-DD HH:MM:SS]` forms for compatibility. TIMESTAMPS
-are recorded atomically by SASE and are not normally edited by hand. Multiple events of the same
-type may appear.
+New entries use the format `[YYMMDD_HHMMSS]` in the configured SASE timezone. The parser
+also accepts older bare `YYMMDD_HHMMSS` and `[YYYY-MM-DD HH:MM:SS]` forms for
+compatibility. TIMESTAMPS are recorded atomically by SASE and are not normally edited by
+hand. Multiple events of the same type may appear.
 
 ### DELTAS
 
-A computed summary of files added, modified, or deleted by this PR relative to its parent. The
-section is maintained automatically by sase from VCS state — it is not edited by hand.
+A computed summary of files added, modified, or deleted by this PR relative to its
+parent. The section is maintained automatically by sase from VCS state — it is not
+edited by hand.
 
 **Entry format:**
 
@@ -340,9 +352,10 @@ DELTAS:
       | LINES: -44
 ```
 
-The optional `LINES` drawer records semantic line counts. Git-style raw additions/deletions are
-converted so paired add/delete lines are shown as modified lines (`~N`); binary files use
-`LINES: binary`. Older ChangeSpecs without `LINES` drawers remain valid.
+The optional `LINES` drawer records semantic line counts. Git-style raw
+additions/deletions are converted so paired add/delete lines are shown as modified lines
+(`~N`); binary files use `LINES: binary`. Older ChangeSpecs without `LINES` drawers
+remain valid.
 
 | Glyph | Change type | Notes                                                                                    |
 | ----- | ----------- | ---------------------------------------------------------------------------------------- |
@@ -350,33 +363,35 @@ converted so paired add/delete lines are shown as modified lines (`~N`); binary 
 | `~`   | Modified    | File edited (`M`); typechange, unmerged, or future statuses are coerced to modified.     |
 | `-`   | Deleted     | File removed (`D`).                                                                      |
 
-Renames (VCS status `R`) are split into a `-` for the source path and a `+` for the target path.
-Line counts attach to the target path when the VCS reports them; a pure rename can therefore show
-`0 lines`. Entries are sorted alphabetically by path. The section is omitted entirely when there are
-no deltas.
+Renames (VCS status `R`) are split into a `-` for the source path and a `+` for the
+target path. Line counts attach to the target path when the VCS reports them; a pure
+rename can therefore show `0 lines`. Entries are sorted alphabetically by path. The
+section is omitted entirely when there are no deltas.
 
-**When DELTAS is recomputed:** refresh hooks run after commit creation, rewind, sync, proposal
-accept, and proposal rebase. The refresh is best-effort — if the required VCS query fails, the
-existing DELTAS section is left untouched and the parent workflow proceeds. Providers without line
-stats still refresh file-level DELTAS.
+**When DELTAS is recomputed:** refresh hooks run after commit creation, rewind, sync,
+proposal accept, and proposal rebase. The refresh is best-effort — if the required VCS
+query fails, the existing DELTAS section is left untouched and the parent workflow
+proceeds. Providers without line stats still refresh file-level DELTAS.
 
-**Manual refresh:** run `sase changespec sync-deltas -c <CL_NAME>` to recompute DELTAS for a single
-ChangeSpec from the current VCS state. Optional `-p/--project-file` and `-w/--workspace-dir` flags
-override the inferred defaults.
+**Manual refresh:** run `sase changespec sync-deltas -c <CL_NAME>` to recompute DELTAS
+for a single ChangeSpec from the current VCS state. Optional `-p/--project-file` and
+`-w/--workspace-dir` flags override the inferred defaults.
 
-In ACE, DELTAS renders with colored glyphs (green `+`, gold `~`, red `-`). The section has two
-semantic fold states: folded and unfolded. The folded state shows the `DELTAS:` header plus a
-one-line file and line-count summary; the unfolded state shows the full alphabetical entry list with
-inline line tokens. The shared fold model still has an internal intermediate value for other
-sections, but DELTAS normalizes any non-folded value to the unfolded full list. In ACE fold mode,
-`z1`, `z2`, and `z3` set COMMITS, HOOKS, MENTORS, TIMESTAMPS, and DELTAS together to collapsed,
-expanded, or fully expanded. DELTAS preserves its two-state rendering: both levels 2 and 3 display
-the unfolded list.
+In ACE, DELTAS renders with colored glyphs (green `+`, gold `~`, red `-`). The section
+has two semantic fold states: folded and unfolded. The folded state shows the `DELTAS:`
+header plus a one-line file and line-count summary; the unfolded state shows the full
+alphabetical entry list with inline line tokens. The shared fold model still has an
+internal intermediate value for other sections, but DELTAS normalizes any non-folded
+value to the unfolded full list. In ACE fold mode, `z1`, `z2`, and `z3` set COMMITS,
+HOOKS, MENTORS, TIMESTAMPS, and DELTAS together to collapsed, expanded, or fully
+expanded. DELTAS preserves its two-state rendering: both levels 2 and 3 display the
+unfolded list.
 
 ### HOOKS
 
-Defines lifecycle hooks attached to this PR — shell commands that run automatically at specific
-points (e.g., after commit, before mail). Hooks are managed via the `h` keybinding in ACE.
+Defines lifecycle hooks attached to this PR — shell commands that run automatically at
+specific points (e.g., after commit, before mail). Hooks are managed via the `h`
+keybinding in ACE.
 
 **Entry format:**
 
@@ -387,21 +402,21 @@ HOOKS:
       | (2) [260328_153300] FAILED (8s) - (!: Hook Command Failed)
 ```
 
-Hook commands are 2-space indented. Status drawer lines are 6-space indented and start with `| `. A
-leading `!` on a hook command means failed runs should skip fix-hook hints; a leading `$` means the
-hook is not run for proposal entries and is not subject to the normal runner limit. Prefixes can be
-combined, for example `!$just presubmit`.
+Hook commands are 2-space indented. Status drawer lines are 6-space indented and start
+with `| `. A leading `!` on a hook command means failed runs should skip fix-hook hints;
+a leading `$` means the hook is not run for proposal entries and is not subject to the
+normal runner limit. Prefixes can be combined, for example `!$just presubmit`.
 
-ACE leaves a running hook's output file untouched. When ACE observes the completion marker, a
-capture larger than 500 KiB is atomically compacted, retaining up to the first 200 KiB and last 300
-KiB with an explicit byte-elision marker between them. Completion parsing, metahook matching, and
-failure summarization inspect the full output before compaction; later manual viewing uses the
-compacted capture.
+ACE leaves a running hook's output file untouched. When ACE observes the completion
+marker, a capture larger than 500 KiB is atomically compacted, retaining up to the first
+200 KiB and last 300 KiB with an explicit byte-elision marker between them. Completion
+parsing, metahook matching, and failure summarization inspect the full output before
+compaction; later manual viewing uses the compacted capture.
 
 ### COMMENTS
 
-Stores review comments and discussion threads. Comments are added via the ACE TUI or through the
-review workflow.
+Stores review comments and discussion threads. Comments are added via the ACE TUI or
+through the review workflow.
 
 **Entry format:**
 
@@ -413,8 +428,8 @@ COMMENTS:
 
 ### MENTORS
 
-Configures mentor workflows for the PR — automated agents that monitor and provide guidance during
-development.
+Configures mentor workflows for the PR — automated agents that monitor and provide
+guidance during development.
 
 **Entry format:**
 
@@ -425,8 +440,8 @@ MENTORS:
       | [260328_143705] reliability:tests-review - COMMENTED - (2m10s)
 ```
 
-The entry id matches a `COMMITS` entry such as `(1)` or `(2a)`. Profile names may include progress
-counts; legacy entries without counts still parse.
+The entry id matches a `COMMITS` entry such as `(1)` or `(2a)`. Profile names may
+include progress counts; legacy entries without counts still parse.
 
 ## Complete Examples
 

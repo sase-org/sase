@@ -4,7 +4,8 @@
 
 - Final asset: `src/sase/sdd/assets/agents-directory-map.png`
 - Size: 1600×900 PNG
-- Intended use: scaffold and manifest-derived root README for each agents sidecar repository
+- Intended use: scaffold and manifest-derived root README for each agents sidecar
+  repository
 - Alt text:
   `Project-scoped agent hoods pass through explicit privacy consent into an owner-sharded agents sidecar, where deterministic sync publishes prompts, chats, commits, states, and browsable owner, machine, hood, family, and agent pages.`
 
@@ -21,39 +22,42 @@ Composition constraints: leave large clean blank label zones in every major pane
 Avoid: any generated text or text-like marks, decorative gradients, dark background, fake terminal screenshots, brand marks, dense textures, tiny details, excessive 3D, one-hue palette, ambiguous arrows, a repository shown inside workspace windows.
 ```
 
-The built-in GPT Image tool produced the text-free 1672×941, 8-bit sRGB base on 2026-07-28. The
-source generation was saved at
+The built-in GPT Image tool produced the text-free 1672×941, 8-bit sRGB base on
+2026-07-28. The source generation was saved at
 `$CODEX_HOME/generated_images/019fa9a4-a702-7bb3-992e-913f419ce490/call_xHlKogtBrhqV4HFp3SAnAST4.png`.
-The first composition was selected because it made consent, the complete hood, owner authority, the
-hidden repository, the workspace-clone prohibition, deterministic browsing, and the refresh loop
-distinct at a glance.
+The first composition was selected because it made consent, the complete hood, owner
+authority, the hidden repository, the workspace-clone prohibition, deterministic
+browsing, and the refresh loop distinct at a glance.
 
 ## Deterministic Labels
 
-Every visible character was added after generation with DejaVu Sans Bold/Book or DejaVu Sans Mono
-Bold/Book. The overlay uses dark slate `#17243a`, secondary slate `#536175`, opaque white label
-panels, and light-gray `#d4dbe5` borders.
+Every visible character was added after generation with DejaVu Sans Bold/Book or DejaVu
+Sans Mono Bold/Book. The overlay uses dark slate `#17243a`, secondary slate `#536175`,
+opaque white label panels, and light-gray `#d4dbe5` borders.
 
 - Header: `AGENTS SIDECAR`,
   `Complete project hoods → consented owner shards → deterministic browsing`, and
   `PRIVACY · PUBLICATION · BROWSING`
-- Consent: `EXPLICIT CONSENT`, `sase repo init`, `PUBLIC · PRIVATE · DISABLED`, `PUBLIC`, `PRIVATE`,
-  and `DISABLED`
+- Consent: `EXPLICIT CONSENT`, `sase repo init`, `PUBLIC · PRIVATE · DISABLED`,
+  `PUBLIC`, `PRIVATE`, and `DISABLED`
 - Hood: `COMPLETE HOOD`, `active · waiting · failed · terminal · dismissed`,
   `prompt · optional chat`, and `commits · relationships`
-- Owner shard: `OWNER SHARD`, `<username>/<machine>`, `one owner authority`, `manifest.json`, and
-  `hood snapshot`
+- Owner shard: `OWNER SHARD`, `<username>/<machine>`, `one owner authority`,
+  `manifest.json`, and `hood snapshot`
 - Repository: `HIDDEN REPOSITORY`, `<project>--agents`, and `not cloned to workspaces`
-- Browsing: `DETERMINISTIC BROWSING`, `root → owner → machine → hood`, and `agent + family pages`
+- Browsing: `DETERMINISTIC BROWSING`, `root → owner → machine → hood`, and
+  `agent + family pages`
 - Refresh rail: `commit / outbox`, `sase agent sync`, and `refresh the same run`
 
 ## Post-processing
 
 1. Resize the generated base to exactly 1600×900.
-2. Render a transparent 1600×900 SVG overlay with the fonts, colors, and exact labels above.
-3. Composite the overlay over the base, strip metadata, force sRGB, and retain an 8-bit RGB PNG.
-4. Create a temporary 900px-wide reduction for visual review. Do not retain the base, overlay, or
-   preview in the repository.
+2. Render a transparent 1600×900 SVG overlay with the fonts, colors, and exact labels
+   above.
+3. Composite the overlay over the base, strip metadata, force sRGB, and retain an 8-bit
+   RGB PNG.
+4. Create a temporary 900px-wide reduction for visual review. Do not retain the base,
+   overlay, or preview in the repository.
 
 Equivalent ImageMagick pipeline:
 
@@ -68,16 +72,18 @@ magick agents-directory-map.png -resize 900x -strip \
 
 ## Inspection checklist
 
-- Full-size and 900px-wide renders have correct 16:9 geometry, crisp hierarchy, and sufficient
-  contrast.
-- Every deterministic label is spelled exactly as listed; generated document lines are icon details,
-  not readable or pseudo-readable text.
-- All stage arrows point left to right, while the sync rail visibly returns to the same owner-shard
-  snapshot.
-- The consent gate and public/private/disabled outcomes are prominent before any publication stage.
+- Full-size and 900px-wide renders have correct 16:9 geometry, crisp hierarchy, and
+  sufficient contrast.
+- Every deterministic label is spelled exactly as listed; generated document lines are
+  icon details, not readable or pseudo-readable text.
+- All stage arrows point left to right, while the sync rail visibly returns to the same
+  owner-shard snapshot.
+- The consent gate and public/private/disabled outcomes are prominent before any
+  publication stage.
 - Active, waiting, failed, terminal, and dismissed states belong to one complete hood.
 - `manifest.json` and the hood snapshot are visibly contained by the owner shard.
-- The vault and crossed-out workspace windows cannot be read as an auto-clone relationship.
+- The vault and crossed-out workspace windows cannot be read as an auto-clone
+  relationship.
 - Root-to-hood browsing ends in distinct agent and family pages.
-- No model-generated text, logo, watermark, metadata, alpha channel, or discarded candidate remains
-  in the final repository asset.
+- No model-generated text, logo, watermark, metadata, alpha channel, or discarded
+  candidate remains in the final repository asset.

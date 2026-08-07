@@ -21,40 +21,43 @@ Composition constraints: leave large clean blank label zones in every major card
 Avoid: any generated text or text-like marks, decorative gradients, dark background, fake terminal screenshots, source-code glyphs, brand marks, dense textures, tiny details, excessive 3D, one-hue palette.
 ```
 
-The 2026-08 refresh was rendered from a deterministic 1600×900 SVG composition instead of reusing
-the prior generated base, because that base visually included obsolete prompt-snapshot and
-bead-state groups. The same structural constraints and labels above remain the source of truth for a
-future text-free generated base, but the checked-in PNG contains only deterministic SVG shapes and
-text.
+The 2026-08 refresh was rendered from a deterministic 1600×900 SVG composition instead
+of reusing the prior generated base, because that base visually included obsolete
+prompt-snapshot and bead-state groups. The same structural constraints and labels above
+remain the source of truth for a future text-free generated base, but the checked-in PNG
+contains only deterministic SVG shapes and text.
 
 ## Deterministic Labels
 
-DejaVu Sans Bold/Book and DejaVu Sans Mono Bold/Book were used for every visible character. The
-overlay uses dark slate `#17243a`, secondary slate `#536175`, opaque white label panels, and
-light-gray `#d4dbe5` borders.
+DejaVu Sans Bold/Book and DejaVu Sans Mono Bold/Book were used for every visible
+character. The overlay uses dark slate `#17243a`, secondary slate `#536175`, opaque
+white label panels, and light-gray `#d4dbe5` borders.
 
 - Title: `PLANS SIDECAR`
 - Subtitle: `Approved plans and provenance links - auto-cloned everywhere`
-- Proposal flow: `PROPOSE`, `sase plan propose`, `capture intent`, `REVIEW`, `Human`, `review gate`,
-  `APPROVE`, `Write`, `durable state`
+- Proposal flow: `PROPOSE`, `sase plan propose`, `capture intent`, `REVIEW`, `Human`,
+  `review gate`, `APPROVE`, `Write`, `durable state`
 - Repository: `PLANS REPOSITORY`, `sase-org/sase--plans`, `public linked sidecar`
-- Monthly contents: `MONTHLY PLAN`, `<YYYYMM>/plan.md`, `header links`, `plan Markdown + provenance`
-- Clone behavior: `AUTO-CLONE`, `auto_clone: true`, `EVERY WORKSPACE`, `under sase/repos/`, and
-  three `sase--plans` workspace clones
+- Monthly contents: `MONTHLY PLAN`, `<YYYYMM>/plan.md`, `header links`,
+  `plan Markdown + provenance`
+- Clone behavior: `AUTO-CLONE`, `auto_clone: true`, `EVERY WORKSPACE`,
+  `under sase/repos/`, and three `sase--plans` workspace clones
 - Persistence rail: `SDD machinery`, `commit`, `push`, `OWNING REPOSITORY`,
   `changes are committed and pushed`
 
 ## Post-Processing
 
-1. Render a 1600×900 SVG using the fonts, colors, shapes, arrows, and deterministic labels above.
-   Place proposal/review/approval cards on the left, repository/content labels in the center,
-   auto-clone/workspace labels on the right, and commit/push labels along the bottom rail.
+1. Render a 1600×900 SVG using the fonts, colors, shapes, arrows, and deterministic
+   labels above. Place proposal/review/approval cards on the left, repository/content
+   labels in the center, auto-clone/workspace labels on the right, and commit/push
+   labels along the bottom rail.
 2. Convert the SVG to an 8-bit sRGB PNG and strip metadata.
-3. Create a temporary 900px-wide reduction for visual review. Do not retain the SVG or preview in
-   the repository.
-4. Inspect both the full-size raster and the 900px-wide reduction. Confirm that `auto_clone: true`,
-   `sase-org/sase--plans`, `<YYYYMM>/plan.md`, and `header links` remain legible, and that no
-   `plans/.../prompts/`, `prompts/prompt.md`, or `beads/events/**` node is visible.
+3. Create a temporary 900px-wide reduction for visual review. Do not retain the SVG or
+   preview in the repository.
+4. Inspect both the full-size raster and the 900px-wide reduction. Confirm that
+   `auto_clone: true`, `sase-org/sase--plans`, `<YYYYMM>/plan.md`, and `header links`
+   remain legible, and that no `plans/.../prompts/`, `prompts/prompt.md`, or
+   `beads/events/**` node is visible.
 
 Equivalent ImageMagick pipeline:
 

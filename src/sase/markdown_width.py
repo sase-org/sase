@@ -30,7 +30,7 @@ function-local for that reason.
 
 from __future__ import annotations
 
-DEFAULT_MARKDOWN_PRINT_WIDTH = 100
+DEFAULT_MARKDOWN_PRINT_WIDTH = 88
 
 
 def markdown_print_width() -> int:

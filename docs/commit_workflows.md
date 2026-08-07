@@ -1,9 +1,9 @@
 # Commit Workflows
 
-Sase provides three unified workflows for landing code changes: **commit**, **propose**, and **pull
-request**. All three share the same ChangeSpecI command (`sase commit`), the same `CommitWorkflow`
-orchestrator, and the same VCS provider abstraction, but differ in what they produce and how they
-track the result.
+Sase provides three unified workflows for landing code changes: **commit**, **propose**,
+and **pull request**. All three share the same ChangeSpecI command (`sase commit`), the
+same `CommitWorkflow` orchestrator, and the same VCS provider abstraction, but differ in
+what they produce and how they track the result.
 
 ## Overview
 
@@ -33,63 +33,69 @@ sase commit -> CommitWorkflow -> VCS provider -> tracked output
 
 ### 1. Agent makes code changes
 
-The agent receives an xprompt (`#commit`, `#propose`, or `#pr`) which sets the `SASE_COMMIT_METHOD`
-environment variable and injects an instruction telling the agent **not** to create commits
-directly.
+The agent receives an xprompt (`#commit`, `#propose`, or `#pr`) which sets the
+`SASE_COMMIT_METHOD` environment variable and injects an instruction telling the agent
+**not** to create commits directly.
 
 ### 2. Commit finalizer checks for uncommitted work
 
-When a provider invocation succeeds inside a SASE-launched agent session, the provider-neutral
-**commit finalizer** runs in the shared LLM invocation layer before normal success postprocessing.
-In practice this means the process has `SASE_AGENT_TIMESTAMP` set. The finalizer checks the main
-workspace for uncommitted changes through the active VCS provider. It enforces configured linked
-repositories at their host-scoped workspace paths. Repositories opened through `/sase_repo`,
-including external repos, are also recorded for ACE context and the durable repo-open audit log and
-become finalizer candidates. It does not scan arbitrary same-remote numbered workspaces just because
-their paths appear in run artifacts. If everything is clean, the agent response is postprocessed
-normally.
+When a provider invocation succeeds inside a SASE-launched agent session, the
+provider-neutral **commit finalizer** runs in the shared LLM invocation layer before
+normal success postprocessing. In practice this means the process has
+`SASE_AGENT_TIMESTAMP` set. The finalizer checks the main workspace for uncommitted
+changes through the active VCS provider. It enforces configured linked repositories at
+their host-scoped workspace paths. Repositories opened through `/sase_repo`, including
+external repos, are also recorded for ACE context and the durable repo-open audit log
+and become finalizer candidates. It does not scan arbitrary same-remote numbered
+workspaces just because their paths appear in run artifacts. If everything is clean, the
+agent response is postprocessed normally.
 
 There is one special case before the normal enforced-work follow-up path:
 
-- If the only enforced dirty file is a tracked markdown file under `sdd/plans/`, and the only file
-  diff is one leading-front-matter line changing from `status: wip` to `status: done`, SASE creates
-  a direct closeout commit with the message `chore: Mark SDD plan done` and a `SASE_TYPE=sdd`
-  runtime tag. If enforced changes remain, the finalizer starts bounded follow-up passes with the
-  same provider. Each pass sends one follow-up prompt that lists dirty files and instructs the agent
-  to use a commit skill such as `/sase_git_commit` or `/sase_hg_commit`. For the main workspace, the
-  skill name is selected from the detected VCS provider; provider-specific generated skills can be
-  scoped to the runtimes that support that provider. For configured linked repos, the current
-  finalizer checks `git status` only in the resolved linked-repo `workspace_dir` assigned to the
-  same workspace number after that linked-repo name appears in `opened_linked_workspaces.json`, and
-  emits Git commit-skill instructions that first `cd` into that linked workspace. Dirty linked repos
-  are enforced after they are opened.
+- If the only enforced dirty file is a tracked markdown file under `sdd/plans/`, and the
+  only file diff is one leading-front-matter line changing from `status: wip` to
+  `status: done`, SASE creates a direct closeout commit with the message
+  `chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag. If enforced changes
+  remain, the finalizer starts bounded follow-up passes with the same provider. Each
+  pass sends one follow-up prompt that lists dirty files and instructs the agent to use
+  a commit skill such as `/sase_git_commit` or `/sase_hg_commit`. For the main
+  workspace, the skill name is selected from the detected VCS provider;
+  provider-specific generated skills can be scoped to the runtimes that support that
+  provider. For configured linked repos, the current finalizer checks `git status` only
+  in the resolved linked-repo `workspace_dir` assigned to the same workspace number
+  after that linked-repo name appears in `opened_linked_workspaces.json`, and emits Git
+  commit-skill instructions that first `cd` into that linked workspace. Dirty linked
+  repos are enforced after they are opened.
 
-Generated skills normally run an observable wrapper such as `sase_git_commit`, which records skill
-invocation evidence and then delegates to `sase commit`. A typical Git skill invocation omits
-`--type` because the xprompt already set `SASE_COMMIT_METHOD`:
+Generated skills normally run an observable wrapper such as `sase_git_commit`, which
+records skill invocation evidence and then delegates to `sase commit`. A typical Git
+skill invocation omits `--type` because the xprompt already set `SASE_COMMIT_METHOD`:
 
 ```bash
 sase_git_commit -M .sase/commit_message.md -f src/example.py
 ```
 
-The skill writes the message file under `.sase/` because that directory is git-ignored in every
-SASE-managed checkout, so the temporary file can never trip the commit finalizer's dirty check.
+The skill writes the message file under `.sase/` because that directory is git-ignored
+in every SASE-managed checkout, so the temporary file can never trip the commit
+finalizer's dirty check.
 
-The low-level equivalent is `sase commit -M .sase/commit_message.md -f src/example.py -t <method>`.
-The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the environment
+The low-level equivalent is
+`sase commit -M .sase/commit_message.md -f src/example.py -t <method>`. The method
+defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the environment
 and `-t/--type` are set, they must resolve to the same method unless
 `SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1` is set.
 
-If `SASE_BEAD_ID` is set, the finalizer first asks the agent to decide whether the uncommitted
-changes were made in the current session. For changes the agent did make, it instructs the agent to
-close and verify the bead before invoking the commit skill. This keeps bead lifecycle state ahead of
-the commit/proposal/PR dispatch while avoiding accidental closure for unrelated dirty work.
+If `SASE_BEAD_ID` is set, the finalizer first asks the agent to decide whether the
+uncommitted changes were made in the current session. For changes the agent did make, it
+instructs the agent to close and verify the bead before invoking the commit skill. This
+keeps bead lifecycle state ahead of the commit/proposal/PR dispatch while avoiding
+accidental closure for unrelated dirty work.
 
-The finalizer uses the shared instruction helpers in `sase.commit_instructions`, so the bead and
-method wording stays consistent between main-workspace and linked-repository commit guidance.
-`commit.finalizer.max_passes` controls how many follow-up invocations may run before SASE fails the
-invocation with a clear error and, when an artifacts directory is available, a
-`commit_finalizer_result.json` artifact.
+The finalizer uses the shared instruction helpers in `sase.commit_instructions`, so the
+bead and method wording stays consistent between main-workspace and linked-repository
+commit guidance. `commit.finalizer.max_passes` controls how many follow-up invocations
+may run before SASE fails the invocation with a clear error and, when an artifacts
+directory is available, a `commit_finalizer_result.json` artifact.
 
 ### CLI Arguments
 
@@ -116,13 +122,13 @@ The `-t/--type` flag accepts both full method names and short aliases:
 | `propose` | `create_proposal`     |
 | `pr`      | `create_pull_request` |
 
-The COMMITS entry note is always derived from the first line of the commit message — there is no
-separate `--note` flag.
+The COMMITS entry note is always derived from the first line of the commit message —
+there is no separate `--note` flag.
 
 ### 3. CommitWorkflow orchestrates
 
-`CommitWorkflow` (`src/sase/workflows/commit/workflow.py`) is the central dispatcher. It runs
-through these stages:
+`CommitWorkflow` (`src/sase/workflows/commit/workflow.py`) is the central dispatcher. It
+runs through these stages:
 
 ```
 Subject gate       (reject a non-Conventional-Commit subject before any side effect)
@@ -163,29 +169,31 @@ Agent publication  (resolve target; enqueue exact hood, then try publish) [agent
 COMMITS entry      (append entry to project file)                         [commit/propose only]
 ```
 
-The **subject gate** runs first, immediately after payload-shape validation and before bead
-lifecycle handling, plan staging, and the before hook. If the first line of the message is not a
-Conventional Commit (`<type>[(<scope>)][!]: <description>`), the workflow fails with an actionable
-error and nothing else has run — no bead is closed for a commit that never happened. Merge, revert,
-and fixup subjects are exempt; empty messages are rejected. The failure is recorded on the
-`commit_failed` run-log event with `reason="invalid_message"`, and `sase commit` preserves the `-M`
-message file so the same command can be re-run after the subject is rewritten. Configure the gate
-through `commit.message` (see [Configuration](configuration.md#commitmessage)).
+The **subject gate** runs first, immediately after payload-shape validation and before
+bead lifecycle handling, plan staging, and the before hook. If the first line of the
+message is not a Conventional Commit (`<type>[(<scope>)][!]: <description>`), the
+workflow fails with an actionable error and nothing else has run — no bead is closed for
+a commit that never happened. Merge, revert, and fixup subjects are exempt; empty
+messages are rejected. The failure is recorded on the `commit_failed` run-log event with
+`reason="invalid_message"`, and `sase commit` preserves the `-M` message file so the
+same command can be re-run after the subject is rewritten. Configure the gate through
+`commit.message` (see [Configuration](configuration.md#commitmessage)).
 
 For PRs, the subject is validated exactly as the agent authored it.
-`vcs_provider.use_project_pr_prefix: true` prepends a `[project] ` prefix to the PR title _after_
-validation, so the final title on the pull request can differ from the validated subject.
+`vcs_provider.use_project_pr_prefix: true` prepends a `[project] ` prefix to the PR
+title _after_ validation, so the final title on the pull request can differ from the
+validated subject.
 
 ### 4. XPrompt reads the result
 
-The xprompt post-steps read `commit_result.json` from `$SASE_ARTIFACTS_DIR` and emit metadata
-outputs (`meta_new_commit`, `meta_commit_message`, `meta_changespec`, etc.) for downstream
-consumption.
+The xprompt post-steps read `commit_result.json` from `$SASE_ARTIFACTS_DIR` and emit
+metadata outputs (`meta_new_commit`, `meta_commit_message`, `meta_changespec`, etc.) for
+downstream consumption.
 
 ## CLI Inputs and Internal Payload
 
-The `sase commit` CLI builds an internal `CommitWorkflow` payload from flags. It does **not** accept
-a positional JSON payload.
+The `sase commit` CLI builds an internal `CommitWorkflow` payload from flags. It does
+**not** accept a positional JSON payload.
 
 Typical commit or proposal:
 
@@ -209,58 +217,63 @@ The internal payload has this shape:
 }
 ```
 
-The CLI maps `-m` / `-M` to `message`, repeated `-f` flags to `files`, `-n` to `name`, `-B` to
-`bug_id`, `-c` to `checkout_target`, `-p` to `parent`, and `-s` to `status`. Omitted `-f` means
-"stage all changes" and is represented as an empty `files` list.
+The CLI maps `-m` / `-M` to `message`, repeated `-f` flags to `files`, `-n` to `name`,
+`-B` to `bug_id`, `-c` to `checkout_target`, `-p` to `parent`, and `-s` to `status`.
+Omitted `-f` means "stage all changes" and is represented as an empty `files` list.
 
-Bead association is not a user-supplied CLI flag. For new commit attempts, `sase commit` reads
-`SASE_BEAD_ID`; when it is set, the CLI adds that bead to the workflow payload, and `CommitWorkflow`
-leaves the subject unchanged while adding `SASE_BEAD=<id>` as the first structured footer tag. When
-the project's beads sidecar is hosted on GitHub, the tag is a Markdown reference link to the bead's
-generated page in the `--beads` repository; otherwise it remains the bare ID. Resolution is
-local-only and best-effort. Conflict resumes reuse the already-tagged message captured in the
-original checkpoint.
+Bead association is not a user-supplied CLI flag. For new commit attempts, `sase commit`
+reads `SASE_BEAD_ID`; when it is set, the CLI adds that bead to the workflow payload,
+and `CommitWorkflow` leaves the subject unchanged while adding `SASE_BEAD=<id>` as the
+first structured footer tag. When the project's beads sidecar is hosted on GitHub, the
+tag is a Markdown reference link to the bead's generated page in the `--beads`
+repository; otherwise it remains the bare ID. Resolution is local-only and best-effort.
+Conflict resumes reuse the already-tagged message captured in the original checkpoint.
 
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and
 `create_pull_request`, `CommitWorkflow` appends or updates a trailing
-`SASE_AGENT=<username>.<machine>.<lane>` line. The value is the committing agent's **lane**, not the
-concrete agent that ran: a family member commits as its family (`pc--code` is tagged
-`<username>.<machine>.pc`), and a solo agent is tagged with its own name exactly as before. When the
-configured agents sidecar is hosted on GitHub, the value is a Markdown reference link to the lane's
-page — the family page for a family lane and the agent README for a solo lane — with no
-`#member-<role>` fragment. Every fallback path (no owner, no project, unresolvable or non-hosted
-sidecar) still emits the lane label unlinked. `AGENT` comes from `SASE_AGENT_NAME`, falling back to
-`SASE_ARTIFACTS_DIR/agent_meta.json` — the concrete member name is resolved first only so its lane
-can be derived — and it is omitted for manual non-agent commits. New commits never produce
-`SASE_MACHINE`, while cleanup still removes inherited `AGENT` and historical `MACHINE` values.
-`create_proposal` does not get runtime commit tags because it saves a diff instead of creating a VCS
-commit.
+`SASE_AGENT=<username>.<machine>.<lane>` line. The value is the committing agent's
+**lane**, not the concrete agent that ran: a family member commits as its family
+(`pc--code` is tagged `<username>.<machine>.pc`), and a solo agent is tagged with its
+own name exactly as before. When the configured agents sidecar is hosted on GitHub, the
+value is a Markdown reference link to the lane's page — the family page for a family
+lane and the agent README for a solo lane — with no `#member-<role>` fragment. Every
+fallback path (no owner, no project, unresolvable or non-hosted sidecar) still emits the
+lane label unlinked. `AGENT` comes from `SASE_AGENT_NAME`, falling back to
+`SASE_ARTIFACTS_DIR/agent_meta.json` — the concrete member name is resolved first only
+so its lane can be derived — and it is omitted for manual non-agent commits. New commits
+never produce `SASE_MACHINE`, while cleanup still removes inherited `AGENT` and
+historical `MACHINE` values. `create_proposal` does not get runtime commit tags because
+it saves a diff instead of creating a VCS commit.
 
-After an agent-backed primary operation and its first durable result marker, the workflow first
-refreshes the committed bead's generated page lineage when the message carries `SASE_BEAD=`. It then
-resolves the immutable primary revision through the VCS provider and resolves the project's agents
-target. When that target is available, SASE records a project-scoped outbox request for only that
-agent's top-level hood before attempting publication. The attempt also drains older requests for the
-project. A failure after enqueueing does not invalidate the primary commit; the request remains for
-a later agent commit or full `sase agent sync`. Target-resolution and outbox-persistence failures
-occur before that durability guarantee, so they can instead skip publication or require
-`sase commit --resume`.
+After an agent-backed primary operation and its first durable result marker, the
+workflow first refreshes the committed bead's generated page lineage when the message
+carries `SASE_BEAD=`. It then resolves the immutable primary revision through the VCS
+provider and resolves the project's agents target. When that target is available, SASE
+records a project-scoped outbox request for only that agent's top-level hood before
+attempting publication. The attempt also drains older requests for the project. A
+failure after enqueueing does not invalidate the primary commit; the request remains for
+a later agent commit or full `sase agent sync`. Target-resolution and outbox-persistence
+failures occur before that durability guarantee, so they can instead skip publication or
+require `sase commit --resume`.
 
-**Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `BEAD`, `AGENT`, `PLAN`, `BUG`,
-and any configured or inherited PR tag keys) are written with a `SASE_` prefix — for example
-`SASE_TYPE=sdd` and `SASE_AGENT=<name>`. Readers (agent-commit/revert discovery, parent-PR tag
-inheritance, ChangeSpec description stripping) still accept historical `MACHINE` tags and the
-unprefixed spelling, so commit history is not rewritten and old commits remain readable. External
-consumers should accept both historical and `SASE_`-prefixed spellings.
+**Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `BEAD`, `AGENT`,
+`PLAN`, `BUG`, and any configured or inherited PR tag keys) are written with a `SASE_`
+prefix — for example `SASE_TYPE=sdd` and `SASE_AGENT=<name>`. Readers
+(agent-commit/revert discovery, parent-PR tag inheritance, ChangeSpec description
+stripping) still accept historical `MACHINE` tags and the unprefixed spelling, so commit
+history is not rewritten and old commits remain readable. External consumers should
+accept both historical and `SASE_`-prefixed spellings.
 
-**Legacy `SASE_AGENT` values:** commits written before provenance moved to the lane carry a concrete
-member name and a `#member-<role>` anchor — for example `SASE_AGENT=[bbugyi200.athena.pc--code][2]`
-pointing at `families/bbugyi200.athena.pc.md#member-code`. History is never rewritten, so every
-reader (inventory history, import evidence, revert discovery, image-attachment scanning, plan and
-bead associations, the PR body footer) accepts both spellings permanently: a member-named tag keeps
-its exact per-run attribution, while a lane-named tag is attributed to the lane. Readers that need a
-link for a tag prefer the destination recorded in the footer itself, because that URL already
-distinguishes a family page from a solo agent page for commits from either era.
+**Legacy `SASE_AGENT` values:** commits written before provenance moved to the lane
+carry a concrete member name and a `#member-<role>` anchor — for example
+`SASE_AGENT=[bbugyi200.athena.pc--code][2]` pointing at
+`families/bbugyi200.athena.pc.md#member-code`. History is never rewritten, so every
+reader (inventory history, import evidence, revert discovery, image-attachment scanning,
+plan and bead associations, the PR body footer) accepts both spellings permanently: a
+member-named tag keeps its exact per-run attribution, while a lane-named tag is
+attributed to the lane. Readers that need a link for a tag prefer the destination
+recorded in the footer itself, because that URL already distinguishes a family page from
+a solo agent page for commits from either era.
 
 Internal fields added by `CommitWorkflow`:
 
@@ -310,16 +323,17 @@ Creates an actual git commit on the current branch and pushes it.
 
 **Returns:** `(True, commit_hash)`
 
-**Tracking:** Appends a COMMITS entry to the project file with the commit note, diff path, chat
-path, and plan path (when `SASE_PLAN` is set). Multi-line commit messages are supported: the first
-paragraph becomes the note, and subsequent paragraphs (separated by a blank line) become an indented
-body below the note. Empty body lines are stored as a dot (`.`) placeholder to preserve structure.
-See [change_spec.md](change_spec.md#commits) for the full entry format including drawers.
+**Tracking:** Appends a COMMITS entry to the project file with the commit note, diff
+path, chat path, and plan path (when `SASE_PLAN` is set). Multi-line commit messages are
+supported: the first paragraph becomes the note, and subsequent paragraphs (separated by
+a blank line) become an indented body below the note. Empty body lines are stored as a
+dot (`.`) placeholder to preserve structure. See
+[change_spec.md](change_spec.md#commits) for the full entry format including drawers.
 
 ### Propose (`#propose`)
 
-Saves the current diff without committing and cleans the workspace. This is useful for parking
-work-in-progress changes that aren't ready to land.
+Saves the current diff without committing and cleans the workspace. This is useful for
+parking work-in-progress changes that aren't ready to land.
 
 **Git operations:**
 
@@ -328,14 +342,14 @@ work-in-progress changes that aren't ready to land.
 
 **Returns:** `(True, diff_path)`
 
-**Tracking:** Appends a proposal COMMITS entry to the project file. Bead lifecycle and plan handling
-are skipped because proposals don't represent landed changes. Runtime `AGENT` and `MACHINE` commit
-tags are also skipped because no VCS commit is created.
+**Tracking:** Appends a proposal COMMITS entry to the project file. Bead lifecycle and
+plan handling are skipped because proposals don't represent landed changes. Runtime
+`AGENT` and `MACHINE` commit tags are also skipped because no VCS commit is created.
 
 ### Pull Request (`#pr`)
 
-Creates a new branch, commits changes, pushes, and creates a PR (via the GitHub plugin or
-equivalent).
+Creates a new branch, commits changes, pushes, and creates a PR (via the GitHub plugin
+or equivalent).
 
 **Input parameters:**
 
@@ -359,47 +373,53 @@ input:
 
 **Returns:** `(True, pr_url)` after GitHub plugin processing
 
-**Parent detection:** If the current branch corresponds to an existing ChangeSpec, that ChangeSpec
-is automatically set as the PARENT of the new PR ChangeSpec. This creates a chain of related changes
-without manual bookkeeping.
+**Parent detection:** If the current branch corresponds to an existing ChangeSpec, that
+ChangeSpec is automatically set as the PARENT of the new PR ChangeSpec. This creates a
+chain of related changes without manual bookkeeping.
 
-**BUG propagation:** When `SASE_BUG_ID` is set in the environment and non-zero, the value is
-propagated to two places: the BUG field of the created ChangeSpec (as `http://b/<bug_id>`), and a
-`SASE_BUG=<bug_id>` line prepended to the PR tag block (taking precedence over any static `BUG` key
-in `vcs_provider.pr_tags` config).
+**BUG propagation:** When `SASE_BUG_ID` is set in the environment and non-zero, the
+value is propagated to two places: the BUG field of the created ChangeSpec (as
+`http://b/<bug_id>`), and a `SASE_BUG=<bug_id>` line prepended to the PR tag block
+(taking precedence over any static `BUG` key in `vcs_provider.pr_tags` config).
 
-**Project prefix:** When `vcs_provider.use_project_pr_prefix` is `true`, a `[<project>] ` prefix is
-prepended to the PR title (GitHub) or PR description (Mercurial). This prefix is only applied to the
-external representation — it does not appear in the ChangeSpec DESCRIPTION or git commit message,
-and is automatically stripped when reading descriptions back.
+**Project prefix:** When `vcs_provider.use_project_pr_prefix` is `true`, a
+`[<project>] ` prefix is prepended to the PR title (GitHub) or PR description
+(Mercurial). This prefix is only applied to the external representation — it does not
+appear in the ChangeSpec DESCRIPTION or git commit message, and is automatically
+stripped when reading descriptions back.
 
-**PR tag inheritance:** When creating a child PR (one whose PARENT is an existing ChangeSpec), PR
-tags from the parent PR's body are automatically inherited. Parent tags are read in either spelling
-— legacy `TAG=` or new `SASE_TAG=` — so inheritance works across the migration. The merge order is:
-parent PR tags (lowest priority) -> config `pr_tags` -> `BUG` tag (highest priority), followed by
-runtime-owned `AGENT` and `MACHINE` tags. Inherited or configured `AGENT` and `MACHINE` values are
-ignored so child PRs do not retain stale parent runtime provenance.
+**PR tag inheritance:** When creating a child PR (one whose PARENT is an existing
+ChangeSpec), PR tags from the parent PR's body are automatically inherited. Parent tags
+are read in either spelling — legacy `TAG=` or new `SASE_TAG=` — so inheritance works
+across the migration. The merge order is: parent PR tags (lowest priority) -> config
+`pr_tags` -> `BUG` tag (highest priority), followed by runtime-owned `AGENT` and
+`MACHINE` tags. Inherited or configured `AGENT` and `MACHINE` values are ignored so
+child PRs do not retain stale parent runtime provenance.
 
 **PR tags:** Any key-value pairs configured in `vcs_provider.pr_tags` are appended as
 `SASE_TAG=VALUE` lines to the commit message before building the PR body. This supports
-provider-specific metadata (e.g., Google PR tags) without manual entry. `AGENT` and `MACHINE` are
-reserved for runtime provenance and are owned by the commit workflow rather than static config. Note
-that the rendered keys carry the `SASE_` prefix (e.g. a configured `MARKDOWN` tag is written as
-`SASE_MARKDOWN=`), so external tooling that consumes these tags must accept the prefixed names. See
+provider-specific metadata (e.g., Google PR tags) without manual entry. `AGENT` and
+`MACHINE` are reserved for runtime provenance and are owned by the commit workflow
+rather than static config. Note that the rendered keys carry the `SASE_` prefix (e.g. a
+configured `MARKDOWN` tag is written as `SASE_MARKDOWN=`), so external tooling that
+consumes these tags must accept the prefixed names. See
 [configuration.md](configuration.md#vcs_provider) for the config format.
 
-**PR tag stripping:** When PR tags are present in the commit description (trailing lines matching
-`^[A-Z][A-Z0-9_]*=`), they are automatically stripped before writing the DESCRIPTION field of the
-created ChangeSpec. This prevents provider-specific metadata (e.g.,
-`AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT`, `MARKDOWN=true`) from polluting the human-readable description.
-The same stripping is applied when syncing descriptions after a reword operation.
+**PR tag stripping:** When PR tags are present in the commit description (trailing lines
+matching `^[A-Z][A-Z0-9_]*=`), they are automatically stripped before writing the
+DESCRIPTION field of the created ChangeSpec. This prevents provider-specific metadata
+(e.g., `AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT`, `MARKDOWN=true`) from polluting the
+human-readable description. The same stripping is applied when syncing descriptions
+after a reword operation.
 
-**Tracking:** Creates a ChangeSpec in the project file (not a COMMITS entry). The PR name is
-automatically suffixed with `_<N>` if a ChangeSpec with the same base name already exists.
+**Tracking:** Creates a ChangeSpec in the project file (not a COMMITS entry). The PR
+name is automatically suffixed with `_<N>` if a ChangeSpec with the same base name
+already exists.
 
 ## VCS Provider Abstraction
 
-The three dispatch methods are defined in `VCSHookSpec` and implemented by each VCS plugin:
+The three dispatch methods are defined in `VCSHookSpec` and implemented by each VCS
+plugin:
 
 | Plugin          | `create_commit`    | `create_proposal` | `create_pull_request`     |
 | --------------- | ------------------ | ----------------- | ------------------------- |
@@ -409,16 +429,18 @@ The three dispatch methods are defined in `VCSHookSpec` and implemented by each 
 
 All methods return `tuple[bool, str | None]` (success flag and optional result string).
 
-Plugins that support resume also implement `vcs_finalize_commit(payload, cwd)`, which re-runs the
-idempotent portion of a commit (bead amend, push with retry) after a previously-checkpointed
-workflow has had its merge conflicts resolved by hand. See
-[Resume after Conflict](#resume-after-conflict) below for how this fits into the overall flow.
-Providers that cannot safely replay finalization (e.g., Mercurial today) can leave it unimplemented
-— `CommitWorkflow.resume` catches the `NotImplementedError` and only replays the tracking steps.
+Plugins that support resume also implement `vcs_finalize_commit(payload, cwd)`, which
+re-runs the idempotent portion of a commit (bead amend, push with retry) after a
+previously-checkpointed workflow has had its merge conflicts resolved by hand. See
+[Resume after Conflict](#resume-after-conflict) below for how this fits into the overall
+flow. Providers that cannot safely replay finalization (e.g., Mercurial today) can leave
+it unimplemented — `CommitWorkflow.resume` catches the `NotImplementedError` and only
+replays the tracking steps.
 
 ## Run Result
 
-`CommitWorkflow.run()` and `CommitWorkflow.resume()` return a `RunResult` with three states:
+`CommitWorkflow.run()` and `CommitWorkflow.resume()` return a `RunResult` with three
+states:
 
 | State      | Exit code | Meaning                                                                       |
 | ---------- | --------- | ----------------------------------------------------------------------------- |
@@ -426,14 +448,15 @@ Providers that cannot safely replay finalization (e.g., Mercurial today) can lea
 | `FAILED`   | `1`       | Failure; an after-hook failure keeps its post-dispatch checkpoint for resume. |
 | `CONFLICT` | `2`       | VCS dispatch hit a merge conflict; a checkpoint is left on disk for resume.   |
 
-The `sase commit` CLI propagates these states to its process exit code, so wrapper skills
-(`/sase_git_commit`) can branch on `$?` to distinguish a real failure from a conflict that the user
-needs to resolve.
+The `sase commit` CLI propagates these states to its process exit code, so wrapper
+skills (`/sase_git_commit`) can branch on `$?` to distinguish a real failure from a
+conflict that the user needs to resolve.
 
 ## Resume after Conflict
 
-`CommitWorkflow` persists its progress to a checkpoint file so that a dispatch interrupted by a
-merge conflict can be finished by hand without re-running the whole flow:
+`CommitWorkflow` persists its progress to a checkpoint file so that a dispatch
+interrupted by a merge conflict can be finished by hand without re-running the whole
+flow:
 
 ```
 SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running under a workflow
@@ -442,42 +465,45 @@ SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running unde
 
 **Normal flow:**
 
-1. `CommitWorkflow.run()` snapshots its resolved state (payload, PR name, project file, diff path,
-   reserved name, parent PR) to the checkpoint **before** calling the VCS dispatch method.
-2. If dispatch succeeds for a commit or PR, the checkpoint is updated with the dispatch result and
-   `commit_hooks.after` runs before tracking. Proposals skip the after hook.
-3. If the after hook and tracking succeed, their completed steps are checkpointed and the file is
-   deleted.
-4. If dispatch fails because of a merge conflict (`RunResult.CONFLICT`), the checkpoint is retained
-   and the CLI prints:
+1. `CommitWorkflow.run()` snapshots its resolved state (payload, PR name, project file,
+   diff path, reserved name, parent PR) to the checkpoint **before** calling the VCS
+   dispatch method.
+2. If dispatch succeeds for a commit or PR, the checkpoint is updated with the dispatch
+   result and `commit_hooks.after` runs before tracking. Proposals skip the after hook.
+3. If the after hook and tracking succeed, their completed steps are checkpointed and
+   the file is deleted.
+4. If dispatch fails because of a merge conflict (`RunResult.CONFLICT`), the checkpoint
+   is retained and the CLI prints:
 
-   > `create_commit` hit a merge conflict: ... Resolve the conflict, then run `sase commit --resume`
-   > to finish.
+   > `create_commit` hit a merge conflict: ... Resolve the conflict, then run
+   > `sase commit --resume` to finish.
 
 **Resume flow (`sase commit --resume`):**
 
 1. Load the checkpoint from disk (if missing, the command errors out).
-2. Re-check the working tree for conflict markers — if they're still present, refuse to continue
-   with `CONFLICT`.
-3. Verify the commit at `HEAD` matches the subject line from the checkpointed message. If it
-   doesn't, abort with `FAILED`; the user is expected to re-run `sase commit` from scratch rather
-   than resume into a foreign commit.
-4. If dispatch was not already completed, call the provider's `vcs_finalize_commit` hook to replay
-   idempotent post-commit work (bead amend, push with retry), then checkpoint dispatch completion.
-5. Run `commit_hooks.after` for commit/PR workflows unless its completion is already checkpointed.
-6. Re-run the tracking steps (COMMITS entry append, ChangeSpec creation) using the snapshotted
-   payload.
+2. Re-check the working tree for conflict markers — if they're still present, refuse to
+   continue with `CONFLICT`.
+3. Verify the commit at `HEAD` matches the subject line from the checkpointed message.
+   If it doesn't, abort with `FAILED`; the user is expected to re-run `sase commit` from
+   scratch rather than resume into a foreign commit.
+4. If dispatch was not already completed, call the provider's `vcs_finalize_commit` hook
+   to replay idempotent post-commit work (bead amend, push with retry), then checkpoint
+   dispatch completion.
+5. Run `commit_hooks.after` for commit/PR workflows unless its completion is already
+   checkpointed.
+6. Re-run the tracking steps (COMMITS entry append, ChangeSpec creation) using the
+   snapshotted payload.
 7. Delete the checkpoint on success.
 
-Resume is VCS-agnostic: the same `--resume` flag works for commits, proposals, and PRs. Skills emit
-the on-conflict instructions automatically, so agents know to hand control back to the user rather
-than retry blindly.
+Resume is VCS-agnostic: the same `--resume` flag works for commits, proposals, and PRs.
+Skills emit the on-conflict instructions automatically, so agents know to hand control
+back to the user rather than retry blindly.
 
-An after-hook failure also uses this resume path: the commit may already be pushed, so creating a
-new commit would risk duplication. Fix the hook and run `sase commit --resume`;
-dispatch/finalization is skipped because its completed step is already recorded. After hooks should
-be repeatable because a crash between command success and checkpoint persistence has at-least-once
-execution semantics.
+An after-hook failure also uses this resume path: the commit may already be pushed, so
+creating a new commit would risk duplication. Fix the hook and run
+`sase commit --resume`; dispatch/finalization is skipped because its completed step is
+already recorded. After hooks should be repeatable because a crash between command
+success and checkpoint persistence has at-least-once execution semantics.
 
 ## Environment Variables
 
@@ -502,54 +528,59 @@ execution semantics.
 ## Commit Finalizer
 
 For SASE-launched agent sessions, the normal path is the provider-neutral finalizer in
-`src/sase/llm_provider/commit_finalizer.py`. It runs after a successful provider invocation and
-before success postprocessing. The finalizer is deliberately outside any one runtime's native hook
-system, so Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, and provider plugins share the same
-behavior.
+`src/sase/llm_provider/commit_finalizer.py`. It runs after a successful provider
+invocation and before success postprocessing. The finalizer is deliberately outside any
+one runtime's native hook system, so Claude, Codex, Antigravity (`agy`), Qwen, OpenCode,
+and provider plugins share the same behavior.
 
 **Flow:**
 
-1. Skip when `commit.finalizer.enabled` is false, `SASE_DISABLE_COMMIT_STOP_HOOK=1` is set, or the
-   process is outside a SASE agent session (`SASE_AGENT_TIMESTAMP` is unset).
+1. Skip when `commit.finalizer.enabled` is false, `SASE_DISABLE_COMMIT_STOP_HOOK=1` is
+   set, or the process is outside a SASE agent session (`SASE_AGENT_TIMESTAMP` is
+   unset).
 2. Resolve the project directory from provider/workspace environment variables.
 3. Check the main workspace through the VCS provider's diff helpers.
-4. Check configured linked repos from `SASE_LINKED_REPOS_JSON`, or from project config when
-   available, with `git status --porcelain`; opened-workspace markers provide paths for linked repos
-   opened during the run.
-5. Auto-commit an exact tracked SDD markdown `status: wip` to `status: done` closeout when that is
-   the only enforced change and the file is under `sdd/plans/`.
+4. Check configured linked repos from `SASE_LINKED_REPOS_JSON`, or from project config
+   when available, with `git status --porcelain`; opened-workspace markers provide paths
+   for linked repos opened during the run.
+5. Auto-commit an exact tracked SDD markdown `status: wip` to `status: done` closeout
+   when that is the only enforced change and the file is under `sdd/plans/`.
 6. If dirty enforced repos exist, run follow-up provider invocations up to
    `commit.finalizer.max_passes`. When an artifacts directory is available, also write
    `commit_finalizer_pass_<N>_prompt.md` and `commit_finalizer_pass_<N>_response.md`.
 7. Re-check every dirty target. If all enforced repos are clean, write
-   `commit_finalizer_result.json` with status `finalized` when artifacts are enabled, and append the
-   follow-up response to the agent's final response.
-8. If enforced changes remain after `commit.finalizer.max_passes`, write status `failed` when
-   artifacts are enabled and fail the invocation instead of silently accepting dirty work.
+   `commit_finalizer_result.json` with status `finalized` when artifacts are enabled,
+   and append the follow-up response to the agent's final response.
+8. If enforced changes remain after `commit.finalizer.max_passes`, write status `failed`
+   when artifacts are enabled and fail the invocation instead of silently accepting
+   dirty work.
 
-For projects whose SDD store lives in a separate or sidecar repository, the finalizer also commits
-leftover bead state as a safety net (`chore(beads): sync bead state`) ahead of each dirty-state
-check, then verifies that commit actually reached the remote — a bead mutation that exists only in a
-workspace clone is destroyed when that workspace is evicted. If it stayed local,
-`commit_finalizer_result.json` records `status: "failed"` with `reason: "bead_state_unpublished"`
-and the full publication diagnostic instead of `finalized`, and the invocation fails. The finalizer
-holds that failure until its return points rather than raising it at the commit site, so the agent's
-own commit passes still run first — otherwise a bead problem would strand uncommitted code in the
-workspace. On the dirty-after-max-passes path (step 8) the publication diagnostic is appended to the
+For projects whose SDD store lives in a separate or sidecar repository, the finalizer
+also commits leftover bead state as a safety net (`chore(beads): sync bead state`) ahead
+of each dirty-state check, then verifies that commit actually reached the remote — a
+bead mutation that exists only in a workspace clone is destroyed when that workspace is
+evicted. If it stayed local, `commit_finalizer_result.json` records `status: "failed"`
+with `reason: "bead_state_unpublished"` and the full publication diagnostic instead of
+`finalized`, and the invocation fails. The finalizer holds that failure until its return
+points rather than raising it at the commit site, so the agent's own commit passes still
+run first — otherwise a bead problem would strand uncommitted code in the workspace. On
+the dirty-after-max-passes path (step 8) the publication diagnostic is appended to the
 existing error so neither failure is swallowed. See
 [Publication Verification](beads.md#publication-verification).
 
-Configured linked repos are resolved to host-scoped directories before agent launch. For example, an
-agent in `sase_10` sees a `../sase-core` linked repo at `sase_10/sase/repos/linked/sase-core`. The
-linked-repo dirty-check path is Git-specific: non-Git linked-repo paths can still be exposed through
-environment variables and metadata, but the finalizer does not enforce them as dirty targets.
+Configured linked repos are resolved to host-scoped directories before agent launch. For
+example, an agent in `sase_10` sees a `../sase-core` linked repo at
+`sase_10/sase/repos/linked/sase-core`. The linked-repo dirty-check path is Git-specific:
+non-Git linked-repo paths can still be exposed through environment variables and
+metadata, but the finalizer does not enforce them as dirty targets.
 
-When the only enforced dirty state is the exact SDD status closeout described above, the finalizer
-creates the commit itself instead of running a follow-up provider invocation. The result artifact
-records `reason: "auto_committed_done_plan_status"`.
+When the only enforced dirty state is the exact SDD status closeout described above, the
+finalizer creates the commit itself instead of running a follow-up provider invocation.
+The result artifact records `reason: "auto_committed_done_plan_status"`.
 
-The obsolete provider-native commit hook scripts are no longer shipped. Active SASE-launched runs
-rely on the provider-neutral finalizer instead of runtime-specific commit hook configuration.
+The obsolete provider-native commit hook scripts are no longer shipped. Active
+SASE-launched runs rely on the provider-neutral finalizer instead of runtime-specific
+commit hook configuration.
 
 ## Diff Storage
 
@@ -566,13 +597,13 @@ Diffs can be re-applied to a workspace with `apply_diff_to_workspace()` from
 
 ## Design Principles
 
-- **Fail-fast:** If `commit_result.json` is missing when the xprompt post-steps run, the workflow
-  fails explicitly rather than silently retrying. The finalizer and commit skills are the sanctioned
-  path to commit creation.
-- **Single responsibility:** `CommitWorkflow` owns all orchestration (commit hooks, beads, plans,
-  VCS dispatch, tracking). XPrompt steps only read and report results.
-- **Proper proposal semantics:** Proposals save diffs and clean the workspace without creating
-  commits. Bead lifecycle and plan handling are skipped because proposals don't represent landed
-  changes.
-- **VCS agnostic:** The same `CommitWorkflow` and xprompt definitions work across Git, GitHub, and
-  Mercurial backends. Only the VCS plugin implementation differs.
+- **Fail-fast:** If `commit_result.json` is missing when the xprompt post-steps run, the
+  workflow fails explicitly rather than silently retrying. The finalizer and commit
+  skills are the sanctioned path to commit creation.
+- **Single responsibility:** `CommitWorkflow` owns all orchestration (commit hooks,
+  beads, plans, VCS dispatch, tracking). XPrompt steps only read and report results.
+- **Proper proposal semantics:** Proposals save diffs and clean the workspace without
+  creating commits. Bead lifecycle and plan handling are skipped because proposals don't
+  represent landed changes.
+- **VCS agnostic:** The same `CommitWorkflow` and xprompt definitions work across Git,
+  GitHub, and Mercurial backends. Only the VCS plugin implementation differs.

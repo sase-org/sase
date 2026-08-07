@@ -425,8 +425,9 @@ def test_git_commit_skill_invokes_observable_wrapper() -> None:
     """The git commit skill should call the wrapper, not raw ``sase commit``."""
     src = get_sase_package_xprompts_dir() / "skills" / "sase_git_commit.md"
     body = src.read_text(encoding="utf-8")
-    assert "Commit changes via the `sase_git_commit` wrapper" in body
-    assert "records skill invocation evidence" in body
+    flat = _collapse_whitespace(body)
+    assert "Commit changes via the `sase_git_commit` wrapper" in flat
+    assert "records skill invocation evidence" in flat
     assert "sase_git_commit -M .sase/commit_message.md" in body
     assert "use one `-f` flag for each listed file" in body
     assert "reserve that for an intentional" in body

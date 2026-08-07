@@ -41,20 +41,21 @@ Constraints: no logos, no screenshots, no decorative gradients, no terminal text
 ## Post-Processing Notes
 
 Generated with the built-in image generation tool, copied into
-`docs/images/sase_tui_tabs_infographic.png`, resized to the existing 1672x941 documentation image
-size, and labeled deterministically with ImageMagick using DejaVu Sans.
+`docs/images/sase_tui_tabs_infographic.png`, resized to the existing 1672x941
+documentation image size, and labeled deterministically with ImageMagick using DejaVu
+Sans.
 
 The generated base is intentionally text-free. Final labels were added to show:
 
-- Shared ACE chrome: connected tab pills, `Tab / Shift-Tab`, top-right indicators, and footer
-  framing.
+- Shared ACE chrome: connected tab pills, `Tab / Shift-Tab`, top-right indicators, and
+  footer framing.
 - Tab colors: PRs `#00D7AF`, Agents `#87D7FF`, AXE `#FF5F5F`.
 - Per-tab `Surfaces`, `Lifecycle`, and `Actions` rows:
   - PRs: ChangeSpec list/detail, ancestors/children, PR status lifecycle,
     accept/mail/rebase/diff/checkout.
   - Agents: agent tree, retry chains, prompt/files/diffs/thinking detail, run lifecycle,
     resume/tag/kill/open.
-  - AXE: BgCmd list, dashboard, daemon health, Lumberjack output, queued/running/done/errored
-    lifecycle, daemon and log actions.
-- A separated conceptual lifecycle rail: plan -> launch -> monitor -> land, with tinted ownership
-  bands tying those phases back to the three tabs.
+  - AXE: BgCmd list, dashboard, daemon health, Lumberjack output,
+    queued/running/done/errored lifecycle, daemon and log actions.
+- A separated conceptual lifecycle rail: plan -> launch -> monitor -> land, with tinted
+  ownership bands tying those phases back to the three tabs.

@@ -21,15 +21,15 @@ Composition constraints: leave large clean blank label zones in every major card
 Avoid: any generated text or text-like marks, decorative gradients, dark background, fake terminal screenshots, dense textures, tiny details, excessive 3D, one-hue palette.
 ```
 
-The built-in image-generation tool produced the text-free 1672×941 base. The original generation was
-saved at
+The built-in image-generation tool produced the text-free 1672×941 base. The original
+generation was saved at
 `$CODEX_HOME/generated_images/019fa528-52a4-7622-ba2b-5558a515a3a2/call_J6n7UUtuKTOVTt9p6xmR3rZ1.png`.
 
 ## Deterministic Labels
 
-DejaVu Sans Bold/Book and DejaVu Sans Mono Bold/Book were used for every visible character. The
-overlay uses dark slate `#17243a`, secondary slate `#536175`, opaque white label panels, and
-light-gray `#d4dbe5` borders.
+DejaVu Sans Bold/Book and DejaVu Sans Mono Bold/Book were used for every visible
+character. The overlay uses dark slate `#17243a`, secondary slate `#536175`, opaque
+white label panels, and light-gray `#d4dbe5` borders.
 
 - Title: `BEADS SIDECAR`
 - Subtitle: `Append-only bead state — isolated, auto-cloned everywhere`
@@ -37,20 +37,23 @@ light-gray `#d4dbe5` borders.
 - Event store: `EVENT STORE`, `events/streams/*.jsonl`, `append-only source of truth`
 - Projection: `PROJECTION`, `issues.jsonl`, `generated`
 - Local cache: `LOCAL CACHE`, `beads.db (gitignored)`
-- Clone behavior: `AUTO-CLONE`, `auto_clone: true`, `EVERY WORKSPACE`, `under sase/repos/beads`
+- Clone behavior: `AUTO-CLONE`, `auto_clone: true`, `EVERY WORKSPACE`,
+  `under sase/repos/beads`
 - Isolation: `PLANS REPOSITORY`, `sase-org/sase--plans`, `separate repo, separate lock`
 - Persistence rail: `SDD machinery`, `commit`, `push`
 
 ## Post-Processing
 
 1. Resize the generated base to exactly 1600×900.
-2. Render a transparent 1600×900 SVG overlay using the fonts and labels above. Place the title and
-   subtitle at upper left, repository and content labels in the center, auto-clone and workspace
-   labels on the right, isolation labels in the disconnected upper-right repository, and commit/push
-   labels along the bottom rail.
-3. Composite the overlay over the resized base and strip metadata. Keep the output 8-bit sRGB.
-4. Inspect both the full-size raster and a 900px-wide reduction. Confirm that `auto_clone: true`,
-   `events/streams/*.jsonl`, `issues.jsonl`, and `sase-org/sase--beads` remain legible.
+2. Render a transparent 1600×900 SVG overlay using the fonts and labels above. Place the
+   title and subtitle at upper left, repository and content labels in the center,
+   auto-clone and workspace labels on the right, isolation labels in the disconnected
+   upper-right repository, and commit/push labels along the bottom rail.
+3. Composite the overlay over the resized base and strip metadata. Keep the output 8-bit
+   sRGB.
+4. Inspect both the full-size raster and a 900px-wide reduction. Confirm that
+   `auto_clone: true`, `events/streams/*.jsonl`, `issues.jsonl`, and
+   `sase-org/sase--beads` remain legible.
 
 Equivalent ImageMagick pipeline:
 

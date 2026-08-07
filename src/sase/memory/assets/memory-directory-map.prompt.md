@@ -8,25 +8,27 @@ pdf: false
 
 - Packaged source asset: `src/sase/memory/assets/memory-directory-map.png`.
 - Canonical SASE project copy: `sase/memory/assets/memory-directory-map.png`.
-- Generated project/home copies: `sase/memory/assets/memory-directory-map.png` below each canonical
-  memory root.
-- Embedded in generated `sase/memory/README.md` files immediately after the opening paragraph.
+- Generated project/home copies: `sase/memory/assets/memory-directory-map.png` below
+  each canonical memory root.
+- Embedded in generated `sase/memory/README.md` files immediately after the opening
+  paragraph.
 - Final size: 1600×900 PNG, sRGB.
 
 ## Intended Alt Text
 
-Memory architecture showing canonical short and long notes, generated provider shims, audited reads,
-agent context, and the generated `sase/memory/README.md`.
+Memory architecture showing canonical short and long notes, generated provider shims,
+audited reads, agent context, and the generated `sase/memory/README.md`.
 
 ## Final Asset Status
 
-The Phase 8 asset uses a freshly generated text-free GPT Image base with deterministic local labels.
-The packaged image and every propagated generated copy must remain byte-identical.
+The Phase 8 asset uses a freshly generated text-free GPT Image base with deterministic
+local labels. The packaged image and every propagated generated copy must remain
+byte-identical.
 
 ## Final GPT Image Prompt
 
-The built-in GPT Image tool generated the structural base. It was instructed to leave every label
-region blank so no model-generated text survives in the committed asset.
+The built-in GPT Image tool generated the structural base. It was instructed to leave
+every label region blank so no model-generated text survives in the committed asset.
 
 ```text
 Use case: infographic-diagram
@@ -40,8 +42,8 @@ Constraints: absolutely no readable text, pseudo-text, glyphs, letters, numerals
 
 ## Deterministic Labels
 
-DejaVu Sans supplies prose labels and Fira Code supplies exact paths and commands. The canonical
-path labels are:
+DejaVu Sans supplies prose labels and Fira Code supplies exact paths and commands. The
+canonical path labels are:
 
 - `sase/memory/*.md`
 - `sase/memory/README.md`
@@ -49,15 +51,16 @@ path labels are:
 - `sase memory init`
 - `sase validate`
 
-The remaining labels describe frontmatter (`type: short | long`, `parent:`, `description:`), Tier 1
-short notes, `AGENTS.md`, provider shims (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`), Tier
-2 long notes, audited reference fetching, agent context, regeneration, and the drift gate.
+The remaining labels describe frontmatter (`type: short | long`, `parent:`,
+`description:`), Tier 1 short notes, `AGENTS.md`, provider shims (`CLAUDE.md`,
+`GEMINI.md`, `QWEN.md`, `OPENCODE.md`), Tier 2 long notes, audited reference fetching,
+agent context, regeneration, and the drift gate.
 
 ## Post-Processing Record
 
-The selected 1672×941 base was resized to 1600×900. A transparent SVG overlay added the exact label
-groups and a white backing panel around the audited-read gate. ImageMagick 7 composited and stripped
-the final asset:
+The selected 1672×941 base was resized to 1600×900. A transparent SVG overlay added the
+exact label groups and a white backing panel around the audited-read gate. ImageMagick 7
+composited and stripped the final asset:
 
 ```bash
 magick "$BASE_PNG" -resize 1600x900! -strip -colorspace sRGB "$RESIZED_BASE"
@@ -82,8 +85,8 @@ The label anchors on the 1600×900 canvas are grouped as follows:
 
 ## Final Review
 
-- Full-resolution inspection confirmed legibility, correct arrow direction, uncropped cards, and
-  adequate contrast.
+- Full-resolution inspection confirmed legibility, correct arrow direction, uncropped
+  cards, and adequate contrast.
 - No model-generated text, pseudo-text, logos, or watermarks remain.
 - Both source and generated README labels use the canonical `sase/memory/...` paths.
 - Final SHA-256: `e5abac51d20648d0c75f462c563ec15ddf59f0e03296b9341de3325dc625e172`.

@@ -100,7 +100,7 @@ linked_repos:
         project_memory
     )
     assert "- `dotfiles`: Static dotfiles source." in project_memory_line
-    assert "configured linked repos and sidecars" in project_memory
+    assert "configured linked repos and sidecars" in project_memory_line
     assert "agents MUST use your `/sase_repo` skill first" in project_memory_line
     assert "Use the path it prints as the only path" in project_memory_line
 

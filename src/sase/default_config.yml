@@ -47,7 +47,7 @@ markdown:
   # `--wrap` for `sase bead show` and `sase plan show`. The prettier CLI cannot
   # read this value, so repos whose Markdown SASE writes into need their own
   # prettier config to match.
-  print_width: 100
+  print_width: 88
 
 artifacts:
   capture:

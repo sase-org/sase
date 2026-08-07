@@ -34,6 +34,15 @@ def _hosted_prompt_links(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _flat(text: str) -> str:
+    """Return ``text`` with every whitespace run flattened to one space.
+
+    Plan headers are wrapped at the repo Markdown width, so a long
+    ``- **PROMPT:** [...](...)`` row may break across lines.
+    """
+    return " ".join(text.split())
+
+
 def _prompt_path(root: Path, month: str, name: str) -> Path:
     return root / "repo--agents" / "prompts" / month / f"{name}.md"
 
@@ -109,7 +118,7 @@ def test_write_sdd_files_supports_flat_sidecar_plans_root(tmp_path: Path) -> Non
     assert plan_fm["goal"] == "Preserve canonical links in a flat plans sidecar"
     assert (
         "- **PROMPT:** [prompts/202608/flat_plan.md]"
-        "(https://example.test/agents/prompts/202608/flat_plan.md)" in plan_text
+        "(https://example.test/agents/prompts/202608/flat_plan.md)" in _flat(plan_text)
     )
 
 
@@ -313,7 +322,7 @@ def test_write_sdd_files_uses_sdd_relative_links() -> None:
         assert "prompt" not in plan_fm
         assert (
             "- **PROMPT:** [prompts/202603/linked.md]"
-            "(https://example.test/agents/prompts/202603/linked.md)" in plan_text
+            "(https://example.test/agents/prompts/202603/linked.md)" in _flat(plan_text)
         )
 
 
@@ -342,7 +351,7 @@ def test_write_sdd_files_uses_local_sase_sdd_relative_links() -> None:
         assert "prompt" not in plan_fm
         assert (
             "- **PROMPT:** [prompts/202603/linked.md]"
-            "(https://example.test/agents/prompts/202603/linked.md)" in plan_text
+            "(https://example.test/agents/prompts/202603/linked.md)" in _flat(plan_text)
         )
 
 
