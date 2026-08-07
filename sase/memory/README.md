@@ -85,8 +85,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 61
-- Approx. tokens: 835
+- Lines: 67
+- Approx. tokens: 837
 
 ### `sase/memory/cli_rules.md`
 
@@ -114,7 +114,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
   phase-bead description prefixes, and non-cascading close, resolution, and note
   semantics.
 - Parent: `AGENTS.md`
-- Lines: 120
+- Lines: 130
 - Approx. tokens: 1635
 
 ### `sase/memory/symvision.md`
@@ -133,8 +133,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
   responsiveness (navigation, refresh, rendering, startup), and before diagnosing TUI
   freezes or stalls.
 - Parent: `AGENTS.md`
-- Lines: 91
-- Approx. tokens: 1424
+- Lines: 92
+- Approx. tokens: 1425
 
 ### `sase/memory/xprompts.md`
 
@@ -142,7 +142,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
 - Parent: `AGENTS.md`
-- Lines: 89
+- Lines: 90
 - Approx. tokens: 1320
 
 ## Statistics
@@ -150,8 +150,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Total notes: 11
 - Short notes: 5
 - Long notes: 6
-- Total lines: 771
-- Total approx. tokens: 10188
+- Total lines: 789
+- Total approx. tokens: 10191
 
 ## Commands
 
