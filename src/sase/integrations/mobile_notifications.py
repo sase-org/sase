@@ -43,7 +43,7 @@ __all__ = [
 ]
 
 
-MOBILE_NOTIFICATION_WIRE_SCHEMA_VERSION = 4
+MOBILE_NOTIFICATION_WIRE_SCHEMA_VERSION = 5
 
 
 def handle_mobile_notification_bridge(
@@ -62,7 +62,13 @@ def handle_mobile_notification_bridge(
                 "invalid_request", "operation", "unknown notification bridge operation"
             )
         schema_version = request.get("schema_version")
-        if schema_version != MOBILE_NOTIFICATION_WIRE_SCHEMA_VERSION:
+        # Kept in sync with `validate_schema` in
+        # crates/sase_core/src/notifications/mobile.rs: both sides of the
+        # bridge must accept the same schema_version range.
+        if (
+            not isinstance(schema_version, int)
+            or not 1 <= schema_version <= MOBILE_NOTIFICATION_WIRE_SCHEMA_VERSION
+        ):
             raise MobileGateActionError(
                 "invalid_request", "schema_version", "unsupported schema_version"
             )
@@ -88,10 +94,27 @@ def handle_mobile_notification_bridge(
                 raise MobileGateActionError(
                     "invalid_request", "feedback", "feedback must be a string or null"
                 )
+            option_inputs = request.get("option_inputs")
+            if option_inputs is not None:
+                if schema_version < 5:
+                    raise MobileGateActionError(
+                        "invalid_request",
+                        "option_inputs",
+                        "option_inputs requires schema_version 5 or newer",
+                    )
+                if not isinstance(option_inputs, dict) or not all(
+                    isinstance(key, str) for key in option_inputs
+                ):
+                    raise MobileGateActionError(
+                        "invalid_request",
+                        "option_inputs",
+                        "option_inputs must be an object keyed by option id",
+                    )
             result = execute_mobile_gate_action(
                 prefix,
                 selected_option_ids,
                 feedback=feedback,
+                option_inputs=option_inputs,
             )
         else:
             choice = request.get("choice")

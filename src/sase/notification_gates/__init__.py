@@ -10,6 +10,12 @@ from sase.notification_gates.edits import (
     resolve_edit_path,
 )
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
+from sase.notification_gates.input_collection import (
+    coerce_field_text,
+    collected_input_fields,
+    input_arg_for_field,
+    option_inputs_from_values,
+)
 from sase.notification_gates.model_operations import (
     GateActionDisplay,
     GateOperation,
@@ -85,9 +91,13 @@ __all__ = [
     "adapter_for_kind",
     "bundle_paths",
     "cancel_gate",
+    "coerce_field_text",
+    "collected_input_fields",
     "create_gate",
     "execute_gate_operation",
     "execute_gate_selection",
+    "input_arg_for_field",
+    "option_inputs_from_values",
     "origin_draft_state",
     "parse_gate_query",
     "poll_gate",

@@ -635,6 +635,7 @@ def test_mobile_notification_bridge_forwards_gate_selection_unchanged() -> None:
         "mobile-c",
         ["approve", "audit"],
         feedback="Approved from mobile",
+        option_inputs=None,
     )
     assert json.loads(stdout.getvalue())["response_json"] == {
         "selected_option_ids": ["approve", "audit"]

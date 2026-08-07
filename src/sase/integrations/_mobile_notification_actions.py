@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +49,7 @@ def execute_mobile_gate_action(
     selected_option_ids: Sequence[str],
     *,
     feedback: str | None = None,
+    option_inputs: Mapping[str, object] | None = None,
 ) -> MobileGateActionResult:
     """Resolve any non-question mobile gate through the verified executor."""
     notification = _resolve_gate_notification(prefix)
@@ -70,6 +71,7 @@ def execute_mobile_gate_action(
             selected_option_ids,
             feedback=feedback,
             source="mobile",
+            option_inputs=option_inputs,
         )
     except GateError as exc:
         code = (
