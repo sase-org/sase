@@ -64,6 +64,7 @@ class FakeNavigationApp:
         self.changespecs = changespecs
         self.reloaded_changespecs = reloaded_changespecs
         self.current_tab = "agents"
+        self.current_artifacts_subtab = "commits"
         self.current_idx = 0
         self.canonical_query_string = "status:ready"
         self.query_string = "status:READY"
@@ -304,6 +305,7 @@ class TestNavigateToChangespecExactFirst:
             app, "feature", "/tmp/projects/proj/proj.sase"
         )
         assert app.current_tab == "changespecs"
+        assert app.current_artifacts_subtab == "prs"
         assert app.current_idx == 1
         assert app.load_count == 0
 
@@ -313,6 +315,8 @@ class TestNavigateToChangespecExactFirst:
         assert navigate_to_changespec_tab(
             app, "feature", "/tmp/projects/proj/proj.sase"
         )
+        assert app.current_tab == "changespecs"
+        assert app.current_artifacts_subtab == "prs"
         assert app.current_idx == 0
         assert app.load_count == 0
 
@@ -330,6 +334,8 @@ class TestNavigateToChangespecExactFirst:
                 app, "feature", "/tmp/projects/myproj/myproj.sase"
             )
 
+        assert app.current_tab == "changespecs"
+        assert app.current_artifacts_subtab == "prs"
         assert app.current_idx == 1
         assert app.load_count == 1
         assert app.save_count == 1

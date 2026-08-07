@@ -343,13 +343,9 @@ class ArtifactsNavigationActionsMixin:
             self._cancel_non_pr_artifacts_jump_mode()
 
     def _switch_artifacts_subtab(self, subtab: ArtifactsSubTab) -> None:
-        if self.current_tab != ARTIFACTS_TAB:
-            # Select while hidden so the top-level tab watcher activates only
-            # the requested pane (and does not briefly refresh PRs first).
-            self.current_artifacts_subtab = subtab
-            self.current_tab = ARTIFACTS_TAB
-            return
-        self.current_artifacts_subtab = subtab
+        from ..artifact_tabs import switch_to_artifacts_subtab
+
+        switch_to_artifacts_subtab(self, subtab)
 
     def _cycle_artifacts_subtab(self, step: int) -> None:
         if self.current_tab != ARTIFACTS_TAB:

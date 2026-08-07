@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...tab_order import ARTIFACTS_TAB
 from ._types import NavigationMixinBase
 
 
@@ -25,7 +26,14 @@ class NavigationModalMixin(NavigationMixinBase):
                 return
             self._jump_all_last_position = pre_jump_position
             self._save_current_tab_position()  # type: ignore[attr-defined]
-            self.current_tab = result.tab  # type: ignore[assignment]
+            if result.tab == ARTIFACTS_TAB:
+                # The modal only lists ChangeSpec entries under the
+                # Artifacts tab, so PRs is unconditionally the right pane.
+                from ...artifact_tabs import switch_to_artifacts_subtab
+
+                switch_to_artifacts_subtab(self, "prs")
+            else:
+                self.current_tab = result.tab  # type: ignore[assignment]
             self.current_idx = result.index
 
         self.push_screen(  # type: ignore[attr-defined]

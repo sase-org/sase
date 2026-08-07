@@ -191,8 +191,9 @@ def navigate_to_changespec_tab(
 
     from ....query import parse_query, to_canonical_string
     from ....query_history import push_to_prev_stack, save_query_history
+    from ...artifact_tabs import switch_to_artifacts_subtab
 
-    app.current_tab = "changespecs"  # type: ignore[attr-defined]
+    switch_to_artifacts_subtab(app, "prs")
 
     # Search in current filtered list
     changespecs = app.changespecs  # type: ignore[attr-defined]

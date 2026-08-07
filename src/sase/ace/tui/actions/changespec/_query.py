@@ -38,10 +38,19 @@ class ChangeSpecQueryMixin:
         Args:
             slot: The slot number ("0"-"9").
         """
-        # Switch to ChangeSpecs tab if not already there
-        if self.current_tab != "changespecs":
-            self._save_current_tab_position()  # type: ignore[attr-defined]
-            self.current_tab = "changespecs"  # type: ignore[assignment]
+        # Saved queries are shown on the Artifacts tab's PRs sub-tab, so land
+        # there even when called from another tab (e.g. an Agents keymap) or
+        # from the Artifacts tab on a non-PR sub-tab (e.g. Commits).
+        on_prs_pane = (
+            self.current_tab == "changespecs"
+            and getattr(self, "current_artifacts_subtab", "prs") == "prs"
+        )
+        if not on_prs_pane:
+            if self.current_tab != "changespecs":
+                self._save_current_tab_position()  # type: ignore[attr-defined]
+            from ...artifact_tabs import switch_to_artifacts_subtab
+
+            switch_to_artifacts_subtab(self, "prs")
 
         from ....query import parse_query, to_canonical_string
         from ....query_history import push_to_prev_stack, save_query_history
