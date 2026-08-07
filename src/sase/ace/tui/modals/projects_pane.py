@@ -42,8 +42,8 @@ from .project_management_rendering import (
     ProjectInventoryCounts,
     column_header_text,
 )
+from .project_inventory_pane_base import InventoryProjectFilterRequested
 from .project_inventory_panes import (
-    InventoryProjectFilterRequested,
     RepoInventoryPane,
     WorkspaceInventoryPane,
 )
