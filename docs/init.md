@@ -463,6 +463,17 @@ So the corrected workflow is: iterate with `--diff` / `--dry-run`, commit the te
 change to the sase repo, land it on the canonical branch, and deploy from that clean
 merged tree.
 
+Because of those guards, `--check` does not fail on chezmoi deploy drift it has no way
+to resolve. When generated skill files differ from their deployed chezmoi copies,
+`sase init skills --check` reports the pending count as a warning naming the post-land
+`sase init skills` rerun — plus the source-integrity reason when a dirty or unlanded
+tree would make the real deploy refuse — and drops those entries from its action list,
+so the check passes. This keeps an unrelated read-only check from either failing for
+drift only a land can clear or triggering a mutating deploy as a side effect. Writing
+plans (interactive onboarding and direct deploys) are unaffected, as is the deploy-side
+integrity refusal. `sase validate` surfaces these warnings in its own `Warnings:` block;
+see [`sase validate`](configuration.md#sase-validate).
+
 `--allow-dirty` overrides the source-integrity guard and `--force` overrides the
 manifest guard. Both are deliberate escape hatches that can revert other agents'
 deployments; reach for them only when you know the destination is stale. `--force` still

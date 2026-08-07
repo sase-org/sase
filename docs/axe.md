@@ -227,27 +227,46 @@ re-attacking the same contended lock 30 seconds later.
 
 Lower-frequency status checks:
 
-| Chop                    | Description                                    |
-| ----------------------- | ---------------------------------------------- |
-| `bead_task_triage`      | Raise one triage gate for each ready task bead |
-| `pr_submitted_checks`   | Start PR submission status checks              |
-| `stale_running_cleanup` | Backstop dead-process claim cleanup            |
+| Chop                    | Description                                        |
+| ----------------------- | -------------------------------------------------- |
+| `bead_task_triage`      | Reconcile the one pending gate each task bead owns |
+| `pr_submitted_checks`   | Start PR submission status checks                  |
+| `stale_running_cleanup` | Backstop dead-process claim cleanup                |
 
-`bead_task_triage` scans enabled non-home projects for task beads whose stored status is
-`ready`, creates one `TaskTriage` gate per bead, and stores the bead-to-request mapping
-in the checks lumberjack's state directory. This scan does not call the dependency-aware
-`sase bead ready` query, so a stored-ready task with an active blocker still receives a
-gate. A still-pending gate is skipped on later ticks, preventing repeated notifications.
-If a task leaves `ready` through a launch, close, or manual retraction, the chop cancels
-its pending gate. If a gate becomes terminal or its bundle disappears while the task
-remains `ready`, the next tick also replaces it. A persistent generation counter gives
-each replacement a new deterministic request ID, whether the task remained ready or left
-and became ready again.
+**A live task bead has at most one pending gate**, and `bead_task_triage` is the single
+owner of that invariant. It scans enabled non-home projects for task beads whose stored
+status is `ready` or `snoozed` and derives the gate kind from that status: a ready task
+gets a `TaskTriage` gate, a snoozed one gets a `BeadSnooze` gate. Both kinds are
+reconciled in the same pass, under one lock and one lane state, so no second chop can
+race this one into giving a bead two gates. The bead-to-request mapping — including
+which kind each bead currently holds — lives in the checks lumberjack's state directory.
+This scan does not call the dependency-aware `sase bead ready` query, so a stored-ready
+task with an active blocker still receives a gate.
 
-The gate presents the task title, description, and notes. **Launch** accepts optional
-feedback and submits a deduplicated global detached task for
-`sase bead work <task-id> --yes-to-all`; **Close** requires a reason and closes the bead
-as `canceled`. See
+A still-pending gate is skipped on later ticks, preventing repeated notifications. If a
+task leaves both gateable statuses through a launch, close, or manual retraction, the
+chop cancels its pending gate. If a gate becomes terminal or its bundle disappears while
+the task is still gateable, the next tick replaces it. A persistent generation counter
+gives each replacement a new deterministic request ID, whether the task kept its status
+or left and came back.
+
+Two things also force a replacement. A gate of the wrong kind for the bead's current
+status is canceled as `bead_status_changed` and replaced in the same tick — a bead that
+was snoozed while its triage gate was pending is asking a different question now, so
+that check outranks the presentation comparison below. Otherwise the chop compares a
+presentation fingerprint covering the bead's status and its whole snooze record; a
+mismatch cancels the gate as `task_triage_presentation_changed` and re-raises it, so a
+re-snooze never leaves a gate advertising the old wake time. While a `BeadSnooze` gate
+stays pending and unchanged, the chop also re-snoozes its notification to match the
+bead's wake time, keeping a snoozed bead's notification snoozed alongside it.
+
+The `TaskTriage` gate presents the task title, description, and notes, and offers three
+options. **Launch** (the primary branch) accepts optional feedback and submits a
+deduplicated global detached task for `sase bead work <task-id> --yes-to-all`; **Close**
+requires a reason and closes the bead as `canceled`; **Snooze (3d, 3d +2)** requires a
+duration and defers the task, moving it to `snoozed` so the next tick reconciles it into
+a `BeadSnooze` gate instead. That duration uses the same `"<duration> [+<N>]"`
+vocabulary as `sase bead snooze`. See
 [TaskTriage notifications](notifications.md#command-backed-interaction-gates) and the
 [standalone task workflow](beads.md#standalone-task-workflow) for the human-facing
 lifecycle.

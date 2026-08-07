@@ -186,11 +186,17 @@ The Config tab answers four questions for every field — what value is effectiv
   loaded/missing/invalid/read-only badges; the field tree is generated from the schema
   (`/` filters, `:` jumps to a dotted path, `m` shows only modified fields, `r`
   refreshes). In the tree, `j` / `k` move through visible rows and wrap at the ends,
-  while Down / Up use clamped navigation; the detail pane shows the type, default,
-  effective value, and the full provenance stack with the winning layer marked.
-  Structured values (object maps and arrays of objects, such as `ace.lumberjack` or
-  [`repos`](#repos)) render as a multi-line, syntax-highlighted YAML block instead of a
-  one-line JSON blob, while scalars and short flat lists keep their compact inline form.
+  while Down / Up use clamped navigation. `'` paints entry hints over the currently
+  visible rows, and a hint key moves the cursor exactly as `j` / `k` would, detail panel
+  and selection bookmark included. Hints label nodes in place, so entering and leaving
+  jump mode preserves whatever you collapsed; collapsed children are not hinted and
+  cannot be jumped to. Anything that rebuilds the tree — a filter change, `m`, `r`, or a
+  `:` path jump — cancels an active jump, and `'` stays typable while the filter or path
+  input holds focus. The detail pane shows the type, default, effective value, and the
+  full provenance stack with the winning layer marked. Structured values (object maps
+  and arrays of objects, such as `ace.lumberjack` or [`repos`](#repos)) render as a
+  multi-line, syntax-highlighted YAML block instead of a one-line JSON blob, while
+  scalars and short flat lists keep their compact inline form.
 - **Edit** (`↵` or `e` on a field): a typed editor is generated from the schema — a
   toggle for booleans, an option cycle for enums, validated inputs for numbers and
   strings, a line editor for string lists, and a raw-YAML escape hatch for complex
@@ -3643,6 +3649,13 @@ non-zero if any check fails. It deliberately leaves the machine-local Config pla
 bare `sase init --check` and `sase doctor`, so clean CI hosts do not need a synthetic
 machine identity. The command can still fail on user/home memory or skill deployment
 drift even when repository-local SDD validation passes.
+
+A check can pass and still have something to say. When a passing check prints its own
+`Warnings:` section — `sase init skills --check` deferring a chezmoi redeploy is the
+common case — `sase validate` collects those lines and reprints them under a single
+`Warnings:` block after the per-check status lines. The block is informational: it does
+not change the exit code, and it is separate from the stdout dump that a failing check
+still produces.
 
 ### `sase doctor`
 

@@ -269,6 +269,18 @@ never rendered — and a list longer than the shared render cap ends with a visi
 wrap-tolerant: prettier may fold a long commit sub-bullet onto continuation lines, and
 parsing joins those lines back into one logical bullet.
 
+SASE owns the header block; do not author it by hand. A bullet that deviates from the
+canonical form above is a validation error (`header-invalid`), not a style choice: a
+link-shaped section (`PLAN`, `PROMPT`, `PARENT`, `BEAD`) must be a bolded key followed
+by exactly one Markdown link and nothing else, and a list-shaped section (`AGENTS`,
+`ARTIFACTS`, `COMMITS`) must be a bare bolded key whose entries are indented bullets.
+The diagnostic names the offending path and the parser's reason, and it is reported
+identically at every validation surface — `sase plan validate`,
+`sase plan links validate`, `sase plan links refresh`, the plan approval gate, and
+`sase bead work`. At the archive boundary the header is validated against the source
+path _before_ anything is written, so a malformed block fails with the actionable
+diagnostic and leaves no partially written destination file behind.
+
 `BEAD`, `AGENTS`, and `COMMITS` are projections of durable state, never accumulators.
 `BEAD` comes from the plan's managed `bead_id` (or historical `bead`) frontmatter. It
 links when a hosted page URL can be formed and a readable bead store does not show the
@@ -485,8 +497,9 @@ root. Bare `sase plan links` defaults to `sase plan links list`. Validation no l
 checks that a plan has a paired prompt file or that a `PROMPT` bullet's target exists —
 prompts live in the agents-sidecar archive and are validated separately by
 `sase agent prompts validate`. `sase plan links validate` only checks a plan's own
-metadata and `PROMPT` bullet: frontmatter parses, `tier` is valid, `PARENT` resolves to
-a real plan file, and the `PROMPT` bullet (when present) uses the correct link kind and
+metadata and `PROMPT` bullet: frontmatter parses, `tier` is valid, the header block
+parses in its canonical form (`header-invalid` otherwise), `PARENT` resolves to a real
+plan file, and the `PROMPT` bullet (when present) uses the correct link kind and
 canonical placement; these are all errors unless explicitly allowlisted for legacy data.
 
 `sase plan links validate` hides warning-severity issues from its text output by default

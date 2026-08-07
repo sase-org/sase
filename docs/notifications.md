@@ -61,7 +61,10 @@ compact summary card instead of an empty pane.
 
 ### Tabs and Ordering
 
-The modal renders a compact tab strip above the list when more than one tab is present.
+The modal renders a compact tab strip above the list whenever there is at least one tab.
+It is hidden only at zero tabs, which is also when the list itself is replaced by the
+`No unread notifications` message — so the strip never pops in and out, and the list
+never shifts, as dismiss, mute, and snooze actions collapse the tabs down to one.
 **Every notification belongs to exactly one tab** — the Rust core decides which one by a
 fixed precedence, so the panel, the top-bar indicator, and the mobile snapshot always
 agree; see [Tags](#tags) below for that precedence in full. The tabs, in the panel's
@@ -80,6 +83,12 @@ display order:
 
 Each tab's icon resolves through the same chain as its color; see
 [Tab icons](#tab-icons) below.
+
+The strip reflows to fit its measured width rather than clipping. When the full-label
+render would overflow, inactive tabs shed their labels and are identified by icon and
+count alone, while the active tab keeps its name so the strip still says where you are.
+Every tab therefore stays visible and clickable at any modal width; the strip re-renders
+only when its width actually changes.
 
 A row with multiple tags therefore occupies exactly one tab, not one per tag; dismissing
 it removes the row from at most one tab's count.

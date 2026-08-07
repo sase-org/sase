@@ -129,6 +129,15 @@ larger session uses two characters for every target, beginning `00`, `01`, …, 
 and ending at the fixed `ZZ` capacity. The first character of a two-character hint keeps
 jump mode open; the second completes the jump. Hints remain case-sensitive.
 
+Outside the Artifacts panes above, a single shared implementation backs `'` everywhere
+it appears: each Admin Center working section (see
+[Global Keybindings](#global-keybindings)) and three modals — the notification options
+modal, the model picker, and the saved-group revival modal. In all of them, `'` back
+pops a bounded back stack rather than toggling a single saved target, and the footer
+advertises `back` only while that stack is non-empty. Changes that shift which row is
+where — refiltering the model picker, paging or deleting in the revival modal — drop the
+stale back-stack entries instead of leaving them pointing at a renamed row.
+
 ### Copy Mode in Commits, Beads, Plans, Chats, Other, and Bugs
 
 Press `%` on any non-PR Artifacts pane to open the context-aware **Copy as…** palette
@@ -335,6 +344,15 @@ Press `Enter` on a Commits entry to open its full message and syntax-highlighted
 The modal uses `j` / `k` for line scrolling, `Ctrl+D` / `Ctrl+U` for half pages, `g` /
 `G` for the ends, `y` to copy the full SHA, and `Esc` or `q` to close. When the current
 result contains multiple commits, `Ctrl+N` / `Ctrl+P` move through them with wraparound.
+
+The modal title carries a compact commit-time chip on its right — an absolute stamp plus
+a relative age, such as `Today 07:05:54 · 2h ago`. Today and yesterday show seconds;
+older commits show `HH:MM` after their day label. Times are the commit's author time in
+the configured local timezone. The chip is free on the Artifacts timeline, where the
+time is already known; opening a historical commit from the Agents tab recovers it from
+the VCS on demand, so it appears once that lookup lands. Commits made by SASE persist
+their author time in `commit_result.json` / `commit_results.json`, so later views need
+no lookup at all. A commit whose time cannot be resolved simply shows no chip.
 
 Press `p` in the commit modal to load the last structured `SASE_PLAN` footer tag and
 render its referenced local UTF-8 file as Markdown; press `p` again to return to the
@@ -3632,6 +3650,7 @@ ace:
       prev_view: "left_square_bracket"
       next_view: "right_square_bracket"
       select_view: "0"
+      jump_to_entry: "apostrophe"
       cycle_range: "f11"
       cycle_range_reverse: "shift+f11"
       custom_range: "c"
@@ -3650,12 +3669,15 @@ These keys dispatch only while the Admin Center Statistics pane is focused. They
 overlap app-level bindings without creating a global conflict, and the pane's hint bar
 always shows the effective keys. Press the configured `select_view` prefix and then
 `1`–`7` to select the matching numbered view; bare digits continue to switch the Admin
-Center's top-level tabs. The group control is visible and active only in Projects and
-XPrompts. On the XPrompts view, the focus key opens a filterable picker and the
-clear-focus key restores **All xprompts**. Project filtering cycles through **All
-projects** and the latest cached unfiltered ranking: the configured forward key moves
-toward the first ranked project, the reverse key moves toward the last, and both wrap.
-Either key clears an active project filter directly when its loaded result is empty.
+Center's top-level tabs. `jump_to_entry` arms that same numbered-view selection, which
+is how the Admin Center-wide `'` behaves on a pane that has no row cursor to jump
+between — the visible strip numbers serve as its hints. The group control is visible and
+active only in Projects and XPrompts. On the XPrompts view, the focus key opens a
+filterable picker and the clear-focus key restores **All xprompts**. Project filtering
+cycles through **All projects** and the latest cached unfiltered ranking: the configured
+forward key moves toward the first ranked project, the reverse key moves toward the
+last, and both wrap. Either key clears an active project filter directly when its loaded
+result is empty.
 
 ### Remapping Gate Modal Keys
 
