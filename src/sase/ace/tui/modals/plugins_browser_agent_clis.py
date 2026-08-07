@@ -30,6 +30,7 @@ from .plugins_browser_agent_clis_config import (
     AgentCliHistoryConfig,
     load_agent_cli_history_config as load_agent_cli_history_config,
 )
+from .pane_entry_jump import apply_jump_hint_prefix
 from .plugins_browser_constants import _SUBTAB_NAV_HINT
 from .plugins_browser_agent_clis_history import build_agent_cli_history_panel
 
@@ -61,6 +62,14 @@ class AgentCliBrowserMixin(AgentCliBrowserActionsMixin):
 
         def _update_static(self, selector: str, content: RenderableType) -> None: ...
 
+        def jump_hint_for(self, index: int) -> str | None: ...
+
+        @property
+        def jump_mode_active(self) -> bool: ...
+
+        @property
+        def jump_back_stack(self) -> list[int]: ...
+
     # -- inventory rendering -------------------------------------------------
 
     def _render_agent_clis(self) -> None:
@@ -74,10 +83,10 @@ class AgentCliBrowserMixin(AgentCliBrowserActionsMixin):
         if option_list is not None:
             self._agent_cli_selection_guard.clear()
             option_list.clear_options()
-            for status in self._agent_cli_statuses:
+            for index, status in enumerate(self._agent_cli_statuses):
                 option_list.add_option(
                     Option(
-                        self._agent_cli_row(status),
+                        self._agent_cli_row_label(index, status),
                         id=f"{_ITEM_PREFIX}{status.name}",
                     )
                 )
@@ -118,6 +127,42 @@ class AgentCliBrowserMixin(AgentCliBrowserActionsMixin):
             self._session_state.agent_clis.record(status.name, index)
         else:
             self._session_state.agent_clis.display(status.name, index)
+
+    def _repaint_agent_cli_options(self) -> None:
+        """Redraw the agent-CLI rows in place, preserving the highlight.
+
+        Used by the pane's jump adapter to paint (and unpaint) hint prefixes
+        without the full ``_render_agent_clis`` refresh, which would also
+        force a detail rebuild.
+        """
+        option_list = self._agent_cli_option_list()
+        if option_list is None:
+            return
+        highlighted = option_list.highlighted
+        self._agent_cli_selection_guard.clear()
+        option_list.clear_options()
+        for index, status in enumerate(self._agent_cli_statuses):
+            option_list.add_option(
+                Option(
+                    self._agent_cli_row_label(index, status),
+                    id=f"{_ITEM_PREFIX}{status.name}",
+                )
+            )
+        if not self._agent_cli_statuses or highlighted is None:
+            return
+        restored = min(highlighted, len(self._agent_cli_statuses) - 1)
+        self._agent_cli_selection_guard.prepare(
+            self._agent_cli_statuses[restored].name, restored
+        )
+        option_list.highlighted = restored
+
+    def _agent_cli_row_label(self, index: int, status: AgentCliStatus) -> Text:
+        """The row text for *status*, jump-hint decorated while hints are up."""
+        label = self._agent_cli_row(status)
+        hint = self.jump_hint_for(index)
+        if hint is None:
+            return label
+        return apply_jump_hint_prefix(label, hint)
 
     def _agent_cli_row(self, status: AgentCliStatus) -> Text:
         text = Text()
@@ -201,19 +246,24 @@ class AgentCliBrowserMixin(AgentCliBrowserActionsMixin):
         option_list.display = not show_status
 
     def _agent_cli_hints(self) -> str:
+        if self.jump_mode_active:
+            action = "back" if self.jump_back_stack else "first"
+            return f"JUMP ' {action} · esc cancel"
         offline = " (on)" if self._offline else " off"
         parts: list[str] = []
         mark_count = len(self._marked_agent_clis)
         if self._can_mark_agent_cli(self._current_agent_cli()):
             parts.append("space mark")
+        # ``u core+plugins`` gave up its slot here so ``' jump`` fits ahead of
+        # the sub-tab hint; the Core sub-tab still advertises that key.
         parts.extend(
             [
                 "A update",
-                "u core+plugins",
                 "a sync agents",
                 "r reload",
                 "ctrl+d/u scroll",
                 f"o{offline}",
+                "' jump",
                 _SUBTAB_NAV_HINT,
             ]
         )

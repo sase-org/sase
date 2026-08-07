@@ -29,6 +29,7 @@ from sase.updates.incoming_commits import IncomingCommits
 from sase.uv_tool.detect import NotUvToolInstall
 from sase.uv_tool.versions import CorePackageVersion, CoreVersions
 
+from .pane_entry_jump import apply_jump_hint_prefix
 from .plugins_browser_constants import (
     _BUILTIN_GROUP,
     _COMMUNITY_GROUP,
@@ -95,7 +96,14 @@ class PluginsBrowserRenderingMixin:
 
         def _update_static(self, selector: str, content: RenderableType) -> None: ...
 
+        def jump_hint_for(self, index: int) -> str | None: ...
+
+        def reset_jump_state(self, *, repaint: bool = False) -> None: ...
+
     def _render_all(self) -> None:
+        # A reload can add, drop, or reorder rows, so any painted hints and the
+        # back stack's indices are dropped before the rows are rebuilt below.
+        self.reset_jump_state()
         self._rebuild_groups()
         self._prune_stale_marked_install()
         self._update_static("#sase-core-versions", self._core_versions_panel())
@@ -200,14 +208,31 @@ class PluginsBrowserRenderingMixin:
     def _create_options(self) -> list[Option]:
         """Build OptionList items: disabled section headers + plugin rows."""
         options: list[Option] = []
+        row = 0
         for group, style, entries in self._grouped:
             header = Text(f"── {group} ──", style=style)
             options.append(Option(header, id=f"{_HEADER_PREFIX}{group}", disabled=True))
             for entry in entries:
                 options.append(
-                    Option(self._row_text(entry), id=f"{_ITEM_PREFIX}{entry.name}")
+                    Option(
+                        self._plugin_row_label(row, entry),
+                        id=f"{_ITEM_PREFIX}{entry.name}",
+                    )
                 )
+                row += 1
         return options
+
+    def _plugin_row_label(self, row: int, entry: PluginCatalogEntry) -> Text:
+        """The row text for *entry*, jump-hint decorated while hints are up.
+
+        *row* is the entry's position in the flat item list, which is the
+        logical index space the shared jump mixin allocates hints over.
+        """
+        label = self._row_text(entry)
+        hint = self.jump_hint_for(row)
+        if hint is None:
+            return label
+        return apply_jump_hint_prefix(label, hint)
 
     def _row_text(self, entry: PluginCatalogEntry) -> Text:
         """A single list row: mark + status glyph + name + version + update."""

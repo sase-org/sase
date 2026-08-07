@@ -45,6 +45,12 @@ class PluginsBrowserStatusMixin:
 
         def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool: ...
 
+        @property
+        def jump_mode_active(self) -> bool: ...
+
+        @property
+        def jump_back_stack(self) -> list[int]: ...
+
     def _all_up_to_date(self) -> bool:
         """Whether every update source has been checked and is current."""
         if not self._sase_up_to_date() or self._agent_cli_error is not None:
@@ -222,6 +228,9 @@ class PluginsBrowserStatusMixin:
         return ""
 
     def _hints(self) -> str:
+        if self.jump_mode_active:
+            action = "back" if self.jump_back_stack else "first"
+            return f"JUMP ' {action} · esc cancel"
         offline = " (on)" if self._offline else " off"
         verbose = " (on)" if self._verbose else " verb"
         parts: list[str] = []
@@ -234,7 +243,10 @@ class PluginsBrowserStatusMixin:
             parts.append("I/space mark")
         if self._can_update_sase():
             parts.append("u update core + plugins")
-        parts.append("A update agent CLIs")
+        # Wording is squeezed here: the browse-only variant of this line is
+        # exactly as wide as the pane, so ``' jump`` only fits alongside
+        # ``[ / ] sub-tab`` once the agent-CLI segment loses its verb.
+        parts.append("A upd CLIs")
         parts.append("a sync agents")
         if self._can_switch_mode():
             parts.append("m switch")
@@ -249,6 +261,7 @@ class PluginsBrowserStatusMixin:
                 f"o{offline}",
                 f"v{verbose}",
                 "/ filter",
+                "' jump",
                 _SUBTAB_NAV_HINT,
                 "Tab/Shift+Tab tab",
             ]

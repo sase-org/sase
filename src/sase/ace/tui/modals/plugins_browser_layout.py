@@ -70,6 +70,8 @@ class PluginsBrowserLayoutMixin(_MixinBase):
 
         def _start_load(self, *, force: bool) -> None: ...
 
+        def reset_jump_state(self, *, repaint: bool = False) -> None: ...
+
         def _status_message(self) -> str: ...
 
         def _summary_text(self) -> Text: ...
@@ -182,6 +184,7 @@ class PluginsBrowserLayoutMixin(_MixinBase):
         browse_only = {
             "next_option",
             "prev_option",
+            "jump_to_entry",
             "toggle_mark",
             "scroll_detail_down",
             "scroll_detail_up",
@@ -199,6 +202,9 @@ class PluginsBrowserLayoutMixin(_MixinBase):
             self._switch_to_subtab(cast(UpdatesSubTab, event.tab_id))
 
     def _switch_to_subtab(self, subtab: UpdatesSubTab) -> None:
+        # Each sub-tab owns its own row list, so hints painted on the outgoing
+        # one are repainted away and the back stack's indices are dropped.
+        self.reset_jump_state(repaint=True)
         self._active_subtab = subtab
         self._session_state.active_subtab = subtab
         if self._detail_debouncer is not None:

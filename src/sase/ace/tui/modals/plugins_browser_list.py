@@ -32,6 +32,12 @@ class PluginsBrowserList(OptionList):
         self._handle_detail_scroll_key(event)
 
     def _handle_detail_scroll_key(self, event: events.Key) -> bool:
+        pane = self._pane()
+        # ``g`` and ``G`` are ordinary hint characters while the pane paints
+        # jump hints, so the pane's jump handler gets them instead of the
+        # detail scroller.
+        if pane is not None and pane.jump_mode_active:
+            return False
         character = getattr(event, "character", None)
         if event.key in ("G", "shift+g") or character == "G":
             event.prevent_default()

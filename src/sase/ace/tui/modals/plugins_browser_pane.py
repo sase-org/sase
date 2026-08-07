@@ -60,6 +60,7 @@ from .plugins_browser_incoming import (
     load_incoming_commits_config,
 )
 from .plugins_browser_input import PluginsFilterInput
+from .plugins_browser_jump import PluginsBrowserJumpMixin
 from .plugins_browser_install import (
     InstallManyPreview,
     InstallPreview,
@@ -180,6 +181,7 @@ _monotonic = time.monotonic
 
 
 class PluginsBrowserPane(
+    PluginsBrowserJumpMixin,
     PluginsBrowserLayoutMixin,
     PluginsBrowserWorkersMixin,
     ComprehensiveUpdateActionsMixin,
@@ -224,6 +226,7 @@ class PluginsBrowserPane(
         ("o", "toggle_offline", "Offline"),
         ("v", "toggle_verbose", "Verbose"),
         ("slash", "focus_filter", "Filter"),
+        ("apostrophe", "jump_to_entry", "Jump"),
         ("escape", "clear_marks_or_close", "Close"),
     ]
 

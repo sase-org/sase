@@ -39,6 +39,8 @@ class PluginsBrowserControlsMixin:
 
         def _sync_state_visibility(self) -> None: ...
 
+        def reset_jump_state(self, *, repaint: bool = False) -> None: ...
+
     def focus_default(self) -> None:
         """Focus the active browser list, or the pane itself for Core."""
         option_list = self._active_option_list()
@@ -159,6 +161,9 @@ class PluginsBrowserControlsMixin:
         if event.input.id != "plugins-filter-input":
             return
         self._filter_text = event.value
+        # Filtering rewrites the row list, so drop hints and the back stack
+        # before the rebuild below repaints the rows.
+        self.reset_jump_state()
         self._rebuild_groups()
         self._rebuild_options()
         self._sync_state_visibility()
