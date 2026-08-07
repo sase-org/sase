@@ -293,7 +293,7 @@ fmt-py: _setup
 # Auto-format Markdown files
 fmt-md: _setup-prettier
     @printf "\n---------- Formatting Markdown with prettier... ----------\n"
-    {{ prettier_bin }} --write --prose-wrap=always --print-width=120 "**/*.md"
+    {{ prettier_bin }} --write "**/*.md"
 
 # Render generated Markdown blocks
 fmt-docs: _setup
@@ -321,7 +321,7 @@ fmt-py-check: _setup
 # Check Markdown formatting (CI mode)
 fmt-md-check: _setup-prettier
     @printf "\n---------- Checking Markdown formatting with prettier... ----------\n"
-    {{ prettier_bin }} --check --prose-wrap=always --print-width=120 "**/*.md"
+    {{ prettier_bin }} --check "**/*.md"
 
 # Fast parallel test run, no coverage (use test-cov to enforce coverage gate).
 # Excludes the slow and PNG visual snapshot suites; use test-visual for those.

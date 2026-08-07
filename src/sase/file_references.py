@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from sase.markdown_width import MARKDOWN_PRINT_WIDTH, prettier_markdown_argv
 from sase.output import (
     print_file_operation,
     print_status,
@@ -16,8 +17,10 @@ from sase.output import (
 
 # Prose wrap width used by the shared Markdown formatter for both saved
 # Markdown artifacts (plans, SDD files, generated skills, notifications) and
-# agent prompts.
-DEFAULT_MARKDOWN_WRAP_WIDTH = 120
+# agent prompts. Derived from the single width authority in
+# ``sase.markdown_width``; kept under this name because it reads naturally at
+# its call sites.
+DEFAULT_MARKDOWN_WRAP_WIDTH = MARKDOWN_PRINT_WIDTH
 
 # Pattern to match '@' followed by a file path
 # This captures paths like @/path/to/file.txt or @path/to/file
@@ -519,8 +522,9 @@ def format_with_prettier(
 ) -> str:
     """Format text with prettier if available.
 
-    Uses prettier with --prose-wrap=always to format the text as markdown,
-    wrapping prose at *print_width* columns (default ``DEFAULT_MARKDOWN_WRAP_WIDTH``).
+    Uses the shared ``prettier_markdown_argv()`` policy to format the text as
+    markdown with always-on prose wrapping, wrapping prose at *print_width*
+    columns (default ``DEFAULT_MARKDOWN_WRAP_WIDTH``).
     Falls back to returning the original text if prettier is disabled via
     ``SASE_DISABLE_PRETTIER``, is not installed, or fails.
 
@@ -535,12 +539,7 @@ def format_with_prettier(
 
     try:
         result = subprocess.run(
-            [
-                "prettier",
-                "--prose-wrap=always",
-                f"--print-width={print_width}",
-                "--parser=markdown",
-            ],
+            prettier_markdown_argv(print_width=print_width),
             input=text,
             capture_output=True,
             text=True,
@@ -580,10 +579,7 @@ def format_markdown_files_with_prettier(
     try:
         subprocess.run(
             [
-                "prettier",
-                "--prose-wrap=always",
-                f"--print-width={print_width}",
-                "--parser=markdown",
+                *prettier_markdown_argv(print_width=print_width),
                 "--write",
                 *(str(path) for path in selected),
             ],

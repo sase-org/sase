@@ -12,15 +12,11 @@ import jinja2
 import yaml  # type: ignore[import-untyped]
 
 from sase.main.init_plan import InitOperation
+from sase.markdown_width import prettier_markdown_argv
 from sase.mdtemplates import render_markdown_template
 from sase.xprompt.models import XPrompt
 
-_PRETTIER_FORMAT_ARGS = [
-    "prettier",
-    "--prose-wrap=always",
-    "--print-width=120",
-    "--parser=markdown",
-]
+
 # Skill planning runs inside ``sase doctor`` (config.init), which promises
 # bounded checks. A hung prettier shim must degrade to unformatted output.
 _PRETTIER_TIMEOUT_SECONDS = 10.0
@@ -170,9 +166,8 @@ def format_unique_skill_outputs_batch(outputs: Sequence[str]) -> list[str]:
 
         subprocess.run(
             [
-                _PRETTIER_FORMAT_ARGS[0],
+                *prettier_markdown_argv(),
                 "--write",
-                *_PRETTIER_FORMAT_ARGS[1:],
                 *(str(path) for path in paths),
             ],
             capture_output=True,

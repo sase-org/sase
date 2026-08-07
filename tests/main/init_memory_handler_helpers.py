@@ -11,6 +11,7 @@ import pytest
 from sase.main import init_memory_handler
 from sase.main.init_memory_handler import handle_init_memory_command, plan_init_memory
 from sase.main.init_plan import InitPlan
+from sase.markdown_width import prettier_markdown_argv
 
 
 SASE_MEMORY_HEADER = "# SASE = Structured Agentic Software Engineering"
@@ -18,12 +19,19 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def prettier_command() -> list[str]:
+    """Return an argv prefix invoking prettier with the shared Markdown flags.
+
+    Callers must not append their own width or prose-wrap flags: deriving them
+    from ``prettier_markdown_argv()`` is what keeps these checks honest when
+    the declared width changes.
+    """
+    flags = prettier_markdown_argv()[1:]
     prettier = shutil.which("prettier")
     if prettier is not None:
-        return [prettier]
+        return [prettier, *flags]
     local_prettier = _REPO_ROOT / "node_modules" / ".bin" / "prettier"
     if local_prettier.exists():
-        return [str(local_prettier)]
+        return [str(local_prettier), *flags]
     pytest.skip("prettier not installed")
 
 

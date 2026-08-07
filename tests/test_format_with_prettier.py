@@ -13,6 +13,7 @@ from sase.file_references import (
     format_markdown_files_with_prettier,
     format_with_prettier,
 )
+from sase.markdown_width import MARKDOWN_PRINT_WIDTH
 
 
 @pytest.fixture(autouse=True)
@@ -30,9 +31,9 @@ def _fake_run_capturing(captured: list[list[str]]) -> Any:
     return _run
 
 
-def test_format_with_prettier_default_uses_120() -> None:
-    """The default call wraps prose at DEFAULT_MARKDOWN_WRAP_WIDTH (120)."""
-    assert DEFAULT_MARKDOWN_WRAP_WIDTH == 120
+def test_format_with_prettier_default_uses_the_width_authority() -> None:
+    """The default call wraps prose at the single declared width."""
+    assert DEFAULT_MARKDOWN_WRAP_WIDTH == MARKDOWN_PRINT_WIDTH
 
     captured: list[list[str]] = []
     with (
@@ -45,12 +46,12 @@ def test_format_with_prettier_default_uses_120() -> None:
         format_with_prettier("some prose")
 
     assert captured, "prettier should have been invoked"
-    assert "--print-width=120" in captured[0]
+    assert f"--print-width={MARKDOWN_PRINT_WIDTH}" in captured[0]
     assert "--print-width=80" not in captured[0]
 
 
 def test_agent_prompt_formatter_uses_default_width() -> None:
-    """The named agent-prompt policy flows the default 120 columns through to prettier."""
+    """The named agent-prompt policy flows the declared width through to prettier."""
     captured: list[list[str]] = []
     with (
         patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
@@ -62,7 +63,7 @@ def test_agent_prompt_formatter_uses_default_width() -> None:
         format_agent_prompt_markdown("some prose")
 
     assert captured, "prettier should have been invoked"
-    assert "--print-width=120" in captured[0]
+    assert f"--print-width={MARKDOWN_PRINT_WIDTH}" in captured[0]
     assert "--print-width=80" not in captured[0]
 
 

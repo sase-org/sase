@@ -10,6 +10,7 @@ from typing import Any, Literal, cast
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.markdown_width import MARKDOWN_PRINT_WIDTH
 from sase.memory.paths import (
     CANONICAL_MEMORY_RELATIVE_ROOT,
     canonical_memory_reference,
@@ -31,7 +32,9 @@ _NON_EXTENSION_FRONTMATTER_KEYS = (
     _CANONICAL_FRONTMATTER_KEYS | _RETIRED_FRONTMATTER_KEYS
 )
 _YAML_WIDTH = 1_000_000
-_FRONTMATTER_WRAP_WIDTH = 120
+# Shaped deliberately to match what prettier would keep at the repo-wide prose
+# width, so wrapped `description:` frontmatter survives `fmt-md-check`.
+_FRONTMATTER_WRAP_WIDTH = MARKDOWN_PRINT_WIDTH
 
 
 @dataclass(frozen=True)

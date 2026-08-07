@@ -10,6 +10,7 @@ import pytest
 
 from sase.main import init_skills_handler
 from sase.main.init_skills_handler import handle_init_skills_command
+from sase.markdown_width import prettier_markdown_argv
 from sase.xprompt.models import XPrompt
 from tests.main.init_skills_handler_helpers import (
     make_args,
@@ -34,11 +35,8 @@ def test_handler_output_passes_prettier_check(
 
     result = subprocess.run(
         [
-            "prettier",
+            *prettier_markdown_argv(),
             "--check",
-            "--prose-wrap=always",
-            "--print-width=120",
-            "--parser=markdown",
         ],
         input=written.read_text(encoding="utf-8"),
         capture_output=True,

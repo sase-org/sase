@@ -57,8 +57,6 @@ linked_repos:
         [
             *prettier_command(),
             "--write",
-            "--prose-wrap=always",
-            "--print-width=120",
             *[str(path) for path in generated],
         ],
         capture_output=True,
@@ -103,8 +101,6 @@ def test_init_memory_generated_markdown_passes_prettier_check(
         [
             *prettier_command(),
             "--check",
-            "--prose-wrap=always",
-            "--print-width=120",
             *[str(path) for path in generated],
         ],
         capture_output=True,

@@ -5,7 +5,9 @@ from __future__ import annotations
 import re
 import unicodedata
 
-DEFAULT_PROSE_WRAP_WIDTH = 120
+from sase.markdown_width import MARKDOWN_PRINT_WIDTH
+
+DEFAULT_PROSE_WRAP_WIDTH = MARKDOWN_PRINT_WIDTH
 MIN_PROSE_WRAP_WIDTH = 20
 
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")

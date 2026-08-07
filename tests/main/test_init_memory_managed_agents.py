@@ -163,8 +163,6 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
         [
             *prettier_command(),
             "--check",
-            "--prose-wrap=always",
-            "--print-width=120",
             str(agents_path),
         ],
         capture_output=True,
@@ -215,8 +213,6 @@ def test_init_memory_managed_agents_wraps_long_memory_descriptions(
         [
             *prettier_command(),
             "--check",
-            "--prose-wrap=always",
-            "--print-width=120",
             str(agents_path),
         ],
         capture_output=True,

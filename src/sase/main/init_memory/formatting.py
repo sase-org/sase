@@ -5,7 +5,11 @@ from __future__ import annotations
 import re
 import textwrap
 
-_MARKDOWN_WRAP_WIDTH = 120
+from sase.markdown_width import MARKDOWN_PRINT_WIDTH
+
+# These generated shims are checked by prettier, so this hand-rolled wrapping
+# must stay a fixpoint of the repo-wide prose width.
+_MARKDOWN_WRAP_WIDTH = MARKDOWN_PRINT_WIDTH
 _FENCE_MARKERS = ("```", "~~~")
 _STANDALONE_STRONG_LABEL_RE = re.compile(r"^\*\*[^*].*?\*\*[ \t]*$")
 _INLINE_CODE_SPAN_RE = re.compile(r"`[^`\n]+`")

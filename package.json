@@ -3,5 +3,9 @@
   "private": true,
   "devDependencies": {
     "prettier": "3.8.1"
+  },
+  "prettier": {
+    "proseWrap": "always",
+    "printWidth": 120
   }
 }
