@@ -11,9 +11,11 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from fontTools.ttLib import TTFont
+import pytest
 
 from tests.ace.tui.visual.png_diff import render_svg_to_png
+
+TTFont = pytest.importorskip("fontTools.ttLib").TTFont
 
 FONTS_DIR = Path(__file__).with_name("fonts")
 
