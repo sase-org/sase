@@ -7,9 +7,12 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from sase.ace.tui.graphics.viewer import (
     ArtifactFileViewSpec,
     artifact_file_tmux_pane_exists,
+    artifact_file_viewer_module_command,
     close_artifact_file_tmux_pane,
     decorate_artifact_file_tmux_panes,
     is_tmux_session,
@@ -561,3 +564,29 @@ def test_tmux_pane_close_refuses_current_pane(monkeypatch) -> None:
     assert result.ok is False
     assert result.warning == "Refusing to close the current tmux pane"
     kill.assert_not_called()
+
+
+def test_tmux_pane_view_warns_instead_of_crashing_on_missing_path(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("TMUX", "/tmp/tmux")
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+
+    result = view_artifact_files_in_tmux_pane(
+        (ArtifactFileViewSpec(None, "image"),)  # type: ignore[arg-type]
+    )
+
+    assert result.ok is False
+    assert result.warnings[0].code == "missing_artifact_path"
+
+
+def test_artifact_file_viewer_module_command_raises_value_error_on_missing_path() -> (
+    None
+):
+    with pytest.raises(ValueError, match="requires a path"):
+        artifact_file_viewer_module_command(
+            (ArtifactFileViewSpec(None, "image"),)  # type: ignore[arg-type]
+        )

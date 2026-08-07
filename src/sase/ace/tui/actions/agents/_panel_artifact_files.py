@@ -11,6 +11,7 @@ from collections.abc import Callable
 from types import FrameType
 from typing import TYPE_CHECKING, Any
 
+from ...util.pump_tasks import spawn_pump_free_task
 from ._panel_types import (
     ARTIFACT_FILE_NOTIFY_PID_ENV,
     ARTIFACT_FILE_VIEWER_LAYOUT_CLASS,
@@ -495,6 +496,87 @@ class AgentPanelArtifactFileMixin:
         if result.warning is not None:
             self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
 
+    def _open_artifact_files_materializing(
+        self,
+        artifact_files: list[Any],
+        *,
+        zoom: bool,
+    ) -> None:
+        """Materialize byte-free rows off the UI thread, then open + focus.
+
+        ``spawn_pump_free_task`` closes the coroutine and returns ``None`` when
+        no event loop is running (narrow unit-test/fallback callers), so that
+        case runs the same materialize-then-open sequence synchronously
+        instead of silently dropping the open.
+        """
+        task = spawn_pump_free_task(
+            self,
+            self._materialize_and_open_artifact_files(artifact_files, zoom=zoom),
+            name="sase-agent-artifact-materialize",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._materialize_and_open_artifact_files_sync(artifact_files, zoom=zoom)
+
+    async def _materialize_and_open_artifact_files(
+        self,
+        artifact_files: list[Any],
+        *,
+        zoom: bool,
+    ) -> None:
+        from ...models.artifact_file_clipboard import (
+            materialize_artifact_file_entries as _materialize_artifact_file_entries,
+        )
+
+        try:
+            materialized = await asyncio.to_thread(
+                _materialize_artifact_file_entries, tuple(artifact_files)
+            )
+        except (OSError, RuntimeError) as exc:
+            self._finish_materialized_artifact_files_open(None, exc, zoom=zoom)
+            return
+        self._finish_materialized_artifact_files_open(
+            list(materialized), None, zoom=zoom
+        )
+
+    def _materialize_and_open_artifact_files_sync(
+        self,
+        artifact_files: list[Any],
+        *,
+        zoom: bool,
+    ) -> None:
+        from ...models.artifact_file_clipboard import (
+            materialize_artifact_file_entries as _materialize_artifact_file_entries,
+        )
+
+        try:
+            materialized = _materialize_artifact_file_entries(tuple(artifact_files))
+        except (OSError, RuntimeError) as exc:
+            self._finish_materialized_artifact_files_open(None, exc, zoom=zoom)
+            return
+        self._finish_materialized_artifact_files_open(
+            list(materialized), None, zoom=zoom
+        )
+
+    def _finish_materialized_artifact_files_open(
+        self,
+        materialized: list[Any] | None,
+        error: Exception | None,
+        *,
+        zoom: bool,
+    ) -> None:
+        try:
+            if error is not None:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Could not open artifact file: {error}",
+                    severity="warning",
+                )
+                return
+            assert materialized is not None
+            self._open_artifact_files(materialized, zoom=zoom)
+        finally:
+            self._focus_agent_list_after_artifact_modal()
+
     def _toggle_tracked_artifact_file_tmux_pane(self) -> bool:
         """Close a live tracked artifact-file pane, returning whether it closed."""
         from ...graphics import (
@@ -565,14 +647,22 @@ class AgentPanelArtifactFileMixin:
         from ...modals import ArtifactFileSelectionModal
 
         def _open_selected(selection: Any) -> None:
-            try:
-                selected_artifact_files, zoom = self._normalize_artifact_file_selection(
-                    selection
-                )
-                if selected_artifact_files:
-                    self._open_artifact_files(selected_artifact_files, zoom=zoom)
-            finally:
+            selected_artifact_files, zoom = self._normalize_artifact_file_selection(
+                selection
+            )
+            if not selected_artifact_files:
                 self._focus_agent_list_after_artifact_modal()
+                return
+            if all(
+                getattr(artifact_file, "path", None)
+                for artifact_file in selected_artifact_files
+            ):
+                try:
+                    self._open_artifact_files(selected_artifact_files, zoom=zoom)
+                finally:
+                    self._focus_agent_list_after_artifact_modal()
+                return
+            self._open_artifact_files_materializing(selected_artifact_files, zoom=zoom)
 
         if self._marked_agents:
             artifact_files, labels, marked_count = self._collect_marked_artifact_files()

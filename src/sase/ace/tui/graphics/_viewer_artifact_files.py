@@ -10,7 +10,15 @@ _MARKDOWN_SOURCE_SUFFIXES = frozenset({".md", ".markdown", ".mdown", ".mkd"})
 
 
 def artifact_file_view_spec(artifact_file: ArtifactFileLike) -> ArtifactFileViewSpec:
-    """Return the terminal-viewer spec for a registered artifact file."""
+    """Return the terminal-viewer spec for a registered artifact file.
+
+    Raises ``ValueError`` for a byte-free (VCS-only) row: callers must
+    materialize bytes before reaching this layer, so the returned spec's
+    ``path: str | Path`` contract is real rather than defensive noise.
+    """
+
+    if not artifact_file.path:
+        raise ValueError("artifact file requires a materialized path")
 
     spec = ArtifactFileViewSpec(
         artifact_file.path,

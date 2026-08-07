@@ -12,7 +12,7 @@ ArtifactViewMode = Literal["image", "markdown", "pdf", "text", "video"]
 class ArtifactFileLike(Protocol):
     """Minimal artifact shape consumed by the viewer."""
 
-    path: str
+    path: str | None
     kind: str
 
 

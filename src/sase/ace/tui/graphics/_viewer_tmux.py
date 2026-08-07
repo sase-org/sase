@@ -69,6 +69,12 @@ def view_artifact_files_in_tmux_pane(
     if not specs:
         warning = ArtifactFileViewerWarning("no_artifacts", "No artifacts to view")
         return viewer_result_from_warnings((warning,))
+    if any(not spec.path for spec in specs):
+        warning = ArtifactFileViewerWarning(
+            "missing_artifact_path",
+            "Artifact content is not available on disk",
+        )
+        return viewer_result_from_warnings((warning,))
     if not is_tmux_session():
         warning = ArtifactFileViewerWarning(
             "not_in_tmux",
@@ -301,6 +307,8 @@ def artifact_file_viewer_module_command(
         specs = (ArtifactFileViewSpec(artifacts, kind),)
     else:
         specs = tuple(artifacts)
+    if any(not spec.path for spec in specs):
+        raise ValueError("artifact view spec requires a path")
     command = [
         sys.executable,
         "-m",

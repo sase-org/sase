@@ -121,6 +121,33 @@ def _restore_artifact_file_viewer_cleanup_signal_handlers(
             continue
 
 
+def _missing_artifact_file_path_warning(
+    artifact: ArtifactFileLike,
+) -> ArtifactFileViewerWarning:
+    """Return a row-aware warning naming the label or VCS locator."""
+
+    vcs_repo = getattr(artifact, "vcs_repo", None)
+    vcs_sha = getattr(artifact, "vcs_sha", None)
+    vcs_relpath = getattr(artifact, "vcs_relpath", None)
+    if vcs_repo and vcs_sha and vcs_relpath:
+        locator = f"{vcs_repo}@{vcs_sha}:{vcs_relpath}"
+    else:
+        locator = str(getattr(artifact, "label", None) or "artifact")
+    return ArtifactFileViewerWarning(
+        "missing_artifact_path",
+        f"Artifact content is not available on disk: {locator}",
+    )
+
+
+def _first_missing_artifact_file_path_warning(
+    artifacts: Sequence[ArtifactFileLike],
+) -> ArtifactFileViewerWarning | None:
+    for artifact in artifacts:
+        if not artifact.path:
+            return _missing_artifact_file_path_warning(artifact)
+    return None
+
+
 def view_registered_artifact_file(
     artifact: ArtifactFileLike,
 ) -> ArtifactFileViewerResult:
@@ -134,8 +161,12 @@ def view_registered_artifact_files(
 ) -> ArtifactFileViewerResult:
     """Open one or more registered artifact files with the terminal page viewer."""
 
+    specs = tuple(artifacts)
+    missing = _first_missing_artifact_file_path_warning(specs)
+    if missing is not None:
+        return viewer_result_from_warnings((missing,))
     return view_artifact_files(
-        tuple(_artifact_file_view_spec(artifact) for artifact in artifacts)
+        tuple(_artifact_file_view_spec(artifact) for artifact in specs)
     )
 
 
@@ -156,8 +187,12 @@ def view_registered_artifact_files_in_tmux_pane(
 ) -> ArtifactFileViewerResult:
     """Open one or more registered artifact files in a tmux pane."""
 
+    specs = tuple(artifacts)
+    missing = _first_missing_artifact_file_path_warning(specs)
+    if missing is not None:
+        return viewer_result_from_warnings((missing,))
     return view_artifact_files_in_tmux_pane(
-        tuple(_artifact_file_view_spec(artifact) for artifact in artifacts),
+        tuple(_artifact_file_view_spec(artifact) for artifact in specs),
         zoom=zoom,
     )
 
@@ -180,6 +215,12 @@ def view_artifact_files(
     specs = tuple(artifacts)
     if not specs:
         warning = ArtifactFileViewerWarning("no_artifacts", "No artifacts to view")
+        return viewer_result_from_warnings((warning,))
+    if any(not spec.path for spec in specs):
+        warning = ArtifactFileViewerWarning(
+            "missing_artifact_path",
+            "Artifact content is not available on disk",
+        )
         return viewer_result_from_warnings((warning,))
     previous_handlers = _install_artifact_file_viewer_cleanup_signal_handlers()
     try:

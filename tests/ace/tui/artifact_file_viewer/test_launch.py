@@ -15,6 +15,8 @@ from sase.ace.tui.graphics.viewer import (
     ArtifactFileImageArea,
     ArtifactRenderResult,
     ArtifactFileViewSpec,
+    view_artifact_files,
+    view_registered_artifact_file,
     view_registered_artifact_files,
     view_registered_artifact_files_in_tmux_pane,
 )
@@ -22,10 +24,14 @@ from sase.ace.tui.graphics.viewer import (
 
 @dataclass(frozen=True)
 class _Artifact:
-    path: str
+    path: str | None
     kind: str
     source_path: str | None = None
     workspace_dir: str | None = None
+    label: str | None = None
+    vcs_repo: str | None = None
+    vcs_sha: str | None = None
+    vcs_relpath: str | None = None
 
 
 def test_artifact_file_view_spec_rerenders_markdown_pdf_source(
@@ -187,3 +193,29 @@ def test_normalized_markdown_pdf_reaches_renderer_with_image_area(
     assert render_calls == [
         (source, "markdown", tmp_path / "cache" / "artifact-0", image_area)
     ]
+
+
+def test_view_artifact_files_warns_instead_of_crashing_on_missing_path() -> None:
+    result = view_artifact_files((ArtifactFileViewSpec(None, "image"),))  # type: ignore[arg-type]
+
+    assert result.ok is False
+    assert result.warnings[0].code == "missing_artifact_path"
+
+
+def test_view_registered_artifact_file_warns_with_row_locator_for_byte_free_row() -> (
+    None
+):
+    row = _Artifact(
+        path=None,
+        kind="image",
+        label="chart.png",
+        vcs_repo="sase",
+        vcs_sha="deadbeef",
+        vcs_relpath="tests/chart.png",
+    )
+
+    result = view_registered_artifact_file(row)
+
+    assert result.ok is False
+    assert result.warnings[0].code == "missing_artifact_path"
+    assert "sase@deadbeef:tests/chart.png" in result.warnings[0].message
