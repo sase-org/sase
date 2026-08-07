@@ -227,6 +227,7 @@ The pane supports the full bead workflow:
 | `f`       | Edit the bead filter query                                                            |
 | `l` / `h` | Expand / collapse the selected epic                                                   |
 | `s`       | Cycle the selected bead's status using the type-aware sequence below                  |
+| `z`       | Snooze the selected task bead (or edit/cancel an existing snooze)                     |
 | `e`       | Edit the bead's valid fields                                                          |
 | `N`       | Append a note without replacing prior notes                                           |
 | `n`       | Create a task bead in the selected project                                            |
@@ -246,12 +247,21 @@ The default `s` status action is type-aware:
 ```
 task: open → ready → in_progress → closed → open
       claimed → ready
+      snoozed → ready
 other beads: open → in_progress → closed → open
 ```
 
 The `s` action changes persisted status only; moving a task from `ready` to `in_progress` does not itself launch a
 worker. Use `w`, the matching TaskTriage notification, or `sase bead work <task-id>` to launch the work. The editor
-shows only fields valid for the selected bead type, while dependencies remain read-only in the detail panel.
+shows only fields valid for the selected bead type, while dependencies remain read-only in the detail panel. `s` only
+cycles a task _out_ of `snoozed` (back to `ready`, canceling the snooze); entering `snoozed` needs `z`, since snoozing
+takes arguments (a wake time, and optionally a `+1` target and a reason) that a blind status cycle cannot supply.
+
+Press `z` on a task bead to open the snooze picker: presets for `4 hours`, `Tomorrow morning`, `3 days`, and `1 week`,
+plus a custom duration field accepting the same `"<duration> [+<N>]"` vocabulary as `sase bead snooze` (see
+[Snoozing a Task Bead](beads.md#snoozing-a-task-bead)) and an optional reason field. Pressing `z` on an already-snoozed
+task opens the same modal in re-snooze mode, showing the current wake time and offering a cancel-snooze choice. A
+snoozed row in the list shows the `snoozed` status glyph and a dim relative wake time.
 
 When that worker appears on the Agents tab, its bead badge points directly to the task, and its **SASE CONTEXT / BEAD**
 lane shows the task title and description, plus size when one is stored, without trying to resolve an epic plan.

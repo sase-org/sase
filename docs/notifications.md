@@ -43,21 +43,24 @@ marked protected notification is included in the batch.
 
 ### Tabs and Ordering
 
-The modal renders a compact tab strip above the list when more than one top-level filter is present. Muted notifications
-always move to `Muted`. A gate may declare `presentation.panel` to place its notification in a named panel tab; for
-non-muted rows, that declared panel takes precedence over the synthetic `HITL` and `Errors` routing. Remaining HITL
-actions and errors take precedence over ordinary tags. Non-muted, non-HITL, non-error notifications with multiple tags
-appear in each matching tag tab:
+The modal renders a compact tab strip above the list when more than one tab is present. **Every notification belongs to
+exactly one tab** — the Rust core decides which one by a fixed precedence, so the panel, the top-bar indicator, and the
+mobile snapshot always agree; see [Tags](#tags) below for that precedence in full. The tabs, in the panel's display
+order:
 
-| Tab       | Contents                                                                                                                         |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `HITL`    | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.    |
-| Panel     | Gates with `presentation.panel`, sorted alphabetically after `HITL`; built-in task triage gates use the `Beads` panel.           |
-| `Errors`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                  |
-| `General` | Untagged non-HITL, non-error, unmuted notifications.                                                                             |
-| `Done`    | Non-HITL, non-error notifications carrying the `done` tag, pinned before other custom tags.                                      |
-| Custom    | Other normalized notification tags, sorted alphabetically after `Done`; a multi-tagged row appears in each matching tab.         |
-| `Muted`   | Notifications the user has muted or snoozed. Mute dominates every other classification; a muted plan appears under `Muted` only. |
+| Tab       | Contents                                                                                                                                                              |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HITL`    | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.                                         |
+| Panel     | Gates with `presentation.panel`, sorted alphabetically after `HITL`; built-in task triage gates use the `Beads` panel, and a woken `BeadSnooze` gate lands there too. |
+| `Errors`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                                                       |
+| `General` | Untagged, unmuted notifications with no other classification.                                                                                                         |
+| `Done`    | Notifications carrying the `done` tag, pinned before other custom tags.                                                                                               |
+| Custom    | Other normalized notification tags, sorted alphabetically after `Done`.                                                                                               |
+| `Snoozed` | Muted notifications with a future wake time — snoozed notifications and notifications for snoozed task beads alike.                                                   |
+| `Muted`   | Muted notifications with no wake time.                                                                                                                                |
+
+A row with multiple tags therefore occupies exactly one tab, not one per tag; dismissing it removes the row from at most
+one tab's count.
 
 Within the active tab, rows are ordered newest-first by their **activity time** — `resurfaced_at` when a snooze has
 expired, otherwise `timestamp` (see [Activity Ordering](#activity-ordering)). Rows with equal activity times keep their
@@ -82,14 +85,16 @@ targets and cancels any pending snoozes.
 
 Press `M` on a notification to toggle its muted state, or on marked rows to toggle the whole marked set. Muted
 notifications are dimmed in the list, prefixed with `~`, and moved to the `Muted` tab. They are still delivered to the
-JSONL store and remain visible in the modal — only the top-bar indicator, toast pipeline, and arrival bell ignore them.
+JSONL store, remain visible in the modal, and get their own counted chip in the top-bar indicator — only the toast
+pipeline and arrival bell ignore them.
 
 Press `s` to snooze a notification, or marked rows, for `15m`, `1h`, `4h`, or until tomorrow morning. A marked snooze
-computes one deadline and applies it to every target. Snoozed notifications are implicitly muted (so they fall into the
-`Muted` tab) and display a `⏰ <remaining>` badge counting down to the snooze expiry. Toggling mute off cancels any
-pending snooze. The snooze deadline is persisted as a canonical UTC instant, so the notification re-emerges from `Muted`
-on its own once the deadline passes — see [Snooze Expiry and Resurfacing](#snooze-expiry-and-resurfacing) for the exact
-state transitions, timing guarantee, and recovery behavior.
+computes one deadline and applies it to every target. Snoozed notifications are implicitly muted, but a future wake time
+routes them to the `Snoozed` tab rather than `Muted` (see [Tabs and Ordering](#tabs-and-ordering)), and they display a
+`⏰ <remaining>` badge counting down to the snooze expiry. Toggling mute off cancels any pending snooze. The snooze
+deadline is persisted as a canonical UTC instant, so the notification re-emerges from `Snoozed` on its own once the
+deadline passes — see [Snooze Expiry and Resurfacing](#snooze-expiry-and-resurfacing) for the exact state transitions,
+timing guarantee, and recovery behavior.
 
 ### Snooze Expiry and Resurfacing
 
@@ -171,16 +176,26 @@ expire due rows under the store lock before projecting rows, counts, `expired_id
 
 ### Top-Bar Indicator
 
-The notification indicator in the TUI top bar takes its color from the highest-priority unread bucket present:
+The notification indicator in the TUI top bar renders one colored count per notification-panel tab (see
+[Tabs and Ordering](#tabs-and-ordering)), in the panel's own left-to-right order, so the badge and the panel always
+agree on what each count means:
 
-- **Orange** — at least one unread unmuted priority or error notification (plan approval, task triage, launch approval,
-  user question, mentor review, axe error digest, agent error report, ...)
-- **Gold** — only regular unmuted notifications are unread
-- **Cyan** — only muted or snoozed notifications are unread
-- **Dim zero** — no unread notifications at all
+- **Nothing pending** — a dim `✉ 0`.
+- **Snoozed only** — `✉ 4z`: the count and the trailing `z` both render in the Snoozed tab's resolved color at a dimmer
+  weight than an actionable count. This is the only case a suffix letter appears.
+- **Anything else** — `✉` followed by one chip per visible tab, each the tab's count in its own resolved color at full
+  weight, joined by a dim `·` separator, for example `✉ 2·3·1`. As soon as any non-snoozed tab has a count, the Snoozed
+  chip drops out of the badge entirely — it does not compete for the limited chip budget — but the snoozed count still
+  appears in the tooltip.
+- **Overflow** — at most [`ace.notification_indicator_max_counts`](configuration.md#acenotification_tabs) chips (4 by
+  default), taken in panel order; any remaining tabs collapse into one trailing dim `+K` chip. Every suppressed tab is
+  still described in the tooltip.
 
-When muted unread notifications coexist with orange or gold actionable rows, the badge keeps the actionable count and
-adds a trailing dot; the tooltip shows the exact priority/other/muted breakdown.
+Hovering the indicator opens a tooltip briefing: a header count of unread rows (snoozed and muted rows are informational
+and excluded from that header count) followed by one line per tab showing its count, its oldest unread activity
+(`oldest 14m ago`) or, for the Snoozed tab, when it next wakes (`next wakes in 43m`). Tab labels in the tooltip are
+colored the same as their indicator chip, so the tooltip doubles as a legend. See [Tab colors](#tab-colors) for how each
+tab's color is resolved.
 
 Silent notifications never contribute to the indicator (see [Silent Notifications](#silent-notifications) below).
 
@@ -199,35 +214,65 @@ snoozed tale or epic review.
 
 The following events generate notifications:
 
-| Sender                         | Event                                                          |
-| ------------------------------ | -------------------------------------------------------------- |
-| `plan` / `epic`                | A tale or epic plan is ready for user review and approval      |
-| `bead`                         | A task bead marked `ready` needs a launch/close choice         |
-| `launch`                       | A running agent requested a new agent launch for approval      |
-| `question`                     | An agent is asking the user a question (via `/sase_questions`) |
-| `hitl`                         | A workflow HITL step is waiting for user input                 |
-| `memory.proposed`              | A long-term memory proposal is ready for human review          |
-| `sync`                         | A sync operation completed for a ChangeSpec                    |
-| `axe`                          | Hourly error digest summarizing recent axe errors              |
-| `file-hooks`                   | A configured per-file hook completed or failed                 |
-| `mentors`                      | All mentors finished for a ChangeSpec entry (or none matched)  |
-| Workflow-specific sender label | Workflow completion (success or failure)                       |
+| Sender                         | Event                                                                                           |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `plan` / `epic`                | A tale or epic plan is ready for user review and approval                                       |
+| `bead`                         | A task bead marked `ready` needs a launch/close/snooze choice, or a snoozed task bead has woken |
+| `launch`                       | A running agent requested a new agent launch for approval                                       |
+| `question`                     | An agent is asking the user a question (via `/sase_questions`)                                  |
+| `hitl`                         | A workflow HITL step is waiting for user input                                                  |
+| `memory.proposed`              | A long-term memory proposal is ready for human review                                           |
+| `sync`                         | A sync operation completed for a ChangeSpec                                                     |
+| `axe`                          | Hourly error digest summarizing recent axe errors                                               |
+| `file-hooks`                   | A configured per-file hook completed or failed                                                  |
+| `mentors`                      | All mentors finished for a ChangeSpec entry (or none matched)                                   |
+| Workflow-specific sender label | Workflow completion (success or failure)                                                        |
 
 ### Task Triage Notification
 
 The five-minute `bead_task_triage` chop creates one human-only `TaskTriage` gate for each ready task bead. Its compact
 notification note is `<bead-id> — <title>` and it lands in the `Beads` panel while retaining the `bead` and `task` tags.
 The filing agent, when known, appears as a **Filed by** line in the Markdown preview above the task's description and
-notes. The gate offers two branches:
+notes. The gate offers three branches:
 
 - **Launch** is the default. It submits a detached background task that runs `sase bead work <task-id> --yes-to-all`;
   optional feedback is appended to the worker prompt.
 - **Close** requires feedback and closes the bead with that reason and `resolution=canceled`.
+- **Snooze** requires feedback carrying a wake time in the compact `"<duration> [+<N>]"` form (for example `3d` or
+  `3d +2`), the same vocabulary as [`sase bead snooze`](beads.md#snoozing-a-task-bead). It defers the bead — the triage
+  gate settles and a `BeadSnooze` wake gate takes its place once the reconciler's next tick runs; see
+  [Snoozed Task Notification](#snoozed-task-notification) below.
 
-The gate cannot be resolved automatically. While it remains pending, the chop suppresses duplicates; if the bead leaves
-`ready` out of band, the chop cancels the stale gate. If the gate becomes terminal, disappears, or uses an obsolete
-presentation contract while the bead is still `ready`, the next five-minute scan creates a replacement with a new
+The gate cannot be resolved automatically. While one of `TaskTriage`/`BeadSnooze` remains pending for a bead, the chop
+that owns both kinds (`bead_task_triage`) suppresses duplicates and keeps the two mutually exclusive — a task bead never
+holds both at once. If the bead's status changes out of band (leaves `ready`, gets snoozed, or wakes), the chop cancels
+the gate of the wrong kind and creates the right one on its next tick. If a gate becomes terminal, disappears, or uses
+an obsolete presentation contract while still expected, the next five-minute scan creates a replacement with a new
 generation-specific request ID.
+
+### Snoozed Task Notification
+
+A snoozed task bead's `BeadSnooze` gate is born already snoozed: the reconciler creates it with
+`presentation.panel: "beads"` and `presentation.snooze_until` set to the bead's wake time, so the notification is muted
+with that deadline in one atomic step — there is no window where it appears unread. It sits in the `Snoozed` tab for the
+whole deferral (see [Tabs and Ordering](#tabs-and-ordering)) and resurfaces in the `Beads` panel tab, unmuted, exactly
+like any other snooze expiry once its wake time arrives. The preview shows who snoozed the bead, when, why, the wake
+time, and `+1` progress toward any configured target.
+
+The gate offers three branches:
+
+- **Close** is the default. Empty feedback closes the bead with a preset reason
+  (`"Snoozed until <until> with no new evidence; closing as stale."`); any feedback text replaces that reason verbatim.
+  Resolution is `canceled`.
+- **Ready** returns the bead to `ready` with a preset note, and the ordinary `TaskTriage` gate takes over on the
+  reconciler's next tick.
+- **Snooze** requires feedback in the same `"<duration> [+<N>]"` form as the triage gate's snooze option and re-snoozes
+  the bead with a new wake time (and optional new `+1` target); an unparsable value fails the option and leaves the gate
+  pending rather than losing the bead.
+
+Reaching a configured `+1` target wakes the bead independently of the wake-time gate: the bead promotes straight to
+`ready` with a preset note, and the pending `BeadSnooze` gate is canceled in favor of a fresh `TaskTriage` gate. The two
+wake conditions race; whichever is reached first wins.
 
 ### Agent Completion Attachments
 
@@ -362,23 +407,23 @@ this build does not recognize produces an "Unsupported notification action" warn
 
 Each notification contains:
 
-| Field           | Type         | Description                                                                                                                                                                   |
-| --------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`            | string       | UUID4 unique identifier                                                                                                                                                       |
-| `timestamp`     | string       | ISO-8601 creation timestamp; immutable, and never rewritten by a snooze or resurface                                                                                          |
-| `sender`        | string       | Source identifier (e.g., "plan", "sync", "axe")                                                                                                                               |
-| `icon`          | string\|null | Optional single emoji or display glyph                                                                                                                                        |
-| `notes`         | list[string] | Human-readable message lines                                                                                                                                                  |
-| `files`         | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                                          |
-| `tags`          | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                                       |
-| `action`        | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `TaskTriage`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational |
-| `action_data`   | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`                                                                         |
-| `read`          | bool         | Whether the notification has been read                                                                                                                                        |
-| `dismissed`     | bool         | Whether the notification has been dismissed                                                                                                                                   |
-| `silent`        | bool         | Silent notifications are stored but hidden from the TUI                                                                                                                       |
-| `muted`         | bool         | Muted notifications appear under `Muted` and are excluded from the indicator, arrival bell, and toasts                                                                        |
-| `snooze_until`  | string\|null | Canonical UTC RFC-3339 instant at which a snoozed notification automatically un-mutes; `null` once expired or cancelled                                                       |
-| `resurfaced_at` | string\|null | UTC instant stamped when a snooze expired; drives activity ordering and delivery cursors. `null` for rows that never resurfaced                                               |
+| Field           | Type         | Description                                                                                                                                                                                                         |
+| --------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`            | string       | UUID4 unique identifier                                                                                                                                                                                             |
+| `timestamp`     | string       | ISO-8601 creation timestamp; immutable, and never rewritten by a snooze or resurface                                                                                                                                |
+| `sender`        | string       | Source identifier (e.g., "plan", "sync", "axe")                                                                                                                                                                     |
+| `icon`          | string\|null | Optional single emoji or display glyph                                                                                                                                                                              |
+| `notes`         | list[string] | Human-readable message lines                                                                                                                                                                                        |
+| `files`         | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                                                                                |
+| `tags`          | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                                                                             |
+| `action`        | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `TaskTriage`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational                                       |
+| `action_data`   | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`                                                                                                               |
+| `read`          | bool         | Whether the notification has been read                                                                                                                                                                              |
+| `dismissed`     | bool         | Whether the notification has been dismissed                                                                                                                                                                         |
+| `silent`        | bool         | Silent notifications are stored but hidden from the TUI                                                                                                                                                             |
+| `muted`         | bool         | Muted notifications appear under `Muted` (or `Snoozed`, with a wake time set) and are excluded from the arrival bell and toasts; the indicator counts them separately (see [Top-Bar Indicator](#top-bar-indicator)) |
+| `snooze_until`  | string\|null | Canonical UTC RFC-3339 instant at which a snoozed notification automatically un-mutes; `null` once expired or cancelled                                                                                             |
+| `resurfaced_at` | string\|null | UTC instant stamped when a snooze expired; drives activity ordering and delivery cursors. `null` for rows that never resurfaced                                                                                     |
 
 ## Silent Notifications
 

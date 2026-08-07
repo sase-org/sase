@@ -16,6 +16,7 @@ an epic DAG.
   - [Status Lifecycle](#status-lifecycle)
   - [Bead Claim Lifecycle](#bead-claim-lifecycle)
   - [Standalone Task Workflow](#standalone-task-workflow)
+  - [Snoozing a Task Bead](#snoozing-a-task-bead)
   - [Task Corroboration (+1)](#task-corroboration-1)
   - [Close History](#close-history)
   - [Dependencies](#dependencies)
@@ -135,6 +136,7 @@ sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.m
 | `open`        | `○`  | Not started; for task beads, still a draft that is not offered for triage |
 | `claimed`     | `◎`  | Reserved by a live agent that has not started work                        |
 | `ready`       | `◇`  | Task bead explicitly offered for triage; invalid for plan and phase beads |
+| `snoozed`     | `◈`  | Task bead deferred to a wake time (or +1 target); invalid for plan/phase  |
 | `in_progress` | `◐`  | Being worked on, or preassigned by an epic/task launch checkpoint         |
 | `closed`      | `✓`  | Completed, canceled, or superseded                                        |
 
@@ -146,7 +148,10 @@ those descendants deliberately first; `update --status=closed` never cascades. `
 and every closed ancestor above it, archiving their resolution, close reason, and close timestamp into
 [close history](#close-history) instead of discarding them, so a closed parent never sits above reopened work but the
 reason it was closed is not lost either. `claimed` is machine-managed by the agent runner (see
-[Bead Claim Lifecycle](#bead-claim-lifecycle)); do not set it by hand.
+[Bead Claim Lifecycle](#bead-claim-lifecycle)); do not set it by hand. `snoozed` cannot be set through `update --status`
+either — snoozing requires a wake time, so `sase bead update -s snoozed` is refused with a pointer to
+`sase bead snooze`, the same way `update --status=closed` points at `sase bead close`. See
+[Snoozing a Task Bead](#snoozing-a-task-bead) for the full workflow.
 
 Every new close records a typed `resolution`: `done`, `canceled`, or `superseded`. Normal closes default to `done`;
 `close_reason` remains optional free text for the human explanation. Closing an already-closed bead is a verified no-op:
@@ -280,6 +285,41 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    `@xsmall_phase_worker`, `@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, or
    `@xlarge_phase_worker` alias; a legacy task without size metadata uses `@small_phase_worker`. As with epic phases,
    `large` and `xlarge` task prompts add `#plan`, while smaller tasks implement directly.
+
+### Snoozing a Task Bead
+
+An `open` or `ready` task bead can be deferred instead of triaged immediately:
+
+```bash
+sase bead snooze <task-id> -u 3d
+sase bead snooze <task-id> -u 2h -r "waiting on the upstream fix"
+sase bead snooze <task-id> -u 7d -p 2
+sase bead snooze <task-id> --cancel
+```
+
+`-u/--until` (a duration such as `30m`, `2h`, `1h30m`, `3d`, or an absolute ISO-8601 timestamp) is required unless
+`--cancel` is given; a non-positive duration or a past absolute time is rejected. `-p/--plus-ones` adds a second wake
+condition: the bead also wakes when that many **additional** `+1` reports arrive, whichever wake condition is reached
+first. `-r/--reason` is optional free text. `--cancel` returns the bead to `ready` immediately and clears the snooze
+record; the same happens automatically once a wake condition fires.
+
+Snoozing always snoozes the bead's own notification in the same step — there is no separate scheduler, and the bead's
+row stays visible in the notification panel's `Snoozed` tab (see [Tabs and Ordering](notifications.md#tabs-and-ordering)
+in the notifications doc) for the whole deferral. When the wake time arrives, the notification resurfaces as a
+`BeadSnooze` gate with three options: **Close** (primary; empty feedback uses a preset "stale, no new evidence" reason,
+any feedback text replaces it), **Ready** (returns the bead to `ready`, where the ordinary `TaskTriage` gate takes
+over), and **Snooze** (re-snoozes with a new duration, using the same `"<duration> [+<N>]"` vocabulary as the `-u`/`-p`
+flags combined into one feedback field). Reaching the `+1` target instead of the wake time promotes the bead straight to
+`ready` with a preset note (`"Reopened by +1 threshold: ..."`) and cancels the pending `BeadSnooze` gate in favor of a
+fresh `TaskTriage` gate — the two gate kinds are mutually exclusive, and a task bead never holds more than one pending
+gate at a time.
+
+A ready task can also be snoozed directly from its `TaskTriage` gate's **Snooze** option, without a separate CLI call —
+the most common time to defer a task is exactly when the triage gate is already in front of you.
+
+`status:snoozed` and `-status:snoozed` work as query and filter tokens like any other status. The default bead-list
+filter (`-status:closed`) does **not** hide snoozed beads: a snoozed task is still live work the user chose to defer,
+not a black hole. `sase bead list --status snoozed` / `sase bead search --status snoozed` filter to just those beads.
 
 ### Task Corroboration (+1)
 
@@ -774,18 +814,18 @@ Tree output marks graph states explicitly:
 `dep rm` removes one or more existing dependency edges from `<issue>` in one all-or-nothing mutation. The command
 records `dependency_removed` events and then reports whether the source bead is ready or still blocked.
 
-| Subcommand | Flag              | Values                                              | Description                                      |
-| ---------- | ----------------- | --------------------------------------------------- | ------------------------------------------------ |
-| `list`     | `-c, --color`     | `auto`, `always`, `never`                           | Color mode for text output                       |
-| `list`     | `-d, --direction` | `both`, `in`, `out`                                 | Edges to show; defaults to `both`                |
-| `list`     | `-f, --format`    | `compact`, `full`, `json`                           | Output format; defaults to `compact`             |
-| `list`     | `-n, --limit`     | non-negative integer                                | Maximum root beads to print; `0` means unlimited |
-| `list`     | `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | Filter by endpoint/status root (repeatable)      |
-| `tree`     | `-c, --color`     | `auto`, `always`, `never`                           | Color mode for text output                       |
-| `tree`     | `-d, --direction` | `both`, `in`, `out`                                 | Direction to walk; defaults to `out`             |
-| `tree`     | `-f, --format`    | `compact`, `full`, `json`                           | Output format; defaults to `compact`             |
-| `tree`     | `-L, --levels`    | non-negative integer                                | Maximum levels to descend; `0` means unlimited   |
-| `tree`     | `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | Filter by bead status (repeatable)               |
+| Subcommand | Flag              | Values                                                         | Description                                      |
+| ---------- | ----------------- | -------------------------------------------------------------- | ------------------------------------------------ |
+| `list`     | `-c, --color`     | `auto`, `always`, `never`                                      | Color mode for text output                       |
+| `list`     | `-d, --direction` | `both`, `in`, `out`                                            | Edges to show; defaults to `both`                |
+| `list`     | `-f, --format`    | `compact`, `full`, `json`                                      | Output format; defaults to `compact`             |
+| `list`     | `-n, --limit`     | non-negative integer                                           | Maximum root beads to print; `0` means unlimited |
+| `list`     | `-s, --status`    | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by endpoint/status root (repeatable)      |
+| `tree`     | `-c, --color`     | `auto`, `always`, `never`                                      | Color mode for text output                       |
+| `tree`     | `-d, --direction` | `both`, `in`, `out`                                            | Direction to walk; defaults to `out`             |
+| `tree`     | `-f, --format`    | `compact`, `full`, `json`                                      | Output format; defaults to `compact`             |
+| `tree`     | `-L, --levels`    | non-negative integer                                           | Maximum levels to descend; `0` means unlimited   |
+| `tree`     | `-s, --status`    | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by bead status (repeatable)               |
 
 ### `sase bead ref`
 
@@ -895,8 +935,9 @@ top-level bead is minted. Use `sase bead doctor --fix-issue-prefix` to repair on
 ### `sase bead list`
 
 List issues with optional filtering. Without `--status`, the command lists `open`, `claimed`, `ready`, and `in_progress`
-issues; pass `--status=closed` when you need closed history. When the default active query is empty and no explicit
-`--status` was given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
+issues — `snoozed` beads are not included in that default and need an explicit `--status snoozed`; pass
+`--status=closed` when you need closed history. When the default active query is empty and no explicit `--status` was
+given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
 
 Compact rows lead with an aligned, colored type indicator ahead of the existing status glyph:
 
@@ -920,14 +961,14 @@ this column; it remains visible through `--tier`, `--format full`, and `--format
 | `phase` | `↳`  | Sized executable child within an epic/plan bead      |
 | `task`  | `◆`  | Independent work item; new tasks require a size      |
 
-| Flag           | Values                                              | Description                                                                           |
-| -------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never`                           | Color mode for compact output                                                         |
-| `-f, --format` | `compact`, `json`, `full`                           | Output format; defaults to `compact`                                                  |
-| `-n, --limit`  | integer                                             | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
-| `-s, --status` | `open`, `claimed`, `ready`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
-| `--tier`       | `plan`, `epic`                                      | Filter by plan-bead tier                                                              |
-| `-t, --type`   | `plan`, `phase`, `task`                             | Filter by type (repeatable)                                                           |
+| Flag           | Values                                                         | Description                                                                           |
+| -------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never`                                      | Color mode for compact output                                                         |
+| `-f, --format` | `compact`, `json`, `full`                                      | Output format; defaults to `compact`                                                  |
+| `-n, --limit`  | integer                                                        | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
+| `-s, --status` | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
+| `--tier`       | `plan`, `epic`                                                 | Filter by plan-bead tier                                                              |
+| `-t, --type`   | `plan`, `phase`, `task`                                        | Filter by type (repeatable)                                                           |
 
 Active (`open`/`claimed`/`ready`/`in_progress`) listings are unlimited by default. Whenever the final status scope
 includes `closed` and `--limit` is omitted, only the newest 20 beads print; pass `--limit 0` for the full closed
@@ -989,14 +1030,14 @@ sase bead search auth --status open --type phase
 sase bead search auth --type plan --tier epic
 ```
 
-| Flag           | Values                                              | Description                                     |
-| -------------- | --------------------------------------------------- | ----------------------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never`                           | Color mode for compact output                   |
-| `-f, --format` | `compact`, `json`, `full`                           | Output format; defaults to `compact`            |
-| `-n, --limit`  | non-negative integer                                | Maximum results; omitted or `0` means unlimited |
-| `-s, --status` | `open`, `claimed`, `ready`, `in_progress`, `closed` | Filter by status (repeatable)                   |
-| `--tier`       | `plan`, `epic`                                      | Filter by plan-bead tier (repeatable)           |
-| `-t, --type`   | `plan`, `phase`, `task`                             | Filter by type (repeatable)                     |
+| Flag           | Values                                                         | Description                                     |
+| -------------- | -------------------------------------------------------------- | ----------------------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never`                                      | Color mode for compact output                   |
+| `-f, --format` | `compact`, `json`, `full`                                      | Output format; defaults to `compact`            |
+| `-n, --limit`  | non-negative integer                                           | Maximum results; omitted or `0` means unlimited |
+| `-s, --status` | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                   |
+| `--tier`       | `plan`, `epic`                                                 | Filter by plan-bead tier (repeatable)           |
+| `-t, --type`   | `plan`, `phase`, `task`                                        | Filter by type (repeatable)                     |
 
 ### `sase bead show <id>`
 
@@ -1064,9 +1105,23 @@ sase bead show sase-64 --wrap auto
 | `-s, --style`  | `auto`, `plain`, `rich`            | Styling level for `--format full`; defaults to `auto` |
 | `-w, --wrap`   | integer >= 20, `auto`, `none`, `0` | Prose wrap width for full output; defaults to `120`   |
 
+### `sase bead snooze <id> [<id2> ...]`
+
+Defer one or more `open` or `ready` task beads. See [Snoozing a Task Bead](#snoozing-a-task-bead) for the full workflow.
+Multiple IDs apply the same wake time, `+1` target, and reason atomically, matching `sase bead update`'s batch
+semantics.
+
+| Flag                    | Description                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `-u, --until TIME`      | Wake time: a duration (`30m`, `2h`, `1h30m`, `3d`) or absolute ISO-8601 timestamp; required unless `--cancel` |
+| `-p, --plus-ones COUNT` | Also wake when this many additional `+1` reports arrive                                                       |
+| `-r, --reason TEXT`     | Why this task is being deferred                                                                               |
+| `-c, --cancel`          | Wake these beads now, returning them to `ready`                                                               |
+
 ### `sase bead stats`
 
-Show project statistics: total, open, claimed, ready, in-progress, and closed counts, plus plan, phase, and task counts.
+Show project statistics: total, open, claimed, ready, snoozed, in-progress, and closed counts, plus plan, phase, and
+task counts.
 
 ### `sase bead sync`
 
