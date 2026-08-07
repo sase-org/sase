@@ -35,9 +35,11 @@ from sase.notification_gates.models import (
 from sase.notification_gates.presentation import (
     GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
     GATE_PANEL_ACTION_DATA_KEY,
+    GATE_PANEL_ICON_ACTION_DATA_KEY,
     GATE_TITLE_ACTION_DATA_KEY,
     normalize_gate_origin_agent,
     normalize_gate_panel,
+    normalize_gate_panel_icon,
     normalize_gate_snooze_until,
     normalize_gate_title,
 )
@@ -345,6 +347,9 @@ def _build_notification(
     panel = normalize_gate_panel(presentation.get("panel"))
     if panel is not None:
         action_data[GATE_PANEL_ACTION_DATA_KEY] = panel
+    panel_icon = normalize_gate_panel_icon(presentation.get("panel_icon"))
+    if panel_icon is not None:
+        action_data[GATE_PANEL_ICON_ACTION_DATA_KEY] = panel_icon
     origin_agent = normalize_gate_origin_agent(presentation.get("origin_agent"))
     if origin_agent is not None:
         action_data[GATE_ORIGIN_AGENT_ACTION_DATA_KEY] = origin_agent

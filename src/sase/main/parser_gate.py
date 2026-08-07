@@ -31,7 +31,8 @@ def register_gate_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  sase gate create < gate-request.json\n"
-            "  sase gate create --panel deployments < gate-request.json\n"
+            "  sase gate create --panel deployments --panel-icon 🚀 "
+            "< gate-request.json\n"
             "  sase gate create --sender deploy-review --tag production "
             "< gate-request.json"
         ),
@@ -48,6 +49,15 @@ def register_gate_parser(subparsers: argparse._SubParsersAction) -> None:
         "--panel",
         default=None,
         help="Place the gate's notification in a named notification panel tab",
+    )
+    create_parser.add_argument(
+        "-P",
+        "--panel-icon",
+        default=None,
+        help=(
+            "Emoji or glyph identifying that panel tab; required whenever a "
+            "panel is declared"
+        ),
     )
     create_parser.add_argument(
         "-s",

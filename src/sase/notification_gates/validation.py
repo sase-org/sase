@@ -23,9 +23,11 @@ from sase.notification_gates.models import (
 from sase.notification_gates.presentation import (
     GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
     GATE_PANEL_ACTION_DATA_KEY,
+    GATE_PANEL_ICON_ACTION_DATA_KEY,
     GATE_TITLE_ACTION_DATA_KEY,
     normalize_gate_origin_agent,
     normalize_gate_panel,
+    normalize_gate_panel_icon,
     normalize_gate_snooze_until,
     normalize_gate_title,
 )
@@ -147,6 +149,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         "bundle_path",
         GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
         GATE_PANEL_ACTION_DATA_KEY,
+        GATE_PANEL_ICON_ACTION_DATA_KEY,
         GATE_TITLE_ACTION_DATA_KEY,
         "request_id",
         "request_kind",
@@ -169,7 +172,16 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "presentation.silent",
             "silent must be a boolean",
         )
-    normalize_gate_panel(presentation.get("panel"))
+    panel = normalize_gate_panel(presentation.get("panel"))
+    panel_icon = normalize_gate_panel_icon(presentation.get("panel_icon"))
+    if panel is not None and panel_icon is None:
+        raise GateError(
+            "missing_presentation",
+            "presentation.panel_icon",
+            "a gate declaring presentation.panel names a notification-panel "
+            "tab, so it requires presentation.panel_icon: one emoji or glyph "
+            "identifying that tab at a glance",
+        )
     normalize_gate_origin_agent(presentation.get("origin_agent"))
     normalize_gate_snooze_until(presentation.get("snooze_until"))
     title = normalize_gate_title(presentation.get("title"))

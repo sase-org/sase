@@ -92,6 +92,7 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
     ]
     assert request["presentation"]["tags"] == ["bead", "task"]
     assert request["presentation"]["panel"] == "beads"
+    assert request["presentation"]["panel_icon"] == "◈"
     assert request["presentation"]["origin_agent"] == "claude_coder"
     preview = (gate.bundle_path / TASK_TRIAGE_PREVIEW_PATH).read_text(encoding="utf-8")
     assert "# sase-task.1 — Follow up on the cache" in preview
@@ -108,6 +109,7 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
     assert notification.tags == ["bead", "task"]
     assert notification.notes == ["sase-task.1 — Follow up on the cache · ⧖ 2025-12-31"]
     assert notification.action_data["panel"] == "beads"
+    assert notification.action_data["panel_icon"] == "◈"
     assert notification.action_data["origin_agent"] == "claude_coder"
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
     assert entry["action_kind"] == "task_triage"

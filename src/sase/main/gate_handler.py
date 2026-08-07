@@ -30,9 +30,16 @@ def _handle_gate_create(args: argparse.Namespace) -> NoReturn:
     data = _read_stdin_object()
     origin_agent = getattr(args, "origin_agent", None)
     panel = getattr(args, "panel", None)
+    panel_icon = getattr(args, "panel_icon", None)
     sender = getattr(args, "sender", None)
     cli_tags = getattr(args, "tag", None)
-    if origin_agent is not None or panel is not None or sender is not None or cli_tags:
+    if (
+        origin_agent is not None
+        or panel is not None
+        or panel_icon is not None
+        or sender is not None
+        or cli_tags
+    ):
         presentation = data.get("presentation", data.get("notification", {}))
         if not isinstance(presentation, dict):
             print("Error: presentation must be an object", file=sys.stderr)
@@ -42,6 +49,8 @@ def _handle_gate_create(args: argparse.Namespace) -> NoReturn:
             presentation["origin_agent"] = origin_agent
         if panel is not None:
             presentation["panel"] = panel
+        if panel_icon is not None:
+            presentation["panel_icon"] = panel_icon
         if sender is not None:
             presentation["sender"] = sender
         if cli_tags:

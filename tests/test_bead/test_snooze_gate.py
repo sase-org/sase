@@ -106,6 +106,7 @@ def test_bead_snooze_gate_builds_canonical_spec_and_snoozed_notification(
         ("snooze", "required"),
     ]
     assert request["presentation"]["panel"] == "beads"
+    assert request["presentation"]["panel_icon"] == "◈"
     assert request["presentation"]["snooze_until"] == WAKE_TIME
 
     preview = (gate.bundle_path / BEAD_SNOOZE_PREVIEW_PATH).read_text(encoding="utf-8")
@@ -124,6 +125,7 @@ def test_bead_snooze_gate_builds_canonical_spec_and_snoozed_notification(
     assert notification.snooze_until == WAKE_TIME
     assert notification.icon == "◈"
     assert notification.action_data["panel"] == "beads"
+    assert notification.action_data["panel_icon"] == "◈"
     assert is_priority(notification)
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
     assert entry["action_kind"] == "bead_snooze"

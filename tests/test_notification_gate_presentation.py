@@ -10,6 +10,7 @@ from sase.notification_gates.models import GateError
 from sase.notification_gates.presentation import (
     GATE_TITLE_ACTION_DATA_KEY,
     RESERVED_GATE_PANELS,
+    normalize_gate_panel_icon,
     normalize_gate_title,
 )
 from sase.notification_gates.service import create_gate
@@ -35,6 +36,26 @@ def test_normalize_gate_title_rejects_invalid_values(value: object) -> None:
         normalize_gate_title(value)
     assert exc_info.value.code == "invalid_presentation"
     assert exc_info.value.target == "presentation.title"
+
+
+def test_normalize_gate_panel_icon_accepts_none() -> None:
+    assert normalize_gate_panel_icon(None) is None
+
+
+@pytest.mark.parametrize("value", ["◈", "⚑", "🚀", "#"])
+def test_normalize_gate_panel_icon_accepts_one_glyph(value: str) -> None:
+    assert normalize_gate_panel_icon(value) == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "   ", " ◈ ", "◈◆", "beads", "\x00", "x" * 33, 7],
+)
+def test_normalize_gate_panel_icon_rejects_invalid_values(value: object) -> None:
+    with pytest.raises(GateError) as exc_info:
+        normalize_gate_panel_icon(value)
+    assert exc_info.value.code == "invalid_presentation"
+    assert exc_info.value.target == "presentation.panel_icon"
 
 
 def test_gate_title_is_projected_into_action_data(gate_home: Path) -> None:

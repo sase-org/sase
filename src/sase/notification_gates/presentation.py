@@ -7,8 +7,10 @@ import re
 import unicodedata
 
 from sase.notification_gates.models import GateError
+from sase.notification_gates.model_validation import validate_icon
 
 GATE_PANEL_ACTION_DATA_KEY = "panel"
+GATE_PANEL_ICON_ACTION_DATA_KEY = "panel_icon"
 GATE_ORIGIN_AGENT_ACTION_DATA_KEY = "origin_agent"
 GATE_TITLE_ACTION_DATA_KEY = "gate_title"
 # Every synthetic notification-panel tab key. A gate declaring one of these
@@ -45,6 +47,25 @@ def normalize_gate_panel(value: object) -> str | None:
     if not _GATE_PANEL_RE.fullmatch(panel):
         raise _invalid_panel(value, "must match [a-z0-9][a-z0-9_-]*")
     return panel
+
+
+def normalize_gate_panel_icon(value: object) -> str | None:
+    """Return the glyph a gate declares for its notification-panel tab.
+
+    The row's own ``presentation.icon`` cannot stand in for this: rows sharing a
+    panel legitimately carry different icons, so donating one would make the
+    tab's glyph flip with whichever row arrived most recently.
+    """
+    if value is None:
+        return None
+    try:
+        return validate_icon(value, "presentation.panel_icon")
+    except GateError as exc:
+        raise GateError(
+            "invalid_presentation",
+            "presentation.panel_icon",
+            f"invalid panel icon {value!r}: must be a single emoji or glyph",
+        ) from exc
 
 
 def normalize_gate_snooze_until(value: object) -> str | None:
@@ -148,10 +169,12 @@ def _invalid_title(value: object, reason: str) -> GateError:
 __all__ = [
     "GATE_ORIGIN_AGENT_ACTION_DATA_KEY",
     "GATE_PANEL_ACTION_DATA_KEY",
+    "GATE_PANEL_ICON_ACTION_DATA_KEY",
     "GATE_TITLE_ACTION_DATA_KEY",
     "RESERVED_GATE_PANELS",
     "normalize_gate_origin_agent",
     "normalize_gate_panel",
+    "normalize_gate_panel_icon",
     "normalize_gate_snooze_until",
     "normalize_gate_title",
 ]

@@ -167,6 +167,7 @@ def test_gate_create_presentation_overrides_reach_notification(
                 gate_subcommand="create",
                 origin_agent="  filer.agent  ",
                 panel=" Reviews ",
+                panel_icon="⚑",
                 sender=None,
                 tag=None,
             )
@@ -176,6 +177,7 @@ def test_gate_create_presentation_overrides_reach_notification(
     capsys.readouterr()
     [notification] = load_notifications(include_dismissed=True)
     assert notification.action_data["panel"] == "reviews"
+    assert notification.action_data["panel_icon"] == "⚑"
     assert notification.action_data["origin_agent"] == "filer.agent"
 
 

@@ -77,13 +77,70 @@ def test_gate_presentation_panel_and_origin_agent_project_to_action_data(
     presentation = spec["presentation"]
     assert isinstance(presentation, dict)
     presentation["panel"] = " Beads "
+    presentation["panel_icon"] = "◈"
     presentation["origin_agent"] = "  remote.agent  "
 
     create_gate(spec)
 
     [notification] = load_notifications(include_dismissed=True)
     assert notification.action_data["panel"] == "beads"
+    assert notification.action_data["panel_icon"] == "◈"
     assert notification.action_data["origin_agent"] == "remote.agent"
+
+
+def test_a_gate_declaring_a_panel_must_declare_that_panels_icon(
+    gate_home: Path,
+) -> None:
+    """A gate that names a tab is the thing that must say what the tab looks like."""
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["panel"] = "beads"
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "missing_presentation"
+    assert exc_info.value.target == "presentation.panel_icon"
+    assert load_notifications(include_dismissed=True) == []
+
+
+def test_a_panel_icon_without_a_panel_is_still_projected(gate_home: Path) -> None:
+    """Any row may donate a tab icon, exactly as any row may donate a color."""
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["panel_icon"] = "◆"
+
+    create_gate(spec)
+
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.action_data["panel_icon"] == "◆"
+
+
+@pytest.mark.parametrize(
+    "panel_icon", ["", "  ", " ◈ ", "◈◈", "beads", "\n", "x" * 33, 7]
+)
+def test_malformed_gate_presentation_panel_icons_are_rejected(
+    gate_home: Path,
+    panel_icon: object,
+) -> None:
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["panel"] = "beads"
+    presentation["panel_icon"] = panel_icon
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "invalid_presentation"
+    assert exc_info.value.target == "presentation.panel_icon"
+    assert repr(panel_icon) in str(exc_info.value)
+    assert load_notifications(include_dismissed=True) == []
 
 
 def test_gate_presentation_color_reaches_the_notification(
@@ -214,7 +271,7 @@ def test_malformed_gate_origin_agents_are_rejected(
     assert repr(origin_agent) in str(exc_info.value)
 
 
-@pytest.mark.parametrize("key", ["panel", "origin_agent"])
+@pytest.mark.parametrize("key", ["panel", "panel_icon", "origin_agent"])
 def test_gate_presentation_action_data_cannot_bypass_normalization(
     gate_home: Path,
     key: str,

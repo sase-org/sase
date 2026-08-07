@@ -163,6 +163,7 @@ def _build_bead_snooze_gate_spec(
         ],
         "tags": ["bead", "task"],
         "panel": "beads",
+        "panel_icon": "◈",
         "files": [BEAD_SNOOZE_PREVIEW_PATH],
         "preview": BEAD_SNOOZE_PREVIEW_PATH,
         "snooze_until": snooze.until,

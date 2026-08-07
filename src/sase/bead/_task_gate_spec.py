@@ -98,6 +98,7 @@ def build_task_triage_gate_spec(
         ],
         "tags": ["bead", "task"],
         "panel": "beads",
+        "panel_icon": "◈",
         "files": [TASK_TRIAGE_PREVIEW_PATH],
         "preview": TASK_TRIAGE_PREVIEW_PATH,
     }
