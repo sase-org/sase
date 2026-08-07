@@ -63,7 +63,13 @@ def handle_bead_list(args: argparse.Namespace) -> None:
         statuses = (
             [Status(s) for s in args.status]
             if explicit_statuses
-            else [Status.OPEN, Status.CLAIMED, Status.READY, Status.IN_PROGRESS]
+            else [
+                Status.OPEN,
+                Status.CLAIMED,
+                Status.READY,
+                Status.SNOOZED,
+                Status.IN_PROGRESS,
+            ]
         )
         issue_types = [IssueType(t) for t in args.type] if args.type else None
         tiers = [BeadTier(t) for t in args.tier] if args.tier else None

@@ -46,7 +46,7 @@ sase bead create -t "Sub-task" --type "phase(beads-001)" --size small # Create a
 sase bead create -t "Fix flaky test" --type task --size small # Create a standalone draft task
 sase bead +1 beads-002 --note "Independent reproduction" # Corroborate an existing task
 sase bead update beads-002 --status=ready               # Offer the task for human triage
-sase bead list                                          # List open, claimed, ready, and in-progress issues
+sase bead list                                          # List open, claimed, ready, snoozed, and in-progress issues
 sase bead list --status=open                            # List open issues
 sase bead list --status=ready --type=task                # List tasks awaiting triage
 sase bead list --status=closed                          # List closed issues
@@ -143,9 +143,9 @@ sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.m
 Status can transition between values via `sase bead update --status=<status>`. A task normally moves `open → ready` when
 its draft is proposed, `ready → open` when retracted, and `ready → in_progress` when launched. Only task beads may carry
 `ready`; set it after the title, description, notes, dependencies, and any desired size or model are ready for human
-review. Moving a bead to `closed` is rejected while any descendant remains open, claimed, ready, or in progress. Close
-those descendants deliberately first; `update --status=closed` never cascades. `sase bead open <id>` reopens the bead
-and every closed ancestor above it, archiving their resolution, close reason, and close timestamp into
+review. Moving a bead to `closed` is rejected while any descendant remains open, claimed, ready, snoozed, or in
+progress. Close those descendants deliberately first; `update --status=closed` never cascades. `sase bead open <id>`
+reopens the bead and every closed ancestor above it, archiving their resolution, close reason, and close timestamp into
 [close history](#close-history) instead of discarding them, so a closed parent never sits above reopened work but the
 reason it was closed is not lost either. `claimed` is machine-managed by the agent runner (see
 [Bead Claim Lifecycle](#bead-claim-lifecycle)); do not set it by hand. `snoozed` cannot be set through `update --status`
@@ -934,10 +934,10 @@ top-level bead is minted. Use `sase bead doctor --fix-issue-prefix` to repair on
 
 ### `sase bead list`
 
-List issues with optional filtering. Without `--status`, the command lists `open`, `claimed`, `ready`, and `in_progress`
-issues — `snoozed` beads are not included in that default and need an explicit `--status snoozed`; pass
-`--status=closed` when you need closed history. When the default active query is empty and no explicit `--status` was
-given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
+List issues with optional filtering. Without `--status`, the command lists `open`, `claimed`, `ready`, `snoozed`, and
+`in_progress` issues; pass `--status=closed` when you need closed history. When the default active query is empty and no
+explicit `--status` was given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are
+repeatable.
 
 Compact rows lead with an aligned, colored type indicator ahead of the existing status glyph:
 

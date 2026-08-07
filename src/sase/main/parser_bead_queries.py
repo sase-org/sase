@@ -82,7 +82,7 @@ def register_bead_list_parser(
         "list",
         help="List issues",
         description=(
-            "List open, claimed, ready, and in-progress beads by default. If "
+            "List open, claimed, ready, snoozed, and in-progress beads by default. If "
             "none match and --status was not provided, list closed beads instead. "
             "Closed listings default to the newest 20 beads unless --limit 0 "
             "is used. Bare 'sase bead' defaults to this command."

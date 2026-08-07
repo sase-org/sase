@@ -5,6 +5,7 @@
     "open",
     "claimed",
     "ready",
+    "snoozed",
     "in_progress"
   ],
   "implied_status_closed": false,

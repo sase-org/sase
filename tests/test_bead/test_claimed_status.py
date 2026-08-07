@@ -89,6 +89,7 @@ def test_default_list_includes_claimed_with_shared_glyph(
         Status.OPEN,
         Status.CLAIMED,
         Status.READY,
+        Status.SNOOZED,
         Status.IN_PROGRESS,
     ]
     assert capsys.readouterr().out == "▸ ◎ sase-claimed · Reserved phase\n"

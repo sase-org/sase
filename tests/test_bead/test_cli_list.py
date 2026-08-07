@@ -9,7 +9,7 @@ import pytest
 from rich.cells import cell_len
 
 from sase.bead import cli as bead_cli
-from sase.bead.model import IssueType
+from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
 from sase.bead_time_presentation import BEAD_CREATED_GLYPH, BEAD_TIME_CLI_STYLE
 from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
@@ -100,10 +100,28 @@ def test_handle_bead_list_json_outputs_envelope(
     payload = json.loads(capsys.readouterr().out)
     assert payload["count"] == 1
     assert payload["total"] == 1
-    assert payload["statuses"] == ["open", "claimed", "ready", "in_progress"]
+    assert payload["statuses"] == ["open", "claimed", "ready", "snoozed", "in_progress"]
     assert payload["implied_status_closed"] is False
     assert payload["results"][0]["id"] == issue.id
     assert payload["results"][0]["resolution"] is None
+
+
+def test_handle_bead_list_includes_snoozed_by_default(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        task = proj.create("Deferrable", IssueType.TASK, size="small")
+        proj.update(task.id, status=Status.READY.value)
+        proj.snooze(task.id, until="2099-01-01T00:00:00Z", actor="tester@example.com")
+
+    args = create_parser().parse_args(["bead", "list", "-f", "json"])
+    bead_cli.handle_bead_list(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["statuses"] == ["open", "claimed", "ready", "snoozed", "in_progress"]
+    assert payload["results"][0]["id"] == task.id
+    assert payload["results"][0]["status"] == "snoozed"
 
 
 def test_handle_bead_list_json_empty_store_is_valid_envelope(
