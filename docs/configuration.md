@@ -357,6 +357,7 @@ behavior after the other legs finish. The context-sensitive keymaps are:
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `]` / `[`           | Cycle Core / Plugins / Agent CLIs sub-tabs                                                                  |
 | `j` / `k`           | Move the highlight down / up in Plugins or Agent CLIs                                                       |
+| `'`                 | Jump to an item row via adaptive hints in Plugins or Agent CLIs; no-op on Core                              |
 | `I` / `Space`       | Mark / unmark an installable plugin; `Space` marks an updatable agent CLI on that sub-tab                   |
 | `i`                 | Open the install preview for the marked set, or for the highlighted plugin when no install marks are active |
 | `x`                 | Uninstall the highlighted plugin (only when installed)                                                      |

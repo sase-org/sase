@@ -2203,6 +2203,18 @@ pane-local state still end with the modal. If `ace.keymaps.app.open_config_cente
 rebound, repeat that configured key instead; the footer and landing page display the
 effective binding and destination.
 
+Inside every working section, `'` is an Admin Center-wide entry-jump key: it paints
+adaptive hints over that section's selectable rows using the same hint alphabet
+described under
+[Navigation in Commits, Beads, Plans, Chats, Other, and Bugs](#navigation-in-commits-beads-plans-chats-other-and-bugs),
+a hint character moves the selection there, `'` again returns to the previous position
+(or the first hint with an empty back stack), and `Esc` cancels. Each working section's
+own keybindings table names its jump targets; two are deliberate exceptions. The
+Statistics tab has no row cursor, so `'` there arms the same numbered-view selection the
+`0` prefix already arms, using the visible strip numbers as hints. The Updates tab's
+Core sub-tab has no list at all, so `'` is a silent no-op there while Plugins and Agent
+CLIs jump normally.
+
 ### Quit / Restart Menu
 
 Pressing `Q` opens the **quit / restart menu**. When background tasks are still running,
@@ -2272,6 +2284,7 @@ Telemetry-only directories and linked-repo backing records cannot appear.
 | Key       | Action                                                              |
 | --------- | ------------------------------------------------------------------- |
 | `j` / `k` | Move selection                                                      |
+| `'`       | Jump to a row via adaptive hints, within the active sub-tab only    |
 | `/`       | Filter the current sub-tab                                          |
 | `[` / `]` | Cycle Projects, Repos, and Workspaces sub-tabs                      |
 | `r` / `w` | Show repos or workspaces pre-filtered to the highlighted project    |
@@ -2321,9 +2334,12 @@ seven sub-tabs summarize overview, runners, projects, providers, agent activity,
 usage, and plan/question activity for the selected time range and optional project
 filter. The strip is numbered **1 Overview · 2 Runners · 3 Projects · 4 Providers · 5
 Activity · 6 XPrompts · 7 Plans & Questions**; press `0` and then that digit to jump
-straight to a view. Use `[` / `]` to move between views, `t` / `T` to cycle time ranges,
-`p` / `P` to cycle project scope, and `r` to refresh. On Overview, Agents Run, Success
-Rate, and Commits open Projects; Plans Proposed and Questions open Plans & Questions.
+straight to a view. The Admin Center-wide `'` entry-jump key arms this same
+numbered-view selection instead of painting row hints — Statistics has no row cursor, so
+the already visible strip numbers act as its jump hints; `Esc` or any non-digit cancels.
+Use `[` / `]` to move between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle
+project scope, and `r` to refresh. On Overview, Agents Run, Success Rate, and Commits
+open Projects; Plans Proposed and Questions open Plans & Questions.
 
 The Statistics **XPrompts** sub-tab reports xprompts referenced by agent launch prompts:
 
@@ -2795,6 +2811,7 @@ surface because they are supplied by workflow execution rather than typed by the
 | `k` / `↑` | Navigate to previous xprompt                          |
 | `Ctrl+N`  | Navigate to next xprompt                              |
 | `Ctrl+P`  | Navigate to previous xprompt                          |
+| `'`       | Jump to a non-header row via adaptive hints           |
 | `Ctrl+D`  | Scroll preview panel down                             |
 | `Ctrl+U`  | Scroll preview panel up / clear input                 |
 | `Enter`   | Edit highlighted xprompt in `$EDITOR`                 |
@@ -2802,7 +2819,11 @@ surface because they are supplied by workflow execution rather than typed by the
 | `Ctrl+I`  | Load the highlighted xprompt into the home prompt bar |
 | `Esc`     | Close SASE Admin Center                               |
 
-Type in the filter input to narrow the list in real time.
+Type in the filter input to narrow the list in real time. The filter input is focused by
+default, so two keys are reserved while it is **empty**: digits `1`–`9`/`0` jump to an
+Admin Center tab, and `'` arms entry-jump over the list's non-header rows instead of
+being typed. Once the filter holds text, both keys fall through to ordinary editing, so
+values such as `bug2` or a filter ending in a literal apostrophe can be typed normally.
 
 ### Editing XPrompts
 
@@ -4649,6 +4670,7 @@ everywhere. See the [CLI reference](cli.md#daily-operation).
 | Key                 | Action                                       |
 | ------------------- | -------------------------------------------- |
 | `j` / `k`           | Navigate task list                           |
+| `'`                 | Jump to a task row via adaptive hints        |
 | `a`                 | Toggle scope: this session / all sessions    |
 | `K`                 | Kill selected running task (durable or live) |
 | `d`                 | Dismiss selected completed task              |
@@ -4668,7 +4690,9 @@ package versions and incoming commits. Plugins hosts the catalog browser and its
 install/update/uninstall/mode-switch actions. Agent CLIs shows provider-colored
 installed → latest rows, exact update or manual commands, vendor docs links, update
 marks, and durable update history. Providers that opt out of independent CLI management,
-including the bundled internal Fakey provider, are omitted from this sub-tab.
+including the bundled internal Fakey provider, are omitted from this sub-tab. On Plugins
+and Agent CLIs, `'` jumps to an item row via adaptive hints; Core has no list, so `'` is
+a silent no-op there.
 
 Every sase-managed agent-CLI update run from `,U`, `A`, or `sase agent-cli update` is
 appended to `~/.sase/logs/agent_cli_updates.jsonl`. Runs where no command reaches a
