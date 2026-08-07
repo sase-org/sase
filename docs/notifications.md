@@ -67,16 +67,19 @@ fixed precedence, so the panel, the top-bar indicator, and the mobile snapshot a
 agree; see [Tags](#tags) below for that precedence in full. The tabs, in the panel's
 display order:
 
-| Tab       | Contents                                                                                                                                                               |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Gates`   | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.                                          |
-| Panel     | Gates with `presentation.panel`, sorted alphabetically after `Gates`; built-in task triage gates use the `Beads` panel, and a woken `BeadSnooze` gate lands there too. |
-| `Errors`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                                                        |
-| `General` | Untagged, unmuted notifications with no other classification.                                                                                                          |
-| `Done`    | Notifications carrying the `done` tag, pinned before other custom tags.                                                                                                |
-| Custom    | Other normalized notification tags, sorted alphabetically after `Done`.                                                                                                |
-| `Snoozed` | Muted notifications with a future wake time — snoozed notifications and notifications for snoozed task beads alike.                                                    |
-| `Muted`   | Muted notifications with no wake time.                                                                                                                                 |
+| Tab       | Icon | Contents                                                                                                                                                                     |
+| --------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Gates`   | `⚑`  | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.                                                |
+| Panel     | `◆`  | Gates with `presentation.panel`, sorted alphabetically after `Gates`; built-in task triage gates use the `Beads` panel (`◈`), and a woken `BeadSnooze` gate lands there too. |
+| `Errors`  | `✖`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                                                              |
+| `General` | `✉`  | Untagged, unmuted notifications with no other classification.                                                                                                                |
+| `Done`    | `#`  | Notifications carrying the `done` tag, pinned before other custom tags.                                                                                                      |
+| Custom    | `#`  | Other normalized notification tags, sorted alphabetically after `Done`.                                                                                                      |
+| `Snoozed` | `☾`  | Muted notifications with a future wake time — snoozed notifications and notifications for snoozed task beads alike.                                                          |
+| `Muted`   | `⊘`  | Muted notifications with no wake time.                                                                                                                                       |
+
+Each tab's icon resolves through the same chain as its color; see
+[Tab icons](#tab-icons) below.
 
 A row with multiple tags therefore occupies exactly one tab, not one per tag; dismissing
 it removes the row from at most one tab's count.
@@ -216,30 +219,37 @@ projecting rows, counts, `expired_ids`, and the next active deadline.
 
 ### Top-Bar Indicator
 
-The notification indicator in the TUI top bar renders one colored count per
-notification-panel tab (see [Tabs and Ordering](#tabs-and-ordering)), in the panel's own
-left-to-right order, so the badge and the panel always agree on what each count means:
+The notification indicator in the TUI top bar renders one colored `<icon><count>` chip
+per notification-panel tab (see [Tabs and Ordering](#tabs-and-ordering)), in the panel's
+own left-to-right order, so the badge and the panel always agree on what each count
+means:
 
-- **Nothing pending** — a dim `✉ 0`.
-- **Snoozed only** — `✉ 4z`: the count and the trailing `z` both render in the Snoozed
-  tab's resolved color at a dimmer weight than an actionable count. This is the only
-  case a suffix letter appears.
-- **Anything else** — `✉` followed by one chip per visible tab, each the tab's count in
-  its own resolved color at full weight, joined by a dim `·` separator, for example
-  `✉ 2·3·1`. As soon as any non-snoozed tab has a count, the Snoozed chip drops out of
-  the badge entirely — it does not compete for the limited chip budget — but the snoozed
-  count still appears in the tooltip.
+- **Nothing pending** — a dim `✉ 0`. This is the only state that keeps the `✉` anchor;
+  see below for why.
+- **Snoozed only** — `☾4`: the count renders in the Snoozed tab's resolved color at a
+  dimmer weight than an actionable count, prefixed by the Snoozed tab's own icon instead
+  of a trailing `z` suffix.
+- **Anything else** — one `<icon><count>` chip per visible tab, each the tab's icon and
+  count in its own resolved color at full weight, joined by a single space, for example
+  `⚑2 ✖3 ◈1`. Each chip is self-identifying, so there is no separator glyph and no `✉`
+  anchor — once `general` owns `✉` as its own tab icon, prefixing the whole badge with
+  it would render the same glyph twice, meaning two different things. As soon as any
+  non-snoozed tab has a count, the Snoozed chip drops out of the badge entirely — it
+  does not compete for the limited chip budget — but the snoozed count still appears in
+  the tooltip.
 - **Overflow** — at most
   [`ace.notification_indicator_max_counts`](configuration.md#acenotification_tabs) chips
   (4 by default), taken in panel order; any remaining tabs collapse into one trailing
-  dim `+K` chip. Every suppressed tab is still described in the tooltip.
+  dim `+K` chip, joined by the same single space. Every suppressed tab is still
+  described in the tooltip.
 
 Hovering the indicator opens a tooltip briefing: a header count of unread rows (snoozed
 and muted rows are informational and excluded from that header count) followed by one
-line per tab showing its count, its oldest unread activity (`oldest 14m ago`) or, for
-the Snoozed tab, when it next wakes (`next wakes in 43m`). Tab labels in the tooltip are
-colored the same as their indicator chip, so the tooltip doubles as a legend. See
-[Tab colors](#tab-colors) for how each tab's color is resolved.
+line per tab showing its icon, its count, its oldest unread activity (`oldest 14m ago`)
+or, for the Snoozed tab, when it next wakes (`next wakes in 43m`). Tab labels in the
+tooltip are colored the same as their indicator chip, so the tooltip doubles as a
+legend. See [Tab colors](#tab-colors) and [Tab icons](#tab-icons) for how each tab's
+color and icon are resolved.
 
 Silent notifications never contribute to the indicator (see
 [Silent Notifications](#silent-notifications) below).
@@ -587,6 +597,35 @@ or jumping to a done Agents-tab row dismisses its matching completion notificati
 it disappears from the `Done` tab after the next refresh. Failed agent notifications
 stay untagged by `done` and continue to render under the `Errors` tab.
 
+### Tab icons
+
+Every tab renders with an icon, so the top-bar indicator's chips and the modal's tab
+strip are self-identifying instead of relying on color alone. The icon resolves by
+precedence, highest first:
+
+1. [`ace.notification_tabs.<tab>.icon`](configuration.md#acenotification_tabs), when
+   non-empty
+2. the icon a sender declared on a notification in that tab
+3. the built-in default for a tab ACE ships knowing about (`hitl`, `errors`, `beads`,
+   `general`, `snoozed`, `muted`)
+4. a default keyed by the tab's own kind (`hitl`, `panel`, `errors`, `general`, `tag`,
+   `snoozed`, `muted`), so a tab ACE has never heard of still gets a glyph that means
+   something about what it is
+5. `•`, reachable only when a tab arrives with no kind at all
+
+Unlike color, an icon never falls back to a hashed auto-palette entry: an arbitrary
+color is still a usable identifier, but an arbitrary glyph would teach the reader
+something false, so the chain always bottoms out at a meaningful or honestly generic
+mark instead. The bundled defaults are `⚑` `hitl`, `✖` `errors`, `◈` `beads`, `✉`
+`general`, `☾` `snoozed`, and `⊘` `muted`; a gate-declared panel with no closer match
+falls to the kind default `◆`, and a tag tab falls to `#`.
+
+A sender declares an icon with `presentation.panel_icon` on a gate (see
+[Command-backed interaction gates](#command-backed-interaction-gates) below); there is
+no raw-notification equivalent, since a raw row's own `icon` field styles the row, not
+its tab. When several rows in a tab declare a `panel_icon`, the tab wears the one from
+the row the panel lists first — the most recent activity — exactly as color does.
+
 ## CLI
 
 The `sase notify` command can create notifications and inspect the local notification
@@ -630,6 +669,7 @@ rejection branch:
     "icon": "🛡️",
     "notes": ["Restart the API after reviewing the health report?"],
     "panel": "deployments",
+    "panel_icon": "🚀",
     "origin_agent": "maintenance.agent",
     "preview": "preview.md"
   },
@@ -694,11 +734,15 @@ rejection branch:
 ```
 
 `presentation.panel` selects the named notification panel tab described in
-[Tags](#tags). `presentation.origin_agent` attributes the gate to the agent it was filed
-on behalf of; it is stripped, limited to 128 characters, and stored without consulting
-the local agent registry so remote agent names remain valid. Both fields are projected
-into notification `action_data` as `panel` and `origin_agent`; producers may not write
-those protected keys directly through `presentation.action_data`.
+[Tags](#tags), and **requires** `presentation.panel_icon` alongside it — a gate that
+names a tab is the thing introducing that tab to the user, so it is the thing
+responsible for saying what the tab looks like. Omitting `panel_icon` while declaring
+`panel` fails gate creation with a `missing_presentation` error.
+`presentation.origin_agent` attributes the gate to the agent it was filed on behalf of;
+it is stripped, limited to 128 characters, and stored without consulting the local agent
+registry so remote agent names remain valid. All three fields are projected into
+notification `action_data` as `panel`, `panel_icon`, and `origin_agent`; producers may
+not write those protected keys directly through `presentation.action_data`.
 
 `presentation.title` is the one-line decision headline shown in the notification panel's
 [gate detail pane](#gate-detail-pane) and in the custom gate review modal's header. It
@@ -715,6 +759,15 @@ directly through `presentation.action_data`.
 `presentation.color` suggests the `#RRGGBB` accent for the tab the gate's notification
 lands in, as described in [Tab colors](#tab-colors); a malformed value fails gate
 creation with an `invalid_color` error.
+
+`presentation.panel_icon` suggests one emoji or display glyph for the tab the gate's
+notification lands in, as described in [Tab icons](#tab-icons); a malformed value fails
+gate creation with an `invalid_presentation` error. It is a separate field from
+`presentation.icon` rather than a reuse of it, because `presentation.icon` is the
+**row's** icon and rows sharing one panel legitimately differ — donating the row icon to
+the tab would make the tab's glyph flip depending on which row arrived most recently.
+`panel_icon` is a property of the tab, and gates sharing a panel are expected to agree
+on it.
 
 `presentation.icon`, `option.icon`, and `group.icon` each accept one emoji or display
 glyph. Each `OR` branch is a mutually exclusive resolution path. A singleton branch

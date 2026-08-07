@@ -761,15 +761,16 @@ overlays), not project-local `sase/sase.yml`.
 
 #### `ace.notification_tabs`
 
-`ace.notification_tabs` colors the per-tab counts the top-bar notification indicator
-renders, keyed by notification-panel tab key. Keys use the user-facing tab names: the
-synthetic `hitl`, `errors`, `general`, `snoozed`, and `muted` tabs (never the internal
-`__snoozed__` / `__muted__` spellings), a gate-declared panel name such as `beads`, or a
-notification tag.
+`ace.notification_tabs` colors and iconifies the per-tab counts the top-bar notification
+indicator renders, keyed by notification-panel tab key. Keys use the user-facing tab
+names: the synthetic `hitl`, `errors`, `general`, `snoozed`, and `muted` tabs (never the
+internal `__snoozed__` / `__muted__` spellings), a gate-declared panel name such as
+`beads`, or a notification tag.
 
 | Field   | Type | Default | Description                                                                                                                 |
 | ------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `color` | str  | `""`    | `#RRGGBB` foreground for that tab's count chip and its tooltip label. Set `""` to restore the built-in default for the tab. |
+| `icon`  | str  | `""`    | One emoji or display glyph for that tab's chip and tab-strip icon. Set `""` to restore the built-in default for the tab.    |
 
 Colors resolve by precedence, highest first: this setting, then a color the sending gate
 declared through `presentation.color`, then the built-in default for a tab ACE ships
@@ -777,6 +778,16 @@ knowing about, and finally a stable auto-palette entry derived from the tab key.
 last rung means a brand-new tag tab is never colorless and keeps the same color across
 restarts. The bundled defaults are amber-orange `hitl`, red `errors`, lavender-purple
 `beads`, gold `general`, grey `snoozed`, and teal `muted`.
+
+Icons resolve through the same shape, with one deliberate difference at the last rung:
+this setting, then an icon the sending gate declared through `presentation.panel_icon`,
+then the built-in default for a tab ACE ships knowing about, then a default keyed by the
+tab's own kind (so an unrecognized panel or tag tab still gets a glyph that means
+something about what kind of tab it is), and finally `•` for a tab with no kind at all.
+Unlike color, an icon never falls back to a hashed auto-palette entry — an arbitrary
+glyph would teach the reader something false, so the chain always bottoms out at a
+meaningful or honestly generic mark instead. The bundled defaults are `⚑` `hitl`, `✖`
+`errors`, `◈` `beads`, `✉` `general`, `☾` `snoozed`, and `⊘` `muted`.
 
 #### `ace.notification_indicator_max_counts`
 

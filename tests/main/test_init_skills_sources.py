@@ -179,6 +179,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
                 '"feedback": "required"',
                 '"groups": [',
                 '"panel": "deployments"',
+                '"panel_icon": "🚀"',
                 "`presentation.origin_agent`",
                 "sase gate create",
                 "sase gate wait",
