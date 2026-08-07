@@ -10,6 +10,7 @@ now belongs to the host modal.
 
 from __future__ import annotations
 
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, Label, OptionList, Static
@@ -18,6 +19,7 @@ from textual.widgets.option_list import Option
 from sase.xprompt import get_all_prompts
 from sase.xprompt.workflow_models import Workflow
 
+from ..actions.navigation.jump_hints import normalize_jump_key
 from ..util.selection import ProgrammaticSelectionGuard, restore_selection_by_identity
 from .config_center_session import SelectionBookmark
 from ..util.frontmatter_syntax import markdown_document_syntax
@@ -119,6 +121,36 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
                     yield Static("", id="browser-preview")
                 yield Static("", id="browser-meta")
         yield Static(self._hint_text(loadable=False), id="browser-hints", markup=False)
+
+    def on_key(self, event: events.Key) -> None:
+        """Drive jump mode for keys that arrive with the row list focused.
+
+        The filter input owns focus by default and routes jump keys itself in
+        :meth:`BrowserFilterInput.on_key`, which stops them before they reach
+        this handler.  A click can focus the row list instead, and an
+        ``OptionList`` passes unhandled keys straight through -- without this
+        handler a digit hint would fall through to the Admin Center's numbered
+        tab bindings and switch tabs mid-jump.
+        """
+        if self._filter_input_has_focus():
+            return
+        if self.jump_mode_active:
+            key = normalize_jump_key(event.key, event.character)
+            if self.handle_jump_key(key):
+                event.prevent_default()
+                event.stop()
+                return
+        if event.key == "apostrophe":
+            event.prevent_default()
+            event.stop()
+            self.action_jump_to_entry()
+
+    def _filter_input_has_focus(self) -> bool:
+        """Whether the filter input owns focus and handles jump keys itself."""
+        try:
+            return self.query_one("#browser-filter-input", BrowserFilterInput).has_focus
+        except Exception:
+            return False
 
     def _hint_text(self, *, loadable: bool) -> str:
         """Return the hint line for the current loadability/jump state."""

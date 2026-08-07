@@ -233,3 +233,30 @@ async def test_zero_items_apostrophe_is_a_silent_no_op(
 
         assert pane.jump_mode_active is False
         assert _highlighted_name(pane) is None
+
+
+async def test_jump_works_when_the_row_list_owns_focus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A click can focus the row list, so the pane must route jump keys too.
+
+    ``OptionList`` passes unhandled keys straight through, so without the
+    pane's own handler a digit hint would reach the Admin Center's numbered
+    tab bindings and switch tabs instead of jumping.
+    """
+    async with AcePage() as page:
+        modal, pane = await _open_xprompts_tab(page, monkeypatch, _three_item_prompts())
+        option_list = pane.query_one("#browser-list", OptionList)
+        option_list.focus()
+        await page.wait_for(lambda _s: option_list.has_focus)
+
+        await page.press("apostrophe")
+        await page.pause()
+        assert pane.jump_mode_active is True
+
+        await page.press("2")
+        await page.wait_for(lambda _s: not pane.jump_mode_active)
+
+        assert modal._active_tab == "xprompts"
+        assert _highlighted_name(pane) == "zzz"
+        assert pane.jump_back_stack == [0]

@@ -376,6 +376,54 @@ async def test_tasks_tab_escape_cancels_jump_mode_without_closing_modal() -> Non
         assert "': jump" in pane._hints()
 
 
+async def test_tasks_tab_jump_mode_takes_g_and_shift_g_from_the_output_scroller() -> (
+    None
+):
+    # Past the ten digit hints, so ``g`` is a real hint character.  Every task
+    # is finished, so nothing auto-follows the output panel and only a
+    # swallowed g / G could scroll it.
+    tasks = [
+        task(
+            f"t{index:02d}",
+            label=f"mail sase-{index}",
+            status="success",
+            age_seconds=120 + index,
+            output="".join(f"line {line}\n" for line in range(200)),
+        )
+        for index in range(17)
+    ]
+
+    async with TasksTestApp(queue(*tasks)).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot)
+        option_list = pane.query_one("#tasks-list", OptionList)
+        scroll = pane.query_one("#tasks-output-scroll", VerticalScroll)
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+        assert pane._jump_target_count() == 17
+        assert pane.jump_hint_for(16) == "g"
+
+        # ``g`` is a hint here, not the output scroller's top key.
+        await pilot.press("g")
+        await pilot.pause()
+        assert pane.jump_mode_active is False
+        assert option_list.highlighted == 16
+        assert scroll.scroll_y == 0
+
+        # ``G`` needs 43 rows to become a hint, so here it is an invalid hint
+        # that exits jump mode -- but it still has to reach the pane's jump
+        # handler rather than scrolling the output to the bottom.
+        await pilot.press("apostrophe")
+        await pilot.pause()
+        assert pane.jump_mode_active is True
+
+        await pilot.press("G")
+        await pilot.pause()
+        assert scroll.max_scroll_y > 0
+        assert pane.jump_mode_active is False
+        assert scroll.scroll_y == 0
+
+
 async def test_tasks_tab_refresh_removing_hinted_task_clears_jump_mode() -> None:
     running = task("run", label="sync sase-42", status="running", age_seconds=3)
     success = task("ok", label="mail sase-41", status="success", age_seconds=120)

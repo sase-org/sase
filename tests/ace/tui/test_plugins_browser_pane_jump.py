@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from textual.containers import VerticalScroll
 from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
@@ -131,6 +132,31 @@ async def test_updates_plugins_escape_cancels_jump_without_moving(
         assert option_list.highlighted == before
         assert not any(label.startswith("[") for label in _option_labels(pane))
         assert page.state["modal"] == "ConfigCenterModal"
+
+
+async def test_updates_plugins_jump_mode_takes_g_and_shift_g_from_the_scroller(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        scroll = pane.query_one("#plugins-detail-scroll", VerticalScroll)
+
+        for hint_key in ("G", "g"):
+            await page.press("apostrophe")
+            await page.pause()
+            assert pane.jump_mode_active is True
+
+            await page.press(hint_key)
+            await page.pause()
+
+            # These rows allocate single-digit hints, so g / G are invalid
+            # hints that exit jump mode -- but they must reach the pane's
+            # jump handler instead of being swallowed by the detail scroller.
+            assert pane.jump_mode_active is False
+            assert scroll.scroll_y == 0
 
 
 async def test_updates_agent_clis_hint_selects_row_and_renders_detail(

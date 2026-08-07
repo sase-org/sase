@@ -558,6 +558,33 @@ async def test_logs_tab_jump_mode_reuses_cached_source_labels(
         assert _option_plain(option_list, 0) == f"[0] {cached_plain}"
 
 
+async def test_logs_tab_jump_mode_takes_g_and_shift_g_from_the_detail_scroller(
+    log_dir: Path,
+) -> None:
+    # Enough lines that the right detail pane is genuinely scrollable, so a
+    # swallowed g / G would move it.
+    _write(log_dir / "launch_failures.log", "".join(f"line {i}\n" for i in range(200)))
+
+    async with _ModalTestApp().run_test() as pilot:
+        _, pane = await _open_logs_pane(pilot)
+        scroll = pane.query_one("#log-detail-scroll", VerticalScroll)
+
+        for hint_key in ("G", "g"):
+            await pilot.press("apostrophe")
+            await pilot.pause()
+            assert pane.jump_mode_active is True
+
+            await pilot.press(hint_key)
+            await _wait_for_logs_loaded(pilot, pane)
+
+            # These sources allocate single-digit hints, so g / G are invalid
+            # hints that exit jump mode -- but they must reach the pane's jump
+            # handler instead of being swallowed by the detail scroller.
+            assert scroll.max_scroll_y > 0  # pane really is scrollable
+            assert pane.jump_mode_active is False
+            assert scroll.scroll_y == 0
+
+
 async def test_tab_switches_admin_center_tabs_and_brackets_do_not(
     log_dir: Path,
 ) -> None:

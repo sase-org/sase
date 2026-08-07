@@ -42,14 +42,12 @@ class PluginsBrowserList(OptionList):
         if event.key in ("G", "shift+g") or character == "G":
             event.prevent_default()
             event.stop()
-            pane = self._pane()
             if pane is not None:
                 pane.action_scroll_to_bottom()
             return True
         if event.key == "g":
             event.prevent_default()
             event.stop()
-            pane = self._pane()
             if pane is not None:
                 pane.action_scroll_to_top()
             return True
