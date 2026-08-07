@@ -12,13 +12,16 @@ import subprocess
 from collections.abc import Callable
 from typing import Any
 
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Label, Static
 
+from ..actions.navigation.jump_hints import normalize_jump_key
 from ..task_queue import TaskInfo, TaskQueue
 from ..util.selection import ProgrammaticSelectionGuard
 from .config_center_session import TasksSessionState
+from .pane_entry_jump import PaneEntryJumpMixin
 from .tasks_pane_actions import TasksPaneActionsMixin
 from .tasks_pane_render import BodyCache
 from .tasks_pane_selection import TaskList, TasksPaneSelectionMixin
@@ -32,6 +35,7 @@ from .tasks_store_rows import (
 
 
 class TasksPane(
+    PaneEntryJumpMixin,
     TasksPaneActionsMixin,
     TasksPaneStoreMixin,
     TasksPaneSelectionMixin,
@@ -58,6 +62,7 @@ class TasksPane(
         ("g", "scroll_to_top", "Top"),
         ("G", "scroll_to_bottom", "Bottom"),
         ("shift+g", "scroll_to_bottom", "Bottom"),
+        ("apostrophe", "jump_to_entry", "Jump"),
     ]
 
     def __init__(
@@ -120,6 +125,40 @@ class TasksPane(
         if option_list is not None:
             option_list.focus()
 
+    def on_key(self, event: events.Key) -> None:
+        if self.jump_mode_active:
+            key = normalize_jump_key(event.key, event.character)
+            if self.handle_jump_key(key):
+                event.prevent_default()
+                event.stop()
+                return
+        if event.key == "apostrophe":
+            event.prevent_default()
+            event.stop()
+            self.action_jump_to_entry()
+
+    def _jump_target_count(self) -> int:
+        return len(self._tasks)
+
+    def _jump_current_index(self) -> int | None:
+        return self._highlighted_row()
+
+    def _jump_select_index(self, index: int) -> None:
+        if not 0 <= index < len(self._tasks):
+            return
+        identity = self._task_identity(self._tasks[index])
+        self._rebuild_list(highlight_index=index, prior_identity=identity)
+
+    def _jump_repaint(self) -> None:
+        self._rebuild_list()
+        self._update_hints()
+
+    def _update_hints(self) -> None:
+        try:
+            self.query_one("#tasks-hints", Static).update(self._hints())
+        except Exception:
+            pass
+
     def _task_queue(self) -> TaskQueue | None:
         queue = getattr(self.app, "_task_queue", None)
         return queue if isinstance(queue, TaskQueue) else None
@@ -161,11 +200,13 @@ class TasksPane(
         """Run the configured editor through the facade's patchable subprocess."""
         subprocess.run(editor_args, check=False)
 
-    @staticmethod
-    def _hints() -> str:
+    def _hints(self) -> str:
+        if self.jump_mode_active:
+            action = "back" if self.jump_back_stack else "first"
+            return f"JUMP ' {action}  <esc> cancel"
         return (
             "j/k: move  a: scope  d/D: dismiss  K: kill  e: edit  y: copy  "
-            "ctrl+d/u, g/G: scroll  Tab: tab  Esc: close"
+            "': jump  ctrl+d/u, g/G: scroll  Tab: tab  Esc: close"
         )
 
 

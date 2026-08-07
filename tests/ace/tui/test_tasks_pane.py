@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from rich.text import Text
 from textual.containers import VerticalScroll
 from textual.widgets import OptionList
 
@@ -274,3 +275,124 @@ async def test_tasks_tab_scroll_actions_do_not_move_selection() -> None:
         await pilot.pause()
         assert scroll.scroll_y == 0
         assert option_list.highlighted == highlighted_before
+
+
+def _option_plain(option_list: OptionList, index: int) -> str:
+    option = option_list.get_option_at_index(index)
+    assert isinstance(option.prompt, Text)
+    return option.prompt.plain
+
+
+async def test_tasks_tab_apostrophe_enters_jump_mode_with_hints() -> None:
+    running = task("run", label="sync sase-42", status="running", age_seconds=3)
+    success = task("ok", label="mail sase-41", status="success", age_seconds=120)
+
+    async with TasksTestApp(queue(success, running)).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot)
+        option_list = pane.query_one("#tasks-list", OptionList)
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+
+        assert pane.jump_mode_active is True
+        assert _option_plain(option_list, 0).startswith("[0] ")
+        assert _option_plain(option_list, 1).startswith("[1] ")
+        assert "JUMP ' first" in pane._hints()
+
+
+async def test_tasks_tab_jump_hint_selects_task_and_shows_output() -> None:
+    running = task(
+        "run",
+        label="sync sase-42",
+        status="running",
+        age_seconds=3,
+        live_output="Syncing...\n",
+    )
+    success = task(
+        "ok",
+        label="mail sase-41",
+        status="success",
+        age_seconds=120,
+        output="Mailed PR\n",
+    )
+
+    async with TasksTestApp(queue(success, running)).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot)
+        option_list = pane.query_one("#tasks-list", OptionList)
+
+        await pilot.press("apostrophe")
+        await pilot.press("1")
+        await pilot.pause()
+
+        assert pane.jump_mode_active is False
+        assert pane.jump_back_stack == [0]
+        assert option_list.highlighted == 1
+        assert "Mailed PR" in output_plain(pane)
+        assert not _option_plain(option_list, 1).startswith("[1]")
+
+
+async def test_tasks_tab_apostrophe_in_jump_mode_returns_to_previous_task() -> None:
+    running = task("run", label="sync sase-42", status="running", age_seconds=3)
+    success = task("ok", label="mail sase-41", status="success", age_seconds=120)
+
+    async with TasksTestApp(queue(success, running)).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot)
+        option_list = pane.query_one("#tasks-list", OptionList)
+
+        await pilot.press("apostrophe")
+        await pilot.press("1")
+        await pilot.pause()
+        assert option_list.highlighted == 1
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+        assert "JUMP ' back" in pane._hints()
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+
+        assert option_list.highlighted == 0
+        assert pane.jump_back_stack == []
+
+
+async def test_tasks_tab_escape_cancels_jump_mode_without_closing_modal() -> None:
+    running = task("run", label="sync sase-42", status="running", age_seconds=3)
+
+    async with TasksTestApp(queue(running)).run_test() as pilot:
+        modal, pane = await open_tasks_pane(pilot)
+        option_list = pane.query_one("#tasks-list", OptionList)
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+        assert pane.jump_mode_active is True
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert pane.jump_mode_active is False
+        assert option_list.highlighted == 0
+        assert not _option_plain(option_list, 0).startswith("[0]")
+        assert "': jump" in pane._hints()
+
+
+async def test_tasks_tab_refresh_removing_hinted_task_clears_jump_mode() -> None:
+    running = task("run", label="sync sase-42", status="running", age_seconds=3)
+    success = task("ok", label="mail sase-41", status="success", age_seconds=120)
+    task_queue = queue(success, running)
+
+    async with TasksTestApp(task_queue).run_test() as pilot:
+        _, pane = await open_tasks_pane(pilot)
+        option_list = pane.query_one("#tasks-list", OptionList)
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+        assert pane.jump_mode_active is True
+
+        task_queue.remove("run")
+        pane._refresh_running_output()
+        await pilot.pause()
+
+        assert pane.jump_mode_active is False
+        assert option_list.option_count == 1
+        assert not _option_plain(option_list, 0).startswith("[0]")

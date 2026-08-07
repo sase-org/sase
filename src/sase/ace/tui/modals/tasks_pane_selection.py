@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from rich.text import Text
 from textual import events
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
 from ..task_queue import TaskInfo, TaskQueue
 from ..util.selection import restore_selection_by_identity
+from .pane_entry_jump import apply_jump_hint_prefix
 from .tasks_pane_render import is_active, task_row_label
 
 if TYPE_CHECKING:
@@ -101,6 +103,12 @@ class TasksPaneSelectionMixin(_MixinBase):
 
         def _task_queue(self) -> TaskQueue | None: ...
 
+        def invalidate_jump_hints(
+            self, *, identities_changed: bool, target_count: int
+        ) -> None: ...
+
+        def jump_hint_for(self, index: int) -> str | None: ...
+
     def _merged_tasks(self) -> list[TaskInfo]:
         """Merge in-memory tasks with the store rows they do not shadow."""
         queue = self._task_queue()
@@ -130,9 +138,18 @@ class TasksPaneSelectionMixin(_MixinBase):
     def _create_options(self) -> list[Option]:
         """Create option list entries from current tasks."""
         return [
-            Option(task_row_label(task), id=self._option_id_for_task(task))
-            for task in self._tasks
+            Option(
+                self._render_task_label(index, task), id=self._option_id_for_task(task)
+            )
+            for index, task in enumerate(self._tasks)
         ]
+
+    def _render_task_label(self, index: int, task: TaskInfo) -> Text:
+        label = task_row_label(task)
+        hint = self.jump_hint_for(index)
+        if hint is None:
+            return label
+        return apply_jump_hint_prefix(label, hint)
 
     def _option_list(self) -> OptionList | None:
         try:
@@ -287,6 +304,16 @@ class TasksPaneSelectionMixin(_MixinBase):
         option_list = self._option_list()
         if option_list is None:
             return
+
+        previous_ids = [
+            option_list.get_option_at_index(i).id
+            for i in range(option_list.option_count)
+        ]
+        next_ids = [self._option_id_for_task(task) for task in self._tasks]
+        self.invalidate_jump_hints(
+            identities_changed=previous_ids != next_ids,
+            target_count=len(self._tasks),
+        )
 
         self._selection_guard.clear()  # type: ignore[attr-defined]
         bookmark = self._session_state.task  # type: ignore[attr-defined]
