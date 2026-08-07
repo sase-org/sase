@@ -418,7 +418,7 @@ async def test_logs_tab_apostrophe_enters_jump_mode_with_hints(
         await pilot.press("apostrophe")
         await pilot.pause()
 
-        assert pane._log_jump_mode_active is True
+        assert pane.jump_mode_active is True
         assert _option_plain(option_list, 0).startswith("[0] ● Launch")
         assert _option_plain(option_list, 1).startswith("[1] ● TUI Diagnostics")
         assert "JUMP ' first" in _logs_hint_text(pane)
@@ -438,8 +438,8 @@ async def test_logs_tab_jump_hint_selects_source_and_loads_detail(
         await pilot.press("1")
         await _wait_for_logs_loaded(pilot, pane)
 
-        assert pane._log_jump_mode_active is False
-        assert pane._log_jump_back_stack == [0]
+        assert pane.jump_mode_active is False
+        assert pane.jump_back_stack == [0]
         assert option_list.highlighted == 1
         assert "tui.log" in pane._last_detail_text.plain
         assert not _option_plain(option_list, 1).startswith("[1]")
@@ -458,7 +458,7 @@ async def test_logs_tab_digit_hint_does_not_switch_admin_center_tabs(
         await pilot.press("2")
         await _wait_for_logs_loaded(pilot, pane)
 
-        assert pane._log_jump_mode_active is False
+        assert pane.jump_mode_active is False
         assert modal._active_tab == "logs"
         assert switcher.current == "logs"
         assert option_list.highlighted == 2
@@ -487,7 +487,7 @@ async def test_logs_tab_apostrophe_in_jump_mode_returns_to_previous_source(
         await _wait_for_logs_loaded(pilot, pane)
 
         assert option_list.highlighted == 0
-        assert pane._log_jump_back_stack == []
+        assert pane.jump_back_stack == []
         assert "launch_failures.log" in pane._last_detail_text.plain
 
 
@@ -504,14 +504,14 @@ async def test_logs_tab_apostrophe_without_history_jumps_to_first_source(
         await pilot.press("j")
         await _wait_for_logs_loaded(pilot, pane)
         assert option_list.highlighted == 1
-        assert pane._log_jump_back_stack == []
+        assert pane.jump_back_stack == []
 
         await pilot.press("apostrophe")
         await pilot.press("apostrophe")
         await _wait_for_logs_loaded(pilot, pane)
 
         assert option_list.highlighted == 0
-        assert pane._log_jump_back_stack == [1]
+        assert pane.jump_back_stack == [1]
         assert "launch_failures.log" in pane._last_detail_text.plain
 
 
@@ -524,13 +524,13 @@ async def test_logs_tab_escape_cancels_jump_mode_without_closing_modal(
 
         await pilot.press("apostrophe")
         await pilot.pause()
-        assert pane._log_jump_mode_active is True
+        assert pane.jump_mode_active is True
 
         await pilot.press("escape")
         await pilot.pause()
 
         assert isinstance(pilot.app.screen, ConfigCenterModal)
-        assert pane._log_jump_mode_active is False
+        assert pane.jump_mode_active is False
         assert option_list.highlighted == 0
         assert not _option_plain(option_list, 0).startswith("[0]")
         assert "': jump" in _logs_hint_text(pane)
