@@ -104,11 +104,6 @@ class NotificationModal(
         self._pending_confirm_notification_id: str | None = None
         self._pending_confirm_notification_ids: list[str] | None = None
         self._marked_notification_ids: set[str] = set()
-        self._entry_jump_mode_active = False
-        self._entry_jump_pending_prefix = ""
-        self._entry_jump_hint_to_index: dict[str, int] = {}
-        self._entry_jump_index_to_hint: dict[int, str] = {}
-        self._entry_jump_last_index: int | None = None
         self._gate_summary_cache: dict[str, tuple[tuple[int, ...], GateSummary]] = {}
         self._gate_summary_debouncer: DetailPanelDebouncer | None = None
 
@@ -504,7 +499,7 @@ class NotificationModal(
     ) -> None:
         """Rebuild the option list from current notifications."""
         if not show_jump_hints:
-            self._clear_entry_jump_hints()
+            self.clear_jump_hints()
             self._update_hint_footer()
         self._coerce_active_notification_tag()
         self._refresh_tag_strip()
@@ -531,7 +526,7 @@ class NotificationModal(
             self._display_file(None)
             return
 
-        jump_hints = self._entry_jump_index_to_hint if show_jump_hints else None
+        jump_hints = self.jump_hints_by_key() if show_jump_hints else None
         for option in self._create_notification_options(jump_hints=jump_hints):
             option_list.add_option(option)
 

@@ -285,9 +285,9 @@ async def test_alias_disabled_rows_are_searchable_and_skipped_by_navigation() ->
         coder = option_list.get_option("@coder")
         assert coder.disabled is True
         assert "current alias" in str(coder.prompt)
-        assert "@coder" not in modal._visible_selectable_option_ids()
+        assert "@coder" not in modal._jump_target_keys()
         modal.action_jump_to_entry()
-        assert "@coder" not in modal._model_jump_id_to_hint
+        assert "@coder" not in modal.jump_hints_by_key()
 
 
 async def test_alias_picker_narrow_geometry_keeps_single_line_rows_and_footer() -> None:

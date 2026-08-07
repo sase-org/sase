@@ -15,12 +15,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from sase.ace.tui.actions.navigation.jump_hints import (
-    JumpHintMatchOutcome,
-    build_jump_hint_maps,
-    match_jump_hint,
-    normalize_jump_key,
-)
+from sase.ace.tui.actions.navigation.jump_hints import normalize_jump_key
 from sase.core.agent_group_archive_wire import (
     SavedAgentGroupPageWire,
     SavedAgentGroupSummaryWire,
@@ -30,6 +25,7 @@ from sase.core.agent_group_archive_wire import (
 from .base import OptionListNavigationMixin
 from .confirm_action_modal import ConfirmActionModal
 from .confirm_dialog import ConfirmKind
+from .pane_entry_jump import KeyedPaneEntryJumpMixin
 from .saved_agent_group_revival_rendering import (
     apply_jump_hint_prefix,
     build_empty_groups_preview,
@@ -61,6 +57,7 @@ class SavedAgentGroupRevivalResult:
 
 
 class SavedAgentGroupRevivalModal(
+    KeyedPaneEntryJumpMixin[str],
     OptionListNavigationMixin,
     ModalScreen[SavedAgentGroupRevivalResult | None],
 ):
@@ -95,11 +92,6 @@ class SavedAgentGroupRevivalModal(
         self._recent_group_loader = recent_group_loader
         self._delete_callback = delete_callback
         self._loaded_groups: dict[str, SavedAgentGroupWire | None] = {}
-        self._entry_jump_mode_active = False
-        self._entry_jump_pending_prefix = ""
-        self._entry_jump_hint_to_option_id: dict[str, str] = {}
-        self._entry_jump_option_id_to_hint: dict[str, str] = {}
-        self._entry_jump_last_option_id: str | None = None
 
     @property
     def groups(self) -> tuple[SavedAgentGroupSummaryWire, ...]:
@@ -247,8 +239,9 @@ class SavedAgentGroupRevivalModal(
         )
         self._next_cursor = page.next_cursor
         # Pagination changes the option set; drop any jump hints so the rebuilt
-        # list never renders stale markers.
-        self._clear_entry_jump_hints()
+        # list never renders stale markers, and the back stack with them since
+        # its stored positions no longer name the same rows.
+        self.invalidate_jump_hints(identities_changed=True, target_count=0)
         self._rebuild_options(highlighted_option_id=old_highlighted_id)
         self._update_hints()
 
@@ -273,7 +266,7 @@ class SavedAgentGroupRevivalModal(
 
         self._groups = [group for group in self._groups if group.group_id != group_id]
         self._loaded_groups.pop(f"{_GROUP_PREFIX}{group_id}", None)
-        self._clear_entry_jump_hints()
+        self.invalidate_jump_hints(identities_changed=True, target_count=0)
         self._rebuild_options(highlighted_option_id=next_highlight)
         self._focus_option_list()
         self._update_preview_for_option_id(self._current_highlighted_option_id())
@@ -405,7 +398,7 @@ class SavedAgentGroupRevivalModal(
     ) -> None:
         option_list = self.query_one("#saved-agent-group-list", OptionList)
         option_list.clear_options()
-        jump_hints = self._entry_jump_option_id_to_hint if show_jump_hints else None
+        jump_hints = self.jump_hints_by_key() if show_jump_hints else None
         for option in self._create_options(jump_hints=jump_hints):
             option_list.add_option(option)
 
@@ -416,8 +409,8 @@ class SavedAgentGroupRevivalModal(
 
     def _update_hints(self) -> None:
         static = self.query_one("#saved-agent-group-hints", Static)
-        if self._entry_jump_mode_active:
-            action = "back" if self._entry_jump_last_option_id is not None else "first"
+        if self.jump_mode_active:
+            action = "back" if self.jump_back_stack else "first"
             static.update(f"JUMP ' {action}  <esc> cancel")
         else:
             static.update(self._hints_text())
@@ -474,7 +467,7 @@ class SavedAgentGroupRevivalModal(
         except Exception:
             return
 
-    def _selectable_option_ids(self) -> list[str]:
+    def _jump_target_keys(self) -> list[str]:
         """Return selectable option ids in current visual order.
 
         Skips disabled headings, separators, and empty-state rows so jump
@@ -488,104 +481,30 @@ class SavedAgentGroupRevivalModal(
             ids.append(option.id)
         return ids
 
-    def action_jump_to_entry(self) -> None:
-        """Enter adaptive jump mode for the modal's selectable rows."""
+    def _jump_current_key(self) -> str | None:
+        return self._current_highlighted_option_id()
 
-        option_ids = self._selectable_option_ids()
-        if not option_ids:
-            return
-        self._entry_jump_hint_to_option_id, self._entry_jump_option_id_to_hint = (
-            build_jump_hint_maps(option_ids)
-        )
-        if not self._entry_jump_hint_to_option_id:
-            return
-
-        highlighted_id = self._current_highlighted_option_id()
-        self._entry_jump_pending_prefix = ""
-        self._entry_jump_mode_active = True
-        self._update_hints()
-        self._rebuild_options(
-            highlighted_option_id=highlighted_id,
-            show_jump_hints=True,
-        )
-
-    def _clear_entry_jump_hints(self) -> None:
-        """Clear transient jump-mode hint maps and deactivate jump mode."""
-
-        self._entry_jump_mode_active = False
-        self._entry_jump_pending_prefix = ""
-        self._entry_jump_hint_to_option_id = {}
-        self._entry_jump_option_id_to_hint = {}
-
-    def _exit_entry_jump_mode(self) -> None:
-        """Cancel jump mode, remove hints, and keep the current highlight."""
-
-        highlighted_id = self._current_highlighted_option_id()
-        self._clear_entry_jump_hints()
-        self._update_hints()
-        self._rebuild_options(highlighted_option_id=highlighted_id)
-
-    def _handle_entry_jump_key(self, key: str) -> bool:
-        """Handle one keypress while jump mode is active."""
-
-        if not self._entry_jump_mode_active:
-            return False
-        if key == "escape":
-            self._exit_entry_jump_mode()
-            return True
-
-        if key == "apostrophe":
-            if self._entry_jump_last_option_id is not None:
-                last_target = self._entry_jump_last_option_id
-                current = self._current_highlighted_option_id()
-                if current is not None:
-                    self._entry_jump_last_option_id = current
-                return self._jump_to_option_id(last_target)
-            target_option_id = next(
-                iter(self._entry_jump_hint_to_option_id.values()),
-                None,
-            )
-        else:
-            match = match_jump_hint(
-                self._entry_jump_hint_to_option_id,
-                self._entry_jump_pending_prefix,
-                key,
-            )
-            if match.outcome is JumpHintMatchOutcome.PENDING:
-                self._entry_jump_pending_prefix = match.prefix
-                return True
-            if match.outcome is JumpHintMatchOutcome.INVALID:
-                self._exit_entry_jump_mode()
-                return True
-            target_option_id = match.target
-            self._entry_jump_pending_prefix = ""
-
-        if target_option_id is None:
-            self._exit_entry_jump_mode()
-            return True
-
-        current = self._current_highlighted_option_id()
-        if current is not None:
-            self._entry_jump_last_option_id = current
-        return self._jump_to_option_id(target_option_id)
-
-    def _jump_to_option_id(self, option_id: str) -> bool:
-        """Highlight the given option id without activating it."""
-
-        self._clear_entry_jump_hints()
+    def _jump_select_key(self, key: str) -> None:
         self._update_hints()
         # Setting ``highlighted`` for the target row emits ``OptionHighlighted``,
         # which drives the preview through the normal highlight-update path.
-        self._rebuild_options(highlighted_option_id=option_id)
-        return True
+        self._rebuild_options(highlighted_option_id=key)
+
+    def _jump_repaint(self) -> None:
+        highlighted_id = self._current_highlighted_option_id()
+        self._update_hints()
+        self._rebuild_options(
+            highlighted_option_id=highlighted_id,
+            show_jump_hints=self.jump_mode_active,
+        )
 
     def on_key(self, event: events.Key) -> None:
         """Intercept jump-mode keypresses before modal bindings run."""
 
-        if not self._entry_jump_mode_active:
+        if not self.jump_mode_active:
             return
         key = normalize_jump_key(event.key, event.character)
-        if self._handle_entry_jump_key(key):
+        if self.handle_jump_key(key):
             event.prevent_default()
             event.stop()
 

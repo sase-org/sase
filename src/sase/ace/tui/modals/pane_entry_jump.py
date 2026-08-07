@@ -1,14 +1,19 @@
-"""Shared adaptive entry-jump state machine for Admin Center panes.
+"""Shared adaptive entry-jump state machine for Admin Center panes and modals.
 
 Every Admin Center working tab binds ``'`` to an adaptive hint jump over that
 tab's selectable rows.  The state machine behind that key -- hint allocation,
 the pending-prefix matcher, and the bounded back stack -- is identical on every
 tab, so it lives here once and each pane supplies four small host hooks that
 describe its own row list.
+
+Modals whose rows are addressed by an opaque key rather than a position use
+:class:`KeyedPaneEntryJumpMixin`, which keeps the same one state machine and
+translates between that key space and the mixin's logical-index space.
 """
 
 from __future__ import annotations
 
+from collections.abc import Hashable
 from dataclasses import dataclass, field
 
 from ..actions.navigation.jump_hints import (
@@ -197,8 +202,62 @@ class PaneEntryJumpMixin:
         return True
 
 
+class KeyedPaneEntryJumpMixin[K: Hashable](PaneEntryJumpMixin):
+    """Entry jump for hosts that name their rows by key instead of position.
+
+    Several modals identify a row by an opaque key -- a notification index into
+    an unsorted list, an ``OptionList`` option id -- rather than by its position
+    among the jumpable rows.  This adapter keeps the single state machine in
+    :class:`PaneEntryJumpMixin` and does the key/logical-index translation in
+    one place, so hosts only describe their rows in their own terms.
+    """
+
+    # -- host hooks ---------------------------------------------------------
+
+    def _jump_target_keys(self) -> list[K]:
+        """Return the keys of the currently jumpable rows, in visual order."""
+        raise NotImplementedError
+
+    def _jump_current_key(self) -> K | None:
+        """Return the key of the currently selected row, if any."""
+        raise NotImplementedError
+
+    def _jump_select_key(self, key: K) -> None:
+        """Move the selection to ``key`` through the host's own path."""
+        raise NotImplementedError
+
+    # -- host-facing API ----------------------------------------------------
+
+    def jump_hints_by_key(self) -> dict[K, str]:
+        """Return the hint to render on each keyed row while jump mode is on."""
+        hints: dict[K, str] = {}
+        for index, key in enumerate(self._jump_target_keys()):
+            hint = self.jump_hint_for(index)
+            if hint is not None:
+                hints[key] = hint
+        return hints
+
+    # -- PaneEntryJumpMixin hooks -------------------------------------------
+
+    def _jump_target_count(self) -> int:
+        return len(self._jump_target_keys())
+
+    def _jump_current_index(self) -> int | None:
+        current = self._jump_current_key()
+        if current is None:
+            return None
+        keys = self._jump_target_keys()
+        return keys.index(current) if current in keys else None
+
+    def _jump_select_index(self, index: int) -> None:
+        keys = self._jump_target_keys()
+        if 0 <= index < len(keys):
+            self._jump_select_key(keys[index])
+
+
 __all__ = [
     "JUMP_BACK_STACK_LIMIT",
+    "KeyedPaneEntryJumpMixin",
     "PaneEntryJumpMixin",
     "apply_jump_hint_prefix",
 ]

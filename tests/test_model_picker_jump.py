@@ -28,7 +28,7 @@ async def test_model_picker_jump_hints_follow_filtered_visible_order() -> None:
 
         modal.action_jump_to_entry()
 
-        visible_ids = modal._visible_selectable_option_ids()
+        visible_ids = modal._jump_target_keys()
         # Providers render in entry-point order (alphabetical), so the
         # Antigravity (agy) Gemini slugs lead the filtered list.
         assert visible_ids[:3] == [
@@ -36,9 +36,10 @@ async def test_model_picker_jump_hints_follow_filtered_visible_order() -> None:
             "gemini-3.6-flash-high",
             "gemini-3.6-flash-medium",
         ]
-        assert modal._model_jump_hint_to_id["0"] == visible_ids[0]
-        assert modal._model_jump_hint_to_id["1"] == visible_ids[1]
-        assert modal._model_jump_id_to_hint[visible_ids[2]] == "2"
+        hints = modal.jump_hints_by_key()
+        assert hints[visible_ids[0]] == "0"
+        assert hints[visible_ids[1]] == "1"
+        assert hints[visible_ids[2]] == "2"
 
 
 async def test_model_picker_jump_apostrophe_without_history_highlights_first() -> None:
@@ -52,32 +53,35 @@ async def test_model_picker_jump_apostrophe_without_history_highlights_first() -
         option_list.highlighted = option_list.get_option_index(CUSTOM_SENTINEL)
 
         modal.action_jump_to_entry()
-        handled = modal._handle_model_jump_key("apostrophe")
+        handled = modal.handle_jump_key("apostrophe")
 
         assert handled is True
         assert _highlighted_id(option_list) == "__default__"
-        assert modal._model_jump_last_id == CUSTOM_SENTINEL
-        assert modal._model_jump_mode_active is False
+        assert modal.jump_back_stack == [
+            modal._jump_target_keys().index(CUSTOM_SENTINEL)
+        ]
+        assert modal.jump_mode_active is False
 
 
 async def test_model_picker_jump_apostrophe_back_highlights_previous() -> None:
-    """Apostrophe in jump mode returns to the saved previous row."""
+    """Apostrophe in jump mode returns to the row on top of the back stack."""
     async with ModelPickerTestApp().run_test() as pilot:
         modal = ModelPickerModal()
         pilot.app.push_screen(modal)
         await pilot.pause()
 
         option_list = modal.query_one("#model-picker-list", OptionList)
-        modal._model_jump_last_id = "o3"
+        modal._jump_state().back_stack.append(modal._jump_target_keys().index("o3"))
         option_list.highlighted = option_list.get_option_index(CUSTOM_SENTINEL)
 
         modal.action_jump_to_entry()
-        handled = modal._handle_model_jump_key("apostrophe")
+        handled = modal.handle_jump_key("apostrophe")
 
         assert handled is True
         assert _highlighted_id(option_list) == "o3"
-        assert modal._model_jump_last_id == CUSTOM_SENTINEL
-        assert modal._model_jump_mode_active is False
+        # A back jump pops its target instead of pushing the row it left.
+        assert modal.jump_back_stack == []
+        assert modal.jump_mode_active is False
 
 
 async def test_model_picker_jump_accepts_uppercase_hint() -> None:
@@ -104,12 +108,12 @@ async def test_model_picker_jump_accepts_uppercase_hint() -> None:
         option_list.highlighted = option_list.get_option_index("synthetic-0")
 
         modal.action_jump_to_entry()
-        assert modal._model_jump_hint_to_id["A"] == "synthetic-36"
-        handled = modal._handle_model_jump_key("A")
+        assert modal.jump_hints_by_key()["synthetic-36"] == "A"
+        handled = modal.handle_jump_key("A")
 
         assert handled is True
         assert _highlighted_id(option_list) == "synthetic-36"
-        assert modal._model_jump_mode_active is False
+        assert modal.jump_mode_active is False
 
 
 async def test_model_picker_two_character_hint_accepts_uppercase_second_char() -> None:
@@ -135,16 +139,16 @@ async def test_model_picker_two_character_hint_accepts_uppercase_second_char() -
         option_list.highlighted = option_list.get_option_index("synthetic-0")
 
         modal.action_jump_to_entry()
-        assert modal._model_jump_hint_to_id["0Z"] == "synthetic-61"
+        assert modal.jump_hints_by_key()["synthetic-61"] == "0Z"
 
-        assert modal._handle_model_jump_key("0") is True
-        assert modal._model_jump_mode_active is True
-        assert modal._model_jump_pending_prefix == "0"
+        assert modal.handle_jump_key("0") is True
+        assert modal.jump_mode_active is True
+        assert modal._jump_state().pending_prefix == "0"
         assert _highlighted_id(option_list) == "synthetic-0"
 
-        assert modal._handle_model_jump_key("Z") is True
-        assert modal._model_jump_mode_active is False
-        assert modal._model_jump_pending_prefix == ""
+        assert modal.handle_jump_key("Z") is True
+        assert modal.jump_mode_active is False
+        assert modal._jump_state().pending_prefix == ""
         assert _highlighted_id(option_list) == "synthetic-61"
 
 
@@ -156,16 +160,16 @@ async def test_model_picker_filter_change_clears_jump_hints() -> None:
         await pilot.pause()
 
         modal.action_jump_to_entry()
-        assert modal._model_jump_mode_active is True
+        assert modal.jump_mode_active is True
 
         filter_input = modal.query_one("#model-picker-filter", Input)
         filter_input.value = "codex"
         await pilot.pause()
 
         option_list = modal.query_one("#model-picker-list", OptionList)
-        assert modal._model_jump_mode_active is False
-        assert modal._model_jump_pending_prefix == ""
-        assert modal._model_jump_hint_to_id == {}
+        assert modal.jump_mode_active is False
+        assert modal._jump_state().pending_prefix == ""
+        assert modal.jump_hints_by_key() == {}
         assert all(
             not str(option.prompt).startswith("[")
             for option in option_list.options

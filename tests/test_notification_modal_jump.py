@@ -23,14 +23,14 @@ def test_notification_jump_apostrophe_without_history_highlights_first_visual() 
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
-    handled = modal._handle_entry_jump_key("apostrophe")
+    handled = modal.handle_jump_key("apostrophe")
 
     assert handled is True
     assert modal._get_selected_index() == 0
     modal._display_file.assert_called_with(first)
     modal.dismiss.assert_not_called()
-    assert modal._entry_jump_last_index == 1
-    assert modal._entry_jump_mode_active is False
+    assert modal.jump_back_stack == [1]
+    assert modal.jump_mode_active is False
 
 
 def test_notification_jump_dispatches_uppercase_hint_character_without_dismiss() -> (
@@ -46,8 +46,8 @@ def test_notification_jump_dispatches_uppercase_hint_character_without_dismiss()
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
-    assert modal._entry_jump_hint_to_index["A"] == 36
-    handled = modal._handle_entry_jump_key("A")
+    assert modal.jump_hints_by_key()[36] == "A"
+    handled = modal.handle_jump_key("A")
 
     assert handled is True
     assert modal._get_selected_index() == 36
@@ -56,24 +56,25 @@ def test_notification_jump_dispatches_uppercase_hint_character_without_dismiss()
 
 
 def test_notification_jump_apostrophe_back_highlights_previous_notification() -> None:
-    """Apostrophe in jump mode returns to the saved previous notification."""
+    """Apostrophe in jump mode returns to the row on top of the back stack."""
     notifications = [
         _make_notification(f"n{i}", action="JumpToAgent") for i in range(3)
     ]
     modal = NotificationModal(notifications)
-    modal._entry_jump_last_index = 2
+    modal._jump_state().back_stack.append(2)
     _wire_fake_option_list(modal, highlighted_index=0)
     modal._display_file = MagicMock()  # type: ignore[method-assign]
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
-    handled = modal._handle_entry_jump_key("apostrophe")
+    handled = modal.handle_jump_key("apostrophe")
 
     assert handled is True
     assert modal._get_selected_index() == 2
     modal._display_file.assert_called_with(notifications[2])
     modal.dismiss.assert_not_called()
-    assert modal._entry_jump_last_index == 0
+    # A back jump pops its target instead of pushing the row it left.
+    assert modal.jump_back_stack == []
 
 
 def test_notification_jump_escape_cancels_without_dismiss() -> None:
@@ -84,12 +85,12 @@ def test_notification_jump_escape_cancels_without_dismiss() -> None:
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
-    handled = modal._handle_entry_jump_key("escape")
+    handled = modal.handle_jump_key("escape")
 
     assert handled is True
     modal.dismiss.assert_not_called()
-    assert modal._entry_jump_mode_active is False
-    modal._rebuild_list.assert_called_with(highlight_index=0)
+    assert modal.jump_mode_active is False
+    modal._rebuild_list.assert_called_with(highlight_index=0, show_jump_hints=False)
 
 
 def test_notification_jump_invalid_key_cancels_without_changing_highlight() -> None:
@@ -103,11 +104,11 @@ def test_notification_jump_invalid_key_cancels_without_changing_highlight() -> N
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
-    handled = modal._handle_entry_jump_key("q")
+    handled = modal.handle_jump_key("q")
 
     assert handled is True
     assert modal._get_selected_index() == 1
-    assert modal._entry_jump_mode_active is False
+    assert modal.jump_mode_active is False
     modal.dismiss.assert_not_called()
 
 
@@ -124,7 +125,7 @@ def test_notification_jump_resets_file_index_and_refreshes_preview() -> None:
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
-    handled = modal._handle_entry_jump_key("1")
+    handled = modal.handle_jump_key("1")
 
     assert handled is True
     assert modal._get_selected_index() == 1
@@ -162,7 +163,7 @@ def test_notification_jump_then_enter_activates_highlighted_notification() -> No
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
-    assert modal._handle_entry_jump_key("1") is True
+    assert modal.handle_jump_key("1") is True
     modal.dismiss.assert_not_called()
 
     event = MagicMock()
@@ -201,14 +202,14 @@ def test_notification_two_character_hint_waits_and_cleans_up() -> None:
     modal._display_file = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
-    assert modal._entry_jump_index_to_hint[62] == "10"
+    assert modal.jump_hints_by_key()[62] == "10"
 
-    assert modal._handle_entry_jump_key("1") is True
-    assert modal._entry_jump_mode_active is True
-    assert modal._entry_jump_pending_prefix == "1"
+    assert modal.handle_jump_key("1") is True
+    assert modal.jump_mode_active is True
+    assert modal._jump_state().pending_prefix == "1"
     assert modal._get_selected_index() == 0
 
-    assert modal._handle_entry_jump_key("0") is True
+    assert modal.handle_jump_key("0") is True
     assert modal._get_selected_index() == 62
-    assert modal._entry_jump_mode_active is False
-    assert modal._entry_jump_pending_prefix == ""
+    assert modal.jump_mode_active is False
+    assert modal._jump_state().pending_prefix == ""

@@ -7,12 +7,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual.widgets._option_list import Option
 
-from sase.ace.tui.actions.navigation.jump_hints import (
-    JumpHintMatchOutcome,
-    build_jump_hint_maps,
-    match_jump_hint,
-    normalize_jump_key,
-)
+from sase.ace.tui.actions.navigation.jump_hints import normalize_jump_key
 
 from .base import FilterInput, OptionListNavigationMixin
 from .model_picker_options import (
@@ -28,6 +23,7 @@ from .model_picker_rows import (
     alias_reference_rejection,
     build_model_rows,
 )
+from .pane_entry_jump import KeyedPaneEntryJumpMixin
 
 __all__ = (
     "CUSTOM_SENTINEL",
@@ -61,9 +57,9 @@ class _ModelPickerFilterInput(FilterInput):
 
     async def _on_key(self, event: events.Key) -> None:
         modal = self.screen
-        if isinstance(modal, ModelPickerModal) and modal._model_jump_mode_active:
+        if isinstance(modal, ModelPickerModal) and modal.jump_mode_active:
             key = normalize_jump_key(event.key, event.character)
-            if modal._handle_model_jump_key(key):
+            if modal.handle_jump_key(key):
                 event.prevent_default()
                 event.stop()
                 return
@@ -99,7 +95,11 @@ class _ModelPickerFilterInput(FilterInput):
         await super()._on_key(event)
 
 
-class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
+class ModelPickerModal(
+    KeyedPaneEntryJumpMixin[str],
+    OptionListNavigationMixin,
+    ModalScreen[str | None],
+):
     """Modal for selecting a coder LLM model.
 
     Args:
@@ -142,11 +142,6 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
             alias_context=alias_context,
         )
         self._visible_rows = self._all_rows
-        self._model_jump_mode_active = False
-        self._model_jump_pending_prefix = ""
-        self._model_jump_hint_to_id: dict[str, str] = {}
-        self._model_jump_id_to_hint: dict[str, str] = {}
-        self._model_jump_last_id: str | None = None
 
     def compose(self) -> ComposeResult:
         with Container(
@@ -189,16 +184,15 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         self._ensure_highlight()
 
     def _render_options(self) -> list[Option | None]:
-        jump_hints = (
-            self._model_jump_id_to_hint if self._model_jump_mode_active else None
-        )
+        jump_hints = self.jump_hints_by_key() if self.jump_mode_active else None
         return rows_to_options(self._visible_rows, jump_hints=jump_hints)
 
     def _apply_filter(self, query: str) -> None:
         option_list = self.query_one("#model-picker-list", OptionList)
         previous_id = self._highlighted_option_id()
         self._visible_rows = filter_model_rows(self._all_rows, query)
-        self._clear_model_jump_hints()
+        # Refiltering renames every logical row, so the back stack goes too.
+        self.invalidate_jump_hints(identities_changed=True, target_count=0)
         option_list.clear_options()
         option_list.add_options(self._render_options())
         self._ensure_highlight(
@@ -216,99 +210,32 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
             return None
         return str(option.id) if option.id is not None else None
 
-    def _visible_selectable_option_ids(self) -> list[str]:
+    # -- jump host hooks ----------------------------------------------------
+
+    def _jump_target_keys(self) -> list[str]:
+        """Return the visible selectable option ids, in row order."""
         return [row.option_id for row in self._visible_rows if not row.disabled]
 
-    def action_jump_to_entry(self) -> None:
-        option_ids = self._visible_selectable_option_ids()
-        if not option_ids:
-            return
+    def _jump_current_key(self) -> str | None:
+        return self._highlighted_option_id()
 
-        self._model_jump_hint_to_id, self._model_jump_id_to_hint = build_jump_hint_maps(
-            option_ids
-        )
-        if not self._model_jump_hint_to_id:
-            return
-
-        self._model_jump_pending_prefix = ""
-        self._model_jump_mode_active = True
-        option_list = self.query_one("#model-picker-list", OptionList)
-        preferred_id = self._highlighted_option_id()
-        option_list.clear_options()
-        option_list.add_options(self._render_options())
-        self._ensure_highlight(preferred_id=preferred_id)
-        self._update_jump_footer()
-
-    def _clear_model_jump_hints(self) -> None:
-        self._model_jump_mode_active = False
-        self._model_jump_pending_prefix = ""
-        self._model_jump_hint_to_id = {}
-        self._model_jump_id_to_hint = {}
-
-    def _exit_model_jump_mode(self) -> None:
-        preferred_id = self._highlighted_option_id()
-        self._clear_model_jump_hints()
-        option_list = self.query_one("#model-picker-list", OptionList)
-        option_list.clear_options()
-        option_list.add_options(self._render_options())
-        self._ensure_highlight(preferred_id=preferred_id)
-        self._update_jump_footer()
-
-    def _handle_model_jump_key(self, key: str) -> bool:
-        if not self._model_jump_mode_active:
-            return False
-        if key == "escape":
-            self._exit_model_jump_mode()
-            return True
-
-        if key == "apostrophe":
-            visible_ids = self._visible_selectable_option_ids()
-            target_id = (
-                self._model_jump_last_id
-                if self._model_jump_last_id in visible_ids
-                else (visible_ids[0] if visible_ids else None)
-            )
-            if target_id is None:
-                self._exit_model_jump_mode()
-                return True
-            current_id = self._highlighted_option_id()
-            if current_id is not None:
-                self._model_jump_last_id = current_id
-            return self._jump_to_option_id(target_id)
-
-        match = match_jump_hint(
-            self._model_jump_hint_to_id,
-            self._model_jump_pending_prefix,
-            key,
-        )
-        if match.outcome is JumpHintMatchOutcome.PENDING:
-            self._model_jump_pending_prefix = match.prefix
-            return True
-        if match.outcome is JumpHintMatchOutcome.INVALID or match.target is None:
-            self._exit_model_jump_mode()
-            return True
-        target_id = match.target
-        self._model_jump_pending_prefix = ""
-
-        current_id = self._highlighted_option_id()
-        if current_id is not None:
-            self._model_jump_last_id = current_id
-        return self._jump_to_option_id(target_id)
-
-    def _jump_to_option_id(self, option_id: str) -> bool:
+    def _jump_select_key(self, key: str) -> None:
+        # Repaint first so the hint prefixes are gone before the highlight
+        # moves, then select the way every other picker path does.
+        self._jump_repaint()
         option_list = self.query_one("#model-picker-list", OptionList)
         try:
-            target_index = option_list.get_option_index(option_id)
+            option_list.highlighted = option_list.get_option_index(key)
         except Exception:
-            self._exit_model_jump_mode()
-            return True
+            return
 
-        self._clear_model_jump_hints()
+    def _jump_repaint(self) -> None:
+        option_list = self.query_one("#model-picker-list", OptionList)
+        preferred_id = self._highlighted_option_id()
         option_list.clear_options()
         option_list.add_options(self._render_options())
-        option_list.highlighted = target_index
+        self._ensure_highlight(preferred_id=preferred_id)
         self._update_jump_footer()
-        return True
 
     def _update_jump_footer(self) -> None:
         try:
@@ -316,8 +243,8 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         except Exception:
             return
 
-        if self._model_jump_mode_active:
-            action = "back" if self._model_jump_last_id is not None else "first"
+        if self.jump_mode_active:
+            action = "back" if self.jump_back_stack else "first"
             footer.update(f"JUMP ' {action}  <esc> cancel")
         else:
             footer.update(
@@ -395,9 +322,9 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
 
     def on_key(self, event: events.Key) -> None:
         """Forward navigation keys while the filter input has focus."""
-        if self._model_jump_mode_active:
+        if self.jump_mode_active:
             key = normalize_jump_key(event.key, event.character)
-            if self._handle_model_jump_key(key):
+            if self.handle_jump_key(key):
                 event.prevent_default()
                 event.stop()
                 return

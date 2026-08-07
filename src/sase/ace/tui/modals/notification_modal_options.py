@@ -9,12 +9,7 @@ from textual import events
 from textual.widgets import Label
 from textual.widgets.option_list import Option
 
-from sase.ace.tui.actions.navigation.jump_hints import (
-    JumpHintMatchOutcome,
-    build_jump_hint_maps,
-    match_jump_hint,
-    normalize_jump_key,
-)
+from sase.ace.tui.actions.navigation.jump_hints import normalize_jump_key
 from sase.notification_gates import PRIVILEGED_GATE_ACTIONS
 from sase.notifications import (
     Notification,
@@ -40,13 +35,19 @@ from .notification_modal_tags import (
     notification_matches_tag_tab,
     shorten_notification_tag,
 )
+from .pane_entry_jump import KeyedPaneEntryJumpMixin
 
 _GATE_HINT_ACTIONS = PRIVILEGED_GATE_ACTIONS - {"UserQuestion"}
 _REDUNDANT_AGENT_SENDERS = frozenset({"user-agent", "user-workflow"})
 
 
-class NotificationOptionMixin:
-    """Build notification row options and handle row jump mode."""
+class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
+    """Build notification row options and handle row jump mode.
+
+    Rows are keyed by their index into the modal's unsorted notification list,
+    which is what every other selection path here speaks, so the shared jump
+    machinery sees those indexes through the keyed adapter.
+    """
 
     @staticmethod
     def _show_sender_label(notification: Notification) -> bool:
@@ -184,96 +185,27 @@ class NotificationOptionMixin:
             indexes.append(int(option_id))
         return indexes
 
-    def _jump_candidate_indices(self: Any) -> list[int]:
+    # -- jump host hooks ----------------------------------------------------
+
+    def _jump_target_keys(self: Any) -> list[int]:
         """Return selectable notification indexes in visual order."""
         return self._visual_notification_index_order()
 
-    def action_jump_to_entry(self: Any) -> None:
-        """Enter adaptive jump mode for notification rows."""
-        indices = self._jump_candidate_indices()
-        if not indices:
-            return
-        self._entry_jump_hint_to_index, self._entry_jump_index_to_hint = (
-            build_jump_hint_maps(indices)
-        )
-        if not self._entry_jump_hint_to_index:
-            return
+    def _jump_current_key(self: Any) -> int | None:
+        return self._get_selected_index()
 
-        self._entry_jump_pending_prefix = ""
-        self._entry_jump_mode_active = True
+    def _jump_select_key(self: Any, key: int) -> None:
+        # ``_rebuild_list`` without ``show_jump_hints`` drops the hint markers
+        # and refreshes the footer on its way to moving the highlight.
+        self._rebuild_list(highlight_index=key)
+
+    def _jump_repaint(self: Any) -> None:
+        highlight_index = self._get_selected_index()
         self._update_hint_footer()
         self._rebuild_list(
-            highlight_index=self._get_selected_index(),
-            show_jump_hints=True,
+            highlight_index=highlight_index,
+            show_jump_hints=self.jump_mode_active,
         )
-
-    def _clear_entry_jump_hints(self: Any) -> None:
-        """Clear transient jump hint maps."""
-        self._entry_jump_mode_active = False
-        self._entry_jump_pending_prefix = ""
-        self._entry_jump_hint_to_index = {}
-        self._entry_jump_index_to_hint = {}
-
-    def _exit_entry_jump_mode(self: Any) -> None:
-        """Cancel jump mode and remove hint markers."""
-        highlight_index = self._get_selected_index()
-        self._clear_entry_jump_hints()
-        self._update_hint_footer()
-        self._rebuild_list(highlight_index=highlight_index)
-
-    def _handle_entry_jump_key(self: Any, key: str) -> bool:
-        """Handle one keypress or prefix while notification jump mode is active."""
-        if not self._entry_jump_mode_active:
-            return False
-        if key == "escape":
-            self._exit_entry_jump_mode()
-            return True
-
-        if key == "apostrophe":
-            if (
-                self._entry_jump_last_index is not None
-                and 0 <= self._entry_jump_last_index < len(self._notifications)
-            ):
-                last_target = self._entry_jump_last_index
-                current = self._get_selected_index()
-                if current is not None:
-                    self._entry_jump_last_index = current
-                return self._jump_to_notification_index(last_target)
-            hint_target = next(iter(self._entry_jump_hint_to_index.values()), None)
-        else:
-            match = match_jump_hint(
-                self._entry_jump_hint_to_index,
-                self._entry_jump_pending_prefix,
-                key,
-            )
-            if match.outcome is JumpHintMatchOutcome.PENDING:
-                self._entry_jump_pending_prefix = match.prefix
-                return True
-            if match.outcome is JumpHintMatchOutcome.INVALID:
-                self._exit_entry_jump_mode()
-                return True
-            hint_target = match.target
-            self._entry_jump_pending_prefix = ""
-
-        if hint_target is None:
-            self._exit_entry_jump_mode()
-            return True
-
-        current = self._get_selected_index()
-        if current is not None:
-            self._entry_jump_last_index = current
-        return self._jump_to_notification_index(hint_target)
-
-    def _jump_to_notification_index(self: Any, notification_idx: int) -> bool:
-        """Highlight the given notification index without activating it."""
-        if not 0 <= notification_idx < len(self._notifications):
-            self._exit_entry_jump_mode()
-            return True
-
-        self._clear_entry_jump_hints()
-        self._update_hint_footer()
-        self._rebuild_list(highlight_index=notification_idx)
-        return True
 
     def _update_hint_footer(self: Any) -> None:
         """Update the modal help line for normal or jump mode."""
@@ -282,8 +214,8 @@ class NotificationOptionMixin:
         except Exception:
             return
 
-        if self._entry_jump_mode_active:
-            action = "back" if self._entry_jump_last_index is not None else "first"
+        if self.jump_mode_active:
+            action = "back" if self.jump_back_stack else "first"
             footer.update(f"JUMP ' {action}  <esc> cancel")
         elif (
             notification := self._get_highlighted_notification()
@@ -296,11 +228,11 @@ class NotificationOptionMixin:
 
     def on_key(self: Any, event: events.Key) -> None:
         """Intercept jump-mode keypresses before modal bindings run."""
-        if not self._entry_jump_mode_active:
+        if not self.jump_mode_active:
             return
 
         key = normalize_jump_key(event.key, event.character)
-        if self._handle_entry_jump_key(key):
+        if self.handle_jump_key(key):
             event.prevent_default()
             event.stop()
 

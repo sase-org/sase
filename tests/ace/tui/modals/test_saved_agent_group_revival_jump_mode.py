@@ -35,8 +35,8 @@ async def test_apostrophe_enters_jump_mode_with_hints_on_enabled_rows_only() -> 
         await pilot.press("apostrophe")
         await pilot.pause()
 
-        assert modal._entry_jump_mode_active is True
-        assert set(modal._entry_jump_option_id_to_hint) == {
+        assert modal.jump_mode_active is True
+        assert set(modal.jump_hints_by_key()) == {
             "group:group-00",
             "group:group-01",
             "custom-search",
@@ -71,12 +71,12 @@ async def test_jump_hint_moves_to_saved_group_and_refreshes_preview() -> None:
         await pilot.pause()
         await pilot.press("apostrophe")
         await pilot.pause()
-        await pilot.press(modal._entry_jump_option_id_to_hint["group:group-01"])
+        await pilot.press(modal.jump_hints_by_key()["group:group-01"])
         await pilot.pause()
 
         assert pilot.app.screen is modal
         assert result == []
-        assert modal._entry_jump_mode_active is False
+        assert modal.jump_mode_active is False
         assert modal._current_highlighted_option_id() == "group:group-01"
 
         preview = modal.query_one("#saved-agent-group-preview", Static)
@@ -96,11 +96,11 @@ async def test_jump_hint_moves_to_recent_dismissal_row() -> None:
         await pilot.pause()
         await pilot.press("apostrophe")
         await pilot.pause()
-        await pilot.press(modal._entry_jump_option_id_to_hint["recent:recent-00"])
+        await pilot.press(modal.jump_hints_by_key()["recent:recent-00"])
         await pilot.pause()
 
         assert pilot.app.screen is modal
-        assert modal._entry_jump_mode_active is False
+        assert modal.jump_mode_active is False
         assert modal._current_highlighted_option_id() == "recent:recent-00"
 
 
@@ -124,7 +124,7 @@ async def test_jump_hint_moves_to_load_more_without_invoking_loader() -> None:
         await pilot.pause()
         await pilot.press("apostrophe")
         await pilot.pause()
-        await pilot.press(modal._entry_jump_option_id_to_hint["load-more"])
+        await pilot.press(modal.jump_hints_by_key()["load-more"])
         await pilot.pause()
 
         assert modal._current_highlighted_option_id() == "load-more"
@@ -149,7 +149,7 @@ async def test_jump_hint_moves_to_custom_search_without_dismissing() -> None:
         await pilot.pause()
         await pilot.press("apostrophe")
         await pilot.pause()
-        await pilot.press(modal._entry_jump_option_id_to_hint["custom-search"])
+        await pilot.press(modal.jump_hints_by_key()["custom-search"])
         await pilot.pause()
 
         assert pilot.app.screen is modal
@@ -179,14 +179,14 @@ async def test_escape_cancels_jump_mode_without_dismissing() -> None:
         await pilot.pause()
         await pilot.press("apostrophe")
         await pilot.pause()
-        assert modal._entry_jump_mode_active is True
+        assert modal.jump_mode_active is True
 
         await pilot.press("escape")
         await pilot.pause()
 
         assert pilot.app.screen is modal
         assert result == []
-        assert modal._entry_jump_mode_active is False
+        assert modal.jump_mode_active is False
 
         option_list = modal.query_one("#saved-agent-group-list", OptionList)
         labels = {option.id: _option_plain(option) for option in option_list.options}
@@ -217,7 +217,7 @@ async def test_invalid_jump_key_cancels_and_keeps_highlight() -> None:
         await pilot.pause()
 
         assert pilot.app.screen is modal
-        assert modal._entry_jump_mode_active is False
+        assert modal.jump_mode_active is False
         assert modal._current_highlighted_option_id() == "group:group-01"
 
 
@@ -240,7 +240,7 @@ async def test_apostrophe_in_jump_mode_without_history_jumps_to_first() -> None:
 
         await pilot.press("apostrophe")
         await pilot.pause()
-        assert modal._entry_jump_last_option_id is None
+        assert modal.jump_back_stack == []
 
         await pilot.press("apostrophe")
         await pilot.pause()
@@ -267,10 +267,12 @@ async def test_apostrophe_in_jump_mode_returns_to_previous_row() -> None:
 
         await pilot.press("apostrophe")
         await pilot.pause()
-        await pilot.press(modal._entry_jump_option_id_to_hint["group:group-02"])
+        await pilot.press(modal.jump_hints_by_key()["group:group-02"])
         await pilot.pause()
         assert modal._current_highlighted_option_id() == "group:group-02"
-        assert modal._entry_jump_last_option_id == "group:group-00"
+        assert modal.jump_back_stack == [
+            modal._jump_target_keys().index("group:group-00")
+        ]
 
         await pilot.press("apostrophe")
         await pilot.pause()
@@ -294,7 +296,7 @@ async def test_uppercase_hint_dispatches_through_on_key_normalization() -> None:
         modal.action_jump_to_entry()
         await pilot.pause()
 
-        assert modal._entry_jump_hint_to_option_id["A"] == "custom-search"
+        assert modal.jump_hints_by_key()["custom-search"] == "A"
 
         event = _FakeKeyEvent(key="a", character="A")
         modal.on_key(event)  # type: ignore[arg-type]
@@ -320,7 +322,7 @@ async def test_jump_then_enter_revives_highlighted_group() -> None:
         await pilot.pause()
         await pilot.press("apostrophe")
         await pilot.pause()
-        await pilot.press(modal._entry_jump_option_id_to_hint["group:group-02"])
+        await pilot.press(modal.jump_hints_by_key()["group:group-02"])
         await pilot.pause()
         assert modal._current_highlighted_option_id() == "group:group-02"
 
