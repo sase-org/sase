@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from unittest.mock import patch
 import pytest
@@ -22,11 +23,25 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 
 
 async def _set_prompt_text(page: AcePage, content: str) -> AgentPromptPanel:
+    """Pin the metadata panel to ``content`` so the search corpus is stable.
+
+    A queued detail render repaints the prompt panel and drops the injected
+    fixture text. Racing a single write against it leaves the search with a
+    corpus that has no match, so re-apply until the text survives a settling
+    turn instead of assuming one write sticks.
+    """
     await page.wait_for(lambda _state: not page.app._agent_detail_debouncer.is_pending)
     panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-    panel.update(Text(content))
-    await page.pause()
-    return panel
+    deadline = asyncio.get_running_loop().time() + 5.0
+    while True:
+        panel.update(Text(content))
+        await page.pause()
+        if (renderable_to_text(panel.content) or "").strip() == content.strip():
+            return panel
+        if asyncio.get_running_loop().time() >= deadline:
+            raise AssertionError(
+                "prompt panel kept reverting to a background detail render"
+            )
 
 
 def _search_agents() -> list[Agent]:
