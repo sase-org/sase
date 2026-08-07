@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
+from rich.cells import cell_len
 
 from sase.ace.tui.modals.notification_modal_tags import (
     MUTED_TAB_KEY,
@@ -18,6 +19,7 @@ from sase.ace.tui.widgets import notification_tab_style
 from sase.ace.tui.widgets.notification_indicator import NotificationIndicator
 from sase.ace.tui.widgets.notification_tab_style import (
     resolve_notification_tab_color,
+    resolve_notification_tab_icon,
 )
 from sase.core.time import get_timezone
 from sase.notifications import Notification
@@ -50,6 +52,7 @@ def _tab(
     label: str | None = None,
     oldest_activity_at: str | None = None,
     next_wake_at: str | None = None,
+    icon: str | None = None,
 ) -> NotificationTagTab:
     return NotificationTagTab(
         tag=tag,
@@ -57,6 +60,7 @@ def _tab(
         count=count,
         oldest_activity_at=oldest_activity_at,
         next_wake_at=next_wake_at,
+        icon=icon,
     )
 
 
@@ -92,20 +96,31 @@ def test_empty_tabs_are_dropped_from_the_badge() -> None:
 
 def test_one_tab_renders_one_chip() -> None:
     text = NotificationIndicator._build_content((_tab("hitl", 2),))
-    assert text.plain == " ✉ 2 "
+    assert text.plain == " ⚑2 "
 
 
-def test_three_tabs_render_three_chips_joined_by_separators() -> None:
+def test_three_tabs_render_three_chips_joined_by_single_spaces() -> None:
     text = NotificationIndicator._build_content(
         (_tab("hitl", 2), _tab("beads", 3), _tab("errors", 1))
     )
-    assert text.plain == " ✉ 2·3·1 "
+    assert text.plain == " ⚑2 ◈3 ✖1 "
+
+
+def test_the_envelope_anchor_is_dropped_once_any_chip_is_present() -> None:
+    """``general`` owns ``✉`` now, so an anchor would render the glyph twice."""
+    text = NotificationIndicator._build_content((_tab("hitl", 2), _tab(None, 1)))
+    assert text.plain == " ⚑2 ✉1 "
+
+
+def test_a_sender_declared_icon_reaches_the_chip() -> None:
+    text = NotificationIndicator._build_content((_tab("deploys", 3, icon="🚀"),))
+    assert text.plain == " 🚀3 "
 
 
 def test_chip_order_follows_input_tab_order() -> None:
     """The leftmost chip is the leftmost panel tab; that is what makes it readable."""
     tabs = (_tab("beads", 7), _tab("hitl", 5), _tab("errors", 9))
-    assert NotificationIndicator._build_content(tabs).plain == " ✉ 7·5·9 "
+    assert NotificationIndicator._build_content(tabs).plain == " ◈7 ⚑5 ✖9 "
 
 
 def test_each_chip_carries_its_own_resolved_tab_color() -> None:
@@ -116,9 +131,11 @@ def test_each_chip_carries_its_own_resolved_tab_color() -> None:
     assert f"bold {resolve_notification_tab_color(tabs[1])}" in styles
 
 
-def test_snoozed_only_renders_the_z_suffixed_count() -> None:
-    text = NotificationIndicator._build_content((_tab(SNOOZED_TAB_KEY, 4),))
-    assert text.plain == " ✉ 4z "
+def test_snoozed_only_renders_the_moon_prefixed_count() -> None:
+    tab = _tab(SNOOZED_TAB_KEY, 4)
+    text = NotificationIndicator._build_content((tab,))
+    assert text.plain == " ☾4 "
+    assert resolve_notification_tab_icon(tab) == "☾"
     snoozed_style = str(text.spans[0].style)
     assert snoozed_style.startswith("dim ")
     assert "#6C6C6C" in snoozed_style
@@ -126,13 +143,13 @@ def test_snoozed_only_renders_the_z_suffixed_count() -> None:
 
 def test_snoozed_chip_disappears_as_soon_as_anything_else_is_pending() -> None:
     tabs = (_tab("beads", 3), _tab(SNOOZED_TAB_KEY, 4))
-    assert NotificationIndicator._build_content(tabs).plain == " ✉ 3 "
+    assert NotificationIndicator._build_content(tabs).plain == " ◈3 "
 
 
 def test_muted_keeps_its_own_chip() -> None:
     """Only snoozed is special-cased; muted is an ordinary tab now."""
     tabs = (_tab("beads", 3), _tab(MUTED_TAB_KEY, 2))
-    assert NotificationIndicator._build_content(tabs).plain == " ✉ 3·2 "
+    assert NotificationIndicator._build_content(tabs).plain == " ◈3 ⊘2 "
 
 
 def test_overflow_beyond_the_configured_maximum_collapses_into_plus_k(
@@ -140,12 +157,12 @@ def test_overflow_beyond_the_configured_maximum_collapses_into_plus_k(
 ) -> None:
     _use_config(monkeypatch, {"notification_indicator_max_counts": 2})
     tabs = (_tab("hitl", 1), _tab("beads", 2), _tab("errors", 3), _tab("docs", 4))
-    assert NotificationIndicator._build_content(tabs).plain == " ✉ 1·2·+2 "
+    assert NotificationIndicator._build_content(tabs).plain == " ⚑1 ◈2 +2 "
 
 
 def test_default_maximum_admits_four_chips() -> None:
     tabs = tuple(_tab(f"tag{index}", index + 1) for index in range(5))
-    assert NotificationIndicator._build_content(tabs).plain == " ✉ 1·2·3·4·+1 "
+    assert NotificationIndicator._build_content(tabs).plain == " •1 •2 •3 •4 +1 "
 
 
 def test_overflow_tooltip_still_describes_every_tab(
@@ -172,12 +189,24 @@ def test_tooltip_mixed_state_briefs_every_tab() -> None:
     )
     lines = NotificationIndicator._build_tooltip(tabs).plain.splitlines()
     assert lines[0] == "6 unread · 3 tabs"
-    assert lines[1] == " HITL     2   oldest 14m ago"
-    assert lines[2] == " Beads    3   oldest 2h ago"
-    assert lines[3] == " Errors   1   oldest 5m ago"
-    assert lines[4] == " Snoozed  4   next wakes in 43m"
-    assert lines[5] == " Muted    2"
+    assert lines[1] == " ⚑ HITL     2   oldest 14m ago"
+    assert lines[2] == " ◈ Beads    3   oldest 2h ago"
+    assert lines[3] == " ✖ Errors   1   oldest 5m ago"
+    assert lines[4] == " ☾ Snoozed  4   next wakes in 43m"
+    assert lines[5] == " ⊘ Muted    2"
     assert lines[6] == "Click to open the notification panel"
+
+
+def test_tooltip_columns_stay_aligned_around_a_two_cell_icon() -> None:
+    """A wide icon must not shift the count column on its neighbours' lines."""
+    tabs = (
+        _tab("deploys", 2, label="Deploys", icon="🚀"),
+        _tab("hitl", 1, label="HITL"),
+    )
+    lines = NotificationIndicator._build_tooltip(tabs).plain.splitlines()
+    assert lines[1] == " 🚀 Deploys  2"
+    assert lines[2] == " ⚑  HITL     1"
+    assert cell_len(lines[1]) == cell_len(lines[2])
 
 
 def test_tooltip_header_counts_only_actionable_tabs() -> None:
@@ -192,7 +221,7 @@ def test_tooltip_snoozed_only_state_reports_the_wake_without_claiming_unread() -
     tabs = (_tab(SNOOZED_TAB_KEY, 4, label="Snoozed", next_wake_at=_ahead(43)),)
     lines = NotificationIndicator._build_tooltip(tabs).plain.splitlines()
     assert lines[0] == "No unread notifications"
-    assert lines[1] == " Snoozed  4   next wakes in 43m"
+    assert lines[1] == " ☾ Snoozed  4   next wakes in 43m"
 
 
 def test_tooltip_labels_carry_their_tab_colors() -> None:
@@ -238,7 +267,9 @@ def test_indicator_chips_correspond_one_to_one_with_the_panel_tabs() -> None:
     tabs, _ = classify_notification_modal_tabs(notifications)
     chips = NotificationIndicator._build_content(tabs).plain
     expected = [tab for tab in tabs if tab.count and tab.tag != SNOOZED_TAB_KEY]
-    assert chips == f" ✉ {'·'.join(str(tab.count) for tab in expected)} "
+    assert chips == " {} ".format(
+        " ".join(f"{resolve_notification_tab_icon(tab)}{tab.count}" for tab in expected)
+    )
     assert sum(tab.count for tab in tabs) == len(notifications)
 
 

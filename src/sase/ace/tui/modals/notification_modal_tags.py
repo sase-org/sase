@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from rich.cells import cell_len
 from rich.text import Text
 from textual.events import Click
 from textual.message import Message
@@ -231,24 +232,47 @@ class NotificationTagStrip(Static):
         self.update(self._build_content())
 
     def _build_content(self) -> Text:
-        """Build the rich tag strip content and click ranges."""
+        """Build the rich tag strip content and click ranges.
+
+        Click ranges are accumulated in terminal *cells* rather than in
+        characters, because ``on_click`` compares them against ``event.x``. A
+        single two-cell icon anywhere in the strip would otherwise shift every
+        range to its right and select the wrong tab.
+        """
+        # Imported lazily: ``widgets/__init__`` is loaded from inside this
+        # package's own import, so a module-scope import would cycle.
+        from sase.ace.tui.widgets.notification_tab_style import (
+            resolve_notification_tab_color,
+            resolve_notification_tab_icon,
+        )
+
         text = Text()
         self._tab_ranges.clear()
+        column = 0
+
+        def append(fragment: str, style: str) -> None:
+            nonlocal column
+            text.append(fragment, style=style)
+            column += cell_len(fragment)
 
         for index, tab in enumerate(self._tabs):
             if index > 0:
-                text.append(" | ", style="#444444")
+                append(" | ", "#444444")
 
             is_active = tab.tag == self._active_tag
             style = "bold #00D7AF" if is_active else "#888888"
             count_style = "bold #87D7FF" if is_active else "#666666"
-            start = len(text.plain)
-            text.append(" ", style=style)
-            text.append(shorten_notification_tag(tab.label), style=style)
-            text.append(" ", style=style)
-            text.append(str(tab.count), style=count_style)
-            text.append(" ", style=style)
-            self._tab_ranges[tab.tag] = (start, len(text.plain))
+            icon_color = resolve_notification_tab_color(tab)
+            icon_style = icon_color if is_active else f"dim {icon_color}"
+            start = column
+            append(" ", style)
+            append(resolve_notification_tab_icon(tab), icon_style)
+            append(" ", style)
+            append(shorten_notification_tag(tab.label), style)
+            append(" ", style)
+            append(str(tab.count), count_style)
+            append(" ", style)
+            self._tab_ranges[tab.tag] = (start, column)
 
         return text
 

@@ -678,3 +678,30 @@ def test_tag_strip_click_posts_selected_tag() -> None:
     message = strip.post_message.call_args.args[0]
     assert isinstance(message, NotificationTagStrip.TabClicked)
     assert message.tag == "done"
+
+
+def test_tag_strip_click_ranges_survive_a_two_cell_icon() -> None:
+    """Ranges are terminal columns, so a wide icon must not shift later tabs.
+
+    ``on_click`` compares ``event.x`` — a column — against these ranges, so
+    measuring them in characters would put every tab right of a two-cell icon
+    one column off and select the wrong one.
+    """
+    from rich.cells import cell_len
+
+    from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
+
+    tabs = [
+        NotificationTagTab(tag="deploys", label="Deploys", count=1, icon="🚀"),
+        NotificationTagTab(tag="review", label="Review", count=2),
+    ]
+    strip = NotificationTagStrip(tabs, None)
+    strip.post_message = MagicMock()  # type: ignore[method-assign]
+
+    content = strip._build_content()
+    assert content.plain.startswith(" 🚀 Deploys 1 ")
+    start, end = strip._tab_ranges["review"]
+    assert end == cell_len(content.plain)
+
+    strip.on_click(SimpleNamespace(x=start))
+    assert strip.post_message.call_args.args[0].tag == "review"
