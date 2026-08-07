@@ -15,9 +15,13 @@ file_hooks: []
 default_linked_repos: true
 # Linked and sidecar repositories are lazy by default. Set auto_clone: true per
 # entry when every launched agent needs the repository materialized.
+# Sidecars are keyed by role: the reserved plans/beads/agents roles live under
+# builtin, and every other document sidecar lives under custom.
 repos:
   linked: []
-  sidecar: []
+  sidecar:
+    builtin: {}
+    custom: {}
 
 # Maximum number of slot-participating user agents that may run concurrently
 # across all projects: top-level user agents and eligible parallel family

@@ -18,7 +18,11 @@ from sase._linked_repo_identity import (
 )
 from sase._yaml_safe import yaml_safe_load
 from sase.content_layout import resolve_project_config_read_path
-from sase.sdd._store_types import AGENTS_SIDECAR_ROLE
+from sase.sdd._store_types import (
+    AGENTS_SIDECAR_ROLE,
+    BEADS_SIDECAR_ROLE,
+    PLANS_SIDECAR_ROLE,
+)
 
 REPOS_CONFIG_KEY = "repos"
 REPOS_LINKED_CONFIG_KEY = "linked"
@@ -37,6 +41,17 @@ DEFAULT_BEADS_DESCRIPTION = (
 DEFAULT_PLANS_DESCRIPTION = "Durable SASE plans and plan-side generated docs."
 DEFAULT_RESEARCH_DESCRIPTION = "Durable SASE research reports and generated media."
 HIDDEN_SIDECAR_ROLES = frozenset({AGENTS_SIDECAR_ROLE})
+
+SIDECAR_BUILTIN_CONFIG_KEY = "builtin"
+SIDECAR_CUSTOM_CONFIG_KEY = "custom"
+#: Canonical emission order for ``repos.sidecar.builtin`` roles. Sidecar order
+#: is user-visible (repo inventory rows, generated agent instructions), so the
+#: reserved bucket is emitted in this fixed order rather than authoring order.
+_BUILTIN_SIDECAR_ROLE_ORDER: tuple[str, ...] = (
+    PLANS_SIDECAR_ROLE,
+    BEADS_SIDECAR_ROLE,
+    AGENTS_SIDECAR_ROLE,
+)
 
 _DEFAULT_LINKED_REPO_MARKER = "_sase_default_linked_repo"
 _SIDECAR_REPO_MARKER = "_sase_sidecar_repo"
@@ -150,11 +165,12 @@ def merged_sidecar_entries_from_config(
 ) -> list[Mapping[str, Any]]:
     """Return merged, normalized ``repos.sidecar`` entries.
 
-    Config-list concatenation preserves layer order, so later entries are
-    project-local overrides of earlier global entries. Entries are merged by
-    role name or resolved repository slug. A disabled override deliberately
-    remains in the result so it can suppress both earlier config and implicit
-    or store-record fallbacks.
+    In the canonical mapping form, layers already merged per role key. In the
+    deprecated list form, config-list concatenation preserves layer order, so
+    later entries are project-local overrides of earlier global entries and are
+    merged here by role name or resolved repository slug. A disabled override
+    deliberately remains in the result so it can suppress both earlier config
+    and implicit or store-record fallbacks.
     """
 
     primary = str(Path(primary_workspace_dir).expanduser().resolve(strict=False))
@@ -168,7 +184,7 @@ def _merged_sidecar_entries_cached(
     config_key: RepoConfigCacheKey,
 ) -> tuple[Mapping[str, Any], ...]:
     config = config_key.config
-    raw_entries = _entries_for_repos_key(config, REPOS_SIDECAR_CONFIG_KEY)
+    raw_entries = _sidecar_config_entries(config)
     merged: list[dict[str, Any]] = []
     tokens_by_index: list[set[str]] = []
     for raw_entry in raw_entries:
@@ -396,6 +412,51 @@ def _entries_for_key(config: Mapping[str, Any], key: str) -> list[Mapping[str, A
     for item in raw:
         if isinstance(item, Mapping):
             entries.append({str(name): value for name, value in item.items()})
+    return entries
+
+
+def _sidecar_config_entries(config: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Return raw ``repos.sidecar`` entries with the role in ``name``.
+
+    Accepts both the canonical ``{builtin: {...}, custom: {...}}`` mapping and
+    the deprecated list form. Mapping entries emit the reserved builtin roles
+    in canonical ``plans, beads, agents`` order followed by custom roles in
+    configured order; a role declared in both buckets resolves to the ``custom``
+    entry, matching how custom model aliases win over builtin ones.
+    """
+
+    repos = config.get(REPOS_CONFIG_KEY)
+    raw = repos.get(REPOS_SIDECAR_CONFIG_KEY) if isinstance(repos, Mapping) else None
+    if not isinstance(raw, Mapping):
+        return _entries_for_repos_key(config, REPOS_SIDECAR_CONFIG_KEY)
+
+    builtin = _sidecar_bucket_entries(raw, SIDECAR_BUILTIN_CONFIG_KEY)
+    custom = _sidecar_bucket_entries(raw, SIDECAR_CUSTOM_CONFIG_KEY)
+    ordered_roles = dict.fromkeys(
+        [role for role in _BUILTIN_SIDECAR_ROLE_ORDER if role in builtin]
+        + [role for role in builtin if role not in _BUILTIN_SIDECAR_ROLE_ORDER]
+        + list(custom)
+    )
+    merged = {**builtin, **custom}
+    return [{**merged[role], "name": role} for role in ordered_roles]
+
+
+def _sidecar_bucket_entries(
+    raw: Mapping[str, Any], bucket: str
+) -> dict[str, Mapping[str, Any]]:
+    """Return one bucket's role-to-entry mapping, skipping unusable values."""
+
+    values = raw.get(bucket)
+    if not isinstance(values, Mapping):
+        return {}
+    entries: dict[str, Mapping[str, Any]] = {}
+    for raw_role, entry in values.items():
+        if not isinstance(raw_role, str) or not isinstance(entry, Mapping):
+            continue
+        role = raw_role.strip()
+        if not role:
+            continue
+        entries[role] = {str(key): value for key, value in entry.items()}
     return entries
 
 

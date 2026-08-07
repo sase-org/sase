@@ -12,6 +12,7 @@ from sase._linked_repo_config import (
     HIDDEN_SIDECAR_ROLES,
     _merge_resolution_config,
     inject_default_linked_repos,
+    configured_sidecar_roles,
     merged_sidecar_entries_from_config,
 )
 from sase.linked_repos import (
@@ -554,3 +555,168 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
         sdd_sidecar_clone_dirname(primary, "custom-research", config=pinned_config)
         is None
     )
+
+
+def _sidecar_role_view(entry: object) -> dict[str, object]:
+    """Project one normalized entry down to its shape-independent fields."""
+
+    assert isinstance(entry, dict)
+    return {
+        key: value
+        for key, value in entry.items()
+        if key
+        in {
+            "name",
+            "repo",
+            "description",
+            "auto_clone",
+            "disabled",
+            "visibility",
+            "_sase_sidecar_role",
+            "_sase_sidecar_slug",
+        }
+    }
+
+
+def test_bucketed_and_legacy_sidecar_shapes_normalize_identically(
+    tmp_path: Path,
+) -> None:
+    """Both ``repos.sidecar`` shapes produce the same normalized entries."""
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    legacy = {
+        "repos": {
+            "sidecar": [
+                {"name": "plans", "auto_clone": True},
+                {"name": "beads", "auto_clone": True},
+                {"name": "agents", "visibility": "private"},
+                {"name": "research", "description": "Durable research."},
+            ]
+        }
+    }
+    bucketed = {
+        "repos": {
+            "sidecar": {
+                "builtin": {
+                    "plans": {"auto_clone": True},
+                    "beads": {"auto_clone": True},
+                    "agents": {"visibility": "private"},
+                },
+                "custom": {"research": {"description": "Durable research."}},
+            }
+        }
+    }
+
+    legacy_entries = merged_sidecar_entries_from_config(
+        legacy, primary_workspace_dir=str(primary)
+    )
+    bucketed_entries = merged_sidecar_entries_from_config(
+        bucketed, primary_workspace_dir=str(primary)
+    )
+
+    assert [_sidecar_role_view(entry) for entry in bucketed_entries] == [
+        _sidecar_role_view(entry) for entry in legacy_entries
+    ]
+
+
+def test_bucketed_sidecar_roles_emit_builtin_order_then_configured_custom_order(
+    tmp_path: Path,
+) -> None:
+    """Builtin roles emit in canonical order; custom roles keep config order."""
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    config = {
+        "repos": {
+            "sidecar": {
+                # Deliberately authored out of canonical order.
+                "builtin": {
+                    "agents": {},
+                    "beads": {"auto_clone": True},
+                    "plans": {"auto_clone": True},
+                },
+                "custom": {"designs": {}, "research": {}},
+            }
+        }
+    }
+
+    assert configured_sidecar_roles(
+        config, primary_workspace_dir=str(primary), include_hidden=True
+    ) == ("plans", "beads", "agents", "designs", "research")
+
+
+def test_bucketed_sidecar_layers_merge_per_role_key(tmp_path: Path) -> None:
+    """A later layer's ``disabled`` merges into the inherited custom entry."""
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    merged = _merge_resolution_config(
+        {
+            "repos": {
+                "sidecar": {
+                    "custom": {
+                        "research": {
+                            "repo": "sase-org/shared-research",
+                            "visibility": "public",
+                        }
+                    }
+                }
+            }
+        },
+        {"repos": {"sidecar": {"custom": {"research": {"disabled": True}}}}},
+    )
+
+    entries = merged_sidecar_entries_from_config(
+        merged, primary_workspace_dir=str(primary)
+    )
+
+    assert len(entries) == 1
+    assert entries[0]["repo"] == "sase-org/shared-research"
+    assert entries[0]["visibility"] == "public"
+    assert entries[0]["disabled"] is True
+
+
+def test_bucketed_sidecar_role_in_both_buckets_resolves_to_custom(
+    tmp_path: Path,
+) -> None:
+    """``custom`` wins for a role mis-declared in both buckets."""
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    config = {
+        "repos": {
+            "sidecar": {
+                "builtin": {"plans": {"repo": "acme/builtin-plans"}},
+                "custom": {"plans": {"repo": "acme/custom-plans"}},
+            }
+        }
+    }
+
+    entries = merged_sidecar_entries_from_config(
+        config, primary_workspace_dir=str(primary)
+    )
+
+    assert len(entries) == 1
+    assert entries[0]["repo"] == "acme/custom-plans"
+
+
+def test_bucketed_sidecar_skips_non_mapping_values(tmp_path: Path) -> None:
+    """Runtime parsing stays forgiving; doctor is what reports bad shapes."""
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    config = {
+        "repos": {
+            "sidecar": {
+                "builtin": "nope",
+                "custom": {"research": {}, "designs": "nope"},
+            }
+        }
+    }
+
+    entries = merged_sidecar_entries_from_config(
+        config, primary_workspace_dir=str(primary)
+    )
+
+    assert [entry["name"] for entry in entries] == ["research"]

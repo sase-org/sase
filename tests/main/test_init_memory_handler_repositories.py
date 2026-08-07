@@ -342,6 +342,91 @@ repos:
     assert not (project_root / "sase" / "memory").exists()
 
 
+def test_init_memory_reports_missing_bucketed_sidecar_descriptions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The mapping shape reports the role via its bucket key, not an index."""
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+is_sase_managed: true
+repos:
+  sidecar:
+    custom:
+      research: {}
+""",
+    )
+
+    assert run_handler() == 1
+    err = capsys.readouterr().err
+    assert "cannot generate project memory" in err
+    assert "repos.sidecar.custom['research']" in err
+    assert "field 'description'" in err
+    assert not (project_root / "sase" / "memory").exists()
+
+
+def test_init_memory_renders_bucketed_sidecars(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The mapping shape renders the same rows as the deprecated list form."""
+    project_root = tmp_path / "sase"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+is_sase_managed: true
+repos:
+  sidecar:
+    builtin:
+      plans:
+        auto_clone: true
+      agents:
+        description: Hidden agent data.
+    custom:
+      research:
+        description: Durable SASE research reports and generated media.
+      reports:
+        repo: example-org/custom-reports
+        description: Project reports.
+""",
+    )
+
+    assert run_handler() == 0
+
+    project_memory = (project_root / "sase" / "memory" / "sase.md").read_text()
+    assert (
+        "- `sase--research`: Durable SASE research reports and generated media."
+        in project_memory
+    )
+    assert "- `custom-reports`: Project reports." in project_memory
+    # auto_clone plans and the hidden agents role never reach generated memory.
+    assert "sase--plans" not in project_memory
+    assert "Hidden agent data." not in project_memory
+
+
 def test_init_memory_omits_minimal_hidden_agents_sidecar(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

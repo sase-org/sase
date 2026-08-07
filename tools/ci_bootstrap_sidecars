@@ -105,24 +105,45 @@ def load_config(config_path: Path) -> Mapping[str, Any]:
     return raw
 
 
+def _sidecar_entries(raw: Any) -> list[tuple[str, Mapping[str, Any]]]:
+    """Return ``(role, entry)`` pairs from either ``repos.sidecar`` shape.
+
+    The canonical shape is a ``{builtin: {...}, custom: {...}}`` mapping keyed
+    by role; the deprecated list form keeps the role in each entry's ``name``.
+    """
+
+    if isinstance(raw, Mapping):
+        pairs: list[tuple[str, Mapping[str, Any]]] = []
+        for bucket in ("builtin", "custom"):
+            values = raw.get(bucket)
+            if not isinstance(values, Mapping):
+                continue
+            for role, entry in values.items():
+                if isinstance(role, str) and role.strip() and isinstance(entry, Mapping):
+                    pairs.append((role.strip(), entry))
+        return pairs
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+        return []
+    pairs = []
+    for entry in raw:
+        if not isinstance(entry, Mapping):
+            continue
+        role = entry.get("name")
+        if isinstance(role, str) and role.strip():
+            pairs.append((role.strip(), entry))
+    return pairs
+
+
 def plan_sidecars(config: Mapping[str, Any], project_repo: str) -> SidecarPlan:
     """Derive the sidecars CI must clone from ``repos.sidecar``."""
 
     repos = config.get("repos")
-    entries = repos.get("sidecar") if isinstance(repos, Mapping) else None
-    if not isinstance(entries, Sequence) or isinstance(entries, (str, bytes)):
-        entries = []
+    raw = repos.get("sidecar") if isinstance(repos, Mapping) else None
 
     sidecars: list[Sidecar] = []
     skipped: list[tuple[str, str]] = []
     seen: set[str] = set()
-    for entry in entries:
-        if not isinstance(entry, Mapping):
-            continue
-        role = entry.get("name")
-        if not isinstance(role, str) or not role.strip():
-            continue
-        role = role.strip()
+    for role, entry in _sidecar_entries(raw):
         if role in seen:
             continue
         seen.add(role)

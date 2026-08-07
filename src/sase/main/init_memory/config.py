@@ -9,7 +9,12 @@ import re
 import subprocess
 from typing import Any
 
-from sase._linked_repo_config import HIDDEN_SIDECAR_ROLES, REPOS_SIDECAR_CONFIG_KEY
+from sase._linked_repo_config import (
+    HIDDEN_SIDECAR_ROLES,
+    REPOS_SIDECAR_CONFIG_KEY,
+    SIDECAR_BUILTIN_CONFIG_KEY,
+    SIDECAR_CUSTOM_CONFIG_KEY,
+)
 from sase.content_layout import resolve_project_layout
 from sase.linked_repos import (
     LINKED_REPOS_CONFIG_KEY,
@@ -182,12 +187,40 @@ def _linked_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:
     return [], LINKED_REPOS_CONFIG_KEY
 
 
-def _sidecar_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:
+def _sidecar_repos_raw(
+    config: Mapping[str, Any],
+) -> tuple[tuple[tuple[str, str | None, Any], ...], str | None]:
+    """Return ``(label, role, entry)`` triples plus a shape error, if any.
+
+    ``role`` is ``None`` for the deprecated list form, where the role still
+    lives in the entry's ``name`` field; the mapping form takes it from the
+    bucket key. The label is the config path the validator reports.
+    """
+
     repos = config.get(REPOS_CONFIG_KEY)
     source_key = f"{REPOS_CONFIG_KEY}.{REPOS_SIDECAR_CONFIG_KEY}"
-    if isinstance(repos, Mapping) and REPOS_SIDECAR_CONFIG_KEY in repos:
-        return repos.get(REPOS_SIDECAR_CONFIG_KEY, []), source_key
-    return [], source_key
+    raw = repos.get(REPOS_SIDECAR_CONFIG_KEY) if isinstance(repos, Mapping) else None
+    if raw is None:
+        return (), None
+    if isinstance(raw, Mapping):
+        triples: list[tuple[str, str | None, Any]] = []
+        for bucket in (SIDECAR_BUILTIN_CONFIG_KEY, SIDECAR_CUSTOM_CONFIG_KEY):
+            values = raw.get(bucket)
+            if values is None:
+                continue
+            if not isinstance(values, Mapping):
+                return (), f"{source_key}.{bucket} must be a mapping"
+            for role, entry in values.items():
+                triples.append((f"{source_key}.{bucket}[{role!r}]", str(role), entry))
+        return tuple(triples), None
+    if not isinstance(raw, list):
+        return (), f"{source_key} must be a list"
+    return (
+        tuple(
+            (f"{source_key}[{index}]", None, entry) for index, entry in enumerate(raw)
+        ),
+        None,
+    )
 
 
 def _sidecar_memory_name(
@@ -274,60 +307,59 @@ def linked_entries_from_config(
                     )
                 )
 
-    sidecar_raw, sidecar_source_key = _sidecar_repos_raw(config)
-    if sidecar_raw is not None:
-        if not isinstance(sidecar_raw, list):
-            errors.append(f"{config_path}: {sidecar_source_key} must be a list")
-        else:
-            for index, item in enumerate(sidecar_raw):
-                prefix = f"{config_path}: {sidecar_source_key}[{index}]"
-                if not isinstance(item, Mapping):
-                    errors.append(f"{prefix} must be a mapping")
-                    continue
+    sidecar_triples, sidecar_error = _sidecar_repos_raw(config)
+    if sidecar_error is not None:
+        errors.append(f"{config_path}: {sidecar_error}")
+    else:
+        for entry_label, bucket_role, item in sidecar_triples:
+            prefix = f"{config_path}: {entry_label}"
+            if not isinstance(item, Mapping):
+                errors.append(f"{prefix} must be a mapping")
+                continue
 
-                auto_clone = item.get("auto_clone", False)
-                if not isinstance(auto_clone, bool):
-                    errors.append(f"{prefix} field 'auto_clone' must be a boolean")
-                    continue
-                disabled = item.get("disabled", False)
-                if not isinstance(disabled, bool):
-                    errors.append(f"{prefix} field 'disabled' must be a boolean")
-                    continue
-                if auto_clone or disabled:
-                    continue
+            auto_clone = item.get("auto_clone", False)
+            if not isinstance(auto_clone, bool):
+                errors.append(f"{prefix} field 'auto_clone' must be a boolean")
+                continue
+            disabled = item.get("disabled", False)
+            if not isinstance(disabled, bool):
+                errors.append(f"{prefix} field 'disabled' must be a boolean")
+                continue
+            if auto_clone or disabled:
+                continue
 
-                role = item.get("name")
-                if not isinstance(role, str) or not role.strip():
-                    errors.append(f"{prefix} is missing required string field 'name'")
-                    continue
-                role = role.strip()
-                if role in HIDDEN_SIDECAR_ROLES:
-                    continue
+            role = bucket_role if bucket_role is not None else item.get("name")
+            if not isinstance(role, str) or not role.strip():
+                errors.append(f"{prefix} is missing required string field 'name'")
+                continue
+            role = role.strip()
+            if role in HIDDEN_SIDECAR_ROLES:
+                continue
 
-                description = item.get("description")
-                if not isinstance(description, str) or not description.strip():
-                    errors.append(
-                        f"{prefix} ({role!r}) is missing required string field "
-                        "'description'"
-                    )
-                    continue
-
-                name, name_error = _sidecar_memory_name(
-                    item,
-                    role=role,
-                    project_name=project_name,
+            description = item.get("description")
+            if not isinstance(description, str) or not description.strip():
+                errors.append(
+                    f"{prefix} ({role!r}) is missing required string field "
+                    "'description'"
                 )
-                if name_error is not None or name is None:
-                    errors.append(f"{prefix} ({role!r}) {name_error}")
-                    continue
+                continue
 
-                entries.append(
-                    LinkedRepoMemoryEntry(
-                        name=name,
-                        description=" ".join(description.strip().split()),
-                        auto_clone=auto_clone,
-                    )
+            name, name_error = _sidecar_memory_name(
+                item,
+                role=role,
+                project_name=project_name,
+            )
+            if name_error is not None or name is None:
+                errors.append(f"{prefix} ({role!r}) {name_error}")
+                continue
+
+            entries.append(
+                LinkedRepoMemoryEntry(
+                    name=name,
+                    description=" ".join(description.strip().split()),
+                    auto_clone=auto_clone,
                 )
+            )
 
     if errors:
         errors.insert(

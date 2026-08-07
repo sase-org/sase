@@ -315,3 +315,40 @@ def test_main_reports_a_missing_config(
 
     assert exit_code == 1
     assert "missing SASE config" in capsys.readouterr().err
+
+
+def test_bucketed_sidecar_config_drives_the_same_plan(tool: types.ModuleType) -> None:
+    """The canonical builtin/custom mapping plans exactly like the list form."""
+    config = {
+        "repos": {
+            "sidecar": {
+                "builtin": {
+                    "plans": {"auto_clone": True},
+                    "beads": {"disabled": True},
+                    "agents": {"description": "Hidden agent data."},
+                },
+                "custom": {
+                    "research": {"repo": "other-org/elsewhere"},
+                    "docs": {"description": "not a store kind"},
+                },
+            }
+        }
+    }
+
+    plan = tool.plan_sidecars(config, PROJECT_REPO)
+
+    assert {sidecar.role: sidecar.repo for sidecar in plan.sidecars} == {
+        "plans": "sase-org/sase--plans",
+        "research": "other-org/elsewhere",
+    }
+    assert dict(plan.skipped) == {
+        "agents": "hidden sidecar; `sase init repo --check` only warns",
+        "beads": "disabled in sase.yml",
+        "docs": "not representable in the SDD store record",
+    }
+
+
+def test_non_mapping_sidecar_buckets_yield_no_sidecars(tool: types.ModuleType) -> None:
+    config = {"repos": {"sidecar": {"builtin": ["plans"], "custom": None}}}
+
+    assert tool.plan_sidecars(config, PROJECT_REPO).sidecars == ()

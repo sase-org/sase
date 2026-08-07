@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from jsonschema import Draft7Validator
+from jsonschema.exceptions import ValidationError
 
 from tests._config_schema_helpers import schema
 
@@ -119,8 +122,12 @@ def test_config_schema_rejects_invalid_sidecar_controls(
 
     errors = list(Draft7Validator(schema()).iter_errors(config))
 
-    assert [list(error.absolute_path) for error in errors] == [
-        ["repos", "sidecar", 0, field]
+    # ``repos.sidecar`` is a ``oneOf`` while both shapes are accepted, so the
+    # top-level error names the key and the list branch's context error names
+    # the offending field.
+    assert [list(error.absolute_path) for error in errors] == [["repos", "sidecar"]]
+    assert ["repos", "sidecar", 0, field] in [
+        list(sub.absolute_path) for sub in errors[0].context
     ]
 
 
@@ -149,3 +156,49 @@ def test_config_schema_rejects_non_boolean_linked_repo_controls(
     errors = list(Draft7Validator(schema()).iter_errors(config))
 
     assert [list(error.absolute_path) for error in errors] == [expected_path]
+
+
+def test_config_schema_accepts_bucketed_sidecar_repos() -> None:
+    """The canonical two-bucket ``repos.sidecar`` mapping validates."""
+    Draft7Validator(schema()).validate(
+        {
+            "repos": {
+                "sidecar": {
+                    "builtin": {
+                        "plans": {"auto_clone": True},
+                        "beads": {"auto_clone": True},
+                        "agents": {"visibility": "private"},
+                    },
+                    "custom": {
+                        "research": {"description": "Durable research."},
+                        "notes": {"disabled": True},
+                    },
+                }
+            }
+        }
+    )
+
+
+def test_config_schema_still_accepts_legacy_sidecar_list() -> None:
+    """The deprecated list form keeps validating during the migration window."""
+    Draft7Validator(schema()).validate(
+        {"repos": {"sidecar": [{"name": "research", "description": "Docs."}]}}
+    )
+
+
+@pytest.mark.parametrize(
+    "sidecar",
+    [
+        pytest.param({"custom": {"plans": {}}}, id="reserved-role-in-custom"),
+        pytest.param({"builtin": {"research": {}}}, id="document-role-in-builtin"),
+        pytest.param(
+            {"custom": {"research": {"name": "research"}}}, id="leftover-name-field"
+        ),
+        pytest.param({"other": {"research": {}}}, id="unknown-bucket"),
+    ],
+)
+def test_config_schema_rejects_mis_bucketed_sidecar_repos(
+    sidecar: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate({"repos": {"sidecar": sidecar}})
