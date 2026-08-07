@@ -1,5 +1,126 @@
 # Changelog
 
+## [0.16.0](https://github.com/sase-org/sase/compare/v0.15.0...v0.16.0) (2026-08-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* publication outbox files are written at schema version 5 and older sase versions cannot read them. Queued `bead_pages`, `plan_header`, and `sidecar_push` records in an existing v4 outbox are dropped on first read; that work is published inline on the commit path instead.
+* the `sase_chop_sidecar_publication` console script and the `publications` axe lumberjack lane are gone. `sase axe chop run sidecar_publication` now fails with "unknown chop". Remove any `publications` lane overrides from local axe configuration.
+
+### Features
+
+* **ace-tui:** add shared list-marker model and ordered renumber engine ([cb1007e](https://github.com/sase-org/sase/commit/cb1007e0900c4be02fe4b94d966ccbec164a503d))
+* **ace-tui:** drop and renumber ordered markers on NORMAL-mode J ([ecce0c3](https://github.com/sase-org/sase/commit/ecce0c3888b8381dce9fb0881a2927090d05b2e0))
+* **ace-tui:** give each notification exactly one tab, counted in the core ([5e6a94a](https://github.com/sase-org/sase/commit/5e6a94a3890d192dca6091d2165783381c8348e3))
+* **ace-tui:** give every notification tab a stable, configurable color ([821966d](https://github.com/sase-org/sase/commit/821966dd2812965d9deb2cc2045603644e69c342))
+* **ace-tui:** grow and renumber ordered lists on INSERT-mode Ctrl+J ([af0555b](https://github.com/sase-org/sase/commit/af0555bd60926526bc9087458647f9a935e30a5f))
+* **ace-tui:** highlight ordered-list markers like bullet dashes ([f7f479a](https://github.com/sase-org/sase/commit/f7f479a55ba1a6f7bfb5130e6ab8314f831b9b17))
+* **ace-tui:** nest and unnest ordered prompt items with Tab and Shift+Tab ([686bd5f](https://github.com/sase-org/sase/commit/686bd5f5165734e719f7809fdc0f0f0b15444102))
+* **ace-tui:** open numbered ordered siblings on NORMAL-mode o and O ([a3108ef](https://github.com/sase-org/sase/commit/a3108ef4f2950f9d7fb1d481d0704471d6317d20))
+* **ace-tui:** show FAMILY MEMBERS roster on family-member detail panels ([8fcc252](https://github.com/sase-org/sase/commit/8fcc2520fb17e20ba0d8c17381bbde58e8145949))
+* **ace-tui:** show one indicator chip per notification tab ([09bb443](https://github.com/sase-org/sase/commit/09bb443ea4206edf188b54042713cf561fc89f94))
+* **ace-tui:** snooze task beads from the Beads pane ([0f7960d](https://github.com/sase-org/sase/commit/0f7960d0853a7cd52721cec1361ae1c394cd0dee))
+* **ace:** show bead close history in the beads pane ([4130721](https://github.com/sase-org/sase/commit/413072167f8069fb0b6714075897358cb9920e78))
+* **ace:** show commit creation time in the commit panel ([301f33a](https://github.com/sase-org/sase/commit/301f33a544c596224477d2a9499e0e4dcb59b821))
+* **ace:** show explicit created and updated ages on bead surfaces ([865281b](https://github.com/sase-org/sase/commit/865281be4146ee9475a820e345c8b4930b701d17))
+* **agents-sync:** link published agent pages back to their bead pages ([48a34b4](https://github.com/sase-org/sase/commit/48a34b4a11b9dd3553a3e0bd0fa4545ccddb10f6))
+* **bead-pages:** render close history and reopen badge on generated pages ([bf448ef](https://github.com/sase-org/sase/commit/bf448ef99c12a28702cc1f38eaae03634a4dc089))
+* **bead:** add roster creation-time column and regression coverage ([4330fd0](https://github.com/sase-org/sase/commit/4330fd0d5a6f2e36a84e8142d902faaf282a37c0))
+* **bead:** add sase bead snooze and snooze-aware detail surfaces ([b723ace](https://github.com/sase-org/sase/commit/b723ace648b5c99923874f933c3f16e99cc1eeb9))
+* **bead:** add shared bead time presentation module ([53fc8d9](https://github.com/sase-org/sase/commit/53fc8d9f89160af121517827803d134f41102252))
+* **bead:** add shared reopen presentation vocabulary ([9d0422f](https://github.com/sase-org/sase/commit/9d0422fdacd5d64144885212bbbe5515b7c62a03))
+* **bead:** carry close history through Python bead storage ([1da5a3e](https://github.com/sase-org/sase/commit/1da5a3e277326bf52cf79c72c1ec824cbdc2e02b))
+* **bead:** include snoozed status in default bead list filter ([8b92115](https://github.com/sase-org/sase/commit/8b92115e835227b0cd67754d4842ef9ef4183da1))
+* **bead:** keep exactly one pending gate per task bead ([b0e10d1](https://github.com/sase-org/sase/commit/b0e10d1284e0a364db8ccfae462ab3ab1e2d4a08))
+* **bead:** mirror the snoozed task-bead status in Python ([1f0d1a2](https://github.com/sase-org/sase/commit/1f0d1a2ae39b68634be1e1176454f694fefba5ee))
+* **bead:** raise a BeadSnooze gate when a snoozed task wakes ([17fcbb4](https://github.com/sase-org/sase/commit/17fcbb485e907962b8be4a3aa396d1873f094b4f))
+* **bead:** show bead creation time on task triage gates ([8065b58](https://github.com/sase-org/sase/commit/8065b58c411b2ec5bd7bbb2caa54c718d22c74c1))
+* **bead:** surface bead creation time across CLI detail, list, and dependency views ([e4fce05](https://github.com/sase-org/sase/commit/e4fce05b61985d8f28e8f6dc44008526ce2d89c4))
+* **bead:** surface bead creation time on mobile, page tables, and clan summaries ([734d2e0](https://github.com/sase-org/sase/commit/734d2e0c261834051c4c2c7bd139e7f848a8f071))
+* **bead:** surface reopen history in bead show, JSON, list rows, and search ([d0e59df](https://github.com/sase-org/sase/commit/d0e59dfdd4d37de450f997bbc1d418ba4fa8af35))
+* **bead:** warn on prior close in the TaskTriage gate ([81d6191](https://github.com/sase-org/sase/commit/81d6191e3326265822b36b7040339fba7ce1eabd))
+* **cli:** add `sase plan show` detail command ([2c11c4e](https://github.com/sase-org/sase/commit/2c11c4eb85e3c421e76897c871b47c5425cb663a))
+* **dev-update:** warn when a code swap could tear a live agent runner ([b5c78f9](https://github.com/sase-org/sase/commit/b5c78f972a3e21f897eadf959a2343fddec8bd74))
+* narrow the durable publication outbox back to agent-hood retries ([ccf4d77](https://github.com/sase-org/sase/commit/ccf4d77a9b1ffe83936e81c082040d61d2b8af60))
+* Per-member Model lanes for agent family detail panels ([7ba83b1](https://github.com/sase-org/sase/commit/7ba83b1e1bdd020a74c6a7bbc87daa07a138792f))
+* remove the sidecar_publication chop and publications lumberjack ([e99f501](https://github.com/sase-org/sase/commit/e99f5017d39fc15f6a8f5082fbd82ed2d768a2db))
+* **sdd:** adopt header-invalid diagnostic and pin it at every validation surface ([d9c1354](https://github.com/sase-org/sase/commit/d9c13549f9809f2ba8d695027dc7bf76440e7844))
+* **test-selection:** add a bounded-parallelism middle gear for large selections ([ca6c1e0](https://github.com/sase-org/sase/commit/ca6c1e09e8be639db7d4f386860c043f4da1a3af))
+* **test-selection:** escalate on estimated serial runtime, not file count ([af3aa32](https://github.com/sase-org/sase/commit/af3aa326cfe5fa193251ed4968630a3a57fca731))
+* **test-selection:** record a contexts baseline from a local full run ([2ef98cb](https://github.com/sase-org/sase/commit/2ef98cb3e646ca6e6f5298398b5a8c4855273774))
+* **test-selection:** record per-test-file timings from full-lane runs ([6cf5a94](https://github.com/sase-org/sase/commit/6cf5a94d7ce95c5e80e5f924bd58bddec13ecfb4))
+* **test-selection:** report the scoped lane's tail, not just its median ([cc241fa](https://github.com/sase-org/sase/commit/cc241fae0c5cb96e0dbffc468e1cc5f77fde4d6b))
+* **test-selection:** surface the scoped lane's summary on the success path ([da6105b](https://github.com/sase-org/sase/commit/da6105b51edf8141b979478882ba6c0aa4b0a81a))
+* **test-selection:** walk one hop deeper when no contexts baseline is usable ([b4c4c18](https://github.com/sase-org/sase/commit/b4c4c182e1a68037fed639215c4d35ebbeab7e15))
+* **tests:** add a scoped run mode to the pytest runner ([8c4e14a](https://github.com/sase-org/sase/commit/8c4e14ab0f564eee9242e66ac21f2d82d53f0027))
+* **tests:** add the static import-graph test selection engine ([8c8d197](https://github.com/sase-org/sase/commit/8c8d1973d095c454fd39fd648738c0a86def34c1))
+* **tests:** track test-selection health and detect selection false negatives ([96183d7](https://github.com/sase-org/sase/commit/96183d71b3ef6edd427d8c388ba0f96644af6244))
+* **tests:** union per-test coverage contexts into diff-scoped selection ([d66101e](https://github.com/sase-org/sase/commit/d66101e8f292cb53b48ae2287f0f5f723b3c3ff9))
+* **tui:** show bead creation time in context lane ([256da28](https://github.com/sase-org/sase/commit/256da2887127cbe390cfd55d9ac5387b830ec25c))
+
+
+### Bug Fixes
+
+* **ace-tui:** stop bulk-kill-and-edit test racing relaunch prompt resolution ([bde727e](https://github.com/sase-org/sase/commit/bde727ecc0dbe67a734584e2c1abf3dbe49e8730))
+* **ace:** resolve Artifacts project scope through project refs ([9a366e0](https://github.com/sase-org/sase/commit/9a366e0d6c5a0357a25044feb485357ad7ee2121))
+* **ace:** stop the beads detail pane from oscillating between two layouts ([01398f5](https://github.com/sase-org/sase/commit/01398f5afc1061812388696daf82c78441665987))
+* **agents-sync:** repair stale hood-snapshot digests and add drift check ([2a9627b](https://github.com/sase-org/sase/commit/2a9627bc0814c495b8b5a99145eb7c17c72059ee))
+* **agents-sync:** retry deferred prompt archives on the full sync path ([2ac967d](https://github.com/sase-org/sase/commit/2ac967d781bb182891932ac680e8235bbc9f92b2))
+* **agents-sync:** stop dismissed agents' owned legacy-v1 hoods from importing as unknown-user ([8b8acb4](https://github.com/sase-org/sase/commit/8b8acb4335881db4d490650461652237a405dd60))
+* **artifact-file:** resolve logical plans: references when synthesizing plan rows ([b3ac417](https://github.com/sase-org/sase/commit/b3ac417f3a595cee7ee123a5da819a384e50cc6c))
+* **axe:** keep host-owned epic launches alive after an SDD store failure ([75a1ffc](https://github.com/sase-org/sase/commit/75a1ffc10692d24c8016ee6574ad901197d1752a))
+* **axe:** refuse to evict workspace sidecar clones holding unpublished bead commits ([d1b6f01](https://github.com/sase-org/sase/commit/d1b6f01a9e1ae04bb912cb17f360aaafd6b9df25))
+* **axe:** serialize workspace prep with agents sync on the shared sidecar clone ([625b5ca](https://github.com/sase-org/sase/commit/625b5cac40fba4d0db7edf41b026fd36ac516798))
+* **axe:** survive mid-run editable source swaps in agent runners ([4895b8f](https://github.com/sase-org/sase/commit/4895b8f32f64878321f3c4965f39b6d00c340eaa))
+* **bead:** recover sync when two clones mint the same bead id ([6b3b46e](https://github.com/sase-org/sase/commit/6b3b46e85b6df66d595e506609ebe322a2803eb3))
+* **bead:** verify bead-store mutations are published before reporting success ([99eedf7](https://github.com/sase-org/sase/commit/99eedf74912088e92a3e8b3cbf0786bf83b85633))
+* **commit-finalizer:** break async-wait deadlock in finalizer passes ([840cdff](https://github.com/sase-org/sase/commit/840cdff10664d2629ddc38f2677ec80e7dcaaca8))
+* **commit-finalizer:** fail the run when auto-committed bead state is never published ([980bdd3](https://github.com/sase-org/sase/commit/980bdd33767edd55ce358ff9d2bd9a89b81a502c))
+* **commit-finalizer:** import progress_fingerprint directly so symvision can see it ([a4a2c1a](https://github.com/sase-org/sase/commit/a4a2c1a6004016667c71b50522be8807bb8368da))
+* Disambiguate duplicate agents sidecar entries in sase repo open ([638f99b](https://github.com/sase-org/sase/commit/638f99b89c230d74b2902b6ee5e9f875a1debe23))
+* drop member-role anchor fragment from agent Page URL ([5daa94f](https://github.com/sase-org/sase/commit/5daa94ff7042f62ea3c6987fb5fbb5c565a93952))
+* **llm:** wrap agent prompts at the repo-wide 120-column width ([5da1934](https://github.com/sase-org/sase/commit/5da193482e4f755413418330e7f5c3e681ccf73f))
+* **plan-approval:** resolve the project key when archiving an approved plan ([4934094](https://github.com/sase-org/sase/commit/49340948a4f6d4077af86f7e8b0c36a244784d6f))
+* publish sidecar work inline on the commit path ([de78052](https://github.com/sase-org/sase/commit/de7805278926e3a9abd97b475afca158363d7ffc))
+* **sdd-store:** degrade unresolvable agents sidecar instead of aborting store resolution ([baebfcd](https://github.com/sase-org/sase/commit/baebfcd216319315e169d4c189666fe3db148048))
+* **sdd:** report header-invalid from plan links validate ([fa8fc69](https://github.com/sase-org/sase/commit/fa8fc69e46c49bc3367ea274584d7fa928aa1dc9))
+* **sdd:** validate plan header before projection at the archive boundary ([b088620](https://github.com/sase-org/sase/commit/b08862001860814452c89553f10cc6a52c88d87e))
+* **test-selection:** attribute and narrow the core-identity-changed escalation ([f88b740](https://github.com/sase-org/sase/commit/f88b7403cd0dcc2d5522d909582a7cdbddbb1304))
+* **test-selection:** drop deleted test paths from scoped selection ([cf130a2](https://github.com/sase-org/sase/commit/cf130a278505f0cf9921acb016011b8fb9789a60))
+* **test-selection:** rank coverage-contexts baselines by breadth, not mtime ([368cf15](https://github.com/sase-org/sase/commit/368cf151a445f9e0cb96a7e2c958decb91c031b3))
+* **test-selection:** stop charging known flakes to the false-negative metric ([87961cd](https://github.com/sase-org/sase/commit/87961cd0e17a2d5a137b327325bb68b28156cc28))
+* **test-selection:** stop reporting an escalated run as one with no baseline ([559d4c2](https://github.com/sase-org/sase/commit/559d4c2443b78ae495f25842bd94a42ad05ceb78))
+* **test-selection:** stop the codeblock cursor test racing the blink timer ([3f69267](https://github.com/sase-org/sase/commit/3f69267d516c5131ecca44b22399e67838b508c1))
+* **tests:** allow chezmoi-deploy-locks in tmp-leak-guard allowlist ([48bd000](https://github.com/sase-org/sase/commit/48bd0009ebdcf7ae883abfd548e1a02967c3e318))
+* **tests:** give the git-sync sidecar clone a committer identity ([260ea5a](https://github.com/sase-org/sase/commit/260ea5a0d99d536fcb38d30ea51270c5b775bfa7))
+* **tests:** isolate xprompt usage tests from ambient swarm env var ([02dee21](https://github.com/sase-org/sase/commit/02dee218264828a6d4359623434ed3eed6c433c7))
+* **tests:** restrict selection-health false-negative correlation to matching changes ([e7917a2](https://github.com/sase-org/sase/commit/e7917a2682e81c2119509e75bbdf19e7c4da0796))
+* **tests:** stop CI worker collapse and drop visual from default lane ([9672c56](https://github.com/sase-org/sase/commit/9672c5602816c39f3d6f2e4af2b50a2e032f0d5e))
+* **tests:** stop real-uv harness leaking lock files into watched temp root ([6ee11e5](https://github.com/sase-org/sase/commit/6ee11e5e9df5f47b1233ca34ed49f0a1989c323e))
+* tolerate forward-compatible owner manifests ([0e40dec](https://github.com/sase-org/sase/commit/0e40decdcebd063b5d136b5a8359b9a59a52bb48))
+
+
+### Performance Improvements
+
+* prefer LibYAML C loader for trusted config YAML reads ([dc993cc](https://github.com/sase-org/sase/commit/dc993ccd87657982f3f0213f8214dea2c43f26ac))
+* simplify agent prefix matching ([#272](https://github.com/sase-org/sase/issues/272)) ([939794c](https://github.com/sase-org/sase/commit/939794c398018b01d735de247a01e03c29d9b5e1))
+
+
+### Documentation
+
+* **ace-tui:** document ordered-list numbering, run, and nesting rules ([96a53e7](https://github.com/sase-org/sase/commit/96a53e7ab0d06116fd9adb8a3b18565d00cac75e))
+* **artifact-ref:** describe the scratch probe against sase-core 0.18.4 ([a15f409](https://github.com/sase-org/sase/commit/a15f409dd11322a32649c627e226a0fd448c9070))
+* **bead:** document the snoozed task-bead status and per-tab indicator ([44727b0](https://github.com/sase-org/sase/commit/44727b0275df6c62f09c7929677ce54e35f4a8a4))
+* **beads:** document close history and reopen provenance ([d7ac0da](https://github.com/sase-org/sase/commit/d7ac0dab5cdfc4c2b00f102e588d5d8506b6196f))
+* correct and clarify the refreshed user-facing docs ([a7e6f05](https://github.com/sase-org/sase/commit/a7e6f05143450eddaca6cdc9dd011ad64f363065))
+* describe restored inline sidecar publication ([02dcea6](https://github.com/sase-org/sase/commit/02dcea68b016131e31f6d79bde7d9511a51385c2))
+* **justfile:** correct the scoped lane's suite-gate lease claim ([9e4e4ff](https://github.com/sase-org/sase/commit/9e4e4ff54aff6ac9d37393625b4053e2bda6dbc8))
+* **memory:** document two-speed verification contract, fix stale visual-snapshot claim ([6f1a071](https://github.com/sase-org/sase/commit/6f1a0717f1af3ee11f757a4820822427f5489670))
+* refresh user-facing documentation ([5311383](https://github.com/sase-org/sase/commit/531138373fc480b581242fbd3cee4ebadcfc4819))
+* **test-selection:** document the implemented false-negative rule ([b657fce](https://github.com/sase-org/sase/commit/b657fce17e86ef9a15e596866f9203e8e73edbdf))
+* **test-selection:** document the tail phase's slow-run and cost-not-measured fields ([a042950](https://github.com/sase-org/sase/commit/a04295008fbb1e7c973ffd9ed69b848d2cea7a68))
+
 ## [0.15.0](https://github.com/sase-org/sase/compare/v0.14.0...v0.15.0) (2026-08-05)
 
 
