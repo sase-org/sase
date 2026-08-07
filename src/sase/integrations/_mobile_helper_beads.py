@@ -452,7 +452,16 @@ def _bead_status_filter(
         return [_enum_value(Status, status, "status")]
     if include_closed:
         return None
-    return [Status.OPEN, Status.CLAIMED, Status.READY, Status.IN_PROGRESS]
+    # ``snoozed`` belongs here for the same reason it is in ``sase bead list``
+    # and in ``DEFAULT_BEAD_FILTER_QUERY``: a snoozed task is live work the
+    # user chose to defer, not a black hole it disappears into.
+    return [
+        Status.OPEN,
+        Status.CLAIMED,
+        Status.READY,
+        Status.SNOOZED,
+        Status.IN_PROGRESS,
+    ]
 
 
 def _optional_enum_filter(

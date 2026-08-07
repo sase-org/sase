@@ -144,6 +144,37 @@ def test_beads_list_bridge_all_known_projects_ignores_disabled_projects(
     assert beta_epic.id not in ids
 
 
+def test_beads_list_bridge_includes_snoozed_beads_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A snoozed task is deferred work, not work the mobile list may drop.
+
+    ``sase bead list``, ``sase bead search``, and the ACE beads pane all show
+    snoozed beads with no flags; the bridge's own default status set was the
+    last surface still enumerating the pre-snooze statuses.
+    """
+    alpha_dir, _, _, alpha_closed = seed_bead_project(tmp_path / "alpha")
+    with BeadProject(alpha_dir.parents[1]) as project:
+        task = project.create("Deferrable", IssueType.TASK, size="small")
+        project.update(task.id, status=Status.READY.value)
+        project.snooze(
+            task.id,
+            until="2099-01-01T00:00:00Z",
+            actor="owner@example",
+            reason="waiting on upstream",
+        )
+    seed_known_projects(tmp_path, {"alpha": alpha_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = run_bridge({"schema_version": 1}, "beads-list")
+
+    assert code == 0
+    assert stderr == ""
+    rows = {row["id"]: row for row in data["beads"]}  # type: ignore[index]
+    assert rows[task.id]["status"] == Status.SNOOZED.value
+    assert alpha_closed.id not in rows
+
+
 def test_beads_list_bridge_uses_remembered_device_project_context(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

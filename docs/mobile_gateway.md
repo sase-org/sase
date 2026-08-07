@@ -114,7 +114,7 @@ Helper bridge operations:
 | ------------------------------------------- | ------------------------------------------------------ |
 | `sase mobile helper-bridge changespec-tags` | List active ChangeSpec prompt tags for a known project |
 | `sase mobile helper-bridge xprompt-catalog` | Return the mobile-safe structured xprompt catalog      |
-| `sase mobile helper-bridge beads-list`      | List open or in-progress beads                         |
+| `sase mobile helper-bridge beads-list`      | List every non-closed bead, snoozed ones included      |
 | `sase mobile helper-bridge beads-show`      | Inspect one bead by ID                                 |
 | `sase mobile helper-bridge update-start`    | Start the configured SASE update worker                |
 | `sase mobile helper-bridge update-status`   | Poll structured update worker status                   |
