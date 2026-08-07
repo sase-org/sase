@@ -30,8 +30,10 @@ from sase.notification_gates.model_options import GateCommand
 from sase.notification_gates.model_validation import (
     GateError,
     check_json_schema,
+    check_schema_bounds,
     json_object,
     reject_unknown_fields,
+    stamp_schema_dialect,
     string_list,
     validate_icon,
     validate_identifier,
@@ -109,14 +111,17 @@ class GateOperation:
                 ),
                 edit_target=_edit_target(data.get("edit_target"), target_field),
             )
-        input_schema = json_object(
+        declared_input_schema = json_object(
             data.get("input_schema", {}), f"{target_field}.input_schema"
         )
-        result_schema = json_object(
+        declared_result_schema = json_object(
             data.get("result_schema", {}), f"{target_field}.result_schema"
         )
-        check_json_schema(input_schema, f"{target_field}.input_schema")
-        check_json_schema(result_schema, f"{target_field}.result_schema")
+        check_json_schema(declared_input_schema, f"{target_field}.input_schema")
+        check_json_schema(declared_result_schema, f"{target_field}.result_schema")
+        input_schema = stamp_schema_dialect(declared_input_schema)
+        result_schema = stamp_schema_dialect(declared_result_schema)
+        check_schema_bounds(input_schema, f"{target_field}.input_schema")
         return cls(
             **common,
             command=GateCommand.from_value(

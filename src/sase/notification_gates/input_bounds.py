@@ -3,18 +3,22 @@
 Submitted input lands in the durable ``response.json`` and on a trusted
 command's stdin, so it cannot be unbounded now that a reviewer authors it
 rather than a producing agent. These bounds are enforced at submission and
-are the same numbers a later creation-time check reports to an author.
+are the same numbers
+:func:`sase.notification_gates.model_validation.check_schema_bounds` reports
+to an author at creation, which is why they are defined in that leaf module
+and only re-exported here.
 """
 
 from __future__ import annotations
 
 from sase.notification_gates.durability import canonical_json_bytes
-from sase.notification_gates.models import GateError
-
-MAX_INPUT_BYTES = 64 * 1024
-MAX_INPUT_DEPTH = 16
-MAX_OBJECT_PROPERTIES = 128
-MAX_ARRAY_ITEMS = 512
+from sase.notification_gates.models import (
+    MAX_ARRAY_ITEMS,
+    MAX_INPUT_BYTES,
+    MAX_INPUT_DEPTH,
+    MAX_OBJECT_PROPERTIES,
+    GateError,
+)
 
 
 def check_input_bounds(value: object, target: str) -> None:

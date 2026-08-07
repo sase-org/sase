@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from sase.notification_gates.adapters import GateAdapter
 from sase.notification_gates.kind_validation import (
     validate_bead_snooze_spec,
+    validate_custom_spec,
     validate_launch_spec,
     validate_plan_spec,
     validate_question_spec,
@@ -210,6 +211,8 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "payload",
             "payload and producer must contain JSON values",
         ) from exc
+    if adapter.kind == "custom":
+        validate_custom_spec(spec)
     if adapter.kind == "launch":
         validate_launch_spec(spec)
     if adapter.kind == "question":

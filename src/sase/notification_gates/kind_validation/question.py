@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from sase.notification_gates.kind_validation.resources import read_gate_resource
-from sase.notification_gates.models import GateError, GateSpec
+from sase.notification_gates.models import (
+    GateError,
+    GateSpec,
+    stamp_schema_dialect,
+)
 
 
 def validate_question_spec(spec: GateSpec) -> None:
@@ -90,10 +94,8 @@ def _validate_question_options(spec: GateSpec, expected_schema: dict[str, Any]) 
             "options",
             "question gates require the registered submit option",
         )
-    if (
-        option.input_schema != expected_schema
-        or option.result_schema != expected_schema
-    ):
+    stamped_schema = stamp_schema_dialect(expected_schema)
+    if option.input_schema != stamped_schema or option.result_schema != stamped_schema:
         raise GateError(
             "invalid_question_schema",
             "options.submit",

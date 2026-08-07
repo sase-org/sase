@@ -102,12 +102,14 @@ def custom_gate_spec(
                 "label": "Write audit record",
                 "icon": "📝",
                 "command": {"argv": ["commands/audit"]},
+                "input_schema": {"type": "object"},
             },
             {
                 "id": "broken",
                 "label": "Try fallible follow-up",
                 "default_selected": False,
                 "command": {"argv": ["commands/broken"]},
+                "input_schema": {"type": "object"},
             },
         ],
         "groups": [

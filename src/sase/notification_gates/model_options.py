@@ -11,11 +11,14 @@ from sase.notification_gates.model_inputs import (
     parse_gate_input_fields,
 )
 from sase.notification_gates.model_validation import (
+    NO_INPUT_SCHEMA,
     GateError,
     GateFeedbackMode,
     check_json_schema,
+    check_schema_bounds,
     json_object,
     reject_unknown_fields,
+    stamp_schema_dialect,
     string_list,
     validate_icon,
     validate_label,
@@ -70,12 +73,18 @@ class GateOption:
     ``input_schema`` to exactly equal the schema compiled from ``inputs``, so
     an envelope produced by this class re-parses through the same code path
     without tripping the conflict check.
+
+    Declaring neither means "this command takes no input" and compiles to
+    :data:`~sase.notification_gates.model_validation.NO_INPUT_SCHEMA`. Only an
+    explicit ``"input_schema": {}`` gets the permissive empty schema. Because
+    :meth:`to_dict` always writes ``input_schema``, a bundle created before
+    that rule keeps whatever it was created with.
     """
 
     id: str
     label: str
     command: GateCommand
-    input_schema: dict[str, Any] = field(default_factory=dict)
+    input_schema: dict[str, Any] = field(default_factory=lambda: dict(NO_INPUT_SCHEMA))
     result_schema: dict[str, Any] = field(default_factory=dict)
     icon: str | None = None
     default_selected: bool = True
@@ -127,10 +136,9 @@ class GateOption:
         raw_input_schema = data.get("input_schema")
         provided_input_schema: dict[str, Any] | None = None
         if raw_input_schema is not None:
-            provided_input_schema = json_object(
-                raw_input_schema, f"{target}.input_schema"
-            )
-            check_json_schema(provided_input_schema, f"{target}.input_schema")
+            declared = json_object(raw_input_schema, f"{target}.input_schema")
+            check_json_schema(declared, f"{target}.input_schema")
+            provided_input_schema = stamp_schema_dialect(declared)
         if inputs:
             compiled_input_schema = compile_gate_input_schema(
                 inputs, feedback_mode=feedback
@@ -145,14 +153,19 @@ class GateOption:
                     "input_schema must equal the schema compiled from 'inputs'",
                 )
             input_schema = compiled_input_schema
+        elif provided_input_schema is not None:
+            input_schema = provided_input_schema
         else:
-            input_schema = (
-                {} if provided_input_schema is None else provided_input_schema
-            )
-        result_schema = json_object(
+            # Omission means "this command takes no input". The permissive
+            # empty schema stays available, but only to an author who writes
+            # `"input_schema": {}` and means it.
+            input_schema = dict(NO_INPUT_SCHEMA)
+        check_schema_bounds(input_schema, f"{target}.input_schema")
+        declared_result_schema = json_object(
             data.get("result_schema", {}), f"{target}.result_schema"
         )
-        check_json_schema(result_schema, f"{target}.result_schema")
+        check_json_schema(declared_result_schema, f"{target}.result_schema")
+        result_schema = stamp_schema_dialect(declared_result_schema)
         return cls(
             id=option_id,
             label=label,

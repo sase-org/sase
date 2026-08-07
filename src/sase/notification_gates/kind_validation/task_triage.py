@@ -12,7 +12,12 @@ from sase.notification_gates.kind_validation.task_triage_payload import (
     TaskTriagePayload,
     parse_task_triage_payload,
 )
-from sase.notification_gates.models import GateError, GateSpec
+from sase.notification_gates.models import (
+    NO_INPUT_SCHEMA,
+    GateError,
+    GateSpec,
+    stamp_schema_dialect,
+)
 
 
 def validate_task_triage_spec(spec: GateSpec) -> None:
@@ -72,17 +77,14 @@ def _validate_task_triage_options(spec: GateSpec) -> None:
             "options",
             "task triage gates require launch, close, and snooze options",
         )
-    empty_input_schema = {
-        "type": "object",
-        "additionalProperties": False,
-    }
     for option in spec.options:
         typed_option_id = cast(TaskTriageAction, option.id)
         expected_command = TASK_TRIAGE_COMMAND_PATHS[typed_option_id]
         if (
             option.command.argv != (expected_command,)
-            or option.input_schema != empty_input_schema
-            or option.result_schema != task_triage_result_schema(typed_option_id)
+            or option.input_schema != NO_INPUT_SCHEMA
+            or option.result_schema
+            != stamp_schema_dialect(task_triage_result_schema(typed_option_id))
             or option.feedback != TASK_TRIAGE_OPTION_FEEDBACK[typed_option_id]
             or option.label != TASK_TRIAGE_OPTION_LABELS[typed_option_id]
             or option.icon != TASK_TRIAGE_OPTION_ICONS[typed_option_id]

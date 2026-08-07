@@ -17,8 +17,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.notification_gates.model_validation import (
+    JSON_SCHEMA_DIALECT,
     GateError,
     GateFeedbackMode,
+    first_schema_error,
     json_object,
     reject_unknown_fields,
 )
@@ -73,8 +75,9 @@ class GateInputField:
         type: One of ``word``, ``line``, ``text``, ``path``, ``agent``, ``int``,
             ``bool``, ``float``, ``enum``.
         required: Whether the compiled schema requires this property.
-        default: A declared default value (not validated against ``type`` here;
-            see ``custom-validation``).
+        default: A declared default value. Validated at parse time against this
+            field's own compiled fragment, so a default no client could submit
+            is a creation error rather than a gate that fails on first answer.
         choices: Declared values for an ``enum`` field. Required and non-empty
             for ``enum``; must be empty for every other type.
         placeholder: Optional placeholder text for a rendered input.
@@ -190,20 +193,20 @@ def parse_gate_input_fields(value: object, target: str) -> tuple[GateInputField,
         else:
             choices = ()
 
-        fields.append(
-            GateInputField(
-                id=raw_id,
-                label=raw_label.strip(),
-                type=field_type,
-                required=required,
-                default=data.get("default"),
-                choices=choices,
-                placeholder=placeholder,
-                help=help_text,
-                secret=secret,
-                repeatable=repeatable,
-            )
+        parsed_field = GateInputField(
+            id=raw_id,
+            label=raw_label.strip(),
+            type=field_type,
+            required=required,
+            default=data.get("default"),
+            choices=choices,
+            placeholder=placeholder,
+            help=help_text,
+            secret=secret,
+            repeatable=repeatable,
         )
+        _check_declared_default(parsed_field, item_target)
+        fields.append(parsed_field)
     return tuple(fields)
 
 
@@ -297,15 +300,7 @@ def compile_gate_input_schema(
     required: list[str] = []
     has_feedback_field = False
     for gate_input_field in fields:
-        if gate_input_field.type is InputType.ENUM:
-            fragment: dict[str, Any] = {
-                "enum": [choice.value for choice in gate_input_field.choices]
-            }
-        else:
-            fragment = dict(_TYPE_SCHEMA_FRAGMENTS[gate_input_field.type])
-        if gate_input_field.repeatable:
-            fragment = {"type": "array", "items": fragment}
-        properties[gate_input_field.id] = fragment
+        properties[gate_input_field.id] = _compile_gate_input_fragment(gate_input_field)
         if gate_input_field.required:
             required.append(gate_input_field.id)
         if gate_input_field.id == "feedback":
@@ -315,12 +310,46 @@ def compile_gate_input_schema(
         properties["feedback"] = {"type": "string"}
 
     return {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$schema": JSON_SCHEMA_DIALECT,
         "type": "object",
         "properties": properties,
         "required": required,
         "additionalProperties": False,
     }
+
+
+def _compile_gate_input_fragment(gate_input_field: GateInputField) -> dict[str, Any]:
+    """Return the JSON Schema fragment one declared field compiles into."""
+    if gate_input_field.type is InputType.ENUM:
+        fragment: dict[str, Any] = {
+            "enum": [choice.value for choice in gate_input_field.choices]
+        }
+    else:
+        fragment = dict(_TYPE_SCHEMA_FRAGMENTS[gate_input_field.type])
+    if gate_input_field.repeatable:
+        fragment = {"type": "array", "items": fragment}
+    return fragment
+
+
+def _check_declared_default(gate_input_field: GateInputField, target: str) -> None:
+    """Reject a default that the field's own compiled fragment would refuse.
+
+    A default is what a surface pre-fills and what the creation-time
+    answerability probe submits, so an unsubmittable default is a gate that
+    fails on its first answer -- exactly the silent trap this contract closes.
+    """
+    if gate_input_field.default is None:
+        return
+    error = first_schema_error(
+        gate_input_field.default, _compile_gate_input_fragment(gate_input_field)
+    )
+    if error is not None:
+        raise GateError(
+            "invalid_input_field",
+            f"{target}.default",
+            f"{target}.default is not a valid {gate_input_field.type.value} "
+            f"value: {error.message}",
+        )
 
 
 __all__ = [

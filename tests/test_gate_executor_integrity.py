@@ -49,13 +49,26 @@ def _strict_input_spec(
     input_schema: object | None = None,
     command: str = _PASSTHROUGH,
 ) -> dict[str, object]:
-    schema = input_schema
-    if schema is None:
-        schema = {
-            "type": "object",
-            "required": ["target_env"],
-            "properties": {"target_env": {"type": "string"}},
-        }
+    option: dict[str, object] = {
+        "id": "proceed",
+        "label": "Proceed",
+        "command": {"argv": ["commands/proceed"]},
+        "result_schema": {"type": "object"},
+    }
+    if input_schema is None:
+        # A raw schema requiring a property no ``inputs`` field declares is
+        # rejected at creation as unanswerable, so the required property is
+        # declared the way an author is meant to declare it.
+        option["inputs"] = [
+            {
+                "id": "target_env",
+                "label": "Target environment",
+                "type": "text",
+                "required": True,
+            }
+        ]
+    else:
+        option["input_schema"] = input_schema
     return {
         "schema_version": 3,
         "request_id": request_id,
@@ -69,15 +82,7 @@ def _strict_input_spec(
         },
         "query": "proceed",
         "primary_branch": ["proceed"],
-        "options": [
-            {
-                "id": "proceed",
-                "label": "Proceed",
-                "command": {"argv": ["commands/proceed"]},
-                "input_schema": schema,
-                "result_schema": {"type": "object"},
-            }
-        ],
+        "options": [option],
         "resources": [
             {"path": "commands/proceed", "role": "command", "content": command}
         ],

@@ -22,6 +22,25 @@ _COLOR_RE = re.compile(r"#[0-9A-Fa-f]{6}")
 
 GateFeedbackMode = Literal["disabled", "optional", "required"]
 
+JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
+_ACCEPTED_SCHEMA_DIALECTS = {JSON_SCHEMA_DIALECT, f"{JSON_SCHEMA_DIALECT}#"}
+
+#: Bounds shared by the creation-time schema check and the submission-time
+#: input check, so an author learns at ``sase gate create`` rather than at
+#: submit time. :mod:`sase.notification_gates.input_bounds` re-exports them.
+MAX_INPUT_BYTES = 64 * 1024
+MAX_INPUT_DEPTH = 16
+MAX_OBJECT_PROPERTIES = 128
+MAX_ARRAY_ITEMS = 512
+
+#: The schema an option gets when it declares neither ``inputs`` nor
+#: ``input_schema``: the honest reading of "this command takes no input".
+NO_INPUT_SCHEMA: dict[str, Any] = {
+    "$schema": JSON_SCHEMA_DIALECT,
+    "type": "object",
+    "additionalProperties": False,
+}
+
 
 class GateError(RuntimeError):
     """A deterministic gate validation, durability, or execution failure."""
@@ -192,6 +211,25 @@ def string_list(value: object, target: str) -> tuple[str, ...]:
 
 
 def check_json_schema(schema: dict[str, Any], target: str) -> None:
+    """Reject a schema the gate executor could not enforce as written.
+
+    Gates pin one dialect. The executor builds a ``Draft202012Validator`` and
+    nothing reads ``$schema`` at submission time, so a schema declaring a
+    different dialect would be silently enforced as Draft 2020-12 anyway --
+    which is exactly the kind of quiet disagreement this contract exists to
+    prevent.
+    """
+    declared_dialect = schema.get("$schema")
+    if declared_dialect is not None and (
+        not isinstance(declared_dialect, str)
+        or declared_dialect not in _ACCEPTED_SCHEMA_DIALECTS
+    ):
+        raise GateError(
+            "unsupported_schema_dialect",
+            target,
+            f"{target}.$schema must be {JSON_SCHEMA_DIALECT}; gates enforce "
+            "JSON Schema Draft 2020-12 and nothing else",
+        )
     try:
         from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
 
@@ -200,6 +238,68 @@ def check_json_schema(schema: dict[str, Any], target: str) -> None:
         raise GateError(
             "invalid_schema", target, f"invalid JSON schema: {exc}"
         ) from exc
+
+
+def first_schema_error(value: Any, schema: Mapping[str, Any]) -> Any:
+    """Return the first Draft 2020-12 error for *value*, or ``None``.
+
+    Returned as the raw ``jsonschema`` error so a caller can branch on
+    ``validator``/``validator_value`` when it wants to name the offending
+    property rather than echo a library message.
+    """
+    from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+
+    errors = sorted(Draft202012Validator(dict(schema)).iter_errors(value), key=str)
+    return errors[0] if errors else None
+
+
+def stamp_schema_dialect(schema: Mapping[str, Any]) -> dict[str, Any]:
+    """Return *schema* with the pinned dialect recorded on it.
+
+    Stamping at parse time makes the stored envelope self-describing and keeps
+    the operation idempotent, so an envelope re-parsed by
+    :meth:`GateOption.from_mapping` compares equal to the one that was written.
+    """
+    stamped = dict(schema)
+    stamped["$schema"] = JSON_SCHEMA_DIALECT
+    return stamped
+
+
+def check_schema_bounds(schema: Mapping[str, Any], target: str) -> None:
+    """Reject a schema wider or deeper than a submitted input may ever be.
+
+    The numbers are the submission-time bounds. Enforcing them at creation
+    turns "every answer fails" into one pointed creation error.
+    """
+    pending: list[tuple[object, int]] = [(schema, 0)]
+    while pending:
+        current, depth = pending.pop()
+        if isinstance(current, Mapping):
+            _reject_schema_depth(depth, target)
+            properties = current.get("properties")
+            if (
+                isinstance(properties, Mapping)
+                and len(properties) > MAX_OBJECT_PROPERTIES
+            ):
+                raise GateError(
+                    "schema_too_large",
+                    target,
+                    f"{target} declares {len(properties)} properties in one "
+                    f"object; at most {MAX_OBJECT_PROPERTIES} are allowed",
+                )
+            pending.extend((item, depth + 1) for item in current.values())
+        elif isinstance(current, list):
+            _reject_schema_depth(depth, target)
+            pending.extend((item, depth + 1) for item in current)
+
+
+def _reject_schema_depth(depth: int, target: str) -> None:
+    if depth >= MAX_INPUT_DEPTH:
+        raise GateError(
+            "schema_too_large",
+            target,
+            f"{target} nests deeper than {MAX_INPUT_DEPTH} levels",
+        )
 
 
 def reject_unknown_fields(

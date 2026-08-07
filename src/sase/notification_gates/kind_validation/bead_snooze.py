@@ -12,7 +12,12 @@ from sase.notification_gates.kind_validation.preview_recovery import (
     preview_matches_renderer,
 )
 from sase.notification_gates.kind_validation.resources import read_gate_resource
-from sase.notification_gates.models import GateError, GateSpec
+from sase.notification_gates.models import (
+    NO_INPUT_SCHEMA,
+    GateError,
+    GateSpec,
+    stamp_schema_dialect,
+)
 
 
 def validate_bead_snooze_spec(spec: GateSpec) -> None:
@@ -70,17 +75,14 @@ def _validate_bead_snooze_options(spec: GateSpec) -> None:
             "options",
             "bead snooze gates require close, ready, and snooze options",
         )
-    empty_input_schema = {
-        "type": "object",
-        "additionalProperties": False,
-    }
     for option in spec.options:
         typed_option_id = cast(BeadSnoozeAction, option.id)
         expected_command = BEAD_SNOOZE_COMMAND_PATHS[typed_option_id]
         if (
             option.command.argv != (expected_command,)
-            or option.input_schema != empty_input_schema
-            or option.result_schema != bead_snooze_result_schema(typed_option_id)
+            or option.input_schema != NO_INPUT_SCHEMA
+            or option.result_schema
+            != stamp_schema_dialect(bead_snooze_result_schema(typed_option_id))
             or option.feedback != BEAD_SNOOZE_OPTION_FEEDBACK[typed_option_id]
         ):
             raise GateError(
