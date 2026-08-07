@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.main import _init_skills_manifest as manifest_module, init_skills_handler
+from sase.main.init_skills_handler import _get_target_path
 from sase.xprompt.models import XPrompt
 
 _OLD_SHA = "1" * 40
@@ -177,6 +178,15 @@ def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         init_skills_handler, "get_all_xprompts", lambda project="": {"foo": xprompt}
     )
     return skills_dir
+
+
+def stub_claude_skill_target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Stub one Claude skill source and return its (unwritten) target path."""
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
+    return _get_target_path("claude", "foo", use_chezmoi=False)
 
 
 def stub_under_wrapped_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
