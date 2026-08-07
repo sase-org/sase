@@ -73,6 +73,7 @@ class GateBranchControls(VerticalScroll):
         }
         self._active_branch_index = 0
         self._feedback_by_branch: dict[int, str] = {}
+        self._submission_block: str | None = None
 
     def compose(self) -> ComposeResult:
         branch_index = 0
@@ -235,12 +236,6 @@ class GateBranchControls(VerticalScroll):
         self._update_feedback_controls()
         self._update_submit_state(branch_index)
 
-    def focus_next_control(self) -> None:
-        self._focus_relative(1)
-
-    def focus_previous_control(self) -> None:
-        self._focus_relative(-1)
-
     def toggle_focused_option(self) -> None:
         focused = self.screen.focused
         if not isinstance(focused, Button) or not (focused.id or "").startswith(
@@ -290,20 +285,8 @@ class GateBranchControls(VerticalScroll):
                 self._update_submit_state(branch_index)
             return
 
-    def _focus_relative(self, delta: int) -> None:
-        control_ids = self._visible_control_ids()
-        if not control_ids:
-            return
-        focused = self.screen.focused
-        focused_id = focused.id if isinstance(focused, Button) else None
-        try:
-            current = control_ids.index(focused_id or "")
-        except ValueError:
-            current = -1 if delta > 0 else 0
-        target_id = control_ids[(current + delta) % len(control_ids)]
-        self.query_one(f"#{target_id}", Button).focus(scroll_visible=False)
-
-    def _visible_control_ids(self) -> list[str]:
+    def visible_control_ids(self) -> list[str]:
+        """Return this section's focusable control ids, in render order."""
         ids: list[str] = []
         for branch_index, branch in enumerate(self.data.branches):
             if len(branch) == 1:
@@ -328,7 +311,30 @@ class GateBranchControls(VerticalScroll):
         self._active_branch_index = branch_index
         self._update_feedback_controls()
 
+    def block_submission(self, reason: str | None) -> None:
+        """Refuse every submit while *reason* is set, and say why when tried.
+
+        An unaccepted draft blocks the whole Decision section rather than the
+        branches that would consume it: getting that per-branch reasoning
+        wrong destroys a reviewer's edit silently, and being blunt here cannot.
+        """
+        self._submission_block = reason
+        if self.is_mounted:
+            self._refresh_submit_states()
+
+    def _refresh_submit_states(self) -> None:
+        for branch_index, branch in enumerate(self.data.branches):
+            if len(branch) == 1:
+                self.query_one(f"#gate-singleton-{branch_index}", Button).disabled = (
+                    self._submission_block is not None
+                )
+            else:
+                self._update_submit_state(branch_index)
+
     def _resolve_branch(self, branch_index: int) -> None:
+        if self._submission_block is not None:
+            self.notify(self._submission_block, severity="warning")
+            return
         self._set_active_branch(branch_index)
         selected = self.selected_option_ids(branch_index)
         if not selected:
@@ -394,9 +400,13 @@ class GateBranchControls(VerticalScroll):
         if len(branch) <= 1 or not self.is_mounted:
             return
         button = self.query_one(f"#gate-group-submit-{branch_index}", Button)
-        button.disabled = not self.selected_option_ids(branch_index) or (
-            self._feedback_mode(branch_index) == "required"
-            and self._feedback_value(branch_index) is None
+        button.disabled = (
+            self._submission_block is not None
+            or not self.selected_option_ids(branch_index)
+            or (
+                self._feedback_mode(branch_index) == "required"
+                and self._feedback_value(branch_index) is None
+            )
         )
 
     @staticmethod

@@ -44,6 +44,7 @@ def handle_custom_gate(app: object, notification: Notification) -> bool:
 
         from ...modals import CustomGateModal, CustomGateModalResult
         from sase.notification_gates.debug import debug_context_from_notification
+        from ._notification_gate_actions import NotificationGateActionRunner
         from ._notification_gate_execution import (
             GateSubmission,
             submit_gate_execution_task,
@@ -70,6 +71,12 @@ def handle_custom_gate(app: object, notification: Notification) -> bool:
                 gate_keymaps=getattr(
                     getattr(app, "_keymap_registry", None), "gate", None
                 ),
+                action_runner=NotificationGateActionRunner(
+                    app=app,
+                    notification=notification,
+                    bundle_path=Path(str(notification.action_data.get("bundle_path"))),
+                    operations=data.actions.operations,
+                ),
             ),
             on_dismiss,
         )
@@ -95,6 +102,8 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
     from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import resolve_notification_bundle
     from sase.notification_gates.summary import gate_summary_from_notification
+
+    from ._notification_gate_actions import load_gate_actions
 
     bundle = resolve_notification_bundle(notification)
     if bundle is None or bundle.legacy:
@@ -130,6 +139,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
         gate=gate,
         origin_agent=notification_origin_agent(notification),
         gate_title=None if summary is None else summary.title,
+        actions=load_gate_actions(bundle.root, dict(envelope)),
     )
 
 

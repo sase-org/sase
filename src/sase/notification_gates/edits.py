@@ -106,9 +106,31 @@ def accept_edited_origin(bundle_path: Path, operation_id: str) -> dict[str, Any]
         _write_owned_bytes(resource_file, _read_owned_bytes(target.origin))
         try:
             return _refresh_after_edit_locked(bundle_path, operation_id)
-        except GateError:
+        except Exception:
+            # Every rejection rolls back, not only ``GateError``: the plan
+            # adapter rejects with ``PlanApprovalValidationError``, and a
+            # narrower clause would leave the bundle holding content the
+            # reviewer never accepted.
             _write_owned_bytes(resource_file, previous)
             raise
+
+
+def discard_origin_draft(bundle_path: Path, operation_id: str) -> OriginDraftState:
+    """Restore the origin file from the reviewed bundle copy.
+
+    This is the only path in this module that destroys a reviewer's draft, and
+    it exists so discarding one is a deliberate, confirmable act rather than a
+    side effect of answering the gate.
+    """
+    bundle_path = assert_owned_bundle(bundle_path)
+    with file_lock(bundle_path / ".response.lock"):
+        envelope = read_json_object(bundle_path / "request.json")
+        target = resolve_edit_path(bundle_path, envelope, operation_id)
+        if target.origin is None:
+            return "missing"
+        resource_file = owned_resource_path(bundle_path, target.resource_path)
+        _write_owned_bytes(target.origin, _read_owned_bytes(resource_file))
+        return "clean"
 
 
 def origin_draft_state(bundle_path: Path, operation_id: str) -> OriginDraftState:
@@ -216,6 +238,7 @@ def _write_owned_bytes(path: Path, content: bytes) -> None:
 __all__ = [
     "EditTarget",
     "accept_edited_origin",
+    "discard_origin_draft",
     "origin_draft_state",
     "refresh_gate_after_edit",
     "resolve_edit_path",

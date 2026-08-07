@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
     from ...models import Agent
     from ...modals import GateBranchData, PlanApprovalResult
+    from ...modals.gate_action_controls import GateActionsData
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class PlanGateModalLoad:
     plan_content: str
     default_choice: PlanApprovalModalChoice
     gate: GateBranchData
+    actions: GateActionsData
     bundle: ResolvedGateBundle
 
 
@@ -41,6 +43,7 @@ def load_neutral_plan_modal_data(
     from sase.notification_gates.hashing import load_and_verify_bundle
     from sase.notification_gates.paths import resolve_notification_bundle
 
+    from ._notification_gate_actions import load_gate_actions
     from ...modals import GateBranchData
 
     bundle = resolve_notification_bundle(notification)
@@ -56,6 +59,7 @@ def load_neutral_plan_modal_data(
         plan_content=plan_content,
         default_choice=default_choice,
         gate=GateBranchData.from_envelope(envelope),
+        actions=load_gate_actions(bundle.root, dict(envelope)),
         bundle=bundle,
     )
 

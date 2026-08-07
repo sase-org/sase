@@ -78,7 +78,7 @@ def submit_gate_execution_task(
     def on_complete(completion: object) -> None:
         outcome = getattr(completion, "payload", None)
         if isinstance(outcome, _GateTaskOutcome):
-            _finish_gate_task(app, outcome)
+            _finish_gate_task(app, notification, submission, outcome)
             return
         if not bool(getattr(completion, "success", False)):
             app.notify(  # type: ignore[attr-defined]
@@ -185,12 +185,55 @@ def _describe_partial_attempt(bundle_path: Path) -> _PartialAttempt | None:
     )
 
 
-def _finish_gate_task(app: object, outcome: _GateTaskOutcome) -> None:
+def _finish_gate_task(
+    app: object,
+    notification: Notification,
+    submission: GateSubmission,
+    outcome: _GateTaskOutcome,
+) -> None:
+    if outcome.partial_attempt is not None and submission.retry is None:
+        _ask_retry_choice(app, notification, submission, outcome.partial_attempt)
+        return
     if outcome.severity is None:
         app.notify(outcome.message)  # type: ignore[attr-defined]
     else:
         app.notify(outcome.message, severity=outcome.severity)  # type: ignore[attr-defined]
     _refresh_notifications(app)
+
+
+def _ask_retry_choice(
+    app: object,
+    notification: Notification,
+    submission: GateSubmission,
+    partial: _PartialAttempt,
+) -> None:
+    """Let the reviewer choose how to finish a partly executed branch."""
+    from dataclasses import replace
+
+    from ...modals.gate_retry_modal import GateRetryModal
+
+    def on_choice(choice: object) -> None:
+        if choice not in {"resume", "restart"}:
+            app.notify(_incomplete_attempt_message(partial), severity="warning")  # type: ignore[attr-defined]
+            _refresh_notifications(app)
+            return
+        submit_gate_execution_task(app, notification, replace(submission, retry=choice))
+
+    app.push_screen(  # type: ignore[attr-defined]
+        GateRetryModal(
+            completed_option_ids=partial.completed_option_ids,
+            failed_option_ids=partial.failed_option_ids,
+        ),
+        on_choice,
+    )
+
+
+def _incomplete_attempt_message(partial: _PartialAttempt) -> str:
+    """Describe an attempt the reviewer declined to finish."""
+    return (
+        f"Gate attempt {partial.attempt_id} is still incomplete; "
+        "answer it again to resume or restart"
+    )
 
 
 def _refresh_notifications(app: object) -> None:

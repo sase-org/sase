@@ -9,6 +9,7 @@ import pytest
 
 from sase.notification_gates.edits import (
     accept_edited_origin,
+    discard_origin_draft,
     origin_draft_state,
     refresh_gate_after_edit,
     resolve_edit_path,
@@ -308,6 +309,38 @@ def test_origin_edit_target_falls_back_to_the_bundle_resource(
     assert origin_draft_state(gate.bundle_path, "edit_notes") == "missing"
     # With no origin to copy from, accepting falls back to the bundle resource.
     assert accept_edited_origin(gate.bundle_path, "edit_notes")["resources"]
+
+
+def test_discarding_a_draft_restores_the_origin_from_the_reviewed_copy(
+    gate_home: Path, tmp_path: Path
+) -> None:
+    origin = tmp_path / "notes.md"
+    origin.write_text("original\n")
+    gate = create_gate(_origin_spec(origin, request_id="origin-discard"))
+    before = json.loads((gate.bundle_path / "request.json").read_text())
+
+    origin.write_text("unwanted draft\n")
+    assert origin_draft_state(gate.bundle_path, "edit_notes") == "draft"
+
+    assert discard_origin_draft(gate.bundle_path, "edit_notes") == "clean"
+
+    assert origin.read_text() == "original\n"
+    assert origin_draft_state(gate.bundle_path, "edit_notes") == "clean"
+    # Discarding never advances what the reviewer is reviewing.
+    after = json.loads((gate.bundle_path / "request.json").read_text())
+    assert after["review_revision"] == before["review_revision"]
+    assert after["hashes"] == before["hashes"]
+
+
+def test_discarding_reports_missing_when_no_origin_was_recorded(
+    gate_home: Path, tmp_path: Path
+) -> None:
+    origin = tmp_path / "gone.md"
+    origin.write_text("original\n")
+    gate = create_gate(_origin_spec(origin, request_id="discard-missing"))
+    origin.unlink()
+
+    assert discard_origin_draft(gate.bundle_path, "edit_notes") == "missing"
 
 
 def test_a_rejected_origin_draft_restores_the_reviewed_bundle_bytes(

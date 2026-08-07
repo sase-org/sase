@@ -4,6 +4,7 @@ from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.edits import (
     EditTarget,
     accept_edited_origin,
+    discard_origin_draft,
     origin_draft_state,
     refresh_gate_after_edit,
     resolve_edit_path,
@@ -79,6 +80,7 @@ __all__ = [
     "ParsedGateQuery",
     "ResolvedGateBundle",
     "accept_edited_origin",
+    "discard_origin_draft",
     "adapter_for_action",
     "adapter_for_kind",
     "bundle_paths",

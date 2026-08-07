@@ -1704,6 +1704,68 @@ GateBranchControls.gate-branch-controls--stacked .gate-group-submit {
     margin: 0;
 }
 
+GateActionControls {
+    height: auto;
+    margin-bottom: 1;
+}
+
+GateActionControls .gate-action {
+    width: 100%;
+    margin: 0;
+    text-align: left;
+}
+
+GateActionControls .gate-action-description {
+    height: auto;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+GateActionControls .gate-draft-banner {
+    height: auto;
+    border: solid $warning;
+    padding: 0 1;
+    margin-top: 1;
+}
+
+GateActionOutputModal {
+    align: center middle;
+}
+
+GateActionOutputModal > #gate-action-output-container {
+    width: 90%;
+    height: 85%;
+    background: $surface;
+    border: double $accent;
+    padding: 0 1;
+}
+
+GateRetryModal {
+    align: center middle;
+}
+
+GateRetryModal > .gate-retry-dialog {
+    width: 72;
+    height: auto;
+    background: $surface;
+    border: double $warning;
+    padding: 1 2;
+}
+
+GateRetryModal #gate-retry-summary {
+    height: auto;
+    margin: 1 0;
+}
+
+GateRetryModal #gate-retry-buttons {
+    height: auto;
+    align-horizontal: center;
+}
+
+GateRetryModal #gate-retry-buttons Button {
+    margin: 0 1;
+}
+
 .gate-review-cancel {
     width: 100%;
     height: auto;

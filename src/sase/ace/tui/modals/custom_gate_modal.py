@@ -23,6 +23,12 @@ from ..keymaps import (
 )
 from ..util.frontmatter_syntax import markdown_document_syntax
 from .base import CopyModeForwardingMixin
+from .gate_action_controls import GateActionsData
+from .gate_action_runner import (
+    GateActionRunner,
+    GateActionsMixin,
+    gate_modal_taken_keys,
+)
 from .gate_branch_controls import GateBranchControls, GateBranchData
 from .gate_primary_footer import primary_action_badge
 
@@ -54,6 +60,7 @@ class CustomGateModalData:
     gate: GateBranchData
     origin_agent: str | None = None
     gate_title: str | None = None
+    actions: GateActionsData = GateActionsData()
 
 
 @dataclass(frozen=True)
@@ -65,7 +72,7 @@ class CustomGateModalResult:
 
 
 class CustomGateModal(
-    CopyModeForwardingMixin, ModalScreen[CustomGateModalResult | None]
+    GateActionsMixin, CopyModeForwardingMixin, ModalScreen[CustomGateModalResult | None]
 ):
     """Review and answer a custom notification gate from its branch model."""
 
@@ -86,16 +93,25 @@ class CustomGateModal(
         *,
         debug_context: GateDebugContext | None = None,
         gate_keymaps: GateModalKeymaps | None = None,
+        action_runner: GateActionRunner | None = None,
     ) -> None:
         super().__init__()
         self._data = data
         self._debug_context = debug_context
         self._gate_keymaps = gate_keymaps or _DEFAULT_GATE_KEYMAPS
+        self._init_gate_actions(
+            data.actions,
+            action_runner,
+            taken_keys=gate_modal_taken_keys(
+                _CUSTOM_GATE_STATIC_BINDINGS, self._gate_keymaps
+            ),
+        )
         self._bindings = BindingsMap(
             [
                 *_CUSTOM_GATE_STATIC_BINDINGS,
                 *build_gate_modal_bindings(self._gate_keymaps),
                 *build_gate_numbered_branch_bindings(),
+                *self._gate_action_bindings(),
             ]
         )
 
@@ -153,6 +169,7 @@ class CustomGateModal(
                 self._attachment_summary(),
                 id="custom-gate-attachments",
             )
+        yield from self._compose_gate_actions()
         yield Static("Decision", classes="gate-review-section-title")
         yield GateBranchControls(
             self._data.gate,
@@ -166,7 +183,16 @@ class CustomGateModal(
         )
 
     def on_mount(self) -> None:
-        self.query_one(GateBranchControls).focus_next_control()
+        self._sync_submission_block()
+        self.focus_gate_control(1)
+
+    def render_reviewed_content(self, content: str) -> None:
+        """Re-render the preview pane after an accepted edit action."""
+        if self._data.preview_text is None:
+            return
+        self.query_one("#custom-gate-preview", Static).update(
+            markdown_document_syntax(content)
+        )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "custom-gate-cancel":
@@ -192,10 +218,10 @@ class CustomGateModal(
         show_gate_debug(self, self._debug_context)
 
     def action_next_control(self) -> None:
-        self.query_one(GateBranchControls).focus_next_control()
+        self.focus_gate_control(1)
 
     def action_previous_control(self) -> None:
-        self.query_one(GateBranchControls).focus_previous_control()
+        self.focus_gate_control(-1)
 
     def action_toggle_option(self) -> None:
         self.query_one(GateBranchControls).toggle_focused_option()
@@ -276,7 +302,9 @@ class CustomGateModal(
         text.append(f"{key_display_name(keys.toggle_option)} toggle  ")
         text.append_text(primary_action_badge(self._data.gate, keys.submit_primary))
         text.append("  ")
-        text.append(f"{key_display_name(keys.submit_branch)} submit  d debug  q cancel")
+        text.append(f"{key_display_name(keys.submit_branch)} submit  ")
+        text.append_text(self.gate_action_hints())
+        text.append("d debug  q cancel")
         return text
 
 

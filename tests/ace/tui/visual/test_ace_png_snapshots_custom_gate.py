@@ -11,8 +11,10 @@ from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
 )
+from sase.ace.tui.modals.gate_action_controls import GateActionsData
 from sase.ace.tui.modals.gate_branch_controls import GateBranchData
 from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal
+from sase.notification_gates.model_operations import GateOperation
 from sase.notification_gates.models import GateGroup, GateOption
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -47,6 +49,46 @@ def _option(
     )
 
 
+_NO_ACTIONS = GateActionsData()
+
+
+def _actions(*, draft: bool = False) -> GateActionsData:
+    operations = (
+        GateOperation.from_mapping(
+            {
+                "id": "edit_manifest",
+                "kind": "edit_file",
+                "target": "release-preview.md",
+                "edit_target": "origin",
+                "label": "Edit manifest",
+                "icon": "\u270f\ufe0f",
+                "key": "e",
+                "description": "Accepted only when the manifest validates.",
+            },
+            0,
+        ),
+        GateOperation.from_mapping(
+            {
+                "id": "show_diff",
+                "kind": "run_command",
+                "command": {"argv": ["commands/show_diff"]},
+                "label": "Show diff",
+                "icon": "\U0001f50d",
+                "key": "x",
+                "display": "markdown",
+            },
+            1,
+        ),
+    )
+    if not draft:
+        return GateActionsData(operations=operations)
+    return GateActionsData(
+        operations=operations,
+        draft_operation_id="edit_manifest",
+        draft_path="~/.sase/plans/202608/release.md",
+    )
+
+
 def _data(
     *,
     options: tuple[GateOption, ...],
@@ -54,6 +96,7 @@ def _data(
     groups: tuple[GateGroup, ...] = (),
     preview: bool = True,
     frontmatter: bool = False,
+    actions: GateActionsData = _NO_ACTIONS,
 ) -> CustomGateModalData:
     preview_text = (
         "# Production deployment\n\n"
@@ -91,6 +134,7 @@ def _data(
             primary_branch=branches[0],
         ),
         gate_title="Approve production deployment",
+        actions=actions,
     )
 
 
@@ -338,3 +382,45 @@ async def test_narrow_plan_gate_stacked_png_snapshot(
             "plan_gate_tale_stacked_90x40",
             title="ACE narrow stacked tale plan gate",
         )
+
+
+async def test_custom_gate_actions_section_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    options = (
+        _option("approve", "Approve deployment", icon="✅"),
+        _option("cancel", "Cancel release", icon="🛑"),
+    )
+    await _snapshot_modal(
+        ace_png_visual,
+        monkeypatch,
+        data=_data(
+            options=options,
+            branches=(("approve",), ("cancel",)),
+            actions=_actions(),
+        ),
+        snapshot_name="custom_gate_actions_120x40",
+        title="ACE custom gate Actions section",
+    )
+
+
+async def test_custom_gate_draft_banner_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    options = (
+        _option("approve", "Approve deployment", icon="✅"),
+        _option("cancel", "Cancel release", icon="🛑"),
+    )
+    await _snapshot_modal(
+        ace_png_visual,
+        monkeypatch,
+        data=_data(
+            options=options,
+            branches=(("approve",), ("cancel",)),
+            actions=_actions(draft=True),
+        ),
+        snapshot_name="custom_gate_draft_banner_120x40",
+        title="ACE custom gate unaccepted draft banner",
+    )

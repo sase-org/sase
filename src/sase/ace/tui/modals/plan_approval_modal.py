@@ -35,6 +35,12 @@ from ..keymaps import (
 )
 from ..util.frontmatter_syntax import markdown_document_syntax
 from .base import CopyModeForwardingMixin
+from .gate_action_controls import GateActionsData
+from .gate_action_runner import (
+    GateActionRunner,
+    GateActionsMixin,
+    gate_modal_taken_keys,
+)
 from .gate_branch_controls import GateBranchControls, GateBranchData
 from .gate_primary_footer import primary_action_badge
 
@@ -44,7 +50,6 @@ _PLAN_GATE_STATIC_BINDINGS = [
     ("q", "cancel", "Cancel"),
     ("d", "debug_view", "Debug"),
     ("c", "custom", "Custom"),
-    ("e", "edit", "Edit"),
     ("y", "copy_plan_path", "Copy path"),
     ("Y", "copy_plan", "Copy all contents"),
     ("ctrl+d", "scroll_down", "Scroll down"),
@@ -200,7 +205,7 @@ class PendingApproveState:
 
 
 class PlanApprovalModal(
-    CopyModeForwardingMixin, ModalScreen[PlanApprovalResult | None]
+    GateActionsMixin, CopyModeForwardingMixin, ModalScreen[PlanApprovalResult | None]
 ):
     """Modal for reviewing and approving/rejecting a Claude Code plan."""
 
@@ -228,6 +233,8 @@ class PlanApprovalModal(
         plan_content: str | None = None,
         debug_context: GateDebugContext | None = None,
         gate_keymaps: GateModalKeymaps | None = None,
+        actions: GateActionsData | None = None,
+        action_runner: GateActionRunner | None = None,
     ) -> None:
         """Initialize the plan approval modal.
 
@@ -254,11 +261,19 @@ class PlanApprovalModal(
         self._plan_content = plan_content
         self._debug_context = debug_context
         self._gate_keymaps = gate_keymaps or _DEFAULT_GATE_KEYMAPS
+        self._init_gate_actions(
+            actions,
+            action_runner,
+            taken_keys=gate_modal_taken_keys(
+                _PLAN_GATE_STATIC_BINDINGS, self._gate_keymaps
+            ),
+        )
         self._bindings = BindingsMap(
             [
                 *_PLAN_GATE_STATIC_BINDINGS,
                 *build_gate_modal_bindings(self._gate_keymaps),
                 *build_gate_numbered_branch_bindings(),
+                *self._gate_action_bindings(),
             ]
         )
 
@@ -287,6 +302,7 @@ class PlanApprovalModal(
 
             with Container(classes="gate-review-body"):
                 with VerticalScroll(classes="gate-review-actions"):
+                    yield from self._compose_gate_actions()
                     yield Static("Decision", classes="gate-review-section-title")
                     yield GateBranchControls(
                         self._gate,
@@ -342,8 +358,7 @@ class PlanApprovalModal(
         hints.append("=Submit  ")
         hints.append("c", style="green")
         hints.append("=Coder options  ")
-        hints.append("e", style="blue")
-        hints.append("=Edit  ")
+        hints.append_text(self.gate_action_hints(separator="="))
         hints.append("y", style="cyan")
         hints.append("=Copy path  ")
         hints.append("Y", style="cyan")
@@ -355,6 +370,7 @@ class PlanApprovalModal(
         return hints
 
     def on_mount(self) -> None:
+        self._sync_submission_block()
         if self._pending_approve_state is not None:
             state = self._pending_approve_state
             self._pending_approve_state = None
@@ -366,7 +382,14 @@ class PlanApprovalModal(
                 choice=state.choice,
             )
             return
-        self.query_one(GateBranchControls).focus_next_control()
+        self.focus_gate_control(1)
+
+    def render_reviewed_content(self, content: str) -> None:
+        """Re-render the plan pane in place after an accepted edit action."""
+        self._plan_content = content
+        self.query_one("#plan-approval-content", Static).update(
+            markdown_document_syntax(content)
+        )
 
     def _read_plan_file(self) -> str:
         """Read the plan file content."""
@@ -420,10 +443,10 @@ class PlanApprovalModal(
         )
 
     def action_next_control(self) -> None:
-        self.query_one(GateBranchControls).focus_next_control()
+        self.focus_gate_control(1)
 
     def action_previous_control(self) -> None:
-        self.query_one(GateBranchControls).focus_previous_control()
+        self.focus_gate_control(-1)
 
     def action_toggle_option(self) -> None:
         self.query_one(GateBranchControls).toggle_focused_option()
@@ -543,10 +566,6 @@ class PlanApprovalModal(
     def action_reject(self) -> None:
         """Reject the plan without feedback."""
         self.dismiss(PlanApprovalResult(action="reject"))
-
-    def action_edit(self) -> None:
-        """Edit the plan file in an external editor."""
-        self.dismiss(PlanApprovalResult(action="edit"))
 
     def action_epic(self) -> None:
         """Create an epic from the plan."""

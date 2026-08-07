@@ -48,10 +48,13 @@ from sase.plan_approval_choices import (
 )
 
 if TYPE_CHECKING:
+    from sase.notification_gates.paths import ResolvedGateBundle
     from sase.notifications import Notification
 
     from ...models import Agent
     from ...modals import GateBranchData, PlanApprovalResult
+    from ...modals.gate_action_controls import GateActionsData
+    from ...modals.gate_action_runner import GateActionRunner
 
 
 log = logging.getLogger(__name__)
@@ -170,50 +173,18 @@ def handle_plan_approval(
         )
         gate = None
 
+    actions, action_runner = _plan_gate_actions(
+        app,
+        notification,
+        bundle=bundle,
+        loaded=_loaded,
+        plan_file=plan_file,
+    )
+
     def on_dismiss(result: object) -> None:
         if result is None:
             return
         if not isinstance(result, PlanApprovalResult):
-            return
-
-        # Handle edit action: open editor, then re-push modal
-        if result.action == "edit":
-            import os
-            import subprocess
-
-            editor = os.environ.get("EDITOR") or "nvim"
-            with app.suspend():  # type: ignore[attr-defined]
-                subprocess.run([editor, plan_file], check=False)
-            if not bundle.legacy:
-                try:
-                    from sase.notification_gates.edits import refresh_gate_after_edit
-
-                    refresh_gate_after_edit(bundle.root, "edit_plan")
-                except Exception as exc:
-                    app.notify(  # type: ignore[attr-defined]
-                        str(exc),
-                        title="Plan edit rejected",
-                        severity="error",
-                        timeout=15,
-                    )
-            app.push_screen(  # type: ignore[attr-defined]
-                PlanApprovalModal(
-                    plan_file,
-                    copy_plan_path=copy_plan_path,
-                    llm_provider=llm_provider,
-                    model=model,
-                    default_choice=default_choice,
-                    gate=gate,
-                    plan_content=Path(plan_file)
-                    .expanduser()
-                    .read_text(encoding="utf-8"),
-                    debug_context=debug_context_from_notification(notification),
-                    gate_keymaps=getattr(
-                        getattr(app, "_keymap_registry", None), "gate", None
-                    ),
-                ),
-                on_dismiss,
-            )
             return
 
         # Feedback requested: dismiss modal and mount PromptInputBar in feedback mode
@@ -367,10 +338,48 @@ def handle_plan_approval(
             plan_content=plan_content,
             debug_context=debug_context_from_notification(notification),
             gate_keymaps=getattr(getattr(app, "_keymap_registry", None), "gate", None),
+            actions=actions,
+            action_runner=action_runner,
         ),
         on_dismiss,
     )
     return True
+
+
+def _plan_gate_actions(
+    app: object,
+    notification: Notification,
+    *,
+    bundle: ResolvedGateBundle,
+    loaded: _PlanGateModalLoad | None,
+    plan_file: str,
+) -> tuple[GateActionsData, GateActionRunner]:
+    """Return the declared plan actions and the runner that executes them.
+
+    A legacy notification has no bundle to accept an edit into, so it gets the
+    synthesized edit action instead: the reviewer keeps ``e``, and the modal
+    keeps one rendering path.
+    """
+    from ._notification_gate_actions import (
+        NotificationGateActionRunner,
+        PlainFileEditRunner,
+        legacy_plan_edit_actions,
+    )
+
+    if loaded is None or bundle.legacy:
+        return (
+            legacy_plan_edit_actions(),
+            PlainFileEditRunner(app=app, path=Path(plan_file).expanduser()),
+        )
+    return (
+        loaded.actions,
+        NotificationGateActionRunner(
+            app=app,
+            notification=notification,
+            bundle_path=bundle.root,
+            operations=loaded.actions.operations,
+        ),
+    )
 
 
 def _submit_legacy_epic_launch_task(

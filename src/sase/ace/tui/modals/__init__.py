@@ -171,7 +171,15 @@ from .custom_gate_modal import (
     CustomGateModalData,
     CustomGateModalResult,
 )
+from .gate_action_controls import GateActionControls, GateActionsData
+from .gate_action_output_modal import GateActionOutputModal
+from .gate_action_runner import (
+    GateActionRunner,
+    GateCommandOutcome,
+    GateEditOutcome,
+)
 from .gate_branch_controls import GateBranchControls, GateBranchData
+from .gate_retry_modal import GateRetryModal
 from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .zoom_panel_modal import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
@@ -403,7 +411,14 @@ __all__ = [
     "CustomGateModal",
     "CustomGateModalData",
     "CustomGateModalResult",
+    "GateActionControls",
+    "GateActionOutputModal",
+    "GateActionRunner",
+    "GateActionsData",
     "GateBranchControls",
+    "GateCommandOutcome",
+    "GateEditOutcome",
+    "GateRetryModal",
     "GateBranchData",
     "WorkflowSelectModal",
     "WorkspaceInputModal",
