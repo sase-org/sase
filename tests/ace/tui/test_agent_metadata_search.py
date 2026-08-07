@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from unittest.mock import patch
 import pytest
@@ -16,16 +17,52 @@ from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui._agents_zoom_panel_helpers import _make_agent
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+    _pending_visual_work,
     patch_startup_loaders,
     wait_for_startup,
 )
 
+# Consecutive drained pauses that must report no pending work before the
+# fixture document is injected. Sampling more than once matters because a
+# worker that has already finished can still have its repaint message queued;
+# the pause between samples delivers it while the panel is still disposable.
+_SETTLED_SAMPLES = 3
+
+
+async def _settle_agent_detail(page: AcePage, *, timeout: float = 15.0) -> None:
+    """Wait until no background work can still repaint the metadata document.
+
+    ``wait_for_startup`` only proves the detail debouncer is idle, but startup
+    also spawns thread workers (detail-header enrichment, clan/tribe sections)
+    whose completion messages repaint the prompt panel. Injecting the search
+    fixture before those land lets a late repaint replace it, and the search
+    corpus frozen at ``/`` then captures real agent metadata instead.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    settled = 0
+    while settled < _SETTLED_SAMPLES:
+        await page.pause()
+        settled = 0 if any(_pending_visual_work(page)) else settled + 1
+        if settled < _SETTLED_SAMPLES and loop.time() >= deadline:
+            raise AssertionError(
+                f"agent detail never settled within {timeout:.2f}s; "
+                f"pending={_pending_visual_work(page)}"
+            )
+
 
 async def _set_prompt_text(page: AcePage, content: str) -> AgentPromptPanel:
     await page.wait_for(lambda _state: not page.app._agent_detail_debouncer.is_pending)
+    await _settle_agent_detail(page)
     panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
     panel.update(Text(content))
     await page.pause()
+    marker = content.splitlines()[0]
+    visible = renderable_to_text(getattr(panel, "content", None)) or ""
+    assert marker in visible, (
+        "a background detail refresh replaced the injected search document; "
+        f"panel now shows {visible[:200]!r}"
+    )
     return panel
 
 
