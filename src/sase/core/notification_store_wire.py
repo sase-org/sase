@@ -20,6 +20,27 @@ class _NotificationCountsWire:
 
 
 @dataclass(frozen=True)
+class _NotificationTabWire:
+    """One notification-panel tab with its single-valued membership count."""
+
+    key: str
+    kind: str
+    count: int = 0
+    oldest_activity_at: str | None = None
+    next_wake_at: str | None = None
+    color: str | None = None
+
+
+@dataclass(frozen=True)
+class NotificationTabClassificationWire:
+    """Ordered tabs plus the tab key owning each classified notification."""
+
+    schema_version: int
+    tabs: list[_NotificationTabWire] = field(default_factory=list)
+    row_tab_keys: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class _NotificationStoreStatsWire:
     total_lines: int = 0
     blank_lines: int = 0
@@ -34,6 +55,7 @@ class NotificationStoreSnapshotWire:
     schema_version: int
     notifications: list[Notification] = field(default_factory=list)
     counts: _NotificationCountsWire = field(default_factory=_NotificationCountsWire)
+    tabs: list[_NotificationTabWire] = field(default_factory=list)
     expired_ids: list[str] = field(default_factory=list)
     next_snooze_deadline: str | None = None
     stats: _NotificationStoreStatsWire = field(
@@ -124,6 +146,34 @@ def _notification_from_dict(data: dict[str, Any]) -> Notification:
     )
 
 
+def _notification_tabs_from_list(data: Any) -> list[_NotificationTabWire]:
+    """Decode the ordered tab list, tolerating an older core that omits it."""
+    return [
+        _NotificationTabWire(**known_field_kwargs(_NotificationTabWire, item))
+        for item in data or []
+    ]
+
+
+def notification_tab_classification_from_dict(
+    data: dict[str, Any],
+) -> NotificationTabClassificationWire:
+    """Rehydrate the pure tab-classification result returned by Rust."""
+    schema = int(data["schema_version"])
+    if schema != NOTIFICATION_STORE_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            f"notification store wire schema mismatch: got {schema}, "
+            f"expected {NOTIFICATION_STORE_WIRE_SCHEMA_VERSION}"
+        )
+    return NotificationTabClassificationWire(
+        schema_version=schema,
+        tabs=_notification_tabs_from_list(data.get("tabs")),
+        row_tab_keys={
+            str(key): str(value)
+            for key, value in (data.get("row_tab_keys") or {}).items()
+        },
+    )
+
+
 def notification_snapshot_from_dict(
     data: dict[str, Any],
 ) -> NotificationStoreSnapshotWire:
@@ -141,6 +191,7 @@ def notification_snapshot_from_dict(
         counts=_NotificationCountsWire(
             **known_field_kwargs(_NotificationCountsWire, data.get("counts") or {})
         ),
+        tabs=_notification_tabs_from_list(data.get("tabs")),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
         next_snooze_deadline=(
             None
@@ -192,8 +243,11 @@ __all__ = [
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
     "_NotificationStoreStatsWire",
+    "NotificationTabClassificationWire",
+    "_NotificationTabWire",
     "NotificationUpdateOutcomeWire",
     "notification_snapshot_from_dict",
+    "notification_tab_classification_from_dict",
     "notification_store_wire_to_json_dict",
     "notification_update_outcome_from_dict",
 ]

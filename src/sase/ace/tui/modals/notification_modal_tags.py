@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,6 +11,7 @@ from textual.events import Click
 from textual.message import Message
 from textual.widgets import Static
 
+from sase.core.notification_store_facade import classify_notification_tabs
 from sase.notifications import Notification, is_error
 from sase.notification_gates.models import GateError
 from sase.notification_gates.presentation import (
@@ -24,6 +24,10 @@ from sase.notification_gates.presentation import (
 HITL_TAB_KEY = "hitl"
 ERRORS_TAB_KEY = "errors"
 MUTED_TAB_KEY = "__muted__"
+SNOOZED_TAB_KEY = "__snoozed__"
+
+# The core names the catch-all tab; the modal has always spelled it ``None``.
+_CORE_GENERAL_TAB_KEY = "general"
 
 _HITL_ACTIONS = frozenset(
     {
@@ -40,6 +44,7 @@ _SYNTHETIC_TAB_LABELS = {
     HITL_TAB_KEY: "HITL",
     ERRORS_TAB_KEY: "Errors",
     MUTED_TAB_KEY: "Muted",
+    SNOOZED_TAB_KEY: "Snoozed",
 }
 
 
@@ -50,6 +55,10 @@ class NotificationTagTab:
     tag: str | None
     label: str
     count: int
+    kind: str = ""
+    oldest_activity_at: str | None = None
+    next_wake_at: str | None = None
+    color: str | None = None
 
 
 def notification_display_tags(notification: Notification) -> list[str]:
@@ -87,23 +96,29 @@ def notification_origin_agent(notification: Notification) -> str | None:
         return None
 
 
-def _notification_modal_tab_keys(notification: Notification) -> list[str | None]:
-    """Return the top-level modal tabs this notification belongs to."""
+def _notification_modal_tab_key(notification: Notification) -> str | None:
+    """Return the one top-level modal tab that owns this notification.
+
+    Mirrors the core's precedence so a single-row membership question needs no
+    FFI call; ``classify_notification_modal_tabs`` classifies whole pages in
+    Rust and a parity test keeps the two from drifting.
+    """
     if notification.muted:
-        return [MUTED_TAB_KEY]
+        if notification.snooze_until:
+            return SNOOZED_TAB_KEY
+        return MUTED_TAB_KEY
     panel_key = _notification_panel_key(notification)
     if panel_key is not None:
-        return [panel_key]
+        return panel_key
     if notification.action in _HITL_ACTIONS:
-        return [HITL_TAB_KEY]
+        return HITL_TAB_KEY
     if is_error(notification):
-        return [ERRORS_TAB_KEY]
+        return ERRORS_TAB_KEY
 
     tags = notification_display_tags(notification)
     if tags:
-        tab_keys: list[str | None] = list(tags)
-        return tab_keys
-    return [None]
+        return tags[0]
+    return None
 
 
 def notification_matches_tag_tab(
@@ -111,7 +126,7 @@ def notification_matches_tag_tab(
     tag: str | None,
 ) -> bool:
     """Return whether a notification belongs in the requested tag tab."""
-    return tag in _notification_modal_tab_keys(notification)
+    return _notification_modal_tab_key(notification) == tag
 
 
 def _notification_tab_label(tab_key: str | None) -> str:
@@ -126,51 +141,33 @@ def _notification_tab_label(tab_key: str | None) -> str:
     return label or tab_key
 
 
-def build_notification_tag_tabs(
+def _modal_tag_from_core_key(core_key: str) -> str | None:
+    """Translate one core tab key into the modal's tag vocabulary."""
+    return None if core_key == _CORE_GENERAL_TAB_KEY else core_key
+
+
+def classify_notification_modal_tabs(
     notifications: list[Notification],
-) -> list[NotificationTagTab]:
-    """Build actionable panel tabs before informational and tag tabs."""
-    counts: Counter[str | None] = Counter()
-    panel_keys: set[str] = set()
-    for notification in notifications:
-        panel_key = _notification_panel_key(notification)
-        if panel_key is not None:
-            panel_keys.add(panel_key)
-        for tab_key in _notification_modal_tab_keys(notification):
-            counts[tab_key] += 1
-
-    ordered_keys: list[str | None] = []
-
-    def append_if_counted(tab_key: str | None) -> None:
-        if tab_key in counts and tab_key not in ordered_keys:
-            ordered_keys.append(tab_key)
-
-    append_if_counted(HITL_TAB_KEY)
-    for panel_key in sorted(
-        panel_keys,
-        key=lambda key: _notification_tab_label(key).casefold(),
-    ):
-        append_if_counted(panel_key)
-    for tab_key in (ERRORS_TAB_KEY, None, "done"):
-        append_if_counted(tab_key)
-
-    ordered_keys.extend(
-        sorted(
-            (
-                tab_key
-                for tab_key in counts
-                if tab_key not in ordered_keys and tab_key != MUTED_TAB_KEY
-            ),
-            key=lambda tab_key: _notification_tab_label(tab_key).casefold(),
+) -> tuple[list[NotificationTagTab], dict[str, str | None]]:
+    """Return the ordered tabs and each row's owning tab, in one core call."""
+    classification = classify_notification_tabs(notifications)
+    tabs = [
+        NotificationTagTab(
+            tag=_modal_tag_from_core_key(tab.key),
+            label=_notification_tab_label(_modal_tag_from_core_key(tab.key)),
+            count=tab.count,
+            kind=tab.kind,
+            oldest_activity_at=tab.oldest_activity_at,
+            next_wake_at=tab.next_wake_at,
+            color=tab.color,
         )
-    )
-    if MUTED_TAB_KEY in counts:
-        ordered_keys.append(MUTED_TAB_KEY)
-
-    return [
-        NotificationTagTab(tab_key, _notification_tab_label(tab_key), counts[tab_key])
-        for tab_key in ordered_keys
+        for tab in classification.tabs
     ]
+    row_tab_keys = {
+        row_id: _modal_tag_from_core_key(core_key)
+        for row_id, core_key in classification.row_tab_keys.items()
+    }
+    return tabs, row_tab_keys
 
 
 def shorten_notification_tag(tag: str, *, max_width: int = 18) -> str:

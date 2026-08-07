@@ -76,13 +76,13 @@ def test_gate_presentation_panel_and_origin_agent_project_to_action_data(
     spec = gate_spec()
     presentation = spec["presentation"]
     assert isinstance(presentation, dict)
-    presentation["panel"] = " HITL "
+    presentation["panel"] = " Beads "
     presentation["origin_agent"] = "  remote.agent  "
 
     create_gate(spec)
 
     [notification] = load_notifications(include_dismissed=True)
-    assert notification.action_data["panel"] == "hitl"
+    assert notification.action_data["panel"] == "beads"
     assert notification.action_data["origin_agent"] == "remote.agent"
 
 
@@ -104,7 +104,7 @@ def test_absent_gate_presentation_fields_do_not_change_action_data(
     }
 
 
-@pytest.mark.parametrize("panel", ["errors", "general", "muted"])
+@pytest.mark.parametrize("panel", ["errors", "general", "hitl", "muted", "snoozed"])
 def test_reserved_gate_presentation_panels_are_rejected(
     gate_home: Path,
     panel: str,
@@ -121,7 +121,10 @@ def test_reserved_gate_presentation_panels_are_rejected(
     assert exc_info.value.code == "invalid_presentation"
     assert exc_info.value.target == "presentation.panel"
     assert panel in str(exc_info.value)
-    assert all(name in str(exc_info.value) for name in ("errors", "general", "muted"))
+    assert all(
+        name in str(exc_info.value)
+        for name in ("errors", "general", "hitl", "muted", "snoozed")
+    )
 
 
 @pytest.mark.parametrize(

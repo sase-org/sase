@@ -8,6 +8,7 @@ import pytest
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_tags import (
     MUTED_TAB_KEY,
+    SNOOZED_TAB_KEY,
     NotificationTagStrip,
 )
 
@@ -254,19 +255,65 @@ def test_muted_tagged_notification_appears_only_in_muted_tab() -> None:
     assert _option_ids(modal) == ["0"]
 
 
-def test_snoozed_notification_appears_in_muted_tab_with_badge() -> None:
-    """Snoozed rows are muted rows and keep their snooze badge."""
-    notification = _make_notification("snoozed", action="UserQuestion")
-    notification.muted = True
-    notification.snooze_until = "2026-03-18T09:00:00-04:00"
+def test_snoozed_notification_appears_in_snoozed_tab_with_badge() -> None:
+    """A wake time splits a muted row out of Muted and into Snoozed."""
+    snoozed = _make_notification("snoozed", action="UserQuestion")
+    snoozed.muted = True
+    snoozed.snooze_until = "2026-03-18T09:00:00-04:00"
+    muted = _make_notification("muted", action="UserQuestion")
+    muted.muted = True
 
-    modal = NotificationModal([notification])
+    modal = NotificationModal([snoozed, muted])
 
     assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
-        (MUTED_TAB_KEY, "Muted", 1)
+        (SNOOZED_TAB_KEY, "Snoozed", 1),
+        (MUTED_TAB_KEY, "Muted", 1),
     ]
+    assert modal._active_notification_tag == SNOOZED_TAB_KEY
     assert _option_ids(modal) == ["0"]
     assert "⏰" in str(modal._create_sectioned_options()[0].prompt)
+
+    modal._active_notification_tag = MUTED_TAB_KEY
+    assert _option_ids(modal) == ["1"]
+
+
+def test_snoozed_tab_carries_the_next_wake_time() -> None:
+    """The Snoozed tab reports the earliest wake time it owns."""
+    early = _make_notification("early", action="UserQuestion")
+    early.muted = True
+    early.snooze_until = "2026-03-18T09:00:00-04:00"
+    late = _make_notification("late", action="UserQuestion")
+    late.muted = True
+    late.snooze_until = "2026-03-19T09:00:00-04:00"
+
+    modal = NotificationModal([late, early])
+    (tab,) = modal._tag_tabs()
+
+    assert tab.tag == SNOOZED_TAB_KEY
+    assert tab.kind == "snoozed"
+    assert tab.next_wake_at == "2026-03-18T09:00:00-04:00"
+
+
+def test_snoozed_gate_leaves_its_declared_panel_tab() -> None:
+    """A snoozed `panel: beads` gate is owned by Snoozed, not by Beads."""
+    snoozed = _make_notification(
+        "snoozed", action="TaskTriage", action_data={"panel": "beads"}
+    )
+    snoozed.muted = True
+    snoozed.snooze_until = "2026-03-18T09:00:00-04:00"
+    awake = _make_notification(
+        "awake", action="TaskTriage", action_data={"panel": "beads"}
+    )
+
+    modal = NotificationModal([snoozed, awake])
+
+    assert [(tab.tag, tab.count) for tab in modal._tag_tabs()] == [
+        ("beads", 1),
+        (SNOOZED_TAB_KEY, 1),
+    ]
+    assert _option_ids(modal) == ["1"]
+    modal._active_notification_tag = SNOOZED_TAB_KEY
+    assert _option_ids(modal) == ["0"]
 
 
 def test_visual_notification_index_order_matches_flat_render() -> None:
@@ -379,6 +426,7 @@ def test_toggle_mute_no_ops_when_no_notification_is_selected() -> None:
 def test_tag_tabs_order_counts_and_capitalized_labels() -> None:
     """Tabs are General, pinned Done, then remaining tags by display label."""
     done = _make_notification("done", action="JumpToAgent")
+    # The second tag is inert: the first stored tag alone owns the row.
     done.tags = ["done", "review"]
     foobar = _make_notification("foobar", action="JumpToAgent")
     foobar.tags = ["foobar"]
@@ -392,7 +440,7 @@ def test_tag_tabs_order_counts_and_capitalized_labels() -> None:
         (None, "General", 1),
         ("done", "Done", 1),
         ("foobar", "Foobar", 1),
-        ("review", "Review", 2),
+        ("review", "Review", 1),
     ]
 
 
@@ -574,21 +622,26 @@ def test_general_tab_excludes_tagged_notifications() -> None:
     assert _option_ids(modal) == ["1"]
 
 
-def test_multi_tag_notification_appears_in_each_tag_tab_not_general() -> None:
-    """Multi-tag rows render in every matching tag tab, never in General."""
+def test_multi_tag_notification_is_owned_by_its_first_tag_only() -> None:
+    """A two-tag row creates one tab, counted once, and dismisses one tab."""
     both = _make_notification("both", action="JumpToAgent")
     both.tags = ["done", "review"]
     untagged = _make_notification("untagged", action="JumpToAgent")
 
     modal = NotificationModal([both, untagged])
 
+    assert [(tab.tag, tab.count) for tab in modal._tag_tabs()] == [
+        (None, 1),
+        ("done", 1),
+    ]
     assert _option_ids(modal) == ["1"]
 
     modal._active_notification_tag = "done"
     assert _option_ids(modal) == ["0"]
 
+    # The second tag owns nothing, so dropping the row drops exactly one tab.
     modal._active_notification_tag = "review"
-    assert _option_ids(modal) == ["0"]
+    assert _option_ids(modal) == []
 
 
 def test_styled_label_includes_compact_tag_badges() -> None:

@@ -10,7 +10,10 @@ from sase.ace.tui.modals.notification_modal_actions import (
 )
 from sase.core.time import get_timezone
 from sase.ace.tui.modals.notification_modal import NotificationModal
-from sase.ace.tui.modals.notification_modal_tags import MUTED_TAB_KEY
+from sase.ace.tui.modals.notification_modal_tags import (
+    MUTED_TAB_KEY,
+    SNOOZED_TAB_KEY,
+)
 
 from tests._notification_modal_helpers import _make_notification
 
@@ -280,7 +283,8 @@ def test_snooze_callback_with_timedelta_calls_mark_snoozed() -> None:
     assert isinstance(args[1], datetime)
     assert notification.muted is True
     assert notification.snooze_until == args[1].isoformat()
-    assert modal._active_notification_tag == MUTED_TAB_KEY
+    # A wake time owns the row, so it follows into Snoozed rather than Muted.
+    assert modal._active_notification_tag == SNOOZED_TAB_KEY
     modal.notify.assert_called_once_with("Snoozed for 15m")
 
 

@@ -36,7 +36,7 @@ from .notification_modal_sent_at import NotificationSentAtMixin
 from .notification_modal_tags import (
     NotificationTagStrip,
     NotificationTagTab,
-    build_notification_tag_tabs,
+    classify_notification_modal_tabs,
 )
 
 
@@ -92,7 +92,8 @@ class NotificationModal(
         self._notifications = list(notifications)
         self._initial_index = initial_index
         self._current_file_index: int = 0
-        tabs = build_notification_tag_tabs(self._notifications)
+        self._notification_tab_keys: dict[str, str | None] = {}
+        tabs = self._tag_tabs()
         self._active_notification_tag: str | None = tabs[0].tag if tabs else None
         self._pending_confirm_notification_id: str | None = None
         self._pending_confirm_notification_ids: list[str] | None = None
@@ -309,8 +310,15 @@ class NotificationModal(
             self._display_file(self._notifications[display_index])
 
     def _tag_tabs(self) -> list[NotificationTagTab]:
-        """Return tag tabs for the current in-memory modal dataset."""
-        return build_notification_tag_tabs(self._notifications)
+        """Return tag tabs for the current in-memory modal dataset.
+
+        Rebuilding also refreshes ``_notification_tab_keys``, so per-row tab
+        membership stays a dict lookup instead of one core call per row.
+        """
+        tabs, self._notification_tab_keys = classify_notification_modal_tabs(
+            self._notifications
+        )
+        return tabs
 
     def _coerce_active_notification_tag(
         self,

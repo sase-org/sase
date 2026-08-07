@@ -9,7 +9,9 @@ from sase.notification_gates.models import GateError
 
 GATE_PANEL_ACTION_DATA_KEY = "panel"
 GATE_ORIGIN_AGENT_ACTION_DATA_KEY = "origin_agent"
-RESERVED_GATE_PANELS = frozenset({"errors", "general", "muted"})
+# Every synthetic notification-panel tab key. A gate declaring one of these
+# would silently collide with the tab the panel already renders itself.
+RESERVED_GATE_PANELS = frozenset({"errors", "general", "hitl", "muted", "snoozed"})
 
 _GATE_PANEL_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 _MAX_GATE_PANEL_LENGTH = 32

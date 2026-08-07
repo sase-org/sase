@@ -138,9 +138,13 @@ class NotificationOptionMixin:
         creation time.
         """
         active_tag: str | None = getattr(self, "_active_notification_tag", None)
+        tab_keys: dict[str, str | None] = getattr(self, "_notification_tab_keys", {})
         rows: list[tuple[int, Notification]] = []
         for i, n in enumerate(self._notifications):
-            if not notification_matches_tag_tab(n, active_tag):
+            if n.id in tab_keys:
+                if tab_keys[n.id] != active_tag:
+                    continue
+            elif not notification_matches_tag_tab(n, active_tag):
                 continue
             rows.append((i, n))
         rows.sort(key=lambda pair: activity_sort_key(pair[1]), reverse=True)

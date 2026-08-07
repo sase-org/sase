@@ -8,9 +8,11 @@ from typing import Any
 from sase.core.notification_store_wire import (
     NotificationStateUpdateWire,
     NotificationStoreSnapshotWire,
+    NotificationTabClassificationWire,
     NotificationUpdateOutcomeWire,
     notification_snapshot_from_dict,
     notification_store_wire_to_json_dict,
+    notification_tab_classification_from_dict,
     notification_update_outcome_from_dict,
 )
 from sase.core.rust import require_rust_binding
@@ -39,6 +41,20 @@ def read_current_notifications_snapshot(
     binding = require_rust_binding("read_notifications_snapshot")
     payload: dict[str, Any] = binding(str(path), include_dismissed, True)
     return notification_snapshot_from_dict(payload)
+
+
+def classify_notification_tabs(
+    notifications: list[Notification] | tuple[Notification, ...],
+) -> NotificationTabClassificationWire:
+    """Classify a page of notifications into ordered, single-owner tabs.
+
+    One call classifies the whole page, so no caller pays an FFI hop per row.
+    """
+    binding = require_rust_binding("classify_notification_tabs")
+    payload: dict[str, Any] = binding(
+        notification_store_wire_to_json_dict(list(notifications))
+    )
+    return notification_tab_classification_from_dict(payload)
 
 
 def apply_notification_state_update(
@@ -116,11 +132,13 @@ def rewrite_notifications_counts(
 __all__ = [
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
+    "NotificationTabClassificationWire",
     "NotificationUpdateOutcomeWire",
     "append_notification",
     "append_notification_counts",
     "apply_notification_state_update",
     "apply_notification_state_update_counts",
+    "classify_notification_tabs",
     "read_current_notifications_snapshot",
     "read_notifications_snapshot",
     "rewrite_notifications",

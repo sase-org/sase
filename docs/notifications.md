@@ -403,11 +403,24 @@ Memory proposal notifications created by `sase memory write --notify` carry the 
 ACE or `sase notify list --tag memory` to find proposal review notification rows.
 
 In ACE, tags create modal tabs above the notification list after the synthetic `HITL`, declared panel tabs, `Errors`,
-`General`, and `Done` tabs. A gate may declare `presentation.panel` to place its notification in a named panel tab. A
-declared panel takes precedence over the synthetic `HITL` and `Errors` routing, while muting still takes precedence over
-every other tab. Panel names are stripped, lowercased, limited to 32 characters, and may contain lowercase letters,
-digits, underscores, and hyphens. The synthetic names `errors`, `general`, and `muted`, along with names beginning with
-`__`, are reserved; `hitl` is allowed. A panel name matching a tag merges into that tag's tab.
+`General`, and `Done` tabs. **Every notification belongs to exactly one tab.** The Rust core decides which one, by this
+precedence, so the panel, the top-bar indicator, and the mobile snapshot always agree:
+
+1. `Snoozed` — muted with a `snooze_until` wake time
+2. `Muted` — muted with no wake time
+3. the gate's declared `presentation.panel`
+4. `HITL` — a human-in-the-loop gate action
+5. `Errors` — an error report
+6. the **first** stored tag, in sender order
+7. `General` — everything else
+
+A row with two tags therefore occupies one tab and is counted once; dismissing it removes at most one tab. Later tags
+still render as badges on the row, but they do not create tabs.
+
+A gate may declare `presentation.panel` to place its notification in a named panel tab. Panel names are stripped,
+lowercased, limited to 32 characters, and may contain lowercase letters, digits, underscores, and hyphens. The synthetic
+names `errors`, `general`, `hitl`, `muted`, and `snoozed`, along with names beginning with `__`, are reserved. A panel
+name matching a tag merges into that tag's tab, which then sorts as a panel tab.
 
 The `done` tab is intended as the quick path for successful agent completions; reading or jumping to a done Agents-tab
 row dismisses its matching completion notification, so it disappears from the `Done` tab after the next refresh. Failed
