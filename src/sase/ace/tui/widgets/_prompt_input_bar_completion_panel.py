@@ -1,4 +1,9 @@
-"""Completion panel state management for PromptInputBar."""
+"""Completion panel state management for PromptInputBar.
+
+Row rendering, provider classification, and border labels live in the focused
+``_prompt_input_bar_completion_panel_*`` modules; this module owns the panel
+widget's lifecycle, its reserved height, and the prompt bar subtitle.
+"""
 
 from __future__ import annotations
 
@@ -9,62 +14,34 @@ from rich.text import Text
 from textual.css.query import NoMatches
 from textual.widgets import Static
 
-from sase.ace.tui.agent_completion import AgentCompletionCandidate
-from sase.ace.tui.models.tribe_display import named_tribe_identity_colors
 from sase.ace.tui.widgets._prompt_cursor_readout import (
     cursor_readout_cell_width,
     cursor_readout_position,
     format_cursor_readout,
 )
-from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
-    append_agent_completion_row,
-    append_artifact_ref_completion_row,
-    append_at_reference_group_rule,
-    append_directive_arg_completion_row,
-    append_directive_completion_row,
-    append_jinja_completion_row,
-    append_model_completion_row,
-    append_placeholder_completion_row,
-    append_prompt_word_completion_row,
-    append_vcs_project_completion_row,
-    append_vcs_ref_completion_row,
-    append_vcs_repo_completion_row,
-    append_xprompt_completion_row,
-    artifact_ref_kind_label_width,
-    at_reference_directory_display,
-    is_agent_completion_candidate,
-    model_completion_column_widths,
-    vcs_project_label_width,
-    vcs_ref_label_width,
-    vcs_repo_label_width,
+from sase.ace.tui.widgets._prompt_input_bar_completion_panel_content import (
+    build_completion_panel_content,
+)
+from sase.ace.tui.widgets._prompt_input_bar_completion_panel_kinds import (
+    CompletionPanelKinds,
+    at_reference_group_rule_needed,
+)
+from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
+    artifact_ref_completion_subtitle,
+    completion_delete_subtitle,
+    completion_panel_title,
+    model_completion_subtitle,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
-    AtReferenceFileCompletionMetadata,
-    AtReferenceLoadingCompletionMetadata,
-    ArtifactRefKindCompletionMetadata,
-    ArtifactRefPayloadCompletionMetadata,
 )
-from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import (
     COMPLETION_PANEL_BORDER_ROWS,
     COMPLETION_PANEL_MAX_HEIGHT,
     CompletionCandidate,
     completion_visible_rows,
 )
-from sase.ace.tui.widgets.history_word_completion import (
-    HISTORY_WORD_COMPLETION_KIND,
-    HistoryWordCompletionPlaceholder,
-)
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
-from sase.ace.tui.widgets.placeholder_completion import (
-    PLACEHOLDER_COMPLETION_KIND,
-    PlaceholderCompletionMetadata,
-)
-from sase.ace.tui.widgets.prompt_word_completion import PROMPT_WORD_COMPLETION_KIND
-from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
-from sase.ace.tui.widgets.vcs_ref_completion import VCS_REF_COMPLETION_KIND
-from sase.ace.tui.widgets.vcs_repo_completion import VCS_REPO_COMPLETION_KIND
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
     append_input_hints,
@@ -83,83 +60,11 @@ else:
 # reservation cannot drift apart.
 _PANEL_MARGIN_ROWS = 1
 _JINJA_PANEL_MAX_HEIGHT = 5
-_PLACEHOLDER_SOURCE_LEGEND = "<> prompt   ◆ saved"
 
 # Border corners + label padding that ``render_border_label`` reserves before
 # truncating the subtitle; pinned empirically by the narrow-width widget test.
 _SUBTITLE_BORDER_RESERVED_CELLS = 6
 _CURSOR_READOUT_DIVIDER = "  ·  "
-
-
-def _model_completion_subtitle(
-    rows: list[CompletionCandidate],
-    selected_index: int,
-    inner_width: int,
-) -> Text:
-    """Return the contextual subtitle for an enriched model menu."""
-    if not 0 <= selected_index < len(rows):
-        return Text()
-    metadata = rows[selected_index].metadata
-    if not isinstance(metadata, ModelCompletionMetadata):
-        return Text()
-    if metadata.kind == "model":
-        subtitle = "[@] model aliases"
-    elif metadata.description:
-        subtitle = metadata.description
-    elif metadata.alias_kind == "user":
-        alias = metadata.value.lstrip("@")
-        subtitle = f"set llm_provider.model_aliases.custom.{alias}.description"
-    else:
-        subtitle = ""
-    text = Text(subtitle, no_wrap=True, overflow="ellipsis")
-    if inner_width <= 0:
-        return text
-    text.truncate(inner_width, overflow="ellipsis")
-    return text
-
-
-def _artifact_ref_completion_subtitle(
-    visible: list[CompletionCandidate],
-    payload_count: int,
-    payload_total: int,
-    truncated_payloads: int,
-    inner_width: int,
-    files_suppressed: bool = False,
-) -> Text:
-    """Return match-mode and catalog-coverage context for an ``@`` menu."""
-    fuzzy = any(
-        isinstance(
-            candidate.metadata,
-            (
-                ArtifactRefKindCompletionMetadata,
-                AtReferenceFileCompletionMetadata,
-                ArtifactRefPayloadCompletionMetadata,
-            ),
-        )
-        and candidate.metadata.match_tier >= 2
-        for candidate in visible
-    )
-    subtitle = Text(no_wrap=True, overflow="ellipsis")
-    if fuzzy:
-        subtitle.append("~ fuzzy")
-    if payload_total:
-        if subtitle:
-            subtitle.append(" · ")
-        subtitle.append(f"{payload_count} of {payload_total}")
-    if truncated_payloads:
-        if subtitle:
-            subtitle.append(" · ")
-        subtitle.append(
-            f"⚠ {truncated_payloads} not scanned",
-            style="bold #FF8C00",
-        )
-    if files_suppressed:
-        if subtitle:
-            subtitle.append(" · ")
-        subtitle.append("[^T] files", style="dim")
-    if inner_width > 0:
-        subtitle.truncate(inner_width, overflow="ellipsis")
-    return subtitle
 
 
 def _reserved_panel_rows(
@@ -169,71 +74,6 @@ def _reserved_panel_rows(
     """Rows occupied by the completion panel, clamped to its CSS max-height."""
     border_box = min(line_count + COMPLETION_PANEL_BORDER_ROWS, max_height)
     return border_box + _PANEL_MARGIN_ROWS
-
-
-def _completion_delete_subtitle(
-    completion_kind: str,
-    visible: list[CompletionCandidate],
-) -> str:
-    """Return the delete affordance for durable completion providers."""
-    delete_hint = "[^L] accept  [^D] delete"
-    if completion_kind == "file_history":
-        return delete_hint
-    if completion_kind == HISTORY_WORD_COMPLETION_KIND:
-        if visible and all(
-            not isinstance(candidate.metadata, HistoryWordCompletionPlaceholder)
-            for candidate in visible
-        ):
-            return delete_hint
-        return ""
-    if completion_kind == PLACEHOLDER_COMPLETION_KIND:
-        legend = (
-            _PLACEHOLDER_SOURCE_LEGEND
-            if _visible_placeholder_sources(visible) == {"prompt", "common"}
-            else ""
-        )
-        return f"{legend}  [^D] delete".strip()
-    return ""
-
-
-def _at_reference_group_rule_needed(rows: list[CompletionCandidate]) -> bool:
-    """Return whether *rows* contain both Kind-stage menu groups."""
-    has_artifacts = any(
-        isinstance(candidate.metadata, ArtifactRefKindCompletionMetadata)
-        for candidate in rows
-    )
-    has_files = any(
-        isinstance(candidate.metadata, AtReferenceFileCompletionMetadata)
-        for candidate in rows
-    )
-    return has_artifacts and has_files
-
-
-def _at_reference_panel_title(
-    token: str,
-    rows: list[CompletionCandidate],
-    directory: str,
-) -> str:
-    """Return the adaptive title for an ``@`` Kind-stage menu."""
-    has_artifacts = any(
-        isinstance(candidate.metadata, ArtifactRefKindCompletionMetadata)
-        for candidate in rows
-    )
-    has_files = any(
-        isinstance(candidate.metadata, AtReferenceFileCompletionMetadata)
-        for candidate in rows
-    )
-    is_loading = any(
-        isinstance(candidate.metadata, AtReferenceLoadingCompletionMetadata)
-        for candidate in rows
-    )
-    if has_artifacts and has_files:
-        return "@ reference"
-    if has_artifacts:
-        return "@ artifact kinds"
-    if has_files or is_loading:
-        return f"@ {at_reference_directory_display(directory)}"
-    return token
 
 
 class PromptInputBarCompletionMixin(_MixinBase):
@@ -289,261 +129,40 @@ class PromptInputBarCompletionMixin(_MixinBase):
             return
         total = len(rows)
         if completion_kind == ARTIFACT_REF_COMPLETION_KIND:
-            group_rule = group_rule and _at_reference_group_rule_needed(rows)
+            group_rule = group_rule and at_reference_group_rule_needed(rows)
         row_budget = completion_visible_rows(total, group_rule=group_rule)
         visible = rows[scroll_offset : scroll_offset + row_budget]
+        kinds = CompletionPanelKinds.classify(completion_kind, rows)
 
-        is_xprompt = completion_kind == "xprompt"
-        is_directive = completion_kind == "directive"
-        is_directive_arg = completion_kind == "directive_arg"
-        is_directive_arg_agent = is_directive_arg and any(
-            is_agent_completion_candidate(candidate) for candidate in rows
-        )
-        is_model_completion = is_directive_arg and any(
-            isinstance(candidate.metadata, ModelCompletionMetadata)
-            for candidate in rows
-        )
-        is_history = completion_kind == "file_history"
-        is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
-        is_xprompt_arg_agent = completion_kind == "xprompt_arg_agent"
-        is_jinja = completion_kind == "jinja"
-        is_placeholder = completion_kind == PLACEHOLDER_COMPLETION_KIND
-        is_prompt_word = completion_kind == PROMPT_WORD_COMPLETION_KIND
-        is_history_word = completion_kind == HISTORY_WORD_COMPLETION_KIND
-        is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
-        is_vcs_ref = completion_kind == VCS_REF_COMPLETION_KIND
-        is_vcs_repo = completion_kind == VCS_REPO_COMPLETION_KIND
-        is_artifact_ref = completion_kind == ARTIFACT_REF_COMPLETION_KIND
-        tribe_colors: dict[str, str] | None = None
-        if is_directive_arg_agent or is_xprompt_arg_agent:
-            tribe_colors = named_tribe_identity_colors(
-                {
-                    metadata.name.removeprefix("@")
-                    for candidate in visible
-                    if isinstance(
-                        (metadata := candidate.metadata),
-                        AgentCompletionCandidate,
-                    )
-                    and metadata.kind == "tribe"
-                }
-            )
-        vcs_project_width = (
-            max(
-                (vcs_project_label_width(candidate) for candidate in visible),
-                default=0,
-            )
-            if is_vcs_project
-            else 0
-        )
-        vcs_ref_width = (
-            max(
-                (vcs_ref_label_width(candidate) for candidate in visible),
-                default=0,
-            )
-            if is_vcs_ref
-            else 0
-        )
-        vcs_repo_width = (
-            max(
-                (vcs_repo_label_width(candidate) for candidate in visible),
-                default=0,
-            )
-            if is_vcs_repo
-            else 0
-        )
-        model_widths = (
-            model_completion_column_widths(visible) if is_model_completion else (0, 0)
-        )
-        artifact_kind_width = (
-            artifact_ref_kind_label_width(visible) if is_artifact_ref else 0
-        )
         # A hidden panel has no measured width on its first open. The prompt
         # bar is already laid out; subtract the panel's two border and two
         # padding columns to recover the content size used after layout.
         panel_width = panel.size.width or max(0, self.size.width - 4)
         panel_inner_width = max(0, panel_width - 2)
         _clear_jinja_panel_classes(panel)
-        content = Text()
-        group_rule_drawn = False
-        for i, candidate in enumerate(visible):
-            actual_idx = scroll_offset + i
-            is_selected = actual_idx == selected_index
+        content = build_completion_panel_content(
+            kinds,
+            visible,
+            total=total,
+            selected_index=selected_index,
+            scroll_offset=scroll_offset,
+            group_rule=group_rule,
+            group_directory=group_directory,
+            inner_width=panel_inner_width,
+        )
 
-            if (
-                is_artifact_ref
-                and group_rule
-                and not group_rule_drawn
-                and isinstance(
-                    candidate.metadata,
-                    AtReferenceFileCompletionMetadata,
-                )
-            ):
-                append_at_reference_group_rule(
-                    content,
-                    group_directory,
-                    panel_inner_width,
-                )
-                content.append("\n")
-                group_rule_drawn = True
+        panel.border_title = completion_panel_title(
+            kinds,
+            token,
+            rows,
+            group_directory,
+        )
 
-            if is_selected:
-                content.append("\u25b8 ", style="bold")
-            else:
-                content.append("  ")
-
-            if is_xprompt:
-                append_xprompt_completion_row(content, candidate, is_selected)
-            elif is_directive:
-                append_directive_completion_row(content, candidate, is_selected)
-            elif is_directive_arg:
-                if isinstance(candidate.metadata, ModelCompletionMetadata):
-                    append_model_completion_row(
-                        content,
-                        candidate,
-                        is_selected,
-                        model_widths,
-                    )
-                else:
-                    append_directive_arg_completion_row(
-                        content,
-                        candidate,
-                        is_selected,
-                        tribe_colors=tribe_colors,
-                        model_widths=model_widths,
-                    )
-            elif is_xprompt_arg_agent:
-                append_agent_completion_row(
-                    content,
-                    candidate,
-                    is_selected,
-                    tribe_colors=tribe_colors,
-                )
-            elif is_vcs_project:
-                append_vcs_project_completion_row(
-                    content,
-                    candidate,
-                    is_selected,
-                    vcs_project_width,
-                )
-            elif is_vcs_ref:
-                append_vcs_ref_completion_row(
-                    content,
-                    candidate,
-                    is_selected,
-                    vcs_ref_width,
-                )
-            elif is_vcs_repo:
-                append_vcs_repo_completion_row(
-                    content,
-                    candidate,
-                    is_selected,
-                    vcs_repo_width,
-                )
-            elif is_artifact_ref:
-                append_artifact_ref_completion_row(
-                    content,
-                    candidate,
-                    is_selected,
-                    artifact_kind_width,
-                    panel_inner_width,
-                )
-            elif is_arg_completion:
-                content.append(
-                    candidate.display,
-                    style="bold yellow" if is_selected else "yellow",
-                )
-            elif is_jinja:
-                append_jinja_completion_row(content, candidate, is_selected)
-            elif is_placeholder:
-                append_placeholder_completion_row(content, candidate, is_selected)
-            elif is_prompt_word:
-                append_prompt_word_completion_row(content, candidate, is_selected)
-            elif is_history_word:
-                if isinstance(
-                    candidate.metadata,
-                    HistoryWordCompletionPlaceholder,
-                ):
-                    content.append(candidate.display, style="dim italic")
-                else:
-                    append_prompt_word_completion_row(content, candidate, is_selected)
-            elif candidate.is_dir:
-                content.append("\U0001f4c1 ")
-                content.append(
-                    candidate.display, style="bold cyan" if is_selected else "cyan"
-                )
-            else:
-                content.append("\U0001f4c4 ")
-                content.append(candidate.display, style="bold" if is_selected else "")
-
-            if i < len(visible) - 1:
-                content.append("\n")
-
-        if is_artifact_ref and group_rule and not group_rule_drawn:
-            if content:
-                content.append("\n")
-            append_at_reference_group_rule(
-                content,
-                group_directory,
-                panel_inner_width,
-            )
-
-        remaining = total - (scroll_offset + len(visible))
-        if remaining > 0:
-            content.append(f"\n  \u2193 {remaining} more\u2026", style="dim")
-
-        # Use a provider-specific title; path completion shows its directory.
-        if is_xprompt:
-            panel.border_title = "xprompts"
-        elif is_directive:
-            panel.border_title = "directives"
-        elif is_directive_arg_agent:
-            panel.border_title = "wait targets"
-        elif is_model_completion:
-            panel.border_title = (
-                "model aliases" if token.startswith("@") else "%model values"
-            )
-        elif is_directive_arg:
-            panel.border_title = "directive values"
-        elif is_vcs_project:
-            panel.border_title = "projects & PRs"
-        elif is_vcs_ref:
-            panel.border_title = token
-        elif is_vcs_repo:
-            panel.border_title = token
-        elif is_artifact_ref:
-            panel.border_title = _at_reference_panel_title(
-                token,
-                rows,
-                group_directory,
-            )
-        elif is_xprompt_arg_agent:
-            panel.border_title = "fork targets"
-        elif completion_kind == "xprompt_arg_name":
-            panel.border_title = "xprompt arg names"
-        elif completion_kind == "xprompt_arg_value":
-            panel.border_title = "xprompt arg values"
-        elif completion_kind == "xprompt_arg_path":
-            panel.border_title = "xprompt path"
-        elif is_jinja:
-            panel.border_title = "jinja"
-        elif is_placeholder:
-            panel.border_title = "placeholder"
-        elif is_prompt_word:
-            panel.border_title = "prompt words"
-        elif is_history_word:
-            panel.border_title = "history words"
-        elif is_history:
-            panel.border_title = "recent files"
-        elif "/" in token:
-            panel.border_title = token[: token.rindex("/") + 1]
-        else:
-            panel.border_title = token
-
-        delete_subtitle = _completion_delete_subtitle(completion_kind, visible)
+        delete_subtitle = completion_delete_subtitle(completion_kind, visible)
         if delete_subtitle:
             panel.border_subtitle = delete_subtitle
-        elif is_artifact_ref:
-            panel.border_subtitle = _artifact_ref_completion_subtitle(
+        elif kinds.artifact_ref:
+            panel.border_subtitle = artifact_ref_completion_subtitle(
                 visible,
                 artifact_ref_payload_count,
                 artifact_ref_payload_total,
@@ -551,8 +170,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 panel_inner_width,
                 artifact_ref_files_suppressed,
             )
-        elif is_model_completion:
-            panel.border_subtitle = _model_completion_subtitle(
+        elif kinds.model:
+            panel.border_subtitle = model_completion_subtitle(
                 rows,
                 selected_index,
                 max(0, panel.size.width - 2),
@@ -735,21 +354,3 @@ def _clear_jinja_panel_classes(panel: Static) -> None:
 
 def _content_line_count(content: Text) -> int:
     return len(content.plain.splitlines()) if content.plain else 0
-
-
-def _visible_placeholder_sources(
-    visible: list[CompletionCandidate],
-) -> set[str]:
-    sources: set[str] = set()
-    for candidate in visible:
-        metadata = (
-            candidate.metadata
-            if isinstance(candidate.metadata, PlaceholderCompletionMetadata)
-            else None
-        )
-        sources.add(
-            "common"
-            if metadata is not None and metadata.source == "common"
-            else "prompt"
-        )
-    return sources

@@ -6,9 +6,11 @@ import pytest
 from rich.text import Text
 from textual.widgets import Static
 
-from sase.ace.tui.widgets._prompt_input_bar_completion_panel import (
-    _artifact_ref_completion_subtitle,
-    _at_reference_group_rule_needed,
+from sase.ace.tui.widgets._prompt_input_bar_completion_panel_kinds import (
+    at_reference_group_rule_needed,
+)
+from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
+    artifact_ref_completion_subtitle,
     _at_reference_panel_title,
 )
 from sase.ace.tui.widgets._completion_match_highlight import append_highlighted
@@ -315,8 +317,8 @@ def test_artifact_subtitle_reports_fuzzy_matches_and_unscanned_rows() -> None:
         ),
     )
 
-    subtitle = _artifact_ref_completion_subtitle([row], 3, 305, 1203, 80)
-    prefix_subtitle = _artifact_ref_completion_subtitle(
+    subtitle = artifact_ref_completion_subtitle([row], 3, 305, 1203, 80)
+    prefix_subtitle = artifact_ref_completion_subtitle(
         [_payload("202607/plan.md")],
         1,
         305,
@@ -331,7 +333,7 @@ def test_artifact_subtitle_reports_fuzzy_matches_and_unscanned_rows() -> None:
 def test_artifact_subtitle_advertises_suppressed_files_only_when_present() -> None:
     row = _kind("file")
 
-    suppressed = _artifact_ref_completion_subtitle(
+    suppressed = artifact_ref_completion_subtitle(
         [row],
         0,
         0,
@@ -339,7 +341,7 @@ def test_artifact_subtitle_advertises_suppressed_files_only_when_present() -> No
         80,
         files_suppressed=True,
     )
-    visible = _artifact_ref_completion_subtitle([row], 0, 0, 0, 80)
+    visible = artifact_ref_completion_subtitle([row], 0, 0, 0, 80)
 
     assert suppressed.plain == "[^T] files"
     assert any(
@@ -386,9 +388,9 @@ def test_group_rule_and_adaptive_titles_follow_actual_groups() -> None:
     payloads = [_payload("202607/plan.md")]
     directory = "~/project"
 
-    assert _at_reference_group_rule_needed([*artifacts, *files]) is True
-    assert _at_reference_group_rule_needed(artifacts) is False
-    assert _at_reference_group_rule_needed(files) is False
+    assert at_reference_group_rule_needed([*artifacts, *files]) is True
+    assert at_reference_group_rule_needed(artifacts) is False
+    assert at_reference_group_rule_needed(files) is False
     assert _at_reference_panel_title("artifact kinds", artifacts, directory) == (
         "@ artifact kinds"
     )
