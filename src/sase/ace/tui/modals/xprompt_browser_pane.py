@@ -21,6 +21,7 @@ from sase.xprompt.workflow_models import Workflow
 from ..util.selection import ProgrammaticSelectionGuard, restore_selection_by_identity
 from .config_center_session import SelectionBookmark
 from ..util.frontmatter_syntax import markdown_document_syntax
+from .pane_entry_jump import PaneEntryJumpMixin
 from .xprompt_browser_actions import XPromptBrowserActionsMixin
 from .xprompt_browser_catalog import (
     flatten_grouped_items,
@@ -47,7 +48,7 @@ from .xprompt_browser_preview import (
 )
 
 
-class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
+class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertical):
     """Pane for browsing, inspecting, and managing xprompts."""
 
     _option_list_id = "browser-list"
@@ -64,6 +65,7 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         ("ctrl+u", "scroll_preview_up", "Scroll Up"),
         ("enter", "edit_xprompt", "Edit here"),
         ("E", "external_edit_xprompt", "External editor"),
+        ("apostrophe", "jump_to_entry", "Jump"),
     ]
 
     def __init__(
@@ -119,7 +121,10 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         yield Static(self._hint_text(loadable=False), id="browser-hints", markup=False)
 
     def _hint_text(self, *, loadable: bool) -> str:
-        """Return the hint line for the current loadability state."""
+        """Return the hint line for the current loadability/jump state."""
+        if self.jump_mode_active:
+            action = "back" if self.jump_back_stack else "first"
+            return f"JUMP ' {action}  <esc> cancel"
         return browser_hint_text(loadable=loadable)
 
     def _set_hints(self, *, loadable: bool) -> None:
@@ -132,7 +137,7 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
 
     def _create_options(self) -> list[Option]:
         """Create OptionList items with group headers as disabled options."""
-        return create_browser_options(self._grouped)
+        return create_browser_options(self._grouped, hint_for=self.jump_hint_for)
 
     def _create_item_label(self, item: BrowserItem) -> object:
         """Create styled label for an xprompt item."""
@@ -227,9 +232,59 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         else:
             self._clear_preview()
 
+    def _current_filter_value(self) -> str:
+        try:
+            return self.query_one("#browser-filter-input", BrowserFilterInput).value
+        except Exception:
+            return ""
+
+    def _repaint_options_and_select(self, preferred_name: str | None) -> None:
+        """Rebuild the option rows and restore the selection by identity.
+
+        Shared by the jump hooks below: entering/exiting jump mode repaints to
+        add/remove hint prefixes, and completing a jump repaints and moves the
+        selection in one step, all through the pane's existing highlight path.
+        """
+        option_list = self.query_one("#browser-list", OptionList)
+        option_list.clear_options()
+        for opt in self._create_options():
+            option_list.add_option(opt)
+        self._restore_highlight_and_preview(
+            option_list,
+            filter_text=self._current_filter_value(),
+            preferred_name=preferred_name,
+        )
+
+    def _jump_target_count(self) -> int:
+        return len(self._get_flat_items())
+
+    def _jump_current_index(self) -> int | None:
+        item = self._get_highlighted_item()
+        if item is None:
+            return None
+        return self._logical_row_for_item(item.name)
+
+    def _jump_select_index(self, index: int) -> None:
+        flat_items = self._get_flat_items()
+        if not 0 <= index < len(flat_items):
+            return
+        self._repaint_options_and_select(flat_items[index].name)
+
+    def _jump_repaint(self) -> None:
+        highlighted = self._get_highlighted_item()
+        self._repaint_options_and_select(
+            highlighted.name if highlighted is not None else None
+        )
+
     def on_input_changed(self, event: Input.Changed) -> None:
         filter_text = event.value
+        previous_names = [item.name for item in self._get_flat_items()]
         self._rebuild_groups(filter_text)
+        next_items = self._get_flat_items()
+        self.invalidate_jump_hints(
+            identities_changed=previous_names != [item.name for item in next_items],
+            target_count=len(next_items),
+        )
         option_list = self.query_one("#browser-list", OptionList)
         option_list.clear_options()
         for opt in self._create_options():
@@ -379,9 +434,15 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         highlighted_name = (
             highlighted_item.name if highlighted_item else self._bookmark.identity
         )
+        previous_names = [item.name for item in self._get_flat_items()]
 
         self._load_xprompts()
         self._rebuild_groups(filter_text)
+        next_items = self._get_flat_items()
+        self.invalidate_jump_hints(
+            identities_changed=previous_names != [item.name for item in next_items],
+            target_count=len(next_items),
+        )
 
         try:
             title = self.query_one("#browser-title", Label)

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from rich.text import Text
 from textual.widgets.option_list import Option
 
 from sase.xprompt.reference_display import workflow_reference_prefix
 
+from .pane_entry_jump import apply_jump_hint_prefix
 from .xprompt_browser_helpers import BrowserItem, append_input_args
 
 
@@ -19,21 +22,33 @@ def browser_hint_text(*, loadable: bool) -> str:
     """
     load_hint = "^i: load  " if loadable else ""
     return (
-        f"^n/^p: navigate  enter: edit here  E: $EDITOR  {load_hint}^o: add new  "
-        "^d/^u: scroll  Tab/Shift+Tab: switch tab  Esc: close"
+        f"^n/^p: move  ': jump  enter: edit  E: $EDITOR  {load_hint}^o: add  "
+        "^d/^u: scroll  Tab/Shift+Tab: tab  Esc: close"
     )
 
 
 def create_browser_options(
     grouped: list[tuple[str, list[BrowserItem]]],
+    *,
+    hint_for: Callable[[int], str | None] | None = None,
 ) -> list[Option]:
-    """Create OptionList items with group headers as disabled options."""
+    """Create OptionList items with group headers as disabled options.
+
+    ``hint_for`` maps a logical row index -- a position among the flattened
+    item rows, skipping disabled group headers -- to its jump hint, if any.
+    """
     options: list[Option] = []
+    row = 0
     for category, items in grouped:
         header_text = Text(f"── {category} ──", style="bold dim")
         options.append(Option(header_text, id=f"__header__{category}", disabled=True))
         for item in items:
-            options.append(Option(create_item_label(item), id=f"item__{item.name}"))
+            label = create_item_label(item)
+            hint = hint_for(row) if hint_for is not None else None
+            if hint is not None:
+                label = apply_jump_hint_prefix(label, hint)
+            options.append(Option(label, id=f"item__{item.name}"))
+            row += 1
     return options
 
 

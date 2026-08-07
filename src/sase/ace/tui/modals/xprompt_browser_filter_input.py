@@ -8,6 +8,8 @@ from textual import events
 from textual.containers import VerticalScroll
 from textual.widgets import Input
 
+from ..actions.navigation.jump_hints import normalize_jump_key
+
 if TYPE_CHECKING:
     from .xprompt_browser_pane import XPromptBrowserPane
 
@@ -19,7 +21,11 @@ class BrowserFilterInput(Input):
     Ctrl-key combinations are used for navigation and actions to avoid conflicts
     with text input. Brackets remain ordinary filter text, while the Admin
     Center's priority ``Tab`` / ``Shift+Tab`` bindings handle main-tab
-    navigation.
+    navigation. The apostrophe key is likewise reserved: while the filter is
+    empty it arms the adaptive entry-jump hints instead of being typed, and
+    while jump mode is active every key is routed to the jump state machine
+    first. Once the filter holds text, apostrophe falls through to normal
+    :class:`Input` editing so quoted filter text can be typed.
     """
 
     BINDINGS = [
@@ -36,7 +42,8 @@ class BrowserFilterInput(Input):
     ]
 
     def on_key(self, event: events.Key) -> None:
-        """Reserve empty-filter numeric tab keys before they become text.
+        """Reserve empty-filter numeric tab keys and the jump key before they
+        become text.
 
         While the filter is empty, digit keys are likewise reserved for the
         Admin Center's numbered tab keymaps: ``1``-``7`` jump to a tab and the
@@ -45,10 +52,30 @@ class BrowserFilterInput(Input):
         :class:`Input` editing so values such as ``bug2`` or ``2026`` can be
         typed.
 
+        The apostrophe key follows the same empty-filter reservation: with no
+        filter text, it arms the pane's adaptive jump hints instead of being
+        typed. While jump mode is active, every key -- hint characters,
+        ``'`` itself for the back stack, and ``escape`` -- is routed to the
+        jump state machine first, so none of it leaks into the filter text.
+
         ``Ctrl+I`` remains the explicit inline-load binding when the terminal
         reports it distinctly. A bare ``Tab`` always reaches the Admin Center's
         priority next-tab binding.
         """
+        pane = self._pane()
+        if pane is not None and pane.jump_mode_active:
+            key = normalize_jump_key(event.key, event.character)
+            if pane.handle_jump_key(key):
+                event.stop()
+                event.prevent_default()
+            return
+
+        if event.key == "apostrophe" and not self.value and pane is not None:
+            event.stop()
+            event.prevent_default()
+            pane.action_jump_to_entry()
+            return
+
         if len(event.key) == 1 and event.key.isdigit() and not self.value:
             host = self.screen
             focus_tab = getattr(host, "action_focus_center_tab", None)
