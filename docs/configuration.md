@@ -660,6 +660,29 @@ identity surfaces that already include them; configuring an icon does not add on
 ACE reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and user overlays), not project-local
 `sase/sase.yml`.
 
+#### `ace.notification_tabs`
+
+`ace.notification_tabs` colors the per-tab counts the top-bar notification indicator renders, keyed by
+notification-panel tab key. Keys use the user-facing tab names: the synthetic `hitl`, `errors`, `general`, `snoozed`,
+and `muted` tabs (never the internal `__snoozed__` / `__muted__` spellings), a gate-declared panel name such as `beads`,
+or a notification tag.
+
+| Field   | Type | Default | Description                                                                                                                 |
+| ------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `color` | str  | `""`    | `#RRGGBB` foreground for that tab's count chip and its tooltip label. Set `""` to restore the built-in default for the tab. |
+
+Colors resolve by precedence, highest first: this setting, then a color the sending gate declared through
+`presentation.color`, then the built-in default for a tab ACE ships knowing about, and finally a stable auto-palette
+entry derived from the tab key. The last rung means a brand-new tag tab is never colorless and keeps the same color
+across restarts. The bundled defaults are amber-orange `hitl`, red `errors`, lavender-purple `beads`, gold `general`,
+grey `snoozed`, and teal `muted`.
+
+#### `ace.notification_indicator_max_counts`
+
+Maximum number of per-tab counts the top-bar notification indicator renders before the remaining tabs collapse into a
+single dim `+N` chip. Must be at least 1; defaults to `4`. Suppressed tabs are still described in the indicator's hover
+tooltip.
+
 #### `ace.updates`
 
 | Field                                   | Type   | Default | Description                                                                                                                       |

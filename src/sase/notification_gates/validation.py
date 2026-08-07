@@ -16,6 +16,7 @@ from sase.notification_gates.models import (
     GATE_REQUEST_SCHEMA_VERSION,
     GateError,
     GateSpec,
+    validate_color,
     validate_icon,
 )
 from sase.notification_gates.presentation import (
@@ -99,6 +100,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "notification sender must be a non-empty string",
         )
     validate_icon(presentation.get("icon"), "presentation.icon")
+    validate_color(presentation.get("color"), "presentation.color")
     _validate_string_or_list(presentation.get("notes", []), "presentation.notes")
     _validate_string_or_list(presentation.get("tags", []), "presentation.tags")
     files = _validate_string_or_list(

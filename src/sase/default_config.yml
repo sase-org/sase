@@ -128,6 +128,26 @@ ace:
     review:
       icon: "◉"
       description: "Mentor, CRS, and hook review runners that AXE groups here, plus reviews you tag yourself."
+  # Per-tab notification indicator styling. Keys are notification-panel tab
+  # keys: the synthetic "hitl", "errors", "general", "snoozed", and "muted"
+  # tabs, a gate-declared panel name such as "beads", or a notification tag.
+  # An empty color string restores the built-in default for that tab.
+  notification_tabs:
+    hitl:
+      color: "#FF8700"
+    errors:
+      color: "#FF5F5F"
+    beads:
+      color: "#AF87FF"
+    general:
+      color: "#FFD700"
+    snoozed:
+      color: "#6C6C6C"
+    muted:
+      color: "#5FAFAF"
+  # Maximum per-tab counts rendered in the top-bar indicator before the
+  # remainder collapses into a single dim "+N" chip.
+  notification_indicator_max_counts: 4
   tool_calls:
     slow_threshold_seconds: 20
   artifact_file_viewer:

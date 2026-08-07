@@ -44,6 +44,7 @@ def _make_notification(
     minutes_ago: int = 0,
     sender: str = "test",
     icon: str | None = None,
+    color: str | None = None,
     notes: list[str] | None = None,
     files: list[str] | None = None,
     tags: list[str] | None = None,
@@ -58,6 +59,7 @@ def _make_notification(
         timestamp=_timestamp(minutes_ago),
         sender=sender,
         icon=icon,
+        color=color,
         notes=notes or [],
         files=files or [],
         tags=tags or [],
@@ -245,7 +247,16 @@ def test_explicit_create_path_writes_notification(
     monkeypatch.setattr(
         sys,
         "stdin",
-        io.StringIO(json.dumps({"sender": "json", "icon": "✅", "notes": ["created"]})),
+        io.StringIO(
+            json.dumps(
+                {
+                    "sender": "json",
+                    "icon": "✅",
+                    "color": "#AABBCC",
+                    "notes": ["created"],
+                }
+            )
+        ),
     )
 
     with pytest.raises(SystemExit) as excinfo:
@@ -260,6 +271,7 @@ def test_explicit_create_path_writes_notification(
     assert notifications[0].id == notification_id
     assert notifications[0].sender == "json"
     assert notifications[0].icon == "✅"
+    assert notifications[0].color == "#AABBCC"
     assert notifications[0].notes == ["created"]
 
 
@@ -282,6 +294,29 @@ def test_raw_create_rejects_invalid_icon(
 
     assert excinfo.value.code == 1
     assert "invalid_icon" in capsys.readouterr().err
+    assert load_notifications(include_dismissed=True) == []
+
+
+def test_raw_create_rejects_a_malformed_color(
+    temp_notifications_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Junk stored now would render as an unstyled chip forever after."""
+    del temp_notifications_dir
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        io.StringIO(json.dumps({"sender": "json", "color": "red"})),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_notify_command(
+            argparse.Namespace(notify_subcommand="create", sender=None, tag=None)
+        )
+
+    assert excinfo.value.code == 1
+    assert "invalid_color" in capsys.readouterr().err
     assert load_notifications(include_dismissed=True) == []
 
 
@@ -381,6 +416,7 @@ def test_list_json_shape_default_limit_and_filters(
         "age",
         "sender",
         "icon",
+        "color",
         "priority",
         "notes",
         "files",
@@ -452,6 +488,7 @@ def test_show_json_and_markdown(
             "target",
             sender="axe",
             icon="🚨",
+            color="#FF5F5F",
             notes=["1 error"],
             files=[str(Path.home() / ".sase" / "axe" / "digest.txt")],
             tags=["digest", "error"],
@@ -467,6 +504,7 @@ def test_show_json_and_markdown(
     payload = json.loads(capsys.readouterr().out)
     assert payload["id"] == "target"
     assert payload["icon"] == "🚨"
+    assert payload["color"] == "#FF5F5F"
     assert payload["tags"] == ["digest", "error"]
     assert payload["action_data"]["error_report_path"].endswith("digest.txt")
     assert payload["resurfaced_at"] is not None
@@ -475,6 +513,7 @@ def test_show_json_and_markdown(
     out = capsys.readouterr().out
     assert "# Notification target" in out
     assert "- icon: 🚨" in out
+    assert "- color: `#FF5F5F`" in out
     assert "ViewErrorReport" in out
     assert "`digest`, `error`" in out
     assert "error_report_path" in out

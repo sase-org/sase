@@ -30,6 +30,7 @@ from sase.notification_gates.models import (
     GateCreationResult,
     GateError,
     GateSpec,
+    validate_color,
 )
 from sase.notification_gates.presentation import (
     GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
@@ -354,6 +355,7 @@ def _build_notification(
         icon=(
             str(presentation["icon"]) if presentation.get("icon") is not None else None
         ),
+        color=validate_color(presentation.get("color"), "presentation.color"),
         notes=notes,
         files=files,
         tags=normalize_notification_tags(tags),

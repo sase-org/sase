@@ -86,6 +86,49 @@ def test_gate_presentation_panel_and_origin_agent_project_to_action_data(
     assert notification.action_data["origin_agent"] == "remote.agent"
 
 
+def test_gate_presentation_color_reaches_the_notification(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["color"] = " #AF87FF "
+
+    create_gate(spec)
+
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.color == "#AF87FF"
+
+
+def test_a_gate_without_a_declared_color_stores_none(gate_home: Path) -> None:
+    del gate_home
+    create_gate(gate_spec())
+
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.color is None
+
+
+@pytest.mark.parametrize("color", ["red", "#FFF", "#GGGGGG", "#AABBCCDD", "", 7])
+def test_malformed_gate_presentation_colors_are_rejected(
+    gate_home: Path,
+    color: object,
+) -> None:
+    """A junk color would outlive its sender as an unstyled chip."""
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["color"] = color
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "invalid_color"
+    assert exc_info.value.target == "presentation.color"
+    assert load_notifications(include_dismissed=True) == []
+
+
 def test_absent_gate_presentation_fields_do_not_change_action_data(
     gate_home: Path,
 ) -> None:

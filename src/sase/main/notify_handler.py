@@ -10,7 +10,11 @@ from datetime import datetime
 from typing import NoReturn
 
 from sase.core.time import get_timezone
-from sase.notification_gates.models import GateError, validate_icon
+from sase.notification_gates.models import (
+    GateError,
+    validate_color,
+    validate_icon,
+)
 from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
 from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import append_notification
@@ -63,6 +67,7 @@ def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
 
     try:
         icon = validate_icon(data.get("icon"), "icon")
+        color = validate_color(data.get("color"), "color")
     except GateError as exc:
         print(f"Error [{exc.code}] {exc.target}: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -72,6 +77,7 @@ def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
         timestamp=datetime.now(get_timezone()).isoformat(),
         sender=str(data["sender"]),
         icon=icon,
+        color=color,
         notes=_create_string_list(data.get("notes")),
         files=_create_string_list(data.get("files")),
         tags=_create_tags(data.get("tags"), getattr(args, "tag", None)),

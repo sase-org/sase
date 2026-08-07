@@ -18,6 +18,7 @@ _OPTION_IDENTIFIER_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 _MAX_GATE_LABEL_LENGTH = 160
 _MAX_GATE_ICON_CODEPOINTS = 32
 _MAX_GATE_ICON_BYTES = 128
+_COLOR_RE = re.compile(r"#[0-9A-Fa-f]{6}")
 
 GateFeedbackMode = Literal["disabled", "optional", "required"]
 
@@ -84,6 +85,21 @@ def validate_icon(value: object, target: str) -> str | None:
             "invalid_icon", target, f"{target} must be a single emoji or glyph"
         )
     return value
+
+
+def validate_color(value: object, target: str) -> str | None:
+    """Return a sender-declared ``#RRGGBB`` accent, or reject it at write time.
+
+    Storing junk here would render as an unstyled chip long after the sender is
+    gone, so a malformed color fails the write instead.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str) or not _COLOR_RE.fullmatch(value.strip()):
+        raise GateError(
+            "invalid_color", target, f"{target} must be an '#RRGGBB' hex color"
+        )
+    return value.strip()
 
 
 def _grapheme_cluster_count(value: str) -> int:

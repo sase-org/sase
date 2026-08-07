@@ -24,6 +24,7 @@ class NotificationInfo:
     age: str
     sender: str
     icon: str | None
+    color: str | None
     priority: bool
     notes: list[str]
     files: list[str]
@@ -54,6 +55,7 @@ def _notification_info(notification: Notification) -> NotificationInfo:
         age=format_relative_time(notification.timestamp),
         sender=notification.sender,
         icon=notification.icon,
+        color=notification.color,
         priority=is_priority(notification) or is_error(notification),
         notes=list(notification.notes),
         files=[_normalize_home_path(path) for path in notification.files],
@@ -155,6 +157,7 @@ def notification_info_to_json(info: NotificationInfo) -> dict[str, object]:
         "age": info.age,
         "sender": info.sender,
         "icon": info.icon,
+        "color": info.color,
         "priority": info.priority,
         "notes": info.notes,
         "files": info.files,

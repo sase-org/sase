@@ -243,7 +243,9 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Create a notification (reads JSON from stdin or uses flags)",
         description=(
             "Create a raw notification from stdin JSON. Raw notifications accept "
-            "sender, icon, notes, files, tags, action, action_data, and silent. "
+            "sender, icon, color, notes, files, tags, action, action_data, and "
+            "silent. The color is an '#RRGGBB' accent for the notification-panel "
+            "tab this row lands in. "
             "Privileged gate actions cannot be created through this raw notification "
             "interface; use `sase gate create` instead."
         ),

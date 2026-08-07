@@ -97,6 +97,7 @@ def test_lists_newest_first_with_limit_and_stable_json_keys(
         "age",
         "sender",
         "icon",
+        "color",
         "priority",
         "notes",
         "files",

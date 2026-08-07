@@ -61,6 +61,7 @@ def _print_markdown(info: NotificationInfo) -> None:
         sys.stdout.write("- resurfaced_at: none\n")
     sys.stdout.write(f"- sender: `{info.sender}`\n")
     sys.stdout.write(f"- icon: {info.icon}\n" if info.icon else "- icon: none\n")
+    sys.stdout.write(f"- color: `{info.color}`\n" if info.color else "- color: none\n")
     sys.stdout.write(f"- priority: {_bool_text(info.priority)}\n")
     if info.tags:
         sys.stdout.write(f"- tags: {', '.join(f'`{tag}`' for tag in info.tags)}\n")

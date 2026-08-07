@@ -13,6 +13,7 @@ class Notification:
     timestamp: str  # ISO-8601
     sender: str  # "crs", "fix-hook", etc.
     icon: str | None = None  # Optional single display glyph
+    color: str | None = None  # Optional sender-declared "#RRGGBB" tab accent
     notes: list[str] = field(default_factory=list)  # Human-readable lines
     files: list[str] = field(default_factory=list)  # File paths
     tags: list[str] = field(default_factory=list)  # Display/filter labels

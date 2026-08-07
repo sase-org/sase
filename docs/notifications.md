@@ -422,6 +422,21 @@ lowercased, limited to 32 characters, and may contain lowercase letters, digits,
 names `errors`, `general`, `hitl`, `muted`, and `snoozed`, along with names beginning with `__`, are reserved. A panel
 name matching a tag merges into that tag's tab, which then sorts as a panel tab.
 
+### Tab colors
+
+Every tab renders with a color, so a brand-new tag tab is never colorless. The color resolves by precedence, highest
+first:
+
+1. [`ace.notification_tabs.<tab>.color`](configuration.md#acenotification_tabs), when non-empty
+2. the color a sender declared on a notification in that tab
+3. the built-in default for a tab ACE ships knowing about (`hitl`, `errors`, `beads`, `general`, `snoozed`, `muted`)
+4. a stable auto-palette entry derived from the tab key, so the same tag keeps the same color across restarts
+
+A sender declares a color with `presentation.color` on a gate, or the `color` field of `sase notify create` JSON input.
+It must be a `#RRGGBB` hex string; anything else is rejected at write time rather than stored as junk that would render
+as an unstyled chip. When several rows in a tab declare a color, the tab wears the one from the row the panel lists
+first — the most recent activity — so the color is deterministic rather than dependent on render order.
+
 The `done` tab is intended as the quick path for successful agent completions; reading or jumping to a done Agents-tab
 row dismisses its matching completion notification, so it disappears from the `Done` tab after the next refresh. Failed
 agent notifications stay untagged by `done` and continue to render under the `Errors` tab.
@@ -440,9 +455,10 @@ sase notify create -s my_sender < notification.json
 sase notify create -s my_sender --tag review --tag handoff < notification.json
 ```
 
-Raw creation validates and preserves the optional single-glyph JSON `icon` and the JSON `silent` field. It rejects
-registered privileged actions (`PlanApproval`, `EpicApproval`, `TaskTriage`, `UserQuestion`, `LaunchApproval`,
-`CustomGate`, and `HITL`) because a raw row has no trusted command bundle.
+Raw creation validates and preserves the optional single-glyph JSON `icon`, the optional `#RRGGBB` JSON `color` (see
+[Tab colors](#tab-colors)), and the JSON `silent` field. It rejects registered privileged actions (`PlanApproval`,
+`EpicApproval`, `TaskTriage`, `UserQuestion`, `LaunchApproval`, `CustomGate`, and `HITL`) because a raw row has no
+trusted command bundle.
 
 The first-class gate API reads a versioned gate specification from stdin:
 
@@ -533,6 +549,9 @@ attributes the gate to the agent it was filed on behalf of; it is stripped, limi
 without consulting the local agent registry so remote agent names remain valid. Both fields are projected into
 notification `action_data` as `panel` and `origin_agent`; producers may not write those protected keys directly through
 `presentation.action_data`.
+
+`presentation.color` suggests the `#RRGGBB` accent for the tab the gate's notification lands in, as described in
+[Tab colors](#tab-colors); a malformed value fails gate creation with an `invalid_color` error.
 
 `presentation.icon`, `option.icon`, and `group.icon` each accept one emoji or display glyph. Each `OR` branch is a
 mutually exclusive resolution path. A singleton branch renders as one button; an `AND` branch renders selectable option

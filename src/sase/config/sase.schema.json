@@ -506,6 +506,32 @@
           },
           "default": {}
         },
+        "notification_tabs": {
+          "type": "object",
+          "description": "Per-tab notification indicator styling, keyed by notification-panel tab key: the synthetic \"hitl\", \"errors\", \"general\", \"snoozed\", and \"muted\" tabs, a gate-declared panel name, or a notification tag.",
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "color": {
+                "type": "string",
+                "pattern": "^(?:|#[0-9A-Fa-f]{6})$",
+                "description": "RGB foreground for this tab's count chip in the top-bar notification indicator and its tooltip label; an empty string restores the built-in default for that tab",
+                "default": ""
+              }
+            }
+          },
+          "default": {}
+        },
+        "notification_indicator_max_counts": {
+          "type": "integer",
+          "description": "Maximum per-tab counts rendered in the top-bar notification indicator before the remainder collapses into a single dim \"+N\" chip",
+          "minimum": 1,
+          "default": 4
+        },
         "tool_calls": {
           "type": "object",
           "description": "Tool-call presentation settings for the ACE TUI",
