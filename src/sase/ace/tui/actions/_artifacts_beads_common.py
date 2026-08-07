@@ -149,10 +149,14 @@ class ArtifactsBeadsCommonMixin:
 def next_bead_status(issue: Issue) -> Status:
     """Return the type-aware status cycle used by the Beads pane."""
     if issue.issue_type is IssueType.TASK:
+        # Nothing cycles *into* snoozed: a snooze needs a wake time, so it is
+        # only reachable through `sase bead snooze`. Cycling out of it clears
+        # the record and returns the bead to triage.
         return {
             Status.OPEN: Status.READY,
             Status.CLAIMED: Status.READY,
             Status.READY: Status.IN_PROGRESS,
+            Status.SNOOZED: Status.READY,
             Status.IN_PROGRESS: Status.CLOSED,
             Status.CLOSED: Status.OPEN,
         }[issue.status]
@@ -160,6 +164,7 @@ def next_bead_status(issue: Issue) -> Status:
         Status.OPEN: Status.IN_PROGRESS,
         Status.CLAIMED: Status.IN_PROGRESS,
         Status.READY: Status.IN_PROGRESS,
+        Status.SNOOZED: Status.IN_PROGRESS,
         Status.IN_PROGRESS: Status.CLOSED,
         Status.CLOSED: Status.OPEN,
     }[issue.status]

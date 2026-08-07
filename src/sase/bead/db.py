@@ -13,6 +13,7 @@ from sase.bead.close_history_codec import (
     close_history_from_dicts,
     close_history_to_dicts,
 )
+from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
 from sase.bead.model import (
     BeadTier,
     CloseRecord,
@@ -21,6 +22,7 @@ from sase.bead.model import (
     IssueType,
     PhaseSize,
     Resolution,
+    SnoozeRecord,
     Status,
     TaskPlusOneEvidence,
 )
@@ -31,7 +33,7 @@ CREATE TABLE IF NOT EXISTS issues (
     id          TEXT PRIMARY KEY,
     title       TEXT NOT NULL,
     status      TEXT NOT NULL DEFAULT 'open'
-                  CHECK(status IN ('open', 'claimed', 'ready', 'in_progress', 'closed')),
+                  CHECK(status IN ('open', 'claimed', 'ready', 'snoozed', 'in_progress', 'closed')),
     issue_type  TEXT NOT NULL DEFAULT 'phase'
                   CHECK(issue_type IN ('plan', 'phase', 'task')),
     tier        TEXT
@@ -53,6 +55,7 @@ CREATE TABLE IF NOT EXISTS issues (
     refs        TEXT NOT NULL DEFAULT '',
     plus_one_evidence TEXT NOT NULL DEFAULT '[]',
     close_history TEXT NOT NULL DEFAULT '[]',
+    snooze      TEXT,
     model       TEXT NOT NULL DEFAULT '',
     size        TEXT
                   CHECK(
@@ -72,6 +75,8 @@ CREATE TABLE IF NOT EXISTS issues (
     CHECK(is_ready_to_work IN (0, 1)),
     CHECK(issue_type = 'plan' OR is_ready_to_work = 0),
     CHECK(status != 'ready' OR issue_type = 'task'),
+    CHECK(status != 'snoozed' OR issue_type = 'task'),
+    CHECK((status = 'snoozed') = (snooze IS NOT NULL)),
     CHECK(
         issue_type = 'plan' OR
         (changespec_name = '' AND changespec_bug_id = '')
@@ -175,6 +180,25 @@ def _migrate_add_close_history(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_snoozed_status(conn: sqlite3.Connection) -> None:
+    """Admit the snoozed status and its record using the Rust policy.
+
+    The status is constrained by a CHECK, so this rebuilds the table; the
+    copied column list includes ``close_history``, which is why the caller
+    runs this after :func:`_migrate_add_close_history`.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
+    ).fetchone()
+    create_table_sql = None if row is None else row["sql"]
+    needs_migration = require_rust_binding("bead_needs_snoozed_status_migration")
+    if not needs_migration(create_table_sql):
+        return
+
+    migration_sql = require_rust_binding("bead_snoozed_status_migration_sql")
+    conn.executescript(migration_sql())
+
+
 def _migrate_add_plus_one_evidence(conn: sqlite3.Connection) -> None:
     """Add structured task +1 evidence to the compatibility mirror."""
     row = conn.execute(
@@ -211,6 +235,27 @@ def close_history_json(history: list[CloseRecord]) -> str:
         separators=(",", ":"),
         ensure_ascii=False,
     )
+
+
+def snooze_json(record: SnoozeRecord | None) -> str | None:
+    """Encode a snooze record for the mirror, or ``None`` when absent."""
+    if record is None:
+        return None
+    return json.dumps(
+        snooze_to_dict(record),
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+
+def _snooze_from_json(value: object) -> SnoozeRecord | None:
+    if value in (None, ""):
+        return None
+    try:
+        record = json.loads(str(value))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+    return snooze_from_dict(record)
 
 
 def _close_history_from_json(value: object) -> list[CloseRecord]:
@@ -385,6 +430,8 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     # Runs after the table-rebuilding migrations above: those copy an explicit
     # legacy column list, so a column added before them would be dropped.
     _migrate_add_close_history(conn)
+    # Runs last: its rebuild copies close_history, so that column must exist.
+    _migrate_snoozed_status(conn)
     conn.executescript(_SCHEMA)
     return conn
 
@@ -411,6 +458,7 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         refs=(row["refs"] or "").splitlines(),
         plus_one_evidence=_plus_one_evidence_from_json(row["plus_one_evidence"]),
         close_history=_close_history_from_json(row["close_history"]),
+        snooze=_snooze_from_json(row["snooze"]),
         model=row["model"] or "",
         size=PhaseSize(row["size"]) if row["size"] else None,
         is_ready_to_work=bool(row["is_ready_to_work"]),
@@ -449,9 +497,10 @@ def create_issue(
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
         "resolution, "
         "description, notes, design, refs, plus_one_evidence, close_history, "
-        "model, size, is_ready_to_work, "
+        "snooze, model, size, is_ready_to_work, "
         "changespec_name, changespec_bug_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+        "?, ?)",
         (
             issue.id,
             issue.title,
@@ -473,6 +522,7 @@ def create_issue(
             "\n".join(issue.refs),
             plus_one_evidence_json(issue.plus_one_evidence),
             close_history_json(issue.close_history),
+            snooze_json(issue.snooze),
             issue.model,
             issue.size.value if issue.size else None,
             int(issue.is_ready_to_work),
@@ -548,6 +598,7 @@ def update_issue(
         "refs",
         "plus_one_evidence",
         "close_history",
+        "snooze",
         "model",
         "size",
         "tier",

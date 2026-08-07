@@ -127,7 +127,8 @@ def load_beads_snapshot(
             "in_progress": 2,
             "claimed": 3,
             "open": 4,
-            "closed": 5,
+            "snoozed": 5,
+            "closed": 6,
         }
         return (
             0 if (item.project, issue.id) in triage_gates else 1,

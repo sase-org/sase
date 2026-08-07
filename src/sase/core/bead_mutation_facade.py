@@ -144,6 +144,56 @@ def plus_one(
     return _issue_payload(payload), payload
 
 
+def snooze(
+    beads_dir: Path | str,
+    issue_id: str,
+    *,
+    until: str,
+    plus_ones: int | None = None,
+    reason: str = "",
+    actor: str,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    """Defer one task bead until ``until``, or until a +1 threshold."""
+    _guard_bead_store_write(beads_dir, "snooze")
+    binding = require_rust_binding("bead_snooze")
+    payload = _call_issue_operation(
+        binding,
+        str(beads_dir),
+        issue_id,
+        until,
+        plus_ones,
+        reason,
+        actor,
+        now,
+    )
+    return _issue_payload(payload), payload
+
+
+def cancel_snooze(
+    beads_dir: Path | str,
+    issue_id: str,
+    *,
+    actor: str,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    """Undo a snooze, returning the bead to ``ready``."""
+    _guard_bead_store_write(beads_dir, "cancel_snooze")
+    binding = require_rust_binding("bead_snooze_cancel")
+    payload = _call_issue_operation(binding, str(beads_dir), issue_id, actor, now)
+    return _issue_payload(payload), payload
+
+
+def wake_due_snoozes(beads_dir: Path | str, now: str) -> dict[str, Any]:
+    """Return the snoozed task beads whose wake time has arrived.
+
+    This is a selector, not a mutation: reaching the wake time raises a gate,
+    and the status changes only once a human answers it.
+    """
+    binding = require_rust_binding("bead_wake_due_snoozes")
+    return dict(binding(str(beads_dir), now))
+
+
 def claim_for_agent_launch(
     beads_dir: Path | str,
     bead_id: str,
@@ -397,6 +447,7 @@ def _optional_text(value: str | int | None) -> str:
 __all__ = [
     "add_dependency",
     "append_note",
+    "cancel_snooze",
     "claim_for_agent_launch",
     "claim_for_agent_wait",
     "close",
@@ -410,7 +461,9 @@ __all__ = [
     "remove",
     "remove_dependencies",
     "remove_many",
+    "snooze",
     "unmark_ready_to_work",
     "update",
     "update_many",
+    "wake_due_snoozes",
 ]

@@ -115,10 +115,11 @@ def test_stats_prints_claimed_between_open_and_in_progress(
 ) -> None:
     cli_query.handle_bead_stats(argparse.Namespace())
 
-    assert capsys.readouterr().out.splitlines()[2:6] == [
+    assert capsys.readouterr().out.splitlines()[2:7] == [
         "  Open:        0",
         "  Claimed:     1",
         "  Ready:       0",
+        "  Snoozed:     0",
         "  In Progress: 0",
     ]
 

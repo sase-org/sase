@@ -11,6 +11,7 @@ from sase.agent.names import is_process_alive
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.bead.model import Issue, Status
 from sase.bead.sync import bead_state_is_clean
+from sase.bead_status_presentation import bead_status_display_order
 from sase.core import bead_read_facade as rust_beads
 from sase.core.agent_scan_facade import scan_agent_artifacts
 from sase.core.agent_scan_wire import (
@@ -462,10 +463,7 @@ def _messages_summary(
     messages: list[str],
     stats: dict[str, int],
 ) -> str:
-    issue_count = sum(
-        int(stats.get(key, 0))
-        for key in ("open", "claimed", "ready", "in_progress", "closed")
-    )
+    issue_count = sum(int(stats.get(key, 0)) for key in bead_status_display_order())
     if status == "OK":
         return f"bead store healthy; {issue_count} issue(s)"
     problems = [

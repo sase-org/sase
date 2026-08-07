@@ -34,21 +34,17 @@ _REFS_COLUMN_DEFINITION = "    refs        TEXT NOT NULL DEFAULT '',\n"
 def _assert_columns_survive_rebuild(
     conn: sqlite3.Connection, expected_columns: list[str]
 ) -> None:
-    """Assert a table rebuild kept every column, close_history aside.
+    """Assert a table rebuild kept every column, in its declared position.
 
-    The Rust rebuild migrations copy an explicit column list that predates
-    close_history, so the rebuild drops that column and
-    ``_migrate_add_close_history`` re-adds it afterwards — at the end of the
-    table rather than in its declared position.
+    Earlier rebuild migrations copy an explicit column list that predates
+    close_history, so they drop that column and ``_migrate_add_close_history``
+    re-appends it. The snoozed-status rebuild runs last and copies the modern
+    column list, which restores every column to its declared position.
     """
     migrated_columns = [
         row["name"] for row in conn.execute("PRAGMA table_info(issues)")
     ]
-    assert set(migrated_columns) == set(expected_columns)
-    assert migrated_columns[-1] == "close_history"
-    assert [column for column in migrated_columns if column != "close_history"] == [
-        column for column in expected_columns if column != "close_history"
-    ]
+    assert migrated_columns == expected_columns
 
 
 class TestMigrationAddsColumn:

@@ -17,6 +17,7 @@ def test_status_presentations_follow_lifecycle_display_order() -> None:
         "open",
         "claimed",
         "ready",
+        "snoozed",
         "in_progress",
         "closed",
     )
@@ -30,6 +31,7 @@ def test_status_presentations_follow_lifecycle_display_order() -> None:
         (Status.OPEN, "○", "○", "\x1b[36m", "#87D7FF", "OPEN"),
         (Status.CLAIMED, "◎", "◎", "\x1b[35m", "#AF87FF", "CLAIMED"),
         (Status.READY, "◇", "◇", "\x1b[96m", "#00D7AF", "Ready"),
+        (Status.SNOOZED, "◈", "◈", "\x1b[90m", "#6C6C6C", "Snoozed"),
         (Status.IN_PROGRESS, "◐", "◐", "\x1b[33m", "#FFD700", "IN_PROGRESS"),
         (Status.CLOSED, "✓", "●", "\x1b[32m", "#5FD787", "CLOSED"),
     ],

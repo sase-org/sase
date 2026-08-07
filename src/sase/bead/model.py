@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 
 
@@ -10,6 +11,7 @@ class Status(Enum):
     OPEN = "open"
     CLAIMED = "claimed"
     READY = "ready"
+    SNOOZED = "snoozed"
     IN_PROGRESS = "in_progress"
     CLOSED = "closed"
 
@@ -107,6 +109,68 @@ class CloseRecord:
             raise ValueError("close history reopened_by cannot be empty or blank")
 
 
+@dataclass(frozen=True)
+class SnoozeRecord:
+    """The wake conditions a snoozed task bead is waiting on.
+
+    Mirrors ``BeadSnoozeWire`` in sase-core. The record exists exactly while
+    the status is ``snoozed`` and is cleared on wake, so no flat field can
+    drift out of sync with the status.
+    """
+
+    until: str
+    snoozed_at: str
+    snoozed_by: str
+    plus_one_target: int | None = None
+    plus_one_baseline: int | None = None
+    reason: str = ""
+
+    @property
+    def plus_ones_remaining(self) -> int | None:
+        """Return how many more +1s would wake this bead, if any target."""
+        if self.plus_one_target is None:
+            return None
+        return max(0, self.plus_one_target - (self.plus_one_baseline or 0))
+
+    def validate(self) -> None:
+        if not self.snoozed_at.strip():
+            raise ValueError("bead snooze snoozed_at cannot be empty or blank")
+        if not self.snoozed_by.strip():
+            raise ValueError("bead snooze snoozed_by cannot be empty or blank")
+        _parse_snooze_timestamp(self.until, "until")
+        if self.plus_one_target is not None:
+            baseline = self.plus_one_baseline or 0
+            if self.plus_one_target <= baseline:
+                raise ValueError(
+                    "bead snooze plus_one_target must exceed plus_one_baseline: "
+                    f"{self.plus_one_target} <= {baseline}"
+                )
+
+
+def _parse_snooze_timestamp(value: str, field_name: str) -> datetime:
+    """Parse one snooze timestamp, requiring an explicit UTC offset.
+
+    A snooze is compared against wall-clock time on several surfaces, so an
+    offset-less timestamp is rejected rather than silently meaning different
+    instants to different readers. This mirrors ``parse_snooze_timestamp`` in
+    sase-core, which accepts RFC-3339 with an offset and nothing else.
+    """
+    text = value.strip()
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(
+            f"bead snooze {field_name} must be an RFC-3339 timestamp with an "
+            f"offset: {value!r} ({exc})"
+        ) from exc
+    if parsed.tzinfo is None:
+        raise ValueError(
+            f"bead snooze {field_name} must be an RFC-3339 timestamp with an "
+            f"offset: {value!r} (missing UTC offset)"
+        )
+    return parsed
+
+
 @dataclass
 class Issue:
     id: str
@@ -129,6 +193,7 @@ class Issue:
     refs: list[str] = field(default_factory=list)
     plus_one_evidence: list[TaskPlusOneEvidence] = field(default_factory=list)
     close_history: list[CloseRecord] = field(default_factory=list)
+    snooze: SnoozeRecord | None = None
     model: str = ""
     size: PhaseSize | None = None
     is_ready_to_work: bool = False
@@ -148,7 +213,8 @@ class Issue:
         - A task issue has a parent_id
         - A non-plan issue carries plan-only metadata
         - A plan issue carries phase/task size metadata
-        - A non-task issue has ready status
+        - A non-task issue has ready or snoozed status
+        - Snooze metadata and snoozed status disagree
         """
         if self.issue_type == IssueType.PHASE and self.parent_id is None:
             raise ValueError("Phase issues must have a parent_id")
@@ -180,6 +246,14 @@ class Issue:
             raise ValueError("Only plan issues can carry ChangeSpec metadata")
         if self.status == Status.READY and self.issue_type != IssueType.TASK:
             raise ValueError("Only task issues can have ready status")
+        if self.status == Status.SNOOZED and self.issue_type != IssueType.TASK:
+            raise ValueError("Only task issues can have snoozed status")
+        if self.status == Status.SNOOZED and self.snooze is None:
+            raise ValueError("snoozed issues must carry snooze metadata")
+        if self.status != Status.SNOOZED and self.snooze is not None:
+            raise ValueError("Only snoozed issues can carry snooze metadata")
+        if self.snooze is not None:
+            self.snooze.validate()
         if self.changespec_bug_id and not self.changespec_name:
             raise ValueError("changespec_bug_id requires changespec_name")
         if self.status != Status.CLOSED and self.resolution is not None:

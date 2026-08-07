@@ -279,6 +279,7 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
         print(f"  Open:        {s.get('open', 0)}")
         print(f"  Claimed:     {s.get('claimed', 0)}")
         print(f"  Ready:       {s.get('ready', 0)}")
+        print(f"  Snoozed:     {s.get('snoozed', 0)}")
         print(f"  In Progress: {s.get('in_progress', 0)}")
         print(f"  Closed:      {s.get('closed', 0)}")
         print(f"  Plans:       {s.get('plan', 0)}")

@@ -193,6 +193,45 @@ class BeadProjectMutationMixin:
         self._refresh_db_from_jsonl()
         return issue, bool(outcome["changed"])
 
+    def snooze(
+        self,
+        issue_id: str,
+        *,
+        until: str,
+        actor: str,
+        plus_ones: int | None = None,
+        reason: str = "",
+    ) -> Issue:
+        """Defer one task bead until ``until``, or until a +1 threshold."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue, outcome = rust_beads.snooze(
+            self.beads_dir,
+            self.resolve_id(issue_id),
+            until=until,
+            plus_ones=plus_ones,
+            reason=reason,
+            actor=actor,
+            now=self._current_time(),
+        )
+        self._record_mutation_outcome(outcome)
+        self._refresh_db_from_jsonl()
+        return issue
+
+    def cancel_snooze(self, issue_id: str, *, actor: str) -> Issue:
+        """Undo a snooze, returning the bead to ``ready``."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue, outcome = rust_beads.cancel_snooze(
+            self.beads_dir,
+            self.resolve_id(issue_id),
+            actor=actor,
+            now=self._current_time(),
+        )
+        self._record_mutation_outcome(outcome)
+        self._refresh_db_from_jsonl()
+        return issue
+
     def claim_for_agent_launch(self, bead_id: str, agent_name: str) -> Issue:
         """Atomically claim one non-closed bead for an agent launch."""
         issue, _changed = self.claim_for_agent_launch_outcome(bead_id, agent_name)

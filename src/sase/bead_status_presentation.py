@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Literal, cast
 
-BeadStatusValue = Literal["open", "claimed", "ready", "in_progress", "closed"]
+BeadStatusValue = Literal[
+    "open", "claimed", "ready", "snoozed", "in_progress", "closed"
+]
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,15 @@ BEAD_STATUS_PRESENTATIONS: dict[BeadStatusValue, _BeadStatusPresentation] = {
         cli_style="\x1b[96m",
         rich_color="#00D7AF",
         label="Ready",
+    ),
+    # The grey matches the notification indicator's snoozed color on purpose:
+    # one visual language for "deferred" across both subsystems.
+    "snoozed": _BeadStatusPresentation(
+        cli_glyph="\u25c8",
+        tui_glyph="\u25c8",
+        cli_style="\x1b[90m",
+        rich_color="#6C6C6C",
+        label="Snoozed",
     ),
     "in_progress": _BeadStatusPresentation(
         cli_glyph="◐",

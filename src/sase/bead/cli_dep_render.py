@@ -12,7 +12,13 @@ from sase.bead_status_presentation import bead_status_presentation
 ANSI_BOLD_BLUE = "\x1b[1;34m"
 ANSI_YELLOW = "\x1b[33m"
 ACTIVE_STATUSES = frozenset(
-    {Status.OPEN, Status.CLAIMED, Status.READY, Status.IN_PROGRESS}
+    {
+        Status.OPEN,
+        Status.CLAIMED,
+        Status.READY,
+        Status.SNOOZED,
+        Status.IN_PROGRESS,
+    }
 )
 
 
