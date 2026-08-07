@@ -26,9 +26,20 @@ keeps symbol-only marks — notification tab icons, for one — from rasterizing
   Bitstream Vera and Arev free-font licenses. Bundled only as the symbol fallback: it
   carries the Miscellaneous Symbols, Dingbats, and Geometric Shapes marks ACE uses as
   icons and Fira Code does not.
+- `NotoEmoji-Regular.ttf` — Noto Emoji (Black & White), Google Fonts `METADATA.pb`
+  version 3.000
+  (https://github.com/google/fonts/blob/2d85e20401920891efb7cd6272d6339685df2820/ofl/notoemoji/NotoEmoji%5Bwght%5D.ttf),
+  licensed under the SIL Open Font License 1.1. Google Fonts distributes the built font
+  as a `wght 300-700` variable font; this file is the `wght=400` (Regular) static
+  instance, produced with `fontTools.varLib.instancer` so no variable-font axis
+  participates in rendering. Bundled as the emoji fallback: resvg cannot use a
+  color-emoji font (CBDT/COLR bitmap glyphs are not deterministic in this pipeline), and
+  this face's glyphs are plain `glyf` outlines, so it rasterizes the same way the other
+  bundled fonts do.
 
 Replacing any of these files requires regenerating the goldens with
 `just update-visual-snapshots` on Linux and refreshing their hashes in
-`renderer_env.json`. `tests/ace/tui/visual/test_tab_icon_glyphs.py` is the mechanical
-glyph audit: it fails if the bundled fonts stop covering an ACE tab icon, so a font swap
-cannot silently reintroduce tofu.
+`renderer_env.json`. `tests/ace/tui/visual/test_tab_icon_glyphs.py` and
+`tests/ace/tui/visual/test_emoji_glyphs.py` are the mechanical glyph audits: they fail
+if the bundled fonts stop covering an ACE tab icon or an emoji codepoint `src/sase`
+actually uses, so a font swap cannot silently reintroduce tofu.

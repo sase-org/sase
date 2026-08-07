@@ -10,11 +10,8 @@ covered by a bundled font and must rasterize to actual ink.
 
 from __future__ import annotations
 
-from functools import lru_cache
 from importlib.resources import files
-from pathlib import Path
 
-from fontTools.ttLib import TTFont
 import pytest
 
 from sase.ace.tui.widgets.notification_tab_style import (
@@ -23,11 +20,9 @@ from sase.ace.tui.widgets.notification_tab_style import (
     _LAST_RESORT_TAB_ICON,
 )
 from sase.config.loading import load_default_config
-from tests.ace.tui.visual.png_diff import render_svg_to_png
+from tests.ace.tui.visual._glyph_audit import bundled_codepoints, render_ink
 
 pytestmark = pytest.mark.visual
-
-_FONTS_DIR = Path(__file__).with_name("fonts")
 
 
 def _shipped_config_tab_icons() -> tuple[str, ...]:
@@ -67,34 +62,10 @@ _AUDITED_ICONS = tuple(
 # basic private-use area, so this deliberately sits far outside it.
 _UNCOVERED_CODEPOINT = 0x10FFFD
 
-_ICON_SVG = (
-    '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
-    '<rect width="64" height="64" fill="#000000"/>'
-    '<text x="8" y="48" font-family="Fira Code,monospace" font-size="40" '
-    'fill="#ffffff">{glyph}</text>'
-    "</svg>"
-)
-
-
-@lru_cache(maxsize=1)
-def _bundled_codepoints() -> frozenset[int]:
-    """Return every codepoint the bundled font files can render."""
-    covered: set[int] = set()
-    for path in sorted(_FONTS_DIR.iterdir()):
-        if path.suffix.lower() not in {".otf", ".ttf"}:
-            continue
-        covered.update(TTFont(path).getBestCmap() or {})
-    return frozenset(covered)
-
-
-def _render_ink(glyph: str) -> bytes:
-    """Rasterize one glyph through the pinned snapshot renderer."""
-    return render_svg_to_png(_ICON_SVG.format(glyph=glyph))
-
 
 @pytest.mark.parametrize("icon", _AUDITED_ICONS)
 def test_builtin_tab_icon_is_covered_by_a_bundled_font(icon: str) -> None:
-    missing = [char for char in icon if ord(char) not in _bundled_codepoints()]
+    missing = [char for char in icon if ord(char) not in bundled_codepoints()]
     assert not missing, (
         f"Tab icon {icon!r} uses codepoints no bundled font covers: "
         + ", ".join(f"U+{ord(char):04X}" for char in missing)
@@ -106,12 +77,12 @@ def test_builtin_tab_icon_is_covered_by_a_bundled_font(icon: str) -> None:
 
 @pytest.mark.parametrize("icon", _AUDITED_ICONS)
 def test_builtin_tab_icon_rasterizes_to_ink(icon: str) -> None:
-    blank = _render_ink(" ")
-    assert _render_ink(icon) != blank, (
+    blank = render_ink(" ")
+    assert render_ink(icon) != blank, (
         f"Tab icon {icon!r} rasterized to an empty cell, so the goldens show "
         "nothing where the top bar shows a mark."
     )
 
 
 def test_coverage_audit_is_not_vacuous() -> None:
-    assert _UNCOVERED_CODEPOINT not in _bundled_codepoints()
+    assert _UNCOVERED_CODEPOINT not in bundled_codepoints()

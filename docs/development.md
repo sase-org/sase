@@ -806,10 +806,12 @@ synthesize oblique, so `font-style: italic` renders upright. This is uniform acr
 every screen and host. Restoring visible italics would mean switching the bundled font
 family, taken as a separate follow-up if it becomes necessary.
 
-A second one: emoji-presentation codepoints are still uncovered, because a deterministic
-rasterizer cannot use a color-emoji font. They remain missing-glyph boxes in the
-goldens. The tab-icon set deliberately uses only text-presentation symbols, which is
-what the glyph audit enforces.
+A second one no longer applies: emoji-presentation codepoints were uncovered because a
+deterministic rasterizer cannot use a color-emoji font, but the monochrome Noto Emoji
+static outline face (bundled as `NotoEmoji-Regular.ttf`) rasterizes them the same way
+the other bundled fonts do. `tests/ace/tui/visual/test_emoji_glyphs.py` audits every
+emoji codepoint `src/sase` actually uses the same way `test_tab_icon_glyphs.py` audits
+tab icons.
 
 ### Intentional Renderer Upgrades
 
