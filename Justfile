@@ -276,6 +276,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-gn.3(notification_tab_key)' \
         --epic-symbol 'sase-gn.3(notification_tab_label)' \
         --epic-symbol 'sase-gn.3(resolve_notification_tab_color)' \
+        --epic-symbol 'sase-gn.7(create_bead_snooze_gate)' \
         --epic-symbol 'sase-gn.7(wake_due_snoozes)' \
         {{ args }}
 

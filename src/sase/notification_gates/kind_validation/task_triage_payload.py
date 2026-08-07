@@ -43,62 +43,79 @@ class TaskTriagePayload:
 
 def parse_task_triage_payload(payload: Mapping[str, Any]) -> TaskTriagePayload:
     """Validate *payload* against the structured presentation contract."""
+    return parse_task_bead_payload(payload)
+
+
+def parse_task_bead_payload(
+    payload: Mapping[str, Any],
+    *,
+    code: str = "invalid_task_triage_payload",
+    label: str = "task triage",
+    extra_fields: frozenset[str] = frozenset(),
+) -> TaskTriagePayload:
+    """Validate the task-bead fields every bead gate payload carries.
+
+    The BeadSnooze gate presents the same task the TaskTriage gate does, so
+    it validates the same fields through this parser and adds only its own
+    *extra_fields* on top; *code* and *label* keep its errors named after the
+    kind that actually failed.
+    """
     from sase.bead.model import PhaseSize
     from sase.core.paths import is_valid_sase_project_name
 
-    if set(payload) != _TASK_TRIAGE_PAYLOAD_FIELDS:
+    if set(payload) != _TASK_TRIAGE_PAYLOAD_FIELDS | extra_fields:
         raise GateError(
-            "invalid_task_triage_payload",
+            code,
             "payload",
-            "task triage payload does not match the structured presentation contract",
+            f"{label} payload does not match the structured presentation contract",
         )
     for field in ("bead_id", "title"):
         value = payload.get(field)
         if not isinstance(value, str) or not value.strip():
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.{field}",
-                f"task triage payload requires {field}",
+                f"{label} payload requires {field}",
             )
     project = payload.get("project")
     if not isinstance(project, str) or not is_valid_sase_project_name(project):
         raise GateError(
-            "invalid_task_triage_payload",
+            code,
             "payload.project",
-            "task triage payload requires a canonical SASE project key",
+            f"{label} payload requires a canonical SASE project key",
         )
     created_at = payload.get("created_at")
     if not isinstance(created_at, str):
         raise GateError(
-            "invalid_task_triage_payload",
+            code,
             "payload.created_at",
-            "task triage payload created_at must be a string",
+            f"{label} payload created_at must be a string",
         )
     size = payload.get("size")
     if size is not None and (
         not isinstance(size, str) or size not in {item.value for item in PhaseSize}
     ):
         raise GateError(
-            "invalid_task_triage_payload",
+            code,
             "payload.size",
-            "task triage payload size must be null or a valid task size",
+            f"{label} payload size must be null or a valid task size",
         )
     refs = payload.get("refs")
     if not isinstance(refs, list) or any(not isinstance(ref, str) for ref in refs):
         raise GateError(
-            "invalid_task_triage_payload",
+            code,
             "payload.refs",
-            "task triage payload refs must be a string list",
+            f"{label} payload refs must be a string list",
         )
-    evidence = _parse_plus_one_evidence(payload.get("plus_one_evidence"))
+    evidence = _parse_plus_one_evidence(payload.get("plus_one_evidence"), code, label)
     count = payload.get("plus_one_count")
     if not isinstance(count, int) or isinstance(count, bool) or count != len(evidence):
         raise GateError(
-            "invalid_task_triage_payload",
+            code,
             "payload.plus_one_count",
-            "task triage +1 count must equal its evidence entries",
+            f"{label} +1 count must equal its evidence entries",
         )
-    close_history = _parse_close_history(payload.get("close_history"))
+    close_history = _parse_close_history(payload.get("close_history"), code, label)
     return TaskTriagePayload(
         bead_id=cast(str, payload["bead_id"]),
         project=project,
@@ -113,15 +130,15 @@ def parse_task_triage_payload(payload: Mapping[str, Any]) -> TaskTriagePayload:
 
 
 def _parse_plus_one_evidence(
-    raw_evidence: object,
+    raw_evidence: object, code: str, label: str
 ) -> tuple[TaskPlusOneEvidence, ...]:
     from sase.bead.model import TaskPlusOneEvidence
 
     if not isinstance(raw_evidence, list):
         raise GateError(
-            "invalid_task_triage_payload",
+            code,
             "payload.plus_one_evidence",
-            "task triage +1 evidence must be a list",
+            f"{label} +1 evidence must be a list",
         )
     evidence: list[TaskPlusOneEvidence] = []
     reporters: set[str] = set()
@@ -133,27 +150,27 @@ def _parse_plus_one_evidence(
             "refs",
         }:
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.plus_one_evidence.{index}",
-                "task triage +1 evidence entry is malformed",
+                f"{label} +1 evidence entry is malformed",
             )
         item_refs = raw_item.get("refs")
         if not isinstance(item_refs, list) or any(
             not isinstance(ref, str) for ref in item_refs
         ):
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.plus_one_evidence.{index}.refs",
-                "task triage +1 evidence refs must be a string list",
+                f"{label} +1 evidence refs must be a string list",
             )
         if any(
             not isinstance(raw_item.get(field), str)
             for field in ("timestamp", "reporter", "note")
         ):
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.plus_one_evidence.{index}",
-                "task triage +1 evidence text fields must be strings",
+                f"{label} +1 evidence text fields must be strings",
             )
         item = TaskPlusOneEvidence(
             timestamp=cast(str, raw_item["timestamp"]),
@@ -165,29 +182,31 @@ def _parse_plus_one_evidence(
             item.validate()
         except ValueError as exc:
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.plus_one_evidence.{index}",
                 str(exc),
             ) from exc
         if item.reporter in reporters:
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.plus_one_evidence.{index}.reporter",
-                "task triage +1 evidence reporters must be unique",
+                f"{label} +1 evidence reporters must be unique",
             )
         reporters.add(item.reporter)
         evidence.append(item)
     return tuple(evidence)
 
 
-def _parse_close_history(raw_close_history: object) -> tuple[CloseRecord, ...]:
+def _parse_close_history(
+    raw_close_history: object, code: str, label: str
+) -> tuple[CloseRecord, ...]:
     from sase.bead.model import CloseRecord, ReopenCause, Resolution
 
     if not isinstance(raw_close_history, list):
         raise GateError(
-            "invalid_task_triage_payload",
+            code,
             "payload.close_history",
-            "task triage close history must be a list",
+            f"{label} close history must be a list",
         )
     resolution_values = {item.value for item in Resolution}
     reopen_cause_values = {item.value for item in ReopenCause}
@@ -202,23 +221,23 @@ def _parse_close_history(raw_close_history: object) -> tuple[CloseRecord, ...]:
             "reopened_by",
         }:
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.close_history.{index}",
-                "task triage close history entry is malformed",
+                f"{label} close history entry is malformed",
             )
         raw_resolution = raw_record.get("resolution")
         if raw_resolution is not None and raw_resolution not in resolution_values:
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.close_history.{index}.resolution",
-                "task triage close history resolution is invalid",
+                f"{label} close history resolution is invalid",
             )
         raw_reopened_via = raw_record.get("reopened_via")
         if raw_reopened_via not in reopen_cause_values:
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.close_history.{index}.reopened_via",
-                "task triage close history reopened_via is invalid",
+                f"{label} close history reopened_via is invalid",
             )
         raw_close_reason = raw_record.get("close_reason")
         raw_reopened_by = raw_record.get("reopened_by")
@@ -226,18 +245,18 @@ def _parse_close_history(raw_close_history: object) -> tuple[CloseRecord, ...]:
             raw_reopened_by is not None and not isinstance(raw_reopened_by, str)
         ):
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.close_history.{index}",
-                "task triage close history text fields must be strings or null",
+                f"{label} close history text fields must be strings or null",
             )
         if any(
             not isinstance(raw_record.get(field), str)
             for field in ("closed_at", "reopened_at")
         ):
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.close_history.{index}",
-                "task triage close history timestamps must be strings",
+                f"{label} close history timestamps must be strings",
             )
         record = CloseRecord(
             closed_at=cast(str, raw_record["closed_at"]),
@@ -251,7 +270,7 @@ def _parse_close_history(raw_close_history: object) -> tuple[CloseRecord, ...]:
             record.validate()
         except ValueError as exc:
             raise GateError(
-                "invalid_task_triage_payload",
+                code,
                 f"payload.close_history.{index}",
                 str(exc),
             ) from exc

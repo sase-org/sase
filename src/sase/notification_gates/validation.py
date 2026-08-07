@@ -7,6 +7,7 @@ from collections.abc import Mapping
 
 from sase.notification_gates.adapters import GateAdapter
 from sase.notification_gates.kind_validation import (
+    validate_bead_snooze_spec,
     validate_launch_spec,
     validate_plan_spec,
     validate_question_spec,
@@ -24,6 +25,7 @@ from sase.notification_gates.presentation import (
     GATE_PANEL_ACTION_DATA_KEY,
     normalize_gate_origin_agent,
     normalize_gate_panel,
+    normalize_gate_snooze_until,
 )
 
 
@@ -164,6 +166,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         )
     normalize_gate_panel(presentation.get("panel"))
     normalize_gate_origin_agent(presentation.get("origin_agent"))
+    normalize_gate_snooze_until(presentation.get("snooze_until"))
     try:
         json.dumps(spec.payload, allow_nan=False)
         json.dumps(spec.producer, allow_nan=False)
@@ -179,6 +182,8 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         validate_question_spec(spec)
     if adapter.kind == "task_triage":
         validate_task_triage_spec(spec)
+    if adapter.kind == "bead_snooze":
+        validate_bead_snooze_spec(spec)
     if adapter.kind in {"plan", "epic_plan"}:
         validate_plan_spec(spec, adapter)
     expected_primary = {
@@ -188,6 +193,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         "launch": ("approve",),
         "hitl": ("accept",),
         "task_triage": ("launch",),
+        "bead_snooze": ("close",),
     }.get(adapter.kind)
     if expected_primary is not None and spec.primary_branch != expected_primary:
         raise GateError(

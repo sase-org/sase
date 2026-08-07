@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -93,6 +93,22 @@ class GateAdapter:
 
                 response["task_launch_task_id"] = task_launch.task_id
                 atomic_write_json(bundle_path / "response.json", response)
+            return
+        if self.kind == "bead_snooze":
+            from sase.bead.snooze_gate import (
+                close_bead_snooze,
+                ready_bead_snooze,
+                resnooze_bead_snooze,
+                translate_bead_snooze_response,
+            )
+
+            snooze_decision = translate_bead_snooze_response(bundle_path, response)
+            if snooze_decision.action == "close":
+                close_bead_snooze(snooze_decision)
+            elif snooze_decision.action == "ready":
+                ready_bead_snooze(snooze_decision)
+            else:
+                resnooze_bead_snooze(snooze_decision)
             return
         if self.kind not in {"plan", "epic_plan"}:
             return
@@ -194,6 +210,25 @@ class GateAdapter:
 
                     response["epic_launch_task_id"] = task.task_id
                     atomic_write_json(bundle_path / "response.json", response)
+
+    def validate_selection(
+        self,
+        *,
+        selected_option_ids: Sequence[str],
+        feedback: str | None,
+    ) -> None:
+        """Reject a selection this kind cannot act on, before it is persisted.
+
+        The generic gate form carries structured input for some kinds in their
+        one free-text feedback field, which no option command can see. Kinds
+        that parse that text check it here so a typo leaves the gate pending
+        instead of answering it with an instruction the host cannot follow.
+        """
+        if self.kind != "bead_snooze":
+            return
+        from sase.bead.snooze_gate import validate_bead_snooze_feedback
+
+        validate_bead_snooze_feedback(selected_option_ids, feedback)
 
     def validate_edited_resource(self, *, path: Path) -> None:
         """Validate an editable target before advancing its review revision."""
@@ -303,6 +338,19 @@ _ADAPTERS = (
         request_filename="request.json",
         response_filename="response.json",
         legacy_directory_key="bundle_path",
+        auto_policy="forbidden",
+        neutral_only=True,
+        generic_form=True,
+    ),
+    GateAdapter(
+        kind="bead_snooze",
+        display_title="Snoozed Task",
+        action="BeadSnooze",
+        pending_action_kind="bead_snooze",
+        sender="bead",
+        request_filename="request.json",
+        response_filename="response.json",
+        legacy_directory_key="bead_snooze_dir",
         auto_policy="forbidden",
         neutral_only=True,
         generic_form=True,

@@ -37,6 +37,7 @@ from sase.notification_gates.presentation import (
     GATE_PANEL_ACTION_DATA_KEY,
     normalize_gate_origin_agent,
     normalize_gate_panel,
+    normalize_gate_snooze_until,
 )
 from sase.notification_gates.paths import (
     RESPONSE_FILENAME,
@@ -348,10 +349,16 @@ def _build_notification(
     if preview is not None:
         action_data["preview_path"] = str(owned_resource_path(paths.root, preview))
     sender = str(presentation.get("sender", adapter.sender)).strip()
+    # A gate that is not actionable until a future instant is born snoozed, so
+    # its notification never appears unread in the window between the append
+    # here and a snooze applied afterwards.
+    snooze_until = normalize_gate_snooze_until(presentation.get("snooze_until"))
     return Notification(
         id=notification_id,
         timestamp=datetime.now(get_timezone()).isoformat(),
         sender=sender,
+        muted=snooze_until is not None,
+        snooze_until=snooze_until,
         icon=(
             str(presentation["icon"]) if presentation.get("icon") is not None else None
         ),

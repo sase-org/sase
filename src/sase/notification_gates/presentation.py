@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import re
 import unicodedata
 
@@ -42,6 +43,33 @@ def normalize_gate_panel(value: object) -> str | None:
     return panel
 
 
+def normalize_gate_snooze_until(value: object) -> str | None:
+    """Return the wake time a gate declares it should be born snoozed until.
+
+    A producer that already knows its gate is not actionable until a future
+    instant declares that instant here, so gate creation stays one atomic
+    append: there is no window in which the notification is briefly unread.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _invalid_snooze_until(value, "must be a string")
+    text = value.strip()
+    if not text:
+        raise _invalid_snooze_until(value, "must be non-empty")
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise _invalid_snooze_until(
+            value, f"must be an ISO-8601 timestamp with an offset ({exc})"
+        ) from exc
+    if parsed.tzinfo is None:
+        raise _invalid_snooze_until(
+            value, "must be an ISO-8601 timestamp with an offset"
+        )
+    return text
+
+
 def normalize_gate_origin_agent(value: object) -> str | None:
     """Return the stripped agent attribution declared by a gate producer."""
     if value is None:
@@ -69,6 +97,14 @@ def _invalid_panel(value: object, reason: str) -> GateError:
     )
 
 
+def _invalid_snooze_until(value: object, reason: str) -> GateError:
+    return GateError(
+        "invalid_presentation",
+        "presentation.snooze_until",
+        f"invalid snooze_until {value!r}: {reason}",
+    )
+
+
 def _invalid_origin_agent(value: object, reason: str) -> GateError:
     return GateError(
         "invalid_presentation",
@@ -83,4 +119,5 @@ __all__ = [
     "RESERVED_GATE_PANELS",
     "normalize_gate_origin_agent",
     "normalize_gate_panel",
+    "normalize_gate_snooze_until",
 ]

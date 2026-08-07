@@ -89,6 +89,10 @@ def execute_gate_selection(
                 f"option {option.id} input",
             )
         normalized_feedback = _normalize_feedback(selected, feedback)
+        adapter.validate_selection(
+            selected_option_ids=tuple(option.id for option in selected),
+            feedback=normalized_feedback,
+        )
 
         option_results: list[dict[str, Any]] = []
         for option in selected:

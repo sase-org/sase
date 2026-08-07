@@ -165,7 +165,7 @@ def _build_task_triage_gate_spec(
                 }
                 for item in evidence
             ],
-            "close_history": [_close_record_payload(record) for record in history],
+            "close_history": [close_record_payload(record) for record in history],
         },
         "presentation": presentation,
         "query": TASK_TRIAGE_QUERY,
@@ -346,7 +346,12 @@ def _close_record_reopened_markdown(record: CloseRecord) -> str:
     return f"Reopened {record.reopened_at} by an epic work preclaim."
 
 
-def _close_record_payload(record: CloseRecord) -> dict[str, Any]:
+def close_record_payload(record: CloseRecord) -> dict[str, Any]:
+    """Return the gate-payload projection of one close record.
+
+    Shared with the BeadSnooze gate, whose payload carries the same close
+    history so both gates present a previously-closed task the same way.
+    """
     return {
         "closed_at": record.closed_at,
         "close_reason": record.close_reason,
@@ -675,6 +680,7 @@ __all__ = [
     "TASK_TRIAGE_QUERY",
     "TaskTriageAction",
     "cancel_task_triage",
+    "close_record_payload",
     "close_task_triage",
     "create_task_triage_gate",
     "execute_task_triage_gate_command",

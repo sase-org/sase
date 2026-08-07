@@ -15,6 +15,7 @@ _PRIORITY_ACTIONS = frozenset(
         "UserQuestion",
         "LaunchApproval",
         "TaskTriage",
+        "BeadSnooze",
         "JumpToMentorReview",
     }
 )
