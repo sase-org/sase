@@ -147,10 +147,14 @@ def render_svg_to_png(svg: str) -> bytes:
     """Render SVG text to PNG bytes using the pinned hermetic renderer.
 
     Rendering goes through resvg (a pure-Rust SVG rasterizer with its own font
-    database) restricted to the bundled Fira Code. ``skip_system_fonts`` keeps
-    every platform text and graphics stack out of the render. Explicit
-    tolerance overrides remain available when investigating cross-host
-    edge-rasterization drift.
+    database) restricted to the fonts bundled in ``fonts/``.
+    ``skip_system_fonts`` keeps every platform text and graphics stack out of
+    the render. Naming Fira Code for every generic family gives it every glyph
+    it carries; resvg falls back within the bundled database only for a
+    codepoint Fira Code lacks, which is how symbol marks such as the
+    notification tab icons rasterize as themselves instead of ``.notdef``
+    boxes. Explicit tolerance overrides remain available when investigating
+    cross-host edge-rasterization drift.
     """
     try:
         import resvg_py

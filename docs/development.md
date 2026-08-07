@@ -751,12 +751,18 @@ commands.
 
 Committed goldens are canonical to the pinned renderer. Rasterization goes through resvg
 (`resvg_py==0.3.3`), a pure-Rust SVG renderer that carries its own font database
-restricted to the bundled Fira Code (`tests/ace/tui/visual/fonts/`) with
+restricted to the bundled fonts in `tests/ace/tui/visual/fonts/` with
 `skip_system_fonts=True`. No host font-config or graphics stack participates, so
 rendering is stable and host-font-independent on the canonical Linux x86_64 platform.
-PNG comparison is byte-exact by default locally and in every visual-bearing CI lane;
-together with the fixture-level terminal and timezone pins, a mismatch is a real
-rendering change or an unpinned environment defect to investigate.
+Fira Code is named for every generic family, so it wins every glyph it carries; DejaVu
+Sans is bundled purely as the fallback resvg reaches for on a codepoint Fira Code lacks.
+Without it, symbol marks such as the notification tab icons would rasterize as
+missing-glyph boxes in every golden while rendering correctly in a real terminal, and no
+reviewer could tell the two apart by eye. `tests/ace/tui/visual/test_tab_icon_glyphs.py`
+makes that check mechanical: it fails if the bundled fonts stop covering an icon ACE can
+pick without configuration. PNG comparison is byte-exact by default locally and in every
+visual-bearing CI lane; together with the fixture-level terminal and timezone pins, a
+mismatch is a real rendering change or an unpinned environment defect to investigate.
 
 Rasterization can still differ by a small, bounded amount on macOS arm64. The tolerance
 environment variables remain available only as explicit escape hatches for local
@@ -799,6 +805,11 @@ One accepted fidelity caveat: Fira Code ships no italic face and resvg does not
 synthesize oblique, so `font-style: italic` renders upright. This is uniform across
 every screen and host. Restoring visible italics would mean switching the bundled font
 family, taken as a separate follow-up if it becomes necessary.
+
+A second one: emoji-presentation codepoints are still uncovered, because a deterministic
+rasterizer cannot use a color-emoji font. They remain missing-glyph boxes in the
+goldens. The tab-icon set deliberately uses only text-presentation symbols, which is
+what the glyph audit enforces.
 
 ### Intentional Renderer Upgrades
 
