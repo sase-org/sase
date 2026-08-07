@@ -169,16 +169,25 @@ async def test_watchdog_records_compact_loop_hitch_and_recovery(
         watchdog.start()
         await asyncio.sleep(0.03)
         time.sleep(0.14)
-        await _wait_for_event(path, "tui_hitch_recovered")
+        await _wait_for_balanced_hitch_events(path)
     finally:
         watchdog.stop()
 
     records = _read_records(path)
-    assert [record["event"] for record in records] == [
-        "tui_hitch",
-        "tui_hitch_recovered",
-    ]
-    hitch, recovery = records
+    events = [record["event"] for record in records]
+    # Under host contention, the pre-block `await asyncio.sleep(0.03)` settle
+    # can itself overrun the 0.05s hitch threshold (same mechanism as
+    # test_watchdog_keeps_hitch_and_stall_state_machines_independent),
+    # recording an extra tui_hitch/tui_hitch_recovered pair before the
+    # deliberate `time.sleep(0.14)` block. The hitch state machine only ever
+    # has one episode in flight, so pairs are strictly ordered in the file and
+    # the deliberate block's pair is always last; _wait_for_balanced_hitch_events
+    # (rather than waiting for the first tui_hitch_recovered) guards against
+    # returning while that last pair is still mid-flight.
+    assert len(events) >= 2
+    assert len(events) % 2 == 0
+    assert events[-2:] == ["tui_hitch", "tui_hitch_recovered"]
+    hitch, recovery = records[-2:]
     assert hitch["stall_seconds"] >= 0.05
     assert hitch["suppressed_count"] == 0
     assert hitch["current_tab"] == "agents"
@@ -611,3 +620,24 @@ async def _wait_for_event(path: Path, event: str) -> None:
             return
         await asyncio.sleep(0.01)
     raise AssertionError(f"{event} was not written to {path}")
+
+
+async def _wait_for_balanced_hitch_events(path: Path) -> None:
+    """Wait until every recorded ``tui_hitch`` has a matching recovery.
+
+    A bare wait for the first ``tui_hitch_recovered`` can return while a
+    later (deliberate) hitch is still mid-flight, if an earlier spurious
+    hitch/recovery pair already satisfied it — see
+    test_watchdog_records_compact_loop_hitch_and_recovery.
+    """
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        records = _read_records(path)
+        hitches = sum(1 for record in records if record["event"] == "tui_hitch")
+        recoveries = sum(
+            1 for record in records if record["event"] == "tui_hitch_recovered"
+        )
+        if hitches > 0 and hitches == recoveries:
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"tui_hitch/tui_hitch_recovered never balanced in {path}")
