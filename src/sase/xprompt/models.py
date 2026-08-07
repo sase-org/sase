@@ -30,6 +30,7 @@ class InputType(Enum):
     INT = "int"
     BOOL = "bool"
     FLOAT = "float"
+    ENUM = "enum"  # One of a declared set of choices
 
 
 class OutputType(Enum):
@@ -63,6 +64,19 @@ class XPromptValidationError(Exception):
     pass
 
 
+@dataclass(frozen=True)
+class InputChoice:
+    """One declared value of an ``InputType.ENUM`` input.
+
+    Attributes:
+        value: The exact string a caller must supply to select this choice.
+        label: Optional human-readable display text for the choice.
+    """
+
+    value: str
+    label: str | None = None
+
+
 @dataclass
 class InputArg:
     """Definition of an input argument for an XPrompt.
@@ -78,6 +92,8 @@ class InputArg:
         description: Optional human-readable description of the input.
         repeatable: Whether this final positional input consumes all remaining
             positional values as an ordered list.
+        choices: Declared values for an ``InputType.ENUM`` input. Required and
+            non-empty for ``ENUM``; must be empty for every other type.
     """
 
     name: str
@@ -87,6 +103,25 @@ class InputArg:
     output_schema: OutputSpec | None = None
     description: str | None = None
     repeatable: bool = False
+    choices: tuple[InputChoice, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.type is InputType.ENUM and not self.choices:
+            raise XPromptValidationError(
+                f"Argument '{self.name}' has type 'enum' but declares no choices"
+            )
+        if self.type is not InputType.ENUM and self.choices:
+            raise XPromptValidationError(
+                f"Argument '{self.name}' declares choices but is not type 'enum'"
+            )
+        seen_values: set[str] = set()
+        for choice in self.choices:
+            if choice.value in seen_values:
+                raise XPromptValidationError(
+                    f"Argument '{self.name}' declares duplicate choice "
+                    f"value '{choice.value}'"
+                )
+            seen_values.add(choice.value)
 
     def validate_and_convert(self, value: str) -> Any:
         """Validate and convert a string value to the declared type.
@@ -150,6 +185,14 @@ class InputArg:
                 raise XPromptValidationError(
                     f"Argument '{self.name}' expects bool, got '{value}'"
                 )
+        elif self.type == InputType.ENUM:
+            allowed = tuple(choice.value for choice in self.choices)
+            if value not in allowed:
+                raise XPromptValidationError(
+                    f"Argument '{self.name}' expects one of "
+                    f"{', '.join(allowed)}, got '{value}'"
+                )
+            return value
         else:
             # Should never happen, but handle gracefully
             return value

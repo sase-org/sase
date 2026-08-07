@@ -409,7 +409,13 @@ def _input_to_yaml(arg: InputArg) -> str | dict[str, Any]:
     """
     has_default = arg.default is not UNSET
     has_description = arg.description is not None
-    if not has_default and not has_description and not arg.repeatable:
+    has_choices = bool(arg.choices)
+    if (
+        not has_default
+        and not has_description
+        and not arg.repeatable
+        and not has_choices
+    ):
         return arg.type.value
 
     value: dict[str, Any] = {"type": arg.type.value}
@@ -419,6 +425,16 @@ def _input_to_yaml(arg: InputArg) -> str | dict[str, Any]:
         value["description"] = arg.description
     if arg.repeatable:
         value["repeatable"] = True
+    if has_choices:
+        if any(choice.label is not None for choice in arg.choices):
+            value["choices"] = [
+                {"value": choice.value, "label": choice.label}
+                if choice.label is not None
+                else {"value": choice.value}
+                for choice in arg.choices
+            ]
+        else:
+            value["choices"] = [choice.value for choice in arg.choices]
     return value
 
 

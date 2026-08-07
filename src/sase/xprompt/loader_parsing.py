@@ -8,7 +8,15 @@ if TYPE_CHECKING:
 
 import yaml  # type: ignore[import-untyped]
 
-from .models import UNSET, InputArg, InputType, OutputSpec, XPrompt
+from .models import (
+    UNSET,
+    InputArg,
+    InputChoice,
+    InputType,
+    OutputSpec,
+    XPrompt,
+    XPromptValidationError,
+)
 from .tags import parse_tags
 
 
@@ -92,8 +100,52 @@ def parse_input_type(type_str: str) -> InputType:
         "bool": InputType.BOOL,
         "boolean": InputType.BOOL,
         "float": InputType.FLOAT,
+        "enum": InputType.ENUM,
     }
     return type_map.get(type_str.lower(), InputType.LINE)
+
+
+def _parse_input_choices(raw: Any, name: str) -> tuple[InputChoice, ...]:
+    """Parse an enum input's ``choices`` value into :class:`InputChoice` tuples.
+
+    Args:
+        raw: Either a list of scalars (``choices: [fast, slow]``) or a list of
+            ``{value, label}`` mappings.
+        name: The owning input's name, used in error messages.
+
+    Returns:
+        Tuple of :class:`InputChoice` objects, in declared order.
+
+    Raises:
+        XPromptValidationError: If ``raw`` is not a non-empty list of scalars
+            or ``{value, label}`` mappings.
+    """
+    if not isinstance(raw, list) or not raw:
+        raise XPromptValidationError(
+            f"Argument '{name}' choices must be a non-empty list"
+        )
+    choices: list[InputChoice] = []
+    for item in raw:
+        if isinstance(item, Mapping):
+            if "value" not in item:
+                raise XPromptValidationError(
+                    f"Argument '{name}' choice must have a 'value' key"
+                )
+            label_value = item.get("label")
+            choices.append(
+                InputChoice(
+                    value=str(item["value"]),
+                    label=None if label_value is None else str(label_value),
+                )
+            )
+        elif isinstance(item, (str, int, float, bool)):
+            choices.append(InputChoice(value=str(item)))
+        else:
+            raise XPromptValidationError(
+                f"Argument '{name}' choice must be a scalar value or "
+                "a {value, label} mapping"
+            )
+    return tuple(choices)
 
 
 def _parse_shortform_input_value(value: str | dict[str, Any]) -> tuple[str, Any]:
@@ -117,19 +169,24 @@ def _parse_shortform_input_value(value: str | dict[str, Any]) -> tuple[str, Any]
 
 
 def _parse_shortform_input_metadata(
+    name: str,
     value: str | dict[str, Any],
-) -> tuple[str, Any, str | None, bool]:
-    """Parse shortform input metadata, including repeatability."""
+) -> tuple[str, Any, str | None, bool, tuple[InputChoice, ...]]:
+    """Parse shortform input metadata, including repeatability and choices."""
     if isinstance(value, dict):
         type_str = str(value.get("type", "line"))
         default = value.get("default", UNSET)
         description_value = value.get("description")
         description = None if description_value is None else str(description_value)
         repeatable = value.get("repeatable", False) is True
-        return type_str, default, description, repeatable
+        choices_value = value.get("choices")
+        choices = (
+            () if choices_value is None else _parse_input_choices(choices_value, name)
+        )
+        return type_str, default, description, repeatable, choices
 
     type_str, default = _parse_shortform_input_value(value)
-    return type_str, default, None, False
+    return type_str, default, None, False, ()
 
 
 def parse_shortform_inputs(
@@ -146,8 +203,8 @@ def parse_shortform_inputs(
     """
     inputs: list[InputArg] = []
     for name, value in input_dict.items():
-        type_str, default, description, repeatable = _parse_shortform_input_metadata(
-            value
+        type_str, default, description, repeatable, choices = (
+            _parse_shortform_input_metadata(name, value)
         )
         inputs.append(
             InputArg(
@@ -156,6 +213,7 @@ def parse_shortform_inputs(
                 default=default,
                 description=description,
                 repeatable=repeatable,
+                choices=choices,
             )
         )
     from .input_binding import validate_repeatable_input_order
@@ -300,6 +358,10 @@ def parse_inputs_from_front_matter(
         description_value = item.get("description")
         description = None if description_value is None else str(description_value)
         repeatable = item.get("repeatable", False) is True
+        choices_value = item.get("choices")
+        choices = (
+            () if choices_value is None else _parse_input_choices(choices_value, name)
+        )
 
         inputs.append(
             InputArg(
@@ -308,6 +370,7 @@ def parse_inputs_from_front_matter(
                 default=default,
                 description=description,
                 repeatable=repeatable,
+                choices=choices,
             )
         )
 

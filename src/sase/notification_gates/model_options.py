@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from sase.notification_gates.model_inputs import (
+    GateInputField,
+    compile_gate_input_schema,
+    parse_gate_input_fields,
+)
 from sase.notification_gates.model_validation import (
     GateError,
     GateFeedbackMode,
@@ -55,7 +60,17 @@ class _GateCommand:
 
 @dataclass(frozen=True)
 class GateOption:
-    """One command-bearing control referenced exactly once by a gate query."""
+    """One command-bearing control referenced exactly once by a gate query.
+
+    ``input_schema`` is the single enforcement layer: the executor validates
+    the submitted value against it and it is what a reader that knows nothing
+    about ``inputs`` sees. ``inputs`` is the authoring layer — a closed,
+    declarative vocabulary that compiles into ``input_schema`` at creation.
+    The two are mutually exclusive; declaring both requires the raw
+    ``input_schema`` to exactly equal the schema compiled from ``inputs``, so
+    an envelope produced by this class re-parses through the same code path
+    without tripping the conflict check.
+    """
 
     id: str
     label: str
@@ -65,6 +80,7 @@ class GateOption:
     icon: str | None = None
     default_selected: bool = True
     feedback: GateFeedbackMode = "disabled"
+    inputs: tuple[GateInputField, ...] = ()
 
     @classmethod
     def from_mapping(
@@ -83,6 +99,7 @@ class GateOption:
                 "label",
                 "command",
                 "input_schema",
+                "inputs",
                 "result_schema",
                 "icon",
                 "default_selected",
@@ -106,13 +123,35 @@ class GateOption:
                 f"{target}.feedback",
                 "feedback must be disabled, optional, or required",
             )
-        input_schema = json_object(
-            data.get("input_schema", {}), f"{target}.input_schema"
-        )
+        inputs = parse_gate_input_fields(data.get("inputs"), target)
+        raw_input_schema = data.get("input_schema")
+        provided_input_schema: dict[str, Any] | None = None
+        if raw_input_schema is not None:
+            provided_input_schema = json_object(
+                raw_input_schema, f"{target}.input_schema"
+            )
+            check_json_schema(provided_input_schema, f"{target}.input_schema")
+        if inputs:
+            compiled_input_schema = compile_gate_input_schema(
+                inputs, feedback_mode=feedback
+            )
+            if (
+                provided_input_schema is not None
+                and provided_input_schema != compiled_input_schema
+            ):
+                raise GateError(
+                    "conflicting_input_declaration",
+                    f"{target}.input_schema",
+                    "input_schema must equal the schema compiled from 'inputs'",
+                )
+            input_schema = compiled_input_schema
+        else:
+            input_schema = (
+                {} if provided_input_schema is None else provided_input_schema
+            )
         result_schema = json_object(
             data.get("result_schema", {}), f"{target}.result_schema"
         )
-        check_json_schema(input_schema, f"{target}.input_schema")
         check_json_schema(result_schema, f"{target}.result_schema")
         return cls(
             id=option_id,
@@ -123,6 +162,7 @@ class GateOption:
             icon=validate_icon(data.get("icon"), f"{target}.icon"),
             default_selected=default_selected,
             feedback=feedback,
+            inputs=inputs,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -131,6 +171,7 @@ class GateOption:
             "label": self.label,
             "command": self.command.to_dict(),
             "input_schema": self.input_schema,
+            "inputs": [gate_input_field.to_dict() for gate_input_field in self.inputs],
             "result_schema": self.result_schema,
             "icon": self.icon,
             "default_selected": self.default_selected,

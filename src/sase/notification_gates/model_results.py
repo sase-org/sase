@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -78,3 +79,26 @@ class GateExecutionResult:
 
     response: dict[str, Any]
     already_completed: bool = False
+
+
+def effective_response_input(
+    response: Mapping[str, Any], option_id: str
+) -> dict[str, Any]:
+    """Return the effective submitted input for one option in a response.
+
+    Prefers *option_id*'s own entry from ``option_inputs`` (the per-option
+    submission contract) when present, falls back to the shared ``input``
+    value (the legacy contract, ``{}`` on the per-option path), and finally
+    to ``{}``. A reader that reaches into ``response["input"]`` directly would
+    silently see the wrong option's value once a per-option submission has
+    zeroed out the shared field.
+    """
+    option_inputs = response.get("option_inputs")
+    if isinstance(option_inputs, Mapping):
+        entry = option_inputs.get(option_id)
+        if isinstance(entry, Mapping):
+            return dict(entry)
+    shared_input = response.get("input")
+    if isinstance(shared_input, Mapping):
+        return dict(shared_input)
+    return {}

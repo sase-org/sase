@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.notification_gates.model_results import effective_response_input
 from sase.notification_gates.models import (
     GateError,
     GateFeedbackMode,
@@ -178,13 +179,8 @@ class GateAdapter:
             source=str(response.get("source") or "plan_response"),
         )
         if plan_action == "epic" and result.get("epic_launch_owner") == "host":
-            raw_input = response.get("input")
-            mode = (
-                raw_input.get("epic_launch_mode")
-                if isinstance(raw_input, dict)
-                else "detached"
-            )
-            mode = mode or "detached"
+            effective_input = effective_response_input(response, selected_ids[0])
+            mode = effective_input.get("epic_launch_mode") or "detached"
             if mode == "detached":
                 from sase.plan_approval_actions import (
                     PlanApprovalActionError,

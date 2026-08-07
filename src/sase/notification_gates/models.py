@@ -1,5 +1,9 @@
 """Public model interface for durable command-backed notification gates."""
 
+from sase.notification_gates.model_inputs import (
+    GateInputField,
+    compile_gate_input_schema,
+)
 from sase.notification_gates.model_options import (
     GateGroup,
     GateOption,
@@ -33,9 +37,11 @@ __all__ = [
     "GateExecutionResult",
     "GateFeedbackMode",
     "GateGroup",
+    "GateInputField",
     "GateOption",
     "GateResource",
     "GateSpec",
+    "compile_gate_input_schema",
     "normalize_gate_structure",
     "validate_color",
     "validate_icon",

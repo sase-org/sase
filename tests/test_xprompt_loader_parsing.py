@@ -1,12 +1,15 @@
 """Tests for xprompt.loader parsing functions."""
 
+import pytest
+
 from sase.xprompt.loader_parsing import (
+    _parse_input_choices,
     _parse_shortform_output,
     parse_inputs_from_front_matter,
     parse_xprompt_entries,
     parse_yaml_front_matter,
 )
-from sase.xprompt.models import UNSET, InputType
+from sase.xprompt.models import UNSET, InputChoice, InputType, XPromptValidationError
 
 # Tests for parse_yaml_front_matter
 
@@ -100,6 +103,100 @@ def test_parse_inputs_simple_shorthand_has_no_description() -> None:
     assert inputs[0].name == "diff_path"
     assert inputs[0].type is InputType.PATH
     assert inputs[0].description is None
+
+
+# Tests for enum choices
+
+
+def test_parse_inputs_shortform_enum_scalar_choices() -> None:
+    inputs = parse_inputs_from_front_matter(
+        {"mode": {"type": "enum", "choices": ["fast", "slow"]}}
+    )
+
+    assert len(inputs) == 1
+    assert inputs[0].type is InputType.ENUM
+    assert inputs[0].choices == (
+        InputChoice(value="fast"),
+        InputChoice(value="slow"),
+    )
+
+
+def test_parse_inputs_shortform_enum_mapping_choices() -> None:
+    inputs = parse_inputs_from_front_matter(
+        {
+            "mode": {
+                "type": "enum",
+                "choices": [
+                    {"value": "fast", "label": "Fast mode"},
+                    {"value": "slow", "label": "Slow mode"},
+                ],
+            }
+        }
+    )
+
+    assert len(inputs) == 1
+    assert inputs[0].choices == (
+        InputChoice(value="fast", label="Fast mode"),
+        InputChoice(value="slow", label="Slow mode"),
+    )
+
+
+def test_parse_inputs_longform_enum_choices() -> None:
+    inputs = parse_inputs_from_front_matter(
+        [
+            {
+                "name": "mode",
+                "type": "enum",
+                "choices": ["fast", {"value": "slow", "label": "Slow mode"}],
+            }
+        ]
+    )
+
+    assert len(inputs) == 1
+    assert inputs[0].type is InputType.ENUM
+    assert inputs[0].choices == (
+        InputChoice(value="fast"),
+        InputChoice(value="slow", label="Slow mode"),
+    )
+
+
+def test_parse_inputs_enum_without_choices_raises() -> None:
+    with pytest.raises(XPromptValidationError):
+        parse_inputs_from_front_matter({"mode": {"type": "enum"}})
+
+
+def test_parse_inputs_choices_on_non_enum_type_raises() -> None:
+    with pytest.raises(XPromptValidationError):
+        parse_inputs_from_front_matter(
+            {"mode": {"type": "word", "choices": ["fast", "slow"]}}
+        )
+
+
+def test_parse_inputs_duplicate_choice_values_raises() -> None:
+    with pytest.raises(XPromptValidationError):
+        parse_inputs_from_front_matter(
+            {"mode": {"type": "enum", "choices": ["fast", "fast"]}}
+        )
+
+
+def test_parse_input_choices_rejects_non_list() -> None:
+    with pytest.raises(XPromptValidationError):
+        _parse_input_choices("fast", "mode")
+
+
+def test_parse_input_choices_rejects_empty_list() -> None:
+    with pytest.raises(XPromptValidationError):
+        _parse_input_choices([], "mode")
+
+
+def test_parse_input_choices_rejects_mapping_without_value() -> None:
+    with pytest.raises(XPromptValidationError):
+        _parse_input_choices([{"label": "Fast mode"}], "mode")
+
+
+def test_parse_input_choices_rejects_bad_item_shape() -> None:
+    with pytest.raises(XPromptValidationError):
+        _parse_input_choices([["fast"]], "mode")
 
 
 # Tests for _parse_shortform_output

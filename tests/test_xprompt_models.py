@@ -4,6 +4,7 @@ import pytest
 from sase.xprompt.models import (
     UNSET,
     InputArg,
+    InputChoice,
     InputType,
     XPrompt,
     XPromptValidationError,
@@ -23,6 +24,7 @@ def test_input_type_values() -> None:
     assert InputType.INT.value == "int"
     assert InputType.BOOL.value == "bool"
     assert InputType.FLOAT.value == "float"
+    assert InputType.ENUM.value == "enum"
 
 
 # Tests for InputArg.validate_and_convert
@@ -83,6 +85,63 @@ def test_input_arg_bool_invalid_raises_error() -> None:
         arg.validate_and_convert("maybe")
     with pytest.raises(XPromptValidationError, match="expects bool"):
         arg.validate_and_convert("")
+
+
+def test_input_arg_enum_accepts_declared_value() -> None:
+    """Test that enum type accepts an exact declared choice value."""
+    arg = InputArg(
+        name="mode",
+        type=InputType.ENUM,
+        choices=(InputChoice(value="fast"), InputChoice(value="slow")),
+    )
+    assert arg.validate_and_convert("fast") == "fast"
+
+
+def test_input_arg_enum_rejects_undeclared_value_listing_allowed() -> None:
+    """Test that enum type rejects an undeclared value, listing allowed values."""
+    arg = InputArg(
+        name="mode",
+        type=InputType.ENUM,
+        choices=(InputChoice(value="fast"), InputChoice(value="slow")),
+    )
+    with pytest.raises(XPromptValidationError, match="fast, slow") as excinfo:
+        arg.validate_and_convert("turbo")
+    assert "mode" in str(excinfo.value)
+
+
+def test_input_arg_enum_is_case_sensitive_and_ignores_labels() -> None:
+    """Test that enum matching is exact on value, not case-folded or by label."""
+    arg = InputArg(
+        name="mode",
+        type=InputType.ENUM,
+        choices=(InputChoice(value="fast", label="Fast mode"),),
+    )
+    with pytest.raises(XPromptValidationError):
+        arg.validate_and_convert("Fast")
+    with pytest.raises(XPromptValidationError):
+        arg.validate_and_convert("Fast mode")
+
+
+def test_input_arg_enum_without_choices_raises() -> None:
+    """Test that declaring type=enum with no choices raises."""
+    with pytest.raises(XPromptValidationError, match="no choices"):
+        InputArg(name="mode", type=InputType.ENUM)
+
+
+def test_input_arg_choices_on_non_enum_type_raises() -> None:
+    """Test that declaring choices on a non-enum type raises."""
+    with pytest.raises(XPromptValidationError, match="not type 'enum'"):
+        InputArg(name="mode", type=InputType.WORD, choices=(InputChoice(value="fast"),))
+
+
+def test_input_arg_duplicate_choice_values_raises() -> None:
+    """Test that two choices sharing a value raises."""
+    with pytest.raises(XPromptValidationError, match="duplicate choice"):
+        InputArg(
+            name="mode",
+            type=InputType.ENUM,
+            choices=(InputChoice(value="fast"), InputChoice(value="fast")),
+        )
 
 
 def test_input_arg_default_type_is_line() -> None:

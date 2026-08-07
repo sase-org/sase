@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from sase.xprompt.loader_parsing import LocalXPromptNameError
-from sase.xprompt.models import UNSET, InputArg, InputType, XPrompt
+from sase.xprompt.models import UNSET, InputArg, InputChoice, InputType, XPrompt
 from sase.xprompt.prompt_frontmatter import (
     LOCAL_XPROMPT_SOURCE,
     PromptFrontmatter,
@@ -257,6 +257,51 @@ def test_input_description_round_trips() -> None:
     arg = reparsed.get_input("svc")
     assert arg is not None
     assert arg.description == "the service"
+
+
+def test_enum_input_unlabeled_choices_round_trip_as_scalars() -> None:
+    model = PromptFrontmatter(
+        inputs=[
+            InputArg(
+                name="mode",
+                type=InputType.ENUM,
+                choices=(InputChoice(value="fast"), InputChoice(value="slow")),
+            )
+        ]
+    )
+    serialized = model.serialize()
+    assert "choices" in serialized
+
+    reparsed = PromptFrontmatter.parse(serialized)
+    arg = reparsed.get_input("mode")
+    assert arg is not None
+    assert arg.type is InputType.ENUM
+    assert arg.choices == (
+        InputChoice(value="fast"),
+        InputChoice(value="slow"),
+    )
+
+
+def test_enum_input_labeled_choices_round_trip() -> None:
+    model = PromptFrontmatter(
+        inputs=[
+            InputArg(
+                name="mode",
+                type=InputType.ENUM,
+                choices=(
+                    InputChoice(value="fast", label="Fast mode"),
+                    InputChoice(value="slow"),
+                ),
+            )
+        ]
+    )
+    reparsed = PromptFrontmatter.parse(model.serialize())
+    arg = reparsed.get_input("mode")
+    assert arg is not None
+    assert arg.choices == (
+        InputChoice(value="fast", label="Fast mode"),
+        InputChoice(value="slow"),
+    )
 
 
 # --- xprompts --------------------------------------------------------------

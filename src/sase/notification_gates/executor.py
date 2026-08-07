@@ -23,6 +23,10 @@ from sase.notification_gates.durability import (
     file_lock,
     read_json_object,
 )
+from sase.notification_gates.executor_inputs import (
+    redact_option_inputs,
+    resolve_option_inputs,
+)
 from sase.notification_gates.feedback_input import apply_feedback_input
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.input_bounds import check_input_bounds
@@ -62,6 +66,7 @@ def execute_gate_selection(
     source: str = "host",
     retry: Literal["resume", "restart"] | None = None,
     epic_launch_origin: EpicLaunchOrigin | None = None,
+    option_inputs: Mapping[str, object] | None = None,
     on_command_start: Callable[[str, str, str, tuple[str, ...]], None] | None = None,
     on_output_line: Callable[[str, str, str, str], None] | None = None,
     on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None = None,
@@ -69,11 +74,20 @@ def execute_gate_selection(
     """Execute a non-empty subset of one branch and persist one response.
 
     Submitted ids are normalized to query order before command execution and
-    persistence. Every selected option receives the same JSON input value,
-    except that the reviewer's note is injected as ``input.feedback`` for
-    each selected option whose schema declares that property. That rule
-    lives here rather than in any surface so every client -- ACE, mobile,
-    Telegram, and headless callers -- answers one gate the same way.
+    persistence.
+
+    ``input_data`` and ``option_inputs`` are mutually exclusive submission
+    contracts. With ``input_data`` (or neither given), every selected option
+    receives the same JSON input value, as before. With ``option_inputs``, a
+    mapping of selected option id to that option's own submitted JSON value,
+    each selected option receives its own value and a selected option with no
+    entry is judged against its own schema with ``{}``. Supplying both raises
+    ``conflicting_input``; an ``option_inputs`` key outside the selection
+    raises ``unknown_option``. The reviewer's note is then injected as
+    ``input.feedback`` for each selected option whose schema declares that
+    property. That rule lives here rather than in any surface so every
+    client -- ACE, mobile, Telegram, and headless callers -- answers one
+    gate the same way.
 
     An AND branch runs its commands one at a time, and a later member may
     fail after earlier members already took effect. Every attempt is recorded
@@ -113,17 +127,19 @@ def execute_gate_selection(
         normalized_input = {} if input_data is None else input_data
         with _recorded_rejection(bundle_path, selected[0].id, source):
             normalized_feedback = _normalize_feedback(selected, feedback)
-        option_inputs = apply_feedback_input(
+        with _recorded_rejection(bundle_path, selected[0].id, source):
+            resolved_inputs = resolve_option_inputs(selected, input_data, option_inputs)
+        resolved_inputs = apply_feedback_input(
             selected,
-            {option.id: normalized_input for option in selected},
+            resolved_inputs,
             normalized_feedback,
         )
         for option in selected:
             target = f"option {option.id} input"
             with _recorded_rejection(bundle_path, option.id, source):
-                check_input_bounds(option_inputs[option.id], target)
+                check_input_bounds(resolved_inputs[option.id], target)
                 _validate_json_instance(
-                    option_inputs[option.id], option.input_schema, target
+                    resolved_inputs[option.id], option.input_schema, target
                 )
         with _recorded_rejection(bundle_path, selected[0].id, source):
             adapter.validate_selection(
@@ -133,7 +149,7 @@ def execute_gate_selection(
 
         request_hash = str(envelope["hashes"]["request"])
         input_digests = {
-            option.id: value_digest(option_inputs[option.id]) for option in selected
+            option.id: value_digest(resolved_inputs[option.id]) for option in selected
         }
         attempt_id, replayed = _begin_attempt(
             bundle_path,
@@ -153,7 +169,7 @@ def execute_gate_selection(
                     bundle_path,
                     option,
                     envelope=envelope,
-                    normalized_input=option_inputs[option.id],
+                    normalized_input=resolved_inputs[option.id],
                     response_path=response_path,
                     cancellation_path=cancellation_path,
                     source=source,
@@ -196,6 +212,7 @@ def execute_gate_selection(
             "kind": adapter.kind,
             "selected_option_ids": [option.id for option in selected],
             "input": normalized_input,
+            "option_inputs": redact_option_inputs(selected, resolved_inputs),
             "option_results": option_results,
             "feedback": normalized_feedback,
             "source": source,

@@ -11,8 +11,10 @@ from sase.notification_gates.models import (
     GateError,
     GateExecutionResult,
     GateGroup,
+    GateInputField,
     GateOption,
     GateSpec,
+    compile_gate_input_schema,
 )
 from sase.notification_gates.query import (
     GateQueryError,
