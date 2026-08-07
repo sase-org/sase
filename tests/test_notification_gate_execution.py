@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -92,6 +94,32 @@ def test_custom_gate_rejects_invalid_selections_and_disabled_feedback(
         )
     assert disabled_feedback.value.code == "feedback_not_allowed"
     assert not result.response_path.exists()
+
+
+def test_streamed_command_may_exit_before_draining_stdin(gate_home: Path) -> None:
+    spec = custom_gate_spec(request_id="ignores-stdin")
+    for resource in cast(list[dict[str, object]], spec["resources"]):
+        if resource["path"] == "commands/audit":
+            resource["content"] = '#!/bin/sh\nprintf \'{"audit": "ignored"}\\n\'\n'
+    result = create_gate(spec)
+
+    def wait_for_exit(process: subprocess.Popen[bytes], started: bool) -> None:
+        # Force the child to exit before the parent writes stdin, so the write
+        # and the close that follows it both hit EPIPE.
+        if started:
+            process.wait()
+
+    execution = execute_gate_selection(
+        result.bundle_path,
+        ["audit"],
+        {"reviewed": True},
+        on_output_line=lambda *_args: None,
+        on_process_state=wait_for_exit,
+    )
+
+    assert execution.response["option_results"] == [
+        {"id": "audit", "result": {"audit": "ignored"}}
+    ]
 
 
 def test_execute_selection_validates_input_and_writes_response_once(

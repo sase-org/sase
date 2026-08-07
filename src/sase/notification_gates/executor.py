@@ -493,7 +493,12 @@ def _run_command_streaming(
         except BrokenPipeError:
             pass
         finally:
-            process.stdin.close()
+            # A command that exits without draining stdin leaves the failed
+            # write buffered, so close() retries it and raises EPIPE again.
+            try:
+                process.stdin.close()
+            except BrokenPipeError:
+                pass
         returncode = process.wait()
         stdout_thread.join()
         stderr_thread.join()
