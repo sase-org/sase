@@ -288,6 +288,13 @@ class StatisticsPane(StatisticsPanePresentationBase):
             event.stop()
             return
 
+        if event.key in split_key_alternatives(self._keymaps.jump_to_entry):
+            event.prevent_default()
+            event.stop()
+            self._pending_view_select = False
+            self._update_hints()
+            return
+
         character = getattr(event, "character", None)
         selected_digit = (
             character
@@ -319,6 +326,16 @@ class StatisticsPane(StatisticsPanePresentationBase):
         """Arm one-shot numbered Statistics view selection."""
         self._pending_view_select = True
         self._update_hints()
+
+    def action_jump_to_entry(self) -> None:
+        """Arm numbered-view selection via the Admin Center-wide jump key.
+
+        Statistics has no row cursor, so unlike other Admin Center tabs it
+        does not use ``PaneEntryJumpMixin`` — pressing ' just arms the same
+        numbered-view selection ``select_view`` already arms. Do not "fix"
+        this pane onto the mixin without re-reading the epic design notes.
+        """
+        self.action_select_view()
 
     def action_cycle_range(self) -> None:
         """Cycle through Today, 24h, 7d, 30d, 90d, and All."""

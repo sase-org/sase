@@ -177,6 +177,7 @@ _STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
     ("prev_view", "Previous View"),
     ("next_view", "Next View"),
     ("select_view", "Select View by Number"),
+    ("jump_to_entry", "Jump"),
     ("cycle_range", "Time Range"),
     ("cycle_range_reverse", "Previous Time Range"),
     ("custom_range", "Custom Range"),

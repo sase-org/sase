@@ -401,6 +401,7 @@ def test_default_config_covers_all_statistics_keymaps() -> None:
         "prev_view": "left_square_bracket",
         "next_view": "right_square_bracket",
         "select_view": "0",
+        "jump_to_entry": "apostrophe",
         "cycle_range": "t",
         "cycle_range_reverse": "T",
         "custom_range": "c",

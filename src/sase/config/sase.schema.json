@@ -905,6 +905,10 @@
                   "type": "string",
                   "description": "Arm numbered statistics view selection"
                 },
+                "jump_to_entry": {
+                  "type": "string",
+                  "description": "Arm numbered statistics view selection (Admin Center-wide jump key)"
+                },
                 "cycle_range": {
                   "type": "string",
                   "description": "Cycle to the next statistics time range"

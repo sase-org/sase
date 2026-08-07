@@ -53,6 +53,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         ("f12", "Previous View"),
         ("f11", "Next View"),
         ("f13", "Select View by Number"),
+        ("'", "Jump"),
         ("f10", "Time Range"),
         ("f9", "Previous Time Range"),
         ("f8", "Custom Range"),
