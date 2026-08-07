@@ -24,6 +24,8 @@ from ._notification_provider_models import (
 
 
 def notification_snapshot_from_direct(snapshot: Any) -> AceNotificationSnapshot:
+    from ...modals.notification_modal_tags import notification_tabs_from_core
+
     counts = getattr(snapshot, "counts", AceNotificationCounts())
     notifications = list(getattr(snapshot, "notifications", []))
     expired_ids = list(getattr(snapshot, "expired_ids", []))
@@ -36,6 +38,7 @@ def notification_snapshot_from_direct(snapshot: Any) -> AceNotificationSnapshot:
             rest=count_value(counts, "rest"),
             muted=count_value(counts, "muted"),
         ),
+        tabs=notification_tabs_from_core(getattr(snapshot, "tabs", [])),
         expired_ids=expired_ids,
         next_snooze_deadline=next_snooze_deadline,
     )
@@ -56,6 +59,7 @@ def direct_notification_count_snapshot() -> AceNotificationCountSnapshot:
     snapshot = notification_snapshot_from_direct(read_notification_snapshot())
     return notification_count_snapshot_from_counts(
         counts_mapping(snapshot.counts),
+        tabs=snapshot.tabs,
         provider_source="direct",
         prefers_daemon=False,
         fallback_reason=None,

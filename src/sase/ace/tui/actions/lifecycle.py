@@ -10,6 +10,7 @@ from ..util.shutdown import request_shutdown
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
+    from ..modals.notification_modal_tags import NotificationTagTab
 
 # Type alias for tab names (used in type hints)
 TabName = Literal["changespecs", "agents", "axe"]
@@ -17,9 +18,7 @@ type NotificationActivityCursor = tuple[str, str]
 type NotificationStartupState = tuple[
     set[str],
     set[NotificationActivityCursor],
-    int,
-    int,
-    int,
+    list[NotificationTagTab],
 ]
 
 
@@ -102,15 +101,17 @@ class LifecycleMixin:
         }
 
     def _read_notifications_for_startup(self) -> NotificationStartupState:
-        """Single-pass disk read returning unread IDs, delivered cursors, and counts.
+        """Single-pass disk read returning unread IDs, delivered cursors, and tabs.
 
         Avoids parsing the JSONL twice during startup (once for the unread-id
-        seed, once for the indicator counts).
+        seed, once for the indicator's per-tab counts).
         """
         from sase.notifications import (
             notification_activity_cursor,
             read_notification_snapshot,
         )
+
+        from ..modals.notification_modal_tags import notification_tabs_from_core
 
         snapshot = read_notification_snapshot()
         notifications = snapshot.notifications
@@ -122,46 +123,34 @@ class LifecycleMixin:
             if not n.muted:
                 unread_ids.add(n.id)
                 delivered_activity_cursors.add(notification_activity_cursor(n))
-        counts = snapshot.counts
-        priority_count = counts.priority + counts.errors
-        rest_count = counts.rest
-        muted_count = counts.muted
         return (
             unread_ids,
             delivered_activity_cursors,
-            priority_count,
-            rest_count,
-            muted_count,
+            notification_tabs_from_core(getattr(snapshot, "tabs", [])),
         )
 
     def _initialize_agent_tracking(
         self,
         state: NotificationStartupState | None = None,
     ) -> None:
-        """Seed unread-id tracker and notification counts from preloaded state.
+        """Seed unread-id tracker and notification tabs from preloaded state.
 
-        ``state`` is ``(unread_ids, delivered_activity_cursors, priority,
-        rest, muted)``; when ``None`` we read from disk inline (kept for
-        callers outside the startup path). Seeding the activity cursors
-        prevents bell/toast for notifications that were already unread when
-        the TUI started.
+        ``state`` is ``(unread_ids, delivered_activity_cursors, tabs)``, where
+        ``tabs`` are the notification-panel tabs in panel order; when ``None``
+        we read from disk inline (kept for callers outside the startup path).
+        Seeding the activity cursors prevents bell/toast for notifications
+        that were already unread when the TUI started.
         """
         from ..widgets import NotificationIndicator
 
         if state is None:
             state = self._read_notifications_for_startup()
-        (
-            unread_ids,
-            delivered_activity_cursors,
-            priority_count,
-            rest_count,
-            muted_count,
-        ) = state
+        unread_ids, delivered_activity_cursors, tabs = state
         self._last_unread_ids = unread_ids
         self._delivered_notification_activity_cursors = delivered_activity_cursors
 
         indicator = self.query_one("#notification-indicator", NotificationIndicator)  # type: ignore[attr-defined]
-        indicator.set_counts(priority_count, rest_count, muted_count)
+        indicator.set_tabs(tabs)
 
     def _save_current_selection(self) -> None:
         """Save the currently selected ChangeSpec name."""

@@ -93,6 +93,26 @@ def patch_startup_loaders(
             notifications=[],
             expired_ids=[],
             counts=SimpleNamespace(priority=1, rest=18, muted=0, errors=0),
+            # The indicator renders one chip per tab, so the fixture spends its
+            # 19 unread rows across two tabs rather than one opaque total.
+            tabs=[
+                SimpleNamespace(
+                    key="hitl",
+                    kind="hitl",
+                    count=1,
+                    oldest_activity_at=None,
+                    next_wake_at=None,
+                    color=None,
+                ),
+                SimpleNamespace(
+                    key="general",
+                    kind="general",
+                    count=18,
+                    oldest_activity_at=None,
+                    next_wake_at=None,
+                    color=None,
+                ),
+            ],
         )
 
     def _fake_load_agent_grouping_mode(*_args: Any, **_kwargs: Any) -> GroupingMode:

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.notifications.models import Notification
 
 from ...provider_contract import AceSnapshot
+
+if TYPE_CHECKING:
+    from ...modals.notification_modal_tags import NotificationTagTab
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,7 @@ class AceNotificationSnapshot:
 
     notifications: list[Notification] = field(default_factory=list)
     counts: AceNotificationCounts = field(default_factory=AceNotificationCounts)
+    tabs: list[NotificationTagTab] = field(default_factory=list)
     expired_ids: list[str] = field(default_factory=list)
     next_snooze_deadline: str | None = None
     shared_snapshot: AceSnapshot[Notification] | None = None
@@ -36,6 +40,7 @@ class AceNotificationCountSnapshot:
     """Count-only notification provider result for the persistent indicator."""
 
     counts: AceNotificationCounts = field(default_factory=AceNotificationCounts)
+    tabs: list[NotificationTagTab] = field(default_factory=list)
     shared_snapshot: AceSnapshot[Notification] | None = None
 
 

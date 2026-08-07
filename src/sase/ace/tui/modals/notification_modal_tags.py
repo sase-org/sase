@@ -146,23 +146,35 @@ def _modal_tag_from_core_key(core_key: str) -> str | None:
     return None if core_key == _CORE_GENERAL_TAB_KEY else core_key
 
 
+def notification_tabs_from_core(core_tabs: Any) -> list[NotificationTagTab]:
+    """Return modal tab rows for an ordered list of core tab records.
+
+    The snapshot the indicator polls already carries these tabs, so the
+    indicator refresh paths translate them here rather than reclassifying.
+    """
+    tabs: list[NotificationTagTab] = []
+    for tab in core_tabs or []:
+        tag = _modal_tag_from_core_key(tab.key)
+        tabs.append(
+            NotificationTagTab(
+                tag=tag,
+                label=_notification_tab_label(tag),
+                count=tab.count,
+                kind=tab.kind,
+                oldest_activity_at=tab.oldest_activity_at,
+                next_wake_at=tab.next_wake_at,
+                color=tab.color,
+            )
+        )
+    return tabs
+
+
 def classify_notification_modal_tabs(
     notifications: list[Notification],
 ) -> tuple[list[NotificationTagTab], dict[str, str | None]]:
     """Return the ordered tabs and each row's owning tab, in one core call."""
     classification = classify_notification_tabs(notifications)
-    tabs = [
-        NotificationTagTab(
-            tag=_modal_tag_from_core_key(tab.key),
-            label=_notification_tab_label(_modal_tag_from_core_key(tab.key)),
-            count=tab.count,
-            kind=tab.kind,
-            oldest_activity_at=tab.oldest_activity_at,
-            next_wake_at=tab.next_wake_at,
-            color=tab.color,
-        )
-        for tab in classification.tabs
-    ]
+    tabs = notification_tabs_from_core(classification.tabs)
     row_tab_keys = {
         row_id: _modal_tag_from_core_key(core_key)
         for row_id, core_key in classification.row_tab_keys.items()

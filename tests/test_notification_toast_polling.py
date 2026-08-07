@@ -11,6 +11,10 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.modals.notification_modal_tags import (
+    MUTED_TAB_KEY,
+    SNOOZED_TAB_KEY,
+)
 from sase.core.time import get_timezone
 from sase.notifications import notification_activity_cursor
 
@@ -49,8 +53,8 @@ class TestPollingDelta:
             saw_new = asyncio.run(app._poll_agent_completions())
         assert saw_new is True
         assert app._bell_rung == 1
-        assert app._indicator_priority == 1
-        assert app._indicator_rest == 0
+        assert app._indicator_tab_count("hitl") == 1
+        assert app._indicator_tab_count(None) == 0
         assert app.notify.call_count == 1
         call = app.notify.call_args
         message = call.args[0]
@@ -113,7 +117,7 @@ class TestPollingDelta:
             saw_new = asyncio.run(app._poll_agent_completions())
 
         assert saw_new is True
-        assert app._indicator_priority == 2
+        assert app._indicator_tab_count("hitl") == 2
         assert [call.args[0] for call in app.notify.call_args_list] == [
             "Tale ready",
             "Epic ready",
@@ -164,9 +168,9 @@ class TestPollingDelta:
             saw_new = asyncio.run(app._poll_agent_completions())
 
         assert saw_new is False
-        assert app._indicator_priority == 0
-        assert app._indicator_rest == 0
-        assert app._indicator_muted == 1
+        assert app._indicator_tab_count("hitl") == 0
+        assert app._indicator_tab_count(None) == 0
+        assert app._indicator_tab_count(MUTED_TAB_KEY) == 1
         assert app.notify.call_count == 0
         assert app._bell_rung == 0
 
@@ -331,8 +335,8 @@ class TestSnoozeExpiry:
         # Row is returned unmuted by the snapshot and lands in the unread bucket.
         assert expired.muted is False
         assert expired.snooze_until is None
-        assert app._indicator_rest == 1
-        assert app._indicator_muted == 0
+        assert app._indicator_tab_count(None) == 1
+        assert app._indicator_tab_count(MUTED_TAB_KEY) == 0
         assert app._bell_rung == 1
 
     def test_not_yet_due_snooze_stays_muted(self) -> None:
@@ -357,8 +361,9 @@ class TestSnoozeExpiry:
         assert saw_new is False
         assert snoozed.muted is True
         assert snoozed.snooze_until == future
-        assert app._indicator_muted == 1
-        assert app._indicator_rest == 0
+        assert app._indicator_tab_count(SNOOZED_TAB_KEY) == 1
+        assert app._indicator_tab_count(MUTED_TAB_KEY) == 0
+        assert app._indicator_tab_count(None) == 0
         assert app._bell_rung == 0
         assert app.notify.call_count == 0
 
@@ -381,8 +386,8 @@ class TestSnoozeExpiry:
         assert snoozed_read.muted is False
         assert snoozed_read.snooze_until is None
         assert snoozed_read.read is False
-        assert app._indicator_rest == 1
-        assert app._indicator_muted == 0
+        assert app._indicator_tab_count(None) == 1
+        assert app._indicator_tab_count(MUTED_TAB_KEY) == 0
         assert app.notify.call_count == 1
         assert app._bell_rung == 1
 
@@ -545,7 +550,7 @@ class TestRefreshNotificationCount:
         ):
             app._refresh_notification_count()
 
-        assert app._indicator_priority == 1
-        assert app._indicator_rest == 1
-        assert app._indicator_muted == 1
+        assert app._indicator_tab_count("hitl") == 1
+        assert app._indicator_tab_count(None) == 1
+        assert app._indicator_tab_count(MUTED_TAB_KEY) == 1
         assert app._last_unread_ids == {priority.id, rest.id}

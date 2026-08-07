@@ -18,6 +18,7 @@ import sase.ace.tui.actions.agents._loading_disk as loading_disk
 import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
 from sase.ace.testing import AcePage
 from sase.ace.tui.app import AceApp
+from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
 from sase.ace.tui.modals.prompt_history_modal import PromptHistoryModal
 from sase.ace.tui.modals.revive_agent_modal import DismissedAgentSelectModal
 from sase.history.prompt_catalog import PromptHistoryPage
@@ -277,14 +278,14 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
 
     def slow_startup_read(
         _self: AceApp,
-    ) -> tuple[set[str], set[tuple[str, str]], int, int, int]:
+    ) -> tuple[set[str], set[tuple[str, str]], list[NotificationTagTab]]:
         with watchdog_windows.record(
             "startup",
             stack_markers=("_read_notifications_for_startup", "slow_startup_read"),
         ):
             startup_started.set()
             startup_release.wait(timeout=5.0)
-        return set(), set(), 0, 0, 0
+        return set(), set(), []
 
     monkeypatch.setattr(
         AceApp,

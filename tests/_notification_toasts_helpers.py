@@ -10,6 +10,12 @@ from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.actions.agents._notifications import AgentNotificationMixin
+from sase.ace.tui.modals.notification_modal_tags import (
+    MUTED_TAB_KEY,
+    NotificationTagTab,
+    SNOOZED_TAB_KEY,
+)
+from sase.core.notification_store_facade import classify_notification_tabs
 from sase.core.notification_store_wire import (
     NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
     _NotificationCountsWire,
@@ -61,10 +67,8 @@ class _FakeApp(LifecycleMixin, AgentNotificationMixin):
         self._agent_pre_question_status = {}
         self.notify = MagicMock()  # type: ignore[assignment]
         self._bell_rung = 0
-        self._indicator_priority: int | None = None
-        self._indicator_rest: int | None = None
+        self._indicator_tabs: list[NotificationTagTab] = []
         self._indicator_count: int | None = None
-        self._indicator_muted: int | None = None
         self._auto_dismissed_notification_ids: set[str] = set()
 
     def _ring_tmux_bell(self) -> None:  # type: ignore[override]
@@ -80,19 +84,23 @@ class _FakeApp(LifecycleMixin, AgentNotificationMixin):
         del unread
         return set(self._auto_dismissed_notification_ids)
 
+    def _indicator_tab_count(self, tag: str | None) -> int:
+        """Return the count the indicator was last handed for one panel tab."""
+        return sum(tab.count for tab in self._indicator_tabs if tab.tag == tag)
+
     def query_one(self, *args: Any, **kwargs: Any) -> Any:
         del args, kwargs
 
-        def _set_counts(priority: int, rest: int, muted: int) -> None:
-            self._indicator_priority = priority
-            self._indicator_rest = rest
-            self._indicator_count = priority + rest
-            self._indicator_muted = muted
+        def _set_tabs(tabs: Any) -> None:
+            self._indicator_tabs = list(tabs)
+            # What the badge would show: the deferred tabs never contribute.
+            self._indicator_count = sum(
+                tab.count
+                for tab in self._indicator_tabs
+                if tab.tag not in (MUTED_TAB_KEY, SNOOZED_TAB_KEY)
+            )
 
-        return SimpleNamespace(
-            set_count=lambda c: setattr(self, "_indicator_count", c),
-            set_counts=_set_counts,
-        )
+        return SimpleNamespace(set_tabs=_set_tabs)
 
 
 def _snapshot(
@@ -118,10 +126,16 @@ def _snapshot(
         rest=rest_count,
         muted=muted_count,
     )
+    # The real store classifies the same rows it counts, skipping read and
+    # silent ones; mirror that here so the fixture cannot drift from it.
+    classification = classify_notification_tabs(
+        [n for n in notifications if not n.read and not n.silent]
+    )
     return NotificationStoreSnapshotWire(
         schema_version=NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
         notifications=list(notifications),
         counts=counts,
+        tabs=list(classification.tabs),
         expired_ids=expired_ids or [],
         next_snooze_deadline=next_snooze_deadline,
     )

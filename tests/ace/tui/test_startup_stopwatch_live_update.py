@@ -20,6 +20,7 @@ import pytest
 from sase.ace.tui.actions.axe_display._data import AxeCollectedData
 from sase.ace.tui.actions.changespec import ChangeSpecMixin
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
+from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
 from sase.ace.tui.app import AceApp
 from sase.ace.testing import AcePage
 
@@ -79,8 +80,8 @@ def test_read_unread_notification_ids_returns_set() -> None:
     assert result == {"c"}
 
 
-def test_read_notifications_for_startup_uses_snapshot_counts() -> None:
-    """Startup indicator counts come from the Rust-backed snapshot counts."""
+def test_read_notifications_for_startup_uses_snapshot_tabs() -> None:
+    """Startup indicator chips come from the Rust-backed snapshot tabs."""
     mixin = LifecycleMixin.__new__(LifecycleMixin)
     timestamp = "2026-08-01T09:00:00-04:00"
     n_priority = MagicMock(
@@ -102,14 +103,44 @@ def test_read_notifications_for_startup_uses_snapshot_counts() -> None:
     snapshot = SimpleNamespace(
         notifications=[n_priority, n_muted],
         counts=SimpleNamespace(priority=7, errors=4, rest=3, muted=2),
+        tabs=[
+            SimpleNamespace(
+                key="hitl",
+                kind="hitl",
+                count=7,
+                oldest_activity_at=timestamp,
+                next_wake_at=None,
+                color=None,
+            ),
+            SimpleNamespace(
+                key="__muted__",
+                kind="muted",
+                count=2,
+                oldest_activity_at=None,
+                next_wake_at=None,
+                color=None,
+            ),
+        ],
     )
     with patch("sase.notifications.read_notification_snapshot", return_value=snapshot):
         assert mixin._read_notifications_for_startup() == (
             {"a"},
             {(timestamp, "a")},
-            11,
-            3,
-            2,
+            [
+                NotificationTagTab(
+                    tag="hitl",
+                    label="HITL",
+                    count=7,
+                    kind="hitl",
+                    oldest_activity_at=timestamp,
+                ),
+                NotificationTagTab(
+                    tag="__muted__",
+                    label="Muted",
+                    count=2,
+                    kind="muted",
+                ),
+            ],
         )
 
 
@@ -206,10 +237,10 @@ async def test_slow_mount_state_read_does_not_block_app_key_dispatch(
 
     def slow_notifications(
         _self: AceApp,
-    ) -> tuple[set[str], set[tuple[str, str]], int, int, int]:
+    ) -> tuple[set[str], set[tuple[str, str]], list[NotificationTagTab]]:
         started.set()
         release.wait()
-        return set(), set(), 0, 0, 0
+        return set(), set(), []
 
     monkeypatch.setattr(AceApp, "_read_notifications_for_startup", slow_notifications)
 

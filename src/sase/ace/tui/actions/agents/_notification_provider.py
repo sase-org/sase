@@ -118,6 +118,7 @@ def _read_notification_counts_for_tui(
     return _DirectReadResult(
         value=notification_count_snapshot_from_counts(
             counts_mapping(direct.counts),
+            tabs=direct.tabs,
             provider_source="direct",
             prefers_daemon=False,
             fallback_reason=None,

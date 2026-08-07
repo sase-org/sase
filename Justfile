@@ -271,11 +271,8 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-gn.3(default_notification_tab_color)' \
-        --epic-symbol 'sase-gn.3(notification_indicator_max_counts)' \
         --epic-symbol 'sase-gn.3(notification_tab_config_key)' \
         --epic-symbol 'sase-gn.3(notification_tab_key)' \
-        --epic-symbol 'sase-gn.3(notification_tab_label)' \
-        --epic-symbol 'sase-gn.3(resolve_notification_tab_color)' \
         --epic-symbol 'sase-gn.7(wake_due_snoozes)' \
         {{ args }}
 

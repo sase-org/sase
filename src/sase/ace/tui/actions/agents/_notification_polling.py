@@ -142,11 +142,10 @@ class AgentNotificationPollingMixin:
 
         from ...widgets import NotificationIndicator
 
-        counts = snapshot.counts
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
+        indicator.set_tabs(snapshot.tabs)
 
         # Muting quiets the indicator; it should not break agent lifecycle state.
         auto_dismissed_ids = self._apply_notification_status_overrides(
@@ -204,7 +203,7 @@ class AgentNotificationPollingMixin:
         from ...widgets import NotificationIndicator
 
         count_snapshot = self._read_notification_counts_from_provider()
-        counts = count_snapshot.counts
+        tabs = count_snapshot.tabs
 
         if not getattr(self, "_notification_provider_used_daemon", False):
             snapshot = self._read_notification_snapshot_from_provider()
@@ -212,7 +211,7 @@ class AgentNotificationPollingMixin:
             unread_priority, unread_errors, unread_rest, _ = (
                 unread_notification_buckets(snapshot.notifications)
             )
-            counts = snapshot.counts
+            tabs = snapshot.tabs
             self._last_unread_ids = {
                 n.id for n in unread_priority + unread_errors + unread_rest
             }
@@ -232,7 +231,7 @@ class AgentNotificationPollingMixin:
             )
         except Exception:
             return
-        indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
+        indicator.set_tabs(tabs)
         self._reconcile_unread_from_cached_notifications()
 
     async def _refresh_notification_count_async(self: Any) -> None:
@@ -248,7 +247,7 @@ class AgentNotificationPollingMixin:
             count_snapshot = await asyncio.to_thread(
                 self._read_notification_counts_from_provider
             )
-            counts = count_snapshot.counts
+            tabs = count_snapshot.tabs
 
             if not getattr(self, "_notification_provider_used_daemon", False):
                 snapshot = await asyncio.to_thread(
@@ -258,7 +257,7 @@ class AgentNotificationPollingMixin:
                 unread_priority, unread_errors, unread_rest, _ = (
                     unread_notification_buckets(snapshot.notifications)
                 )
-                counts = snapshot.counts
+                tabs = snapshot.tabs
                 self._last_unread_ids = {
                     n.id for n in unread_priority + unread_errors + unread_rest
                 }
@@ -278,11 +277,7 @@ class AgentNotificationPollingMixin:
                 )
             except Exception:
                 return
-            indicator.set_counts(
-                counts.priority + counts.errors,
-                counts.rest,
-                counts.muted,
-            )
+            indicator.set_tabs(tabs)
             self._reconcile_unread_from_cached_notifications()
         finally:
             # Keep the coalescing guard armed across both awaits. Under

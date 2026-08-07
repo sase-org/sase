@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 from sase.notifications.models import Notification
 
@@ -25,6 +25,9 @@ from ._notification_provider_models import (
     AceNotificationPendingActions,
     AceNotificationSnapshot,
 )
+
+if TYPE_CHECKING:
+    from ...modals.notification_modal_tags import NotificationTagTab
 
 
 def apply_notification_count_delta(
@@ -99,6 +102,7 @@ def notification_snapshot_with_shared_metadata(
     return AceNotificationSnapshot(
         notifications=snapshot.notifications,
         counts=snapshot.counts,
+        tabs=snapshot.tabs,
         expired_ids=snapshot.expired_ids,
         next_snooze_deadline=snapshot.next_snooze_deadline,
         shared_snapshot=shared_snapshot,
@@ -108,6 +112,7 @@ def notification_snapshot_with_shared_metadata(
 def notification_count_snapshot_from_counts(
     counts: Mapping[str, Any],
     *,
+    tabs: Sequence[NotificationTagTab] = (),
     provider_source: str,
     prefers_daemon: bool,
     fallback_reason: str | None,
@@ -144,6 +149,7 @@ def notification_count_snapshot_from_counts(
     trace_provider_snapshot(shared_snapshot)
     return AceNotificationCountSnapshot(
         counts=normalized,
+        tabs=list(tabs),
         shared_snapshot=shared_snapshot,
     )
 

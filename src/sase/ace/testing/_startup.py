@@ -8,6 +8,7 @@ from unittest.mock import patch
 import sase.notifications as _notifications
 from sase.ace.tui import AceApp
 from sase.ace.tui.actions.agents import _loading as _agent_loading
+from sase.ace.tui.actions.lifecycle import NotificationStartupState
 from sase.ace.tui.modals import plugins_browser_pane as _plugins_browser_pane
 from sase.ace.tui.modals import project_inventory_panes as _project_inventory_panes
 from sase.ace.tui.util import stall_watchdog as _stall_watchdog
@@ -43,13 +44,7 @@ def _noop_startup_service(*_args: Any, **_kwargs: Any) -> None:
 async def _run_fast_mount_state_loads(app: AceApp) -> None:
     """Install deterministic mount state without reading the host filesystem."""
     try:
-        notification_state: tuple[set[str], set[tuple[str, str]], int, int, int] = (
-            set(),
-            set(),
-            0,
-            0,
-            0,
-        )
+        notification_state: NotificationStartupState = (set(), set(), [])
         if (
             _notifications.read_notification_snapshot
             is not _ORIGINAL_READ_NOTIFICATION_SNAPSHOT
