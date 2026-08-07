@@ -17,6 +17,7 @@ from sase.ace.tui.util.selection import (
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 
 from .config_center_session import ProjectsSessionState
+from .pane_entry_jump import PaneEntryJumpMixin, apply_jump_hint_prefix
 from .project_management_rendering import (
     ProjectInventoryCounts,
     detail_text,
@@ -31,7 +32,7 @@ else:
     _MixinBase = object
 
 
-class ProjectListControllerMixin(_MixinBase):
+class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
     """Coordinate the filterable project list and its detail panel."""
 
     if TYPE_CHECKING:
@@ -52,6 +53,7 @@ class ProjectListControllerMixin(_MixinBase):
         def action_default_project_action(self) -> None: ...
 
     def _apply_filters(self) -> None:
+        previous_identities = [record.project_name for record in self._filtered_records]
         text_filter = self._text_filter.casefold().strip()
         rows: list[ProjectRecordWire] = []
         for record in self._records:
@@ -72,6 +74,13 @@ class ProjectListControllerMixin(_MixinBase):
                     continue
             rows.append(record)
         self._filtered_records = rows
+        # Rule 5: a rebuilt row set can strand hints (and, when the rows are no
+        # longer the same projects, back-stack indices) from an active jump.
+        self.invalidate_jump_hints(
+            identities_changed=previous_identities
+            != [record.project_name for record in rows],
+            target_count=len(rows),
+        )
 
     def _create_options(self, records: list[ProjectRecordWire]) -> list[Option]:
         if not records:
@@ -82,9 +91,14 @@ class ProjectListControllerMixin(_MixinBase):
             )
             return [Option(Text(message, style="dim"), id="empty")]
         return [
-            Option(self._record_label(record), id=record.project_name)
-            for record in records
+            Option(self._jump_decorated_label(index, record), id=record.project_name)
+            for index, record in enumerate(records)
         ]
+
+    def _jump_decorated_label(self, index: int, record: ProjectRecordWire) -> Text:
+        label = self._record_label(record)
+        hint = self.jump_hint_for(index)
+        return label if hint is None else apply_jump_hint_prefix(label, hint)
 
     def _counts_for(self, record: ProjectRecordWire) -> ProjectInventoryCounts:
         return self._inventory_counts.get(
@@ -110,7 +124,35 @@ class ProjectListControllerMixin(_MixinBase):
         )
 
     def _hints_text(self) -> str:
-        return hints_text(self._marked_projects)
+        return hints_text(
+            self._marked_projects,
+            jump_active=self.jump_mode_active,
+            jump_back=bool(self.jump_back_stack),
+        )
+
+    def _jump_target_count(self) -> int:
+        return len(self._filtered_records)
+
+    def _jump_current_index(self) -> int | None:
+        try:
+            highlighted = self.query_one(
+                f"#{self._option_list_id}", OptionList
+            ).highlighted
+        except Exception:
+            return None
+        if highlighted is None or not (0 <= highlighted < len(self._filtered_records)):
+            return None
+        return highlighted
+
+    def _jump_select_index(self, index: int) -> None:
+        if not (0 <= index < len(self._filtered_records)):
+            return
+        self._refresh_options(
+            preferred_project=self._filtered_records[index].project_name
+        )
+
+    def _jump_repaint(self) -> None:
+        self._refresh_options()
 
     def _refresh_options(self, *, preferred_project: str | None = None) -> None:
         try:

@@ -36,8 +36,10 @@ from sase.workspace_provider.inventory import (
     collect_workspace_inventory,
 )
 
+from ..actions.navigation.jump_hints import normalize_jump_key
 from .base import FilterInput, OptionListNavigationMixin
 from .config_center_session import SelectionBookmark
+from .pane_entry_jump import PaneEntryJumpMixin, apply_jump_hint_prefix
 from .project_inventory_rendering import (
     repo_column_header_text,
     repo_detail_text,
@@ -99,6 +101,7 @@ class _InventoryFilterInput(FilterInput):
 
 
 class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
+    PaneEntryJumpMixin,
     OptionListNavigationMixin,
     Vertical,
 ):
@@ -111,6 +114,7 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         ("/", "focus_filter", "Filter"),
         ("p", "pick_project", "Pick Project"),
         ("R", "reload_inventory", "Reload"),
+        ("apostrophe", "jump_to_entry", "Jump"),
         Binding("escape", "clear_project_filter", "Clear Project", show=False),
     ]
 
@@ -277,6 +281,9 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         """Run cheap synchronous preparation immediately before worker launch."""
 
     def _apply_filters(self) -> None:
+        previous_identities = [
+            self._record_id(record) for record in self._filtered_records
+        ]
         if self._project_filter is not None:
             scoped = [
                 record
@@ -294,6 +301,13 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
             for record in scoped
             if not needle or needle in self._record_haystack(record).casefold()
         ]
+        # Rule 5: a rebuilt row set can strand hints (and, when the rows are no
+        # longer the same records, back-stack indices) from an active jump.
+        self.invalidate_jump_hints(
+            identities_changed=previous_identities
+            != [self._record_id(record) for record in self._filtered_records],
+            target_count=len(self._filtered_records),
+        )
 
     def _create_options(self) -> list[Option]:
         if not self._filtered_records:
@@ -307,9 +321,17 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
                 message = f"No registered {self._prefix}"
             return [Option(Text(message, style="dim"), id="empty")]
         return [
-            Option(self._record_label(record), id=self._record_id(record))
-            for record in self._filtered_records
+            Option(
+                self._jump_decorated_label(index, record),
+                id=self._record_id(record),
+            )
+            for index, record in enumerate(self._filtered_records)
         ]
+
+    def _jump_decorated_label(self, index: int, record: RecordT) -> Text:
+        label = self._record_label(record)
+        hint = self.jump_hint_for(index)
+        return label if hint is None else apply_jump_hint_prefix(label, hint)
 
     def _refresh_options(self, *, preferred_id: str | None = None) -> None:
         try:
@@ -454,10 +476,54 @@ class _InventoryPaneBase[RecordT, IssueT: _InventoryIssue](
         self._schedule_detail_update()
 
     def on_key(self, event: events.Key) -> None:
-        if event.key == "escape" and self._project_filter is not None:
+        if self._filter_has_focus():
+            return
+        if self.jump_mode_active:
+            key = normalize_jump_key(event.key, event.character)
+            if self.handle_jump_key(key):
+                event.prevent_default()
+                event.stop()
+                return
+        if event.key == "apostrophe":
+            event.stop()
+            event.prevent_default()
+            self.action_jump_to_entry()
+        elif event.key == "escape" and self._project_filter is not None:
             event.stop()
             event.prevent_default()
             self.action_clear_project_filter()
+
+    def _filter_has_focus(self) -> bool:
+        try:
+            return self.query_one(
+                f"#{self._prefix}-filter", _InventoryFilterInput
+            ).has_focus
+        except Exception:
+            return False
+
+    def _jump_target_count(self) -> int:
+        return len(self._filtered_records)
+
+    def _jump_current_index(self) -> int | None:
+        try:
+            highlighted = self.query_one(
+                f"#{self._option_list_id}", OptionList
+            ).highlighted
+        except Exception:
+            return None
+        if highlighted is None or not (0 <= highlighted < len(self._filtered_records)):
+            return None
+        return highlighted
+
+    def _jump_select_index(self, index: int) -> None:
+        if not (0 <= index < len(self._filtered_records)):
+            return
+        self._refresh_options(
+            preferred_id=self._record_id(self._filtered_records[index])
+        )
+
+    def _jump_repaint(self) -> None:
+        self._refresh_options()
 
     def action_focus_filter(self) -> None:
         self.query_one(f"#{self._prefix}-filter", _InventoryFilterInput).focus()
@@ -560,7 +626,11 @@ class RepoInventoryPane(_InventoryPaneBase[RepoRecord, RepoInventoryIssue]):
         return repo_detail_text(record, issues=self._issues_for(record))
 
     def _hints_text(self) -> str:
-        return repo_hints_text(project_filtered=self._project_filter is not None)
+        return repo_hints_text(
+            project_filtered=self._project_filter is not None,
+            jump_active=self.jump_mode_active,
+            jump_back=bool(self.jump_back_stack),
+        )
 
     def _record_id(self, record: RepoRecord) -> str:
         return f"{record.project_key}:{record.kind}:{record.name}:{record.path}"
@@ -638,7 +708,11 @@ class WorkspaceInventoryPane(
         )
 
     def _hints_text(self) -> str:
-        return workspace_hints_text(project_filtered=self._project_filter is not None)
+        return workspace_hints_text(
+            project_filtered=self._project_filter is not None,
+            jump_active=self.jump_mode_active,
+            jump_back=bool(self.jump_back_stack),
+        )
 
     def _record_id(self, record: WorkspaceInventoryRecord) -> str:
         return f"{record.project_key}:{record.workspace_num}:{record.checkout_dir}"

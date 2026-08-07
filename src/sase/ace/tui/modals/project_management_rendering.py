@@ -168,11 +168,21 @@ def summary_text(
     return text
 
 
-def hints_text(marked_projects: set[str]) -> str:
+def hints_text(
+    marked_projects: set[str],
+    *,
+    jump_active: bool = False,
+    jump_back: bool = False,
+) -> str:
     """Return the one-line Projects sub-tab key hints."""
 
+    if jump_active:
+        return f"JUMP ' {'back' if jump_back else 'first'}  <esc> cancel"
+    # This line already overflows 120 columns, so the leading segments are
+    # kept short enough that adding ' jump displaces nothing that used to be
+    # visible.
     base = (
-        "j/k navigate  / filter  [ / ] sub-tab  Enter highlighted  "
+        "j/k move  ' jump  / filter  [ / ] sub-tab  Enter enable  "
         "r repos  w workspaces  m mark  u unmark all  e edit  A aliases  "
         "a enable  d disable  "
         "Ctrl+D delete  F force after block  R reload"

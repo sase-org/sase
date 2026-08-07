@@ -23,8 +23,10 @@ from sase.main.project_handler import (
     set_project_state_locked,
 )
 
+from ..actions.navigation.jump_hints import normalize_jump_key
 from .base import FilterInput, OptionListNavigationMixin
 from .config_center_session import ProjectsSessionState, ProjectsSubTab
+from .pane_entry_jump import PaneEntryJumpMixin
 from .inventory_project_picker import (
     InventoryProjectChoice,
     InventoryProjectPicker,
@@ -117,10 +119,12 @@ class ProjectsPane(
         ("R", "reload_projects", "Reload"),
         ("r", "show_project_repos", "Project Repos"),
         ("w", "show_project_workspaces", "Project Workspaces"),
+        ("apostrophe", "jump_to_entry", "Jump"),
     ]
 
     _PROJECT_ONLY_ACTIONS = frozenset(
         {
+            "jump_to_entry",
             "next_option",
             "prev_option",
             "focus_filter",
@@ -225,6 +229,28 @@ class ProjectsPane(
         if self._active_subtab != "projects" and action in self._PROJECT_ONLY_ACTIONS:
             return False
         return super().check_action(action, parameters)
+
+    def on_key(self, event: events.Key) -> None:
+        """Drive hint jump mode over the projects sub-tab's own rows."""
+
+        if self._active_subtab != "projects" or self._filter_has_focus():
+            return
+        if self.jump_mode_active:
+            key = normalize_jump_key(event.key, event.character)
+            if self.handle_jump_key(key):
+                event.prevent_default()
+                event.stop()
+                return
+        if event.key == "apostrophe":
+            event.prevent_default()
+            event.stop()
+            self.action_jump_to_entry()
+
+    def _filter_has_focus(self) -> bool:
+        try:
+            return self.query_one("#projects-filter", _ProjectsFilterInput).has_focus
+        except Exception:
+            return False
 
     def focus_default(self) -> None:
         """Focus the active sub-tab's browse surface."""
@@ -404,7 +430,21 @@ class ProjectsPane(
             on_picked,
         )
 
+    def _exit_subtab_jump_modes(self) -> None:
+        """Drop any painted hints so a sub-tab switch cannot strand them."""
+
+        panes: list[PaneEntryJumpMixin] = [self]
+        try:
+            panes.append(self.query_one(RepoInventoryPane))
+            panes.append(self.query_one(WorkspaceInventoryPane))
+        except Exception:
+            pass
+        for pane in panes:
+            if pane.jump_mode_active:
+                pane.exit_jump_mode()
+
     def _switch_to_subtab(self, subtab: ProjectsSubTab) -> None:
+        self._exit_subtab_jump_modes()
         self._active_subtab = subtab
         self._session_state.active_subtab = subtab
         try:

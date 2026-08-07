@@ -173,13 +173,18 @@ def repo_detail_text(
     return text
 
 
-def repo_hints_text(*, project_filtered: bool) -> str:
+def repo_hints_text(
+    *,
+    project_filtered: bool,
+    jump_active: bool = False,
+    jump_back: bool = False,
+) -> str:
     """Return one-line key hints for the repository inventory."""
 
-    escape = "  Esc clear project" if project_filtered else ""
-    return (
-        "j/k navigate  / filter  p pick project  [ / ] sub-tab  R reload"
-        f"{escape}  Tab/Shift+Tab switch tab   q close"
+    return _inventory_hints_text(
+        project_filtered=project_filtered,
+        jump_active=jump_active,
+        jump_back=jump_back,
     )
 
 
@@ -355,12 +360,34 @@ def workspace_detail_text(
     return text
 
 
-def workspace_hints_text(*, project_filtered: bool) -> str:
+def workspace_hints_text(
+    *,
+    project_filtered: bool,
+    jump_active: bool = False,
+    jump_back: bool = False,
+) -> str:
     """Return one-line key hints for the workspace inventory."""
 
+    return _inventory_hints_text(
+        project_filtered=project_filtered,
+        jump_active=jump_active,
+        jump_back=jump_back,
+    )
+
+
+def _inventory_hints_text(
+    *,
+    project_filtered: bool,
+    jump_active: bool,
+    jump_back: bool,
+) -> str:
+    """Return the shared one-line hints both inventory sub-tabs render."""
+
+    if jump_active:
+        return f"JUMP ' {'back' if jump_back else 'first'}  <esc> cancel"
     escape = "  Esc clear project" if project_filtered else ""
     return (
-        "j/k navigate  / filter  p pick project  [ / ] sub-tab  R reload"
+        "j/k navigate  ' jump  / filter  p pick project  [ / ] sub-tab  R reload"
         f"{escape}  Tab/Shift+Tab switch tab   q close"
     )
 
