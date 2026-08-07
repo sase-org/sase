@@ -159,6 +159,21 @@ def test_bead_snooze_preview_omits_absent_optional_snooze_fields() -> None:
     assert "Reason" not in preview
 
 
+def test_bead_snooze_preview_omits_blank_notes_section() -> None:
+    preview = render_bead_snooze_preview(
+        bead_id="sase-task.1",
+        title="Follow up on the cache",
+        description="Make invalidation deterministic.",
+        notes="",
+        snooze=_snooze(),
+    )
+
+    assert preview.startswith("> [!NOTE] **◈ Snoozed by")
+    assert "## Notes" not in preview
+    assert "_No notes._" not in preview
+    assert preview.endswith("## Description\n\nMake invalidation deterministic.\n")
+
+
 def test_bead_snooze_gate_rejects_automatic_resolution(gate_home: Path) -> None:
     del gate_home
     spec = _spec(request_id="bead-snooze-auto")
@@ -243,6 +258,101 @@ def test_bead_snooze_kind_validation_rejects_forged_contracts(
     del gate_home
     spec = deepcopy(_spec(request_id=f"forged-{code}"))
     mutation(spec)
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == code
+
+
+def _preview_resource(spec: dict[str, Any]) -> dict[str, Any]:
+    return next(
+        resource
+        for resource in spec["resources"]
+        if resource["path"] == BEAD_SNOOZE_PREVIEW_PATH
+    )
+
+
+def test_bead_snooze_kind_validation_accepts_blank_notes(gate_home: Path) -> None:
+    del gate_home
+    spec = _spec(request_id="bead-snooze-blank-notes", notes="")
+
+    create_gate(spec)
+
+
+def test_bead_snooze_kind_validation_accepts_legacy_no_notes_placeholder(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = _spec(
+        request_id="bead-snooze-legacy-notes",
+        description="D",
+        notes="",
+        created_by="",
+        created_at="",
+    )
+    preview_resource = _preview_resource(spec)
+    assert preview_resource["content"].endswith("## Description\n\nD\n")
+    preview_resource["content"] = preview_resource["content"].replace(
+        "## Description\n\nD\n",
+        "## Description\n\nD\n\n## Notes\n\n_No notes._\n",
+    )
+
+    create_gate(spec)
+
+
+def test_bead_snooze_kind_validation_accepts_description_containing_notes_marker_text(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = _spec(
+        request_id="bead-snooze-desc-embeds-separator",
+        description="Intro line.\n\n## Notes\n\n  indented continuation.",
+        notes="",
+    )
+
+    create_gate(spec)
+
+
+def _blank_notes_spec_with_evidence(*, request_id: str) -> dict[str, Any]:
+    evidence = TaskPlusOneEvidence(
+        timestamp="2026-08-01T15:00:00Z",
+        reporter="agent.beta",
+        note="Reproduced after clearing the cache.",
+    )
+    return _spec(
+        request_id=request_id,
+        notes="",
+        size="medium",
+        plus_one_evidence=(evidence,),
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "mutate_preview", "code"),
+    [
+        (
+            "appended-heading",
+            lambda content: content + "\n\n## Injected\n\nGotcha.\n",
+            "invalid_bead_snooze_preview",
+        ),
+        (
+            "size-mismatch",
+            lambda content: content.replace("`medium`", "`large`"),
+            "invalid_bead_snooze_preview",
+        ),
+    ],
+)
+def test_bead_snooze_kind_validation_rejects_blank_notes_preview_injection(
+    gate_home: Path,
+    label: str,
+    mutate_preview: Any,
+    code: str,
+) -> None:
+    del gate_home
+    spec = deepcopy(_blank_notes_spec_with_evidence(request_id=f"forged-blank-{label}"))
+    preview_resource = _preview_resource(spec)
+    preview_resource["content"] = mutate_preview(preview_resource["content"])
 
     with pytest.raises(GateError) as exc_info:
         create_gate(spec)

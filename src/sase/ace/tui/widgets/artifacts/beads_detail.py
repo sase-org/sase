@@ -151,7 +151,7 @@ def bead_body_markdown(
     lines.extend(_close_history_markdown(issue))
     lines.extend(["## Description", "", issue.description or "_No description._"])
     lines.extend(_plus_one_evidence_markdown(issue))
-    if issue.notes:
+    if issue.notes.strip():
         lines.extend(["", "## Notes", "", issue.notes])
     return "\n".join(lines)
 

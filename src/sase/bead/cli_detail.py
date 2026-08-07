@@ -299,7 +299,7 @@ def render_issue_detail(
                 ),
             ]
         )
-    if issue.notes:
+    if issue.notes.strip():
         lines.extend(
             [
                 "",

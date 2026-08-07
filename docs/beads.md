@@ -1192,12 +1192,12 @@ open.
 sase bead show sase-64 --style rich --color always
 ```
 
-`DESCRIPTION`, `NOTES`, and task `+1 EVIDENCE` notes wrap at 100 total columns by default. The
-budget includes the rendered indent: with `--wrap 60`, no line in a description block exceeds 60
-columns unless it contains a single token that is longer than the budget. Wrapping is break-only:
-short lines are emitted byte-for-byte, existing line breaks are not reflowed into longer paragraphs,
-and `--wrap none` or `--wrap 0` disables wrapping. `--wrap auto` uses the current terminal width,
-floored at 20 columns.
+`DESCRIPTION`, `NOTES`, and task `+1 EVIDENCE` notes wrap at 100 total columns by default; `NOTES`
+appears only when the bead has notes. The budget includes the rendered indent: with `--wrap 60`, no
+line in a description block exceeds 60 columns unless it contains a single token that is longer than
+the budget. Wrapping is break-only: short lines are emitted byte-for-byte, existing line breaks are
+not reflowed into longer paragraphs, and `--wrap none` or `--wrap 0` disables wrapping.
+`--wrap auto` uses the current terminal width, floored at 20 columns.
 
 The wrapper never splits URLs, inline code spans, Markdown links, autolinks, or ordinary
 non-whitespace tokens. Fenced code blocks, indented code, tables, tab-bearing lines, structured

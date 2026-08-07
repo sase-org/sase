@@ -263,7 +263,8 @@ The following events generate notifications:
 The five-minute `bead_task_triage` chop creates one human-only `TaskTriage` gate for each ready task
 bead. Its compact notification note is `<bead-id> — <title>` and it lands in the `Beads` panel while
 retaining the `bead` and `task` tags. The filing agent, when known, appears as a **Filed by** line
-in the Markdown preview above the task's description and notes. The gate offers three branches:
+in the Markdown preview above the task's description and notes; the notes section is present only
+when the bead has notes. The gate offers three branches:
 
 - **Launch** is the default. It submits a detached background task that runs
   `sase bead work <task-id> --yes-to-all`; optional feedback is appended to the worker prompt.
@@ -806,8 +807,9 @@ notification actions:
 feedback and submits or reuses one globally visible detached task whose command is
 `sase bead work <bead-id> --yes-to-all`; the gate response records that background task ID. Close
 requires feedback, closes the task bead with `resolution=canceled`, and uses the feedback as its
-close reason. The gate preview is generated from the bead's title, description, and notes. Automatic
-resolution is forbidden, and all client surfaces use the same host-side side effects.
+close reason. The gate preview is generated from the bead's title, description, and notes, with the
+notes section present only when the bead has notes. Automatic resolution is forbidden, and all
+client surfaces use the same host-side side effects.
 
 Workflow `HITL` remains a legacy producer, but a HITL notification that references a neutral bundle
 is resolved through the same hash-verified executor in ACE and Telegram. Only legacy HITL bundles

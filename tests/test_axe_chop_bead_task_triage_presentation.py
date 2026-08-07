@@ -135,6 +135,18 @@ def test_presentation_fingerprint_covers_the_snooze_record() -> None:
     assert fingerprint != task_triage._presentation_fingerprint(make_task())
 
 
+def test_presentation_fingerprint_covers_the_format_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bumping the format version must refresh every pending gate once."""
+    task = make_task()
+    fingerprint = task_triage._presentation_fingerprint(task)
+
+    monkeypatch.setattr(task_triage, "_PRESENTATION_FORMAT_VERSION", 999)
+
+    assert task_triage._presentation_fingerprint(task) != fingerprint
+
+
 def test_later_plus_one_refreshes_pending_triage_presentation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

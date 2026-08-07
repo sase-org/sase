@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import cast
 
+from sase.notification_gates.kind_validation.preview_recovery import (
+    preview_matches_renderer,
+)
 from sase.notification_gates.kind_validation.resources import read_gate_resource
 from sase.notification_gates.kind_validation.task_triage_payload import (
     TaskTriagePayload,
@@ -195,37 +198,9 @@ def _validate_task_triage_preview(
 
     origin_agent = spec.presentation.get("origin_agent")
     created_by = cast(str, origin_agent or "")
-    description_marker = "__TASK_TRIAGE_DESCRIPTION__"
-    notes_marker = "__TASK_TRIAGE_NOTES__"
-    template = render_task_triage_preview(
-        bead_id=payload.bead_id,
-        title=payload.title,
-        description=description_marker,
-        notes=notes_marker,
-        created_by=created_by,
-        created_at=payload.created_at,
-        size=payload.size,
-        refs=payload.refs,
-        plus_one_evidence=payload.plus_one_evidence,
-        close_history=payload.close_history,
-    )
-    preview_prefix, marker, template_tail = template.partition(description_marker)
-    description_notes_separator, marker_two, preview_suffix = template_tail.partition(
-        notes_marker
-    )
-    preview_body = ""
-    if (
-        marker
-        and marker_two
-        and isinstance(preview_content, str)
-        and preview_content.startswith(preview_prefix)
-        and preview_content.endswith(preview_suffix)
-    ):
-        body_end = len(preview_content) - len(preview_suffix)
-        preview_body = preview_content[len(preview_prefix) : body_end]
-    description, separator, notes = preview_body.partition(description_notes_separator)
-    expected_preview = (
-        render_task_triage_preview(
+
+    def render(description: str, notes: str) -> str:
+        return render_task_triage_preview(
             bead_id=payload.bead_id,
             title=payload.title,
             description=description,
@@ -237,10 +212,14 @@ def _validate_task_triage_preview(
             plus_one_evidence=payload.plus_one_evidence,
             close_history=payload.close_history,
         )
-        if separator
-        else None
+
+    matches = preview_matches_renderer(
+        render=render,
+        description_marker="__TASK_TRIAGE_DESCRIPTION__",
+        notes_marker="__TASK_TRIAGE_NOTES__",
+        preview_content=preview_content,
     )
-    if preview_content != expected_preview:
+    if not matches:
         raise GateError(
             "invalid_task_triage_preview",
             TASK_TRIAGE_PREVIEW_PATH,

@@ -108,7 +108,7 @@ def render_prose_sections(issue: Issue) -> list[str]:
 
     lines: list[str] = []
     for heading, value in (("Description", issue.description), ("Notes", issue.notes)):
-        if not value:
+        if not value.strip():
             continue
         lines.extend(["", f"## {heading}", "", _bounded_prose(value)])
     return lines

@@ -2,7 +2,9 @@
 
 Every renderer here is reconstructed byte for byte by gate validation, so all
 of it is a pure function of persisted fields: absolute instants and stored
-counts, never a recomputed age or a live lookup.
+counts, never a recomputed age or a live lookup. The Notes section is
+conditional: it is omitted entirely when a bead's notes are blank, rather than
+rendered with a placeholder.
 """
 
 from __future__ import annotations
@@ -59,10 +61,13 @@ def render_task_triage_preview(
     later reconstructed byte for byte by gate validation, so a relative age
     would make the gate fail validation as it aged. The same rule governs the
     prior-close callout: every field it renders is a persisted absolute
-    instant, never a recomputed age.
+    instant, never a recomputed age. The Notes section itself is conditional:
+    it is omitted entirely when notes are blank rather than rendered with a
+    placeholder.
     """
     description_text = description.strip() or "_No description._"
-    notes_text = notes.strip() or "_No notes._"
+    notes_text = notes.strip()
+    notes_section = f"\n\n## Notes\n\n{notes_text}" if notes_text else ""
     filer = f"**Filed by:** `@{created_by}`\n\n" if created_by else ""
     created = (
         f"**Created:** {bead_created_label(created_at, relative=False)}\n\n"
@@ -83,8 +88,8 @@ def render_task_triage_preview(
         f"{created}"
         f"{metadata}"
         f"{close_history_section}"
-        f"## Description\n\n{description_text}\n\n"
-        f"## Notes\n\n{notes_text}\n"
+        f"## Description\n\n{description_text}"
+        f"{notes_section}\n"
         f"{evidence_section}"
     )
 

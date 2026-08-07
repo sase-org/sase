@@ -39,6 +39,10 @@ _STATE_SCHEMA_VERSION = 3
 _STATE_FILENAME = "bead_task_triage.json"
 _LOCK_FILENAME = "bead_task_triage.lock"
 
+# Bumped whenever a gate preview or notification-note renderer changes shape, so
+# the reconciler replaces pending gates still advertising the superseded one.
+_PRESENTATION_FORMAT_VERSION = 2
+
 _GateState = Literal["pending", "terminal", "missing"]
 
 _GATEABLE_STATUSES = (Status.READY, Status.SNOOZED)
@@ -221,10 +225,18 @@ def _presentation_fingerprint(issue: Issue) -> str:
     The snooze record is part of it because both the wake gate's notification
     note and its preview render the wake conditions: a re-snooze must replace
     the pending gate rather than leave it advertising the old wake time.
+
+    ``_PRESENTATION_FORMAT_VERSION`` is folded in too, even though it is not a
+    bead field: it hashes the renderers' *inputs*, not their output, so a pure
+    format change (like omitting a blank Notes section) does not otherwise
+    change the fingerprint. Bump the constant whenever a preview or
+    notification-note renderer's output shape changes, so every pending gate
+    is cancelled and recreated against the new shape on the next chop tick.
     """
 
     snooze = issue.snooze
     payload = {
+        "format_version": _PRESENTATION_FORMAT_VERSION,
         "status": issue.status.value,
         "snooze": (
             None

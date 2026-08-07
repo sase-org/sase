@@ -8,6 +8,9 @@ from sase.notification_gates.kind_validation.bead_snooze_payload import (
     BeadSnoozePayload,
     parse_bead_snooze_payload,
 )
+from sase.notification_gates.kind_validation.preview_recovery import (
+    preview_matches_renderer,
+)
 from sase.notification_gates.kind_validation.resources import read_gate_resource
 from sase.notification_gates.models import GateError, GateSpec
 
@@ -194,8 +197,6 @@ def _validate_bead_snooze_preview(
     task = payload.task
     origin_agent = spec.presentation.get("origin_agent")
     created_by = cast(str, origin_agent or "")
-    description_marker = "__BEAD_SNOOZE_DESCRIPTION__"
-    notes_marker = "__BEAD_SNOOZE_NOTES__"
 
     def render(description: str, notes: str) -> str:
         return render_bead_snooze_preview(
@@ -212,24 +213,13 @@ def _validate_bead_snooze_preview(
             close_history=task.close_history,
         )
 
-    template = render(description_marker, notes_marker)
-    preview_prefix, marker, template_tail = template.partition(description_marker)
-    description_notes_separator, marker_two, preview_suffix = template_tail.partition(
-        notes_marker
+    matches = preview_matches_renderer(
+        render=render,
+        description_marker="__BEAD_SNOOZE_DESCRIPTION__",
+        notes_marker="__BEAD_SNOOZE_NOTES__",
+        preview_content=preview_content,
     )
-    preview_body = ""
-    if (
-        marker
-        and marker_two
-        and isinstance(preview_content, str)
-        and preview_content.startswith(preview_prefix)
-        and preview_content.endswith(preview_suffix)
-    ):
-        body_end = len(preview_content) - len(preview_suffix)
-        preview_body = preview_content[len(preview_prefix) : body_end]
-    description, separator, notes = preview_body.partition(description_notes_separator)
-    expected_preview = render(description, notes) if separator else None
-    if preview_content != expected_preview:
+    if not matches:
         raise GateError(
             "invalid_bead_snooze_preview",
             BEAD_SNOOZE_PREVIEW_PATH,
