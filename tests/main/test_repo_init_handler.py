@@ -214,7 +214,7 @@ def test_legacy_list_sidecar_config_is_refused_with_a_migration_error(
     update = explicit_sidecar_config_update(config_path)
 
     assert update.error is not None
-    assert "deprecated list form" in update.error
+    assert "removed list form" in update.error
     assert "builtin/custom" in update.error
     assert update.changed is False
 

@@ -141,7 +141,7 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
                 config_path,
                 current_text,
                 current_text,
-                f"{config_path}: repos.sidecar is the deprecated list form; migrate "
+                f"{config_path}: repos.sidecar is the removed list form; migrate "
                 f"it to the {SIDECAR_BUILTIN_CONFIG_KEY}/{SIDECAR_CUSTOM_CONFIG_KEY} "
                 "mapping (run `sase doctor` for the per-entry bucket) before "
                 "running a config-writing init command",
