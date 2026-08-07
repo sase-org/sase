@@ -16,12 +16,13 @@ import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
-import emoji
 import pytest
 
 from tests.ace.tui.visual._glyph_audit import bundled_codepoints, render_ink
 
 pytestmark = pytest.mark.visual
+
+emoji = pytest.importorskip("emoji")
 
 _SRC_ROOT = Path(__file__).resolve().parents[4] / "src" / "sase"
 
