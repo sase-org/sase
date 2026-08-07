@@ -385,6 +385,72 @@ def test_omitted_target_with_several_pending_is_a_reasoned_miss(
     assert "multiple pending plan proposals" in result.reason
 
 
+def test_omitted_target_without_a_plan_file_is_a_reasoned_miss(tmp_path: Path) -> None:
+    """A proposal recording no plan file misses instead of asserting.
+
+    The selector rung already declines this notification shape; the
+    omitted-``TARGET`` path used to reach a bare ``assert`` on it.
+    """
+    sdd_root, plans_root, local_root = _roots(tmp_path)
+    append_notification(
+        Notification(
+            id="abcdef120001",
+            timestamp=datetime.now(get_timezone()).isoformat(),
+            sender="plan",
+            files=[],
+            action="PlanApproval",
+            action_data={
+                "response_dir": "/tmp/resp",
+                "agent_cl_name": "demo-cl",
+                "agent_name": "planner",
+            },
+        )
+    )
+
+    result = _resolve(
+        None,
+        sdd_root=sdd_root,
+        plans_root=plans_root,
+        local_root=local_root,
+        cwd=tmp_path,
+    )
+
+    assert isinstance(result, PlanShowMiss)
+    assert result.reason is not None
+    assert "abcdef12" in result.reason
+    assert "no plan file" in result.reason
+
+
+def test_omitted_target_resolves_when_the_proposal_row_vanishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Losing the proposal row mid-resolution drops context, not the plan.
+
+    Visibility is re-derived from live agents on every read, so the row can be
+    gone by the time the approval context is looked up.
+    """
+    sdd_root, plans_root, local_root = _roots(tmp_path)
+    plan_path = plans_root / "202608" / "proposed.md"
+    _write_plan(plan_path)
+    _append_plan_notification("abcdef120001", plan_path)
+    monkeypatch.setattr(
+        "sase.plan_show.resolve.collect_proposed_plans",
+        lambda **_kwargs: (),
+    )
+
+    result = _resolve(
+        None,
+        sdd_root=sdd_root,
+        plans_root=plans_root,
+        local_root=local_root,
+        cwd=tmp_path,
+    )
+
+    assert isinstance(result, PlanShowRecord)
+    assert result.target.kind == "proposal"
+    assert result.proposal is None
+
+
 # --- name rung -------------------------------------------------------------
 
 

@@ -132,7 +132,16 @@ def _resolve_omitted_target(
     except PlanApprovalActionError as exc:
         return PlanShowMiss(target="", reason=str(exc))
     plan_path = _notification_plan_path(notification)
-    assert plan_path is not None
+    if plan_path is None:
+        # The selector rung already degrades on this notification shape; the
+        # omitted-TARGET path must too rather than assert its way out.
+        return PlanShowMiss(
+            target="",
+            reason=(
+                f"pending plan proposal {notification.id[:PENDING_ACTION_PREFIX_LEN]} "
+                "records no plan file"
+            ),
+        )
     return load_plan_show_record(
         Path(plan_path),
         target=PlanShowTarget(raw=None, kind="proposal", status="exact"),
@@ -332,12 +341,20 @@ def _notification_plan_path(notification: Notification) -> str | None:
     return next((value for value in candidates if value), None)
 
 
-def _proposal_context(notification: Notification) -> PlanShowProposal:
+def _proposal_context(notification: Notification) -> PlanShowProposal | None:
+    # Visibility is re-derived from live agents on every read, so the proposal
+    # row can be gone by the time it is looked up. The plan itself still
+    # resolved; drop the approval context rather than raise ``StopIteration``.
     proposed = next(
-        row
-        for row in collect_proposed_plans(display_roots=display_path_roots())
-        if row.notification_id == notification.id
+        (
+            row
+            for row in collect_proposed_plans(display_roots=display_path_roots())
+            if row.notification_id == notification.id
+        ),
+        None,
     )
+    if proposed is None:
+        return None
     return PlanShowProposal(
         id=proposed.notification_id,
         id_prefix=proposed.id_prefix,
