@@ -16,10 +16,11 @@ def test_config_schema_accepts_ace_notification_tab_settings() -> None:
         {
             "ace": {
                 "notification_tabs": {
-                    "hitl": {"color": "#FF8700"},
+                    "hitl": {"color": "#FF8700", "icon": "⚑"},
                     "snoozed": {"color": "#6c6c6c"},
-                    "my-tag.1": {"color": ""},
+                    "my-tag.1": {"color": "", "icon": ""},
                     "beads": {},
+                    "deployments": {"icon": "🚀"},
                 },
                 "notification_indicator_max_counts": 6,
             }
@@ -52,6 +53,8 @@ def test_the_bundled_defaults_validate_against_the_schema() -> None:
         {"hitl": {"color": "FFFFFF"}},
         {"hitl": {"color": "gold"}},
         {"hitl": {"color": 7}},
+        {"hitl": {"icon": 7}},
+        {"hitl": {"icon": "x" * 33}},
         {"hitl": {"unknown": True}},
         {"hitl": False},
     ],

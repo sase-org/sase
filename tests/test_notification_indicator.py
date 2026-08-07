@@ -28,13 +28,13 @@ def _no_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Start every test from an empty ``ace`` block, cached per test."""
     _use_config(monkeypatch, {})
     yield
-    notification_tab_style._configured_tab_colors_for_token.cache_clear()
+    notification_tab_style._configured_tab_styles_for_token.cache_clear()
     notification_tab_style._indicator_max_counts_for_token.cache_clear()
 
 
 def _use_config(monkeypatch: pytest.MonkeyPatch, ace: dict[str, Any]) -> None:
     """Point the resolver at *ace* with a token that busts its own cache."""
-    notification_tab_style._configured_tab_colors_for_token.cache_clear()
+    notification_tab_style._configured_tab_styles_for_token.cache_clear()
     notification_tab_style._indicator_max_counts_for_token.cache_clear()
     monkeypatch.setattr(
         notification_tab_style,

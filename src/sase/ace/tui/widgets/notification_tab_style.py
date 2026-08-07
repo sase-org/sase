@@ -1,17 +1,25 @@
-"""Stable per-tab colors and labels for the notification indicator.
+"""Stable per-tab colors, icons, and labels for the notification indicator.
 
 Every notification-panel tab renders with a color, so a brand-new tag tab is
 never colorless. The precedence, highest first, is the user's
 ``ace.notification_tabs`` override, the sender-declared color carried on the
 snapshot tab, a built-in default for a known key, and finally a hashed
 auto-palette entry that keeps the same tag the same color across restarts.
+
+Icons resolve through the same shape with one deliberate difference: their last
+rung is a default keyed by the core's own tab *kind*, then a generic mark, never
+a hash. An arbitrary color is still a usable identifier, but an arbitrary glyph
+would teach the reader something false, so icons are only ever meaningful or
+honestly generic.
 """
 
 from __future__ import annotations
 
 import re
 from functools import lru_cache
-from typing import Any
+from typing import Any, NamedTuple
+
+from rich.cells import cell_len
 
 from sase.ace.tui.modals.notification_modal_tags import (
     MUTED_TAB_KEY,
@@ -21,6 +29,7 @@ from sase.ace.tui.modals.notification_modal_tags import (
 )
 from sase.config import load_merged_config
 from sase.config.core import current_config_token
+from sase.notification_gates.model_validation import GateError, validate_icon
 
 # The core's catch-all tab key; the modal spells the same tab ``None``.
 GENERAL_TAB_KEY = "general"
@@ -41,6 +50,36 @@ _BUILTIN_TAB_COLORS = {
     "muted": "#5FAFAF",
 }
 
+# Built-in icons for the tabs ACE ships knowing about, mirroring the
+# ``ace.notification_tabs`` defaults in ``default_config.yml`` exactly as the
+# colors above do. Every glyph is single-cell so the top bar stays dense.
+_BUILTIN_TAB_ICONS = {
+    "hitl": "⚑",
+    "errors": "✖",
+    "beads": "◈",
+    GENERAL_TAB_KEY: "✉",
+    "snoozed": "☾",
+    "muted": "⊘",
+}
+
+# Icons keyed by the core's own tab kind, so a tab ACE has never heard of still
+# gets a glyph that says something true about what kind of tab it is.
+_KIND_TAB_ICONS = {
+    "hitl": "⚑",
+    "errors": "✖",
+    "general": "✉",
+    "snoozed": "☾",
+    "muted": "⊘",
+    "panel": "◆",
+    "tag": "#",
+}
+
+# Reachable only for a tab that arrives with no kind at all.
+_LAST_RESORT_TAB_ICON = "•"
+
+# A configured or declared icon wider than this would blow out the top bar.
+_MAX_TAB_ICON_CELLS = 2
+
 # Six 256-color-safe hexes for tabs nobody has named, chosen to stay legible on
 # the ACE top bar and to read as distinct from every built-in default above.
 _AUTO_PALETTE = (
@@ -51,6 +90,16 @@ _AUTO_PALETTE = (
     "#87D75F",
     "#AFAFD7",
 )
+
+
+class _ConfiguredTabStyle(NamedTuple):
+    """One tab's user-configured styling, empty where nothing was configured."""
+
+    color: str
+    icon: str
+
+
+_EMPTY_TAB_STYLE = _ConfiguredTabStyle(color="", icon="")
 
 
 def _notification_tab_key(tab: NotificationTagTab) -> str:
@@ -79,13 +128,34 @@ def notification_tab_label(tab: NotificationTagTab) -> str:
 
 def resolve_notification_tab_color(tab: NotificationTagTab) -> str:
     """Return the effective foreground color for one notification tab."""
-    configured = _configured_tab_colors().get(_notification_tab_config_key(tab))
+    config_key = _notification_tab_config_key(tab)
+    configured = _configured_tab_style(config_key).color
     if configured:
         return configured
     declared = _sanitize_color(tab.color)
     if declared:
         return declared
-    return _default_notification_tab_color(_notification_tab_config_key(tab))
+    return _default_notification_tab_color(config_key)
+
+
+def resolve_notification_tab_icon(tab: NotificationTagTab) -> str:
+    """Return the effective icon for one notification tab.
+
+    The chain never comes up empty: configuration, then the sender-declared
+    icon the core donates from the newest member row, then a built-in default
+    for a key ACE knows, then a default for the tab's kind, then a generic mark.
+    """
+    config_key = _notification_tab_config_key(tab)
+    configured = _configured_tab_style(config_key).icon
+    if configured:
+        return configured
+    declared = _sanitize_icon(tab.icon)
+    if declared:
+        return declared
+    builtin = _BUILTIN_TAB_ICONS.get(config_key)
+    if builtin is not None:
+        return builtin
+    return _KIND_TAB_ICONS.get(tab.kind, _LAST_RESORT_TAB_ICON)
 
 
 def _default_notification_tab_color(config_key: str) -> str:
@@ -117,6 +187,22 @@ def _sanitize_color(raw: object) -> str:
     return color if _COLOR_PATTERN.fullmatch(color) else ""
 
 
+def _sanitize_icon(raw: object) -> str:
+    """Return a safe single-glyph icon, or an empty string for stored junk.
+
+    ``validate_icon`` is the one definition of a legal gate icon, so it decides
+    here too; the extra cell-width guard is ACE's own, because an icon the gate
+    path would happily accept can still be wide enough to skew the top bar.
+    """
+    try:
+        icon = validate_icon(raw, "icon")
+    except GateError:
+        return ""
+    if icon is None or cell_len(icon) > _MAX_TAB_ICON_CELLS:
+        return ""
+    return icon
+
+
 def _ace_config() -> dict[str, Any]:
     try:
         config = load_merged_config()
@@ -129,21 +215,28 @@ def _ace_config() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
-def _configured_tab_colors_for_token(
+def _configured_tab_styles_for_token(
     _token: tuple[Any, ...],
-) -> dict[str, str]:
-    """Resolve every configured tab color once per merged-config token."""
+) -> dict[str, _ConfiguredTabStyle]:
+    """Resolve every configured tab color and icon per merged-config token.
+
+    Color and icon are parsed together so a render pays one config read rather
+    than one per styled attribute.
+    """
     tabs = _ace_config().get("notification_tabs", {})
     if not isinstance(tabs, dict):
         return {}
-    colors: dict[str, str] = {}
+    styles: dict[str, _ConfiguredTabStyle] = {}
     for name, raw in tabs.items():
         if not isinstance(name, str) or not isinstance(raw, dict):
             continue
-        color = _sanitize_color(raw.get("color", ""))
-        if color:
-            colors[name] = color
-    return colors
+        style = _ConfiguredTabStyle(
+            color=_sanitize_color(raw.get("color", "")),
+            icon=_sanitize_icon(raw.get("icon", "")),
+        )
+        if style != _EMPTY_TAB_STYLE:
+            styles[name] = style
+    return styles
 
 
 @lru_cache(maxsize=1)
@@ -157,8 +250,10 @@ def _indicator_max_counts_for_token(_token: tuple[Any, ...]) -> int:
     return raw
 
 
-def _configured_tab_colors() -> dict[str, str]:
-    return _configured_tab_colors_for_token(current_config_token())
+def _configured_tab_style(config_key: str) -> _ConfiguredTabStyle:
+    """Return the user's configured styling for one user-facing tab key."""
+    styles = _configured_tab_styles_for_token(current_config_token())
+    return styles.get(config_key, _EMPTY_TAB_STYLE)
 
 
 __all__ = [
@@ -167,4 +262,5 @@ __all__ = [
     "notification_indicator_max_counts",
     "notification_tab_label",
     "resolve_notification_tab_color",
+    "resolve_notification_tab_icon",
 ]

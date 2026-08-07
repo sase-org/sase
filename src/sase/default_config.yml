@@ -147,16 +147,22 @@ ace:
   notification_tabs:
     hitl:
       color: "#FF8700"
+      icon: "⚑"
     errors:
       color: "#FF5F5F"
+      icon: "✖"
     beads:
       color: "#AF87FF"
+      icon: "◈"
     general:
       color: "#FFD700"
+      icon: "✉"
     snoozed:
       color: "#6C6C6C"
+      icon: "☾"
     muted:
       color: "#5FAFAF"
+      icon: "⊘"
   # Maximum per-tab counts rendered in the top-bar indicator before the
   # remainder collapses into a single dim "+N" chip.
   notification_indicator_max_counts: 4

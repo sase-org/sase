@@ -1,4 +1,4 @@
-"""Every notification tab resolves to one stable, accessible color."""
+"""Every notification tab resolves to one stable color and one icon."""
 
 from __future__ import annotations
 
@@ -17,12 +17,16 @@ from sase.ace.tui.widgets.notification_tab_style import (
     DEFAULT_NOTIFICATION_INDICATOR_MAX_COUNTS,
     _AUTO_PALETTE,
     _BUILTIN_TAB_COLORS,
+    _BUILTIN_TAB_ICONS,
+    _KIND_TAB_ICONS,
+    _LAST_RESORT_TAB_ICON,
     _default_notification_tab_color,
     notification_indicator_max_counts,
     _notification_tab_config_key,
     _notification_tab_key,
     notification_tab_label,
     resolve_notification_tab_color,
+    resolve_notification_tab_icon,
 )
 
 
@@ -31,13 +35,13 @@ def _no_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Start every test from an empty ``ace`` block, cached per test."""
     _use_config(monkeypatch, {})
     yield
-    notification_tab_style._configured_tab_colors_for_token.cache_clear()
+    notification_tab_style._configured_tab_styles_for_token.cache_clear()
     notification_tab_style._indicator_max_counts_for_token.cache_clear()
 
 
 def _use_config(monkeypatch: pytest.MonkeyPatch, ace: dict[str, Any]) -> None:
     """Point the resolver at *ace* with a token that busts its own cache."""
-    notification_tab_style._configured_tab_colors_for_token.cache_clear()
+    notification_tab_style._configured_tab_styles_for_token.cache_clear()
     notification_tab_style._indicator_max_counts_for_token.cache_clear()
     monkeypatch.setattr(
         notification_tab_style,
@@ -46,12 +50,20 @@ def _use_config(monkeypatch: pytest.MonkeyPatch, ace: dict[str, Any]) -> None:
     )
 
 
-def _tab(tag: str | None, *, color: str | None = None) -> NotificationTagTab:
+def _tab(
+    tag: str | None,
+    *,
+    color: str | None = None,
+    icon: str | None = None,
+    kind: str = "",
+) -> NotificationTagTab:
     return NotificationTagTab(
         tag=tag,
         label="Label" if tag is None else tag,
         count=1,
+        kind=kind,
         color=color,
+        icon=icon,
     )
 
 
@@ -176,3 +188,97 @@ def test_the_bundled_defaults_match_the_builtin_fallbacks() -> None:
     assert {key: value["color"] for key, value in configured.items()} == (
         _BUILTIN_TAB_COLORS
     )
+    assert {key: value["icon"] for key, value in configured.items()} == (
+        _BUILTIN_TAB_ICONS
+    )
+
+
+def test_a_configured_icon_outranks_a_sender_declared_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"beads": {"icon": "★"}}})
+
+    assert resolve_notification_tab_icon(_tab("beads", icon="✦")) == "★"
+
+
+def test_a_sender_declared_icon_outranks_the_builtin_default() -> None:
+    assert resolve_notification_tab_icon(_tab("beads", icon="✦")) == "✦"
+    assert resolve_notification_tab_icon(_tab("beads")) == _BUILTIN_TAB_ICONS["beads"]
+
+
+def test_a_builtin_icon_outranks_the_kind_default() -> None:
+    """A known key keeps its own glyph even when the kind offers one."""
+    tab = _tab("beads", kind="panel")
+
+    assert _KIND_TAB_ICONS["panel"] != _BUILTIN_TAB_ICONS["beads"]
+    assert resolve_notification_tab_icon(tab) == _BUILTIN_TAB_ICONS["beads"]
+
+
+def test_a_kind_icon_outranks_the_last_resort() -> None:
+    """A tab ACE has never heard of still says something about itself."""
+    assert (
+        resolve_notification_tab_icon(_tab("deployments", kind="panel"))
+        == (_KIND_TAB_ICONS["panel"])
+    )
+    assert (
+        resolve_notification_tab_icon(_tab("plan-review", kind="tag"))
+        == (_KIND_TAB_ICONS["tag"])
+    )
+
+
+def test_a_tab_with_no_kind_at_all_falls_to_the_last_resort() -> None:
+    assert resolve_notification_tab_icon(_tab("deployments")) == _LAST_RESORT_TAB_ICON
+
+
+def test_an_empty_configured_icon_falls_through_to_the_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty string is the documented "restore the built-in" spelling."""
+    _use_config(monkeypatch, {"notification_tabs": {"beads": {"icon": ""}}})
+
+    assert resolve_notification_tab_icon(_tab("beads")) == _BUILTIN_TAB_ICONS["beads"]
+
+
+@pytest.mark.parametrize("configured", ["ab", " ◈ ", "\n", "x" * 40, 7, None, "🇺🇸🇬🇧"])
+def test_a_junk_configured_icon_falls_through_to_the_default(
+    monkeypatch: pytest.MonkeyPatch,
+    configured: object,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"beads": {"icon": configured}}})
+
+    assert resolve_notification_tab_icon(_tab("beads")) == _BUILTIN_TAB_ICONS["beads"]
+
+
+@pytest.mark.parametrize("stored", ["ab", "  ", 7, ""])
+def test_a_junk_stored_icon_degrades_instead_of_raising(stored: object) -> None:
+    tab = NotificationTagTab(tag="beads", label="Beads", count=1, icon=stored)  # type: ignore[arg-type]
+
+    assert resolve_notification_tab_icon(tab) == _BUILTIN_TAB_ICONS["beads"]
+
+
+def test_no_icon_wide_enough_to_blow_out_the_top_bar_survives() -> None:
+    """ACE's own width guard, beyond what the gate path cares about."""
+    from rich.cells import cell_len
+
+    wide = "你你"
+    assert cell_len(wide) > 2
+
+    assert notification_tab_style._sanitize_icon(wide) == ""
+
+
+def test_a_configured_snoozed_icon_reaches_the_synthetic_tab(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"snoozed": {"icon": "★"}}})
+
+    assert resolve_notification_tab_icon(_tab(SNOOZED_TAB_KEY)) == "★"
+
+
+def test_every_bundled_glyph_is_single_cell() -> None:
+    """A two-cell glyph would make every chip in the top bar wider."""
+    from rich.cells import cell_len
+
+    glyphs = set(_BUILTIN_TAB_ICONS.values()) | set(_KIND_TAB_ICONS.values())
+
+    assert {glyph for glyph in glyphs if cell_len(glyph) != 1} == set()
+    assert cell_len(_LAST_RESORT_TAB_ICON) == 1

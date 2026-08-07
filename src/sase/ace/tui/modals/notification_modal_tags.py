@@ -64,6 +64,7 @@ class NotificationTagTab:
     oldest_activity_at: str | None = None
     next_wake_at: str | None = None
     color: str | None = None
+    icon: str | None = None
 
 
 def notification_display_tags(notification: Notification) -> list[str]:
@@ -169,6 +170,8 @@ def notification_tabs_from_core(core_tabs: Any) -> list[NotificationTagTab]:
                 oldest_activity_at=tab.oldest_activity_at,
                 next_wake_at=tab.next_wake_at,
                 color=tab.color,
+                # Cores older than the tab-icon release omit this entirely.
+                icon=getattr(tab, "icon", None),
             )
         )
     return tabs
