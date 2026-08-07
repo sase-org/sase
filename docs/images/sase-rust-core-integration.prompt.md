@@ -9,10 +9,12 @@ source_critique: docs/images/sase-rust-core-integration.critique.md
 ## Target
 
 - Target doc: `docs/architecture.md`
-- Insertion point: under `## Rust Core Boundary`, after the opening paragraph that summarizes Rust-backed areas.
-- Intended alt text: Layered diagram showing how SASE Python host code reaches Rust through `src/sase/core` facades,
-  stable wire records, the required `sase_core_rs` extension, and the `../sase-core` source workspace, with default and
-  contributor install paths converging on `sase core health`.
+- Insertion point: under `## Rust Core Boundary`, after the opening paragraph that summarizes
+  Rust-backed areas.
+- Intended alt text: Layered diagram showing how SASE Python host code reaches Rust through
+  `src/sase/core` facades, stable wire records, the required `sase_core_rs` extension, and the
+  `../sase-core` source workspace, with default and contributor install paths converging on
+  `sase core health`.
 
 ## Final Prompt
 
@@ -71,4 +73,5 @@ single required note. No extra invented labels. No watermarks.
 
 - Generated with the built-in GPT image generation tool.
 - Generated image copied from the Codex image cache to `docs/images/sase-rust-core-integration.png`.
-- No deterministic relabeling was needed; the generated text was legible enough for documentation use.
+- No deterministic relabeling was needed; the generated text was legible enough for documentation
+  use.

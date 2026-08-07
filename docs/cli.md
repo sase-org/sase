@@ -1,7 +1,8 @@
 # CLI Reference
 
-This page is a command index for the top-level `sase` CLI. It is meant for discovery and routing: use it to find the
-surface that owns a workflow, then follow the links to the detailed command, flag, or subsystem reference.
+This page is a command index for the top-level `sase` CLI. It is meant for discovery and routing:
+use it to find the surface that owns a workflow, then follow the links to the detailed command,
+flag, or subsystem reference.
 
 For exhaustive flag tables, see the [configuration reference](configuration.md#cli-flags).
 
@@ -43,36 +44,43 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase repro replay`             | Replay an Agents-tab reproduction bundle through the headless TUI harness and emit a verdict.                                                                                                    | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 | `sase repro capture agents-tab` | Capture a commit-safe out-of-band Agents-tab bundle from current filesystem state.                                                                                                               | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 
-`sase run` launches detached background agents that appear in the ACE Agents tab. It can start from prompt text, xprompt
-or workflow references, the editor, or the prompt-history picker, and multi-prompt input expands into sequential
-background launches. ACE uses the same launch machinery when users start agents from the TUI.
+`sase run` launches detached background agents that appear in the ACE Agents tab. It can start from
+prompt text, xprompt or workflow references, the editor, or the prompt-history picker, and
+multi-prompt input expands into sequential background launches. ACE uses the same launch machinery
+when users start agents from the TUI.
 
-`sase agent list -j` reports every live runner-slot waiter as `status: "QUEUED"`, whether its threshold comes from the
-global cap or an authored `%wait(runners=N)`. Its `runner_slot_queue_position`/`runner_slot_queue_size` rank the same
-waiters by priority and request FIFO, including periods when the pool is full; the fields are not limited to waiters
-whose threshold is already satisfied.
+`sase agent list -j` reports every live runner-slot waiter as `status: "QUEUED"`, whether its
+threshold comes from the global cap or an authored `%wait(runners=N)`. Its
+`runner_slot_queue_position`/`runner_slot_queue_size` rank the same waiters by priority and request
+FIFO, including periods when the pool is full; the fields are not limited to waiters whose threshold
+is already satisfied.
 
-`sase task` operates on durable background tasks: rows in `~/.sase/tasks/tasks.jsonl` with combined output logs under
-`~/.sase/tasks/logs/`. There are three kinds: `tui` work is run and mirrored by one ACE process; `command` work runs
-under a supervisor but is attributed to a session; and `detached` work runs under a supervisor with no owning session,
-so every CLI and TUI includes it in scope. `sase task run` creates `command` by default, while `--detached` creates the
-global kind and is mutually exclusive with `--session`.
+`sase task` operates on durable background tasks: rows in `~/.sase/tasks/tasks.jsonl` with combined
+output logs under `~/.sase/tasks/logs/`. There are three kinds: `tui` work is run and mirrored by
+one ACE process; `command` work runs under a supervisor but is attributed to a session; and
+`detached` work runs under a supervisor with no owning session, so every CLI and TUI includes it in
+scope. `sase task run` creates `command` by default, while `--detached` creates the global kind and
+is mutually exclusive with `--session`.
 
-The supervisor is independent of the submitting shell or TUI, so both `command` and `detached` work survive TUI restarts
-and run with no TUI open. Use repeatable `--kind command|tui|detached`, or the `--detached` list shorthand, to filter by
-kind. The compact list markers are `⌘` for `command`, `▣` for `tui`, and `◆` for `detached`; `sase task show` spells out
-the kind and describes detached ownership. Use `sase task kill ID` to stop any active store-backed task. Retention keeps
-every pending or running task plus the newest [`tasks.history_limit`](configuration.md#tasks) finished ones. See the
-[ACE Tasks tab](ace.md#durable-background-tasks) for the full model and the in-TUI equivalents.
+The supervisor is independent of the submitting shell or TUI, so both `command` and `detached` work
+survive TUI restarts and run with no TUI open. Use repeatable `--kind command|tui|detached`, or the
+`--detached` list shorthand, to filter by kind. The compact list markers are `⌘` for `command`, `▣`
+for `tui`, and `◆` for `detached`; `sase task show` spells out the kind and describes detached
+ownership. Use `sase task kill ID` to stop any active store-backed task. Retention keeps every
+pending or running task plus the newest [`tasks.history_limit`](configuration.md#tasks) finished
+ones. See the [ACE Tasks tab](ace.md#durable-background-tasks) for the full model and the in-TUI
+equivalents.
 
-Command groups with an exact `list` child default to that list view when invoked bare, including `sase agent-cli`,
-`sase bead`, `sase chat`, `sase file`, `sase file-history`, `sase file-hook`, `sase memory`, `sase notify`,
-`sase plugin`, `sase project`, `sase prompt`, `sase skill`, `sase task`, `sase telemetry`, `sase var`, `sase workspace`,
-and `sase xprompt`. Nested groups such as `sase agent tribe`, `sase axe chop`, `sase axe lumberjack`,
-`sase memory agent-docs`, and `sase plan links` follow the same rule.
+Command groups with an exact `list` child default to that list view when invoked bare, including
+`sase agent-cli`, `sase bead`, `sase chat`, `sase file`, `sase file-history`, `sase file-hook`,
+`sase memory`, `sase notify`, `sase plugin`, `sase project`, `sase prompt`, `sase skill`,
+`sase task`, `sase telemetry`, `sase var`, `sase workspace`, and `sase xprompt`. Nested groups such
+as `sase agent tribe`, `sase axe chop`, `sase axe lumberjack`, `sase memory agent-docs`, and
+`sase plan links` follow the same rule.
 
-The bare form is only the default view. When you need flags that belong to the list command, keep the `list` subcommand
-explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase workspace list --json`.
+The bare form is only the default view. When you need flags that belong to the list command, keep
+the `list` subcommand explicit, for example `sase notify list -j`, `sase memory list -j`, or
+`sase workspace list --json`.
 
 ## Work Tracking And Planning
 
@@ -133,77 +141,92 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase launch approve` / `reject`             | Resolve a pending launch request by request id, notification id, or unique prefix.                           | [Agent groups](agent_families.md#agent-initiated-family-launches) |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                                 | [XPrompt directives](xprompt.md#directives)                       |
 
-ChangeSpecs are PR-sized review records. SDD stores durable prompt and planning artifacts. Beads add git-portable
-dependency tracking and executable epics on top of those artifacts.
+ChangeSpecs are PR-sized review records. SDD stores durable prompt and planning artifacts. Beads add
+git-portable dependency tracking and executable epics on top of those artifacts.
 
-`sase project` defaults to `sase project list`, and `sase project list` defaults to enabled true projects. Use
-`sase project list --state all --json` to inspect disabled projects and internal `sibling` backing records,
-`sase project disable <project>` to hide a dormant project from default launch views, and
-`sase project enable <project>` to make it launchable again. Disabling refuses projects with live `RUNNING` claims or
-active artifact markers unless `--force` is passed. Legacy active/inactive values and the deprecated lifecycle command
-aliases remain read-compatible. ACE's **Projects** tab (in the SASE Admin Center, opened with `#`) provides the
-interactive counterpart, including marking multiple projects, editing a ProjectSpec in `$EDITOR`, and deleting obsolete
-SASE project directories after confirmation. There is no CLI delete subcommand; full project-directory deletion is only
-available from ACE's Projects tab and removes state under `~/.sase/projects/`, not workspace checkouts.
+`sase project` defaults to `sase project list`, and `sase project list` defaults to enabled true
+projects. Use `sase project list --state all --json` to inspect disabled projects and internal
+`sibling` backing records, `sase project disable <project>` to hide a dormant project from default
+launch views, and `sase project enable <project>` to make it launchable again. Disabling refuses
+projects with live `RUNNING` claims or active artifact markers unless `--force` is passed. Legacy
+active/inactive values and the deprecated lifecycle command aliases remain read-compatible. ACE's
+**Projects** tab (in the SASE Admin Center, opened with `#`) provides the interactive counterpart,
+including marking multiple projects, editing a ProjectSpec in `$EDITOR`, and deleting obsolete SASE
+project directories after confirmation. There is no CLI delete subcommand; full project-directory
+deletion is only available from ACE's Projects tab and removes state under `~/.sase/projects/`, not
+workspace checkouts.
 
-`sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`, `remove PROJECT ALIAS`, and `clear PROJECT` manage
-ProjectSpec aliases. The ACE Projects sub-tab (in the SASE Admin Center, opened with `#`) also displays aliases,
-includes them in filtering, and opens an alias editor with `A`. Alias refs are accepted in launch-bound VCS workspace
-tags, but prompt history, agent metadata, and artifacts use the canonical directory-key project name. ProjectSpecs may
-also carry `PROJECT_NAME` as the primary user-facing name. For example, the GitHub provider can create
-`PROJECT_NAME: foo` and then `PROJECT_NAME: foo_1` for distinct `owner/foo` repositories while keeping stable canonical
-project records. Existing auto-aliased GitHub projects remain valid and keep resolving through `PROJECT_ALIASES`.
+`sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`, `remove PROJECT ALIAS`, and
+`clear PROJECT` manage ProjectSpec aliases. The ACE Projects sub-tab (in the SASE Admin Center,
+opened with `#`) also displays aliases, includes them in filtering, and opens an alias editor with
+`A`. Alias refs are accepted in launch-bound VCS workspace tags, but prompt history, agent metadata,
+and artifacts use the canonical directory-key project name. ProjectSpecs may also carry
+`PROJECT_NAME` as the primary user-facing name. For example, the GitHub provider can create
+`PROJECT_NAME: foo` and then `PROJECT_NAME: foo_1` for distinct `owner/foo` repositories while
+keeping stable canonical project records. Existing auto-aliased GitHub projects remain valid and
+keep resolving through `PROJECT_ALIASES`.
 
-Enabled-only true-project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
-catalogs, broad mobile helper catalogs, and all-known bead helper reads. Internal sibling backing records are hidden
-from those surfaces and support configured linked repositories. Agents prepare one through `/sase_repo`; the underlying
-audited open infers the host project and workspace from cwd. Agent-history views that need older artifacts opt into all
-project states explicitly. An explicitly typed known-project VCS ref is a launch-time exception: it re-enables a
-disabled project before claiming a workspace. A checkout cwd or mobile `project` value is only prompt-resolution
-context, not a workspace ref; without an explicit ref, a bare prompt defaults to `#git:home`. Direct low-level claims
-against a disabled ProjectSpec remain blocked until the project is enabled.
+Enabled-only true-project discovery is also the default for launch pickers, ChangeSpec searches,
+project-local xprompt catalogs, broad mobile helper catalogs, and all-known bead helper reads.
+Internal sibling backing records are hidden from those surfaces and support configured linked
+repositories. Agents prepare one through `/sase_repo`; the underlying audited open infers the host
+project and workspace from cwd. Agent-history views that need older artifacts opt into all project
+states explicitly. An explicitly typed known-project VCS ref is a launch-time exception: it
+re-enables a disabled project before claiming a workspace. A checkout cwd or mobile `project` value
+is only prompt-resolution context, not a workspace ref; without an explicit ref, a bare prompt
+defaults to `#git:home`. Direct low-level claims against a disabled ProjectSpec remain blocked until
+the project is enabled.
 
-`sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected sections; use repeatable
-`-s/--status` options to select sections, `-n/--limit` to set each history section's size (`0` is unlimited), and
-`-t/--tier` to filter by plan-file tier. Proposed rows are never limited and are the actionable rows; each includes an
-`id_prefix`, agent, project, provider/model, plan path, and response directory. Pass that prefix to
-`sase plan approve <prefix>` or `sase plan reject <prefix>`. If the selector is omitted, exactly one pending proposal
-must exist. When `--kind` is omitted, approval follows the plan's authored `tier`; an explicit kind overrides it. The
-Rejected section is inferred from archived proposal files that are not represented by the proposed or approved state; it
-is a history aid, not the selector source for new actions. The approval kind is the workflow choice: `approve` runs the
-coder without asking the runner to commit an SDD plan, `tale` commits the plan as an SDD tale and then runs the coder,
-`epic` commits the matching SDD tier and launches the bead follow-up, and `commit` records the approved plan in SDD
-without launching a coder. Use `-m/--model` to pick the follow-up agent's model. Use `-p/--prompt` to add extra coder
-instructions for the `approve` and `tale` paths. Tale and epic approvals validate against their target schema before
-writing a response; a failure prints the diagnostics and expected schema and leaves the proposal pending for retry.
-`sase plan reject` writes the rejection response first, then uses the same durable cleanup path as the TUI no-feedback
-rejection action when the matching planner row is still discoverable. If cleanup cannot find or kill the row, the CLI
-reports that separately after the plan has already been rejected.
+`sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected
+sections; use repeatable `-s/--status` options to select sections, `-n/--limit` to set each history
+section's size (`0` is unlimited), and `-t/--tier` to filter by plan-file tier. Proposed rows are
+never limited and are the actionable rows; each includes an `id_prefix`, agent, project,
+provider/model, plan path, and response directory. Pass that prefix to `sase plan approve <prefix>`
+or `sase plan reject <prefix>`. If the selector is omitted, exactly one pending proposal must exist.
+When `--kind` is omitted, approval follows the plan's authored `tier`; an explicit kind overrides
+it. The Rejected section is inferred from archived proposal files that are not represented by the
+proposed or approved state; it is a history aid, not the selector source for new actions. The
+approval kind is the workflow choice: `approve` runs the coder without asking the runner to commit
+an SDD plan, `tale` commits the plan as an SDD tale and then runs the coder, `epic` commits the
+matching SDD tier and launches the bead follow-up, and `commit` records the approved plan in SDD
+without launching a coder. Use `-m/--model` to pick the follow-up agent's model. Use `-p/--prompt`
+to add extra coder instructions for the `approve` and `tale` paths. Tale and epic approvals validate
+against their target schema before writing a response; a failure prints the diagnostics and expected
+schema and leaves the proposal pending for retry. `sase plan reject` writes the rejection response
+first, then uses the same durable cleanup path as the TUI no-feedback rejection action when the
+matching planner row is still discoverable. If cleanup cannot find or kill the row, the CLI reports
+that separately after the plan has already been rejected.
 
-`sase plan search [QUERY]` searches plans in the resolved SDD store (the `repo` source) and the machine-local
-`~/.sase/plans/` archive. Omit the query to browse with metadata filters. Compact and Markdown output group SDD-store
-matches above local matches; JSON and full output keep ranked result order with SDD-store matches prioritized over
-otherwise-similar local matches. Useful filters include `--kind`, `--status`, `--source`, `--since`, `--until`,
-`--sort`, and `--format json|markdown` for agent-friendly output.
+`sase plan search [QUERY]` searches plans in the resolved SDD store (the `repo` source) and the
+machine-local `~/.sase/plans/` archive. Omit the query to browse with metadata filters. Compact and
+Markdown output group SDD-store matches above local matches; JSON and full output keep ranked result
+order with SDD-store matches prioritized over otherwise-similar local matches. Useful filters
+include `--kind`, `--status`, `--source`, `--since`, `--until`, `--sort`, and
+`--format json|markdown` for agent-friendly output.
 
-`sase plan show [TARGET]` resolves any way a user can name a plan to exactly one plan and renders it. In `-t auto` (the
-default), TARGET is tried against five rungs in order and the first definitive match wins: `path` (an existing file,
-absolute or cwd-relative), `ref` (a `plans:` reference, a legacy marker path, or a month-drifted reference, Rust
-resolved), `proposal` (a pending-approval notification id or unique prefix), `name` (a corpus slug or `<shard>/<slug>`
-lookup, with or without `.md`), and `bead` (a bead id whose `design` field points at a plan). Pass `-t/--target` to
-force one rung with no fallthrough. Omit TARGET to show the sole visible pending plan proposal, exactly as
-`sase plan approve`/`reject` treat an omitted selector. Every ambiguity prints its candidates as re-runnable `plans:`
-references and every miss prints close-match suggestions; neither guesses. `-f/--format` selects `full` (the default
-section-structured detail view, matching the ACE TUI's PLAN lane), `compact` (the same row `sase plan search` prints),
-`json` (a schema-versioned envelope), or `raw` (the plan file's exact text, for piping). A plan that fails validation
-still renders in full with its diagnostics shown and exits `0`; only a missed, ambiguous, or unreadable target exits
-`1`. `-w/--wrap` controls goal/phase/diagnostics prose wrapping, and `-c/--color` matches `sase bead show`.
+`sase plan show [TARGET]` resolves any way a user can name a plan to exactly one plan and renders
+it. In `-t auto` (the default), TARGET is tried against five rungs in order and the first definitive
+match wins: `path` (an existing file, absolute or cwd-relative), `ref` (a `plans:` reference, a
+legacy marker path, or a month-drifted reference, Rust resolved), `proposal` (a pending-approval
+notification id or unique prefix), `name` (a corpus slug or `<shard>/<slug>` lookup, with or without
+`.md`), and `bead` (a bead id whose `design` field points at a plan). Pass `-t/--target` to force
+one rung with no fallthrough. Omit TARGET to show the sole visible pending plan proposal, exactly as
+`sase plan approve`/`reject` treat an omitted selector. Every ambiguity prints its candidates as
+re-runnable `plans:` references and every miss prints close-match suggestions; neither guesses.
+`-f/--format` selects `full` (the default section-structured detail view, matching the ACE TUI's
+PLAN lane), `compact` (the same row `sase plan search` prints), `json` (a schema-versioned
+envelope), or `raw` (the plan file's exact text, for piping). A plan that fails validation still
+renders in full with its diagnostics shown and exits `0`; only a missed, ambiguous, or unreadable
+target exits `1`. `-w/--wrap` controls goal/phase/diagnostics prose wrapping, and `-c/--color`
+matches `sase bead show`.
 
-`sase plan validate PLAN_FILE` reads the required `tier: tale|epic` property and validates exactly one path without a
-project or agent context. It reports every schema problem in one run and prints the expected tier schema plus a minimal
-valid example on failure. Use `-e/--explain` for tier-specific authoring guidance, `-j/--json` for the stable
-machine-readable envelope, or `-q/--quiet` to suppress the successful human summary. The removed `-t/--tier` option is
-now invalid command usage. A valid plan exits 0, a validation failure exits 1, and invalid command usage exits 2.
+`sase plan validate PLAN_FILE` reads the required `tier: tale|epic` property and validates exactly
+one path without a project or agent context. It reports every schema problem in one run and prints
+the expected tier schema plus a minimal valid example on failure. Use `-e/--explain` for
+tier-specific authoring guidance, `-j/--json` for the stable machine-readable envelope, or
+`-q/--quiet` to suppress the successful human summary. The removed `-t/--tier` option is now invalid
+command usage. A valid plan exits 0, a validation failure exits 1, and invalid command usage
+exits 2.
 
 ## Automation
 
@@ -225,8 +248,8 @@ now invalid command usage. A valid plan exits 0, a validation failure exits 1, a
 | `sase axe maintenance exit`      | Resume scheduled lumberjack ticks.                                 | [Maintenance mode](axe.md#maintenance-mode)        |
 | `sase axe maintenance status`    | Inspect the maintenance marker.                                    | [Maintenance mode](axe.md#maintenance-mode)        |
 
-Axe runs scheduled hooks, mentors, comment polling, workflow checks, `%wait` dependency resolution, cleanup, and error
-digests. ACE starts axe automatically unless launched with `sase ace --no-axe`.
+Axe runs scheduled hooks, mentors, comment polling, workflow checks, `%wait` dependency resolution,
+cleanup, and error digests. ACE starts axe automatically unless launched with `sase ace --no-axe`.
 
 ## Prompt And Workflow Authoring
 
@@ -249,8 +272,9 @@ digests. ACE starts axe automatically unless launched with `sase ace --no-axe`.
 | `sase skill use`                 | Agent-side audit event recording that a generated skill was used.                 | [Skill field](xprompt.md#skill-field)                                                       |
 | `sase init skills`               | Compatibility alias for `sase skill init`.                                        | [Initialization](init.md#skill-initialization)                                              |
 
-Use `#name(...)` for inline xprompt expansion and `#!workflow(...)` for standalone workflow references. Workspace
-references such as `#git:<project>` and plugin-provided references are resolved before the prompt or workflow runs.
+Use `#name(...)` for inline xprompt expansion and `#!workflow(...)` for standalone workflow
+references. Workspace references such as `#git:<project>` and plugin-provided references are
+resolved before the prompt or workflow runs.
 
 ## Review And Delivery
 
@@ -261,8 +285,8 @@ references such as `#git:<project>` and plugin-provided references are resolved 
 | `sase restore`  | Restore a reverted ChangeSpec by reapplying its archived diff.          | [Commit workflows](commit_workflows.md) |
 | `sase comments` | Preview mentor comments from JSON with syntax-highlighted code context. | [Mentors](mentors.md)                   |
 
-Delivery commands delegate to the VCS and workspace provider layers, so the same command surface can support plain git,
-GitHub pull requests, and other provider plugins.
+Delivery commands delegate to the VCS and workspace provider layers, so the same command surface can
+support plain git, GitHub pull requests, and other provider plugins.
 
 ## Operations And Diagnostics
 
@@ -317,37 +341,43 @@ GitHub pull requests, and other provider plugins.
 | `sase mobile agent-bridge`          | Fixed JSON bridge used by the mobile gateway for agent operations.                                                                                                                                                                | [Mobile gateway](mobile_gateway.md)                                                                                  |
 | `sase mobile helper-bridge`         | Fixed JSON bridge used by the mobile gateway for workflow helper operations.                                                                                                                                                      | [Mobile gateway](mobile_gateway.md)                                                                                  |
 
-The `sase artifact show`, `path`, and `open` commands take a logical reference without a leading `@`, for example
-`sase artifact show file:default:<digest>`. Add the sigil when embedding the same reference in a launch prompt:
-`sase run "review @file:default:<digest>"`. This bare-CLI/`@`-in-prompts rule also applies to document roles, chats,
-beads, agents, commits, and bugs. `path` accepts only references with a filesystem identity; `open` can also open a bug
-in a browser but rejects commits.
+The `sase artifact show`, `path`, and `open` commands take a logical reference without a leading
+`@`, for example `sase artifact show file:default:<digest>`. Add the sigil when embedding the same
+reference in a launch prompt: `sase run "review @file:default:<digest>"`. This
+bare-CLI/`@`-in-prompts rule also applies to document roles, chats, beads, agents, commits, and
+bugs. `path` accepts only references with a filesystem identity; `open` can also open a bug in a
+browser but rejects commits.
 
-`stats`, `prune`, `reclaim`, and `trash` are the store's lifecycle commands, and they are deliberately staged: `stats`
-only reports, `prune` and `reclaim` print a plan and change nothing unless `--apply` is passed, and every removal either
-of them makes moves the stored bytes **and** the complete index row into a restorable trash under
-`~/.sase/artifacts/trash/`. `sase artifact trash restore` puts an entry back; only `sase artifact trash purge` deletes
-permanently, and without `-a/--all` it purges only entries older than `artifacts.retention.trash_grace_days`. Trashed
-bytes still occupy disk until that purge runs. Explicit artifacts, artifacts a ProjectSpec, plan, bead, or research
-document references, artifacts recorded in the consumption ledger, and the newest capture of every label are never
-selected; if a required protection source cannot be read, `--apply` refuses rather than under-protecting. See
+`stats`, `prune`, `reclaim`, and `trash` are the store's lifecycle commands, and they are
+deliberately staged: `stats` only reports, `prune` and `reclaim` print a plan and change nothing
+unless `--apply` is passed, and every removal either of them makes moves the stored bytes **and**
+the complete index row into a restorable trash under `~/.sase/artifacts/trash/`.
+`sase artifact trash restore` puts an entry back; only `sase artifact trash purge` deletes
+permanently, and without `-a/--all` it purges only entries older than
+`artifacts.retention.trash_grace_days`. Trashed bytes still occupy disk until that purge runs.
+Explicit artifacts, artifacts a ProjectSpec, plan, bead, or research document references, artifacts
+recorded in the consumption ledger, and the newest capture of every label are never selected; if a
+required protection source cannot be read, `--apply` refuses rather than under-protecting. See
 [Store Lifecycle](agent_images.md#store-lifecycle).
 
-`sase artifact list` inventories only the persistent artifact-file index; it is not a catalog of every reference kind
-and it does not browse the agents-sidecar prompt archive. Use `sase agent prompts list/show/validate` for archived
-prompts and their published `ARTIFACTS` links. Use ACE's grouped `@` completion to browse prompt references, or its
-contextual **Copy as…** palette to copy a reference or pre-fill a new agent prompt from the selected entry. See
-[Getting Started](getting_started.md#step-6-hand-off-existing-work-with-artifact-references) for the handoff workflow
-and [prompt preprocessing](llms.md#prompt-preprocessing-pipeline) for launch-time resolution.
+`sase artifact list` inventories only the persistent artifact-file index; it is not a catalog of
+every reference kind and it does not browse the agents-sidecar prompt archive. Use
+`sase agent prompts list/show/validate` for archived prompts and their published `ARTIFACTS` links.
+Use ACE's grouped `@` completion to browse prompt references, or its contextual **Copy as…** palette
+to copy a reference or pre-fill a new agent prompt from the selected entry. See
+[Getting Started](getting_started.md#step-6-hand-off-existing-work-with-artifact-references) for the
+handoff workflow and [prompt preprocessing](llms.md#prompt-preprocessing-pipeline) for launch-time
+resolution.
 
-Operational commands are intentionally narrow. Helper bridges expose fixed JSON operations for editor and mobile
-clients; they are not general shell or filesystem APIs.
+Operational commands are intentionally narrow. Helper bridges expose fixed JSON operations for
+editor and mobile clients; they are not general shell or filesystem APIs.
 
 ### Doctor Support Reports
 
-`sase doctor` is the first command to run when SASE behaves unexpectedly. It is read-only by default: it does not launch
-agents, call LLM APIs, repair state, run tests, or scan full artifact history. The human output is grouped by subsystem
-and puts next-step commands beside warnings and errors.
+`sase doctor` is the first command to run when SASE behaves unexpectedly. It is read-only by
+default: it does not launch agents, call LLM APIs, repair state, run tests, or scan full artifact
+history. The human output is grouped by subsystem and puts next-step commands beside warnings and
+errors.
 
 Common forms:
 
@@ -361,16 +391,19 @@ sase doctor -C llm.default  # run one check
 sase doctor -C project.junk_directories -C workspace.missing_checkouts
 ```
 
-Exit codes are designed for support-first use. `OK`, `WARN`, and all-skipped reports exit `0`; `ERROR` exits `1`. Use
-`sase doctor -s` / `--strict` when automation should treat warnings as failures.
+Exit codes are designed for support-first use. `OK`, `WARN`, and all-skipped reports exit `0`;
+`ERROR` exits `1`. Use `sase doctor -s` / `--strict` when automation should treat warnings as
+failures.
 
-The JSON report uses `schema_version: 1` and stable top-level fields such as `status`, `counts`, `selected_checks`, and
-`checks`. Individual check `data` payloads stay bounded and may gain additional keys over time, so scripts should key
-off check ids and statuses rather than assuming every nested field is permanent.
+The JSON report uses `schema_version: 1` and stable top-level fields such as `status`, `counts`,
+`selected_checks`, and `checks`. Individual check `data` payloads stay bounded and may gain
+additional keys over time, so scripts should key off check ids and statuses rather than assuming
+every nested field is permanent.
 
-`project.junk_directories` reports directories under `~/.sase/projects/` that have no canonical ProjectSpec and gives a
-manual-review cleanup hint. `workspace.missing_checkouts` scans enabled and disabled projects through the shared
-inventory, lists registered checkout paths missing from disk, and suggests a per-project `sase workspace repair -n`
-preview. Neither check mutates state.
+`project.junk_directories` reports directories under `~/.sase/projects/` that have no canonical
+ProjectSpec and gives a manual-review cleanup hint. `workspace.missing_checkouts` scans enabled and
+disabled projects through the shared inventory, lists registered checkout paths missing from disk,
+and suggests a per-project `sase workspace repair -n` preview. Neither check mutates state.
 
-When asking for help, attach `sase doctor -v` for a readable report or `sase doctor -j` for a machine-readable report.
+When asking for help, attach `sase doctor -v` for a readable report or `sase doctor -j` for a
+machine-readable report.

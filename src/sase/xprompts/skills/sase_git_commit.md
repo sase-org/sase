@@ -1,14 +1,14 @@
 ---
 name: sase_git_commit
 description:
-  Commit changes using sase commit for git-based VCS (bare git and GitHub). This is the ONLY way you should EVER commit
-  to git repos. NEVER invoke this skill unless the user explicitly asks you to commit or a post-completion finalizer
-  triggers it.
+  Commit changes using sase commit for git-based VCS (bare git and GitHub). This is the ONLY way you
+  should EVER commit to git repos. NEVER invoke this skill unless the user explicitly asks you to
+  commit or a post-completion finalizer triggers it.
 skill: true
 ---
 
-Commit changes via the `sase_git_commit` wrapper. The wrapper records skill invocation evidence, then delegates to
-`sase commit`.
+Commit changes via the `sase_git_commit` wrapper. The wrapper records skill invocation evidence,
+then delegates to `sase commit`.
 
 ## Instructions
 
@@ -112,22 +112,26 @@ sase_git_commit -M .sase/commit_message.md -f src/auth.py -f src/login.py
 
 ## On Merge Conflict
 
-Bead-store conflicts and benign upstream movement are handled automatically. If `sase_git_commit` exits with code **2**
-and prints a "merge conflict" message, the local working tree is in a paused rebase state and the post-commit
-bookkeeping has been deferred. Do NOT re-run the original `sase_git_commit` command — that would attempt to re-stage and
-re-commit on top of the already-paused state. Instead, resolve the conflict and finalize:
+Bead-store conflicts and benign upstream movement are handled automatically. If `sase_git_commit`
+exits with code **2** and prints a "merge conflict" message, the local working tree is in a paused
+rebase state and the post-commit bookkeeping has been deferred. Do NOT re-run the original
+`sase_git_commit` command — that would attempt to re-stage and re-commit on top of the
+already-paused state. Instead, resolve the conflict and finalize:
 
 1. **Find conflicted files**: Run `git diff --name-only --diff-filter=U`.
 2. **Read each file** and resolve conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`):
-   - During a rebase, `HEAD` is the upstream version and the other side is the local commit being replayed.
+   - During a rebase, `HEAD` is the upstream version and the other side is the local commit being
+     replayed.
    - Prefer the upstream version when uncertain — it's the more recent change.
    - NEVER leave conflict markers in any file.
 3. **Stage resolved files**: Run `git add <file>` for each.
-4. **Continue the rebase/merge**: Run `git -c core.editor=true rebase --continue` (or `git merge --continue` for a
-   non-rebase merge). If this produces more conflicts, repeat steps 1–4 until clean.
-5. **Verify the working tree is clean**: `git status` should show "nothing to commit, working tree clean".
-6. **Finalize the sase commit**: Run `sase_git_commit --resume`. This replays the post-commit bookkeeping (push,
-   ChangeSpec row, COMMITS entry, result marker) and exits 0 on success.
+4. **Continue the rebase/merge**: Run `git -c core.editor=true rebase --continue` (or
+   `git merge --continue` for a non-rebase merge). If this produces more conflicts, repeat steps 1–4
+   until clean.
+5. **Verify the working tree is clean**: `git status` should show "nothing to commit, working tree
+   clean".
+6. **Finalize the sase commit**: Run `sase_git_commit --resume`. This replays the post-commit
+   bookkeeping (push, ChangeSpec row, COMMITS entry, result marker) and exits 0 on success.
 
 ```bash
 sase_git_commit --resume

@@ -25,21 +25,24 @@ from tests.main.init_memory_handler_helpers import (
 
 def _assert_derived_managed_agents(agents: str) -> None:
     """Assert *agents* is managed using the derived project title."""
-    assert agents.startswith(
-        "# project - Agent Instructions\n\n"
+    assert agents.startswith("# project - Agent Instructions\n\n")
+    # The body is hard-wrapped at the repo Markdown width, so compare on
+    # collapsed whitespace rather than pinning where the line breaks land.
+    expected = (
+        "# project - Agent Instructions "
         "IMPORTANT: You should not modify any of these memory files without "
-        "approval from the user. However, when the user\n"
-        "explicitly asks you to update a SASE memory file, that request already "
-        "carries the required approval for the full\n"
-        "workflow: make the requested edit to the canonical note under "
-        "`sase/memory/`, then you MUST run `sase memory init` to\n"
-        "regenerate `AGENTS.md`, the provider instruction shims, and the memory "
-        "README. Do NOT ask for separate permission to\n"
-        "initialize sase memory in that case.\n\n"
-        "## Tier 1 (short-term) Memory\n\n"
-        "The following memories contain core (always loaded) context:\n\n"
-        "### 1. SASE = Structured Agentic Software Engineering (sase)\n"
+        "approval from the user. However, when the user explicitly asks you to "
+        "update a SASE memory file, that request already carries the required "
+        "approval for the full workflow: make the requested edit to the "
+        "canonical note under `sase/memory/`, then you MUST run "
+        "`sase memory init` to regenerate `AGENTS.md`, the provider instruction "
+        "shims, and the memory README. Do NOT ask for separate permission to "
+        "initialize sase memory in that case. "
+        "## Tier 1 (short-term) Memory "
+        "The following memories contain core (always loaded) context: "
+        "### 1. SASE = Structured Agentic Software Engineering (sase)"
     )
+    assert " ".join(agents.split()).startswith(expected)
     assert "@sase/memory/sase.md" not in agents
     assert "@AGENTS.md" not in agents
     assert agents.endswith("\n")

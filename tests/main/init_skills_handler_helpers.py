@@ -180,12 +180,12 @@ def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def stub_under_wrapped_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Write a skill template whose body is hard-wrapped tighter than 120 cols."""
+    """Write a skill template whose body is hard-wrapped tighter than prettier's."""
     skills_dir = tmp_path / "skills"
     skills_dir.mkdir()
     body = (
         "Use this skill when you need to do many things. This is a long sentence that\n"
-        "would normally fit on one line just fine in 120 columns.\n"
+        "would normally be joined and re-wrapped at the repo prose width.\n"
     )
     src = skills_dir / "foo.md"
     src.write_text(

@@ -1,20 +1,21 @@
 # Query Language Reference
 
-The ChangeSpec query language filters ChangeSpecs using boolean expressions that combine string matching, property
-filters, and operational shorthands. It is used by the PRs sub-tab in `sase ace [query]` and by other ChangeSpec filters
-such as `sase axe start --query`.
+The ChangeSpec query language filters ChangeSpecs using boolean expressions that combine string
+matching, property filters, and operational shorthands. It is used by the PRs sub-tab in
+`sase ace [query]` and by other ChangeSpec filters such as `sase axe start --query`.
 
-Normal query surfaces use enabled-project ChangeSpec discovery. Disabled projects are omitted from CLI search and
-day-to-day ACE/axe scans. Views that are specifically about agent history or old artifacts opt into all project
-lifecycle states explicitly.
+Normal query surfaces use enabled-project ChangeSpec discovery. Disabled projects are omitted from
+CLI search and day-to-day ACE/axe scans. Views that are specifically about agent history or old
+artifacts opt into all project lifecycle states explicitly.
 
-This page documents ChangeSpec queries. The Agents tab in ACE has a separate agent query language with agent-specific
-property keys.
+This page documents ChangeSpec queries. The Agents tab in ACE has a separate agent query language
+with agent-specific property keys.
 
 ## String Matching
 
-Bare words and double-quoted strings perform case-insensitive substring matching against all searchable fields. Use
-quoted strings when the value contains spaces, punctuation, or other characters that are not valid in a bare word:
+Bare words and double-quoted strings perform case-insensitive substring matching against all
+searchable fields. Use quoted strings when the value contains spaces, punctuation, or other
+characters that are not valid in a bare word:
 
 ```
 foobar           bare word, matches "FooBar", "FOOBAR", etc.
@@ -27,8 +28,8 @@ Prefix a quoted string with `c` to force case-sensitive matching:
 c"FooBar"        matches only "FooBar", not "foobar" or "FOOBAR"
 ```
 
-Inside quoted strings, the following escape sequences are recognized: `\\` (literal backslash), `\"` (literal quote),
-`\n` (newline), `\r` (carriage return), and `\t` (tab).
+Inside quoted strings, the following escape sequences are recognized: `\\` (literal backslash), `\"`
+(literal quote), `\n` (newline), `\r` (carriage return), and `\t` (tab).
 
 ## Searchable Fields
 
@@ -45,13 +46,13 @@ String matches search across these ChangeSpec fields as one combined text corpus
 - **comments** -- reviewer names, file paths, and suffixes
 - **mentors** -- mentor status line suffixes
 
-For normalized status matching, prefer the `status:` property filter instead of a plain string match. `status:` strips
-workspace suffixes and the legacy `READY TO MAIL` suffix before comparing.
+For normalized status matching, prefer the `status:` property filter instead of a plain string
+match. `status:` strips workspace suffixes and the legacy `READY TO MAIL` suffix before comparing.
 
 ## Property Filters
 
-Property filters match against a specific ChangeSpec field rather than performing a full-text substring search. The
-supported property filters are exact and case-insensitive:
+Property filters match against a specific ChangeSpec field rather than performing a full-text
+substring search. The supported property filters are exact and case-insensitive:
 
 ```
 status:WIP            match ChangeSpecs with base status "WIP"
@@ -61,13 +62,14 @@ name:foo              match ChangeSpecs whose name is exactly "foo"
 sibling:bar           match ChangeSpecs in the same sibling family as "bar"
 ```
 
-Valid property keys: `status`, `project`, `ancestor`, `name`, and `sibling`. Values can be bare words (alphanumeric,
-`_`, `-`) or quoted strings (e.g. `status:"in progress"`).
+Valid property keys: `status`, `project`, `ancestor`, `name`, and `sibling`. Values can be bare
+words (alphanumeric, `_`, `-`) or quoted strings (e.g. `status:"in progress"`).
 
-The `project:` filter uses the ProjectSpec's configured `PROJECT_NAME` when present and valid; otherwise it falls back
-to the canonical project directory key. A configured name replaces the directory key for this exact filter rather than
-adding a second alias. `PROJECT_ALIASES` are not matched by `project:` or the `+` shorthand, and storage paths,
-workspace lookup, and VCS operations continue using the canonical directory key.
+The `project:` filter uses the ProjectSpec's configured `PROJECT_NAME` when present and valid;
+otherwise it falls back to the canonical project directory key. A configured name replaces the
+directory key for this exact filter rather than adding a second alias. `PROJECT_ALIASES` are not
+matched by `project:` or the `+` shorthand, and storage paths, workspace lookup, and VCS operations
+continue using the canonical directory key.
 
 ### Property Shorthand Prefixes
 
@@ -93,20 +95,21 @@ Status shorthands are case-insensitive (`%D` and `%d` are equivalent).
 
 ### Status Matching
 
-The `status:` filter compares the base status only. For example, a ChangeSpec whose stored status is `Ready (sase_102)`
-matches `status:Ready`. It also treats the legacy `Ready - (!: READY TO MAIL)` form as base status `Ready`.
+The `status:` filter compares the base status only. For example, a ChangeSpec whose stored status is
+`Ready (sase_102)` matches `status:Ready`. It also treats the legacy `Ready - (!: READY TO MAIL)`
+form as base status `Ready`.
 
 ### Ancestor Matching
 
-The `ancestor:` filter (and `^` shorthand) walks the parent chain recursively. A ChangeSpec matches if its own name
-equals the value, or if any parent, grandparent, etc. in the chain equals the value. Cycle detection prevents infinite
-loops.
+The `ancestor:` filter (and `^` shorthand) walks the parent chain recursively. A ChangeSpec matches
+if its own name equals the value, or if any parent, grandparent, etc. in the chain equals the value.
+Cycle detection prevents infinite loops.
 
 ### Sibling Matching
 
-The `sibling:` filter (and `~` shorthand) strips any `__<N>` revert suffix from both the search value and the ChangeSpec
-name, then compares base names. This matches all members of a "family" -- the original plus its `__1`, `__2`, etc.
-variants.
+The `sibling:` filter (and `~` shorthand) strips any `__<N>` revert suffix from both the search
+value and the ChangeSpec name, then compares base names. This matches all members of a "family" --
+the original plus its `__1`, `__2`, etc. variants.
 
 ## Boolean Operators
 
@@ -156,7 +159,8 @@ feature AND (test OR lint)
 
 ## Special Shorthands
 
-These shorthands filter ChangeSpecs by error, agent, or process state recorded in status or suffix fields.
+These shorthands filter ChangeSpecs by error, agent, or process state recorded in status or suffix
+fields.
 
 ### Error Suffix
 
@@ -188,8 +192,9 @@ These shorthands filter ChangeSpecs by error, agent, or process state recorded i
 | ------ | ----------------------------------------------------------------- |
 | `*`    | Errors OR agents OR processes (equivalent to `!!! OR @@@ OR $$$`) |
 
-Note: `!`, `@`, `$`, `!!`, `!@`, `!$`, and `*` are only treated as special shorthands when standalone (at end of input
-or followed by whitespace). When `!` is followed by other characters, as in `!"foo"`, it acts as the `NOT` operator.
+Note: `!`, `@`, `$`, `!!`, `!@`, `!$`, and `*` are only treated as special shorthands when
+standalone (at end of input or followed by whitespace). When `!` is followed by other characters, as
+in `!"foo"`, it acts as the `NOT` operator.
 
 ## Practical Examples
 

@@ -167,9 +167,10 @@ def test_init_memory_project_memory_includes_workspace_section(
     project_memory = (project_root / "sase" / "memory" / "sase.md").read_text()
     home_memory = (home_root / "sase" / "memory" / "sase.md").read_text()
     assert SASE_MEMORY_HEADER in project_memory
+    flat_project_memory = single_line(project_memory)
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
-    assert "full clones of the project repo" in project_memory
-    assert "directories are named `project_<N>`" in project_memory
+    assert "full clones of the project repo" in flat_project_memory
+    assert "directories are named `project_<N>`" in flat_project_memory
     assert "project--research" not in project_memory
     assert "agents MUST use your `/sase_repo` skill first" in single_line(
         project_memory
@@ -223,5 +224,5 @@ def test_init_memory_project_memory_uses_managed_checkout_marker_name(
 
     project_memory = (project_root / "sase" / "memory" / "sase.md").read_text()
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
-    assert "full clones of the project repo" in project_memory
+    assert "full clones of the project repo" in single_line(project_memory)
     assert "project_10_<N>" not in project_memory

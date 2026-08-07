@@ -12,7 +12,7 @@ import jinja2
 import yaml  # type: ignore[import-untyped]
 
 from sase.main.init_plan import InitOperation
-from sase.markdown_width import prettier_markdown_argv
+from sase.markdown_width import MARKDOWN_PRINT_WIDTH, prettier_markdown_argv
 from sase.mdtemplates import render_markdown_template
 from sase.xprompt.models import XPrompt
 
@@ -21,6 +21,7 @@ from sase.xprompt.models import XPrompt
 # bounded checks. A hung prettier shim must degrade to unformatted output.
 _PRETTIER_TIMEOUT_SECONDS = 10.0
 _PRETTIER_COMMENT_RE = re.compile(r"^<!-- prettier-ignore[^\n]*-->\n?", re.MULTILINE)
+_YAML_BLOCK_INDENT = "  "
 _SKILL_FRAME_TEMPLATE_FILENAME = "SKILL.frame.template.md"
 _SKILL_FRAME_TEMPLATE_VARS = frozenset(
     {"frontmatter", "log_skill_use", "skill_name", "body"}
@@ -95,9 +96,11 @@ def _build_output(
         for line in description.strip().splitlines():
             header += f"  {line}\n"
         header += "---"
-    elif len(f"description: {description}") > 120:
-        wrapped = textwrap.fill(description, width=118)
-        indented = textwrap.indent(wrapped, "  ")
+    elif len(f"description: {description}") > MARKDOWN_PRINT_WIDTH:
+        wrapped = textwrap.fill(
+            description, width=MARKDOWN_PRINT_WIDTH - len(_YAML_BLOCK_INDENT)
+        )
+        indented = textwrap.indent(wrapped, _YAML_BLOCK_INDENT)
         frontmatter = f"name: {name}\ndescription:\n{indented}"
         try:
             parsed = yaml.safe_load(frontmatter)

@@ -9,11 +9,13 @@ import subprocess
 from unittest.mock import MagicMock
 
 import pytest
+import yaml  # type: ignore[import-untyped]
 
 from sase.main import init_skills_handler
 from sase.main import _init_skills_rendering as skills_rendering
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_registry import InitCommandSpec
+from sase.markdown_width import MARKDOWN_PRINT_WIDTH
 from sase.main.init_skills_handler import (
     _get_target_path,
     plan_init_skills,
@@ -124,23 +126,19 @@ def test_broken_skill_frame_blocks_without_writing(
 
 
 def test_skill_frame_default_render_is_stable() -> None:
-    expected = """---
-name: demo
-description: A demo skill.
----
+    rendered = skills_rendering._build_output("demo", "A demo skill.", "Body.\n")
 
-Before doing anything else, run this command to record that you are using this skill:
-
-```bash
-sase skill use demo --reason "<one-line reason for using this skill>"
-```
-
-Body.
-"""
-
-    assert (
-        skills_rendering._build_output("demo", "A demo skill.", "Body.\n") == expected
+    assert rendered.startswith("---\nname: demo\ndescription: A demo skill.\n---\n\n")
+    assert rendered.endswith(
+        '```bash\nsase skill use demo --reason "<one-line reason for using this '
+        'skill>"\n```\n\nBody.\n'
     )
+    # The audit directive is prose wrapped at the repo Markdown width, so match
+    # it on collapsed whitespace rather than pinning where it breaks.
+    assert (
+        "Before doing anything else, run this command to record that you are "
+        "using this skill:"
+    ) in " ".join(rendered.split())
     assert (
         skills_rendering._build_output(
             "demo", "A demo skill.", "Body.\n", log_skill_use=False
@@ -148,19 +146,20 @@ Body.
         == "---\nname: demo\ndescription: A demo skill.\n---\n\nBody.\n"
     )
     long_description = (
-        "This is a deliberately long generated skill description that exceeds one "
-        "hundred and twenty columns so the existing wrapped YAML serialization path "
+        "This is a deliberately long generated skill description that exceeds the "
+        "repo Markdown prose width so the existing wrapped YAML serialization path "
         "is exercised without changing its output."
     )
-    assert skills_rendering._build_output(
+    long_output = skills_rendering._build_output(
         "long", long_description, "Body.\n", log_skill_use=False
-    ) == (
-        "---\nname: long\ndescription:\n"
-        "  This is a deliberately long generated skill description that exceeds one "
-        "hundred and twenty columns so the existing\n"
-        "  wrapped YAML serialization path is exercised without changing its output.\n"
-        "---\n\nBody.\n"
     )
+
+    assert long_output.startswith("---\nname: long\ndescription:\n  ")
+    assert long_output.endswith("---\n\nBody.\n")
+    assert yaml.safe_load(long_output.split("---\n")[1])["description"] == (
+        long_description
+    )
+    assert all(len(line) <= MARKDOWN_PRINT_WIDTH for line in long_output.split("\n"))
     colon_description = (
         "This is a deliberately long generated skill description whose YAML needs "
         "a block scalar because it contains a mapping-like value: linked repos and "

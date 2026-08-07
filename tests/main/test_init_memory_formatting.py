@@ -8,6 +8,7 @@ import subprocess
 import pytest
 
 from sase.main.init_memory.formatting import format_generated_memory_markdown
+from sase.markdown_width import MARKDOWN_PRINT_WIDTH
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -135,8 +136,13 @@ def test_format_keeps_inline_code_spans_atomic_at_wrap_points() -> None:
         "members.\n"
     )
     formatted = format_generated_memory_markdown(paragraph)
+    lines = formatted.split("\n")
+
     assert "`%n(parent,\n" not in formatted
-    assert "names. The first\n`%n(parent, suffix)` attachment" in formatted
+    # The span lands whole on whichever line the current width puts it, and the
+    # wrap point moves in front of it rather than through it.
+    assert any("`%n(parent, suffix)`" in line for line in lines)
+    assert all(len(line) <= MARKDOWN_PRINT_WIDTH for line in lines)
 
 
 def test_format_preserves_frontmatter() -> None:

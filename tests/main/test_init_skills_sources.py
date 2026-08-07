@@ -21,6 +21,15 @@ from sase.xprompt.models import XPrompt
 from tests.main.init_skills_handler_helpers import make_args
 
 
+def _collapse_whitespace(text: str) -> str:
+    """Return ``text`` with every whitespace run flattened to one space.
+
+    Skill prose is wrapped at the repo Markdown width, so phrase assertions
+    must not depend on where the line breaks happen to land.
+    """
+    return " ".join(text.split())
+
+
 def test_skill_source_integrity_allows_clean_merged_source(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -329,8 +338,11 @@ def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
     assert front_matter.get("skill") is True
     assert front_matter.get("description")
     assert body.strip(), "skill body must not be empty"
+    # Compare on collapsed whitespace: prose phrases straddle line breaks that
+    # move whenever the Markdown prose width changes.
+    flat_body = _collapse_whitespace(body)
     for phrase in expected_phrases:
-        assert phrase in body
+        assert _collapse_whitespace(phrase) in flat_body
 
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -345,9 +357,9 @@ def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
     for provider in providers:
         target = _get_target_path(provider, skill_name, use_chezmoi=False)
         assert target.exists(), f"{skill_name} not generated for provider {provider}"
-        rendered = target.read_text(encoding="utf-8")
+        rendered = _collapse_whitespace(target.read_text(encoding="utf-8"))
         for phrase in expected_phrases:
-            assert phrase in rendered
+            assert _collapse_whitespace(phrase) in rendered
 
 
 def test_gate_skill_sources_do_not_reference_v1_contract() -> None:

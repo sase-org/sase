@@ -1,21 +1,23 @@
 ---
 type: long
 parent: AGENTS.md
-description: Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow blocks.
+description:
+  Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow blocks.
 ---
 
 # XPrompts, Directives, and Launch VCS
 
 ## Invoke
 
-- `#name` expands inline xprompts/workflows with `prompt_part`; `#!name` launches standalone YAML workflows. Marker
-  starts the string or follows whitespace/`([{"'`; `# Heading` is ignored.
-- Args: `#name(a, b)`, `#name(k=v)` (positional first), quoted comma/special values, `[[ ... ]]` multi-line text.
-- Shorthands: `#name:arg`, `#name:a,b`, `` #name:`arg with spaces` ``, `#name+` = `#name:true`; line `#name: text`
-  captures to blank line, `#name:: text` to next line-boundary directive.
+- `#name` expands inline xprompts/workflows with `prompt_part`; `#!name` launches standalone YAML
+  workflows. Marker starts the string or follows whitespace/`([{"'`; `# Heading` is ignored.
+- Args: `#name(a, b)`, `#name(k=v)` (positional first), quoted comma/special values, `[[ ... ]]`
+  multi-line text.
+- Shorthands: `#name:arg`, `#name:a,b`, `` #name:`arg with spaces` ``, `#name+` = `#name:true`; line
+  `#name: text` captures to blank line, `#name:: text` to next line-boundary directive.
 - Names: `#ns/name`; `__` -> `/`; aliases `#c` -> `#commit`, `#p` -> `#propose`.
-- Literal zones: fenced code and `%xprompts_enabled:false ... :true`. `$(cmd)` in args runs shell substitution. Bodies
-  recurse.
+- Literal zones: fenced code and `%xprompts_enabled:false ... :true`. `$(cmd)` in args runs shell
+  substitution. Bodies recurse.
 
 ## Directives
 
@@ -38,18 +40,19 @@ description: Read before xprompts, prompt directives, or launching agents with g
 
 ## Define
 
-- **`.md`:** one `prompt_part`; frontmatter `name/description/input/tags/snippet/skill/xprompts` (`_` local helpers).
-  Body is Jinja2 or `{0}`; `@{{ file }}` inlines a file.
+- **`.md`:** one `prompt_part`; frontmatter `name/description/input/tags/snippet/skill/xprompts`
+  (`_` local helpers). Body is Jinja2 or `{0}`; `@{{ file }}` inlines a file.
 - **Inputs:** `word/line/text/path/int/bool/float`; defaultless means required.
 - **`.yml`:** workflow `steps`: `prompt_part/python/bash/agent/use: shared/...`; supports
   `input/output/environment/if/repeat/finally/hidden/tags`.
-- **Discovery, first wins:** project `sase/xprompts/` -> legacy project `.xprompts/`, `xprompts/` -> home
-  `~/sase/xprompts/` -> legacy home `~/.xprompts/`, `~/xprompts/` -> project-specific home `~/sase/xprompts/<project>/`
-  -> legacy `~/.config/sase/xprompts/<project>/` -> project/user config -> plugins -> package defaults/built-ins.
-  Writers use canonical `sase/` paths only; config/memory collisions error while xprompt duplicates shadow
-  lower-priority definitions.
-- **Swarm:** top-level `---` outside fences fans out one agent per segment; use `#name` for markdown swarms. Embedded
-  swarms put the first segment at the call site, append the rest, and inherit leading workspace refs.
+- **Discovery, first wins:** project `sase/xprompts/` -> legacy project `.xprompts/`, `xprompts/` ->
+  home `~/sase/xprompts/` -> legacy home `~/.xprompts/`, `~/xprompts/` -> project-specific home
+  `~/sase/xprompts/<project>/` -> legacy `~/.config/sase/xprompts/<project>/` -> project/user config
+  -> plugins -> package defaults/built-ins. Writers use canonical `sase/` paths only; config/memory
+  collisions error while xprompt duplicates shadow lower-priority definitions.
+- **Swarm:** top-level `---` outside fences fans out one agent per segment; use `#name` for markdown
+  swarms. Embedded swarms put the first segment at the call site, append the rest, and inherit
+  leading workspace refs.
 
 ## Project-Task Launches
 
@@ -60,7 +63,8 @@ Start project work with a workspace ref; bare prompts normalize to `#git:home`.
 | `#gh:<ref>`  | GitHub project, ChangeSpec, `owner/repo`, or `@agent` |
 | `#git:<ref>` | Bare-git workspace                                    |
 
-Append a rollover xprompt for code-changing tasks; each sets `SASE_COMMIT_METHOD` and injects the no-direct-commit rule.
+Append a rollover xprompt for code-changing tasks; each sets `SASE_COMMIT_METHOD` and injects the
+no-direct-commit rule.
 
 | XPrompt      | Result                                                        |
 | ------------ | ------------------------------------------------------------- |
@@ -68,12 +72,13 @@ Append a rollover xprompt for code-changing tasks; each sets `SASE_COMMIT_METHOD
 | `#propose`   | Saved diff under `~/.sase/diffs/`, workspace cleaned          |
 | `#pr:<name>` | New branch + GitHub PR; ChangeSpec status defaults to `draft` |
 
-`#pr(name, status=ready, bug_id=123)` accepts named args, auto-detects PARENT from the current branch's ChangeSpec, and
-suffixes duplicates with `_<N>`. `#sync` syncs/rebases and launches conflict help; `#git:<ref>` checks out a ref and
-reports the diff.
+`#pr(name, status=ready, bug_id=123)` accepts named args, auto-detects PARENT from the current
+branch's ChangeSpec, and suffixes duplicates with `_<N>`. `#sync` syncs/rebases and launches
+conflict help; `#git:<ref>` checks out a ref and reports the diff.
 
-**Rule:** Agents never create git commits, branches, or PRs directly. The provider-neutral finalizer asks the runtime to
-use `/sase_git_commit` -> `sase commit`, honoring `SASE_COMMIT_METHOD`, `SASE_PR_NAME`, `SASE_PR_STATUS`, and
-`SASE_BUG_ID`. Use `gh` only for GitHub API/PR reads when needed.
+**Rule:** Agents never create git commits, branches, or PRs directly. The provider-neutral finalizer
+asks the runtime to use `/sase_git_commit` -> `sase commit`, honoring `SASE_COMMIT_METHOD`,
+`SASE_PR_NAME`, `SASE_PR_STATUS`, and `SASE_BUG_ID`. Use `gh` only for GitHub API/PR reads when
+needed.
 
 Typical project-task prompt: `#gh:sase %auto #pr:my_change <task text>`.

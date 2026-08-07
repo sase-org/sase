@@ -20,33 +20,36 @@ just test-cov      # pytest with coverage + 50% gate (used by CI); also
 
 ## IMPORTANT: Two-Speed Verification — Run `just check` if you Made File Changes
 
-If you made file changes in this repo (the sase repo), make sure to run the `just check` command before terminating /
-replying to the user. See the below subsection for exceptions to this rule.
+If you made file changes in this repo (the sase repo), make sure to run the `just check` command
+before terminating / replying to the user. See the below subsection for exceptions to this rule.
 
-`just check` runs every whole-repo lint gate plus a diff-scoped test lane (`just test-scoped`) that selects tests via a
-static import-graph closure and takes no suite-gate lease. Selection is a heuristic backstopped by CI:
-`tools/select_tests --explain` shows why a test was or was not chosen, and `just selection-health` shows whether the
-heuristic has ever been wrong.
+`just check` runs every whole-repo lint gate plus a diff-scoped test lane (`just test-scoped`) that
+selects tests via a static import-graph closure and takes no suite-gate lease. Selection is a
+heuristic backstopped by CI: `tools/select_tests --explain` shows why a test was or was not chosen,
+and `just selection-health` shows whether the heuristic has ever been wrong.
 
-Run `just check-full` instead — every lint gate plus the full test suite — before landing an epic's combined tree, when
-the change touches the broadening set, or any time `just check`'s scoped run escalated or reported an unusual selection.
+Run `just check-full` instead — every lint gate plus the full test suite — before landing an epic's
+combined tree, when the change touches the broadening set, or any time `just check`'s scoped run
+escalated or reported an unusual selection.
 
-**IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the sase.md file in this directory) is
-that you need to run `just install` before running other commands like `just check` (since it is possible we haven't
-used this workspace directory in a long time and package dependencies may have changed).
+**IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the sase.md file in
+this directory) is that you need to run `just install` before running other commands like
+`just check` (since it is possible we haven't used this workspace directory in a long time and
+package dependencies may have changed).
 
 ### Exceptions
 
-There is no point in running the `just check` command if the only file changes you made fall into one of the following
-categories:
+There is no point in running the `just check` command if the only file changes you made fall into
+one of the following categories:
 
 - Bead changes (i.e. changes to files in the sdd/beads/ directory).
 - Changes to (or the creation of new) markdown files or images in the sdd/research/ directory.
 
 ## PNG Snapshot Tests
 
-Run `just test-visual` for the dedicated ACE PNG snapshot suite; goldens live in `tests/ace/tui/visual/snapshots/png/`.
-On failures, inspect `.pytest_cache/sase-visual/` for actual/expected/diff/source artifacts, and use
-`--sase-update-visual-snapshots` only to accept intentional visual changes. Local runs use exact pixel equality by
-default, while CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin color and fontconfig/Fira
-Code to keep rendering deterministic.
+Run `just test-visual` for the dedicated ACE PNG snapshot suite; goldens live in
+`tests/ace/tui/visual/snapshots/png/`. On failures, inspect `.pytest_cache/sase-visual/` for
+actual/expected/diff/source artifacts, and use `--sase-update-visual-snapshots` only to accept
+intentional visual changes. Local runs use exact pixel equality by default, while CI allows a small
+ratio-only renderer drift tolerance; the visual fixtures pin color and fontconfig/Fira Code to keep
+rendering deterministic.

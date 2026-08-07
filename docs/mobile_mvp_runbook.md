@@ -1,9 +1,9 @@
 # Mobile MVP Runbook
 
-This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway. The phone
-is a client only: it stores a paired bearer token, renders notifications, opens fixed SASE workflows, and fetches
-authoritative state from the gateway. It does not run agents locally and the gateway does not expose arbitrary shell,
-file-browse, or RPC access.
+This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE
+mobile gateway. The phone is a client only: it stores a paired bearer token, renders notifications,
+opens fixed SASE workflows, and fetches authoritative state from the gateway. It does not run agents
+locally and the gateway does not expose arbitrary shell, file-browse, or RPC access.
 
 Use this with:
 
@@ -13,7 +13,8 @@ Use this with:
 
 Prerequisites:
 
-- JDK 21, Android SDK command-line tools, Android platform `android-35`, and Android build tools `35.0.0`.
+- JDK 21, Android SDK command-line tools, Android platform `android-35`, and Android build tools
+  `35.0.0`.
 - `ANDROID_HOME` or `ANDROID_SDK_ROOT` set when the Android SDK is not discoverable automatically.
 - `adb` on `PATH` for physical-device or emulator installs.
 - The sibling `sase-android` and `sase-core` checkouts beside this repo.
@@ -30,8 +31,8 @@ cd ../sase-android
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The debug build does not require Firebase project files. If `app/google-services.json` is absent, the app still builds,
-but push registration reports an unconfigured provider in Settings.
+The debug build does not require Firebase project files. If `app/google-services.json` is absent,
+the app still builds, but push registration reports an unconfigured provider in Settings.
 
 ### Internal APK With FCM
 
@@ -47,14 +48,14 @@ For an internal/direct APK that should receive FCM push hints:
    ./gradlew testDebugUnitTest lintDebug assembleDebug
    ```
 
-FCM payloads are hints only. They may contain event IDs, categories, routing IDs, short safe titles, and short safe
-bodies. They must not contain bearer tokens, pairing codes, prompt bodies, response text, attachment contents,
-attachment tokens, host paths, signing material, or Firebase credentials.
+FCM payloads are hints only. They may contain event IDs, categories, routing IDs, short safe titles,
+and short safe bodies. They must not contain bearer tokens, pairing codes, prompt bodies, response
+text, attachment contents, attachment tokens, host paths, signing material, or Firebase credentials.
 
 ### Signed Release APK
 
-Release signing is configured from local-only Gradle properties, `local.properties`, or environment variables. Do not
-commit keystores or signing values.
+Release signing is configured from local-only Gradle properties, `local.properties`, or environment
+variables. Do not commit keystores or signing values.
 
 Required keys:
 
@@ -72,15 +73,16 @@ cd ../sase-android
 ./gradlew testDebugUnitTest lintDebug assembleRelease
 ```
 
-The release build currently leaves minification off for private distribution. Revisit minification and keep rules before
-any broad public release.
+The release build currently leaves minification off for private distribution. Revisit minification
+and keep rules before any broad public release.
 
 ### Versioning And Upgrades
 
-The Android MVP keeps paired-host metadata, bearer tokens, cached inbox state, action drafts, foreground-mode
-preference, push registration status, and remembered update jobs in app-private storage. Preserve the application ID
-`org.sase.mobile` and increase `versionCode` for upgrades. Users who install a differently signed APK may need to
-uninstall first, which deletes local session/cache state and requires re-pairing.
+The Android MVP keeps paired-host metadata, bearer tokens, cached inbox state, action drafts,
+foreground-mode preference, push registration status, and remembered update jobs in app-private
+storage. Preserve the application ID `org.sase.mobile` and increase `versionCode` for upgrades.
+Users who install a differently signed APK may need to uninstall first, which deletes local
+session/cache state and requires re-pairing.
 
 ## Host Setup
 
@@ -92,9 +94,9 @@ just install
 cargo build -p sase_gateway --manifest-path ../sase-core/Cargo.toml
 ```
 
-The host CLI starts the first gateway binary it can resolve from `PATH`, `../sase-core/target/debug/sase_gateway`, or
-`../sase-core/target/release/sase_gateway`. Pass `-c /path/to/sase_gateway` only when you need to override that
-resolution.
+The host CLI starts the first gateway binary it can resolve from `PATH`,
+`../sase-core/target/debug/sase_gateway`, or `../sase-core/target/release/sase_gateway`. Pass
+`-c /path/to/sase_gateway` only when you need to override that resolution.
 
 Start the gateway on loopback:
 
@@ -102,17 +104,20 @@ Start the gateway on loopback:
 sase mobile gateway start
 ```
 
-The command prints a pairing code, pairing ID, and expiration. Keep the process running while mobile clients connect.
+The command prints a pairing code, pairing ID, and expiration. Keep the process running while mobile
+clients connect.
 
-For an emulator pointed at host loopback, use `http://10.0.2.2:7629` as the base URL in the Android app. For a physical
-device on the same trusted LAN, bind explicitly to a LAN address only when needed:
+For an emulator pointed at host loopback, use `http://10.0.2.2:7629` as the base URL in the Android
+app. For a physical device on the same trusted LAN, bind explicitly to a LAN address only when
+needed:
 
 ```bash
 sase mobile gateway start -b 192.0.2.10 -L
 ```
 
-Do not bind to `0.0.0.0` or a public interface unless you have a separate network control that restricts access to your
-own device. Pairing and bearer auth protect the product API, but the workstation remains the trust boundary.
+Do not bind to `0.0.0.0` or a public interface unless you have a separate network control that
+restricts access to your own device. Pairing and bearer auth protect the product API, but the
+workstation remains the trust boundary.
 
 ## Push Provider
 
@@ -153,19 +158,23 @@ mobile_gateway:
   push_retry_limit: 1
 ```
 
-The host passes credential paths or environment-variable names to the Rust gateway, not credential contents on the
-process command line. Store service-account files under user-private config directories.
+The host passes credential paths or environment-variable names to the Rust gateway, not credential
+contents on the process command line. Store service-account files under user-private config
+directories.
 
 ## Private Remote Access
 
-Tailscale Serve is the recommended remote-access path for the MVP because it keeps the gateway on host loopback and
-proxies it only inside the tailnet. Tailscale documents Serve as a way to route traffic from tailnet devices to a local
-service and notes that Funnel is the public-internet option; do not use Funnel for the mobile MVP. See the official
-Serve docs: <https://tailscale.com/docs/features/tailscale-serve> and <https://tailscale.com/kb/1242/tailscale-serve>.
+Tailscale Serve is the recommended remote-access path for the MVP because it keeps the gateway on
+host loopback and proxies it only inside the tailnet. Tailscale documents Serve as a way to route
+traffic from tailnet devices to a local service and notes that Funnel is the public-internet option;
+do not use Funnel for the mobile MVP. See the official Serve docs:
+<https://tailscale.com/docs/features/tailscale-serve> and
+<https://tailscale.com/kb/1242/tailscale-serve>.
 
-Use a recent Tailscale client. The Serve CLI changed in Tailscale 1.52, and the current command accepts a local port,
-partial URL, or full local URL as its target. If the command prompts to enable HTTPS for the tailnet, follow the
-Tailscale consent flow. Tailnet AChangeSpecs still apply to Serve traffic.
+Use a recent Tailscale client. The Serve CLI changed in Tailscale 1.52, and the current command
+accepts a local port, partial URL, or full local URL as its target. If the command prompts to enable
+HTTPS for the tailnet, follow the Tailscale consent flow. Tailnet AChangeSpecs still apply to Serve
+traffic.
 
 Start SASE on loopback:
 
@@ -180,8 +189,8 @@ tailscale serve --bg http://127.0.0.1:7629
 tailscale serve status
 ```
 
-Use the reported tailnet HTTPS URL as the Android base URL. Keep Tailscale AChangeSpecs limited to the users/devices
-that should operate the workstation. Stop serving when finished:
+Use the reported tailnet HTTPS URL as the Android base URL. Keep Tailscale AChangeSpecs limited to
+the users/devices that should operate the workstation. Stop serving when finished:
 
 ```bash
 tailscale serve reset
@@ -191,12 +200,14 @@ Fallback options:
 
 - Emulator: `http://10.0.2.2:7629` while the gateway binds host loopback.
 - Trusted LAN: bind a specific host LAN address with `-L` and pair only on that network.
-- USB reverse/tunnel tooling: acceptable for local development, but document the exact command in your local notes.
+- USB reverse/tunnel tooling: acceptable for local development, but document the exact command in
+  your local notes.
 
 Avoid:
 
 - Public tunnel services and Tailscale Funnel.
-- Committing tailnet hostnames, Firebase service accounts, Android signing keys, or local gateway URLs.
+- Committing tailnet hostnames, Firebase service accounts, Android signing keys, or local gateway
+  URLs.
 - Exposing the gateway on a shared network without explicit need and a short operating window.
 
 ## Manual Smoke
@@ -216,34 +227,36 @@ Then smoke the end-to-end path:
 2. Install the APK and pair from Settings.
 3. Verify session check, inbox refresh, and notification detail load.
 4. Approve/reject a plan notification, launch a text agent, and kill or retry an agent.
-5. Turn on foreground connected mode, background the app, trigger a gateway event, reopen the app, and verify state
-   refreshes.
-6. For FCM builds, verify push registration in Settings, send a test hint, tap the local notification, and confirm the
-   app fetches host state before showing detail-sensitive UI.
-7. Snooze a notification in ACE, wait for its deadline, and verify the row returns to the mobile inbox as unread on the
-   first page, that its displayed sent time is unchanged, and that an incremental `newer_than` poll using the stored
-   `next_high_water` cursor returns it exactly once.
+5. Turn on foreground connected mode, background the app, trigger a gateway event, reopen the app,
+   and verify state refreshes.
+6. For FCM builds, verify push registration in Settings, send a test hint, tap the local
+   notification, and confirm the app fetches host state before showing detail-sensitive UI.
+7. Snooze a notification in ACE, wait for its deadline, and verify the row returns to the mobile
+   inbox as unread on the first page, that its displayed sent time is unchanged, and that an
+   incremental `newer_than` poll using the stored `next_high_water` cursor returns it exactly once.
 8. Forget the host and verify the app returns to the unpaired state.
 
 ## Troubleshooting
 
-- Gateway refuses to bind: non-loopback addresses require `-L`; prefer loopback plus Tailscale Serve.
+- Gateway refuses to bind: non-loopback addresses require `-L`; prefer loopback plus Tailscale
+  Serve.
 - Emulator cannot connect: use `10.0.2.2`, not `127.0.0.1`, from inside the emulator.
-- Physical device cannot connect: verify phone and host are on the same tailnet/LAN and that the displayed base URL
-  matches the exposed address.
-- Push says unconfigured: check `app/google-services.json` for Android and `mobile_gateway.push_provider`/FCM credential
-  config for the host.
-- Push arrives but detail is stale: push is only a wake hint; verify the app can reach the authenticated gateway and
-  refresh after receipt or tap.
+- Physical device cannot connect: verify phone and host are on the same tailnet/LAN and that the
+  displayed base URL matches the exposed address.
+- Push says unconfigured: check `app/google-services.json` for Android and
+  `mobile_gateway.push_provider`/FCM credential config for the host.
+- Push arrives but detail is stale: push is only a wake hint; verify the app can reach the
+  authenticated gateway and refresh after receipt or tap.
 - Auth failures after reinstall or host reset: forget the host in Android Settings and pair again.
-- Foreground notification will not appear: verify Android notification permission and that connected mode is enabled.
-- A snoozed notification never came back: with no consumer running, nothing rings at the deadline by design; the row is
-  expired atomically by the first later current-state read. Fetch `/api/v1/notifications` once and confirm it returns
-  with `resurfaced_at` set and `muted: false`. If it is still muted with a past `snooze_until`, the store read is
-  failing rather than the timer.
-- A resurfaced notification is missing from an incremental poll: confirm the client stored `next_high_water` verbatim,
-  including the `|<id>` suffix. A cursor truncated to the timestamp can hide a sibling row that shares its activity
-  instant.
+- Foreground notification will not appear: verify Android notification permission and that connected
+  mode is enabled.
+- A snoozed notification never came back: with no consumer running, nothing rings at the deadline by
+  design; the row is expired atomically by the first later current-state read. Fetch
+  `/api/v1/notifications` once and confirm it returns with `resurfaced_at` set and `muted: false`.
+  If it is still muted with a past `snooze_until`, the store read is failing rather than the timer.
+- A resurfaced notification is missing from an incremental poll: confirm the client stored
+  `next_high_water` verbatim, including the `|<id>` suffix. A cursor truncated to the timestamp can
+  hide a sibling row that shares its activity instant.
 
 ## Rollback
 
@@ -259,7 +272,8 @@ To roll back mobile access:
 
 ### Assets
 
-- Workstation SASE state, notifications, pending action files, agent launch context, and attachment files.
+- Workstation SASE state, notifications, pending action files, agent launch context, and attachment
+  files.
 - Mobile bearer token and cached display state.
 - Pairing code and pairing ID during their short validity window.
 - FCM provider token/service account and Android app `google-services.json`.
@@ -267,7 +281,8 @@ To roll back mobile access:
 
 ### Lost Phone
 
-Risk: a paired phone can use its bearer token until the host forgets/revokes that device or the token becomes unusable.
+Risk: a paired phone can use its bearer token until the host forgets/revokes that device or the
+token becomes unusable.
 
 Controls:
 
@@ -283,8 +298,8 @@ Operator response:
 
 ### LAN Attacker And Non-Loopback Bind
 
-Risk: binding to LAN or `0.0.0.0` exposes the gateway transport to anyone who can route to the host, increasing online
-attack surface even though API routes require auth.
+Risk: binding to LAN or `0.0.0.0` exposes the gateway transport to anyone who can route to the host,
+increasing online attack surface even though API routes require auth.
 
 Controls:
 
@@ -295,12 +310,13 @@ Controls:
 Guidance:
 
 - Prefer loopback plus Tailscale Serve.
-- If LAN binding is necessary, bind a specific LAN IP for a short smoke window and stop it afterward.
+- If LAN binding is necessary, bind a specific LAN IP for a short smoke window and stop it
+  afterward.
 
 ### Public Tunnels
 
-Risk: public tunnels expose pairing and authenticated routes to the internet and make brute-force, scanner, and logging
-risks materially worse.
+Risk: public tunnels expose pairing and authenticated routes to the internet and make brute-force,
+scanner, and logging risks materially worse.
 
 Controls and guidance:
 
@@ -310,13 +326,16 @@ Controls and guidance:
 
 ### Attachment URL And Token Leakage
 
-Risk: attachment download tokens grant temporary access to specific declared files for a paired device.
+Risk: attachment download tokens grant temporary access to specific declared files for a paired
+device.
 
 Controls:
 
 - Tokens are minted only from authenticated detail responses.
-- Tokens are bound to the authenticated device, expire after a short TTL, and are not stored in audit logs.
-- Download checks reject traversal, symlink crossing, missing or changed files, non-regular files, and oversized files.
+- Tokens are bound to the authenticated device, expire after a short TTL, and are not stored in
+  audit logs.
+- Download checks reject traversal, symlink crossing, missing or changed files, non-regular files,
+  and oversized files.
 
 Guidance:
 
@@ -329,10 +348,11 @@ Risk: mobile helper or launch surfaces could become a general host command chann
 
 Controls:
 
-- Gateway routes are product-shaped: notification actions, agent launch/kill/retry, fixed helpers, and update start.
+- Gateway routes are product-shaped: notification actions, agent launch/kill/retry, fixed helpers,
+  and update start.
 - Helper bridge commands are configured by the host and invoked with fixed operations.
-- Mobile clients cannot send cwd values, environment variables, host file paths, shell fragments, or arbitrary bridge
-  argv for helper operations.
+- Mobile clients cannot send cwd values, environment variables, host file paths, shell fragments, or
+  arbitrary bridge argv for helper operations.
 
 Guidance:
 
@@ -358,8 +378,8 @@ Allowed in FCM payloads:
 
 Never allowed in FCM payloads:
 
-- Bearer tokens, pairing codes, service-account contents, prompt bodies, response text, attachment contents, attachment
-  tokens, raw host paths, local tailnet names, or signing material.
+- Bearer tokens, pairing codes, service-account contents, prompt bodies, response text, attachment
+  contents, attachment tokens, raw host paths, local tailnet names, or signing material.
 
 ### Notification Content Sensitivity
 
@@ -373,15 +393,17 @@ Controls:
 Guidance:
 
 - Keep notification text generic for private builds.
-- If a future build needs richer text, add an explicit user setting and revisit lock-screen visibility.
+- If a future build needs richer text, add an explicit user setting and revisit lock-screen
+  visibility.
 
 ## Known Limitations
 
 - The MVP is for private/internal distribution, not Play Store production.
-- FCM is the first push provider; UnifiedPush/ntfy remain future provider options behind the transport-agnostic
-  subscription model.
+- FCM is the first push provider; UnifiedPush/ntfy remain future provider options behind the
+  transport-agnostic subscription model.
 - Push diagnostics are mostly in tests/logs and Android Settings state.
-- Foreground connected mode improves durability but still follows Android background execution limits.
+- Foreground connected mode improves durability but still follows Android background execution
+  limits.
 - Telegram remains the fallback for users who need a mature remote notification path.
-- No follow-up beads were created during this close-out; material gaps above should be triaged under the parent epic or
-  a future planning pass.
+- No follow-up beads were created during this close-out; material gaps above should be triaged under
+  the parent epic or a future planning pass.

@@ -11,13 +11,13 @@ pdf: false
 - Docs homepage insertion point: existing hero visual
 - Final image: `docs/images/sase_overview.png`
 - Final size: 1672×941 PNG, sRGB
-- Alt text: "One developer using SASE to run parallel coding agents in isolated workspaces with tracked, reviewable
-  results"
+- Alt text: "One developer using SASE to run parallel coding agents in isolated workspaces with
+  tracked, reviewable results"
 
 ## Final GPT Image Prompt
 
-The built-in GPT Image tool generated a completely text-free structural base. Exact labels were added locally so the
-committed image contains no model-generated text.
+The built-in GPT Image tool generated a completely text-free structural base. Exact labels were
+added locally so the committed image contains no model-generated text.
 
 ```text
 Use case: infographic-diagram
@@ -32,10 +32,10 @@ Constraints: no company or product logos, no provider logos, no mascots, no deco
 
 ## Deterministic Post-Processing Record
 
-The generated base already matched the 1672×941 target. A transparent SVG overlay rendered with ImageMagick and DejaVu
-Sans supplied every visible label. The overlay also removed a direct workspace-to-outcome edge and a stray lower arrow,
-then made the durable-state rail the single source of the outcome spine. The final image was stripped and normalized to
-sRGB:
+The generated base already matched the 1672×941 target. A transparent SVG overlay rendered with
+ImageMagick and DejaVu Sans supplied every visible label. The overlay also removed a direct
+workspace-to-outcome edge and a stray lower arrow, then made the durable-state rail the single
+source of the outcome spine. The final image was stripped and normalized to sRGB:
 
 ```bash
 magick -background none "$LABELS_SVG" "$LABELS_PNG"
@@ -48,15 +48,16 @@ The deterministic labels are:
 - Header: `SASE` and `Structured Agentic Software Engineering`
 - Operator controls: `You`, `ACE TUI` / `interactive`, and `AXE` / `scheduled`
 - Input: `ONE PROMPT`, `Prompt`, `XPrompt`, and `Workflow`
-- Fan-out: `PARALLEL AGENTS`; `Workspace 1` / `Claude Code`; `Workspace 2` / `Codex`; and `Workspace 3` /
-  `Antigravity CLI`
+- Fan-out: `PARALLEL AGENTS`; `Workspace 1` / `Claude Code`; `Workspace 2` / `Codex`; and
+  `Workspace 3` / `Antigravity CLI`
 - Durable state: `ChangeSpecs`, `Beads`, `Commits`, and `Artifacts`
 - Outcomes: `Reviewed PRs`, `Tracked runs`, and `Scheduled work`
 
 ## Final Review
 
 - Inspected at full 1672×941 resolution and at the README display width of 830 pixels.
-- Confirmed exact label spelling, high contrast, clear fan-out arrows, complete safe margins, and no generated
-  pseudo-text, logos, fake screenshots, gradients, cropping, or watermark.
-- Confirmed the same asset works in the dark README banner and the existing `docs/index.md` hero slot.
+- Confirmed exact label spelling, high contrast, clear fan-out arrows, complete safe margins, and no
+  generated pseudo-text, logos, fake screenshots, gradients, cropping, or watermark.
+- Confirmed the same asset works in the dark README banner and the existing `docs/index.md` hero
+  slot.
 - Final SHA-256: `5c2ef949d060f5239eacaf8e86e1962aa9def546a84765bfe1dc4fc72c190547`.

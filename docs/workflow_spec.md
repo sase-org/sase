@@ -1,7 +1,7 @@
 # Workflow Specification
 
-This document describes the YAML workflow format for sase xprompt workflows. Workflows enable multi-step agent pipelines
-with control flow, parallel execution, and human-in-the-loop approval.
+This document describes the YAML workflow format for sase xprompt workflows. Workflows enable
+multi-step agent pipelines with control flow, parallel execution, and human-in-the-loop approval.
 
 ![Workflow execution model showing inputs, environment, ordered steps, prompt injection, control flow wrappers, artifacts, parallel branches, join modes, and HITL gates](images/workflow-execution-infographic.png)
 
@@ -27,8 +27,8 @@ with control flow, parallel execution, and human-in-the-loop approval.
 
 ## Top-Level Structure
 
-A workflow YAML file must define `steps` and can include optional metadata, inputs, environment variables, and local
-xprompt helpers:
+A workflow YAML file must define `steps` and can include optional metadata, inputs, environment
+variables, and local xprompt helpers:
 
 ```yaml
 name: my_workflow # Workflow identifier (optional, defaults to filename)
@@ -105,17 +105,19 @@ input: { diff_path: path, split_desc: { type: line, default: "multiple PRs" } }
 
 ### Default Values
 
-In shortform input definitions, parameters without a `default` are required. Parameters with `default: null` or
-`default: ""` are optional. In current workflow YAML loading, longform entries that omit `default` are treated like
-`default: null`; prefer shortform for required workflow inputs.
+In shortform input definitions, parameters without a `default` are required. Parameters with
+`default: null` or `default: ""` are optional. In current workflow YAML loading, longform entries
+that omit `default` are treated like `default: null`; prefer shortform for required workflow inputs.
 
-Default values preserve their native Python types from YAML parsing — `3` stays an `int`, `true` stays a `bool`, and
-`"text"` stays a `str`. This means downstream steps receive properly typed defaults without needing explicit conversion.
+Default values preserve their native Python types from YAML parsing — `3` stays an `int`, `true`
+stays a `bool`, and `"text"` stays a `str`. This means downstream steps receive properly typed
+defaults without needing explicit conversion.
 
 ## Environment
 
-Workflows can declare environment variables that are set once before any steps run and persist for the entire agent
-session. Values support Jinja2 templates rendered against the workflow's input arguments.
+Workflows can declare environment variables that are set once before any steps run and persist for
+the entire agent session. Values support Jinja2 templates rendered against the workflow's input
+arguments.
 
 ```yaml
 name: deploy_workflow
@@ -128,8 +130,8 @@ steps:
     bash: echo "Deploying to $DEPLOY_TARGET"
 ```
 
-Environment variables are injected into `os.environ` at workflow start, making them available to all bash, python, and
-agent steps without explicit passing.
+Environment variables are injected into `os.environ` at workflow start, making them available to all
+bash, python, and agent steps without explicit passing.
 
 ## Step Types
 
@@ -155,16 +157,18 @@ The `agent` field contains a prompt template that can:
 - Use Jinja2 template variables: `{{ variable }}`
 - Include multi-line content
 
-Standalone workflows, which have no `prompt_part` step, cannot be embedded inside an `agent` prompt. Launch them with
-`#!workflow_name(args)` at the top level or inside an anonymous wrapper prompt such as `sase run '#gh:sase #!sync'`.
+Standalone workflows, which have no `prompt_part` step, cannot be embedded inside an `agent` prompt.
+Launch them with `#!workflow_name(args)` at the top level or inside an anonymous wrapper prompt such
+as `sase run '#gh:sase #!sync'`.
 
-> **Note:** The keyword `prompt` is still accepted for backward compatibility, but `agent` is the canonical name.
+> **Note:** The keyword `prompt` is still accepted for backward compatibility, but `agent` is the
+> canonical name.
 
 ### Prompt Part Steps
 
-Inject text into the containing agent prompt without triggering a separate LLM call. When a workflow is referenced via
-`#name(args)`, the `prompt_part` content is expanded inline into the calling prompt. Steps before and after the
-`prompt_part` still execute as pre/post-processing.
+Inject text into the containing agent prompt without triggering a separate LLM call. When a workflow
+is referenced via `#name(args)`, the `prompt_part` content is expanded inline into the calling
+prompt. Steps before and after the `prompt_part` still execute as pre/post-processing.
 
 ```yaml
 - name: inject
@@ -174,9 +178,9 @@ Inject text into the containing agent prompt without triggering a separate LLM c
     ---
 ```
 
-This is the step type that simple `.md` xprompts are internally converted to — a single `prompt_part` step. Workflows
-with a `prompt_part` step can mix it with other step types (bash, python) for pre/post-processing around an inline
-prompt fragment:
+This is the step type that simple `.md` xprompts are internally converted to — a single
+`prompt_part` step. Workflows with a `prompt_part` step can mix it with other step types (bash,
+python) for pre/post-processing around an inline prompt fragment:
 
 ```yaml
 steps:
@@ -191,8 +195,8 @@ steps:
     bash: echo "done"
 ```
 
-> **Note:** A workflow may have at most one `prompt_part` step. It is mutually exclusive with `agent`, `bash`, `python`,
-> and `parallel` within a single step.
+> **Note:** A workflow may have at most one `prompt_part` step. It is mutually exclusive with
+> `agent`, `bash`, `python`, and `parallel` within a single step.
 
 ### Bash Steps
 
@@ -232,9 +236,10 @@ Python steps run in a subprocess with access to installed packages.
 
 ### Hidden Steps
 
-Any step can be marked `hidden: true` to omit it from the normal ACE Agents-tab workflow expansion. Hidden steps execute
-normally and still write their outputs, but they are shown only when the workflow row is fully expanded. This is useful
-for internal bookkeeping steps (e.g., report steps that emit metadata outputs) that would clutter the agent list:
+Any step can be marked `hidden: true` to omit it from the normal ACE Agents-tab workflow expansion.
+Hidden steps execute normally and still write their outputs, but they are shown only when the
+workflow row is fully expanded. This is useful for internal bookkeeping steps (e.g., report steps
+that emit metadata outputs) that would clutter the agent list:
 
 ```yaml
 - name: report
@@ -245,12 +250,13 @@ for internal bookkeeping steps (e.g., report steps that emit metadata outputs) t
   output: { meta_commit_message: text }
 ```
 
-A workflow can also set top-level `hidden: true` to omit the workflow run row from ACE's default Agents-tab view. The
-workflow still executes and still writes artifacts. `appears_as_agent` is not a YAML field to set directly; it is
-computed from the workflow shape. When the only non-hidden step is an `agent` step, the recorded workflow state gets
-`appears_as_agent: true`, so ACE displays the run as an agent row rather than a generic workflow row. Anonymous `tmp_*`
-workflows with that computed state are included in the normal Agents-tab visible inbox unless the workflow row is
-explicitly hidden.
+A workflow can also set top-level `hidden: true` to omit the workflow run row from ACE's default
+Agents-tab view. The workflow still executes and still writes artifacts. `appears_as_agent` is not a
+YAML field to set directly; it is computed from the workflow shape. When the only non-hidden step is
+an `agent` step, the recorded workflow state gets `appears_as_agent: true`, so ACE displays the run
+as an agent row rather than a generic workflow row. Anonymous `tmp_*` workflows with that computed
+state are included in the normal Agents-tab visible inbox unless the workflow row is explicitly
+hidden.
 
 ### Parallel Steps
 
@@ -271,8 +277,8 @@ See [Parallel Execution](#parallel-execution) for details.
 
 ## Step Imports
 
-The `use` field allows reusing step definitions from shared `.yml` files in `steps/` directories. This enables
-extracting common step patterns into reusable libraries.
+The `use` field allows reusing step definitions from shared `.yml` files in `steps/` directories.
+This enables extracting common step patterns into reusable libraries.
 
 ### Syntax
 
@@ -282,7 +288,8 @@ extracting common step patterns into reusable libraries.
   output: { status: text } # Local fields override base definition
 ```
 
-The `use` value is a slash-separated path relative to a `steps/` directory, without the file extension.
+The `use` value is a slash-separated path relative to a `steps/` directory, without the file
+extension.
 
 ### Search Paths
 
@@ -298,14 +305,14 @@ Step definitions are resolved from the following `steps/` directories (in priori
 8. `~/.config/sase/xprompts/<project>/steps/` (legacy project-specific home source)
 9. `<sase-package>/xprompts/steps/` (built-in)
 
-Both `.yml` and `.yaml` extensions are checked. First match wins. New shared steps are written only to canonical project
-or home directories; the legacy sources remain readable during the
+Both `.yml` and `.yaml` extensions are checked. First match wins. New shared steps are written only
+to canonical project or home directories; the legacy sources remain readable during the
 [content-layout compatibility window](content_layout.md#compatibility-and-collisions).
 
 ### Override Behavior
 
-Local step fields override any fields from the base definition. The `use` field itself is stripped from the merged
-result:
+Local step fields override any fields from the base definition. The `use` field itself is stripped
+from the merged result:
 
 ```yaml
 # In steps/shared/lint.yml:
@@ -385,7 +392,8 @@ echo "message=Operation completed"
 
 ## Artifact Passing
 
-The `artifact` field captures a step's stdout to a file, making it available to downstream steps as a file path.
+The `artifact` field captures a step's stdout to a file, making it available to downstream steps as
+a file path.
 
 ### Syntax
 
@@ -424,8 +432,8 @@ steps:
 
 ### Restrictions
 
-Only `bash` and `python` steps can use `artifact`. It is **not** allowed on `agent`, `prompt_part`, `parallel`, or
-nested (parallel substep) steps. The only valid value is `"stdout"`.
+Only `bash` and `python` steps can use `artifact`. It is **not** allowed on `agent`, `prompt_part`,
+`parallel`, or nested (parallel substep) steps. The only valid value is `"stdout"`.
 
 ## Control Flow
 
@@ -465,15 +473,17 @@ Iterate over a list:
   output: { name: word, id: int }
 ```
 
-The `for` field maps variable names to Jinja2 expressions that evaluate to lists. All lists must have equal length.
+The `for` field maps variable names to Jinja2 expressions that evaluate to lists. All lists must
+have equal length.
 
 ### For-Loop Error Handling (`on_error`)
 
 For-loop iterations use different defaults by step type:
 
-- `agent` steps default to `on_error: continue`, so one failed iteration is recorded and the remaining iterations still
-  run.
-- `bash` and `python` steps default to `on_error: stop`, so the first failed iteration aborts the loop.
+- `agent` steps default to `on_error: continue`, so one failed iteration is recorded and the
+  remaining iterations still run.
+- `bash` and `python` steps default to `on_error: stop`, so the first failed iteration aborts the
+  loop.
 
 You can set `on_error: stop` or `on_error: continue` explicitly on any `for:` step:
 
@@ -507,7 +517,8 @@ Execute step while a condition is true (checked after each iteration):
   output: { active: bool }
 ```
 
-The step runs at least once, then continues while the condition is true. Default max iterations: 100.
+The step runs at least once, then continues while the condition is true. Default max
+iterations: 100.
 
 ### Repeat/Until Loops (`repeat`)
 
@@ -524,7 +535,8 @@ Execute step until a condition becomes true (do-while semantics):
   output: { success: bool }
 ```
 
-The step runs at least once, then repeats until the `until` condition is true. Default max iterations: 100.
+The step runs at least once, then repeats until the `until` condition is true. Default max
+iterations: 100.
 
 ### Combined Control Flow
 
@@ -586,7 +598,8 @@ Steps within `parallel` cannot have:
 
 ### Fail-Fast Behavior
 
-Parallel steps are fail-fast: if any nested step fails, remaining nested steps are cancelled best-effort.
+Parallel steps are fail-fast: if any nested step fails, remaining nested steps are cancelled
+best-effort.
 
 ## Join Modes
 
@@ -693,17 +706,20 @@ agent: |
 
 ## Agent Output-Variable Namespaces
 
-Workflow step outputs are the normal way to pass data between steps in one YAML workflow. Cross-agent output variables
-are a separate handoff for SASE agents. After a consumer's `%wait` dependencies complete, SASE reads small string values
-that the producers wrote with `sase var set KEY=VALUE` and adds them to the consumer's Jinja context.
+Workflow step outputs are the normal way to pass data between steps in one YAML workflow.
+Cross-agent output variables are a separate handoff for SASE agents. After a consumer's `%wait`
+dependencies complete, SASE reads small string values that the producers wrote with
+`sase var set KEY=VALUE` and adds them to the consumer's Jinja context.
 
-Those values are loaded when the consumer starts; they are not live-updated after rendering begins. Have the producer
-call `sase var set` before it finishes. In workflows launched as agents, the `agents` dictionary is available to
-workflow template rendering, including `agent`, `bash`, `python`, `environment`, and `prompt_part` templates.
+Those values are loaded when the consumer starts; they are not live-updated after rendering begins.
+Have the producer call `sase var set` before it finishes. In workflows launched as agents, the
+`agents` dictionary is available to workflow template rendering, including `agent`, `bash`,
+`python`, `environment`, and `prompt_part` templates.
 
-Every producer's variables live under a single `agents` dictionary keyed by the producer's stable name. Agent-name
-templates use the template base instead of the concrete allocated name. The key is the raw agent name with no identifier
-munging, so dotted, hyphenated, and digit-leading names work via bracket access:
+Every producer's variables live under a single `agents` dictionary keyed by the producer's stable
+name. Agent-name templates use the template base instead of the concrete allocated name. The key is
+the raw agent name with no identifier munging, so dotted, hyphenated, and digit-leading names work
+via bracket access:
 
 | Producer name or template | Referenced as                                |
 | ------------------------- | -------------------------------------------- |
@@ -714,19 +730,21 @@ munging, so dotted, hyphenated, and digit-leading names work via bracket access:
 
 Identifier-safe keys also support attribute access such as `{{ agents.build.report_path }}`.
 
-The `agents` dictionary is an agent-level handoff, not a replacement for workflow `output:` schemas or the ACE
-`WORKFLOW VARIABLES` section. Use `output:` for values produced and consumed inside one YAML workflow; use
-`sase var set` when a later named agent, segment, or agent-launched workflow needs a small value from a completed
-producer. `agents` is a reserved agent-run Jinja name; a workflow input named `agents` collides and fails clearly.
+The `agents` dictionary is an agent-level handoff, not a replacement for workflow `output:` schemas
+or the ACE `WORKFLOW VARIABLES` section. Use `output:` for values produced and consumed inside one
+YAML workflow; use `sase var set` when a later named agent, segment, or agent-launched workflow
+needs a small value from a completed producer. `agents` is a reserved agent-run Jinja name; a
+workflow input named `agents` collides and fails clearly.
 
 ## Cross-Step Field Type Checking
 
-The workflow validator checks `{{ step_name.field }}` template references against each step's declared output schema at
-load time. This catches field name typos before the workflow runs.
+The workflow validator checks `{{ step_name.field }}` template references against each step's
+declared output schema at load time. This catches field name typos before the workflow runs.
 
 ### What It Checks
 
-- `{{ build.atrifact_path }}` produces an error if `build` only defines `artifact_path` in its output
+- `{{ build.atrifact_path }}` produces an error if `build` only defines `artifact_path` in its
+  output
 - Works with parallel step nesting: `{{ parallel.nested.field }}`
 - Recognizes the special `_artifact` field on steps with `artifact: stdout`
 - Recognizes the special `approved` field on `bash` and `python` HITL steps
@@ -761,12 +779,13 @@ When a HITL step completes:
    - **Edit**: Modify the output before continuing
    - **Reject**: Abort the workflow
 
-Some interfaces may show feedback or rerun controls, but the current workflow executor only handles accept, edit, and
-reject as workflow-control actions.
+Some interfaces may show feedback or rerun controls, but the current workflow executor only handles
+accept, edit, and reject as workflow-control actions.
 
 ### Accessing Approval Status
 
-After an accepted `bash` or `python` HITL step, `step.approved` is set to `true` for downstream conditions:
+After an accepted `bash` or `python` HITL step, `step.approved` is set to `true` for downstream
+conditions:
 
 ```yaml
 - name: prompt_user
@@ -787,8 +806,8 @@ After an accepted `bash` or `python` HITL step, `step.approved` is set to `true`
 
 ## Cleanup Steps
 
-Steps marked with `finally: true` run even when prior steps fail or are HITL-rejected. This is useful for cleanup and
-teardown operations.
+Steps marked with `finally: true` run even when prior steps fail or are HITL-rejected. This is
+useful for cleanup and teardown operations.
 
 ### Syntax
 
@@ -809,8 +828,8 @@ steps:
 
 ### Rules
 
-- Put `finally: true` steps at the **end** of the workflow, after all non-finally steps. After a failure, later
-  non-finally steps are skipped while `finally` steps still run.
+- Put `finally: true` steps at the **end** of the workflow, after all non-finally steps. After a
+  failure, later non-finally steps are skipped while `finally` steps still run.
 - Cannot be used on `prompt_part` or nested (parallel substep) steps
 - Can be combined with `if:` for conditional cleanup:
 
@@ -823,9 +842,9 @@ steps:
 
 ## Completion Markers
 
-When a multi-step workflow finishes, a `done.json` marker is written to track completion status. For multi-agent
-workflows (workflows that spawn follow-up agents), `done.json` is written to both the current step's artifacts directory
-and the root artifacts directory. The root copy ensures that:
+When a multi-step workflow finishes, a `done.json` marker is written to track completion status. For
+multi-agent workflows (workflows that spawn follow-up agents), `done.json` is written to both the
+current step's artifacts directory and the root artifacts directory. The root copy ensures that:
 
 - `%wait` dependencies resolve correctly (the workflow name is recognized as successful)
 - Agent name allocation preserves the workflow's reserved name
@@ -848,26 +867,27 @@ and the root artifacts directory. The root copy ensures that:
 }
 ```
 
-The `outcome` field is either `"completed"` or `"failed"`. Failed markers additionally include `"error"` and
-`"traceback"` fields.
+The `outcome` field is either `"completed"` or `"failed"`. Failed markers additionally include
+`"error"` and `"traceback"` fields.
 
 ### Workflow-Aware Wait Success
 
-The `%wait` directive treats a workflow dependency as satisfied only when the newest matching workflow run completed
-successfully:
+The `%wait` directive treats a workflow dependency as satisfied only when the newest matching
+workflow run completed successfully:
 
 1. Find all agents belonging to the workflow (matching `workflow_name`)
 2. Select the newest root agent (no `parent_timestamp`) when one exists
 3. Require the root `done.json` outcome to be `"completed"`
 4. Require every child agent for that root to have a `done.json` outcome of `"completed"`
 
-If older artifacts only retained `workflow_name` on children and no root can be identified, the newest matching artifact
-is used as a compatibility fallback, but it still must have outcome `"completed"`. Failed, killed, crashed,
-still-running, malformed, or missing `done.json` artifacts do not satisfy `%wait`; the dependent agent remains waiting
-until a later successful run of the same workflow name appears.
+If older artifacts only retained `workflow_name` on children and no root can be identified, the
+newest matching artifact is used as a compatibility fallback, but it still must have outcome
+`"completed"`. Failed, killed, crashed, still-running, malformed, or missing `done.json` artifacts
+do not satisfy `%wait`; the dependent agent remains waiting until a later successful run of the same
+workflow name appears.
 
-If a workflow name is not recognized (no agents with that `workflow_name`), the system falls back to single-agent
-success checking with the same `"completed"` outcome requirement.
+If a workflow name is not recognized (no agents with that `workflow_name`), the system falls back to
+single-agent success checking with the same `"completed"` outcome requirement.
 
 ## Examples
 

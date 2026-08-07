@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.main.parser import create_parser
+from sase.markdown_wrap import DEFAULT_PROSE_WRAP_WIDTH
 from tests.main.parser_help_helpers import help_subcommand_rows, parser_for
 
 
@@ -140,7 +141,7 @@ def test_plan_show_parses_target_and_options() -> None:
     assert bare_args.color == "auto"
     assert bare_args.format == "full"
     assert bare_args.target_kind == "auto"
-    assert bare_args.wrap == 120
+    assert bare_args.wrap == DEFAULT_PROSE_WRAP_WIDTH
     assert full_args.target == "abcdef12"
     assert full_args.color == "never"
     assert full_args.format == "json"

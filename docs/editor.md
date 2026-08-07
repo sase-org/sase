@@ -2,15 +2,17 @@
 
 SASE exposes two editor-facing surfaces for prompt and xprompt editing:
 
-- `sase lsp` is the interactive editor path. Configure your editor to launch it as a stdio language server when you want
-  completions, snippets, hover, diagnostics, code actions, and jump-to-definition while editing a prompt.
-- `sase editor helper-bridge ...` is the integration/debugging path. It reads one JSON request from stdin and writes one
-  JSON response to stdout, so clients can fetch the same catalogs without implementing an LSP client.
+- `sase lsp` is the interactive editor path. Configure your editor to launch it as a stdio language
+  server when you want completions, snippets, hover, diagnostics, code actions, and
+  jump-to-definition while editing a prompt.
+- `sase editor helper-bridge ...` is the integration/debugging path. It reads one JSON request from
+  stdin and writes one JSON response to stdout, so clients can fetch the same catalogs without
+  implementing an LSP client.
 
 ## Language Server
 
-`sase lsp` starts the SASE xprompt language server over stdio. Run `--version` or `--help` in a terminal to verify the
-wrapper, then point your editor's LSP configuration at `sase lsp`:
+`sase lsp` starts the SASE xprompt language server over stdio. Run `--version` or `--help` in a
+terminal to verify the wrapper, then point your editor's LSP configuration at `sase lsp`:
 
 ```bash
 sase lsp --version
@@ -25,26 +27,29 @@ The wrapper resolves the server command in this order:
 2. A `sase-xprompt-lsp` binary in the current Python environment's `bin/` directory.
 3. `sase-xprompt-lsp` on `PATH`.
 4. The newer debug or release `sase-xprompt-lsp` binary under a sibling `../sase-core` checkout.
-5. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when `cargo` is available and the sibling
-   checkout has a `Cargo.toml`.
+5. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when `cargo` is
+   available and the sibling checkout has a `Cargo.toml`.
 
-Use `SASE_XPROMPT_LSP_CMD` when you need to point the editor wrapper at a different source checkout or command,
-including a custom binary that should beat the managed venv copy. Full editable-install SASE updates reinstall the
-server into the uv-tool venv when pulled `sase-core` commits change. The `Justfile` uses `SASE_CORE_DIR` and
-`SASE_LINKED_REPO_SASE_CORE_DIR` (with the legacy `SASE_SIBLING_REPO_*` variables as fallbacks) for local `sase-core`
-build/install targets, but `sase lsp` itself does not read those variables.
+Use `SASE_XPROMPT_LSP_CMD` when you need to point the editor wrapper at a different source checkout
+or command, including a custom binary that should beat the managed venv copy. Full editable-install
+SASE updates reinstall the server into the uv-tool venv when pulled `sase-core` commits change. The
+`Justfile` uses `SASE_CORE_DIR` and `SASE_LINKED_REPO_SASE_CORE_DIR` (with the legacy
+`SASE_SIBLING_REPO_*` variables as fallbacks) for local `sase-core` build/install targets, but
+`sase lsp` itself does not read those variables.
 
-The xprompt LSP binary is built and installed from the local `sase-core` checkout (`just rust-lsp-install` for
-development/editor validation). It is separate from the `sase-core-rs` Python wheel; installing or rebuilding that wheel
-alone does not install the language server.
+The xprompt LSP binary is built and installed from the local `sase-core` checkout
+(`just rust-lsp-install` for development/editor validation). It is separate from the `sase-core-rs`
+Python wheel; installing or rebuilding that wheel alone does not install the language server.
 
-The wrapper also exports installed package xprompt locations, bundled default config, plugin xprompt directories, and
-plugin config paths to the Rust server. It also materializes a local artifact-reference catalog under
-`~/.sase/xprompt_lsp/` by default. The server refreshes its xprompt catalog when the LSP session starts, keeps a short
-cache for completion requests, and exposes a `sase.xpromptLsp.refreshCatalog` command for clients that surface LSP
-commands. Artifact-reference diagnostics and semantic highlighting re-read their catalog on each request, so a launcher
-refresh or external rewrite is visible on the next editor pass; artifact-reference completion reads the same catalog
-through a short-lived cache keyed by the catalog file's signature (see [LSP Features](#lsp-features)).
+The wrapper also exports installed package xprompt locations, bundled default config, plugin xprompt
+directories, and plugin config paths to the Rust server. It also materializes a local
+artifact-reference catalog under `~/.sase/xprompt_lsp/` by default. The server refreshes its xprompt
+catalog when the LSP session starts, keeps a short cache for completion requests, and exposes a
+`sase.xpromptLsp.refreshCatalog` command for clients that surface LSP commands. Artifact-reference
+diagnostics and semantic highlighting re-read their catalog on each request, so a launcher refresh
+or external rewrite is visible on the next editor pass; artifact-reference completion reads the same
+catalog through a short-lived cache keyed by the catalog file's signature (see
+[LSP Features](#lsp-features)).
 
 ## LSP Features
 
@@ -66,31 +71,35 @@ The xprompt language server is focused on prompt and xprompt editing:
 | Semantic highlighting   | Highlights the kind, payload, and supported fragment of known artifact references outside prompt literal zones using standard LSP semantic tokens.                                                                      |
 | Definition              | Jumps from xprompt and slash-skill references to real source files when the catalog provides a resolvable path.                                                                                                         |
 
-Snippet completions come from the same registry ACE uses: xprompts with `snippet` front matter plus user-defined
-`ace.snippets`, with `ace.snippets` winning on trigger collisions. The server asks the host helper bridge for that
-authoritative registry and falls back to native Rust loading only for simple xprompt snippets and configured
-`ace.snippets` when the helper is unavailable.
+Snippet completions come from the same registry ACE uses: xprompts with `snippet` front matter plus
+user-defined `ace.snippets`, with `ace.snippets` winning on trigger collisions. The server asks the
+host helper bridge for that authoritative registry and falls back to native Rust loading only for
+simple xprompt snippets and configured `ace.snippets` when the helper is unavailable.
 
-Artifact assistance is local-only. Before a `:` appears, `@` completion withholds local file rows whenever the query
-prefix-matches an artifact kind (including bare `@`), and returns them automatically when no kind prefix-matches. A
-manually invoked completion request includes the file rows explicitly. Completion labels are the reference that gets
-inserted, such as `@plans:` and `@src/`. Document-role kinds (including dynamic sidecar roles), chats, indexed artifact
-files, beads, agents, and commits are enumerated or resolved from the selected project's local catalog roots and
-checkout paths. `bead` and `agent` payloads resolve locally from generated sidecar pages, and `commit` payloads are
-enumerated from local git checkouts, excluding SDD sidecar repositories (`plans`, `beads`, `agents`, `research`) since
-their commits are machine-written bookkeeping rather than a human's recent work. A sidecar commit reference still
-resolves when written out in full, such as `@commit:plans@<sha>` — the exclusion only curates what completion offers.
-`bug` references still receive shape validation only because issue enumeration would require a network tracker. The LSP
-never contacts git hosts, issue trackers, or other network providers. Unknown `@kind:` text remains ordinary prose.
+Artifact assistance is local-only. Before a `:` appears, `@` completion withholds local file rows
+whenever the query prefix-matches an artifact kind (including bare `@`), and returns them
+automatically when no kind prefix-matches. A manually invoked completion request includes the file
+rows explicitly. Completion labels are the reference that gets inserted, such as `@plans:` and
+`@src/`. Document-role kinds (including dynamic sidecar roles), chats, indexed artifact files,
+beads, agents, and commits are enumerated or resolved from the selected project's local catalog
+roots and checkout paths. `bead` and `agent` payloads resolve locally from generated sidecar pages,
+and `commit` payloads are enumerated from local git checkouts, excluding SDD sidecar repositories
+(`plans`, `beads`, `agents`, `research`) since their commits are machine-written bookkeeping rather
+than a human's recent work. A sidecar commit reference still resolves when written out in full, such
+as `@commit:plans@<sha>` — the exclusion only curates what completion offers. `bug` references still
+receive shape validation only because issue enumeration would require a network tracker. The LSP
+never contacts git hosts, issue trackers, or other network providers. Unknown `@kind:` text remains
+ordinary prose.
 
-Matching is **fuzzy and ranked on the server** for every enumerated kind — document roles, chats, indexed artifact
-files, beads, agents, and commits — against the inserted payload, the row's title, and, for scoped rows, the qualified
-`scope@title` target. For example, `@commit:core@fix` can match the `sase-core` repository scope and a commit subject
-containing `fix` in the same query. Likewise, `@research:site` finds
-`@research:202607/sase_sites_hub_and_pages/sase_sites_hub_and_pages.md`, `@agent:sase-b3` finds
-`@agent:bbugyi200.athena.sase-b3.5` from a mid-name fragment, and `@file:panel` finds a `default:<hex>` indexed file by
-its file name. Rows are grouped into tiers so a fuzzy hit never outranks a literal one, then ordered by score, provider
-rank where a provider declares one, shorter text, and case-insensitive text:
+Matching is **fuzzy and ranked on the server** for every enumerated kind — document roles, chats,
+indexed artifact files, beads, agents, and commits — against the inserted payload, the row's title,
+and, for scoped rows, the qualified `scope@title` target. For example, `@commit:core@fix` can match
+the `sase-core` repository scope and a commit subject containing `fix` in the same query. Likewise,
+`@research:site` finds `@research:202607/sase_sites_hub_and_pages/sase_sites_hub_and_pages.md`,
+`@agent:sase-b3` finds `@agent:bbugyi200.athena.sase-b3.5` from a mid-name fragment, and
+`@file:panel` finds a `default:<hex>` indexed file by its file name. Rows are grouped into tiers so
+a fuzzy hit never outranks a literal one, then ordered by score, provider rank where a provider
+declares one, shorter text, and case-insensitive text:
 
 | Tier | Meaning                                   | Example query against `202607/sase_sites_hub_and_pages/…` |
 | ---- | ----------------------------------------- | --------------------------------------------------------- |
@@ -100,42 +109,47 @@ rank where a provider declares one, shorter text, and case-insensitive text:
 | 3    | query is an ordered subsequence           | `site`, `shubp`                                           |
 
 An empty query is not ranked at all: each group keeps its provider order (builtin order for kinds,
-directories-before-files for paths, recency for chats and commits). Kind rows and the trailing partial of a local path
-are matched the same way, but a `@` path token's directory portion stays exact, so `@src/` still lists `src/` and
-`@src/fcb` can still find `src/…/_file_completion_base.py`. Commit SHA text is still part of the lowest fuzzy tier, so
-hex-like queries such as `add` can subsequence-match a SHA; subject and repository matches outrank those tier-3 rows.
+directories-before-files for paths, recency for chats and commits). Kind rows and the trailing
+partial of a local path are matched the same way, but a `@` path token's directory portion stays
+exact, so `@src/` still lists `src/` and `@src/fcb` can still find `src/…/_file_completion_base.py`.
+Commit SHA text is still part of the lowest fuzzy tier, so hex-like queries such as `add` can
+subsequence-match a SHA; subject and repository matches outrank those tier-3 rows.
 
-Bounds are disclosed rather than silent. Filesystem-backed enumeration walks up to 5000 payloads per root, so a root
-larger than that is matched only over the rows the walk reached. Commit completion reads at most 200 revisions per
-repository, gives each repository two seconds to answer, and merges at most 1000 commit rows across repositories.
-Matching then returns at most 200 rows per group to the editor. Whichever bound bites, the count of payloads left out is
-appended to every item's `detail` as `at least N additional payloads not shown`, on top of the list's
-`isIncomplete: true`. Because the walk is query-independent, the enumerated and titled inventory is cached in-process
-per project and per catalog signature (path, mtime, size) with a two-second TTL, so a keystroke re-ranks a warm corpus
-instead of re-walking the filesystem. A watched catalog write or the `sase.xpromptLsp.refreshCatalog` command
-invalidates it immediately.
+Bounds are disclosed rather than silent. Filesystem-backed enumeration walks up to 5000 payloads per
+root, so a root larger than that is matched only over the rows the walk reached. Commit completion
+reads at most 200 revisions per repository, gives each repository two seconds to answer, and merges
+at most 1000 commit rows across repositories. Matching then returns at most 200 rows per group to
+the editor. Whichever bound bites, the count of payloads left out is appended to every item's
+`detail` as `at least N additional payloads not shown`, on top of the list's `isIncomplete: true`.
+Because the walk is query-independent, the enumerated and titled inventory is cached in-process per
+project and per catalog signature (path, mtime, size) with a two-second TTL, so a keystroke re-ranks
+a warm corpus instead of re-walking the filesystem. A watched catalog write or the
+`sase.xpromptLsp.refreshCatalog` command invalidates it immediately.
 
-Keeping server-ranked rows alive in the client is an explicit contract. Every artifact-reference item sets `filterText`
-to the reference text **as typed** (`@research:site` in the payload stage, `@rsch` in the kind stage) rather than to the
-inserted reference, because a client that prefix-filters `@research:202607/…` against `@research:site` would discard
-every fuzzy row. The response is a `CompletionList` with `isIncomplete: true`, which makes clients re-request on each
-keystroke instead of re-filtering a stale list and, in Neovim's native completion, disables the client's own fuzzy
-re-sort so the server's `sortText` order survives. Insertion is unaffected: each item carries the full reference in
-`textEdit.newText`.
+Keeping server-ranked rows alive in the client is an explicit contract. Every artifact-reference
+item sets `filterText` to the reference text **as typed** (`@research:site` in the payload stage,
+`@rsch` in the kind stage) rather than to the inserted reference, because a client that
+prefix-filters `@research:202607/…` against `@research:site` would discard every fuzzy row. The
+response is a `CompletionList` with `isIncomplete: true`, which makes clients re-request on each
+keystroke instead of re-filtering a stale list and, in Neovim's native completion, disables the
+client's own fuzzy re-sort so the server's `sortText` order survives. Insertion is unaffected: each
+item carries the full reference in `textEdit.newText`.
 
-Editors cannot highlight individual characters inside a completion label, so the "why is this row here" affordance moves
-into the preview. `labelDetails.description` keeps the group word (`artifact kind`, `file`, `directory`, or a payload
-kind such as `commit`, `chat`, `research`, `bead`, or `agent`). `labelDetails.detail` adds the row's title when it
-differs from the label — a document's frontmatter title, a chat or indexed file's basename, a bead or bug title, an
-agent's short name, or a commit subject — and markdown `documentation` shows the matched payload with the matched runs
-wrapped in `**`, followed by that title on a second line. Commit rows also include the bounded commit body when one is
-available.
+Editors cannot highlight individual characters inside a completion label, so the "why is this row
+here" affordance moves into the preview. `labelDetails.description` keeps the group word
+(`artifact kind`, `file`, `directory`, or a payload kind such as `commit`, `chat`, `research`,
+`bead`, or `agent`). `labelDetails.detail` adds the row's title when it differs from the label — a
+document's frontmatter title, a chat or indexed file's basename, a bead or bug title, an agent's
+short name, or a commit subject — and markdown `documentation` shows the matched payload with the
+matched runs wrapped in `**`, followed by that title on a second line. Commit rows also include the
+bounded commit body when one is available.
 
-Artifact-reference semantic tokens use the standard LSP legend: `namespace` for the kind, `string` for the payload, and
-`number` for the fragment. Dynamic document-role references carry the standard `documentation` modifier; builtin
-references do not. Editors therefore use their normal semantic-token theme without SASE-specific client configuration.
-The provider currently emits artifact-reference tokens only. Neovim's native LSP semantic-token support consumes this
-capability directly, so the `sase-nvim` plugin needs no matching syntax or capability changes.
+Artifact-reference semantic tokens use the standard LSP legend: `namespace` for the kind, `string`
+for the payload, and `number` for the fragment. Dynamic document-role references carry the standard
+`documentation` modifier; builtin references do not. Editors therefore use their normal
+semantic-token theme without SASE-specific client configuration. The provider currently emits
+artifact-reference tokens only. Neovim's native LSP semantic-token support consumes this capability
+directly, so the `sase-nvim` plugin needs no matching syntax or capability changes.
 
 ## Helper Bridge
 
@@ -149,9 +163,9 @@ printf '{"schema_version":1,"workflow":"gh","namespace":"sase-org"}\n' \
   | sase editor helper-bridge vcs-repo-catalog
 ```
 
-`xprompt-catalog` returns the structured xprompt catalog used by mobile/editor clients, including insertion text,
-reference prefix, kind, tags, typed inputs, display/source fields, and `definition_path` when SASE can resolve a real
-file.
+`xprompt-catalog` returns the structured xprompt catalog used by mobile/editor clients, including
+insertion text, reference prefix, kind, tags, typed inputs, display/source fields, and
+`definition_path` when SASE can resolve a real file.
 
 `snippet-catalog` returns the composed snippet registry:
 
@@ -159,23 +173,26 @@ file.
 - User snippets from `ace.snippets` in merged SASE config.
 - Valid trigger words only; user snippets override xprompt snippets on collision.
 - `#[trigger]` snippet references resolved after the xprompt/user merge.
-- Generated initial-capital aliases (`foo` → `Foo`, uppercasing only the first character of the trigger and template)
-  composed after that merge, so the registry matches ACE. Explicit `Foo` definitions are never overwritten.
+- Generated initial-capital aliases (`foo` → `Foo`, uppercasing only the first character of the
+  trigger and template) composed after that merge, so the registry matches ACE. Explicit `Foo`
+  definitions are never overwritten.
 
-`agent-catalog` requires only `{"schema_version":1}` and reads across projects. It returns active and recent ordinary
-agent rows, de-duplicated by name, with `status` and `project`. When the same artifact snapshot contains usable group
-metadata, the response adds the latest identifiable generation of each family and clan plus `@tribe` references derived
-from stored tribe assignments and clan declarations. Every row has `name`, `kind`, `member_count`, and display-ready
-`detail`; clan rows also have aggregate `status`. Group entries are additive, so malformed legacy group metadata does
-not hide the ordinary agent rows.
+`agent-catalog` requires only `{"schema_version":1}` and reads across projects. It returns active
+and recent ordinary agent rows, de-duplicated by name, with `status` and `project`. When the same
+artifact snapshot contains usable group metadata, the response adds the latest identifiable
+generation of each family and clan plus `@tribe` references derived from stored tribe assignments
+and clan declarations. Every row has `name`, `kind`, `member_count`, and display-ready `detail`;
+clan rows also have aggregate `status`. Group entries are additive, so malformed legacy group
+metadata does not hide the ordinary agent rows.
 
-`vcs-repo-catalog` requires a `workflow` and `namespace`, then asks that workflow's registered workspace provider for
-repositories. The response reports `status`, `error_kind`, `message`, `provider_display`, and whether returned cache
-data is `stale`. Each entry has a short `name` and a full `ref` such as `sase-org/sase`; replace the current VCS ref
-with `ref` rather than appending it after the namespace.
+`vcs-repo-catalog` requires a `workflow` and `namespace`, then asks that workflow's registered
+workspace provider for repositories. The response reports `status`, `error_kind`, `message`,
+`provider_display`, and whether returned cache data is `stale`. Each entry has a short `name` and a
+full `ref` such as `sase-org/sase`; replace the current VCS ref with `ref` rather than appending it
+after the namespace.
 
-All four helper operations read one JSON object from stdin and write one compact JSON object to stdout. They are fixed
-catalog operations, not a general shell or filesystem bridge.
+All four helper operations read one JSON object from stdin and write one compact JSON object to
+stdout. They are fixed catalog operations, not a general shell or filesystem bridge.
 
 ## Authoring Snippets
 
@@ -201,11 +218,13 @@ input:
 Review {{ path }} for correctness, tests, and maintainability.
 ```
 
-Required xprompt inputs become snippet tabstops. Optional inputs are pre-filled from defaults. XPrompts with complex
-Jinja control flow are skipped by snippet conversion so the generated editor template stays predictable.
+Required xprompt inputs become snippet tabstops. Optional inputs are pre-filled from defaults.
+XPrompts with complex Jinja control flow are skipped by snippet conversion so the generated editor
+template stays predictable.
 
-Snippet templates can reuse other snippets by trigger with `#[trigger]`. Positional forms such as `#[trigger(value)]`
-and `#[trigger:value]` fill the referenced snippet's tabstops before the composed template is renumbered.
+Snippet templates can reuse other snippets by trigger with `#[trigger]`. Positional forms such as
+`#[trigger(value)]` and `#[trigger:value]` fill the referenced snippet's tabstops before the
+composed template is renumbered.
 
 ## Troubleshooting
 
@@ -219,7 +238,8 @@ and `#[trigger:value]` fill the referenced snippet's tabstops before the compose
 
 ## Related Pages
 
-- [XPrompt reference](xprompt.md) for xprompt syntax, discovery order, typed inputs, snippets, and workflows.
+- [XPrompt reference](xprompt.md) for xprompt syntax, discovery order, typed inputs, snippets, and
+  workflows.
 - [Integration APIs](integrations.md#editor-helper-bridge) for the Python helper facade.
 - [Configuration](configuration.md#sase-editor) for CLI flag and environment-variable reference.
 - [ACE snippets](ace.md#snippets) for the in-TUI prompt widget behavior.

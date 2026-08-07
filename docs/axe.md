@@ -2,13 +2,14 @@
 
 ## Overview
 
-Axe is the background automation subsystem of sase. It watches ChangeSpecs (the per-PR records that sase uses to track
-work) and periodically runs lifecycle jobs such as hook completion, mentor launch, workflow cleanup, comment polling,
-`%wait` dependency checks, and error digests.
+Axe is the background automation subsystem of sase. It watches ChangeSpecs (the per-PR records that
+sase uses to track work) and periodically runs lifecycle jobs such as hook completion, mentor
+launch, workflow cleanup, comment polling, `%wait` dependency checks, and error digests.
 
-Axe uses a multi-process architecture: an **Orchestrator** spawns multiple **Lumberjacks**, and each lumberjack runs a
-subset of jobs on its own schedule. The ACE TUI starts axe automatically unless launched with `sase ace --no-axe`;
-operators can also manage it directly with `sase axe start` and `sase axe stop`.
+Axe uses a multi-process architecture: an **Orchestrator** spawns multiple **Lumberjacks**, and each
+lumberjack runs a subset of jobs on its own schedule. The ACE TUI starts axe automatically unless
+launched with `sase ace --no-axe`; operators can also manage it directly with `sase axe start` and
+`sase axe stop`.
 
 ## Architecture
 
@@ -32,20 +33,23 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 
 ### Key Concepts
 
-- **Orchestrator**: Parent process that spawns and monitors all lumberjack processes. Detects crashes and restarts
-  failed lumberjacks automatically. Holds the axe lifecycle lock while running and forwards SIGTERM to all children on
-  shutdown.
+- **Orchestrator**: Parent process that spawns and monitors all lumberjack processes. Detects
+  crashes and restarts failed lumberjacks automatically. Holds the axe lifecycle lock while running
+  and forwards SIGTERM to all children on shutdown.
 
-- **Lumberjack**: Individual scheduler loop that runs a subset of jobs on a fixed interval. Each lumberjack has a name
-  (e.g., "hooks", "checks"), runs one or more chops per cycle, and maintains independent state and metrics.
+- **Lumberjack**: Individual scheduler loop that runs a subset of jobs on a fixed interval. Each
+  lumberjack has a name (e.g., "hooks", "checks"), runs one or more chops per cycle, and maintains
+  independent state and metrics.
 
-- **Chop**: A single script-only job unit executed by a lumberjack. The executable reads context JSON and may return a
-  structured result containing validated agent-launch proposals. The runner, never the script, launches those agents.
-  Chops can declare cadence, triggers, guards, target fan-out, environment, and dedupe policy.
+- **Chop**: A single script-only job unit executed by a lumberjack. The executable reads context
+  JSON and may return a structured result containing validated agent-launch proposals. The runner,
+  never the script, launches those agents. Chops can declare cadence, triggers, guards, target
+  fan-out, environment, and dedupe policy.
 
 ## CLI Commands
 
-`sase axe chop` and `sase axe lumberjack` default to their `list` views when invoked without a nested subcommand.
+`sase axe chop` and `sase axe lumberjack` default to their `list` views when invoked without a
+nested subcommand.
 
 | Command                                    | Description                                            |
 | ------------------------------------------ | ------------------------------------------------------ |
@@ -120,10 +124,11 @@ sase axe maintenance exit
 
 ## Whole-System Status
 
-`sase axe status` collects one read-only snapshot of AXE intent and runtime evidence, classifies it once, and renders an
-operator dashboard. It does not clean stale files, start or stop processes, clear maintenance, or otherwise change host
-state. `sase axe status -j` (equivalently `--json`) emits that same snapshot as the stable schema-version-1 JSON object,
-with deterministic formatting and no Rich markup or ANSI escapes.
+`sase axe status` collects one read-only snapshot of AXE intent and runtime evidence, classifies it
+once, and renders an operator dashboard. It does not clean stale files, start or stop processes,
+clear maintenance, or otherwise change host state. `sase axe status -j` (equivalently `--json`)
+emits that same snapshot as the stable schema-version-1 JSON object, with deterministic formatting
+and no Rich markup or ANSI escapes.
 
 The top-level lifecycle state and health are separate:
 
@@ -137,23 +142,29 @@ The top-level lifecycle state and health are separate:
 | `degraded`    | Processes are live but orchestrator or lumberjack evidence is invalid. | `unhealthy` |
 | `error`       | A required host input could not be collected or classified.            | `error`     |
 
-The summary shows the desired state with its source and timestamp; orchestrator live PIDs, lifecycle-lock state, and
-PID-file coherence; maintenance reason, owner, and age; hook and agent runner occupancy; and the newest lifecycle
-journal event. The lumberjack table is sorted by name and includes derived and reported state, process liveness, PID,
-interval and staleness threshold, start and heartbeat times/ages, uptime, cycle and historical error counts, and
-configured chops. At narrow terminal widths those facts fold into a compact details column rather than being truncated.
+The summary shows the desired state with its source and timestamp; orchestrator live PIDs,
+lifecycle-lock state, and PID-file coherence; maintenance reason, owner, and age; hook and agent
+runner occupancy; and the newest lifecycle journal event. The lumberjack table is sorted by name and
+includes derived and reported state, process liveness, PID, interval and staleness threshold, start
+and heartbeat times/ages, uptime, cycle and historical error counts, and configured chops. At narrow
+terminal widths those facts fold into a compact details column rather than being truncated.
 
-When the classifier reports issues or collection failure, an **Attention** panel preserves the issue order and lists
-deduplicated suggested commands. Exit codes are part of the snapshot contract: `0` means healthy or intentionally
-inactive, `1` means actionable degradation, and `2` means collection/classification error.
+When the classifier reports issues or collection failure, an **Attention** panel preserves the issue
+order and lists deduplicated suggested commands. Exit codes are part of the snapshot contract: `0`
+means healthy or intentionally inactive, `1` means actionable degradation, and `2` means
+collection/classification error.
 
 Use these related commands according to intent:
 
 - `sase axe status` is the read-only first look at whole-system intent and health.
-- `sase axe ensure` reconciles desired state and may start a missing orchestrator; it is a recovery command.
-- `sase doctor --deep` runs broader, slower diagnostics when the status evidence needs deeper investigation.
-- `sase axe maintenance status` remains the compatibility/debugging view of only the maintenance marker.
-- `sase axe lumberjack status` remains the compatibility/debugging process view for individual lumberjacks.
+- `sase axe ensure` reconciles desired state and may start a missing orchestrator; it is a recovery
+  command.
+- `sase doctor --deep` runs broader, slower diagnostics when the status evidence needs deeper
+  investigation.
+- `sase axe maintenance status` remains the compatibility/debugging view of only the maintenance
+  marker.
+- `sase axe lumberjack status` remains the compatibility/debugging process view for individual
+  lumberjacks.
 
 ## Default Lumberjacks
 
@@ -184,24 +195,26 @@ Fast-polling agent dependency resolution:
 | `epic_launch_flush`  | Flush planner completions orphaned by unsettled epic launches              |
 | `wait_checks`        | Resolve successful agent and closed-bead waits; write `ready.json`         |
 
-`wait_checks` only unblocks a named dependency when the newest matching agent, or the newest matching workflow root and
-all of its children, has a `done.json` outcome of `"completed"`. Failed, killed, crashed, still-running, malformed, or
-missing `done.json` artifacts do not satisfy `%wait`; the dependent agent remains parked until a later successful run of
-the same dependency name appears.
+`wait_checks` only unblocks a named dependency when the newest matching agent, or the newest
+matching workflow root and all of its children, has a `done.json` outcome of `"completed"`. Failed,
+killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy `%wait`;
+the dependent agent remains parked until a later successful run of the same dependency name appears.
 
-Markers may also carry `wait_for_beads`, emitted by `%wait(bead=<bead-id>)`. `wait_checks` reads the waiting agent's
-project bead store once per cycle and releases the marker only when every named bead is closed as well as every agent or
-artifact dependency being satisfied. Missing beads, unavailable stores, and read failures deliberately fail closed and
-leave the agent parked; ACE's run-now action remains the manual escape hatch. While live bead waits are outstanding,
-`bead_store_refresh` integrates their projects' canonical stores every 30 seconds, with the waiting runner providing a
+Markers may also carry `wait_for_beads`, emitted by `%wait(bead=<bead-id>)`. `wait_checks` reads the
+waiting agent's project bead store once per cycle and releases the marker only when every named bead
+is closed as well as every agent or artifact dependency being satisfied. Missing beads, unavailable
+stores, and read failures deliberately fail closed and leave the agent parked; ACE's run-now action
+remains the manual escape hatch. While live bead waits are outstanding, `bead_store_refresh`
+integrates their projects' canonical stores every 30 seconds, with the waiting runner providing a
 coarser outage backstop. Setting `sdd.bead_refresh.mode: off` disables both refresh paths.
 
-Each cycle has to fit inside the chop's own 2-minute timeout, so the refresh bounds itself rather than waiting out the
-default 180-second store-write-lock timeout: every waiting project gets an equal slice of the lock-wait budget (at least
-10 seconds each), a project whose store lock is held elsewhere is declined instead of blocked, and projects still
-unattempted once the work budget is spent are deferred to the next cycle. A declined or failed refresh records the
-project's exponential backoff _before_ the attempt starts, so a timeout kill leaves the backoff behind instead of
-erasing it and re-attacking the same contended lock 30 seconds later.
+Each cycle has to fit inside the chop's own 2-minute timeout, so the refresh bounds itself rather
+than waiting out the default 180-second store-write-lock timeout: every waiting project gets an
+equal slice of the lock-wait budget (at least 10 seconds each), a project whose store lock is held
+elsewhere is declined instead of blocked, and projects still unattempted once the work budget is
+spent are deferred to the next cycle. A declined or failed refresh records the project's exponential
+backoff _before_ the attempt starts, so a timeout kill leaves the backoff behind instead of erasing
+it and re-attacking the same contended lock 30 seconds later.
 
 ### checks (5-minute interval)
 
@@ -213,17 +226,20 @@ Lower-frequency status checks:
 | `pr_submitted_checks`   | Start PR submission status checks              |
 | `stale_running_cleanup` | Backstop dead-process claim cleanup            |
 
-`bead_task_triage` scans enabled non-home projects for task beads whose stored status is `ready`, creates one
-`TaskTriage` gate per bead, and stores the bead-to-request mapping in the checks lumberjack's state directory. This scan
-does not call the dependency-aware `sase bead ready` query, so a stored-ready task with an active blocker still receives
-a gate. A still-pending gate is skipped on later ticks, preventing repeated notifications. If a task leaves `ready`
-through a launch, close, or manual retraction, the chop cancels its pending gate. If a gate becomes terminal or its
-bundle disappears while the task remains `ready`, the next tick also replaces it. A persistent generation counter gives
-each replacement a new deterministic request ID, whether the task remained ready or left and became ready again.
+`bead_task_triage` scans enabled non-home projects for task beads whose stored status is `ready`,
+creates one `TaskTriage` gate per bead, and stores the bead-to-request mapping in the checks
+lumberjack's state directory. This scan does not call the dependency-aware `sase bead ready` query,
+so a stored-ready task with an active blocker still receives a gate. A still-pending gate is skipped
+on later ticks, preventing repeated notifications. If a task leaves `ready` through a launch, close,
+or manual retraction, the chop cancels its pending gate. If a gate becomes terminal or its bundle
+disappears while the task remains `ready`, the next tick also replaces it. A persistent generation
+counter gives each replacement a new deterministic request ID, whether the task remained ready or
+left and became ready again.
 
-The gate presents the task title, description, and notes. **Launch** accepts optional feedback and submits a
-deduplicated global detached task for `sase bead work <task-id> --yes-to-all`; **Close** requires a reason and closes
-the bead as `canceled`. See [TaskTriage notifications](notifications.md#command-backed-interaction-gates) and the
+The gate presents the task title, description, and notes. **Launch** accepts optional feedback and
+submits a deduplicated global detached task for `sase bead work <task-id> --yes-to-all`; **Close**
+requires a reason and closes the bead as `canceled`. See
+[TaskTriage notifications](notifications.md#command-backed-interaction-gates) and the
 [standalone task workflow](beads.md#standalone-task-workflow) for the human-facing lifecycle.
 
 ### comments (1-minute interval)
@@ -244,23 +260,25 @@ Periodic maintenance:
 | `managed_tmp_reap` | Prune stale scratch under the managed SASE temp root                            |
 
 The `error_digest` chop summarizes recent errors into a digest file stored at
-`~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a `ViewErrorReport` action that opens the
-digest in `$EDITOR` when selected in the ACE notification modal.
+`~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a `ViewErrorReport`
+action that opens the digest in `$EDITOR` when selected in the ACE notification modal.
 
-The `managed_tmp_reap` chop bounds the managed SASE temp root (`$SASE_TMPDIR`, else `~/.sase/tmp`) that
-`get_sase_managed_tmpdir()` hands out. Horizons are per subdirectory: command scratch (`editors/`, `wrappers/`,
-`viewers/`, `commit-messages/`, …) goes after 12 hours, handoff files (`handoff/`, `gh-diffs/`) after 3 days, and
-artifacts the ACE Agents tab reads back (`launch-prompts/`, `workflow-artifacts/`) after 14 days. Each run removes at
-most 2,000 entries so a long-neglected root converges over several passes instead of stalling one; the chop summary
-reports `scanned`, `removed`, `deindexed`, and `capped=1` when it hit that budget. Reaped directories are dropped from
-the agent artifact index too, since a workflow launched without an explicit `artifacts_dir` gets one under
-`workflow-artifacts/`. It lives on `housekeeping` rather than an interactive path because the first pass over a
-neglected root walks tens of thousands of entries.
+The `managed_tmp_reap` chop bounds the managed SASE temp root (`$SASE_TMPDIR`, else `~/.sase/tmp`)
+that `get_sase_managed_tmpdir()` hands out. Horizons are per subdirectory: command scratch
+(`editors/`, `wrappers/`, `viewers/`, `commit-messages/`, …) goes after 12 hours, handoff files
+(`handoff/`, `gh-diffs/`) after 3 days, and artifacts the ACE Agents tab reads back
+(`launch-prompts/`, `workflow-artifacts/`) after 14 days. Each run removes at most 2,000 entries so
+a long-neglected root converges over several passes instead of stalling one; the chop summary
+reports `scanned`, `removed`, `deindexed`, and `capped=1` when it hit that budget. Reaped
+directories are dropped from the agent artifact index too, since a workflow launched without an
+explicit `artifacts_dir` gets one under `workflow-artifacts/`. It lives on `housekeeping` rather
+than an interactive path because the first pass over a neglected root walks tens of thousands of
+entries.
 
 ## Configuration
 
-Axe is configured in `sase.yml` under the `axe:` section. See [`docs/configuration.md`](configuration.md) for the full
-configuration reference.
+Axe is configured in `sase.yml` under the `axe:` section. See
+[`docs/configuration.md`](configuration.md) for the full configuration reference.
 
 ### Global Settings
 
@@ -276,8 +294,9 @@ configuration reference.
 | `lumberjack_restart_backoff_max_seconds` | 60       | Maximum delay between retries for a crashing lumberjack   |
 | `verbose_lumberjack_diagnostics`         | false    | Include verbose diagnostics in chop script context JSON   |
 
-The `query` setting uses the same ChangeSpec query language as ACE. CLI flags on `sase axe start` and
-`sase axe lumberjack run` override the configured query, runner limits, and zombie timeout for that process.
+The `query` setting uses the same ChangeSpec query language as ACE. CLI flags on `sase axe start`
+and `sase axe lumberjack run` override the configured query, runner limits, and zombie timeout for
+that process.
 
 ### Lumberjack Configuration
 
@@ -322,9 +341,9 @@ axe:
             vcs: [git, gh]
 ```
 
-Every lumberjack requires a `description` explaining the lane's cadence and the class of work it owns, and every chop
-requires one explaining what that chop does. Both follow the summary/body grammar in
-[Description Grammar](#description-grammar).
+Every lumberjack requires a `description` explaining the lane's cadence and the class of work it
+owns, and every chop requires one explaining what that chop does. Both follow the summary/body
+grammar in [Description Grammar](#description-grammar).
 
 #### Lumberjack Fields
 
@@ -337,9 +356,9 @@ requires one explaining what that chop does. Both follow the summary/body gramma
 | `env`          | `dict[str, env-value]` | no       | Values inherited by every chop; individual chop env wins                                                                       |
 | `chops`        | list or map            | no       | Composable chop definitions                                                                                                    |
 
-`wait_runners` applies only to agents emitted through a script chop's `proposed_launches`; it does not gate mentor,
-hook, or CRS workflow launchers. When a chop proposes a clan, every member carries the threshold and waits
-independently, so a low threshold can serialize the clan.
+`wait_runners` applies only to agents emitted through a script chop's `proposed_launches`; it does
+not gate mentor, hook, or CRS workflow launchers. When a chop proposes a clan, every member carries
+the threshold and waits independently, so a low threshold can serialize the clan.
 
 #### Chop Fields
 
@@ -358,22 +377,24 @@ independently, so a low threshold can serialize the clan.
 | `for_each`    | list or source         | no        | Literal target objects or `source: projects`, expanded to stable per-target instances                    |
 | `vars`        | `dict`                 | no        | Non-secret configuration copied into the script context                                                  |
 
-Map-form chops compose by identity across config layers. A higher-priority layer can patch a single field or set
-`enabled: false` while retaining the rest of a packaged entry. Object-list form remains accepted, but bare-string list
-entries are invalid because they cannot provide the required description. Target instances use names such as
-`my_chop[sase-core]`, with independent cadence, run history, checkpoints, and dedupe state. Literal targets may include
-an `overrides:` object for per-target fields such as `run_every`; the `projects` source accepts `name`/`names` and `vcs`
+Map-form chops compose by identity across config layers. A higher-priority layer can patch a single
+field or set `enabled: false` while retaining the rest of a packaged entry. Object-list form remains
+accepted, but bare-string list entries are invalid because they cannot provide the required
+description. Target instances use names such as `my_chop[sase-core]`, with independent cadence, run
+history, checkpoints, and dedupe state. Literal targets may include an `overrides:` object for
+per-target fields such as `run_every`; the `projects` source accepts `name`/`names` and `vcs`
 filters.
 
-Configuration is validated fail-closed. Unknown fields, duplicate chop identities, and invalid or non-positive durations
-produce actionable errors with their config paths. Secret references resolve at dispatch and fail closed with
-provider-specific diagnostics. Legacy `agent:` and `xprompt:` chop fields are rejected: scheduled agent work must
-originate from a script's structured launch proposals.
+Configuration is validated fail-closed. Unknown fields, duplicate chop identities, and invalid or
+non-positive durations produce actionable errors with their config paths. Secret references resolve
+at dispatch and fail closed with provider-specific diagnostics. Legacy `agent:` and `xprompt:` chop
+fields are rejected: scheduled agent work must originate from a script's structured launch
+proposals.
 
 ### Description Grammar
 
-Both `axe.lumberjacks.<name>.description` and every chop `description` use one grammar, borrowed from the shape of a Git
-commit message:
+Both `axe.lumberjacks.<name>.description` and every chop `description` use one grammar, borrowed
+from the shape of a Git commit message:
 
 ```
 <summary>
@@ -382,18 +403,19 @@ commit message:
 ```
 
 - Line 1 is the **summary**: non-blank, at most 100 characters, no leading or trailing whitespace.
-- If anything follows the summary, line 2 **must be blank**. That single rule makes the split unambiguous.
-- Everything from line 3 on is the **body**: free-form prose. Blank lines separate blocks, and a block whose first line
-  starts with `-`, `*`, or `•` is rendered as a bullet list.
+- If anything follows the summary, line 2 **must be blank**. That single rule makes the split
+  unambiguous.
+- Everything from line 3 on is the **body**: free-form prose. Blank lines separate blocks, and a
+  block whose first line starts with `-`, `*`, or `•` is rendered as a bullet list.
 - The whole description is at most 2000 characters.
 - A single-line description is still completely valid and simply has an empty body.
 
-The split is owned by the shared Rust config authority (`split_axe_description`), so the ACE Axe tab, both CLI listings,
-and the entry editor always agree on where the summary ends. It is computed once per entity when the config is parsed,
-never on a render or keystroke path.
+The split is owned by the shared Rust config authority (`split_axe_description`), so the ACE Axe
+tab, both CLI listings, and the entry editor always agree on where the summary ends. It is computed
+once per entity when the config is parsed, never on a render or keystroke path.
 
-Author multi-line descriptions as YAML literal block scalars (`|-`), hand-wrapping source lines to keep the file inside
-the 120-column prose width:
+Author multi-line descriptions as YAML literal block scalars (`|-`), hand-wrapping source lines to
+keep the file inside the 100-column prose width:
 
 ```yaml
 description: |-
@@ -406,14 +428,15 @@ description: |-
   - Hooks still running past zombie_timeout_seconds are marked ZOMBIE and stop holding a slot.
 ```
 
-Hard wraps in the source are stored verbatim, and the renderer reflows: consecutive non-blank, non-bullet lines in a
-block are joined with single spaces and re-wrapped to the available width. A description authored at 110 columns
-therefore still fills a 200-column pane and still reads correctly at 60.
+Hard wraps in the source are stored verbatim, and the renderer reflows: consecutive non-blank,
+non-bullet lines in a block are joined with single spaces and re-wrapped to the available width. A
+description authored at 110 columns therefore still fills a 200-column pane and still reads
+correctly at 60.
 
 #### Diagnostics
 
-Shape violations are reported by the config authority with `severity: "error"` at the offending field's config path. At
-most one code is emitted per description, checked in this order:
+Shape violations are reported by the config authority with `severity: "error"` at the offending
+field's config path. At most one code is emitted per description, checked in this order:
 
 | Code                                  | Condition                               | Message                                                                     |
 | ------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------- |
@@ -422,9 +445,10 @@ most one code is emitted per description, checked in this order:
 | `description_body_separator_required` | a line 2 exists and is not blank        | `description must leave line 2 blank to separate the summary from the body` |
 | `description_too_long`                | the description exceeds 2000 characters | `description must be at most 2000 characters (found <n>)`                   |
 
-A blank description is still reported as `blank_value`, and a missing one as `required_missing`, exactly as before. The
-four shape checks are gated behind a `require_description_shape` request flag that defaults to off on the wire; SASE
-turns it on for both config composition and AXE entry edits, so they always apply to configs SASE loads.
+A blank description is still reported as `blank_value`, and a missing one as `required_missing`,
+exactly as before. The four shape checks are gated behind a `require_description_shape` request flag
+that defaults to off on the wire; SASE turns it on for both config composition and AXE entry edits,
+so they always apply to configs SASE loads.
 
 #### Authoring Style Guide
 
@@ -432,36 +456,40 @@ turns it on for both config composition and AXE entry edits, so they always appl
 
 - One line, at most 100 characters, target 80. Sentence case, no trailing period.
 - Present tense, active voice, describing what the entity _does_, not what it is.
-- Must stand alone: the collapsed Axe-tab panel, both CLI listings, and the entry editor's preview show only this line.
+- Must stand alone: the collapsed Axe-tab panel, both CLI listings, and the entry editor's preview
+  show only this line.
 
 **Body**
 
 - One to three short paragraphs and/or one bullet list. Aim for six to ten rendered lines.
-- Answer, in this order, only what is true and non-obvious: what it actually does, when it fires, what state it reads or
-  mutates, and the one thing an operator most needs to know (a failure mode, a safety property, a cost, a limit).
-- Name the config knobs that matter when they are set (`interval`, `chop_timeout`, `run_every`, `trigger`, `inhibit_if`,
-  `for_each`, `env`).
-- Do not restate the summary, do not narrate the implementation line by line, and do not document SASE concepts that
-  belong elsewhere in `docs/`.
+- Answer, in this order, only what is true and non-obvious: what it actually does, when it fires,
+  what state it reads or mutates, and the one thing an operator most needs to know (a failure mode,
+  a safety property, a cost, a limit).
+- Name the config knobs that matter when they are set (`interval`, `chop_timeout`, `run_every`,
+  `trigger`, `inhibit_if`, `for_each`, `env`).
+- Do not restate the summary, do not narrate the implementation line by line, and do not document
+  SASE concepts that belong elsewhere in `docs/`.
 
-**Lumberjack bodies additionally** state the cadence in words and why that cadence is right for the lane, and say what
-belongs in the lane and what deliberately does not, so a reader knows where to add a new chop.
+**Lumberjack bodies additionally** state the cadence in words and why that cadence is right for the
+lane, and say what belongs in the lane and what deliberately does not, so a reader knows where to
+add a new chop.
 
-**Mechanics**: bullets start with `- ` at the block's base indentation and continuation lines indent two further spaces;
-no trailing whitespace, no tabs, and no blank line at the end of the block.
+**Mechanics**: bullets start with `- ` at the block's base indentation and continuation lines indent
+two further spaces; no trailing whitespace, no tabs, and no blank line at the end of the block.
 
 ### Script Chops
 
-Every chop is an external executable. Axe resolves the exact configured `script` value (or `name` when `script` is
-omitted) in this order:
+Every chop is an external executable. Axe resolves the exact configured `script` value (or `name`
+when `script` is omitted) in this order:
 
 1. An exact-name executable in one of `axe.chop_script_dirs`.
 2. An exact-name executable beside the running Python interpreter.
 3. An exact-name executable on `$PATH`.
 
-No prefix is added automatically. Builtin chops therefore declare names such as `script: sase_chop_hook_checks`
-explicitly. The available-script inventory still scans `$PATH` for `sase_chop_*` executables as a discovery convenience,
-but resolution always uses the configured full name.
+No prefix is added automatically. Builtin chops therefore declare names such as
+`script: sase_chop_hook_checks` explicitly. The available-script inventory still scans `$PATH` for
+`sase_chop_*` executables as a discovery convenience, but resolution always uses the configured full
+name.
 
 Axe runs script chops as:
 
@@ -469,31 +497,35 @@ Axe runs script chops as:
 <script> --context <context.json>
 ```
 
-The context file contains the effective runner limits, zombie timeout, query, lumberjack name, lumberjack state
-directory, paths to serialized `all_changespecs.json` and `filtered_changespecs.json` files, the current `target`,
-configured `vars`, the run source (`scheduled`, `manual`, or `oneshot`), the `dry_run` flag, and the run-local result
-path. The result path is also exported as `SASE_CHOP_RESULT_FILE`; the source and dry-run flag are mirrored as
-`SASE_CHOP_SOURCE` and `SASE_CHOP_DRY_RUN` (`1` for true, `0` for false). `SASE_CHOP_VERBOSE` enables opt-in debug
-output. Target fields are exported as `SASE_CHOP_TARGET_<FIELD>` along with `SASE_CHOP_TARGET_KEY`. Scripts with direct
-side effects must honor `dry_run` before mutating external state; runner-level dry-run only previews launch proposals.
-Scheduled script chops within one lumberjack tick run concurrently; use `timeout` or `chop_timeout` to keep a slow
-script from blocking later ticks indefinitely.
+The context file contains the effective runner limits, zombie timeout, query, lumberjack name,
+lumberjack state directory, paths to serialized `all_changespecs.json` and
+`filtered_changespecs.json` files, the current `target`, configured `vars`, the run source
+(`scheduled`, `manual`, or `oneshot`), the `dry_run` flag, and the run-local result path. The result
+path is also exported as `SASE_CHOP_RESULT_FILE`; the source and dry-run flag are mirrored as
+`SASE_CHOP_SOURCE` and `SASE_CHOP_DRY_RUN` (`1` for true, `0` for false). `SASE_CHOP_VERBOSE`
+enables opt-in debug output. Target fields are exported as `SASE_CHOP_TARGET_<FIELD>` along with
+`SASE_CHOP_TARGET_KEY`. Scripts with direct side effects must honor `dry_run` before mutating
+external state; runner-level dry-run only previews launch proposals. Scheduled script chops within
+one lumberjack tick run concurrently; use `timeout` or `chop_timeout` to keep a slow script from
+blocking later ticks indefinitely.
 
-Script chop stdout and stderr are streamed to the chop's per-run log file while the subprocess is still alive (see
-[Chop Run History](#chop-run-history) below). The Axe-tab dashboard tails that file so a long-running chop's output
-becomes visible immediately rather than only after process exit.
+Script chop stdout and stderr are streamed to the chop's per-run log file while the subprocess is
+still alive (see [Chop Run History](#chop-run-history) below). The Axe-tab dashboard tails that file
+so a long-running chop's output becomes visible immediately rather than only after process exit.
 
-Chop output is part of the operator contract. Every actual chop run should write a compact, human-readable summary for
-both no-op and action paths. At minimum, include the chop identity or run scope, counts of inspected/skipped/updated or
-launched items, an explicit no-op reason, and bounded identifiers for any affected items. Avoid tokens, full
-notification bodies, full prompts, and unbounded command output in ordinary AXE logs. A chop with a meaningful
-structured story should also publish a report while keeping this compact stdout summary unchanged; logs and
-notifications continue to use the summary line.
+Chop output is part of the operator contract. Every actual chop run should write a compact,
+human-readable summary for both no-op and action paths. At minimum, include the chop identity or run
+scope, counts of inspected/skipped/updated or launched items, an explicit no-op reason, and bounded
+identifiers for any affected items. Avoid tokens, full notification bodies, full prompts, and
+unbounded command output in ordinary AXE logs. A chop with a meaningful structured story should also
+publish a report while keeping this compact stdout summary unchanged; logs and notifications
+continue to use the summary line.
 
 #### Structured Results and Launch Proposals
 
-Exit-code-only scripts remain supported: exit zero means `success`, a non-zero exit means `failure`, and no result file
-is required. A proposal-emitting script atomically writes a schema-versioned JSON document to `SASE_CHOP_RESULT_FILE`:
+Exit-code-only scripts remain supported: exit zero means `success`, a non-zero exit means `failure`,
+and no result file is required. A proposal-emitting script atomically writes a schema-versioned JSON
+document to `SASE_CHOP_RESULT_FILE`:
 
 ```json
 {
@@ -517,31 +549,35 @@ is required. A proposal-emitting script atomically writes a schema-versioned JSO
 }
 ```
 
-Result `status` is `ok`, `no_op`, or `check_error`. Results can also carry a `reason`, integer `counters`, and relative
-`evidence` file paths. Each proposal requires `prompt` and `workspace`; optional fields are `id`, `agent_name`, `clan`,
-`clan_summary`, `tribe`, `model`, `effort`, `env`, `dedupe_key`, and `wait_on` (an earlier proposal index or ID). With
-`clan`, `agent_name` is the member ID and the runner owns concrete clan allocation plus the full `<clan>.<member>`
-identity. Clan proposals cannot also set `tribe`; the first accepted member declares the clan with the default `chop`
-tribe.
+Result `status` is `ok`, `no_op`, or `check_error`. Results can also carry a `reason`, integer
+`counters`, and relative `evidence` file paths. Each proposal requires `prompt` and `workspace`;
+optional fields are `id`, `agent_name`, `clan`, `clan_summary`, `tribe`, `model`, `effort`, `env`,
+`dedupe_key`, and `wait_on` (an earlier proposal index or ID). With `clan`, `agent_name` is the
+member ID and the runner owns concrete clan allocation plus the full `<clan>.<member>` identity.
+Clan proposals cannot also set `tribe`; the first accepted member declares the clan with the default
+`chop` tribe.
 
-`clan` and `agent_name` may each carry at most one `@` auto-name template marker, so a composed clan-member identity
-holds up to two. The runner resolves them in two stages: it picks one clan token for the whole group first, then
-allocates each templated member name inside that concrete clan, so `clan="toobig-@"` with
-`agent_name="split_file.src.pkg.large.@"` plans to `toobig-0.split_file.src.pkg.large.0`. Two members sharing one
-template therefore land on `.0` and `.1` instead of colliding. A clan token is taken only when the clan name and every
-member identity in the group are free together; otherwise the whole group moves to the next clan token and the member
-tokens tried under the rejected one are discarded.
+`clan` and `agent_name` may each carry at most one `@` auto-name template marker, so a composed
+clan-member identity holds up to two. The runner resolves them in two stages: it picks one clan
+token for the whole group first, then allocates each templated member name inside that concrete
+clan, so `clan="toobig-@"` with `agent_name="split_file.src.pkg.large.@"` plans to
+`toobig-0.split_file.src.pkg.large.0`. Two members sharing one template therefore land on `.0` and
+`.1` instead of colliding. A clan token is taken only when the clan name and every member identity
+in the group are free together; otherwise the whole group moves to the next clan token and the
+member tokens tried under the rejected one are discarded.
 
-`clan_summary` is an optional literal Rich-markup summary and is valid only with `clan`. Every non-null summary attached
-to the same raw clan template must be identical; members that omit it inherit that agreed value before once-per
-filtering. The first accepted member therefore retains and declares the summary even when an earlier member is
-deduplicated. Different raw clan templates may have different summaries. A summary must be nonblank, contain no NUL
-byte, fit within 32 KiB of UTF-8, and avoid both the `]]` text-block terminator and `+` (which xprompt argument decoding
-would turn into a space).
+`clan_summary` is an optional literal Rich-markup summary and is valid only with `clan`. Every
+non-null summary attached to the same raw clan template must be identical; members that omit it
+inherit that agreed value before once-per filtering. The first accepted member therefore retains and
+declares the summary even when an earlier member is deduplicated. Different raw clan templates may
+have different summaries. A summary must be nonblank, contain no NUL byte, fit within 32 KiB of
+UTF-8, and avoid both the `]]` text-block terminator and `+` (which xprompt argument decoding would
+turn into a space).
 
-`report` is an optional structured document rendered with the result on the ACE AXE tab. Chop authors supply semantic
-tones rather than colors, and the frontend owns the palette and width-responsive layout. The public SDK keeps report
-construction typed and validates the finished result through the Rust contract:
+`report` is an optional structured document rendered with the result on the ACE AXE tab. Chop
+authors supply semantic tones rather than colors, and the frontend owns the palette and
+width-responsive layout. The public SDK keeps report construction typed and validates the finished
+result through the Rust contract:
 
 ```python
 from sase.chops import ChopReport, ChopResultBuilder
@@ -567,50 +603,58 @@ A report has an optional `title` and a non-empty `blocks` list. The closed block
 - `heading`: `text`.
 - `text`: literal `text` and optional `tone`.
 - `kv`: non-empty `items` of `key`, `value`, and optional `tone`.
-- `rows`: optional `columns` plus non-empty `rows`; each row has `cells`, optional `tone`, and optional `glyph`.
+- `rows`: optional `columns` plus non-empty `rows`; each row has `cells`, optional `tone`, and
+  optional `glyph`.
 - `bullets`: non-empty `items` of `text`, optional `tone`, and optional `glyph`.
-- `gauge`: `label`, non-negative `value`, positive `max`, and optional `tone`. Values may exceed `max`.
+- `gauge`: `label`, non-negative `value`, positive `max`, and optional `tone`. Values may exceed
+  `max`.
 - `divider`: no additional fields.
 
-The tone vocabulary is `neutral` for ordinary content, `muted` for secondary context, `info` for useful context, `ok`
-for healthy outcomes, `warn` for attention, `error` for failures, and `accent` for report emphasis. A chop cannot supply
-a color. Optional row and bullet glyphs are restricted to `▲ ◆ • · ● ○ ✓ ✗ ↗ ↷ ⏱ ! ▸ ─`; omitting a glyph lets the
-renderer choose one from the tone.
+The tone vocabulary is `neutral` for ordinary content, `muted` for secondary context, `info` for
+useful context, `ok` for healthy outcomes, `warn` for attention, `error` for failures, and `accent`
+for report emphasis. A chop cannot supply a color. Optional row and bullet glyphs are restricted to
+`▲ ◆ • · ● ○ ✓ ✗ ↗ ↷ ⏱ ! ▸ ─`; omitting a glyph lets the renderer choose one from the tone.
 
-The validated report must fit within 32 KiB of UTF-8 and contain 1–48 blocks. A `kv`, `rows`, or `bullets` block holds
-1–64 entries. Rows contain 1–6 cells; when column names are present there must be 1–6 of them and every row must have
-the same number of cells. Titles are limited to 64 characters, and every other string field to 512 characters. Required
-strings must be nonblank single-line text with no control characters. `ChopReport` collapses whitespace, removes
-controls, truncates bounded strings with a trailing ellipsis, drops empty blocks, and rejects invalid tones, glyphs,
-gauges, or row shapes before writing. Unknown fields, block kinds, and tones are rejected fail-closed by result
-validation.
+The validated report must fit within 32 KiB of UTF-8 and contain 1–48 blocks. A `kv`, `rows`, or
+`bullets` block holds 1–64 entries. Rows contain 1–6 cells; when column names are present there must
+be 1–6 of them and every row must have the same number of cells. Titles are limited to 64
+characters, and every other string field to 512 characters. Required strings must be nonblank
+single-line text with no control characters. `ChopReport` collapses whitespace, removes controls,
+truncates bounded strings with a trailing ellipsis, drops empty blocks, and rejects invalid tones,
+glyphs, gauges, or row shapes before writing. Unknown fields, block kinds, and tones are rejected
+fail-closed by result validation.
 
-The runner validates the full document before launching anything. It injects the workspace reference, a deterministic
-agent name and `tribe=chop` in one `%id(...)` directive, model/effort directives, and a `%wait` dependency for
-`wait_on`, then launches proposals in document order. Clan-scoped proposals are preplanned as one multi-prompt batch:
-the first surviving member declares one concrete clan generation and later members join it, while waits use their full
-resolved names. A summarized declarer receives `%clan(<name>, tribe=chop, summary=[[<literal Rich markup>]])`; joiners
-receive only `%id(<member>, clan=<name>)`. Axe neither executes the value as a summary script nor inserts it into any
-proposal's work prompt. Standalone `#!workflow` references are forbidden in proposal prompts; reusable inline `#xprompt`
-references remain valid. The runner records every launched agent in `agent_chops.json` and finalizes the chop only when
-the linked agents reach terminal state.
+The runner validates the full document before launching anything. It injects the workspace
+reference, a deterministic agent name and `tribe=chop` in one `%id(...)` directive, model/effort
+directives, and a `%wait` dependency for `wait_on`, then launches proposals in document order.
+Clan-scoped proposals are preplanned as one multi-prompt batch: the first surviving member declares
+one concrete clan generation and later members join it, while waits use their full resolved names. A
+summarized declarer receives `%clan(<name>, tribe=chop, summary=[[<literal Rich markup>]])`; joiners
+receive only `%id(<member>, clan=<name>)`. Axe neither executes the value as a summary script nor
+inserts it into any proposal's work prompt. Standalone `#!workflow` references are forbidden in
+proposal prompts; reusable inline `#xprompt` references remain valid. The runner records every
+launched agent in `agent_chops.json` and finalizes the chop only when the linked agents reach
+terminal state.
 
-A launcher can still fail partway through an otherwise valid batch. The caller receives `action_failed` immediately.
-When at least one proposal already started, however, the persisted chop run remains active as `launched` until every
-started agent finishes; it then finalizes as `action_failed` with both the original launch error and any agent failures.
-Once-per keys for accepted proposals that never started are released immediately. A started proposal keeps its key while
-it runs, then releases it only if that agent fails, so successful work remains de-duplicated. A key-release error is
-appended to the chop output and does not replace the original launch or agent outcome.
+A launcher can still fail partway through an otherwise valid batch. The caller receives
+`action_failed` immediately. When at least one proposal already started, however, the persisted chop
+run remains active as `launched` until every started agent finishes; it then finalizes as
+`action_failed` with both the original launch error and any agent failures. Once-per keys for
+accepted proposals that never started are released immediately. A started proposal keeps its key
+while it runs, then releases it only if that agent fails, so successful work remains de-duplicated.
+A key-release error is appended to the chop output and does not replace the original launch or agent
+outcome.
 
-Python chop packages should use the public `sase.chops` SDK (`load_chop_invocation`, `ChopLogger`, `ChopReport`,
-`ChopResultBuilder`, and `launch_proposal`) for argument parsing, summaries, reports, validation, and atomic result
-writes.
+Python chop packages should use the public `sase.chops` SDK (`load_chop_invocation`, `ChopLogger`,
+`ChopReport`, `ChopResultBuilder`, and `launch_proposal`) for argument parsing, summaries, reports,
+validation, and atomic result writes.
 
 #### Publishing a Report a Notification Can Open
 
-Per-chop run history is capped, so a report that only rides along with a chop result answers "what did this tick do",
-not "where do things stand". A chop that wants the second answer should **publish** a standalone report document into
-its own state directory (`invocation.context.state_dir`) and point a notification at it:
+Per-chop run history is capped, so a report that only rides along with a chop result answers "what
+did this tick do", not "where do things stand". A chop that wants the second answer should
+**publish** a standalone report document into its own state directory
+(`invocation.context.state_dir`) and point a notification at it:
 
 ```python
 from sase.chops import ChopReport, validate_chop_report
@@ -621,61 +665,66 @@ document = validate_chop_report(report.to_dict())
 # atomically write `document` to <state_dir>/<name>.report.json on every tick
 ```
 
-`validate_chop_report` runs the same Rust chop-result contract used for an embedded `report`, so an invalid document is
-caught before it is written; log and skip that tick rather than raising, leaving the previous good file in place.
-Rewriting the file on every tick — including no-op ticks — is what keeps the published picture fresh without any network
-call or latency inside the TUI.
+`validate_chop_report` runs the same Rust chop-result contract used for an embedded `report`, so an
+invalid document is caught before it is written; log and skip that tick rather than raising, leaving
+the previous good file in place. Rewriting the file on every tick — including no-op ticks — is what
+keeps the published picture fresh without any network call or latency inside the TUI.
 
 The notification then carries `action: "ViewReport"` with
-`action_data: {"report_path": "<state_dir>/<name>.report.json", "report_title": "..."}`. Selecting it in ACE renders the
-document in the notification modal's right pane and Enter opens it full-screen; see `docs/notifications.md` for the
-contract, the inline-snapshot alternative, and the fail-closed loader limits. Prefer the published path over inlining a
-snapshot into `action_data` whenever the chop has a durable state directory. Timestamps inside a published document
-should be absolute, because the file may be read long after it was written; relative freshness belongs to the single
-provenance line the reader sees.
+`action_data: {"report_path": "<state_dir>/<name>.report.json", "report_title": "..."}`. Selecting
+it in ACE renders the document in the notification modal's right pane and Enter opens it
+full-screen; see `docs/notifications.md` for the contract, the inline-snapshot alternative, and the
+fail-closed loader limits. Prefer the published path over inlining a snapshot into `action_data`
+whenever the chop has a durable state directory. Timestamps inside a published document should be
+absolute, because the file may be read long after it was written; relative freshness belongs to the
+single provenance line the reader sees.
 
 #### Triggers, Guards, Dedupe, and Targets
 
 Policy is runner-owned and evaluated before the script:
 
 - `run_every` limits cadence for each expanded chop instance.
-- `inhibit_if` supports `changespec`, `agent_hood`, and `agent_clan` guards. `agent_clan.name_prefix` matches canonical
-  clan metadata on active agents only; dotted agent names are not treated as clans. A match records a visible `skipped`
-  run naming the clan and member.
-- `trigger` defaults to `always`. `git.commits_since` observes a project repository, fires when its threshold is met,
-  and owns its checkpoint under the chop's state directory. A missing checkpoint fires once so a new chop is not
-  silently inert.
-- Checkpoint policy can be `on_observation`, `on_action_accepted`, or `on_action_success`. The last option advances only
-  after every linked proposal agent succeeds.
-- `once_per` renders a bounded per-proposal key; a proposal's own `dedupe_key` takes precedence. Duplicate proposals are
-  skipped without relaunching work. Accepted keys remain reserved for successful launches, but are released when their
-  proposal never starts or its launched agent reaches terminal failure, allowing a later run to retry that work.
-- `for_each` accepts literal target rows or `source: projects`. Expansion creates stable instances such as
-  `refresh_docs[sase-core]`, each with independent cadence, history, checkpoints, and dedupe state. Target overrides can
-  patch per-instance fields such as `run_every` and trigger thresholds.
+- `inhibit_if` supports `changespec`, `agent_hood`, and `agent_clan` guards.
+  `agent_clan.name_prefix` matches canonical clan metadata on active agents only; dotted agent names
+  are not treated as clans. A match records a visible `skipped` run naming the clan and member.
+- `trigger` defaults to `always`. `git.commits_since` observes a project repository, fires when its
+  threshold is met, and owns its checkpoint under the chop's state directory. A missing checkpoint
+  fires once so a new chop is not silently inert.
+- Checkpoint policy can be `on_observation`, `on_action_accepted`, or `on_action_success`. The last
+  option advances only after every linked proposal agent succeeds.
+- `once_per` renders a bounded per-proposal key; a proposal's own `dedupe_key` takes precedence.
+  Duplicate proposals are skipped without relaunching work. Accepted keys remain reserved for
+  successful launches, but are released when their proposal never starts or its launched agent
+  reaches terminal failure, allowing a later run to retry that work.
+- `for_each` accepts literal target rows or `source: projects`. Expansion creates stable instances
+  such as `refresh_docs[sase-core]`, each with independent cadence, history, checkpoints, and dedupe
+  state. Target overrides can patch per-instance fields such as `run_every` and trigger thresholds.
 
-Manual CLI/TUI runs bypass configured triggers because the operator explicitly requested a run, but still honor guards.
-Pass `-f/--force` on the CLI to bypass both for that run.
+Manual CLI/TUI runs bypass configured triggers because the operator explicitly requested a run, but
+still honor guards. Pass `-f/--force` on the CLI to bypass both for that run.
 
-Once-per filtering keeps proposal chains connected. If a surviving proposal's `wait_on` points to a duplicate, AXE
-follows the skipped proposal's own dependency until it reaches the nearest earlier proposal that also survived the
-filter. If no such proposal exists, AXE removes the wait. Dry-run and recorded proposal previews put the resulting
-dependency in `wait_on` and explain the change in `dedupe_reason`, so removing duplicate work does not also discard a
-new downstream proposal. For a clan, the first surviving member becomes the declarer; dry runs show the same concrete
-clan, declaration/join roles, declarer-only `clan_summary`, full member names, exact scaffolded prompts, and effective
-waits without reserving names or spawning agents.
+Once-per filtering keeps proposal chains connected. If a surviving proposal's `wait_on` points to a
+duplicate, AXE follows the skipped proposal's own dependency until it reaches the nearest earlier
+proposal that also survived the filter. If no such proposal exists, AXE removes the wait. Dry-run
+and recorded proposal previews put the resulting dependency in `wait_on` and explain the change in
+`dedupe_reason`, so removing duplicate work does not also discard a new downstream proposal. For a
+clan, the first surviving member becomes the declarer; dry runs show the same concrete clan,
+declaration/join roles, declarer-only `clan_summary`, full member names, exact scaffolded prompts,
+and effective waits without reserving names or spawning agents.
 
-A proposal that supplies an explicit `agent_name` treats a name collision at launch as idempotency, not failure: the
-sequential launch path records that proposal as skipped with a name-collision reason, releases its once-per key, and
-relinks dependent waits the same way once-per dedupe does. If every proposal is skipped the run finishes `skipped`;
-otherwise launched proposals proceed normally. Collisions on runner-derived names (which embed a per-run token) and in
-clan batch launches remain hard failures.
+A proposal that supplies an explicit `agent_name` treats a name collision at launch as idempotency,
+not failure: the sequential launch path records that proposal as skipped with a name-collision
+reason, releases its once-per key, and relinks dependent waits the same way once-per dedupe does. If
+every proposal is skipped the run finishes `skipped`; otherwise launched proposals proceed normally.
+Collisions on runner-derived names (which embed a per-run token) and in clan batch launches remain
+hard failures.
 
 #### Builtin `refresh_docs`
 
-`sase_chop_refresh_docs` replaces the former scheduled xprompt workflow. It expects an expanded target with a
-`workspace`, then emits an `update` proposal and a `polish` proposal whose `wait_on` points to `update`. Commit counting
-and checkpoints belong to `git.commits_since`; project fan-out belongs to `for_each`:
+`sase_chop_refresh_docs` replaces the former scheduled xprompt workflow. It expects an expanded
+target with a `workspace`, then emits an `update` proposal and a `polish` proposal whose `wait_on`
+points to `update`. Commit counting and checkpoints belong to `git.commits_since`; project fan-out
+belongs to `for_each`:
 
 ```yaml
 axe:
@@ -698,17 +747,18 @@ axe:
             vcs: [git, gh]
 ```
 
-The builtin supplies plain-language update and polish prompts that are strictly scoped to documentation files. They
-direct agents to document the current behavior and report suspected code bugs instead of changing source code, tests,
-build configuration, or other non-documentation files. Override the defaults with non-blank `vars.prompt` and
-`vars.polish_prompt` strings; operators are responsible for including appropriate scope restrictions in replacement
-prompts. The script only proposes work; it never calls `sase run` or updates marker files.
+The builtin supplies plain-language update and polish prompts that are strictly scoped to
+documentation files. They direct agents to document the current behavior and report suspected code
+bugs instead of changing source code, tests, build configuration, or other non-documentation files.
+Override the defaults with non-blank `vars.prompt` and `vars.polish_prompt` strings; operators are
+responsible for including appropriate scope restrictions in replacement prompts. The script only
+proposes work; it never calls `sase run` or updates marker files.
 
 ### Manual Chop Runs
 
-Scheduled lumberjack ticks are not the only way a chop runs. Operators can launch any configured chop on demand from
-both the CLI and the ACE TUI; manual runs share the same execution path, run history, and live-output streaming as
-scheduled runs.
+Scheduled lumberjack ticks are not the only way a chop runs. Operators can launch any configured
+chop on demand from both the CLI and the ACE TUI; manual runs share the same execution path, run
+history, and live-output streaming as scheduled runs.
 
 **From the CLI:**
 
@@ -720,30 +770,34 @@ sase axe chop run <chop> --chop-verbose        # -V: script diagnostics + full r
 sase axe chop run <chop> --force               # -f: bypass guards (triggers already bypassed)
 ```
 
-When the same chop name appears under multiple lumberjacks, `sase axe chop run <chop>` fails with an unambiguous error
-listing the candidate lumberjacks. Pass `-L/--lumberjack` to pick one. The manual run is recorded under
-`~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/` exactly like a scheduled run, except its metadata is tagged with
-`source = "manual"` (vs `"scheduled"`).
+When the same chop name appears under multiple lumberjacks, `sase axe chop run <chop>` fails with an
+unambiguous error listing the candidate lumberjacks. Pass `-L/--lumberjack` to pick one. The manual
+run is recorded under `~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/` exactly like a scheduled
+run, except its metadata is tagged with `source = "manual"` (vs `"scheduled"`).
 
 **From the ACE TUI:**
 
-On the Axe tab, press `r` while a chop row is selected to launch that exact `(lumberjack, chop)` manually. The run uses
-the chop's configured script, environment, and timeout, but bypasses any `run_every` cadence because the user explicitly
-asked for it. The TUI does not block while the script runs; once the subprocess starts, the new run becomes the newest
-entry in the chop's run history and the detail panel switches to it.
+On the Axe tab, press `r` while a chop row is selected to launch that exact `(lumberjack, chop)`
+manually. The run uses the chop's configured script, environment, and timeout, but bypasses any
+`run_every` cadence because the user explicitly asked for it. The TUI does not block while the
+script runs; once the subprocess starts, the new run becomes the newest entry in the chop's run
+history and the detail panel switches to it.
 
-If the selected chop already has a live script run in flight for the same `(lumberjack, chop)`, `r` notifies and skips
-the launch rather than starting an overlapping duplicate. On non-chop rows — lumberjack rows and running bgcmd rows —
-`r` is a no-op; on a completed bgcmd row, `r` continues to re-run the bgcmd.
+If the selected chop already has a live script run in flight for the same `(lumberjack, chop)`, `r`
+notifies and skips the launch rather than starting an overlapping duplicate. On non-chop rows —
+lumberjack rows and running bgcmd rows — `r` is a no-op; on a completed bgcmd row, `r` continues to
+re-run the bgcmd.
 
-Manual runs participate in `Ctrl+N` / `Ctrl+P` history navigation just like scheduled runs. The chop-detail header marks
-them with a `Source: manual` chip so it is easy to tell at a glance why a run started.
+Manual runs participate in `Ctrl+N` / `Ctrl+P` history navigation just like scheduled runs. The
+chop-detail header marks them with a `Source: manual` chip so it is easy to tell at a glance why a
+run started.
 
 ### Chop Run History
 
-Every chop execution — whether kicked off by a scheduled lumberjack tick or by `sase axe chop run …` — is recorded as a
-separate run under `~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/`. Each run is assigned a sortable, microsecond-
-precision `run_id`. `index.json` (kept next to `runs/`) lists the chop's run IDs newest-first:
+Every chop execution — whether kicked off by a scheduled lumberjack tick or by `sase axe chop run …`
+— is recorded as a separate run under `~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/`. Each run
+is assigned a sortable, microsecond- precision `run_id`. `index.json` (kept next to `runs/`) lists
+the chop's run IDs newest-first:
 
 ```
 ~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/
@@ -755,134 +809,151 @@ precision `run_id`. `index.json` (kept next to `runs/`) lists the chop's run IDs
     └── <run_id>.result.json  # Structured result, when the script writes one
 ```
 
-Each `<run_id>.json` is a serialized `ChopRunEntry` (see `src/sase/axe/state.py`). The most relevant fields are
-`status`, `started_at`, `finished_at`, `duration_ms`, `exit_code`, `pid`, `source` (`scheduled`, `manual`, or
-`oneshot`), `started_by`, `output_bytes`, `result`, proposal previews, launches, and the recorded skip/error `reason`.
+Each `<run_id>.json` is a serialized `ChopRunEntry` (see `src/sase/axe/state.py`). The most relevant
+fields are `status`, `started_at`, `finished_at`, `duration_ms`, `exit_code`, `pid`, `source`
+(`scheduled`, `manual`, or `oneshot`), `started_by`, `output_bytes`, `result`, proposal previews,
+launches, and the recorded skip/error `reason`.
 
-A run starts as `running`. Exit-code-only scripts end as `success`, `failure`, `timeout`, or `missing_script`. Policy
-rejections are `skipped`; structured healthy no-work and degraded probes are `no_op` and `check_error`. A result with
-accepted proposals moves to `launched`, then the housekeeping pass finalizes it as `action_succeeded` or `action_failed`
-from linked agent completion artifacts. `running` and `launched` are active states, so `finished_at` is `null` for both.
+A run starts as `running`. Exit-code-only scripts end as `success`, `failure`, `timeout`, or
+`missing_script`. Policy rejections are `skipped`; structured healthy no-work and degraded probes
+are `no_op` and `check_error`. A result with accepted proposals moves to `launched`, then the
+housekeeping pass finalizes it as `action_succeeded` or `action_failed` from linked agent completion
+artifacts. `running` and `launched` are active states, so `finished_at` is `null` for both.
 
-If a linked agent's process has stopped and its live `done.json` is absent, finalization looks for the top-level
-dismissed-agent archive entry with the same artifact timestamp. Workflow-child archive rows do not stand in for that
-top-level run. Only a `DONE` archive status counts as success; `FAILED`, `KILLED`, any other status, or a missing entry
-fails the action.
+If a linked agent's process has stopped and its live `done.json` is absent, finalization looks for
+the top-level dismissed-agent archive entry with the same artifact timestamp. Workflow-child archive
+rows do not stand in for that top-level run. Only a `DONE` archive status counts as success;
+`FAILED`, `KILLED`, any other status, or a missing entry fails the action.
 
-History is pruned after every run write, retaining the newest `MAX_CHOP_RUN_HISTORY` (10) terminal runs per chop. Active
-`running` and `launched` entries are always kept regardless of position, so slow scripts and pending actions are never
-deleted out from under their lifecycle owners.
+History is pruned after every run write, retaining the newest `MAX_CHOP_RUN_HISTORY` (10) terminal
+runs per chop. Active `running` and `launched` entries are always kept regardless of position, so
+slow scripts and pending actions are never deleted out from under their lifecycle owners.
 
 ### AXE Tab Views
 
-The Axe tab sidebar renders each lumberjack as a top-level row with its configured chops as indented children, followed
-by any background commands (`!!`). Each chop row shows a status marker derived from its newest cached run: active
-`running` / `launched`, successful `success` / `action_succeeded`, healthy `no_op`, policy `skipped`, degraded
-`check_error`, failed `failure` / `timeout` / `action_failed`, or `missing_script`. Chops with no history remain marked
-as never run. Selection drives three distinct dashboard views:
+The Axe tab sidebar renders each lumberjack as a top-level row with its configured chops as indented
+children, followed by any background commands (`!!`). Each chop row shows a status marker derived
+from its newest cached run: active `running` / `launched`, successful `success` /
+`action_succeeded`, healthy `no_op`, policy `skipped`, degraded `check_error`, failed `failure` /
+`timeout` / `action_failed`, or `missing_script`. Chops with no history remain marked as never run.
+Selection drives three distinct dashboard views:
 
-- **Lumberjack overview** — selecting a lumberjack row shows its status, interval, cycle count, error count, and a
-  per-chop table with each chop's last-run status, relative timestamp, and duration. For a chop whose newest run is
-  still active, the duration column shows live elapsed runtime rather than the stale `0ms` you would otherwise see
-  before the run finalizes.
-- **Chop detail** — selecting a chop row renders one width-responsive document. A universal **RESULT** card summarizes
-  status, counters, reason, dry-run/source markers, proposals, launches, evidence, and failures from the cached run
-  entry. A chop-authored structured report follows when the result document provides one, then **OUTPUT** preserves the
-  run's ANSI-rendered `.log` tail. Until the log has accumulated any bytes, the output section shows a
-  `Waiting for output…` placeholder; the exit code is suppressed until the run finalizes. Active `running` and
-  `launched` runs continue following the output tail, while selecting a terminal run leaves the RESULT card at the top
-  of the scroll region.
+- **Lumberjack overview** — selecting a lumberjack row shows its status, interval, cycle count,
+  error count, and a per-chop table with each chop's last-run status, relative timestamp, and
+  duration. For a chop whose newest run is still active, the duration column shows live elapsed
+  runtime rather than the stale `0ms` you would otherwise see before the run finalizes.
+- **Chop detail** — selecting a chop row renders one width-responsive document. A universal
+  **RESULT** card summarizes status, counters, reason, dry-run/source markers, proposals, launches,
+  evidence, and failures from the cached run entry. A chop-authored structured report follows when
+  the result document provides one, then **OUTPUT** preserves the run's ANSI-rendered `.log` tail.
+  Until the log has accumulated any bytes, the output section shows a `Waiting for output…`
+  placeholder; the exit code is suppressed until the run finalizes. Active `running` and `launched`
+  runs continue following the output tail, while selecting a terminal run leaves the RESULT card at
+  the top of the scroll region.
 - **Background command output** — the existing live output stream for the focused `!!` row.
 
-`Ctrl+N` / `Ctrl+P` on the Axe tab page through the focused chop's run history (newer / older). The viewer pins to the
-run you selected so that a fresh tick prepending a new run does not bump you forward; the pin is cleared automatically
-if the pinned run is pruned or itself becomes the newest run.
+`Ctrl+N` / `Ctrl+P` on the Axe tab page through the focused chop's run history (newer / older). The
+viewer pins to the run you selected so that a fresh tick prepending a new run does not bump you
+forward; the pin is cleared automatically if the pinned run is pruned or itself becomes the newest
+run.
 
-The same structured report renderer is used by `sase axe chop run` when that command prints a structured result (dry run
-or chop-verbose mode), so semantic tones, rows, gauges, and literal-text safety do not drift between the CLI and the ACE
-AXE tab.
+The same structured report renderer is used by `sase axe chop run` when that command prints a
+structured result (dry run or chop-verbose mode), so semantic tones, rows, gauges, and literal-text
+safety do not drift between the CLI and the ACE AXE tab.
 
 ### Chop-Agent Registry
 
-The durable `agent_chops.json` linkage and `SASE_CHOP_*` metadata associate launched proposals with chop lifecycle
-state. Configuration is always script-based. Each launched agent receives `SASE_CHOP_LUMBERJACK`, `SASE_CHOP_NAME`,
-`SASE_CHOP_RUN_ID`, and a prompt hash; the housekeeping pass uses the registry plus normal agent completion artifacts to
-finalize `launched` runs.
+The durable `agent_chops.json` linkage and `SASE_CHOP_*` metadata associate launched proposals with
+chop lifecycle state. Configuration is always script-based. Each launched agent receives
+`SASE_CHOP_LUMBERJACK`, `SASE_CHOP_NAME`, `SASE_CHOP_RUN_ID`, and a prompt hash; the housekeeping
+pass uses the registry plus normal agent completion artifacts to finalize `launched` runs.
 
-Linkage is explicit: a registry record is created only for proposal launches the runner itself performs and for
-continuation respawns (retry or model-fallback) of an already-linked agent. Ambient `SASE_CHOP_*` context is scrubbed
-from every other spawned child's environment, so nested launches by chop agents and launches performed by chop scripts
-themselves neither register nor inherit chop identity.
+Linkage is explicit: a registry record is created only for proposal launches the runner itself
+performs and for continuation respawns (retry or model-fallback) of an already-linked agent. Ambient
+`SASE_CHOP_*` context is scrubbed from every other spawned child's environment, so nested launches
+by chop agents and launches performed by chop scripts themselves neither register nor inherit chop
+identity.
 
-Housekeeping matches registry records to the run entry's own recorded launches by artifacts timestamp, following retry
-successors through `retried_as_timestamp` chains. Unmatched records are logged into the run output and ignored for
-status purposes; a launch with no matching record still fails the run closed. Records whose run entry is missing or
-already terminal are garbage-collected during the housekeeping pass.
+Housekeeping matches registry records to the run entry's own recorded launches by artifacts
+timestamp, following retry successors through `retried_as_timestamp` chains. Unmatched records are
+logged into the run output and ignored for status purposes; a launch with no matching record still
+fails the run closed. Records whose run entry is missing or already terminal are garbage-collected
+during the housekeeping pass.
 
 ## Concurrency Management
 
-Axe uses a cross-process runner pool to enforce global concurrency limits. The `SharedRunnerPool` uses `fcntl.flock` on
-a shared file (`~/.sase/axe/shared/runner_count`) to coordinate runner slots across all lumberjack processes atomically.
+Axe uses a cross-process runner pool to enforce global concurrency limits. The `SharedRunnerPool`
+uses `fcntl.flock` on a shared file (`~/.sase/axe/shared/runner_count`) to coordinate runner slots
+across all lumberjack processes atomically.
 
-Hook runners and agent runners have separate limits (`max_hook_runners` and `max_agent_runners`), allowing fine-grained
-control over background resource usage.
+Hook runners and agent runners have separate limits (`max_hook_runners` and `max_agent_runners`),
+allowing fine-grained control over background resource usage.
 
 ## Agent Completion Artifacts
 
-When an agent run finalizes, axe writes the normal completion metadata and sends the workflow-complete notification.
-Successful runs also scan the agent workspace for generated image files (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`),
-video files (`.mp4`, `.m4v`, `.mov`, `.webm`), and Markdown files (`.md`, `.markdown`). When 10 or fewer Markdown
-sources are discovered after filtering, they are rendered to PDFs under the agent artifact directory, then the generated
-PDF paths are appended after the standard chat/diff notification attachments and before image/video attachments. The PDF
-list is persisted as `done.json.markdown_pdf_paths`; the image and video lists are persisted as `done.json.image_paths`
-and `done.json.video_paths`. Explicit artifacts created during the run with
-`sase artifact create -p <path> [-l <label>] [-k <kind>]` are appended after generated media attachments when their
-stored files still exist.
+When an agent run finalizes, axe writes the normal completion metadata and sends the
+workflow-complete notification. Successful runs also scan the agent workspace for generated image
+files (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`), video files (`.mp4`, `.m4v`, `.mov`, `.webm`), and
+Markdown files (`.md`, `.markdown`). When 10 or fewer Markdown sources are discovered after
+filtering, they are rendered to PDFs under the agent artifact directory, then the generated PDF
+paths are appended after the standard chat/diff notification attachments and before image/video
+attachments. The PDF list is persisted as `done.json.markdown_pdf_paths`; the image and video lists
+are persisted as `done.json.image_paths` and `done.json.video_paths`. Explicit artifacts created
+during the run with `sase artifact create -p <path> [-l <label>] [-k <kind>]` are appended after
+generated media attachments when their stored files still exist.
 
-The scan uses git name-status output, untracked files, saved diff metadata, and the latest commit when the agent
-committed or opened a PR. Deleted, missing, unsupported, and duplicate paths are ignored. If more than 10 Markdown
-sources remain, Axe skips Markdown PDF rendering for that completion and adds a note to the notification. PDF rendering
-is otherwise best-effort: missing conversion tools or render failures omit that source without failing the agent run.
-Generated Markdown PDFs are optimized for narrow viewers with a small portrait page, small margins, and larger type. As
-PDFs are prepared, axe updates `workflow_state.json.pdf_status` and a compact `activity` label so ACE can show live
-finalization progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` in the prompt/detail header's labeled
-`Activity:` field. Successful runs also copy discovered media artifacts, plus prompt-referenced images and videos, into
-persistent SASE artifact storage for ACE. Prompt-referenced media are not appended to completion notifications unless
-they were also generated/modified files or explicit artifacts. See [`agent_images.md`](agent_images.md) for the full
-contract.
+The scan uses git name-status output, untracked files, saved diff metadata, and the latest commit
+when the agent committed or opened a PR. Deleted, missing, unsupported, and duplicate paths are
+ignored. If more than 10 Markdown sources remain, Axe skips Markdown PDF rendering for that
+completion and adds a note to the notification. PDF rendering is otherwise best-effort: missing
+conversion tools or render failures omit that source without failing the agent run. Generated
+Markdown PDFs are optimized for narrow viewers with a small portrait page, small margins, and larger
+type. As PDFs are prepared, axe updates `workflow_state.json.pdf_status` and a compact `activity`
+label so ACE can show live finalization progress such as `PDF 2/4 <path>` or
+`PDFs done 3/4 (1 skipped)` in the prompt/detail header's labeled `Activity:` field. Successful runs
+also copy discovered media artifacts, plus prompt-referenced images and videos, into persistent SASE
+artifact storage for ACE. Prompt-referenced media are not appended to completion notifications
+unless they were also generated/modified files or explicit artifacts. See
+[`agent_images.md`](agent_images.md) for the full contract.
 
-The Agents tab exposes completion artifacts through the `a` action. When artifacts exist, ACE opens the artifact panel
-for selection. Chat transcripts, plan files, generated PDFs/images/videos, prompt-referenced media from saved prompt
-artifacts, and explicit artifacts created with `sase artifact create -p <path> [-l <label>] [-k <kind>]` all participate
-in the same list. Explicit artifacts are stored under `~/.sase/artifacts/` with a persistent association so they remain
-available after dismissing and later reviving the agent. ACE shows the picker even for a single artifact. Inside that
-picker, `m` marks rows, `Enter` opens the marked set or highlighted row, and `A` opens the full list. Only one plan
-artifact is listed for an agent, preferring the committed SDD plan path when one exists. Inside tmux, artifact viewing
-opens in a right-side tmux pane, collapses the Agents list while live, uses `l` to focus the pane, and uses lowercase
-`a` to close it; outside tmux, ACE suspends and uses the current pane. The viewer supports images, videos, Markdown,
-PDFs, and text fallbacks, wraps `j`/`k` page navigation at the ends, uses `n`/`p` for artifact-sequence navigation, and
-warns when required terminal/rendering tools are missing. The direct agent run-log binding is `V`.
+The Agents tab exposes completion artifacts through the `a` action. When artifacts exist, ACE opens
+the artifact panel for selection. Chat transcripts, plan files, generated PDFs/images/videos,
+prompt-referenced media from saved prompt artifacts, and explicit artifacts created with
+`sase artifact create -p <path> [-l <label>] [-k <kind>]` all participate in the same list. Explicit
+artifacts are stored under `~/.sase/artifacts/` with a persistent association so they remain
+available after dismissing and later reviving the agent. ACE shows the picker even for a single
+artifact. Inside that picker, `m` marks rows, `Enter` opens the marked set or highlighted row, and
+`A` opens the full list. Only one plan artifact is listed for an agent, preferring the committed SDD
+plan path when one exists. Inside tmux, artifact viewing opens in a right-side tmux pane, collapses
+the Agents list while live, uses `l` to focus the pane, and uses lowercase `a` to close it; outside
+tmux, ACE suspends and uses the current pane. The viewer supports images, videos, Markdown, PDFs,
+and text fallbacks, wraps `j`/`k` page navigation at the ends, uses `n`/`p` for artifact-sequence
+navigation, and warns when required terminal/rendering tools are missing. The direct agent run-log
+binding is `V`.
 
 ## Maintenance Mode
 
-Maintenance mode is a lightweight pause switch for scheduled axe work. `sase axe maintenance enter --reason <text>`
-writes `~/.sase/axe/maintenance.json` with the reason, caller PID, and start timestamp. Each lumberjack checks that
-marker at the start of every tick; while it is active, the lumberjack records a cycle and skips the chop execution for
-that tick.
+Maintenance mode is a lightweight pause switch for scheduled axe work.
+`sase axe maintenance enter --reason <text>` writes `~/.sase/axe/maintenance.json` with the reason,
+caller PID, and start timestamp. Each lumberjack checks that marker at the start of every tick;
+while it is active, the lumberjack records a cycle and skips the chop execution for that tick.
 
-Use maintenance mode before operations that temporarily make scheduled work unsafe or noisy, such as installing plugin
-updates, moving workspace directories, or running one-off cleanup. `sase axe maintenance exit` removes the marker.
-`sase axe maintenance status` exits 0 when active and 1 when inactive, so scripts can use it as a guard. The next
-lumberjack tick clears stale markers automatically when they are older than 24 hours, malformed, or owned by a PID that
-is no longer running. When Linux `/proc` identity data is readable, new markers also record the owner's process start
-identity and, when available, the boot ID. Those fields let SASE reject a stale marker after its PID has been recycled.
+Use maintenance mode before operations that temporarily make scheduled work unsafe or noisy, such as
+installing plugin updates, moving workspace directories, or running one-off cleanup.
+`sase axe maintenance exit` removes the marker. `sase axe maintenance status` exits 0 when active
+and 1 when inactive, so scripts can use it as a guard. The next lumberjack tick clears stale markers
+automatically when they are older than 24 hours, malformed, or owned by a PID that is no longer
+running. When Linux `/proc` identity data is readable, new markers also record the owner's process
+start identity and, when available, the boot ID. Those fields let SASE reject a stale marker after
+its PID has been recycled.
 
 ## Watchdog and Recovery
 
-`sase axe ensure` is a single-shot, idempotent reconciliation of the requested axe state and the orchestrator process.
-It checks only orchestrator liveness; use `sase axe lumberjack status` or deep doctor mode to inspect individual
-lumberjacks. Start and restart requests write `running` before attempting startup, while `sase axe stop` writes
-`stopped` before shutdown. The marker therefore records intent, not proof that the process transition succeeded.
+`sase axe ensure` is a single-shot, idempotent reconciliation of the requested axe state and the
+orchestrator process. It checks only orchestrator liveness; use `sase axe lumberjack status` or deep
+doctor mode to inspect individual lumberjacks. Start and restart requests write `running` before
+attempting startup, while `sase axe stop` writes `stopped` before shutdown. The marker therefore
+records intent, not proof that the process transition succeeded.
 
 | Desired-state marker | Live orchestrator | `sase axe ensure` result                                      |
 | -------------------- | ----------------- | ------------------------------------------------------------- |
@@ -892,44 +963,49 @@ lumberjacks. Start and restart requests write `running` before attempting startu
 | Missing or invalid   | Yes               | Uses the historical running default and reports healthy       |
 | Missing or invalid   | No                | Uses the historical running default and attempts to start axe |
 
-After a successful heal, SASE makes a best-effort attempt to write an **Axe self-healed** entry to the notification
-inbox. Notification failure does not turn the heal into a failure. `sase doctor -C axe.health` reports the same
-desired/live fields, but warns only when a valid marker explicitly says `running` and the orchestrator is down. With no
-marker and no process, that doctor check reports OK even though a subsequent `sase axe ensure` would attempt startup.
-Deep doctor mode applies the same explicit-`running` mismatch rule in its broader AXE runtime check.
+After a successful heal, SASE makes a best-effort attempt to write an **Axe self-healed** entry to
+the notification inbox. Notification failure does not turn the heal into a failure.
+`sase doctor -C axe.health` reports the same desired/live fields, but warns only when a valid marker
+explicitly says `running` and the orchestrator is down. With no marker and no process, that doctor
+check reports OK even though a subsequent `sase axe ensure` would attempt startup. Deep doctor mode
+applies the same explicit-`running` mismatch rule in its broader AXE runtime check.
 
-This distinction prevents a watchdog from undoing an intentional stop. To resume healing after `sase axe stop`, start
-axe again with `sase axe start`; that both launches the daemon and restores the desired state to running. Installing or
-uninstalling the watchdog does not directly rewrite an explicit desired state, and uninstalling it does not stop a
-running daemon. Once enabled, however, each due timer invocation behaves like bare `ensure`, including treating a
-missing marker as `running`.
+This distinction prevents a watchdog from undoing an intentional stop. To resume healing after
+`sase axe stop`, start axe again with `sase axe start`; that both launches the daemon and restores
+the desired state to running. Installing or uninstalling the watchdog does not directly rewrite an
+explicit desired state, and uninstalling it does not stop a running daemon. Once enabled, however,
+each due timer invocation behaves like bare `ensure`, including treating a missing marker as
+`running`.
 
-Agent runners blocked on dependency waits also make best-effort ensure calls. Those calls share a host-wide marker and
-are limited to at most one actual check every five minutes. The optional timer is useful when no waiting agent is alive
-to make those checks.
+Agent runners blocked on dependency waits also make best-effort ensure calls. Those calls share a
+host-wide marker and are limited to at most one actual check every five minutes. The optional timer
+is useful when no waiting agent is alive to make those checks.
 
-SASE maintains a best-effort `~/.sase/axe/lifecycle.jsonl` journal capped at 256 KiB. It appends every successful
-orchestrator start—including automatic healing—and each completed stop or restart request, with its source. A start
-attempt that fails or exits before the PID is published has no start entry. Before healing a down daemon, `ensure`
-checks this journal for restart churn. By default, five successful starts within the preceding 30 minutes damp further
-automatic healing: the command returns a rate-limited result without starting axe and emits a durable **Axe restart
-storm damped** notification. Repeated alerts are suppressed while the set of contributing starts is unchanged. The
-notification identifies their sources and attaches the journal; healing becomes eligible again after enough starts age
-out of the window. Explicit lifecycle commands remain available to the operator.
+SASE maintains a best-effort `~/.sase/axe/lifecycle.jsonl` journal capped at 256 KiB. It appends
+every successful orchestrator start—including automatic healing—and each completed stop or restart
+request, with its source. A start attempt that fails or exits before the PID is published has no
+start entry. Before healing a down daemon, `ensure` checks this journal for restart churn. By
+default, five successful starts within the preceding 30 minutes damp further automatic healing: the
+command returns a rate-limited result without starting axe and emits a durable **Axe restart storm
+damped** notification. Repeated alerts are suppressed while the set of contributing starts is
+unchanged. The notification identifies their sources and attaches the journal; healing becomes
+eligible again after enough starts age out of the window. Explicit lifecycle commands remain
+available to the operator.
 
-On Linux hosts with user systemd, `sase axe ensure install` writes and enables `sase-axe-ensure.service` and
-`sase-axe-ensure.timer` under the user systemd directory. Its first activation is scheduled for two minutes after boot
-(or promptly when enabled after that point), followed by an activation five minutes after the prior service activation.
-The monotonic timer does not replay missed intervals after downtime. It invokes the stable SASE executable selected at
-installation time and preserves `SASE_HOME` when that variable is set. `sase axe ensure uninstall` disables the timer
-and removes both units. On systems without `systemctl --user`, run bare `sase axe ensure` manually or from the host's
-scheduler instead.
+On Linux hosts with user systemd, `sase axe ensure install` writes and enables
+`sase-axe-ensure.service` and `sase-axe-ensure.timer` under the user systemd directory. Its first
+activation is scheduled for two minutes after boot (or promptly when enabled after that point),
+followed by an activation five minutes after the prior service activation. The monotonic timer does
+not replay missed intervals after downtime. It invokes the stable SASE executable selected at
+installation time and preserves `SASE_HOME` when that variable is set. `sase axe ensure uninstall`
+disables the timer and removes both units. On systems without `systemctl --user`, run bare
+`sase axe ensure` manually or from the host's scheduler instead.
 
-Managed restart paths, including ACE and update-triggered restarts, record `running`, make up to three startup attempts,
-and report success only after the orchestrator is live and every configured lumberjack reports `running` with PID and
-heartbeat values changed from the pre-restart snapshot. If all attempts fail, SASE records the attempt summaries in
-`recent_errors.json` and sends a durable **Axe restart failed** notification; an installed watchdog can try a clean
-start on a later tick.
+Managed restart paths, including ACE and update-triggered restarts, record `running`, make up to
+three startup attempts, and report success only after the orchestrator is live and every configured
+lumberjack reports `running` with PID and heartbeat values changed from the pre-restart snapshot. If
+all attempts fail, SASE records the attempt summaries in `recent_errors.json` and sends a durable
+**Axe restart failed** notification; an installed watchdog can try a clean start on a later tick.
 
 ## State Directory
 
@@ -973,33 +1049,37 @@ start on a later tick.
 
 ## Process Lifecycle
 
-1. `sase axe start` first checks for a live orchestrator PID. If one exists, start is a no-op and returns the existing
-   PID.
-2. If no live PID exists, startup acquires `~/.sase/axe/orchestrator.lock` and hands that lock to the detached
-   orchestrator process. Concurrent starts wait briefly and then return the live PID or decline to start.
-3. The orchestrator removes stale PID files, adopts/holds the lifecycle lock, writes `orchestrator.pid`, and spawns all
-   configured lumberjacks as child processes.
+1. `sase axe start` first checks for a live orchestrator PID. If one exists, start is a no-op and
+   returns the existing PID.
+2. If no live PID exists, startup acquires `~/.sase/axe/orchestrator.lock` and hands that lock to
+   the detached orchestrator process. Concurrent starts wait briefly and then return the live PID or
+   decline to start.
+3. The orchestrator removes stale PID files, adopts/holds the lifecycle lock, writes
+   `orchestrator.pid`, and spawns all configured lumberjacks as child processes.
 4. Each lumberjack runs its chops on its configured interval, unless maintenance mode is active.
 5. The orchestrator monitors children and restarts any that exit unexpectedly.
-6. `sase axe stop` sends SIGTERM to the orchestrator, which forwards it to all children. If the orchestrator does not
-   exit within the stop timeout, the stopper escalates to SIGKILL and cleans up stale or owned PID files without
-   deleting a PID published by a concurrent successful restart.
-7. `sase axe ensure` compares this live state with `desired_state.json`; it heals unexpected downtime but honors an
-   explicit stop. See [Watchdog and Recovery](#watchdog-and-recovery).
+6. `sase axe stop` sends SIGTERM to the orchestrator, which forwards it to all children. If the
+   orchestrator does not exit within the stop timeout, the stopper escalates to SIGKILL and cleans
+   up stale or owned PID files without deleting a PID published by a concurrent successful restart.
+7. `sase axe ensure` compares this live state with `desired_state.json`; it heals unexpected
+   downtime but honors an explicit stop. See [Watchdog and Recovery](#watchdog-and-recovery).
 
 ## ACE Integration
 
 The Axe tab in the ACE TUI provides live monitoring of the daemon:
 
 - A lumberjack tree sidebar (lumberjack rows + their chops as children + background-command rows)
-- A lumberjack overview, per-chop detail view, and run-history pager (see [AXE Tab Views](#axe-tab-views))
-- Keyboard-first config management: `a` adds lumberjacks/chops, `e` previews and edits the selected exact config entry,
-  and `E` opens recorded chop output. Disabled chops remain visible but are not manually runnable; editing a generated
-  row safely targets its base chop and identifies the all-instances effect.
+- A lumberjack overview, per-chop detail view, and run-history pager (see
+  [AXE Tab Views](#axe-tab-views))
+- Keyboard-first config management: `a` adds lumberjacks/chops, `e` previews and edits the selected
+  exact config entry, and `E` opens recorded chop output. Disabled chops remain visible but are not
+  manually runnable; editing a generated row safely targets its base chop and identifies the
+  all-instances effect.
 - Start/stop the orchestrator (`x` key or `!x`) and runner counts
-- Footer shows a segmented `AXE` badge followed by daemon status: RUNNING, STOPPED, STARTING, STOPPING, or RESTARTING
+- Footer shows a segmented `AXE` badge followed by daemon status: RUNNING, STOPPED, STARTING,
+  STOPPING, or RESTARTING
 
-The RESTARTING indicator appears when `sase ace --restart-axe` (`-R`) is used — the daemon restarts in the background
-while the TUI starts up normally.
+The RESTARTING indicator appears when `sase ace --restart-axe` (`-R`) is used — the daemon restarts
+in the background while the TUI starts up normally.
 
 See [`docs/ace.md`](ace.md) for the full Axe tab keybinding reference.

@@ -250,8 +250,9 @@ def register_bead_show_parser(
             "'sase bead list'; --format json adds the resolved parent, child, "
             "dependency, blocker, and plan graph as machine-readable data. "
             "--color now applies to --format full as well as compact. "
-            "DESCRIPTION, NOTES, and +1 evidence prose wrap at 120 columns by "
-            "default without breaking URLs or inline code spans."
+            "DESCRIPTION, NOTES, and +1 evidence prose wrap at "
+            f"{DEFAULT_PROSE_WRAP_WIDTH} columns by default without breaking "
+            "URLs or inline code spans."
         ),
         epilog=(
             "Examples:\n"

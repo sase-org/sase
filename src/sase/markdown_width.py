@@ -18,7 +18,7 @@ import it without risking a cycle.
 
 from __future__ import annotations
 
-MARKDOWN_PRINT_WIDTH = 120
+MARKDOWN_PRINT_WIDTH = 100
 
 
 def prettier_markdown_argv(*, print_width: int = MARKDOWN_PRINT_WIDTH) -> list[str]:

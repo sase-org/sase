@@ -1,18 +1,21 @@
 # VCS Provider Reference
 
-The **VCS provider layer** is an abstraction that lets sase commands work with both **Git** and **Mercurial**
-repositories. Commands and workflows that touch version control, including `sase commit`, `sase ace`, `sase axe`,
-`sase revert`, and `sase restore`, delegate to a provider interface rather than calling VCS commands directly.
+The **VCS provider layer** is an abstraction that lets sase commands work with both **Git** and
+**Mercurial** repositories. Commands and workflows that touch version control, including
+`sase commit`, `sase ace`, `sase axe`, `sase revert`, and `sase restore`, delegate to a provider
+interface rather than calling VCS commands directly.
 
-Git and Mercurial share the same SASE concepts: ChangeSpecs, workspace checkout, diff capture, commit/proposal dispatch,
-review submission, revert, and restore. Provider-specific capabilities and prerequisites still matter. For example,
-GitHub pull-request operations require the optional `sase-github` plugin and the GitHub CLI, while Mercurial support
-requires a maintained provider plugin that supplies `sase_hg_*` helper commands.
+Git and Mercurial share the same SASE concepts: ChangeSpecs, workspace checkout, diff capture,
+commit/proposal dispatch, review submission, revert, and restore. Provider-specific capabilities and
+prerequisites still matter. For example, GitHub pull-request operations require the optional
+`sase-github` plugin and the GitHub CLI, while Mercurial support requires a maintained provider
+plugin that supplies `sase_hg_*` helper commands.
 
 ## Plugin Architecture
 
-VCS providers are implemented as [pluggy](https://pluggy.readthedocs.io/) plugins. The core `sase` package only bundles
-the **BareGitPlugin** (for plain git repositories). Additional VCS backends are installed as separate packages:
+VCS providers are implemented as [pluggy](https://pluggy.readthedocs.io/) plugins. The core `sase`
+package only bundles the **BareGitPlugin** (for plain git repositories). Additional VCS backends are
+installed as separate packages:
 
 | Package       | Plugin          | Description                               |
 | ------------- | --------------- | ----------------------------------------- |
@@ -25,51 +28,55 @@ Install optional providers into the same managed SASE environment:
 sase plugin install github   # GitHub PR support
 ```
 
-Plugins register themselves via the `sase_vcs` entry point group. The plugin manager loads all registered plugins and
-dispatches VCS operations through pluggy's `firstresult=True` hook system — the first plugin that returns a non-`None`
-result wins.
+Plugins register themselves via the `sase_vcs` entry point group. The plugin manager loads all
+registered plugins and dispatches VCS operations through pluggy's `firstresult=True` hook system —
+the first plugin that returns a non-`None` result wins.
 
 ### Hook Specification
 
-All VCS operations are defined in `VCSHookSpec` (`src/sase/vcs_provider/_hookspec.py`). Each method is prefixed with
-`vcs_` and returns `tuple[bool, str | None]` (success flag and optional output). Plugins implement only the hooks they
-support; unsupported operations return `None` and are skipped.
+All VCS operations are defined in `VCSHookSpec` (`src/sase/vcs_provider/_hookspec.py`). Each method
+is prefixed with `vcs_` and returns `tuple[bool, str | None]` (success flag and optional output).
+Plugins implement only the hooks they support; unsupported operations return `None` and are skipped.
 
 The hooks are organized into several groups:
 
-- **Core operations** — `vcs_checkout`, `vcs_diff`, `vcs_diff_revision`, `vcs_apply_patch`, `vcs_apply_patches`,
-  `vcs_add_remove`, `vcs_clean_workspace`, `vcs_commit`, `vcs_amend`, `vcs_rename_branch`, `vcs_rebase`, `vcs_archive`,
-  `vcs_prune`, `vcs_stash_and_clean`
-- **Optional core** — `vcs_resolve_revision`, `vcs_resolve_current_changespec_head_ref`, `vcs_show_revision`,
-  `vcs_diff_with_untracked`, `vcs_committed_diff`, `vcs_get_default_parent_revision`, `vcs_diff_name_status`,
-  `vcs_diff_line_stats`, `vcs_log`, `vcs_repo_stats`, `vcs_file_at_revision`
+- **Core operations** — `vcs_checkout`, `vcs_diff`, `vcs_diff_revision`, `vcs_apply_patch`,
+  `vcs_apply_patches`, `vcs_add_remove`, `vcs_clean_workspace`, `vcs_commit`, `vcs_amend`,
+  `vcs_rename_branch`, `vcs_rebase`, `vcs_archive`, `vcs_prune`, `vcs_stash_and_clean`
+- **Optional core** — `vcs_resolve_revision`, `vcs_resolve_current_changespec_head_ref`,
+  `vcs_show_revision`, `vcs_diff_with_untracked`, `vcs_committed_diff`,
+  `vcs_get_default_parent_revision`, `vcs_diff_name_status`, `vcs_diff_line_stats`, `vcs_log`,
+  `vcs_repo_stats`, `vcs_file_at_revision`
 - **Sync operations** — `vcs_sync_workspace`, `vcs_is_sync_in_progress`, `vcs_get_conflicted_files`,
   `vcs_continue_sync`, `vcs_abort_sync`
-- **Commit dispatch** — `vcs_create_commit`, `vcs_create_proposal`, `vcs_create_pull_request` (the three commit workflow
-  methods dispatched by `CommitWorkflow`), plus `vcs_finalize_commit` (replays idempotent post-commit work — bead amend,
-  push-with-retry — when `sase commit --resume` finishes a workflow whose dispatch was interrupted by a merge conflict;
-  plugins that cannot safely replay finalization can leave this unimplemented, and the workflow will only replay its
-  tracking steps). See [commit_workflows.md](commit_workflows.md#resume-after-conflict).
-- **VCS-agnostic operations** — `vcs_abandon_change`, `vcs_prepare_description_for_reword`, `vcs_normalize_bug_value`,
-  `vcs_get_change_url`, `vcs_get_change_body`
-- **Info and review hooks** — `vcs_reword`, `vcs_reword_add_tag`, `vcs_get_description`, `vcs_get_branch_name`,
-  `vcs_get_pr_number`, `vcs_get_workspace_name`, `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`,
-  `vcs_upload`, `vcs_find_reviewers`, `vcs_rewind`
-- **Branch naming hooks** — `vcs_derive_branch_name`, `vcs_derive_branch_name_with_suffix` (compute branch names from
-  ChangeSpec names), `vcs_can_rename_branch` (check if branch renaming is supported)
-- **Classification hooks** — `vcs_detect_repo_type` (detect VCS markers like `.hg/` or `.git/`) and `vcs_classify_repo`
-  (classify git repos by remote URL, e.g. GitHub vs bare)
+- **Commit dispatch** — `vcs_create_commit`, `vcs_create_proposal`, `vcs_create_pull_request` (the
+  three commit workflow methods dispatched by `CommitWorkflow`), plus `vcs_finalize_commit` (replays
+  idempotent post-commit work — bead amend, push-with-retry — when `sase commit --resume` finishes a
+  workflow whose dispatch was interrupted by a merge conflict; plugins that cannot safely replay
+  finalization can leave this unimplemented, and the workflow will only replay its tracking steps).
+  See [commit_workflows.md](commit_workflows.md#resume-after-conflict).
+- **VCS-agnostic operations** — `vcs_abandon_change`, `vcs_prepare_description_for_reword`,
+  `vcs_normalize_bug_value`, `vcs_get_change_url`, `vcs_get_change_body`
+- **Info and review hooks** — `vcs_reword`, `vcs_reword_add_tag`, `vcs_get_description`,
+  `vcs_get_branch_name`, `vcs_get_pr_number`, `vcs_get_workspace_name`, `vcs_has_local_changes`,
+  `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`, `vcs_upload`, `vcs_find_reviewers`, `vcs_rewind`
+- **Branch naming hooks** — `vcs_derive_branch_name`, `vcs_derive_branch_name_with_suffix` (compute
+  branch names from ChangeSpec names), `vcs_can_rename_branch` (check if branch renaming is
+  supported)
+- **Classification hooks** — `vcs_detect_repo_type` (detect VCS markers like `.hg/` or `.git/`) and
+  `vcs_classify_repo` (classify git repos by remote URL, e.g. GitHub vs bare)
 
 ### Disabling Plugins
 
-The VCS provider registry loads provider entry points directly. It does not currently consult the resource-plugin
-disable switches described in [docs/configuration.md](configuration.md#plugin-system). Use `SASE_VCS_PROVIDER` or
+The VCS provider registry loads provider entry points directly. It does not currently consult the
+resource-plugin disable switches described in
+[docs/configuration.md](configuration.md#plugin-system). Use `SASE_VCS_PROVIDER` or
 `vcs_provider.provider` to force a provider selection.
 
 ## Provider Selection
 
-Sase uses a 3-tier resolution strategy to decide which VCS provider to use. The first tier that returns a concrete
-provider wins.
+Sase uses a 3-tier resolution strategy to decide which VCS provider to use. The first tier that
+returns a concrete provider wins.
 
 ### Tier 1: Environment Variable
 
@@ -100,7 +107,8 @@ Valid values: `git`, `hg`, `auto`.
 
 ### Tier 2: Configuration File
 
-If the environment variable is not set (or is unset entirely — not `"auto"`), sase checks `~/.config/sase/sase.yml`:
+If the environment variable is not set (or is unset entirely — not `"auto"`), sase checks
+`~/.config/sase/sase.yml`:
 
 ```yaml
 vcs_provider:
@@ -109,33 +117,38 @@ vcs_provider:
 
 Setting `provider: auto` defers to auto-detection (Tier 3).
 
-**Note:** If the environment variable is set to `"auto"`, the config file is skipped entirely and auto-detection runs
-directly. Only an unset environment variable consults the config.
+**Note:** If the environment variable is set to `"auto"`, the config file is skipped entirely and
+auto-detection runs directly. Only an unset environment variable consults the config.
 
 ### Tier 3: Auto-Detection
 
-If neither the environment variable nor config file specifies a provider, sase walks up the directory tree from the
-current working directory looking for `.hg/` or `.git/` directories. The first one found determines the provider.
+If neither the environment variable nor config file specifies a provider, sase walks up the
+directory tree from the current working directory looking for `.hg/` or `.git/` directories. The
+first one found determines the provider.
 
 - `.hg/` found first → Mercurial provider (`"hg"`)
-- `.git/` found first → Git provider. If a plugin claims the Git remote, such as `sase-github` claiming a configured
-  GitHub host, that provider name wins.
-- `.git/` found with a hosted remote (e.g., GitHub) but no VCS plugin claims the repo → falls back to `"bare_git"`. This
-  preserves baseline commit capability even without provider-specific plugins like `sase-github`.
-- `.git/` found without a readable `origin` URL and no plugin claim → **Error**: `VCSProviderNotFoundError`
+- `.git/` found first → Git provider. If a plugin claims the Git remote, such as `sase-github`
+  claiming a configured GitHub host, that provider name wins.
+- `.git/` found with a hosted remote (e.g., GitHub) but no VCS plugin claims the repo → falls back
+  to `"bare_git"`. This preserves baseline commit capability even without provider-specific plugins
+  like `sase-github`.
+- `.git/` found without a readable `origin` URL and no plugin claim → **Error**:
+  `VCSProviderNotFoundError`
 - Neither found → **Error**: `VCSProviderNotFoundError`
 
-With the bundled and documented optional providers, `detect_vcs()` commonly returns `"github"`, `"bare_git"`, or `"hg"`.
-Additional plugins may return their own provider names. `detect_vcs_family()` collapses `"github"` and `"bare_git"` into
-`"git"` for contexts that only care about the VCS family.
+With the bundled and documented optional providers, `detect_vcs()` commonly returns `"github"`,
+`"bare_git"`, or `"hg"`. Additional plugins may return their own provider names.
+`detect_vcs_family()` collapses `"github"` and `"bare_git"` into `"git"` for contexts that only care
+about the VCS family.
 
 ## Per-Command VCS Usage
 
 ### `sase vcs list`
 
-Lists the available repository constellation: the primary repository, configured linked repositories, all configured
-sidecars, and a materialized legacy separate SDD store when present. A bare `sase vcs` delegates to `sase vcs list`. The
-log command excludes sidecar history by default; use `sase vcs log --sdd` to include it.
+Lists the available repository constellation: the primary repository, configured linked
+repositories, all configured sidecars, and a materialized legacy separate SDD store when present. A
+bare `sase vcs` delegates to `sase vcs list`. The log command excludes sidecar history by default;
+use `sase vcs log --sdd` to include it.
 
 Common forms:
 
@@ -157,38 +170,42 @@ Options:
 | `-r`, `--repo NAME`                        | Restrict to a resolved repo name. Repeatable.                          |
 | `-s`, `--sort default/name/commits/recent` | Keep resolved order or sort by name, commit count, or recent activity. |
 
-The pretty output shows a summary line, then one block per repo with its kind, branch, dirty state, configured
-description when available, commit count, contributor count, last activity, and latest commit. A failed stats read for
-one repo is shown as a warning and does not hide the other repos.
+The pretty output shows a summary line, then one block per repo with its kind, branch, dirty state,
+configured description when available, commit count, contributor count, last activity, and latest
+commit. A failed stats read for one repo is shown as a warning and does not hide the other repos.
 
 ### `sase vcs log`
 
-Shows a day-grouped commit timeline across the primary repository and ordinary configured linked repositories. Sidecar
-repositories are hidden by default. Pass the compatibility option `--sdd` to include the complete sidecar set: modern
-configured/default sidecars and any materialized legacy separate SDD repository. Pass `--all` to build one timeline from
-every registered enabled or disabled project (excluding the system-managed `home` project), regardless of the current
-directory. Global discovery does not materialize missing workspaces. Sibling checkouts still appear as linked
-repositories of their owning projects; `--all --sdd` also includes every available sidecar from the registered projects.
-This CLI default is independent of the ACE Artifacts Commits pane's configurable persistent query.
+Shows a day-grouped commit timeline across the primary repository and ordinary configured linked
+repositories. Sidecar repositories are hidden by default. Pass the compatibility option `--sdd` to
+include the complete sidecar set: modern configured/default sidecars and any materialized legacy
+separate SDD repository. Pass `--all` to build one timeline from every registered enabled or
+disabled project (excluding the system-managed `home` project), regardless of the current directory.
+Global discovery does not materialize missing workspaces. Sibling checkouts still appear as linked
+repositories of their owning projects; `--all --sdd` also includes every available sidecar from the
+registered projects. This CLI default is independent of the ACE Artifacts Commits pane's
+configurable persistent query.
 
-Global discovery canonicalizes checkout paths, so a repository registered independently and linked from one or more
-projects is read and fetched only once. Registered project display names take precedence; colliding linked-repo and
-sidecar labels are qualified with their owning project. `--repo` narrows the eligible set after sidecar opt-in, so use
-`--sdd --repo plans` to show only the current project's plans-sidecar history or `--sdd --repo sdd` for a legacy SDD
-repo. A sidecar selected with `--repo` remains unavailable without `--sdd`. Failures in one project or provider are
+Global discovery canonicalizes checkout paths, so a repository registered independently and linked
+from one or more projects is read and fetched only once. Registered project display names take
+precedence; colliding linked-repo and sidecar labels are qualified with their owning project.
+`--repo` narrows the eligible set after sidecar opt-in, so use `--sdd --repo plans` to show only the
+current project's plans-sidecar history or `--sdd --repo sdd` for a legacy SDD repo. A sidecar
+selected with `--repo` remains unavailable without `--sdd`. Failures in one project or provider are
 warnings and do not hide healthy repositories.
 
-By default the command shows up to 40 commits and trailing SASE commit tags, refreshes a supported remote ref when that
-checkout/ref has not been fetched successfully in the last 60 seconds, and marks each commit as synced, unpushed,
-remote-only, or unknown when no remote comparison is available. Providers without remote-log comparison still contribute
-local history through the provider-neutral `log()` hook; a provider without that hook produces an isolated warning.
+By default the command shows up to 40 commits and trailing SASE commit tags, refreshes a supported
+remote ref when that checkout/ref has not been fetched successfully in the last 60 seconds, and
+marks each commit as synced, unpushed, remote-only, or unknown when no remote comparison is
+available. Providers without remote-log comparison still contribute local history through the
+provider-neutral `log()` hook; a provider without that hook produces an isolated warning.
 
-When a cache miss or `--fetch` triggers remote I/O, stderr shows `Fetching remote · <repo> ← <ref>` as a transient
-spinner in an interactive terminal or a durable status line when redirected. Commit data remains isolated on stdout, so
-JSON and oneline output stay safe to pipe.
+When a cache miss or `--fetch` triggers remote I/O, stderr shows `Fetching remote · <repo> ← <ref>`
+as a transient spinner in an interactive terminal or a durable status line when redirected. Commit
+data remains isolated on stdout, so JSON and oneline output stay safe to pipe.
 
-The short author option moved from `-a` to `-A` because `-a` now selects all-project scope. Existing scripts can migrate
-to `-A PATTERN`; the long `--author PATTERN` spelling is unchanged.
+The short author option moved from `-a` to `-A` because `-a` now selects all-project scope. Existing
+scripts can migrate to `-A PATTERN`; the long `--author PATTERN` spelling is unchanged.
 
 Common forms:
 
@@ -226,20 +243,22 @@ Options:
 | `-s`, `--since DATE`, `--after DATE`      | Include commits at or after `DATE`.                                                     |
 | `-u`, `--until DATE`, `--before DATE`     | Include commits at or before `DATE`.                                                    |
 
-`--all` and `--current-only` are mutually exclusive. `--current-only` reads only the current/primary repo even when
-`--sdd` is supplied. `--repo` remains repeatable in global scope and is applied after sidecar scope selection,
-canonical-path deduplication, and unique label assignment. The `--limit` cap applies to the final merged timeline, not
-to each project's inventory: each unique candidate repository is queried deeply enough to compute the global top N. Use
-`--limit 0` for an unlimited merged timeline. JSON output records the selected global scope as `query.all`.
+`--all` and `--current-only` are mutually exclusive. `--current-only` reads only the current/primary
+repo even when `--sdd` is supplied. `--repo` remains repeatable in global scope and is applied after
+sidecar scope selection, canonical-path deduplication, and unique label assignment. The `--limit`
+cap applies to the final merged timeline, not to each project's inventory: each unique candidate
+repository is queried deeply enough to compute the global top N. Use `--limit 0` for an unlimited
+merged timeline. JSON output records the selected global scope as `query.all`.
 
-`DATE` accepts relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`, or `YYYY-MM-DDTHH:MM`. Dates are
-resolved in the configured SASE timezone and pushed into the provider query before the limit is applied, so filtered
-top-N results do not silently miss matching commits.
+`DATE` accepts relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`, or
+`YYYY-MM-DDTHH:MM`. Dates are resolved in the configured SASE timezone and pushed into the provider
+query before the limit is applied, so filtered top-N results do not silently miss matching commits.
 
 ### `sase commit`
 
-Dispatches to one of three VCS methods (`create_commit`, `create_proposal`, `create_pull_request`) via the
-`CommitWorkflow` orchestrator. See [`docs/commit_workflows.md`](commit_workflows.md) for the full workflow reference.
+Dispatches to one of three VCS methods (`create_commit`, `create_proposal`, `create_pull_request`)
+via the `CommitWorkflow` orchestrator. See [`docs/commit_workflows.md`](commit_workflows.md) for the
+full workflow reference.
 
 **Key VCS operations used:**
 
@@ -273,8 +292,8 @@ Syncs the workspace with the remote repository.
 | Checkout | `git checkout <name>`                                     | `sase_hg_update <name>` |
 | Sync     | `git fetch origin` + `git rebase origin/<default_branch>` | `sase_hg_sync`          |
 
-The git sync auto-detects the default branch via `git symbolic-ref refs/remotes/origin/HEAD`, then probes
-`origin/master` and `origin/main`, and finally falls back to `main`.
+The git sync auto-detects the default branch via `git symbolic-ref refs/remotes/origin/HEAD`, then
+probes `origin/master` and `origin/main`, and finally falls back to `main`.
 
 #### Mail (`m` key)
 
@@ -298,7 +317,8 @@ Pushes changes for review. The flow differs significantly between providers.
 
 #### Show Diff (`d` key)
 
-Displays the diff for a ChangeSpec. Uses `diff()` for uncommitted changes or `diff_revision()` for committed revisions.
+Displays the diff for a ChangeSpec. Uses `diff()` for uncommitted changes or `diff_revision()` for
+committed revisions.
 
 | Type        | Git                                              | Mercurial          |
 | ----------- | ------------------------------------------------ | ------------------ |
@@ -350,8 +370,9 @@ Amends the commit message without changing code.
 | --------- | ------------------------------------- | ------------------------------ |
 | Reword    | `git commit --amend -m <description>` | `sase_hg_reword <description>` |
 
-The Mercurial provider applies ANSI-C escape quoting to the description (escaping backslashes, single quotes, newlines,
-tabs, carriage returns) because `sase_hg_reword` uses `$'...'` shell quoting internally.
+The Mercurial provider applies ANSI-C escape quoting to the description (escaping backslashes,
+single quotes, newlines, tabs, carriage returns) because `sase_hg_reword` uses `$'...'` shell
+quoting internally.
 
 ### `sase axe`
 
@@ -365,7 +386,8 @@ The `--vcs-provider` flag works identically to `sase ace`.
 
 ### `sase revert`
 
-Standalone command to revert a ChangeSpec. Performs the same operations as the ace TUI revert action:
+Standalone command to revert a ChangeSpec. Performs the same operations as the ace TUI revert
+action:
 
 1. Save diff via `diff_revision()` to `~/.sase/reverted/<name>.diff`
 2. Prune revision via `prune()`
@@ -381,22 +403,23 @@ Standalone command to restore a reverted ChangeSpec:
 
 ## Git Provider Details
 
-Git support is split across providers. **BareGitPlugin** (bundled with core sase) handles standard `git` commands and
-bare-repo-backed workflows. **GitHubPlugin** (from the optional `sase-github` package) adds GitHub CLI (`gh`) support
-for PR operations and GitHub workspace references.
+Git support is split across providers. **BareGitPlugin** (bundled with core sase) handles standard
+`git` commands and bare-repo-backed workflows. **GitHubPlugin** (from the optional `sase-github`
+package) adds GitHub CLI (`gh`) support for PR operations and GitHub workspace references.
 
 ### Branch Naming
 
-Git branch names match ChangeSpec names exactly — no prefix stripping or underscore-to-hyphen conversion. Two VCS hooks
-control branch name derivation:
+Git branch names match ChangeSpec names exactly — no prefix stripping or underscore-to-hyphen
+conversion. Two VCS hooks control branch name derivation:
 
 - `vcs_derive_branch_name()` — returns the base branch name (ChangeSpec name without `__<N>` suffix)
 - `vcs_derive_branch_name_with_suffix()` — returns the full branch name including suffix
 
-**Immutable branch aliases:** When a provider cannot rename branches (e.g., GitHub with open PRs), sase persists branch
-aliases in `~/.sase/projects/<project>/branch_map.json`. This maps the current ChangeSpec name to the actual git branch
-name. The `vcs_can_rename_branch()` hook tells the system whether renaming is possible — GitHub returns `False` for
-branches with open PRs, so alias mappings are used instead of `git branch -m`.
+**Immutable branch aliases:** When a provider cannot rename branches (e.g., GitHub with open PRs),
+sase persists branch aliases in `~/.sase/projects/<project>/branch_map.json`. This maps the current
+ChangeSpec name to the actual git branch name. The `vcs_can_rename_branch()` hook tells the system
+whether renaming is possible — GitHub returns `False` for branches with open PRs, so alias mappings
+are used instead of `git branch -m`.
 
 ### Branch Management
 
@@ -413,31 +436,36 @@ GitHub PR operations use the `gh` CLI:
 - **View PR**: `gh pr view --json url -q .url`
 - **Get PR number**: `gh pr view --json number -q .number`
 
-The bundled bare-git provider does not create PRs. Its mail action pushes the resolved branch to `origin`.
+The bundled bare-git provider does not create PRs. Its mail action pushes the resolved branch to
+`origin`.
 
 ### GitHub Plugin Scope
 
-The GitHub plugin covers the core git/PR lifecycle by combining GitHub-specific hooks with the shared git provider
-mixins. It can classify GitHub remotes, create and inspect PRs, preserve immutable branch aliases for open PRs, resolve
-workspace references such as `#gh:<ref>`, and submit merged PRs through `gh pr merge`.
+The GitHub plugin covers the core git/PR lifecycle by combining GitHub-specific hooks with the
+shared git provider mixins. It can classify GitHub remotes, create and inspect PRs, preserve
+immutable branch aliases for open PRs, resolve workspace references such as `#gh:<ref>`, and submit
+merged PRs through `gh pr merge`.
 
-It does not currently provide the richer Mercurial-specific automation surface. In particular, GitHub PRs do not get
-plugin-supplied default ChangeSpec hooks, metahooks, mentor profiles, PR tags, or a provider-specific
-`commit_hooks.before` fix command unless users configure those in `sase.yml`. Reviewer-comment polling and
-comment-response automation are not enabled for GitHub PR URLs, reviewer discovery during mail preparation is not
-implemented, `vcs_rewind` has no GitHub backend, BUG values are left as provided, and Mercurial-only refresh/split
-workflows do not have GitHub equivalents.
+It does not currently provide the richer Mercurial-specific automation surface. In particular,
+GitHub PRs do not get plugin-supplied default ChangeSpec hooks, metahooks, mentor profiles, PR tags,
+or a provider-specific `commit_hooks.before` fix command unless users configure those in `sase.yml`.
+Reviewer-comment polling and comment-response automation are not enabled for GitHub PR URLs,
+reviewer discovery during mail preparation is not implemented, `vcs_rewind` has no GitHub backend,
+BUG values are left as provided, and Mercurial-only refresh/split workflows do not have GitHub
+equivalents.
 
-These are plugin capability gaps, not core VCS limitations: ordinary git operations, diffing, branch management,
-commit/proposal/PR dispatch, conflict resume, and workspace setup are still provided by the shared git implementation.
+These are plugin capability gaps, not core VCS limitations: ordinary git operations, diffing, branch
+management, commit/proposal/PR dispatch, conflict resume, and workspace setup are still provided by
+the shared git implementation.
 
 ### GitHub Enterprise
 
-The `sase-github` plugin supports GitHub Enterprise Server and other self-hosted GitHub hosts. Authenticate the GitHub
-CLI with `gh auth login --hostname <host>`, configure the host through `github_hosts`, and then use the normal
-`#gh(owner/repo)` workflow. The plugin's
+The `sase-github` plugin supports GitHub Enterprise Server and other self-hosted GitHub hosts.
+Authenticate the GitHub CLI with `gh auth login --hostname <host>`, configure the host through
+`github_hosts`, and then use the normal `#gh(owner/repo)` workflow. The plugin's
 [GitHub Enterprise setup walkthrough](https://github.com/sase-org/sase-github/blob/master/docs/configuration.md#github-enterprise-setup)
-is the source of truth for the ordered setup, including SSH clone configuration and workspace layout.
+is the source of truth for the ordered setup, including SSH clone configuration and workspace
+layout.
 
 ### Sync
 
@@ -446,8 +474,8 @@ git fetch origin
 git rebase origin/<default_branch>
 ```
 
-The default branch is auto-detected from `git symbolic-ref refs/remotes/origin/HEAD`, then `origin/master`, then
-`origin/main`, and finally `main`.
+The default branch is auto-detected from `git symbolic-ref refs/remotes/origin/HEAD`, then
+`origin/master`, then `origin/main`, and finally `main`.
 
 ### Archive
 
@@ -461,16 +489,17 @@ git branch -D <name>
 ### Diff
 
 - **Uncommitted changes**: `git diff HEAD` (falls back to `git diff` for empty repos)
-- **Specific revision**: `git diff origin/<default>...<rev>` (three-dot merge-base syntax, showing the full PR diff).
-  Falls back to `git diff <rev>~1 <rev>` for edge cases (detached HEAD, orphan branches), then to `git show` for root
-  commits.
+- **Specific revision**: `git diff origin/<default>...<rev>` (three-dot merge-base syntax, showing
+  the full PR diff). Falls back to `git diff <rev>~1 <rev>` for edge cases (detached HEAD, orphan
+  branches), then to `git show` for root commits.
 
 ### Workspace Info
 
-- **Repository name**: Extracted from `git config --get remote.origin.url` (strips `.git` suffix), falls back to
-  `git rev-parse --show-toplevel` basename
+- **Repository name**: Extracted from `git config --get remote.origin.url` (strips `.git` suffix),
+  falls back to `git rev-parse --show-toplevel` basename
 - **Local changes**: `git status --porcelain`
-- **Commit description**: `git log --format=%B -n1 <revision>` (full) or `git log --format=%s -n1 <revision>` (short)
+- **Commit description**: `git log --format=%B -n1 <revision>` (full) or
+  `git log --format=%s -n1 <revision>` (short)
 
 ### Tag Operations
 
@@ -483,8 +512,8 @@ git commit --amend -m "<msg>\n<tag>=<value>"    # Append tag
 
 ## Mercurial Provider Details
 
-Mercurial support is provided by external provider plugins. A Mercurial provider uses a combination of standard `hg`
-commands and `sase_hg_*` wrapper commands.
+Mercurial support is provided by external provider plugins. A Mercurial provider uses a combination
+of standard `hg` commands and `sase_hg_*` wrapper commands.
 
 ### Core Commands
 
@@ -543,7 +572,8 @@ PR URLs follow the pattern `http://cl/<number>`, where the number comes from `br
 
 ### Description Escaping
 
-The `prepare_description_for_reword()` method escapes descriptions for `sase_hg_reword`'s `$'...'` shell quoting:
+The `prepare_description_for_reword()` method escapes descriptions for `sase_hg_reword`'s `$'...'`
+shell quoting:
 
 - `\` → `\\` (backslashes first)
 - `'` → `\'`
@@ -620,8 +650,8 @@ Valid values for all three methods: `git`, `hg`, `auto`.
 
 ### Schema
 
-The `vcs_provider` section in `sase.yml` is validated against the installed config schema returned by
-`sase path config-schema`:
+The `vcs_provider` section in `sase.yml` is validated against the installed config schema returned
+by `sase path config-schema`:
 
 ```json
 {
@@ -661,36 +691,40 @@ VCS provider detection is pluggable via two classification hooks:
 
 ### `vcs_detect_repo_type`
 
-Checks for VCS markers in a directory (e.g., `.hg/`, `.git/`). Each plugin checks for its own marker and returns the VCS
-type name (e.g., `"hg"`) or `None`. Used during auto-detection when walking up the directory tree.
+Checks for VCS markers in a directory (e.g., `.hg/`, `.git/`). Each plugin checks for its own marker
+and returns the VCS type name (e.g., `"hg"`) or `None`. Used during auto-detection when walking up
+the directory tree.
 
 ### `vcs_classify_repo`
 
-For git repositories, further classifies by examining the remote URL. For example, the `sase-github` plugin claims repos
-whose remote host is in the configured GitHub host set, returning `"github"` for `github.com` by default and for any
-hosts listed in `github_hosts`. Unclaimed repos fall through to the `"bare_git"` provider. This allows hosting-specific
-plugins to provide enhanced functionality (e.g., PR operations via `gh` CLI) without modifying the core.
+For git repositories, further classifies by examining the remote URL. For example, the `sase-github`
+plugin claims repos whose remote host is in the configured GitHub host set, returning `"github"` for
+`github.com` by default and for any hosts listed in `github_hosts`. Unclaimed repos fall through to
+the `"bare_git"` provider. This allows hosting-specific plugins to provide enhanced functionality
+(e.g., PR operations via `gh` CLI) without modifying the core.
 
 ## Troubleshooting
 
 ### Git `index.lock` Contention
 
-SASE routes Git mutations used by commits, workspace setup, SDD writes, linked repositories, agent reverts, updates, and
-finalization through one bounded lock-recovery policy. On an `index.lock` failure it retries with short exponential
-backoff. If the canonical lock remains the same throughout that window or is already at least 15 seconds old, SASE
-removes that unchanged stale lock and tries once more. A lock whose path or file identity changes is treated as active
-and is never removed by the recovery path. Read-only Git commands do not need this policy.
+SASE routes Git mutations used by commits, workspace setup, SDD writes, linked repositories, agent
+reverts, updates, and finalization through one bounded lock-recovery policy. On an `index.lock`
+failure it retries with short exponential backoff. If the canonical lock remains the same throughout
+that window or is already at least 15 seconds old, SASE removes that unchanged stale lock and tries
+once more. A lock whose path or file identity changes is treated as active and is never removed by
+the recovery path. Read-only Git commands do not need this policy.
 
-If a mutation still reports `index.lock`, first check for another Git process operating on that repository and let it
-finish. Avoid deleting `.git/index.lock` blindly: worktrees can store the real Git directory elsewhere, and a changing
-lock belongs to active work. After confirming no Git process is live, rerun the SASE operation; its recovery logic will
-resolve the canonical lock path and remove only an unchanged stale file.
+If a mutation still reports `index.lock`, first check for another Git process operating on that
+repository and let it finish. Avoid deleting `.git/index.lock` blindly: worktrees can store the real
+Git directory elsewhere, and a changing lock belongs to active work. After confirming no Git process
+is live, rerun the SASE operation; its recovery logic will resolve the canonical lock path and
+remove only an unchanged stale file.
 
 ### "No VCS provider found" Error
 
-**Cause:** Auto-detection could not find `.hg/` or `.git/` in the current directory or any parent, no explicit provider
-was configured, or a Git repo could not be classified because no plugin claimed it and `origin` was missing or
-unreadable.
+**Cause:** Auto-detection could not find `.hg/` or `.git/` in the current directory or any parent,
+no explicit provider was configured, or a Git repo could not be classified because no plugin claimed
+it and `origin` was missing or unreadable.
 
 **Fix:** Either run sase from within a VCS-managed directory, or set the provider explicitly:
 
@@ -700,8 +734,9 @@ SASE_VCS_PROVIDER=git sase commit my_feature
 
 ### GitHub: `gh` CLI Not Installed
 
-GitHub PR operations (`get_change_url`, `mail`, `get_pr_number`) require the [GitHub CLI](https://cli.github.com/).
-Without it, these operations will fail with a "command not found" error.
+GitHub PR operations (`get_change_url`, `mail`, `get_pr_number`) require the
+[GitHub CLI](https://cli.github.com/). Without it, these operations will fail with a "command not
+found" error.
 
 **Symptoms:**
 
@@ -724,7 +759,8 @@ gh auth login --hostname github.mycompany.com
 
 ### Mercurial: Plugin Not Installed
 
-Mercurial support requires an installed provider plugin. Without one, hg repositories will not be detected.
+Mercurial support requires an installed provider plugin. Without one, hg repositories will not be
+detected.
 
 **Symptoms:**
 
@@ -735,7 +771,8 @@ Mercurial support requires an installed provider plugin. Without one, hg reposit
 
 ### Mercurial: `sase_hg_*` Commands Not Found
 
-The Mercurial provider depends on `sase_hg_*` wrapper commands. If these are not in your PATH, operations will fail.
+The Mercurial provider depends on `sase_hg_*` wrapper commands. If these are not in your PATH,
+operations will fail.
 
 **Symptoms:**
 
@@ -747,11 +784,11 @@ The Mercurial provider depends on `sase_hg_*` wrapper commands. If these are not
 
 ### Auto-Detection Picks Wrong Provider in Nested Repos
 
-If you have nested repositories (e.g., a git repo inside an hg workspace), auto-detection walks up from the current
-directory and picks the **first** VCS directory it finds.
+If you have nested repositories (e.g., a git repo inside an hg workspace), auto-detection walks up
+from the current directory and picks the **first** VCS directory it finds.
 
-**Example:** If you're in `/workspace/git-repo/subdir/` and both `/workspace/.hg/` and `/workspace/git-repo/.git/`
-exist, auto-detection will find `.git/` first and use the Git provider.
+**Example:** If you're in `/workspace/git-repo/subdir/` and both `/workspace/.hg/` and
+`/workspace/git-repo/.git/` exist, auto-detection will find `.git/` first and use the Git provider.
 
 **Fix:** Override the provider explicitly:
 
