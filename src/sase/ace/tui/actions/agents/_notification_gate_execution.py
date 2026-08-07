@@ -22,6 +22,16 @@ class GateSubmission:
     selected_option_ids: tuple[str, ...]
     feedback: str | None = None
     input_data: object | None = None
+    retry: Literal["resume", "restart"] | None = None
+
+
+@dataclass(frozen=True)
+class _PartialAttempt:
+    """A branch this gate already ran partway through, awaiting a retry choice."""
+
+    attempt_id: str
+    completed_option_ids: tuple[str, ...]
+    failed_option_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -29,6 +39,7 @@ class _GateTaskOutcome:
     message: str
     success: bool
     severity: _GateTaskSeverity | None = None
+    partial_attempt: _PartialAttempt | None = None
 
 
 def submit_gate_execution_task(
@@ -132,11 +143,19 @@ def _execute_gate_submission(
             submission.input_data,
             feedback=submission.feedback,
             source="tui",
+            retry=submission.retry,
             on_command_start=command_start,
             on_output_line=output_line,
             on_process_state=process_state,
         )
     except GateError as exc:
+        if exc.code == "partial_attempt":
+            return _GateTaskOutcome(
+                str(exc),
+                False,
+                "warning",
+                partial_attempt=_describe_partial_attempt(bundle_path),
+            )
         return _GateTaskOutcome(str(exc), False, "error")
     except Exception as exc:
         return _GateTaskOutcome(str(exc), False, "error")
@@ -146,6 +165,23 @@ def _execute_gate_submission(
     return _GateTaskOutcome(
         f"Gate answered with {', '.join(submission.selected_option_ids)}",
         True,
+    )
+
+
+def _describe_partial_attempt(bundle_path: Path) -> _PartialAttempt | None:
+    """Read which options a rejected resubmission already ran, for the retry choice."""
+    from sase.notification_gates.journal import incomplete_attempt
+
+    try:
+        pending = incomplete_attempt(bundle_path)
+    except Exception:
+        return None
+    if pending is None:
+        return None
+    return _PartialAttempt(
+        attempt_id=pending.attempt_id,
+        completed_option_ids=pending.completed_option_ids,
+        failed_option_ids=pending.failed_option_ids,
     )
 
 

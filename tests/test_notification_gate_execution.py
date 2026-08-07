@@ -44,8 +44,14 @@ def test_custom_gate_runs_selected_options_in_query_order_and_persists_feedback(
     assert failed_command.value.code == "command_failed"
     assert started == ["proceed", "audit", "broken"]
     assert not result.response_path.exists()
-    [error_log] = list((result.bundle_path / "errors").glob("*.json"))
-    assert json.loads(error_log.read_text())["option_id"] == "broken"
+    recorded = [
+        json.loads(path.read_text())
+        for path in (result.bundle_path / "errors").glob("*.json")
+    ]
+    assert {(entry["code"], entry["option_id"]) for entry in recorded} == {
+        ("feedback_required", "proceed"),
+        ("command_failed", "broken"),
+    }
 
     execution = execute_gate_selection(
         result.bundle_path,

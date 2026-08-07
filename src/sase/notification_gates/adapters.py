@@ -20,7 +20,13 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class GateAdapter:
-    """The stable typed transport and legacy-file shape for one gate kind."""
+    """The stable typed transport and legacy-file shape for one gate kind.
+
+    Option commands in an AND branch must be idempotent. The branch runs its
+    commands one at a time, and when a later member fails the reviewer may
+    choose to restart the whole branch, which re-runs the members that already
+    succeeded. See :func:`sase.notification_gates.executor.execute_gate_selection`.
+    """
 
     kind: str
     display_title: str

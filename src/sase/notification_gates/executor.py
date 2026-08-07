@@ -11,9 +11,10 @@ import shutil
 import subprocess
 import threading
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
 from sase.notification_gates.durability import (
@@ -23,6 +24,13 @@ from sase.notification_gates.durability import (
     read_json_object,
 )
 from sase.notification_gates.hashing import load_and_verify_bundle
+from sase.notification_gates.input_bounds import check_input_bounds
+from sase.notification_gates.journal import (
+    IncompleteAttempt,
+    append_journal_event,
+    incomplete_attempt,
+    value_digest,
+)
 from sase.notification_gates.models import (
     GATE_RESPONSE_SCHEMA_VERSION,
     GateError,
@@ -51,6 +59,7 @@ def execute_gate_selection(
     *,
     feedback: str | None = None,
     source: str = "host",
+    retry: Literal["resume", "restart"] | None = None,
     epic_launch_origin: EpicLaunchOrigin | None = None,
     on_command_start: Callable[[str, str, str, tuple[str, ...]], None] | None = None,
     on_output_line: Callable[[str, str, str, str], None] | None = None,
@@ -60,6 +69,20 @@ def execute_gate_selection(
 
     Submitted ids are normalized to query order before command execution and
     persistence. Every selected option receives the same JSON input value.
+
+    An AND branch runs its commands one at a time, and a later member may
+    fail after earlier members already took effect. Every attempt is recorded
+    in the bundle's execution journal, and an identical resubmission over an
+    incomplete attempt raises ``partial_attempt`` instead of silently
+    re-running the completed commands; the caller then chooses ``retry``:
+
+    - ``"resume"`` skips the options already recorded complete and replays
+      their recorded results, starting at the option that failed.
+    - ``"restart"`` runs the whole branch again under a fresh attempt.
+
+    Because ``restart`` is a supported reviewer choice, **option commands in
+    an AND branch must tolerate being run again** after a later member fails.
+    Write them to be idempotent.
     """
     bundle_path = assert_owned_bundle(bundle_path)
     response_path = bundle_path / RESPONSE_FILENAME
@@ -84,117 +107,76 @@ def execute_gate_selection(
 
         normalized_input = {} if input_data is None else input_data
         for option in selected:
-            _validate_json_instance(
-                normalized_input,
-                option.input_schema,
-                f"option {option.id} input",
+            target = f"option {option.id} input"
+            with _recorded_rejection(bundle_path, option.id, source):
+                check_input_bounds(normalized_input, target)
+                _validate_json_instance(normalized_input, option.input_schema, target)
+        with _recorded_rejection(bundle_path, selected[0].id, source):
+            normalized_feedback = _normalize_feedback(selected, feedback)
+            adapter.validate_selection(
+                selected_option_ids=tuple(option.id for option in selected),
+                feedback=normalized_feedback,
             )
-        normalized_feedback = _normalize_feedback(selected, feedback)
-        adapter.validate_selection(
-            selected_option_ids=tuple(option.id for option in selected),
-            feedback=normalized_feedback,
+
+        request_hash = str(envelope["hashes"]["request"])
+        input_digests = {
+            option.id: value_digest(normalized_input) for option in selected
+        }
+        attempt_id, replayed = _begin_attempt(
+            bundle_path,
+            request_hash=request_hash,
+            selected=selected,
+            input_digests=input_digests,
+            retry=retry,
         )
 
         option_results: list[dict[str, Any]] = []
         for option in selected:
-            stream_output = (
-                None
-                if on_output_line is None
-                else _bind_output_callback(on_output_line, option.id)
-            )
-
+            if option.id in replayed:
+                option_results.append({"id": option.id, "result": replayed[option.id]})
+                continue
             try:
-                if on_command_start is not None:
-                    on_command_start(
-                        "option",
-                        option.id,
-                        option.label,
-                        option.command.argv,
-                    )
-                completed = _run_owned_command(
+                result = _execute_one_option(
                     bundle_path,
-                    option.command.argv,
-                    expected_hash=envelope["hashes"]["resources"][
-                        option.command.argv[0]
-                    ],
-                    input_data=normalized_input,
-                    on_output_line=stream_output,
+                    option,
+                    envelope=envelope,
+                    normalized_input=normalized_input,
+                    response_path=response_path,
+                    cancellation_path=cancellation_path,
+                    source=source,
+                    on_command_start=on_command_start,
+                    on_output_line=on_output_line,
                     on_process_state=on_process_state,
                 )
-                _reject_command_terminal_state(
-                    response_path,
-                    cancellation_path,
-                    target=option.id,
-                )
             except GateError as exc:
-                _record_execution_error(
+                append_journal_event(
                     bundle_path,
+                    attempt_id=attempt_id,
+                    request_hash=request_hash,
+                    event="option_failed",
                     option_id=option.id,
+                    input_digest=input_digests[option.id],
                     code=exc.code,
-                    message=str(exc),
-                    source=source,
-                )
-                raise
-            if completed.returncode != 0:
-                message = _decode_output(completed.stderr) or (
-                    f"command exited with status {completed.returncode}"
-                )
-                _record_execution_error(
-                    bundle_path,
-                    option_id=option.id,
-                    code="command_failed",
-                    message=message,
-                    source=source,
-                    returncode=completed.returncode,
-                    stdout=_decode_output(completed.stdout),
-                    stderr=_decode_output(completed.stderr),
-                )
-                raise GateError("command_failed", option.id, message)
-
-            try:
-                result = _decode_json_result(completed.stdout)
-            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-                _record_execution_error(
-                    bundle_path,
-                    option_id=option.id,
-                    code="invalid_command_output",
-                    message=str(exc),
-                    source=source,
-                    stdout=_decode_output(completed.stdout),
-                    stderr=_decode_output(completed.stderr),
-                )
-                raise GateError(
-                    "invalid_command_output",
-                    option.id,
-                    "command stdout must contain one JSON value",
-                ) from exc
-            try:
-                _validate_json_instance(
-                    result,
-                    option.result_schema,
-                    f"option {option.id} result",
-                )
-            except GateError as exc:
-                _record_execution_error(
-                    bundle_path,
-                    option_id=option.id,
-                    code=exc.code,
-                    message=str(exc),
-                    source=source,
-                    stdout=_decode_output(completed.stdout),
-                    stderr=_decode_output(completed.stderr),
                 )
                 raise
             option_results.append({"id": option.id, "result": result})
+            append_journal_event(
+                bundle_path,
+                attempt_id=attempt_id,
+                request_hash=request_hash,
+                event="option_completed",
+                option_id=option.id,
+                input_digest=input_digests[option.id],
+                result_digest=value_digest(result),
+                result=result,
+            )
 
-            current_envelope, _current_adapter = load_and_verify_bundle(bundle_path)
-            if current_envelope["hashes"]["request"] != envelope["hashes"]["request"]:
-                raise GateError(
-                    "request_changed",
-                    str(bundle_path),
-                    "request changed during execution",
-                )
-
+        append_journal_event(
+            bundle_path,
+            attempt_id=attempt_id,
+            request_hash=request_hash,
+            event="attempt_completed",
+        )
         response: dict[str, Any] = {
             "schema_version": GATE_RESPONSE_SCHEMA_VERSION,
             "request_id": envelope["request_id"],
@@ -242,6 +224,199 @@ def execute_gate_selection(
                 f"host side effect failed: {exc}",
             ) from exc
         return GateExecutionResult(response=response)
+
+
+def _execute_one_option(
+    bundle_path: Path,
+    option: GateOption,
+    *,
+    envelope: Mapping[str, Any],
+    normalized_input: object,
+    response_path: Path,
+    cancellation_path: Path,
+    source: str,
+    on_command_start: Callable[[str, str, str, tuple[str, ...]], None] | None,
+    on_output_line: Callable[[str, str, str, str], None] | None,
+    on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None,
+) -> Any:
+    """Run one selected option's command and return its validated result."""
+    stream_output = (
+        None
+        if on_output_line is None
+        else _bind_output_callback(on_output_line, option.id)
+    )
+    try:
+        if on_command_start is not None:
+            on_command_start("option", option.id, option.label, option.command.argv)
+        completed = _run_owned_command(
+            bundle_path,
+            option.command.argv,
+            expected_hash=envelope["hashes"]["resources"][option.command.argv[0]],
+            input_data=normalized_input,
+            on_output_line=stream_output,
+            on_process_state=on_process_state,
+        )
+        _reject_command_terminal_state(
+            response_path,
+            cancellation_path,
+            target=option.id,
+        )
+    except GateError as exc:
+        _record_execution_error(
+            bundle_path,
+            option_id=option.id,
+            code=exc.code,
+            message=str(exc),
+            source=source,
+        )
+        raise
+    if completed.returncode != 0:
+        message = _decode_output(completed.stderr) or (
+            f"command exited with status {completed.returncode}"
+        )
+        _record_execution_error(
+            bundle_path,
+            option_id=option.id,
+            code="command_failed",
+            message=message,
+            source=source,
+            returncode=completed.returncode,
+            stdout=_decode_output(completed.stdout),
+            stderr=_decode_output(completed.stderr),
+        )
+        raise GateError("command_failed", option.id, message)
+
+    try:
+        result = _decode_json_result(completed.stdout)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        _record_execution_error(
+            bundle_path,
+            option_id=option.id,
+            code="invalid_command_output",
+            message=str(exc),
+            source=source,
+            stdout=_decode_output(completed.stdout),
+            stderr=_decode_output(completed.stderr),
+        )
+        raise GateError(
+            "invalid_command_output",
+            option.id,
+            "command stdout must contain one JSON value",
+        ) from exc
+    try:
+        _validate_json_instance(
+            result,
+            option.result_schema,
+            f"option {option.id} result",
+        )
+    except GateError as exc:
+        _record_execution_error(
+            bundle_path,
+            option_id=option.id,
+            code=exc.code,
+            message=str(exc),
+            source=source,
+            stdout=_decode_output(completed.stdout),
+            stderr=_decode_output(completed.stderr),
+        )
+        raise
+
+    current_envelope, _current_adapter = load_and_verify_bundle(bundle_path)
+    if current_envelope["hashes"]["request"] != envelope["hashes"]["request"]:
+        raise GateError(
+            "request_changed",
+            str(bundle_path),
+            "request changed during execution",
+        )
+    return result
+
+
+@contextmanager
+def _recorded_rejection(
+    bundle_path: Path, option_id: str, source: str
+) -> Iterator[None]:
+    """Write a pre-execution rejection to ``errors/`` before it propagates.
+
+    Input-schema, bounds, feedback, and adapter-selection failures all happen
+    before the first command runs, so without this they leave no trace and a
+    reviewer pressing ``d`` sees nothing at all.
+    """
+    try:
+        yield
+    except GateError as exc:
+        _record_execution_error(
+            bundle_path,
+            option_id=option_id,
+            code=exc.code,
+            message=str(exc),
+            source=source,
+        )
+        raise
+
+
+def _begin_attempt(
+    bundle_path: Path,
+    *,
+    request_hash: str,
+    selected: tuple[GateOption, ...],
+    input_digests: Mapping[str, str],
+    retry: Literal["resume", "restart"] | None,
+) -> tuple[str, dict[str, Any]]:
+    """Open or continue an attempt and return its id plus any replayed results."""
+    selected_ids = tuple(option.id for option in selected)
+    pending = incomplete_attempt(bundle_path)
+    matching = pending is not None and pending.matches(
+        request_hash=request_hash,
+        selected_option_ids=selected_ids,
+        input_digests=input_digests,
+    )
+    if not matching:
+        if retry is not None:
+            raise GateError(
+                "no_partial_attempt",
+                "retry",
+                "this submission has no incomplete attempt to resume or restart",
+            )
+        if pending is not None:
+            append_journal_event(
+                bundle_path,
+                attempt_id=pending.attempt_id,
+                request_hash=pending.request_hash,
+                event="attempt_superseded",
+            )
+    elif retry is None:
+        assert pending is not None
+        raise GateError(
+            "partial_attempt",
+            pending.attempt_id,
+            "this branch was already partially executed "
+            f"({pending.describe()}); resume after the failed option or "
+            "restart the whole branch",
+        )
+    elif retry == "resume":
+        assert pending is not None
+        return pending.attempt_id, _replayed_results(pending, selected_ids)
+
+    attempt_id = uuid4().hex
+    append_journal_event(
+        bundle_path,
+        attempt_id=attempt_id,
+        request_hash=request_hash,
+        event="attempt_started",
+        selected_option_ids=selected_ids,
+        input_digests=input_digests,
+    )
+    return attempt_id, {}
+
+
+def _replayed_results(
+    pending: IncompleteAttempt, selected_ids: tuple[str, ...]
+) -> dict[str, Any]:
+    return {
+        option_id: pending.results[option_id]
+        for option_id in selected_ids
+        if option_id in pending.completed_option_ids and option_id in pending.results
+    }
 
 
 def cancel_gate(
