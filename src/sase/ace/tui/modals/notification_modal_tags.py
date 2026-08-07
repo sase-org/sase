@@ -8,7 +8,7 @@ from typing import Any
 
 from rich.cells import cell_len
 from rich.text import Text
-from textual.events import Click
+from textual.events import Click, Resize
 from textual.message import Message
 from textual.widgets import Static
 
@@ -219,6 +219,7 @@ class NotificationTagStrip(Static):
         self._tabs = list(tabs)
         self._active_tag = active_tag
         self._tab_ranges: dict[str | None, tuple[int, int]] = {}
+        self._width = 0
         super().__init__(self._build_content(), **kwargs)
 
     def set_tabs(
@@ -231,8 +232,31 @@ class NotificationTagStrip(Static):
         self._active_tag = active_tag
         self.update(self._build_content())
 
+    def on_resize(self, event: Resize) -> None:
+        """Re-render so the strip reflows when its width changes."""
+        width = int(event.size.width)
+        if width == self._width:
+            return
+        self._width = width
+        self.update(self._build_content())
+
     def _build_content(self) -> Text:
         """Build the rich tag strip content and click ranges.
+
+        The strip clips at the modal's width, so a full-label render that
+        overflows would drop whole tabs off the end — invisible and, since
+        ``on_click`` only knows the ranges built here, unclickable. When that
+        would happen, inactive tabs shed their labels and are identified by the
+        icon the resolution chain guarantees every tab has; the active tab
+        keeps its name so the strip still says where you are.
+        """
+        text = self._render_tabs(compact=False)
+        if 0 < self._width < cell_len(text.plain):
+            text = self._render_tabs(compact=True)
+        return text
+
+    def _render_tabs(self, *, compact: bool) -> Text:
+        """Render every tab and record its click range.
 
         Click ranges are accumulated in terminal *cells* rather than in
         characters, because ``on_click`` compares them against ``event.x``. A
@@ -268,8 +292,9 @@ class NotificationTagStrip(Static):
             append(" ", style)
             append(resolve_notification_tab_icon(tab), icon_style)
             append(" ", style)
-            append(shorten_notification_tag(tab.label), style)
-            append(" ", style)
+            if is_active or not compact:
+                append(shorten_notification_tag(tab.label), style)
+                append(" ", style)
             append(str(tab.count), count_style)
             append(" ", style)
             self._tab_ranges[tab.tag] = (start, column)

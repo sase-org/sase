@@ -4,12 +4,14 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from rich.cells import cell_len
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_tags import (
     MUTED_TAB_KEY,
     SNOOZED_TAB_KEY,
     NotificationTagStrip,
+    NotificationTagTab,
 )
 
 from tests._notification_modal_helpers import _FakeOptionList, _make_notification
@@ -705,3 +707,71 @@ def test_tag_strip_click_ranges_survive_a_two_cell_icon() -> None:
 
     strip.on_click(SimpleNamespace(x=start))
     assert strip.post_message.call_args.args[0].tag == "review"
+
+
+def _four_icon_tabs() -> list[NotificationTagTab]:
+    """Return the four tabs the 120x40 Beads-panel fixture renders."""
+    return [
+        NotificationTagTab(tag="hitl", label="Gates", count=1, kind="hitl"),
+        NotificationTagTab(tag="beads", label="Beads", count=3, kind="panel"),
+        NotificationTagTab(tag="errors", label="Errors", count=1, kind="errors"),
+        NotificationTagTab(tag="done", label="Done", count=1, kind="tag"),
+    ]
+
+
+def test_tag_strip_keeps_full_labels_while_they_fit() -> None:
+    """A strip wide enough for every label is left alone."""
+    strip = NotificationTagStrip(_four_icon_tabs(), "beads")
+    strip._width = 80
+
+    assert "Gates" in strip._build_content().plain
+
+
+def test_a_narrow_tag_strip_sheds_inactive_labels_instead_of_whole_tabs() -> None:
+    """Every tab stays on screen and clickable when the strip cannot fit.
+
+    The strip clips at the modal's width, so a full-label render that overflows
+    drops trailing tabs entirely — they render nowhere and ``on_click`` has no
+    range for them. Shedding inactive labels keeps each tab identified by the
+    icon its resolution chain guarantees.
+    """
+    tabs = _four_icon_tabs()
+    strip = NotificationTagStrip(tabs, "beads")
+    assert cell_len(strip._build_content().plain) > 43
+
+    strip._width = 43
+    content = strip._build_content()
+
+    assert cell_len(content.plain) <= 43
+    # The active tab keeps its name so the strip still says where you are.
+    assert " Beads 3 " in content.plain
+    assert "Gates" not in content.plain
+    assert set(strip._tab_ranges) == {tab.tag for tab in tabs}
+    assert strip._tab_ranges["done"][1] <= 43
+
+
+def test_a_narrow_tag_strip_still_routes_a_click_to_the_last_tab() -> None:
+    """The tab the full-label render used to clip is clickable again."""
+    strip = NotificationTagStrip(_four_icon_tabs(), "beads")
+    strip.post_message = MagicMock()  # type: ignore[method-assign]
+    strip._width = 43
+    strip._build_content()
+
+    start, _end = strip._tab_ranges["done"]
+    strip.on_click(SimpleNamespace(x=start))
+
+    assert strip.post_message.call_args.args[0].tag == "done"
+
+
+def test_tag_strip_rerenders_only_when_its_width_changes() -> None:
+    """Resize reflows the strip, and a same-width resize does no work."""
+    strip = NotificationTagStrip(_four_icon_tabs(), "beads")
+    strip.update = MagicMock()  # type: ignore[method-assign]
+
+    strip.on_resize(SimpleNamespace(size=SimpleNamespace(width=43)))
+    assert strip._width == 43
+    assert "Gates" not in strip.update.call_args.args[0].plain
+
+    strip.update.reset_mock()
+    strip.on_resize(SimpleNamespace(size=SimpleNamespace(width=43)))
+    strip.update.assert_not_called()
