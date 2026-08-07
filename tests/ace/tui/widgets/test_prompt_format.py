@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from threading import Event, Lock
 
 import pytest
 from textual.app import App, ComposeResult
 from textual.document._document import Selection
-from textual.pilot import Pilot
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
@@ -31,19 +30,6 @@ class _PromptFormatApp(App[None]):
         )
 
 
-async def _wait_until(
-    pilot: Pilot[None],
-    predicate: Callable[[], bool],
-    *,
-    attempts: int = 100,
-) -> None:
-    for _ in range(attempts):
-        if predicate():
-            return
-        await pilot.pause(0.01)
-    raise AssertionError("condition did not become true")
-
-
 async def test_normal_gf_formats_once_preserves_mode_and_is_one_undo_step(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -59,7 +45,7 @@ async def test_normal_gf_formats_once_preserves_mode_and_is_one_undo_step(
         bar = app.query_one(PromptInputBar)
         text_area = bar.active_text_area()
         await pilot.press("escape", "g", "f")
-        await _wait_until(pilot, lambda: text_area.text == formatted)
+        await wait_for(pilot, lambda: text_area.text == formatted, timeout=1.0)
 
         assert text_area._vim_mode == "normal"
         assert text_area.read_only is True
@@ -91,7 +77,7 @@ async def test_insert_ctrl_g_f_formats_and_maps_live_selection(
         text_area.selection = Selection((0, 6), (0, 10))
 
         await pilot.press("ctrl+g", "f")
-        await _wait_until(pilot, lambda: text_area.text == formatted)
+        await wait_for(pilot, lambda: text_area.text == formatted, timeout=1.0)
 
         assert text_area._vim_mode == "insert"
         assert text_area.read_only is False
@@ -123,7 +109,9 @@ async def test_cursor_and_mode_changes_during_worker_are_preserved(
         await pilot.press("escape")
         text_area.cursor_location = (0, 6)
         release.set()
-        await _wait_until(pilot, lambda: text_area.text == "alpha\nbeta gamma\n")
+        await wait_for(
+            pilot, lambda: text_area.text == "alpha\nbeta gamma\n", timeout=1.0
+        )
 
         assert text_area._vim_mode == "normal"
         assert text_area.read_only is True
@@ -145,7 +133,7 @@ async def test_formatting_does_not_enter_insert_dot_repeat_capture(
         assert text_area._dot_insert_capture_offset == 0
 
         await pilot.press("ctrl+g", "f")
-        await _wait_until(pilot, lambda: text_area.text == "Xalpha\nbeta")
+        await wait_for(pilot, lambda: text_area.text == "Xalpha\nbeta", timeout=1.0)
         await pilot.press("escape")
 
         assert text_area._last_mutation_keys == ["i"]
@@ -188,12 +176,13 @@ async def test_focus_change_does_not_retarget_multi_pane_format(
 
         release.set()
         assert await asyncio.to_thread(finished.wait, 1.0)
-        await _wait_until(
+        await wait_for(
             pilot,
             lambda: (
                 target.text == "formatted second pane"
                 and bar._stack.texts == ["first pane", "formatted second pane"]
             ),
+            timeout=1.0,
         )
 
         assert bar.active_text_area().text == "first pane"
@@ -215,7 +204,7 @@ async def test_single_pane_auxiliary_bars_can_format(
     async with app.run_test(size=(80, 24)) as pilot:
         text_area = app.query_one(PromptTextArea)
         await pilot.press("ctrl+g", "f")
-        await _wait_until(pilot, lambda: text_area.text == "FORMAT ME")
+        await wait_for(pilot, lambda: text_area.text == "FORMAT ME", timeout=1.0)
         assert text_area._vim_mode == "insert"
 
 
@@ -264,7 +253,7 @@ async def test_edit_while_formatter_runs_is_responsive_and_discards_result(
 
         # This key is processed while the formatter thread is blocked.
         await pilot.press("x")
-        await _wait_until(pilot, lambda: text_area.text == "draftx")
+        await wait_for(pilot, lambda: text_area.text == "draftx", timeout=1.0)
 
         release.set()
         assert await asyncio.to_thread(finished.wait, 1.0)
@@ -303,7 +292,7 @@ async def test_newer_format_request_wins(monkeypatch: pytest.MonkeyPatch) -> Non
         assert await asyncio.to_thread(first_started.wait, 1.0)
 
         await pilot.press("ctrl+g", "f")
-        await _wait_until(pilot, lambda: text_area.text == "new draft")
+        await wait_for(pilot, lambda: text_area.text == "new draft", timeout=1.0)
 
         release_first.set()
         assert await asyncio.to_thread(first_finished.wait, 1.0)
@@ -372,6 +361,6 @@ async def test_formatter_error_and_ordinary_typing_leave_formatting_explicit(
         assert calls == 0
 
         await pilot.press("ctrl+g", "f")
-        await _wait_until(pilot, lambda: calls == 1)
+        await wait_for(pilot, lambda: calls == 1, timeout=1.0)
         await pilot.pause(0.05)
         assert text_area.text == "draftx"

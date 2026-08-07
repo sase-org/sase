@@ -8,8 +8,6 @@ forced-name-reuse rule used by the focused-row ``,x`` path.
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 import json
@@ -19,9 +17,9 @@ from typing import Any
 from unittest.mock import patch
 
 from textual.app import App, ComposeResult
-from textual.pilot import Pilot
 from textual.widgets import Static
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.actions.agent_workflow._entry_relaunch import EntryRelaunchMixin
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.models._loaders._meta_enrichment import enrich_agent_from_meta
@@ -30,25 +28,6 @@ from sase.ace.tui.modals import ConfirmKillAllModal
 from sase.ace.tui.widgets import PromptInputBar
 
 AgentIdentity = tuple[AgentType, str, str | None]
-
-
-async def _wait_until(
-    pilot: Pilot[None],
-    predicate: Callable[[], bool],
-    *,
-    timeout: float = 5.0,
-) -> None:
-    """Poll *predicate* until true instead of assuming one pause() suffices.
-
-    Relaunch prompt resolution runs off the Textual message pump (see
-    ``schedule_relaunch_prompt_resolution``), so a single ``pilot.pause()``
-    can race the worker thread under load.
-    """
-    deadline = asyncio.get_running_loop().time() + timeout
-    while not predicate():
-        if asyncio.get_running_loop().time() >= deadline:
-            raise AssertionError("bulk kill-and-edit test condition timed out")
-        await pilot.pause()
 
 
 @dataclass
@@ -275,15 +254,13 @@ async def test_bulk_waiting_agents_mount_forced_artifact_prompts(
     ):
         async with app.run_test(size=(100, 40)) as pilot:
             app._bulk_kill_marked_agents_and_edit()
-            await _wait_until(
-                pilot, lambda: isinstance(app.screen, ConfirmKillAllModal)
-            )
+            await wait_for(pilot, lambda: isinstance(app.screen, ConfirmKillAllModal))
 
             await pilot.press("y")
             await pilot.pause()
             assert isinstance(app.screen, ConfirmKillAllModal)
             await pilot.press("y")
-            await _wait_until(pilot, lambda: bool(app.query(PromptInputBar)))
+            await wait_for(pilot, lambda: bool(app.query(PromptInputBar)))
 
             bar = app.query_one(PromptInputBar)
             assert len(bar._stack) == 2

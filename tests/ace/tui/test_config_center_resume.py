@@ -8,7 +8,7 @@ import threading
 import pytest
 from textual.widgets import Input, Static
 
-from sase.ace.testing import AcePage
+from sase.ace.testing import AcePage, wait_for
 from sase.ace.tui import AceApp
 from sase.ace.tui.modals import config_center_state
 from sase.ace.tui.modals.config_center_history import AdminCenterTabHistory
@@ -22,7 +22,6 @@ from tests.ace.tui._config_center_tabs_helpers import (
     _InputPane,
     _StubPane,
     _patch_stub_panes,
-    _wait_until,
 )
 
 
@@ -57,7 +56,7 @@ async def test_direct_initial_tab_mounts_only_that_target(
         modal = ConfigCenterModal(initial_tab="updates", auto_update=True)
         assert modal.check_action("resume_last_tab", ()) is False
         pilot.app.push_screen(modal)
-        await _wait_until(pilot, lambda: modal._active_tab == "updates")
+        await wait_for(pilot, lambda: modal._active_tab == "updates")
 
         assert calls == ["updates"]
         assert tuple(modal._panes) == ("updates",)

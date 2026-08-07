@@ -11,7 +11,7 @@ from textual.app import App
 from textual.binding import Binding
 from textual.widgets import ContentSwitcher, Static
 
-from sase.ace.testing import AcePage
+from sase.ace.testing import AcePage, wait_for
 from sase.ace.tui.modals.config_center_modal import (
     _AdminCenterLanding,
     _AdminCenterLandingRow,
@@ -37,7 +37,6 @@ from tests.ace.tui._config_center_tabs_helpers import (
     _HostApp,
     _StubPane,
     _patch_stub_panes,
-    _wait_until,
 )
 
 
@@ -303,7 +302,7 @@ async def test_tab_click_mounts_target_and_reentry_reuses_state(
         await pilot.pause()
 
         modal._on_tab_clicked(PanelTabStrip.TabClicked("projects"))
-        await _wait_until(pilot, lambda: modal._active_tab == "projects")
+        await wait_for(pilot, lambda: modal._active_tab == "projects")
         pane = created["projects"][0]
         pane.saved_state = "preserved"
 
@@ -326,7 +325,7 @@ async def test_landing_row_click_mounts_exact_target_and_focuses_it(
         await pilot.pause()
 
         await pilot.click("#admin-center-home-row-projects")
-        await _wait_until(pilot, lambda: modal._active_tab == "projects")
+        await wait_for(pilot, lambda: modal._active_tab == "projects")
 
         assert calls == ["projects"]
         assert tuple(modal._panes) == ("projects",)
@@ -351,7 +350,7 @@ async def test_landing_is_keyboard_transparent_and_digits_work_immediately(
         assert all(not widget.can_focus for widget in landing_widgets)
 
         await pilot.press("4")
-        await _wait_until(pilot, lambda: modal._active_tab == "statistics")
+        await wait_for(pilot, lambda: modal._active_tab == "statistics")
 
         assert calls == ["statistics"]
         assert created["statistics"][0].focus_count >= 1
@@ -370,9 +369,9 @@ async def test_landing_compact_class_tracks_viewport_size() -> None:
         assert key.render().plain == " 1 "
 
         await page._pilot.resize_terminal(100, 24)  # noqa: SLF001
-        await _wait_until(page, lambda: landing.has_class("-compact"))
+        await wait_for(page, lambda: landing.has_class("-compact"))
         assert key.render().plain == "1"
 
         await page._pilot.resize_terminal(120, 40)  # noqa: SLF001
-        await _wait_until(page, lambda: not landing.has_class("-compact"))
+        await wait_for(page, lambda: not landing.has_class("-compact"))
         assert key.render().plain == " 1 "

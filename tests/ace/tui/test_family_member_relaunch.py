@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Callable
 from datetime import datetime
 import json
 from pathlib import Path
@@ -11,9 +9,9 @@ from threading import Event
 from unittest.mock import patch
 
 from textual.app import App, ComposeResult
-from textual.pilot import Pilot
 from textual.widgets import Static
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.actions.agent_workflow._entry_relaunch import EntryRelaunchMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals import ConfirmKillModal
@@ -59,19 +57,6 @@ class _FamilyRelaunchApp(EntryRelaunchMixin, App[None]):
     def _do_kill_agent(self, agent: Agent) -> None:
         self.killed.append(agent)
         self._remove(agent)
-
-
-async def _wait_until(
-    pilot: Pilot[None],
-    predicate: Callable[[], bool],
-    *,
-    timeout: float = 5.0,
-) -> None:
-    deadline = asyncio.get_running_loop().time() + timeout
-    while not predicate():
-        if asyncio.get_running_loop().time() >= deadline:
-            raise AssertionError("family relaunch test condition timed out")
-        await pilot.pause()
 
 
 def _family_rows(tmp_path: Path, *, running_child: bool = False) -> tuple[Agent, Agent]:
@@ -150,7 +135,7 @@ async def test_completed_family_member_relaunch_dismisses_only_selected_child(
     ):
         async with app.run_test(size=(110, 40)) as pilot:
             app._kill_and_edit_agent()
-            await _wait_until(pilot, lambda: bool(app.query(PromptInputBar)))
+            await wait_for(pilot, lambda: bool(app.query(PromptInputBar)))
 
             bar = app.query_one(PromptInputBar)
             assert bar.all_prompt_texts() == [
@@ -174,7 +159,7 @@ async def test_running_family_member_relaunch_cancel_is_non_destructive(
 
     async with app.run_test(size=(100, 35)) as pilot:
         app._kill_and_edit_agent()
-        await _wait_until(
+        await wait_for(
             pilot,
             lambda: isinstance(app.screen, ConfirmKillModal),
         )
@@ -184,7 +169,7 @@ async def test_running_family_member_relaunch_cancel_is_non_destructive(
         )
 
         await pilot.press("n")
-        await _wait_until(
+        await wait_for(
             pilot,
             lambda: not isinstance(app.screen, ConfirmKillModal),
         )
@@ -213,14 +198,14 @@ async def test_running_family_member_relaunch_confirmation_kills_only_child(
     ):
         async with app.run_test(size=(100, 35)) as pilot:
             app._kill_and_edit_agent()
-            await _wait_until(
+            await wait_for(
                 pilot,
                 lambda: isinstance(app.screen, ConfirmKillModal),
             )
             assert isinstance(app.screen, ConfirmKillModal)
 
             await pilot.press("y")
-            await _wait_until(pilot, lambda: bool(app.query(PromptInputBar)))
+            await wait_for(pilot, lambda: bool(app.query(PromptInputBar)))
 
             assert app.killed == [child]
             assert app.dismissed == []
@@ -257,7 +242,7 @@ async def test_family_member_relaunch_aborts_when_row_goes_stale(
 
             app._remove(child)
             release.set()
-            await _wait_until(pilot, lambda: bool(app.notifications))
+            await wait_for(pilot, lambda: bool(app.notifications))
 
             assert app.dismissed == []
             assert app.killed == []

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-from typing import Any
-
 import pytest
 from textual.app import App, ComposeResult
 from textual.containers import Vertical
@@ -46,19 +43,6 @@ class _InputPane(Vertical):
 
     def focus_default(self) -> None:
         self.query_one(Input).focus()
-
-
-async def _wait_until(
-    pilot: Any,
-    predicate: Any,
-    *,
-    timeout: float = 5.0,
-) -> None:
-    deadline = asyncio.get_running_loop().time() + timeout
-    while not predicate():
-        if asyncio.get_running_loop().time() >= deadline:
-            raise AssertionError("Admin Center test condition timed out")
-        await pilot.pause()
 
 
 def _patch_stub_panes(

@@ -7,6 +7,7 @@ from ._startup import (
 from .ace_page import AcePage, AceStartupPolicy
 from .editors import PromptPage, VimEditorPage
 from .fixtures import DEFAULT_CHANGESPECS, make_changespec
+from .wait import wait_for
 
 __all__ = [
     "DEFAULT_CHANGESPECS",
@@ -15,4 +16,5 @@ __all__ = [
     "PromptPage",
     "VimEditorPage",
     "make_changespec",
+    "wait_for",
 ]
