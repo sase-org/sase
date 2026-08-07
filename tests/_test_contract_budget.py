@@ -31,6 +31,20 @@ this repo imports it, so callers must handle :data:`HAVE_RESOURCE` being false
 by skipping rather than failing at collection time. The pure normalization
 arithmetic below has no such dependency and is unit-tested directly in
 ``tests/test_contract_budget_normalization.py``.
+
+`sase-go` (2026-08-07) found a gap in the above: the 96-spinner load used to
+validate it is pure CPU-cycle contention, which :data:`PROBE_SOURCE` (then a
+register/L1-resident loop) tracks well, but 12-28 real xdist workers spend
+most of their CPU importing modules and allocating collector objects --
+memory-bandwidth- and page-cache-bound work the old probe barely touched.
+Measured back to back, 40 real xdist workers inflated the contract set's own
+child CPU ~20% while the old probe moved only ~6%, i.e. the normalization
+under-corrected for exactly the contention shape this guard runs under in
+practice. :data:`PROBE_SOURCE` now mixes in stdlib imports and dict
+allocation/sort/discard to close part of that gap (~9-10% under the same
+contention); see the comment on :data:`PROBE_SOURCE` for the measurements, and
+`test_contract_manifest.py`'s ``_BUDGET_SECONDS`` comment for how the
+remaining, unclosed part of the gap is covered.
 """
 
 from __future__ import annotations
@@ -52,12 +66,27 @@ except ImportError:  # pragma: no cover - non-Unix
 #: that measure must skip -- not fail at collection -- where it is missing.
 HAVE_RESOURCE = resource is not None
 
-#: Deterministic, fixed-cost calibration workload. Deliberately mixes the three
-#: things the contract set itself spends CPU on -- interpreter loop, hashing,
-#: and process spawns -- so that the probe inflates under contention for the
-#: same reasons the measured run does. Never tune this without re-measuring
+#: Deterministic, fixed-cost calibration workload. `sase-go` found that the
+#: original version of this probe -- an interpreter loop, hashing, and process
+#: spawns, all cache-resident -- tracked pure CPU-cycle contention (a bank of
+#: `while True: pass` spinners) essentially perfectly but under-corrected for
+#: the contention a real nested pytest run experiences: measured back to back
+#: on the 64-core dev host, 40 real xdist workers importing and running
+#: `tests/ace/` inflated the contract set's own child CPU ~20% (24.5s -> 29.4s)
+#: while the cache-resident probe moved only ~6%. Real test workers spend most
+#: of their CPU importing modules and allocating the objects pytest's
+#: collector builds per test item, which is memory-bandwidth- and page-cache-
+#: bound in a way a register/L1-resident loop is not. This version adds a
+#: batch of stdlib imports (deliberately ones unlikely to already be loaded by
+#: `python -c`) plus building, sorting, and discarding a batch of dicts, so
+#: the probe pays some of the same memory-traffic cost. Re-measured the same
+#: way, it inflated ~9-10% under the same 40-worker contention -- a real,
+#: measured improvement, though still not a full match for the contract set's
+#: ~20%; see :data:`_BUDGET_SECONDS` in `test_contract_manifest.py` for how
+#: the remaining gap is covered. Never tune this without re-measuring
 #: :data:`PROBE_BASELINE_CPU_SECONDS`: the two are one calibration pair.
 PROBE_SOURCE = """\
+import gc
 import hashlib
 import subprocess
 import sys
@@ -70,6 +99,31 @@ digest = b"sase-contract-budget-probe"
 for _ in range(40_000):
     digest = hashlib.sha256(digest).digest()
 
+import argparse
+import asyncio
+import csv
+import dataclasses
+import decimal
+import email.mime.multipart
+import html.parser
+import http.client
+import importlib
+import json
+import logging
+import re
+import sqlite3
+import unittest.mock
+import urllib.request
+import xml.etree.ElementTree
+
+blobs = [
+    {"id": i, "payload": "x" * 512, "tags": [str(j) for j in range(8)]}
+    for i in range(20_000)
+]
+blobs.sort(key=lambda item: item["payload"])
+del blobs
+gc.collect()
+
 for _ in range(20):
     subprocess.run([sys.executable, "-c", "pass"], check=True)
 
@@ -77,12 +131,13 @@ print(total, digest.hex()[:8])
 """
 
 #: Child CPU seconds :data:`PROBE_SOURCE` costs on a quiet reference host.
-#: Measured 2026-08-06 on the 64-core dev host at loadavg 9-31: 0.754-0.807,
-#: taken as 0.77. Under 96 spinner processes (loadavg 61) the same probe read
-#: 1.17-1.23 -- that inflation is exactly what this constant divides back out.
-#: This is a unit of *this machine's* quiet second; a slower machine reads a
-#: larger probe and gets a proportionally larger allowance, which is the point.
-PROBE_BASELINE_CPU_SECONDS = 0.77
+#: Measured 2026-08-07 on the same 64-core dev host as the module docstring's
+#: figures, across 7 samples with no deliberate contention (ambient loadavg
+#: 30-35, since this host runs other agents continuously and never truly
+#: idles): 0.88-1.06, mean ~0.94, taken as 0.94. Under 40 real xdist workers
+#: the same probe read 0.96-1.06 -- see the comment above :data:`PROBE_SOURCE`
+#: for what that inflation does and does not correct for.
+PROBE_BASELINE_CPU_SECONDS = 0.94
 
 
 @dataclass(frozen=True)

@@ -1,11 +1,18 @@
 """Unit coverage for the contract-set budget guard's normalization arithmetic.
 
 These tests never run the contract set: they feed recorded CPU numbers through
-the pure functions in :mod:`tests._test_contract_budget`. The regression cases
-are real measurements taken on the dev host on 2026-08-06, one pair on a quiet
-host and one under 96 spinner processes, and they pin the property the whole
-approach rests on -- the same contract set normalizes to the same figure under
-loads whose raw wall clock differs by 1.5x.
+the pure functions in :mod:`tests._test_contract_budget`. The first regression
+pair is real measurements taken on the dev host on 2026-08-06, one on a quiet
+host and one under 96 spinner processes (pure CPU-cycle contention), pinned
+against the probe of the time explicitly via ``baseline=0.77`` since the live
+:data:`PROBE_BASELINE_CPU_SECONDS` has since moved. They pin the property the
+whole approach rests on -- the same contract set normalizes to the same figure
+under loads whose raw wall clock differs by 1.5x.
+
+The second pair is `sase-go`'s 2026-08-07 measurements with the reshaped probe
+(see ``PROBE_SOURCE``'s comment), one with no deliberate contention and one
+under 40 real xdist workers importing and running ``tests/ace/`` -- the
+memory-bandwidth-bound shape the first pair does not exercise.
 """
 
 from __future__ import annotations
@@ -21,12 +28,20 @@ from tests._test_contract_budget import (
 )
 
 
-#: Contract set (34 files, 289 tests) measured on a quiet 64-core dev host.
-QUIET_RUN = Measurement(wall=24.37, cpu=24.18, probe_cpu=(0.854, 0.791))
+#: Contract set (34 files, 289 tests) measured on a quiet 64-core dev host,
+#: normalized against the probe live at the time (``baseline=0.77``).
+QUIET_RUN = Measurement(wall=24.37, cpu=24.18, probe_cpu=(0.854, 0.791), baseline=0.77)
 #: The same set, same commit, under 96 spinner processes (loadavg 61).
-LOADED_RUN = Measurement(wall=37.13, cpu=33.97, probe_cpu=(1.172, 1.234))
+LOADED_RUN = Measurement(wall=37.13, cpu=33.97, probe_cpu=(1.172, 1.234), baseline=0.77)
 
-_BUDGET_SECONDS = 30.0
+#: Contract set (34 files, 308+ tests) on the same host with no deliberate
+#: contention beyond this host's usual ambient agent load (loadavg 30-35).
+QUIET_RUN_XDIST = Measurement(wall=27.38, cpu=27.43, probe_cpu=(1.059, 0.936))
+#: The same set, same commit, under 40 real xdist workers running
+#: ``tests/ace/`` -- import- and allocation-heavy, not CPU-spin.
+LOADED_RUN_XDIST = Measurement(wall=29.25, cpu=29.37, probe_cpu=(1.057, 0.958))
+
+_BUDGET_SECONDS = 35.0
 
 
 def test_factor_is_the_baseline_over_the_mean_probe() -> None:
@@ -94,6 +109,32 @@ def test_the_quiet_reading_matches_the_headroom_recorded_in_the_guard() -> None:
     assert QUIET_RUN.normalized == pytest.approx(22.6, abs=0.5)
 
 
+def test_the_reshaped_probe_still_moves_under_xdist_contention() -> None:
+    """The reshape (see `PROBE_SOURCE`) is a real, measured improvement, not a
+    full fix: comparing a truly quiet baseline to 40 real xdist workers, the
+    old cache-resident probe under-corrected sharply (~6% probe move against
+    a ~20% true CPU inflation); the reshaped probe narrows that to ~9-10%,
+    which is why `_BUDGET_SECONDS` also grew rather than relying on
+    normalization alone to close the whole gap.
+    """
+    quiet = QUIET_RUN_XDIST.normalized
+    loaded = LOADED_RUN_XDIST.normalized
+
+    assert loaded > quiet  # some residual under-correction remains
+    assert loaded == pytest.approx(quiet, rel=0.10)
+    assert max(quiet, loaded) <= _BUDGET_SECONDS
+
+
+def test_the_xdist_quiet_reading_matches_todays_headroom() -> None:
+    assert QUIET_RUN_XDIST.normalized == pytest.approx(25.8, abs=0.5)
+
+
+def test_the_xdist_loaded_reading_still_clears_the_budget_with_margin() -> None:
+    headroom = (_BUDGET_SECONDS - LOADED_RUN_XDIST.normalized) / _BUDGET_SECONDS
+
+    assert headroom > 0.15
+
+
 def test_failure_message_shows_every_input_to_the_verdict() -> None:
     message = describe_measurement(LOADED_RUN, _BUDGET_SECONDS)
 
@@ -103,4 +144,4 @@ def test_failure_message_shows_every_input_to_the_verdict() -> None:
     assert "1.234s" in message  # trailing probe
     assert f"{LOADED_RUN.factor:.3f}" in message  # normalization factor
     assert f"{LOADED_RUN.normalized:.1f}s" in message  # the compared figure
-    assert "30s budget" in message
+    assert "35s budget" in message
