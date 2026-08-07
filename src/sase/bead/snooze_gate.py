@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from sase.bead.model import CloseRecord, SnoozeRecord, TaskPlusOneEvidence
-from sase.bead.snooze_duration import SnoozeDurationError, parse_snooze_request
+from sase.bead.snooze_time import SnoozeTimeError, parse_snooze_request
 from sase.bead.task_gate import (
     bead_gate_actor,
     render_task_triage_preview,
@@ -381,7 +381,7 @@ def validate_bead_snooze_feedback(
         return
     try:
         parse_snooze_request(feedback or "")
-    except SnoozeDurationError as exc:
+    except SnoozeTimeError as exc:
         raise GateError("invalid_snooze_duration", "feedback", str(exc)) from exc
 
 
@@ -523,7 +523,7 @@ def resnooze_bead_snooze(decision: _BeadSnoozeResponse) -> None:
 
     try:
         request = parse_snooze_request(decision.feedback or "")
-    except SnoozeDurationError as exc:
+    except SnoozeTimeError as exc:
         raise GateError("invalid_snooze_duration", "feedback", str(exc)) from exc
     cwd = _resolve_bead_snooze_project_cwd(decision.project)
     with bead_store_mutation(auto_commit_bead_store, cwd=cwd) as mutation:

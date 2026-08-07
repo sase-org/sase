@@ -15,10 +15,10 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from sase.bead.model import SnoozeRecord, TaskPlusOneEvidence
-from sase.bead.snooze_duration import (
-    SnoozeDurationError,
-    _parse_snooze_until,
+from sase.bead.snooze_time import (
+    SnoozeTimeError,
     parse_snooze_request,
+    parse_snooze_until,
 )
 from sase.bead.snooze_gate import (
     BEAD_SNOOZE_COMMAND_PATHS,
@@ -37,6 +37,7 @@ from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
 from sase.notifications.priority import is_priority
 from sase.notifications.store import load_notifications
+from tests.test_bead.conftest import FIXED_BEAD_NOW
 
 WAKE_TIME = "2026-08-09T09:00:00-04:00"
 
@@ -357,7 +358,8 @@ def test_bead_snooze_resnooze_defers_again_with_the_typed_duration(
     assert call.kwargs["reason"] == "waiting on the upstream fix"
     assert call.kwargs["actor"] == "owner@example"
     resolved = datetime.fromisoformat(call.kwargs["until"])
-    assert resolved > datetime.now(resolved.tzinfo)
+    reference = FIXED_BEAD_NOW.replace(tzinfo=resolved.tzinfo)
+    assert resolved == (reference + timedelta(days=3)).replace(microsecond=0)
     mutation.commit.assert_called_once_with("chore(beads): snooze sase-task.1")
 
 
@@ -460,12 +462,21 @@ def test_snooze_request_parses_every_accepted_form(
 def test_snooze_request_resolves_days_and_absolute_timestamps() -> None:
     now = datetime.fromisoformat("2026-08-06T09:00:00-04:00")
 
-    assert _parse_snooze_until("3d", now=now) == (now + timedelta(days=3)).isoformat()
+    assert parse_snooze_until("3d", now=now) == (now + timedelta(days=3)).isoformat()
     assert (
-        _parse_snooze_until("1d2h", now=now)
+        parse_snooze_until("1d2h", now=now)
         == (now + timedelta(days=1, hours=2)).isoformat()
     )
-    assert _parse_snooze_until(WAKE_TIME, now=now) == WAKE_TIME
+    assert parse_snooze_until(WAKE_TIME, now=now) == WAKE_TIME
+
+
+def test_snooze_request_attaches_the_configured_timezone_to_a_naive_timestamp() -> None:
+    """A naive ISO-8601 timestamp is read in the configured zone, not refused."""
+    now = datetime.fromisoformat("2026-08-06T09:00:00-04:00")
+
+    request = parse_snooze_request("2026-08-09T09:00:00", now=now)
+
+    assert request.until == WAKE_TIME
 
 
 @pytest.mark.parametrize(
@@ -476,7 +487,6 @@ def test_snooze_request_resolves_days_and_absolute_timestamps() -> None:
         "3 days",
         "0m",
         "2026-08-01T09:00:00-04:00",
-        "2026-08-09T09:00:00",
         "3d +0",
         "3d ++2",
     ],
@@ -484,7 +494,7 @@ def test_snooze_request_resolves_days_and_absolute_timestamps() -> None:
 def test_snooze_request_rejects_unusable_input(text: str) -> None:
     now = datetime.fromisoformat("2026-08-06T09:00:00-04:00")
 
-    with pytest.raises(SnoozeDurationError) as exc_info:
+    with pytest.raises(SnoozeTimeError) as exc_info:
         parse_snooze_request(text, now=now)
 
     assert "accepted forms" in str(exc_info.value)

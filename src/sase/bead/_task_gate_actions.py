@@ -127,11 +127,11 @@ def snooze_task_triage(decision: TaskTriageResponse) -> None:
         )
     from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
     from sase.bead.mutation_commit import require_mutation_commit_message
-    from sase.bead.snooze_duration import SnoozeDurationError, parse_snooze_request
+    from sase.bead.snooze_time import SnoozeTimeError, parse_snooze_request
 
     try:
         request = parse_snooze_request(decision.feedback)
-    except SnoozeDurationError as exc:
+    except SnoozeTimeError as exc:
         raise GateError("invalid_snooze_duration", "feedback", str(exc)) from exc
     cwd = _resolve_task_triage_project_cwd(decision.project)
     with bead_store_mutation(auto_commit_bead_store, cwd=cwd) as mutation:

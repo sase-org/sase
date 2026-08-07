@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -33,6 +33,7 @@ from sase.notification_gates.registry import adapter_for_kind
 from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
+from tests.test_bead.conftest import FIXED_BEAD_NOW
 
 
 def _spec(*, request_id: str = "task-triage-1") -> dict[str, Any]:
@@ -606,7 +607,8 @@ def test_task_triage_snooze_defers_the_bead_with_the_typed_duration_and_target(
     assert call.kwargs["reason"] == TASK_TRIAGE_SNOOZE_REASON
     assert call.kwargs["actor"] == "owner@example"
     resolved = datetime.fromisoformat(call.kwargs["until"])
-    assert resolved > datetime.now(resolved.tzinfo)
+    reference = FIXED_BEAD_NOW.replace(tzinfo=resolved.tzinfo)
+    assert resolved == (reference + timedelta(days=3)).replace(microsecond=0)
     mutation.commit.assert_called_once_with("chore(beads): snooze sase-task.1")
 
 

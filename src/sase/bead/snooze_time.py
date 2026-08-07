@@ -11,27 +11,50 @@ The relative vocabulary is :func:`sase.xprompt._directive_time.parse_duration`
 (``30m``, ``2h``, ``1h30m``) widened with a leading day component (``3d``,
 ``1d12h``), because a bead snooze is routinely measured in days while a
 notification snooze is not.
+
+An absolute ISO-8601 timestamp with no offset has the configured timezone
+attached rather than being rejected: that is what someone typing
+``2026-08-09T09:00`` means, and the store rejects a wake time that names no
+instant regardless.
+
+The gate options and the ACE modal's custom field additionally accept a
+compact ``"<duration> [+<N>]"`` request that sets a +1 wake target; the CLI
+takes that target as its own ``-p/--plus-ones`` flag instead. Both forms
+share :func:`parse_snooze_until`, one error type, and one accepted-forms
+string, so a wake time cannot be read one way from the CLI and another way
+from the gate or the ACE modal.
 """
 
 from __future__ import annotations
 
-import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+import re
 
 from sase.core import time as core_time
 from sase.core.time import get_timezone
 from sase.xprompt._directive_time import parse_duration
 
 ACCEPTED_SNOOZE_FORMS = (
-    "a duration such as 30m, 2h, 1h30m, 3d, or 1d12h, "
-    "or an absolute ISO-8601 timestamp such as 2026-08-09T09:00:00-04:00"
+    "accepted forms: a duration such as 30m, 2h, 1h30m, 3d, or 1d12h, or an "
+    "absolute ISO-8601 timestamp such as 2026-08-09T09:00:00-04:00, "
+    "optionally followed by a +N target such as '3d +2'"
 )
 
 _LEADING_DAYS_RE = re.compile(r"^(\d+)d(.*)$")
+_PLUS_ONES_RE = re.compile(r"^\+(\d+)$")
 
 
 class SnoozeTimeError(ValueError):
     """Raised when a snooze time argument cannot be used as a wake time."""
+
+
+@dataclass(frozen=True)
+class _SnoozeRequest:
+    """A resolved wake time and optional +1 target for one snooze."""
+
+    until: str
+    plus_ones: int | None = None
 
 
 def parse_snooze_until(value: str, *, now: datetime | None = None) -> str:
@@ -55,9 +78,7 @@ def parse_snooze_until(value: str, *, now: datetime | None = None) -> str:
         reference = reference.replace(tzinfo=get_timezone())
     text = value.strip()
     if not text:
-        raise SnoozeTimeError(
-            f"snooze time cannot be empty; expected {ACCEPTED_SNOOZE_FORMS}"
-        )
+        raise SnoozeTimeError(f"snooze time cannot be empty; {ACCEPTED_SNOOZE_FORMS}")
 
     delta = _parse_snooze_duration(text)
     if delta is not None:
@@ -69,14 +90,41 @@ def parse_snooze_until(value: str, *, now: datetime | None = None) -> str:
     absolute = _parse_absolute(text)
     if absolute is None:
         raise SnoozeTimeError(
-            f"invalid snooze time: {value!r}; expected {ACCEPTED_SNOOZE_FORMS}"
+            f"invalid snooze time: {value!r}; {ACCEPTED_SNOOZE_FORMS}"
         )
     if absolute <= reference:
         raise SnoozeTimeError(
-            f"snooze time is not in the future: {value!r}; "
-            f"expected {ACCEPTED_SNOOZE_FORMS}"
+            f"snooze time is not in the future: {value!r}; {ACCEPTED_SNOOZE_FORMS}"
         )
     return absolute.replace(microsecond=0).isoformat()
+
+
+def parse_snooze_request(text: str, *, now: datetime | None = None) -> _SnoozeRequest:
+    """Parse ``"<duration> [+<N>]"`` into an absolute wake time.
+
+    *now* exists so callers can resolve a relative duration against a fixed
+    clock in tests; production callers omit it.
+    """
+    tokens = text.split()
+    if not tokens:
+        raise SnoozeTimeError(f"a snooze needs a wake time; {ACCEPTED_SNOOZE_FORMS}")
+    plus_ones: int | None = None
+    if len(tokens) > 1:
+        match = _PLUS_ONES_RE.fullmatch(tokens[-1])
+        if match is None:
+            raise SnoozeTimeError(
+                f"unrecognized snooze request {text!r}; {ACCEPTED_SNOOZE_FORMS}"
+            )
+        plus_ones = int(match.group(1))
+        if plus_ones <= 0:
+            raise SnoozeTimeError(
+                f"a +1 target must be positive: {tokens[-1]!r}; {ACCEPTED_SNOOZE_FORMS}"
+            )
+        tokens = tokens[:-1]
+    return _SnoozeRequest(
+        until=parse_snooze_until(" ".join(tokens), now=now),
+        plus_ones=plus_ones,
+    )
 
 
 def _parse_snooze_duration(value: str) -> timedelta | None:
@@ -105,8 +153,7 @@ def _parse_snooze_duration(value: str) -> timedelta | None:
     delta = timedelta(days=days, seconds=seconds)
     if delta <= timedelta(0):
         raise SnoozeTimeError(
-            f"snooze duration must be positive: {value!r}; "
-            f"expected {ACCEPTED_SNOOZE_FORMS}"
+            f"snooze duration must be positive: {value!r}; {ACCEPTED_SNOOZE_FORMS}"
         )
     return delta
 
@@ -124,5 +171,6 @@ def _parse_absolute(value: str) -> datetime | None:
 __all__ = [
     "ACCEPTED_SNOOZE_FORMS",
     "SnoozeTimeError",
+    "parse_snooze_request",
     "parse_snooze_until",
 ]

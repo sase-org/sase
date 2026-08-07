@@ -19,8 +19,8 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from sase.bead.model import Issue
-from sase.bead.snooze_duration import parse_snooze_request
 from sase.bead.snooze_presentation import snooze_summary
+from sase.bead.snooze_time import parse_snooze_request
 from sase.core.time import get_timezone
 
 from .duration_choice_modal import (
@@ -67,8 +67,8 @@ def _snooze_request(text: str) -> BeadSnoozeChoice:
 
     Presets and the custom field both come through here, so a preset can
     never resolve to a wake time the typed equivalent would be refused for.
-    Its :class:`SnoozeDurationError` is a ``ValueError``, which is exactly
-    what the modal base renders under the custom field.
+    Its :class:`SnoozeTimeError` is a ``ValueError``, which is exactly what
+    the modal base renders under the custom field.
     """
     request = parse_snooze_request(text)
     return BeadSnoozeRequest(until=request.until, plus_ones=request.plus_ones)

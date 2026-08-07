@@ -132,11 +132,11 @@ def validate_task_triage_feedback(
     """
     if TASK_TRIAGE_SNOOZE_OPTION_ID not in selected_option_ids:
         return
-    from sase.bead.snooze_duration import SnoozeDurationError, parse_snooze_request
+    from sase.bead.snooze_time import SnoozeTimeError, parse_snooze_request
 
     try:
         parse_snooze_request(feedback or "")
-    except SnoozeDurationError as exc:
+    except SnoozeTimeError as exc:
         raise GateError("invalid_snooze_duration", "feedback", str(exc)) from exc
 
 
