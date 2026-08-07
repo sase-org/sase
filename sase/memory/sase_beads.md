@@ -42,8 +42,9 @@ Keep that prefix when you write or edit one by hand. Plan and epic bead descript
 
 ## Statuses
 
-`open` (draft) · `claimed` (runtime reserved) · `ready` (task bead awaiting triage) · `in_progress`
-· `closed`.
+`open` (draft) · `claimed` (runtime reserved) · `ready` (task bead awaiting triage) · `snoozed`
+(task bead deferred to a wake time or +1 target; set only by `sase bead snooze`, never by
+`update --status`) · `in_progress` · `closed`.
 
 Never set `claimed` by hand — the agent runner owns that transition. A bead you were launched to
 work on is already `in_progress` before you read your prompt, because an epic launch preassigns

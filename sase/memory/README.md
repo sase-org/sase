@@ -105,8 +105,8 @@ notes from detailed reference notes that agents read only when relevant.
   tiers, the status lifecycle agents must never hand-edit, task-bead triage, phase-bead description
   prefixes, and non-cascading close, resolution, and note semantics.
 - Parent: `AGENTS.md`
-- Lines: 119
-- Approx. tokens: 1604
+- Lines: 120
+- Approx. tokens: 1635
 
 ### `sase/memory/symvision.md`
 
