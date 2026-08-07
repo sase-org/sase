@@ -282,10 +282,11 @@ def test_task_triage_loader_uses_generic_branch_modal_data(
     assert data.preview_name == "task.md"
     assert data.preview_text is not None
     assert "Preserve the compatibility path." in data.preview_text
-    assert data.gate.branches == (("launch",), ("close",))
+    assert data.gate.branches == (("launch",), ("close",), ("snooze",))
     assert data.gate.primary_branch == ("launch",)
     assert [option.feedback for option in data.gate.options] == [
         "optional",
+        "required",
         "required",
     ]
     assert ACTION_BADGES["TaskTriage"] == "[task]"

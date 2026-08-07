@@ -30,22 +30,40 @@ if TYPE_CHECKING:
     from sase.bead.task_launch import TaskLaunchOrigin
     from sase.tasks.models import BackgroundTask
 
-TaskTriageAction = Literal["launch", "close"]
+TaskTriageAction = Literal["launch", "close", "snooze"]
 
 TASK_TRIAGE_KIND = "task_triage"
 TASK_TRIAGE_CONTINUATION_MODE = "task_triage"
-TASK_TRIAGE_QUERY = "launch OR close"
+TASK_TRIAGE_QUERY = "launch OR close OR snooze"
 TASK_TRIAGE_LAUNCH_OPTION_ID: TaskTriageAction = "launch"
 TASK_TRIAGE_CLOSE_OPTION_ID: TaskTriageAction = "close"
+TASK_TRIAGE_SNOOZE_OPTION_ID: TaskTriageAction = "snooze"
 TASK_TRIAGE_OPTION_IDS: tuple[TaskTriageAction, ...] = (
     TASK_TRIAGE_LAUNCH_OPTION_ID,
     TASK_TRIAGE_CLOSE_OPTION_ID,
+    TASK_TRIAGE_SNOOZE_OPTION_ID,
 )
 TASK_TRIAGE_PRIMARY_BRANCH = (TASK_TRIAGE_LAUNCH_OPTION_ID,)
 TASK_TRIAGE_PREVIEW_PATH = "task.md"
 TASK_TRIAGE_COMMAND_PATHS: dict[TaskTriageAction, str] = {
     option_id: f"commands/{option_id}" for option_id in TASK_TRIAGE_OPTION_IDS
 }
+TASK_TRIAGE_OPTION_FEEDBACK: dict[TaskTriageAction, str] = {
+    TASK_TRIAGE_LAUNCH_OPTION_ID: "optional",
+    TASK_TRIAGE_CLOSE_OPTION_ID: "required",
+    TASK_TRIAGE_SNOOZE_OPTION_ID: "required",
+}
+TASK_TRIAGE_OPTION_LABELS: dict[TaskTriageAction, str] = {
+    TASK_TRIAGE_LAUNCH_OPTION_ID: "Launch",
+    TASK_TRIAGE_CLOSE_OPTION_ID: "Close",
+    TASK_TRIAGE_SNOOZE_OPTION_ID: "Snooze (3d, 3d +2)",
+}
+TASK_TRIAGE_OPTION_ICONS: dict[TaskTriageAction, str] = {
+    TASK_TRIAGE_LAUNCH_OPTION_ID: "🚀",
+    TASK_TRIAGE_CLOSE_OPTION_ID: "✕",
+    TASK_TRIAGE_SNOOZE_OPTION_ID: "◈",
+}
+TASK_TRIAGE_SNOOZE_REASON = "Deferred from triage."
 
 
 @dataclass(frozen=True)
@@ -172,29 +190,15 @@ def _build_task_triage_gate_spec(
         "primary_branch": list(TASK_TRIAGE_PRIMARY_BRANCH),
         "options": [
             {
-                "id": TASK_TRIAGE_LAUNCH_OPTION_ID,
-                "label": "Launch",
-                "icon": "🚀",
-                "command": {
-                    "argv": [TASK_TRIAGE_COMMAND_PATHS[TASK_TRIAGE_LAUNCH_OPTION_ID]]
-                },
+                "id": option_id,
+                "label": TASK_TRIAGE_OPTION_LABELS[option_id],
+                "icon": TASK_TRIAGE_OPTION_ICONS[option_id],
+                "command": {"argv": [TASK_TRIAGE_COMMAND_PATHS[option_id]]},
                 "input_schema": empty_input_schema,
-                "result_schema": task_triage_result_schema(
-                    TASK_TRIAGE_LAUNCH_OPTION_ID
-                ),
-                "feedback": "optional",
-            },
-            {
-                "id": TASK_TRIAGE_CLOSE_OPTION_ID,
-                "label": "Close",
-                "icon": "✕",
-                "command": {
-                    "argv": [TASK_TRIAGE_COMMAND_PATHS[TASK_TRIAGE_CLOSE_OPTION_ID]]
-                },
-                "input_schema": empty_input_schema,
-                "result_schema": task_triage_result_schema(TASK_TRIAGE_CLOSE_OPTION_ID),
-                "feedback": "required",
-            },
+                "result_schema": task_triage_result_schema(option_id),
+                "feedback": TASK_TRIAGE_OPTION_FEEDBACK[option_id],
+            }
+            for option_id in TASK_TRIAGE_OPTION_IDS
         ],
         "resources": [
             *[
@@ -453,7 +457,7 @@ def translate_task_triage_response(
         raise GateError(
             "invalid_response",
             str(bundle_path / "response.json"),
-            "task triage response must select exactly launch or close",
+            "task triage response must select exactly launch, close, or snooze",
         )
     action = raw_selected[0]
     option_results = response.get("option_results")
@@ -489,6 +493,12 @@ def translate_task_triage_response(
             "invalid_response",
             "feedback",
             "closing a task triage gate requires a reason",
+        )
+    if action == TASK_TRIAGE_SNOOZE_OPTION_ID and feedback is None:
+        raise GateError(
+            "invalid_response",
+            "feedback",
+            "snoozing a task triage gate requires a wake time",
         )
     source = response.get("source")
     return _TaskTriageResponse(
@@ -636,6 +646,67 @@ def close_task_triage(decision: _TaskTriageResponse) -> None:
             mutation.commit(commit_message)
 
 
+def validate_task_triage_feedback(
+    selected_option_ids: Sequence[str], feedback: str | None
+) -> None:
+    """Reject an unparsable triage-time snooze before the gate becomes terminal.
+
+    The duration rides in the free-text feedback field, so a typo is the one
+    input error the option command cannot catch. Checking it here — before the
+    response is persisted — leaves the gate pending, so a mistyped duration
+    costs a retry rather than the task's triage gate.
+    """
+    if TASK_TRIAGE_SNOOZE_OPTION_ID not in selected_option_ids:
+        return
+    from sase.bead.snooze_duration import SnoozeDurationError, parse_snooze_request
+
+    try:
+        parse_snooze_request(feedback or "")
+    except SnoozeDurationError as exc:
+        raise GateError("invalid_snooze_duration", "feedback", str(exc)) from exc
+
+
+def snooze_task_triage(decision: _TaskTriageResponse) -> None:
+    """Defer the triaged task, using the duration and +1 target a human typed.
+
+    The ``BeadSnooze`` gate is deliberately not raised here: the bead task-gate
+    reconciliation owns which gate a task bead has, and raising one directly
+    would give the bead two.
+    """
+    if decision.action != TASK_TRIAGE_SNOOZE_OPTION_ID or decision.feedback is None:
+        raise GateError(
+            "invalid_task_action",
+            decision.action,
+            "task triage snooze helper requires snooze with a wake time",
+        )
+    from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
+    from sase.bead.mutation_commit import require_mutation_commit_message
+    from sase.bead.snooze_duration import SnoozeDurationError, parse_snooze_request
+
+    try:
+        request = parse_snooze_request(decision.feedback)
+    except SnoozeDurationError as exc:
+        raise GateError("invalid_snooze_duration", "feedback", str(exc)) from exc
+    cwd = _resolve_task_triage_project_cwd(decision.project)
+    with bead_store_mutation(auto_commit_bead_store, cwd=cwd) as mutation:
+        mutation.project.snooze(
+            decision.bead_id,
+            until=request.until,
+            actor=bead_gate_actor(mutation.project),
+            plus_ones=request.plus_ones,
+            reason=TASK_TRIAGE_SNOOZE_REASON,
+        )
+        mutation.commit(require_mutation_commit_message("snooze", [decision.bead_id]))
+
+
+def bead_gate_actor(project: Any) -> str:
+    """Attribute a bead gate's mutation to the answerer, else the store owner."""
+    from sase.agent.identity import discover_agent_identity
+
+    identity = discover_agent_identity()
+    return identity.name if identity is not None else str(project.owner)
+
+
 def task_triage_result_schema(action: TaskTriageAction) -> dict[str, Any]:
     return {
         "type": "object",
@@ -674,11 +745,17 @@ __all__ = [
     "TASK_TRIAGE_CONTINUATION_MODE",
     "TASK_TRIAGE_KIND",
     "TASK_TRIAGE_LAUNCH_OPTION_ID",
+    "TASK_TRIAGE_OPTION_FEEDBACK",
+    "TASK_TRIAGE_OPTION_ICONS",
     "TASK_TRIAGE_OPTION_IDS",
+    "TASK_TRIAGE_OPTION_LABELS",
     "TASK_TRIAGE_PREVIEW_PATH",
     "TASK_TRIAGE_PRIMARY_BRANCH",
     "TASK_TRIAGE_QUERY",
+    "TASK_TRIAGE_SNOOZE_OPTION_ID",
+    "TASK_TRIAGE_SNOOZE_REASON",
     "TaskTriageAction",
+    "bead_gate_actor",
     "cancel_task_triage",
     "close_record_payload",
     "close_task_triage",
@@ -686,7 +763,9 @@ __all__ = [
     "execute_task_triage_gate_command",
     "launch_task_triage",
     "render_task_triage_preview",
+    "snooze_task_triage",
     "task_triage_gate_command_script",
     "task_triage_result_schema",
     "translate_task_triage_response",
+    "validate_task_triage_feedback",
 ]

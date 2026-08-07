@@ -24,6 +24,7 @@ from typing import Any, Literal, cast
 from sase.bead.model import CloseRecord, SnoozeRecord, TaskPlusOneEvidence
 from sase.bead.snooze_duration import SnoozeDurationError, parse_snooze_request
 from sase.bead.task_gate import (
+    bead_gate_actor,
     render_task_triage_preview,
     task_triage_presentation_note,
 )
@@ -506,7 +507,7 @@ def ready_bead_snooze(decision: _BeadSnoozeResponse) -> None:
     if decision.feedback:
         note = f"{note} {decision.feedback}"
     with bead_store_mutation(auto_commit_bead_store, cwd=cwd) as mutation:
-        actor = _bead_snooze_actor(mutation.project)
+        actor = bead_gate_actor(mutation.project)
         mutation.project.cancel_snooze(decision.bead_id, actor=actor)
         mutation.project.append_note(decision.bead_id, note, author=actor)
         mutation.commit(
@@ -529,7 +530,7 @@ def resnooze_bead_snooze(decision: _BeadSnoozeResponse) -> None:
         mutation.project.snooze(
             decision.bead_id,
             until=request.until,
-            actor=_bead_snooze_actor(mutation.project),
+            actor=bead_gate_actor(mutation.project),
             plus_ones=request.plus_ones,
             reason=decision.snooze.reason,
         )
@@ -552,14 +553,6 @@ def _require_action(decision: _BeadSnoozeResponse, action: BeadSnoozeAction) -> 
             decision.action,
             f"bead snooze {action} helper requires the {action} action",
         )
-
-
-def _bead_snooze_actor(project: Any) -> str:
-    """Attribute the mutation to the answering agent, else the store owner."""
-    from sase.agent.identity import discover_agent_identity
-
-    identity = discover_agent_identity()
-    return identity.name if identity is not None else str(project.owner)
 
 
 def _resolve_bead_snooze_project_cwd(project: str) -> Path:

@@ -37,6 +37,7 @@ def _validate_task_triage_structure(spec: GateSpec) -> None:
     if spec.query != TASK_TRIAGE_QUERY or spec.branches != (
         ("launch",),
         ("close",),
+        ("snooze",),
     ):
         raise GateError(
             "invalid_task_triage_query",
@@ -54,7 +55,10 @@ def _validate_task_triage_structure(spec: GateSpec) -> None:
 def _validate_task_triage_options(spec: GateSpec) -> None:
     from sase.bead.task_gate import (
         TASK_TRIAGE_COMMAND_PATHS,
+        TASK_TRIAGE_OPTION_FEEDBACK,
+        TASK_TRIAGE_OPTION_ICONS,
         TASK_TRIAGE_OPTION_IDS,
+        TASK_TRIAGE_OPTION_LABELS,
         TaskTriageAction,
         task_triage_result_schema,
     )
@@ -63,9 +67,8 @@ def _validate_task_triage_options(spec: GateSpec) -> None:
         raise GateError(
             "invalid_task_triage_options",
             "options",
-            "task triage gates require launch and close options",
+            "task triage gates require launch, close, and snooze options",
         )
-    expected_feedback = {"launch": "optional", "close": "required"}
     empty_input_schema = {
         "type": "object",
         "additionalProperties": False,
@@ -77,7 +80,9 @@ def _validate_task_triage_options(spec: GateSpec) -> None:
             option.command.argv != (expected_command,)
             or option.input_schema != empty_input_schema
             or option.result_schema != task_triage_result_schema(typed_option_id)
-            or option.feedback != expected_feedback[option.id]
+            or option.feedback != TASK_TRIAGE_OPTION_FEEDBACK[typed_option_id]
+            or option.label != TASK_TRIAGE_OPTION_LABELS[typed_option_id]
+            or option.icon != TASK_TRIAGE_OPTION_ICONS[typed_option_id]
         ):
             raise GateError(
                 "invalid_task_triage_options",

@@ -705,11 +705,14 @@ axe:
           script: sase_chop_bead_task_triage
           timeout: "2m"
           description: |-
-            Raise one human triage gate for each ready task bead
+            Raise one human gate for each ready or snoozed task bead
 
-            Scans enabled projects every five minutes, creates one pending TaskTriage gate per ready task, and records
-            deterministic gate generations in lane state to prevent duplicate notifications. Gates are canceled when
-            their beads leave ready state, while answered or missing gates can be regenerated safely if work remains.
+            Scans enabled projects every five minutes and gives every live task bead exactly one pending gate: a
+            TaskTriage gate while it is ready, a BeadSnooze wake gate while it is snoozed. Deterministic gate
+            generations in lane state prevent duplicate notifications, a gate of the wrong kind is replaced when its
+            bead's status changes, and a snoozed bead's notification is re-snoozed to its wake time if it ever drifts.
+            Gates are canceled when their beads leave those states, while answered or missing gates can be regenerated
+            safely if work remains.
         - name: pr_submitted_checks
           script: sase_chop_pr_submitted_checks
           description: |-

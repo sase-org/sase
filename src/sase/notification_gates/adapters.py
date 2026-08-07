@@ -80,12 +80,16 @@ class GateAdapter:
             from sase.bead.task_gate import (
                 close_task_triage,
                 launch_task_triage,
+                snooze_task_triage,
                 translate_task_triage_response,
             )
 
             decision = translate_task_triage_response(bundle_path, response)
             if decision.action == "close":
                 close_task_triage(decision)
+                return
+            if decision.action == "snooze":
+                snooze_task_triage(decision)
                 return
             task_launch = launch_task_triage(decision, origin=epic_launch_origin)
             if isinstance(response, dict):
@@ -224,11 +228,14 @@ class GateAdapter:
         that parse that text check it here so a typo leaves the gate pending
         instead of answering it with an instruction the host cannot follow.
         """
-        if self.kind != "bead_snooze":
-            return
-        from sase.bead.snooze_gate import validate_bead_snooze_feedback
+        if self.kind == "bead_snooze":
+            from sase.bead.snooze_gate import validate_bead_snooze_feedback
 
-        validate_bead_snooze_feedback(selected_option_ids, feedback)
+            validate_bead_snooze_feedback(selected_option_ids, feedback)
+        elif self.kind == "task_triage":
+            from sase.bead.task_gate import validate_task_triage_feedback
+
+            validate_task_triage_feedback(selected_option_ids, feedback)
 
     def validate_edited_resource(self, *, path: Path) -> None:
         """Validate an editable target before advancing its review revision."""
