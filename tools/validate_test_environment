@@ -10,19 +10,24 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CACHE_SCHEMA_VERSION = 1
+CACHE_SCHEMA_VERSION = 2
 FORCE_ENV = "SASE_TEST_SETUP_FORCE_REVALIDATE"
 CORE_VERSION_ERROR = 1
 CORE_BINDINGS_ERROR = 2
 DEPENDENCY_GROUP_ERROR = 4
 EDITABLE_METADATA_ERROR = 8
+CORE_VERSION_BEHIND_ERROR = 16
 INTERNAL_ERROR = 64
+#: `tools/validate_sase_core_rs_version`'s `EXIT_BEHIND`. The two scripts run
+#: as separate subprocesses (no shared import), so this mirrors that constant
+#: rather than importing it.
+_CORE_VERSION_VALIDATOR_BEHIND_EXIT = 3
 VALIDATOR_PATHS = {
     "core-version": REPO_ROOT / "tools/validate_sase_core_rs_version",
     "core-bindings": REPO_ROOT / "tools/validate_sase_core_rs",
@@ -232,7 +237,9 @@ def _write_verdicts(
         temporary.unlink(missing_ok=True)
 
 
-def _run_validator(command: Sequence[str], error_code: int) -> dict[str, Any]:
+def _run_validator(
+    command: Sequence[str], resolve_code: Callable[[int], int]
+) -> dict[str, Any]:
     completed = subprocess.run(
         command,
         cwd=REPO_ROOT,
@@ -241,10 +248,22 @@ def _run_validator(command: Sequence[str], error_code: int) -> dict[str, Any]:
         text=True,
     )
     return {
-        "code": 0 if completed.returncode == 0 else error_code,
+        "code": resolve_code(completed.returncode),
         "stdout": completed.stdout,
         "stderr": completed.stderr,
     }
+
+
+def _single_bit_resolver(error_code: int) -> Callable[[int], int]:
+    return lambda returncode: 0 if returncode == 0 else error_code
+
+
+def _resolve_core_version_code(returncode: int) -> int:
+    if returncode == 0:
+        return 0
+    if returncode == _CORE_VERSION_VALIDATOR_BEHIND_EXIT:
+        return CORE_VERSION_BEHIND_ERROR
+    return CORE_VERSION_ERROR
 
 
 def _emit_verdict(verdict: dict[str, Any]) -> None:
@@ -259,14 +278,15 @@ def _requested_checks(
     groups: Sequence[str],
     sase_core_dir: Path,
     pyproject: Path,
-) -> list[tuple[str, int, list[str]]]:
-    checks: list[tuple[str, int, list[str]]] = []
+) -> list[tuple[str, frozenset[int], Callable[[int], int], list[str]]]:
+    checks: list[tuple[str, frozenset[int], Callable[[int], int], list[str]]] = []
     if check_core:
         checks.extend(
             [
                 (
                     "core-version",
-                    CORE_VERSION_ERROR,
+                    frozenset({0, CORE_VERSION_ERROR, CORE_VERSION_BEHIND_ERROR}),
+                    _resolve_core_version_code,
                     [
                         sys.executable,
                         str(VALIDATOR_PATHS["core-version"]),
@@ -278,15 +298,22 @@ def _requested_checks(
                 ),
                 (
                     "core-bindings",
-                    CORE_BINDINGS_ERROR,
-                    [sys.executable, str(VALIDATOR_PATHS["core-bindings"])],
+                    frozenset({0, CORE_BINDINGS_ERROR}),
+                    _single_bit_resolver(CORE_BINDINGS_ERROR),
+                    [
+                        sys.executable,
+                        str(VALIDATOR_PATHS["core-bindings"]),
+                        "--sase-core-dir",
+                        str(sase_core_dir),
+                    ],
                 ),
             ]
         )
     checks.extend(
         (
             f"dependency-group:{group}",
-            DEPENDENCY_GROUP_ERROR,
+            frozenset({0, DEPENDENCY_GROUP_ERROR}),
+            _single_bit_resolver(DEPENDENCY_GROUP_ERROR),
             [sys.executable, str(VALIDATOR_PATHS["dependency-group"]), group],
         )
         for group in groups
@@ -295,7 +322,8 @@ def _requested_checks(
         checks.append(
             (
                 "editable-metadata",
-                EDITABLE_METADATA_ERROR,
+                frozenset({0, EDITABLE_METADATA_ERROR}),
+                _single_bit_resolver(EDITABLE_METADATA_ERROR),
                 [sys.executable, str(VALIDATOR_PATHS["editable-metadata"])],
             )
         )
@@ -327,10 +355,10 @@ def _validate(namespace: argparse.Namespace) -> int:
         )
         verdicts = _load_verdicts(cache_path, fingerprint)
         result = 0
-        for name, error_code, command in checks:
+        for name, valid_codes, resolve_code, command in checks:
             verdict = None if force else verdicts.get(name)
-            if verdict is None or verdict.get("code") not in {0, error_code}:
-                verdict = _run_validator(command, error_code)
+            if verdict is None or verdict.get("code") not in valid_codes:
+                verdict = _run_validator(command, resolve_code)
                 verdicts[name] = verdict
             _emit_verdict(verdict)
             result |= verdict["code"]

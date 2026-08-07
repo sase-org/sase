@@ -183,3 +183,80 @@ def test_validate_sase_core_rs_requires_stats_v5_runner_counters() -> None:
             }
         )
     )
+
+
+def _write_pyproject(root: Path, dependency: str) -> Path:
+    pyproject = root / "pyproject.toml"
+    pyproject.write_text(
+        f'[project]\ndependencies = ["{dependency}"]\n',
+        encoding="utf-8",
+    )
+    return pyproject
+
+
+def _write_core_checkout(root: Path, version: str) -> Path:
+    core = root / "sase-core"
+    core.mkdir()
+    (core / "Cargo.toml").write_text(
+        f'[workspace.package]\nversion = "{version}"\n',
+        encoding="utf-8",
+    )
+    return core
+
+
+def test_validate_installed_version_fails_when_below_the_pyproject_floor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _load_validate_sase_core_rs()
+    monkeypatch.setattr(validator.importlib.metadata, "version", lambda _name: "0.1.0")
+    pyproject = _write_pyproject(tmp_path, "sase-core-rs>=0.2.0,<0.3.0")
+
+    assert not validator._validate_installed_version(
+        pyproject=pyproject, sase_core_dir=None
+    )
+
+
+def test_validate_installed_version_fails_when_it_disagrees_with_the_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _load_validate_sase_core_rs()
+    monkeypatch.setattr(validator.importlib.metadata, "version", lambda _name: "0.2.0")
+    pyproject = _write_pyproject(tmp_path, "sase-core-rs>=0.2.0,<0.3.0")
+    sase_core_dir = _write_core_checkout(tmp_path, "0.2.5")
+
+    assert not validator._validate_installed_version(
+        pyproject=pyproject, sase_core_dir=sase_core_dir
+    )
+
+
+def test_validate_installed_version_passes_in_range_and_in_agreement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _load_validate_sase_core_rs()
+    monkeypatch.setattr(validator.importlib.metadata, "version", lambda _name: "0.2.0")
+    pyproject = _write_pyproject(tmp_path, "sase-core-rs>=0.2.0,<0.3.0")
+    sase_core_dir = _write_core_checkout(tmp_path, "0.2.0")
+
+    assert validator._validate_installed_version(
+        pyproject=pyproject, sase_core_dir=sase_core_dir
+    )
+
+
+def test_validate_installed_version_only_enforces_the_floor_not_the_ceiling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dev builds intentionally run ahead of the published window (see
+    `_core-overrides-arg` in the Justfile), so a distribution version above
+    the upper bound must not fail this check.
+    """
+    validator = _load_validate_sase_core_rs()
+    monkeypatch.setattr(validator.importlib.metadata, "version", lambda _name: "0.99.0")
+    pyproject = _write_pyproject(tmp_path, "sase-core-rs>=0.2.0,<0.3.0")
+
+    assert validator._validate_installed_version(
+        pyproject=pyproject, sase_core_dir=None
+    )

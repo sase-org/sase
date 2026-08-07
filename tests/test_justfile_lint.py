@@ -115,6 +115,62 @@ def test_private_symvision_stage_uses_published_cli() -> None:
     assert "python tools/pyvision" not in output
 
 
+def test_setup_is_fatal_on_the_core_version_behind_bit() -> None:
+    output = _dry_run("_setup")
+
+    assert "if [ $((validation_status & 16)) -ne 0 ]" in output
+    assert (
+        "[setup] ERROR: the sase-core checkout is behind the sase-core-rs floor"
+        in output
+    )
+    assert "sase repo open sase-core" in output
+    assert 'if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]' in output
+
+
+def test_setup_still_warns_on_the_core_version_ahead_bit() -> None:
+    output = _dry_run("_setup")
+
+    assert "if [ $((validation_status & 1)) -ne 0 ]" in output
+    assert (
+        "[setup] WARNING: bump the published sase-core-rs window in pyproject.toml"
+        in output
+    )
+
+
+def test_setup_propagates_the_post_rebuild_bindings_check_exit_status() -> None:
+    """Without this, `_setup` silently swallows a still-stale rebuilt extension.
+
+    `just` runs recipes under `sh -cu` (no `-e`), so a failing command that
+    isn't checked doesn't fail the recipe on its own.
+    """
+    output = _dry_run("_setup")
+
+    assert "tools/validate_sase_core_rs --sase-core-dir" in output
+    assert "|| exit $?" in output
+
+
+def test_rust_install_is_fatal_on_a_behind_status() -> None:
+    output = _dry_run("rust-install", "/tmp/fake-venv")
+
+    assert 'if [ "$status" -eq 3 ]' in output
+    assert (
+        "[rust-install] ERROR: the sase-core checkout is behind the sase-core-rs floor"
+        in output
+    )
+    assert "sase repo open sase-core" in output
+    assert 'if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]' in output
+
+
+def test_rust_install_still_warns_on_other_nonzero_status() -> None:
+    output = _dry_run("rust-install", "/tmp/fake-venv")
+
+    assert 'elif [ "$status" -ne 0 ]' in output
+    assert (
+        "[rust-install] WARNING: bump the published sase-core-rs window in pyproject.toml"
+        in output
+    )
+
+
 _CHECK_GATE_LINES = (
     'tools/run_silent "fmt (python)"       just fmt-py-check',
     'tools/run_silent "fmt (markdown)"     just fmt-md-check',

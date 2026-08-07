@@ -87,13 +87,21 @@ _setup: _venv
     if [ "$validation_status" -ge 64 ]; then \
         exit "$validation_status"; \
     fi; \
+    if [ $((validation_status & 16)) -ne 0 ]; then \
+        if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
+            printf "[setup] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs floor in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
+        else \
+            printf "[setup] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun 'just install'.\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
+            exit "$validation_status"; \
+        fi; \
+    fi; \
     if [ $((validation_status & 1)) -ne 0 ]; then \
         printf "[setup] WARNING: bump the published sase-core-rs window in pyproject.toml; dev installs build from {{ sase_core_dir }} regardless.\n"; \
     fi; \
     if [ $((validation_status & 2)) -ne 0 ]; then \
         printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
-        {{ venv_bin }}/python tools/validate_sase_core_rs; \
+        {{ venv_bin }}/python tools/validate_sase_core_rs --sase-core-dir "{{ sase_core_dir }}" || exit $?; \
     fi; \
     if [ $((validation_status & 12)) -ne 0 ]; then \
         uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) --reinstall-package mypy -e ".[dev]"; \
@@ -684,8 +692,18 @@ rust-install VENV=venv_dir_abs: _venv
         printf "[rust-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
         exit 1; \
     fi
-    @"{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || \
-        printf "[rust-install] WARNING: bump the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it.\n"
+    @status=0; \
+    "{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || status=$?; \
+    if [ "$status" -eq 3 ]; then \
+        if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
+            printf "[rust-install] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs floor in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
+        else \
+            printf "[rust-install] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun 'just install'.\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
+            exit 1; \
+        fi; \
+    elif [ "$status" -ne 0 ]; then \
+        printf "[rust-install] WARNING: bump the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it.\n"; \
+    fi
     @"{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
     # Harden cargo crate downloads against transient crates.io flakiness.
     # CI has hit `curl ... [16] Error in the HTTP2 framing layer` while

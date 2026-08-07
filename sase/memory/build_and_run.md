@@ -38,7 +38,12 @@ landing an epic's combined tree, when the change touches the broadening set, or 
 **IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the
 sase.md file in this directory) is that you need to run `just install` before running
 other commands like `just check` (since it is possible we haven't used this workspace
-directory in a long time and package dependencies may have changed).
+directory in a long time and package dependencies may have changed). The thing that
+actually goes stale is the linked `sase-core` checkout that `sase_core_rs` builds from:
+if a long-lived workspace's checkout falls behind the `sase-core-rs` floor in
+`pyproject.toml`, `just install`/`just check` now fail loudly with an actionable message
+instead of producing confusing test failures — run `sase repo open sase-core` to refresh
+the checkout, then rerun `just install`.
 
 ### Exceptions
 

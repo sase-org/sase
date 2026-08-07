@@ -228,6 +228,20 @@ def _mismatch_kind(version: ParsedVersion, constraints: list[Constraint]) -> str
     return f"{DEPENDENCY_NAME} version mismatch"
 
 
+#: Exit codes for `validate_sase_core_rs_version`, keyed by `_mismatch_kind`'s
+#: result. Unclassified mismatches fall back to `EXIT_INTERNAL_ERROR` alongside
+#: the parse/missing-file failures, since callers only need to special-case the
+#: behind and ahead directions.
+EXIT_OK = 0
+EXIT_INTERNAL_ERROR = 1
+EXIT_BEHIND = 3
+EXIT_AHEAD = 4
+_MISMATCH_EXIT_CODES = {
+    "sase-core checkout is behind": EXIT_BEHIND,
+    "sase-core checkout is ahead of sase's compatibility window": EXIT_AHEAD,
+}
+
+
 def _remediation(kind: str) -> str:
     if kind == "sase-core checkout is behind":
         return (
@@ -248,17 +262,18 @@ def _remediation(kind: str) -> str:
 def validate_sase_core_rs_version(
     sase_core_dir: Path = DEFAULT_SASE_CORE_DIR,
     pyproject: Path = DEFAULT_PYPROJECT,
-) -> bool:
+) -> int:
+    """Return `EXIT_OK`, `EXIT_INTERNAL_ERROR`, `EXIT_BEHIND`, or `EXIT_AHEAD`."""
     try:
         source_version = _read_source_version(sase_core_dir)
         specifier = _read_dependency_specifier(pyproject)
         constraints = _parse_specifier(specifier)
     except ValidationError as exc:
         _error(str(exc))
-        return False
+        return EXIT_INTERNAL_ERROR
 
     if _satisfies_all(source_version, constraints):
-        return True
+        return EXIT_OK
 
     kind = _mismatch_kind(source_version, constraints)
     _error(
@@ -267,7 +282,7 @@ def validate_sase_core_rs_version(
         f"`{DEPENDENCY_NAME}{specifier}` dependency in {pyproject}. "
         f"{_remediation(kind)}"
     )
-    return False
+    return _MISMATCH_EXIT_CODES.get(kind, EXIT_INTERNAL_ERROR)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -296,12 +311,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if namespace.published_minimum:
         ok = _validate_published_minimum(pyproject=namespace.pyproject)
-    else:
-        ok = validate_sase_core_rs_version(
-            sase_core_dir=namespace.sase_core_dir,
-            pyproject=namespace.pyproject,
-        )
-    return 0 if ok else 1
+        return EXIT_OK if ok else EXIT_INTERNAL_ERROR
+
+    return validate_sase_core_rs_version(
+        sase_core_dir=namespace.sase_core_dir,
+        pyproject=namespace.pyproject,
+    )
 
 
 if __name__ == "__main__":

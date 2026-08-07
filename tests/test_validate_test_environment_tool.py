@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import runpy
@@ -17,6 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools/validate_test_environment"
 FORCE_ENV = "SASE_TEST_SETUP_FORCE_REVALIDATE"
 DEPENDENCY_GROUP_ERROR = 4
+CORE_VERSION_ERROR = 1
+CORE_VERSION_BEHIND_ERROR = 16
 
 
 def _load_tool() -> dict[str, Any]:
@@ -270,3 +273,88 @@ def test_extension_fingerprint_is_content_based_not_stat_based(
     extension.write_bytes(b"binary-v2")
     rebuilt = tool["_fingerprint_inputs"](**env)
     assert rebuilt["extension"] != populated["extension"]
+
+
+def _write_stub_validator(tmp_path: Path, name: str, exit_code: int) -> Path:
+    script = tmp_path / name
+    script.write_text(
+        f"#!/usr/bin/env python3\nraise SystemExit({exit_code})\n",
+        encoding="utf-8",
+    )
+    return script
+
+
+def _core_check_namespace(
+    env: dict[str, Path], *, cache_file: Path
+) -> argparse.Namespace:
+    return argparse.Namespace(
+        venv_dir=env["venv_dir"],
+        pyproject=env["pyproject"],
+        uv_lock=env["uv_lock"],
+        sase_core_dir=env["sase_core_dir"],
+        cache_file=cache_file,
+        check_core=True,
+        check_editable=False,
+        group=[],
+    )
+
+
+def test_core_version_behind_verdict_sets_bit_16_not_bit_1(tmp_path: Path) -> None:
+    tool = _load_tool()
+    env = _fingerprint_environment(tmp_path)
+    tool["VALIDATOR_PATHS"]["core-version"] = _write_stub_validator(
+        tmp_path, "stub-core-version-behind", 3
+    )
+    tool["VALIDATOR_PATHS"]["core-bindings"] = _write_stub_validator(
+        tmp_path, "stub-core-bindings-ok", 0
+    )
+    namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
+
+    result = tool["_validate"](namespace)
+
+    assert result & CORE_VERSION_BEHIND_ERROR
+    assert not result & CORE_VERSION_ERROR
+
+
+def test_core_version_ahead_verdict_sets_bit_1_not_bit_16(tmp_path: Path) -> None:
+    tool = _load_tool()
+    env = _fingerprint_environment(tmp_path)
+    tool["VALIDATOR_PATHS"]["core-version"] = _write_stub_validator(
+        tmp_path, "stub-core-version-ahead", 4
+    )
+    tool["VALIDATOR_PATHS"]["core-bindings"] = _write_stub_validator(
+        tmp_path, "stub-core-bindings-ok", 0
+    )
+    namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
+
+    result = tool["_validate"](namespace)
+
+    assert result & CORE_VERSION_ERROR
+    assert not result & CORE_VERSION_BEHIND_ERROR
+
+
+def test_cache_written_at_old_schema_version_is_rejected(tmp_path: Path) -> None:
+    tool = _load_tool()
+    assert tool["CACHE_SCHEMA_VERSION"] == 2
+    cache_file = tmp_path / "cache.json"
+    fingerprint = "deadbeef"
+    cache_file.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "fingerprint": fingerprint,
+                "verdicts": {
+                    "dependency-group:demo": {
+                        "code": DEPENDENCY_GROUP_ERROR,
+                        "stdout": "",
+                        "stderr": "stale schema verdict",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    verdicts = tool["_load_verdicts"](cache_file, fingerprint)
+
+    assert verdicts == {}

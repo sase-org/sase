@@ -106,7 +106,7 @@ def test_sase_core_rs_version_validation_fails_when_source_is_behind(
 
     result = _run_validator(core, pyproject)
 
-    assert result.returncode == 1
+    assert result.returncode == 3
     assert "sase-core checkout is behind" in result.stderr
     assert "source version 0.1.4" in result.stderr
     assert "sase-core-rs>=0.2.0,<0.3.0" in result.stderr
@@ -121,7 +121,7 @@ def test_sase_core_rs_version_validation_fails_when_source_hits_upper_bound(
 
     result = _run_validator(core, pyproject)
 
-    assert result.returncode == 1
+    assert result.returncode == 4
     assert "ahead of sase's compatibility window" in result.stderr
     assert "source version 0.3.0" in result.stderr
     assert "Bump `sase`'s `sase-core-rs` constraint" in result.stderr

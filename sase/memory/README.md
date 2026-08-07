@@ -53,8 +53,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 59
-- Approx. tokens: 717
+- Lines: 64
+- Approx. tokens: 817
 
 ### `sase/memory/glossary.md`
 
@@ -150,8 +150,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Total notes: 11
 - Short notes: 5
 - Long notes: 6
-- Total lines: 789
-- Total approx. tokens: 10191
+- Total lines: 794
+- Total approx. tokens: 10291
 
 ## Commands
 

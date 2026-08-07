@@ -1,16 +1,34 @@
 #!/usr/bin/env python3
-"""Validate that the installed ``sase_core_rs`` wheel matches this checkout."""
+"""Validate that the installed ``sase_core_rs`` wheel matches this checkout.
+
+Limitation: the installed-version check below can only catch *release-boundary*
+skew. Between core releases the Cargo workspace version does not move, so a
+checkout advanced to an unreleased core commit still reads as the same version
+and this check will not notice. Bead ``sase-bh`` hit exactly that blind spot
+from the other side and concluded that version metadata cannot distinguish
+the two cores; feature detection has to probe behavior instead. That remains
+true here too — this check does not replace the binding-name and wire-schema
+probes below it, it only catches the skew a version number *can* see.
+"""
 
 from __future__ import annotations
 
+import argparse
 import importlib
+import importlib.metadata
+import importlib.util
 import json
 import sys
 import tempfile
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_PYPROJECT = REPO_ROOT / "pyproject.toml"
+DISTRIBUTION_NAME = "sase-core-rs"
 
 REQUIRED_BINDINGS = (
     "parse_project_bytes",
@@ -420,7 +438,94 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
     return True
 
 
-def main() -> int:
+def _load_version_validator() -> ModuleType:
+    """Load `tools/validate_sase_core_rs_version` to reuse its specifier parsing.
+
+    That script has no `.py` suffix, so it cannot be `import`-ed normally.
+    """
+    script = Path(__file__).resolve().with_name("validate_sase_core_rs_version")
+    loader = SourceFileLoader("validate_sase_core_rs_version_lib", str(script))
+    spec = importlib.util.spec_from_file_location(
+        "validate_sase_core_rs_version_lib", script, loader=loader
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _validate_installed_version(
+    *,
+    pyproject: Path,
+    sase_core_dir: Path | None,
+) -> bool:
+    version_validator = _load_version_validator()
+    try:
+        installed_raw = importlib.metadata.version(DISTRIBUTION_NAME)
+    except importlib.metadata.PackageNotFoundError:
+        _error(f"{DISTRIBUTION_NAME} is not installed")
+        return False
+
+    try:
+        installed = version_validator._parse_version(
+            installed_raw, "installed sase-core-rs distribution"
+        )
+        specifier = version_validator._read_dependency_specifier(pyproject)
+        minimum = version_validator._inclusive_minimum(
+            version_validator._parse_specifier(specifier)
+        )
+    except version_validator.ValidationError as exc:
+        _error(str(exc))
+        return False
+
+    if version_validator._compare_versions(installed, minimum) < 0:
+        _error(
+            f"installed {DISTRIBUTION_NAME} distribution version {installed.raw} is "
+            f"behind sase's {DISTRIBUTION_NAME}{specifier} floor in {pyproject}. "
+            "Rebuild the extension: run `just install`."
+        )
+        return False
+
+    if sase_core_dir is not None and (sase_core_dir / "Cargo.toml").is_file():
+        try:
+            source_version = version_validator._read_source_version(sase_core_dir)
+        except version_validator.ValidationError as exc:
+            _error(str(exc))
+            return False
+        if version_validator._compare_versions(installed, source_version) != 0:
+            _error(
+                f"installed {DISTRIBUTION_NAME} distribution version {installed.raw} "
+                f"disagrees with the {sase_core_dir / 'Cargo.toml'} checkout version "
+                f"{source_version.raw}; the checkout moved and the extension was not "
+                "rebuilt. Run `just install`."
+            )
+            return False
+
+    return True
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--sase-core-dir",
+        type=Path,
+        default=None,
+        help=(
+            "path to a local sase-core checkout; when given and it has a "
+            "Cargo.toml, also fail if the installed sase-core-rs distribution "
+            "version disagrees with the checkout's [workspace.package] version"
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    namespace = _parse_args(argv)
+    if not _validate_installed_version(
+        pyproject=DEFAULT_PYPROJECT, sase_core_dir=namespace.sase_core_dir
+    ):
+        return 1
     module = _load_extension()
     if module is None:
         return 1
