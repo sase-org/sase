@@ -273,6 +273,7 @@ ace:
       beads_add_note: "N"
       beads_create: "n"
       beads_close: "c"
+      beads_snooze: "z"
       beads_launch_work: "w"
       beads_open_bug: "o"
       beads_open_plan: "L"

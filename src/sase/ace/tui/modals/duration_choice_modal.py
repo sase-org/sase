@@ -27,6 +27,22 @@ class DurationChoice[ResultT]:
     tone: str = "default"
 
 
+@dataclass(frozen=True)
+class DurationAnnotation[ResultT]:
+    """One free-text field folded into whichever duration the user picks.
+
+    A duration is sometimes only half the answer -- a snoozed bead also wants
+    to record *why* it was deferred. The field is always visible and never
+    focused on mount, so the numbered presets stay one keystroke away, and
+    every exit path (preset, callable preset, or custom duration) folds the
+    text in through ``apply`` rather than each subclass remembering to.
+    """
+
+    label: str
+    placeholder: str
+    apply: Callable[[ResultT, str], ResultT]
+
+
 class DurationChoiceCancelled:
     """Sentinel result for cancelled duration choice flows."""
 
@@ -40,13 +56,21 @@ type ParseDuration[ResultT] = Callable[[str], ResultT]
 class DurationChoiceModal[ResultT, CancelT](ModalScreen[ResultT | CancelT]):
     """Shared popup for choosing a preset duration or entering a custom one."""
 
+    # The numbered presets are the point of this modal, so nothing may steal
+    # the keyboard on mount. An annotation field is focusable and would
+    # otherwise auto-focus and swallow every preset digit. Empty rather than
+    # ``None``: Textual reads ``None`` as "defer to the app's AUTO_FOCUS".
+    AUTO_FOCUS = ""
+
     BINDINGS = [
         *[
             Binding(str(i), f"choose('{i}')", f"Choice {i}", show=False)
             for i in range(1, 10)
         ],
         Binding("t", "choose('t')", "Until time", show=False),
+        Binding("x", "choose('x')", "Extra choice", show=False),
         Binding("c", "open_custom", "Custom", show=False),
+        Binding("r", "focus_annotation", "Annotate", show=False),
         Binding("escape", "cancel_or_back", "Cancel", show=False),
         Binding("q", "cancel_or_back", "Cancel", show=False),
     ]
@@ -60,6 +84,7 @@ class DurationChoiceModal[ResultT, CancelT](ModalScreen[ResultT | CancelT]):
         custom_placeholder: str,
         cancel_result: CancelT,
         id_prefix: str = "duration-choice",
+        annotation: DurationAnnotation[ResultT] | None = None,
     ) -> None:
         super().__init__()
         self._title = title
@@ -69,6 +94,7 @@ class DurationChoiceModal[ResultT, CancelT](ModalScreen[ResultT | CancelT]):
         self._custom_placeholder = custom_placeholder
         self._id_prefix = id_prefix
         self._cancel_result = cancel_result
+        self._annotation = annotation
 
     def compose(self) -> ComposeResult:
         with Container(
@@ -101,6 +127,16 @@ class DurationChoiceModal[ResultT, CancelT](ModalScreen[ResultT | CancelT]):
                     "[dim]Enter minutes, hours, or a combined value.[/]",
                     classes=f"{self._id_prefix}-row duration-choice-row",
                 )
+                if self._annotation is not None:
+                    yield Static(
+                        f"  [bold]r[/]   {self._annotation.label}",
+                        classes=f"{self._id_prefix}-row duration-choice-row",
+                    )
+                    yield Input(
+                        placeholder=self._annotation.placeholder,
+                        id=f"{self._id_prefix}-annotation-input",
+                        classes="duration-choice-annotation-input",
+                    )
                 yield Static(
                     "",
                     classes=f"{self._id_prefix}-spacer duration-choice-spacer",
@@ -134,9 +170,25 @@ class DurationChoiceModal[ResultT, CancelT](ModalScreen[ResultT | CancelT]):
             return
         value = choice.value
         if callable(value):
-            self.dismiss(value())
+            self._dismiss_annotated(value())
             return
-        self.dismiss(cast("ResultT", value))
+        self._dismiss_annotated(cast("ResultT", value))
+
+    def _dismiss_annotated(self, value: ResultT) -> None:
+        """Fold the annotation field into *value* and dismiss with it."""
+        annotation = self._annotation
+        if annotation is not None:
+            text = self.query_one(
+                f"#{self._id_prefix}-annotation-input", Input
+            ).value.strip()
+            value = annotation.apply(value, text)
+        self.dismiss(value)
+
+    def action_focus_annotation(self) -> None:
+        """Focus the annotation field, when this modal has one."""
+        if self._annotation is None:
+            return
+        self.query_one(f"#{self._id_prefix}-annotation-input", Input).focus()
 
     def action_preset_1(self) -> None:
         self.action_choose("1")
@@ -177,7 +229,17 @@ class DurationChoiceModal[ResultT, CancelT](ModalScreen[ResultT | CancelT]):
         custom_input.focus()
 
     def action_cancel_or_back(self) -> None:
-        """Esc backs out of custom input first, then cancels the modal."""
+        """Esc backs out of a focused input first, then cancels the modal."""
+        if self._annotation is not None:
+            annotation_input = self.query_one(
+                f"#{self._id_prefix}-annotation-input", Input
+            )
+            if annotation_input.has_focus:
+                # Blur rather than clear: the typed text survives so the user
+                # can press a preset key, which is the whole point of leaving
+                # the field.
+                self.set_focus(None)
+                return
         custom_input = self.query_one(f"#{self._id_prefix}-custom-input", Input)
         if not custom_input.has_class("hidden") and custom_input.has_focus:
             custom_input.add_class("hidden")
@@ -190,6 +252,11 @@ class DurationChoiceModal[ResultT, CancelT](ModalScreen[ResultT | CancelT]):
         self.dismiss(self._cancel_result)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == f"{self._id_prefix}-annotation-input":
+            # The annotation is never an answer on its own; submitting it just
+            # hands the keyboard back to the preset keys.
+            self.set_focus(None)
+            return
         if event.input.id != f"{self._id_prefix}-custom-input":
             return
         raw = event.input.value.strip()
@@ -201,4 +268,4 @@ class DurationChoiceModal[ResultT, CancelT](ModalScreen[ResultT | CancelT]):
             error.remove_class("hidden")
             event.input.focus()
             return
-        self.dismiss(value)
+        self._dismiss_annotated(value)

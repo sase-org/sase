@@ -2475,6 +2475,12 @@ _DurationPickerModal {
     width: 100%;
 }
 
+.duration-choice-annotation-input {
+    margin-top: 0;
+    margin-bottom: 1;
+    width: 100%;
+}
+
 .duration-choice-custom-error {
     color: $error;
     height: auto;

@@ -66,6 +66,7 @@ class AppKeymaps:
     beads_add_note: str
     beads_create: str
     beads_close: str
+    beads_snooze: str
     beads_launch_work: str
     beads_open_bug: str
     beads_open_plan: str

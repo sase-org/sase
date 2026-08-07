@@ -19,14 +19,29 @@ from sase.integrations._mobile_notification_side_effects import (
 )
 
 
-_MOBILE_GATE_ACTION_KINDS = {
-    "PlanApproval": "plan_approval",
-    "EpicApproval": "epic_approval",
-    "HITL": "hitl",
-    "LaunchApproval": "launch_approval",
-    "TaskTriage": "task_triage",
-    "CustomGate": "custom_gate",
-}
+def _mobile_gate_action_kinds() -> dict[str, str]:
+    """Map every selectable gate action to its pending-action kind.
+
+    Derived from the gate registry rather than listed by hand: a hand-kept
+    copy silently omits each newly registered kind, which reads on the phone
+    as "this notification is not a gate" rather than as a missing entry.
+    ``UserQuestion`` is the one deliberate exclusion -- questions have their
+    own answer path in this module.
+    """
+    from sase.notification_gates.adapters import (
+        adapter_for_kind,
+        registered_gate_kinds,
+    )
+
+    adapters = (adapter_for_kind(kind) for kind in registered_gate_kinds())
+    return {
+        adapter.action: adapter.pending_action_kind
+        for adapter in adapters
+        if adapter.action != "UserQuestion"
+    }
+
+
+_MOBILE_GATE_ACTION_KINDS = _mobile_gate_action_kinds()
 
 
 def execute_mobile_gate_action(

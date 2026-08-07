@@ -508,3 +508,12 @@ def _mutation_double() -> tuple[MagicMock, Any, Any]:
         yield mutation
 
     return project, mutation, mutation_scope
+
+
+def test_snooze_request_matches_the_cli_seconds_resolution() -> None:
+    """Every surface stores the same shape of wake instant, to the second."""
+    now = datetime.fromisoformat("2026-08-06T09:00:00.123456-04:00")
+
+    request = parse_snooze_request("2h", now=now)
+
+    assert request.until == "2026-08-06T11:00:00-04:00"

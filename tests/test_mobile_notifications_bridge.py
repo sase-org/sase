@@ -20,6 +20,8 @@ from sase.integrations.mobile_notifications import (
     resolve_mobile_notification_detail,
 )
 from sase.notification_gates.service import create_gate
+from sase.bead.model import SnoozeRecord
+from sase.bead.snooze_gate import create_bead_snooze_gate
 from sase.bead.task_gate import create_task_triage_gate
 from sase.notifications.models import Notification
 from sase.notifications.store import load_notifications
@@ -455,6 +457,70 @@ def test_execute_mobile_task_triage_reports_registered_action_kind(
         ]
         == "mobile-task-123"
     )
+
+
+def test_mobile_gate_action_kinds_cover_every_registered_gate() -> None:
+    """Mobile must answer every gate kind the registry knows, questions aside.
+
+    A hand-kept copy of this map is how a newly registered kind silently
+    becomes "not a selectable gate" on the phone.
+    """
+    from sase.integrations._mobile_notification_actions import (
+        _MOBILE_GATE_ACTION_KINDS,
+    )
+    from sase.notification_gates.adapters import (
+        adapter_for_kind,
+        registered_gate_kinds,
+    )
+
+    expected = {
+        adapter.action: adapter.pending_action_kind
+        for adapter in (adapter_for_kind(kind) for kind in registered_gate_kinds())
+        if adapter.action != "UserQuestion"
+    }
+
+    assert _MOBILE_GATE_ACTION_KINDS == expected
+    assert _MOBILE_GATE_ACTION_KINDS["BeadSnooze"] == "bead_snooze"
+
+
+def test_execute_mobile_bead_snooze_returns_the_woken_task_to_triage(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    snooze = SnoozeRecord(
+        until="2099-01-04T09:00:00-05:00",
+        snoozed_at="2026-08-01T09:00:00-04:00",
+        snoozed_by="owner@example.com",
+        reason="waiting on upstream",
+    )
+    create_bead_snooze_gate(
+        request_id="mobile-bead-snooze",
+        bead_id="sase-task.2",
+        project="sase",
+        title="Woken follow-up",
+        snooze=snooze,
+    )
+    notification = load_notifications()[0]
+
+    with (
+        patch(
+            "sase.integrations._mobile_notification_snapshot.read_current_notification_snapshot",
+            return_value=_snapshot([notification]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+        patch("sase.bead.snooze_gate.ready_bead_snooze") as ready,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id=notification.id,
+            prefix="mobile-b",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        result = execute_mobile_gate_action("mobile-b", ["ready"])
+
+    assert result.action_kind == "bead_snooze"
+    assert result.response_json["selected_option_ids"] == ["ready"]
+    ready.assert_called_once()
 
 
 def test_mobile_notification_bridge_forwards_gate_selection_unchanged() -> None:

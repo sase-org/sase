@@ -88,7 +88,10 @@ def _parse_snooze_until(text: str, *, now: datetime | None = None) -> str:
                 f"a snooze duration must be positive: {value!r}; "
                 f"{SNOOZE_DURATION_FORMS}"
             )
-        return (reference + delta).isoformat()
+        # Seconds resolution, matching the CLI's `-u/--until`: a wake time is
+        # compared against a five-minute reconciliation tick, so sub-second
+        # precision is noise in every surface that reads the record back.
+        return (reference + delta).replace(microsecond=0).isoformat()
     absolute = _parse_absolute_timestamp(value)
     if absolute is None:
         raise SnoozeDurationError(
@@ -99,7 +102,7 @@ def _parse_snooze_until(text: str, *, now: datetime | None = None) -> str:
             f"a snooze wake time must be in the future: {value!r}; "
             f"{SNOOZE_DURATION_FORMS}"
         )
-    return absolute.isoformat()
+    return absolute.replace(microsecond=0).isoformat()
 
 
 def _parse_relative_duration(value: str) -> timedelta | None:

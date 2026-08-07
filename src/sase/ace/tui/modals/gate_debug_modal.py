@@ -338,6 +338,7 @@ def _context_kind(context: GateDebugContext) -> str:
         "UserQuestion": "question",
         "LaunchApproval": "launch",
         "TaskTriage": "task_triage",
+        "BeadSnooze": "bead_snooze",
         "CustomGate": "custom",
         "HITL": "hitl",
     }.get(action, "notification")

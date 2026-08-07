@@ -143,6 +143,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("N", "beads_add_note", "Add Bead Note", show=False),
     Binding("n", "beads_create", "Create Task Bead", show=False),
     Binding("c", "beads_close", "Close / Reopen Bead", show=False),
+    Binding("z", "beads_snooze", "Snooze Bead", show=False),
     Binding("w", "beads_launch_work", "Launch Bead Work", show=False),
     Binding("o", "beads_open_bug", "Open Linked Bug", show=False),
     Binding("L", "beads_open_plan", "Go to Linked Plan", show=False),

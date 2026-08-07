@@ -111,7 +111,8 @@ def test_default_zoom_migrates_to_uppercase_z_and_fold_keeps_lowercase() -> None
     assert registry.app.start_fold_mode == "z"
     assert registry.app.zoom_panel == "Z"
     assert [binding.action for binding in bindings if binding.key == "z"] == [
-        "start_fold_mode"
+        "start_fold_mode",
+        "beads_snooze",
     ]
     assert [binding.action for binding in bindings if binding.key == "Z"] == [
         "zoom_panel",
@@ -181,3 +182,16 @@ async def test_clear_marks_action_is_disabled_while_modal_active(
         await page.expect_modal("ConfigCenterModal")
 
         assert page.app.check_action("clear_marks", ()) is False
+
+
+def test_fold_and_bead_snooze_never_contend_for_lowercase_z() -> None:
+    """``z`` is shared, so exactly one of its actions may be live at a time."""
+    app = AceApp(auto_start_axe=False, initial_tab="changespecs")
+
+    app.current_artifacts_subtab = "beads"
+    assert app.check_action("start_fold_mode", ()) is False
+    assert app.check_action("beads_snooze", ()) is not False
+
+    app.current_artifacts_subtab = "prs"
+    assert app.check_action("start_fold_mode", ()) is not False
+    assert app.check_action("beads_snooze", ()) is False

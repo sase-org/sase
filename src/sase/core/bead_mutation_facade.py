@@ -184,16 +184,6 @@ def cancel_snooze(
     return _issue_payload(payload), payload
 
 
-def wake_due_snoozes(beads_dir: Path | str, now: str) -> dict[str, Any]:
-    """Return the snoozed task beads whose wake time has arrived.
-
-    This is a selector, not a mutation: reaching the wake time raises a gate,
-    and the status changes only once a human answers it.
-    """
-    binding = require_rust_binding("bead_wake_due_snoozes")
-    return dict(binding(str(beads_dir), now))
-
-
 def claim_for_agent_launch(
     beads_dir: Path | str,
     bead_id: str,
@@ -465,5 +455,4 @@ __all__ = [
     "unmark_ready_to_work",
     "update",
     "update_many",
-    "wake_due_snoozes",
 ]

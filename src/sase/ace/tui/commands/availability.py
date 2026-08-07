@@ -133,6 +133,7 @@ _BEADS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.beads_add_note",
         "app.beads_create",
         "app.beads_close",
+        "app.beads_snooze",
         "app.beads_launch_work",
         "app.beads_open_bug",
         "app.beads_open_plan",

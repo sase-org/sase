@@ -176,6 +176,7 @@ _ACTION_LABELS: dict[str | None, tuple[str, str]] = {
     "HITL": ("HITL", "HITLs"),
     "LaunchApproval": ("launch approval", "launch approvals"),
     "TaskTriage": ("task triage", "task triages"),
+    "BeadSnooze": ("snoozed task", "snoozed tasks"),
     "ViewErrorReport": ("axe error", "axe errors"),
     "ViewReport": ("report", "reports"),
     "JumpToChangeSpec": ("sync", "syncs"),

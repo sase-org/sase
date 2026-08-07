@@ -28,6 +28,9 @@ from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
         (IssueType.TASK, Status.OPEN, Status.READY),
         (IssueType.TASK, Status.CLAIMED, Status.READY),
         (IssueType.TASK, Status.READY, Status.IN_PROGRESS),
+        # Nothing cycles *into* snoozed -- a snooze needs a wake time -- but
+        # cycling out of it must return the task to triage.
+        (IssueType.TASK, Status.SNOOZED, Status.READY),
         (IssueType.TASK, Status.IN_PROGRESS, Status.CLOSED),
         (IssueType.PHASE, Status.OPEN, Status.IN_PROGRESS),
         (IssueType.PLAN, Status.CLOSED, Status.OPEN),

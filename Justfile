@@ -270,10 +270,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-gn.3(default_notification_tab_color)' \
-        --epic-symbol 'sase-gn.3(notification_tab_config_key)' \
-        --epic-symbol 'sase-gn.3(notification_tab_key)' \
-        --epic-symbol 'sase-gn.7(wake_due_snoozes)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -53,18 +53,18 @@ _AUTO_PALETTE = (
 )
 
 
-def notification_tab_key(tab: NotificationTagTab) -> str:
+def _notification_tab_key(tab: NotificationTagTab) -> str:
     """Return the core tab key for *tab*, spelling the general tab out."""
     return GENERAL_TAB_KEY if tab.tag is None else tab.tag
 
 
-def notification_tab_config_key(tab: NotificationTagTab) -> str:
+def _notification_tab_config_key(tab: NotificationTagTab) -> str:
     """Return the ``ace.notification_tabs`` key users write for *tab*.
 
     Config keys use the user-facing names, so the internal ``__snoozed__`` and
     ``__muted__`` keys are not something anyone has to type.
     """
-    key = notification_tab_key(tab)
+    key = _notification_tab_key(tab)
     if key == SNOOZED_TAB_KEY:
         return "snoozed"
     if key == MUTED_TAB_KEY:
@@ -79,16 +79,16 @@ def notification_tab_label(tab: NotificationTagTab) -> str:
 
 def resolve_notification_tab_color(tab: NotificationTagTab) -> str:
     """Return the effective foreground color for one notification tab."""
-    configured = _configured_tab_colors().get(notification_tab_config_key(tab))
+    configured = _configured_tab_colors().get(_notification_tab_config_key(tab))
     if configured:
         return configured
     declared = _sanitize_color(tab.color)
     if declared:
         return declared
-    return default_notification_tab_color(notification_tab_config_key(tab))
+    return _default_notification_tab_color(_notification_tab_config_key(tab))
 
 
-def default_notification_tab_color(config_key: str) -> str:
+def _default_notification_tab_color(config_key: str) -> str:
     """Return the built-in or auto-palette color for one user-facing key."""
     builtin = _BUILTIN_TAB_COLORS.get(config_key)
     if builtin is not None:
@@ -164,10 +164,7 @@ def _configured_tab_colors() -> dict[str, str]:
 __all__ = [
     "DEFAULT_NOTIFICATION_INDICATOR_MAX_COUNTS",
     "GENERAL_TAB_KEY",
-    "default_notification_tab_color",
     "notification_indicator_max_counts",
-    "notification_tab_config_key",
-    "notification_tab_key",
     "notification_tab_label",
     "resolve_notification_tab_color",
 ]

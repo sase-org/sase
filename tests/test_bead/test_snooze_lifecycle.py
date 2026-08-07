@@ -10,7 +10,6 @@ from sase.bead import db as bead_db
 from sase.bead.jsonl import import_from_jsonl
 from sase.bead.model import IssueType, PhaseSize, Status
 from sase.bead.project import BeadProject
-from sase.core import bead_mutation_facade as rust_beads
 
 UNTIL = "2026-08-09T09:00:00-04:00"
 
@@ -64,25 +63,6 @@ def test_snooze_round_trips_through_every_persistence_surface(
     assert mirrored is not None
     assert mirrored.status is Status.SNOOZED
     assert mirrored.snooze == issue.snooze
-
-
-def test_wake_selector_reports_due_beads_without_mutating_them(
-    tmp_path: Path,
-) -> None:
-    with BeadProject.init(tmp_path) as project:
-        task_id = _ready_task(project)
-        project.snooze(task_id, until=UNTIL, actor="owner")
-
-        beads_dir = project.beads_dir
-        early = rust_beads.wake_due_snoozes(beads_dir, "2026-08-09T12:59:00Z")
-        assert early["due"] == []
-
-        # 09:00-04:00 is 13:00Z, so the same instant is due.
-        due = rust_beads.wake_due_snoozes(beads_dir, "2026-08-09T13:00:00Z")
-        assert [entry["issue_id"] for entry in due["due"]] == [task_id]
-        assert due["due"][0]["until"] == UNTIL
-
-        assert project.show(task_id).status is Status.SNOOZED
 
 
 def test_cancel_snooze_returns_the_bead_to_ready(tmp_path: Path) -> None:

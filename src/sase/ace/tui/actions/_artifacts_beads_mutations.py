@@ -19,6 +19,13 @@ from ._artifacts_beads_common import (
 if TYPE_CHECKING:
     from ..modals.bead_close_modal import BeadCloseResult
     from ..modals.bead_create_modal import BeadCreateResult
+    from ..modals.bead_snooze_modal import BeadSnoozeChoice
+
+
+# Only a task bead has a snooze, and the store accepts one only from these
+# statuses. Checking here keeps the refusal in the modal-less fast path: a
+# claimed or in-progress task never opens a picker it cannot act on.
+_SNOOZABLE_STATUSES = frozenset({Status.OPEN, Status.READY, Status.SNOOZED})
 
 
 class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
@@ -111,6 +118,84 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
             )
 
         self.push_screen(BeadNoteModal(row.issue.id), dismissed)  # type: ignore[attr-defined]
+
+    def action_beads_snooze(self) -> None:
+        selected = self._selected_bead()
+        if selected is None:
+            return
+        pane, row = selected
+        issue = row.issue
+        if issue.issue_type is not IssueType.TASK:
+            self._notify_beads("Only task beads can be snoozed", severity="warning")
+            return
+        if issue.status not in _SNOOZABLE_STATUSES:
+            self._notify_beads(
+                "Only open, ready, and already snoozed task beads can be snoozed",
+                severity="warning",
+            )
+            return
+        from ..modals.bead_snooze_modal import BeadSnoozeModal
+
+        def dismissed(choice: BeadSnoozeChoice | None) -> None:
+            if choice is not None:
+                self._submit_bead_snooze(pane, row, choice)
+
+        self.push_screen(BeadSnoozeModal(issue), dismissed)  # type: ignore[attr-defined]
+
+    def _submit_bead_snooze(
+        self,
+        pane: ArtifactsBeadsPane,
+        row: BeadRow,
+        choice: BeadSnoozeChoice,
+    ) -> None:
+        from ..modals.bead_snooze_modal import BeadSnoozeRequest
+
+        if not isinstance(choice, BeadSnoozeRequest):
+            self._submit_bead_cancel_snooze(pane, row)
+            return
+        request = choice
+
+        def mutate(project: Any) -> Issue:
+            return project.snooze(
+                row.issue.id,
+                until=request.until,
+                actor=bead_note_author(project),
+                plus_ones=request.plus_ones,
+                reason=request.reason,
+            )
+
+        self._submit_bead_mutation(
+            pane,
+            row,
+            operation="snooze",
+            display_name=f"Snooze bead · {row.issue.id}",
+            success_message=f"Snoozed {row.issue.id}",
+            mutation=mutate,
+            commit_operation="snooze",
+            # A ready task carries a pending TaskTriage gate, and the point of
+            # snoozing is to stop being asked. Settling it here rather than
+            # waiting for the reconciler's next tick means the answer is
+            # immediate; the reconciler still owns raising the snooze gate.
+            settle_triage_reason="bead_status_changed",
+        )
+
+    def _submit_bead_cancel_snooze(
+        self,
+        pane: ArtifactsBeadsPane,
+        row: BeadRow,
+    ) -> None:
+        def mutate(project: Any) -> Issue:
+            return project.cancel_snooze(row.issue.id, actor=bead_note_author(project))
+
+        self._submit_bead_mutation(
+            pane,
+            row,
+            operation="snooze-cancel",
+            display_name=f"Wake bead · {row.issue.id}",
+            success_message=f"Woke {row.issue.id} and returned it to triage",
+            mutation=mutate,
+            commit_operation="snooze_cancel",
+        )
 
     def action_beads_create(self) -> None:
         pane = self._beads_pane()

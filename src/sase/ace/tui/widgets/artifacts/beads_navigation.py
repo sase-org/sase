@@ -191,6 +191,13 @@ class BeadsNavigationMixin(_MixinBase):
                 "reopen" if row.issue.status is Status.CLOSED else "close",
             )
         )
+        if _bead_row_is_snoozable(row):
+            entries.append(
+                (
+                    "beads_snooze",
+                    "re-snooze" if row.issue.status is Status.SNOOZED else "snooze",
+                )
+            )
         if _bead_row_linked_bug(row, snapshot) is not None:
             entries.append(("beads_open_bug", "open bug"))
         return tuple(entries)
@@ -370,6 +377,15 @@ def _can_launch_bead_row(
         return False
     key = (row.project, issue.id)
     return bool(snapshot.phases_by_epic.get(key)) and key not in snapshot.blocked_ids
+
+
+def _bead_row_is_snoozable(row: BeadRow) -> bool:
+    """Return whether *row* is a task bead the store would let us snooze."""
+    return row.issue.issue_type is IssueType.TASK and row.issue.status in {
+        Status.OPEN,
+        Status.READY,
+        Status.SNOOZED,
+    }
 
 
 def _bead_row_linked_bug(

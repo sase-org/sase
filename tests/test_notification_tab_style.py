@@ -17,10 +17,10 @@ from sase.ace.tui.widgets.notification_tab_style import (
     DEFAULT_NOTIFICATION_INDICATOR_MAX_COUNTS,
     _AUTO_PALETTE,
     _BUILTIN_TAB_COLORS,
-    default_notification_tab_color,
+    _default_notification_tab_color,
     notification_indicator_max_counts,
-    notification_tab_config_key,
-    notification_tab_key,
+    _notification_tab_config_key,
+    _notification_tab_key,
     notification_tab_label,
     resolve_notification_tab_color,
 )
@@ -103,7 +103,7 @@ def test_config_keys_use_the_user_facing_tab_names(
     config_key: str,
 ) -> None:
     """Nobody should have to type ``__snoozed__`` in their config."""
-    assert notification_tab_config_key(_tab(tag)) == config_key
+    assert _notification_tab_config_key(_tab(tag)) == config_key
 
 
 def test_a_configured_snoozed_color_reaches_the_synthetic_tab(
@@ -115,7 +115,7 @@ def test_a_configured_snoozed_color_reaches_the_synthetic_tab(
 
 
 def test_the_general_tab_keys_off_its_core_name() -> None:
-    assert notification_tab_key(_tab(None)) == "general"
+    assert _notification_tab_key(_tab(None)) == "general"
     assert resolve_notification_tab_color(_tab(None)) == _BUILTIN_TAB_COLORS["general"]
 
 
@@ -136,7 +136,7 @@ def test_the_auto_palette_never_collides_with_a_builtin_default() -> None:
 def test_distinct_tags_spread_across_the_auto_palette() -> None:
     tags = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"]
 
-    colors = {default_notification_tab_color(tag) for tag in tags}
+    colors = {_default_notification_tab_color(tag) for tag in tags}
 
     assert len(colors) > 1
 
