@@ -212,6 +212,83 @@ def test_plan_differing_target_reports_overwrite(
     assert plan.summary == "overwrite 1 provider skill file"
 
 
+def test_check_defers_dirty_chezmoi_source_drift_as_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Drift the deploy-side guard would refuse is a warning, not a failure."""
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    monkeypatch.setattr(
+        init_skills_handler, "CHEZMOI_HOME", tmp_path / "chezmoi" / "home"
+    )
+    integrity_error = (
+        "refusing chezmoi skill deploy because xprompt sources have "
+        "uncommitted changes:\n  M src/sase/xprompts/skills/foo.md"
+    )
+    monkeypatch.setattr(
+        init_skills_handler, "skill_source_integrity_error", lambda: integrity_error
+    )
+
+    plan = plan_init_skills(make_args(check=True, provider="claude"))
+
+    assert plan.actions == ()
+    assert plan.blockers == ()
+    assert plan.summary == "provider skill files are current"
+    assert (
+        "1 provider skill file out of sync with rendered sources; redeploy is "
+        "deferred until land. Rerun `sase init skills` after landing."
+    ) in plan.warnings
+    assert integrity_error in plan.warnings
+    assert run_init_skills(make_args(check=True, provider="claude")) == 0
+
+
+def test_check_defers_clean_but_stale_chezmoi_drift_as_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A clean, already-landed but undeployed source is deferred too."""
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    monkeypatch.setattr(
+        init_skills_handler, "CHEZMOI_HOME", tmp_path / "chezmoi" / "home"
+    )
+    monkeypatch.setattr(
+        init_skills_handler, "skill_source_integrity_error", lambda: None
+    )
+
+    plan = plan_init_skills(make_args(check=True, provider="claude"))
+
+    assert plan.actions == ()
+    assert (
+        "1 provider skill file out of sync with rendered sources; redeploy is "
+        "deferred until land. Rerun `sase init skills` after landing."
+    ) in plan.warnings
+    assert run_init_skills(make_args(check=True, provider="claude")) == 0
+
+
+def test_non_check_plan_still_reports_actionable_chezmoi_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outside ``--check``, onboarding still sees real drift to offer applying."""
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    monkeypatch.setattr(
+        init_skills_handler, "CHEZMOI_HOME", tmp_path / "chezmoi" / "home"
+    )
+    monkeypatch.setattr(
+        init_skills_handler,
+        "skill_source_integrity_error",
+        lambda: "refusing chezmoi skill deploy because HEAD is not an ancestor",
+    )
+
+    plan = plan_init_skills(make_args(provider="claude"))
+
+    assert [action.operation for action in plan.actions] == ["create"]
+    assert plan.warnings == ()
+
+
 def test_plan_honors_provider_filter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

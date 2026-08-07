@@ -326,6 +326,28 @@ def _deploy_to_chezmoi(
     )
 
 
+def _deferred_skill_deploy_warnings(
+    pending_count: int, integrity_error: str | None
+) -> tuple[str, ...]:
+    """Return ``--check`` warnings for drift a read-only check cannot resolve.
+
+    Redeploying to chezmoi is a separate, deliberate ``sase init skills`` run
+    that ``skill_source_integrity_error`` may refuse outright from a dirty or
+    unlanded tree; even when it would succeed, a passing ``--check`` should
+    not depend on a mutating deploy the current agent has no reason to run.
+    Either way, ``--check`` reports the drift as a warning instead of failing
+    for something it cannot fix in place.
+    """
+    noun = "provider skill file" if pending_count == 1 else "provider skill files"
+    warning = (
+        f"{pending_count} {noun} out of sync with rendered sources; redeploy is "
+        "deferred until land. Rerun `sase init skills` after landing."
+    )
+    if integrity_error is None:
+        return (warning,)
+    return (warning, integrity_error)
+
+
 def plan_init_skills(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for generated provider skill files."""
     use_chezmoi = get_use_chezmoi()
@@ -373,13 +395,21 @@ def plan_init_skills(args: argparse.Namespace) -> InitPlan:
             )
         )
 
-    warnings = (_PRETTIER_WARNING,) if targets and not use_prettier else ()
+    warnings: list[str] = []
+    if targets and not use_prettier:
+        warnings.append(_PRETTIER_WARNING)
+
+    if use_chezmoi and actions and getattr(args, "check", False):
+        integrity_error = skill_source_integrity_error()
+        warnings.extend(_deferred_skill_deploy_warnings(len(actions), integrity_error))
+        actions = []
+
     return InitPlan(
         command="skills",
         label="Skills",
         summary=_summarize_skill_actions(tuple(actions)),
         actions=tuple(actions),
-        warnings=warnings,
+        warnings=tuple(warnings),
     )
 
 
