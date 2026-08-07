@@ -189,12 +189,12 @@ def _linked_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:
 
 def _sidecar_repos_raw(
     config: Mapping[str, Any],
-) -> tuple[tuple[tuple[str, str | None, Any], ...], str | None]:
+) -> tuple[tuple[tuple[str, str, Any], ...], str | None]:
     """Return ``(label, role, entry)`` triples plus a shape error, if any.
 
-    ``role`` is ``None`` for the deprecated list form, where the role still
-    lives in the entry's ``name`` field; the mapping form takes it from the
-    bucket key. The label is the config path the validator reports.
+    ``repos.sidecar`` is a mapping of ``builtin``/``custom`` buckets keyed by
+    role; the role comes from the bucket key. The label is the config path the
+    validator reports.
     """
 
     repos = config.get(REPOS_CONFIG_KEY)
@@ -202,25 +202,22 @@ def _sidecar_repos_raw(
     raw = repos.get(REPOS_SIDECAR_CONFIG_KEY) if isinstance(repos, Mapping) else None
     if raw is None:
         return (), None
-    if isinstance(raw, Mapping):
-        triples: list[tuple[str, str | None, Any]] = []
-        for bucket in (SIDECAR_BUILTIN_CONFIG_KEY, SIDECAR_CUSTOM_CONFIG_KEY):
-            values = raw.get(bucket)
-            if values is None:
-                continue
-            if not isinstance(values, Mapping):
-                return (), f"{source_key}.{bucket} must be a mapping"
-            for role, entry in values.items():
-                triples.append((f"{source_key}.{bucket}[{role!r}]", str(role), entry))
-        return tuple(triples), None
-    if not isinstance(raw, list):
-        return (), f"{source_key} must be a list"
-    return (
-        tuple(
-            (f"{source_key}[{index}]", None, entry) for index, entry in enumerate(raw)
-        ),
-        None,
-    )
+    if not isinstance(raw, Mapping):
+        return (), (
+            f"{source_key} must be a mapping with "
+            f"{SIDECAR_BUILTIN_CONFIG_KEY} and/or {SIDECAR_CUSTOM_CONFIG_KEY} "
+            "role maps"
+        )
+    triples: list[tuple[str, str, Any]] = []
+    for bucket in (SIDECAR_BUILTIN_CONFIG_KEY, SIDECAR_CUSTOM_CONFIG_KEY):
+        values = raw.get(bucket)
+        if values is None:
+            continue
+        if not isinstance(values, Mapping):
+            return (), f"{source_key}.{bucket} must be a mapping"
+        for role, entry in values.items():
+            triples.append((f"{source_key}.{bucket}[{role!r}]", str(role), entry))
+    return tuple(triples), None
 
 
 def _sidecar_memory_name(
@@ -311,7 +308,7 @@ def linked_entries_from_config(
     if sidecar_error is not None:
         errors.append(f"{config_path}: {sidecar_error}")
     else:
-        for entry_label, bucket_role, item in sidecar_triples:
+        for entry_label, role, item in sidecar_triples:
             prefix = f"{config_path}: {entry_label}"
             if not isinstance(item, Mapping):
                 errors.append(f"{prefix} must be a mapping")
@@ -328,11 +325,10 @@ def linked_entries_from_config(
             if auto_clone or disabled:
                 continue
 
-            role = bucket_role if bucket_role is not None else item.get("name")
-            if not isinstance(role, str) or not role.strip():
-                errors.append(f"{prefix} is missing required string field 'name'")
-                continue
             role = role.strip()
+            if not role:
+                errors.append(f"{prefix} has a blank sidecar role name")
+                continue
             if role in HIDDEN_SIDECAR_ROLES:
                 continue
 

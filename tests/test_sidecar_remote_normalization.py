@@ -53,7 +53,7 @@ def test_unpinned_github_sidecar_uses_canonical_ssh(
     _set_origin(primary, origin)
 
     entries = merged_sidecar_entries_from_config(
-        {"repos": {"sidecar": [{"name": "research"}]}},
+        {"repos": {"sidecar": {"custom": {"research": {}}}}},
         primary_workspace_dir=str(primary),
     )
 
@@ -75,7 +75,7 @@ def test_enterprise_sidecar_preserves_host_and_port(tmp_path: Path) -> None:
         {
             "github_hosts": ["github.enterprise.test:2222"],
             "repos": {
-                "sidecar": [{"name": "research", "repo": "other/shared-research"}]
+                "sidecar": {"custom": {"research": {"repo": "other/shared-research"}}}
             },
         },
         primary_workspace_dir=str(primary),
@@ -92,7 +92,7 @@ def test_non_http_custom_stored_sidecar_remote_is_preserved(tmp_path: Path) -> N
     primary.mkdir()
     _set_origin(primary, "https://gitlab.example/acme/widget.git")
     config = {
-        "repos": {"sidecar": [{"name": "research", "repo": "acme/shared-research"}]}
+        "repos": {"sidecar": {"custom": {"research": {"repo": "acme/shared-research"}}}}
     }
     write_sdd_store_record(
         primary,

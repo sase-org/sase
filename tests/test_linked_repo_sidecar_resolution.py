@@ -37,13 +37,14 @@ def test_configured_sidecar_resolves_role_slug_and_remote(tmp_path: Path) -> Non
         config={
             "workspace": {"root": "adjacent"},
             "repos": {
-                "sidecar": [
-                    {
-                        "name": "research",
-                        "repo": "sase-org/shared-research",
-                        "visibility": "private",
+                "sidecar": {
+                    "custom": {
+                        "research": {
+                            "repo": "sase-org/shared-research",
+                            "visibility": "private",
+                        }
                     }
-                ]
+                }
             },
         },
         materialize=False,
@@ -91,7 +92,7 @@ def test_configured_sidecar_ignores_poisoned_store_remote(tmp_path: Path) -> Non
         workspace_num=0,
         config={
             "repos": {
-                "sidecar": [{"name": "research", "repo": "sase-org/sase--research"}]
+                "sidecar": {"custom": {"research": {"repo": "sase-org/sase--research"}}}
             }
         },
         materialize=False,
@@ -133,7 +134,7 @@ def test_configured_sidecar_preserves_consistent_store_remote(tmp_path: Path) ->
         workspace_num=0,
         config={
             "repos": {
-                "sidecar": [{"name": "research", "repo": "sase-org/sase--research"}]
+                "sidecar": {"custom": {"research": {"repo": "sase-org/sase--research"}}}
             }
         },
         materialize=False,
@@ -174,7 +175,7 @@ def test_unpinned_configured_sidecar_ignores_stale_store_repo(
         project_file=str(project_file),
         workspace_dir=str(primary),
         workspace_num=0,
-        config={"repos": {"sidecar": [{"name": "research"}]}},
+        config={"repos": {"sidecar": {"custom": {"research": {}}}}},
         materialize=False,
     )
 
@@ -203,51 +204,12 @@ def test_disabled_sidecar_suppresses_matching_implicit_default(
         config={
             "is_sase_managed": True,
             "workspace": {"root": "adjacent"},
-            "repos": {"sidecar": [{"name": "research", "disabled": True}]},
+            "repos": {"sidecar": {"custom": {"research": {"disabled": True}}}},
         },
         materialize=False,
     )
 
     assert [repo.name for repo in resolution.repos] == ["sase--plans"]
-
-
-def test_project_sidecar_entry_overrides_global_entry_by_role(tmp_path: Path) -> None:
-    primary = tmp_path / "sase"
-    primary.mkdir()
-    merged = _merge_resolution_config(
-        {
-            "repos": {
-                "sidecar": [
-                    {
-                        "name": "research",
-                        "repo": "sase-org/shared-research",
-                        "visibility": "public",
-                    }
-                ]
-            }
-        },
-        {
-            "repos": {
-                "sidecar": [
-                    {
-                        "name": "research",
-                        "visibility": "private",
-                        "disabled": True,
-                    }
-                ]
-            }
-        },
-    )
-
-    entries = merged_sidecar_entries_from_config(
-        merged,
-        primary_workspace_dir=str(primary),
-    )
-
-    assert len(entries) == 1
-    assert entries[0]["repo"] == "sase-org/shared-research"
-    assert entries[0]["visibility"] == "private"
-    assert entries[0]["disabled"] is True
 
 
 def test_managed_project_injects_default_plans_and_beads_sidecars(
@@ -338,7 +300,7 @@ def test_explicit_agents_override_suppresses_implicit_default(
     _set_github_origin(primary, "git@github.com:acme/widget.git")
     config = {
         "is_sase_managed": True,
-        "repos": {"sidecar": [{"name": "agents", **override}]},
+        "repos": {"sidecar": {"builtin": {"agents": {**override}}}},
     }
     configured = merged_sidecar_entries_from_config(
         config,
@@ -377,13 +339,14 @@ def test_hidden_agents_sidecar_never_resolves_for_launch(tmp_path: Path) -> None
         config={
             "workspace": {"root": "adjacent"},
             "repos": {
-                "sidecar": [
-                    {
-                        "name": "agents",
-                        "repo": "acme/shared-agents",
-                        "auto_clone": True,
+                "sidecar": {
+                    "builtin": {
+                        "agents": {
+                            "repo": "acme/shared-agents",
+                            "auto_clone": True,
+                        }
                     }
-                ]
+                }
             },
         },
         materialize=False,
@@ -394,7 +357,7 @@ def test_hidden_agents_sidecar_never_resolves_for_launch(tmp_path: Path) -> None
         sdd_sidecar_clone_dirname(
             primary,
             "agents",
-            config={"repos": {"sidecar": [{"name": "agents"}]}},
+            config={"repos": {"sidecar": {"builtin": {"agents": {}}}}},
         )
         is None
     )
@@ -403,7 +366,9 @@ def test_hidden_agents_sidecar_never_resolves_for_launch(tmp_path: Path) -> None
             primary,
             "widget--plans",
             config={
-                "repos": {"sidecar": [{"name": "agents", "repo": "acme/widget--plans"}]}
+                "repos": {
+                    "sidecar": {"builtin": {"agents": {"repo": "acme/widget--plans"}}}
+                }
             },
         )
         is None
@@ -413,7 +378,9 @@ def test_hidden_agents_sidecar_never_resolves_for_launch(tmp_path: Path) -> None
             primary,
             "shared-agents",
             config={
-                "repos": {"sidecar": [{"name": "agents", "repo": "acme/shared-agents"}]}
+                "repos": {
+                    "sidecar": {"builtin": {"agents": {"repo": "acme/shared-agents"}}}
+                }
             },
         )
         is None
@@ -541,7 +508,9 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
     assert sdd_sidecar_clone_dirname(primary, "main--plans", config={}) is None
 
     pinned_config = {
-        "repos": {"sidecar": [{"name": "research", "repo": "owner/shared-research"}]}
+        "repos": {
+            "sidecar": {"custom": {"research": {"repo": "owner/shared-research"}}}
+        }
     }
     assert (
         sdd_sidecar_clone_dirname(primary, "research", config=pinned_config)
@@ -557,31 +526,8 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
     )
 
 
-def _sidecar_role_view(entry: object) -> dict[str, object]:
-    """Project one normalized entry down to its shape-independent fields."""
-
-    assert isinstance(entry, dict)
-    return {
-        key: value
-        for key, value in entry.items()
-        if key
-        in {
-            "name",
-            "repo",
-            "description",
-            "auto_clone",
-            "disabled",
-            "visibility",
-            "_sase_sidecar_role",
-            "_sase_sidecar_slug",
-        }
-    }
-
-
-def test_bucketed_and_legacy_sidecar_shapes_normalize_identically(
-    tmp_path: Path,
-) -> None:
-    """Both ``repos.sidecar`` shapes produce the same normalized entries."""
+def test_removed_legacy_sidecar_list_form_yields_no_entries(tmp_path: Path) -> None:
+    """The list form is gone; the parser reads nothing from it."""
     primary = tmp_path / "widget"
     primary.mkdir()
     _set_github_origin(primary, "git@github.com:acme/widget.git")
@@ -589,35 +535,15 @@ def test_bucketed_and_legacy_sidecar_shapes_normalize_identically(
         "repos": {
             "sidecar": [
                 {"name": "plans", "auto_clone": True},
-                {"name": "beads", "auto_clone": True},
-                {"name": "agents", "visibility": "private"},
                 {"name": "research", "description": "Durable research."},
             ]
         }
     }
-    bucketed = {
-        "repos": {
-            "sidecar": {
-                "builtin": {
-                    "plans": {"auto_clone": True},
-                    "beads": {"auto_clone": True},
-                    "agents": {"visibility": "private"},
-                },
-                "custom": {"research": {"description": "Durable research."}},
-            }
-        }
-    }
 
-    legacy_entries = merged_sidecar_entries_from_config(
-        legacy, primary_workspace_dir=str(primary)
+    assert (
+        merged_sidecar_entries_from_config(legacy, primary_workspace_dir=str(primary))
+        == []
     )
-    bucketed_entries = merged_sidecar_entries_from_config(
-        bucketed, primary_workspace_dir=str(primary)
-    )
-
-    assert [_sidecar_role_view(entry) for entry in bucketed_entries] == [
-        _sidecar_role_view(entry) for entry in legacy_entries
-    ]
 
 
 def test_bucketed_sidecar_roles_emit_builtin_order_then_configured_custom_order(

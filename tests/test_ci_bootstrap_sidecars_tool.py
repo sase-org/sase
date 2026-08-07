@@ -47,11 +47,18 @@ def tool_fixture() -> types.ModuleType:
     return load_script()
 
 
+RESERVED_ROLES = frozenset({"plans", "beads", "agents"})
+
+
 def _config(*names: str, **extra: Any) -> dict[str, Any]:
-    entries: list[dict[str, Any]] = [{"name": name} for name in names]
+    """Build a ``repos.sidecar`` mapping, bucketing each role by reservation."""
+
+    buckets: dict[str, dict[str, Any]] = {"builtin": {}, "custom": {}}
+    for name in names:
+        buckets["builtin" if name in RESERVED_ROLES else "custom"][name] = {}
     for name, fields in extra.items():
-        entries.append({"name": name, **fields})
-    return {"repos": {"sidecar": entries}}
+        buckets["builtin" if name in RESERVED_ROLES else "custom"][name] = dict(fields)
+    return {"repos": {"sidecar": buckets}}
 
 
 def test_repo_project_config_drives_the_plan(tool: types.ModuleType) -> None:
@@ -317,8 +324,7 @@ def test_main_reports_a_missing_config(
     assert "missing SASE config" in capsys.readouterr().err
 
 
-def test_bucketed_sidecar_config_drives_the_same_plan(tool: types.ModuleType) -> None:
-    """The canonical builtin/custom mapping plans exactly like the list form."""
+def test_bucketed_sidecar_config_drives_the_plan(tool: types.ModuleType) -> None:
     config = {
         "repos": {
             "sidecar": {

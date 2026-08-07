@@ -292,12 +292,10 @@ def test_full_show_bounds_git_origin_probes_during_repo_inventory(
     config = {
         "is_sase_managed": True,
         "repos": {
-            "sidecar": [
-                {"name": "plans"},
-                {"name": "beads"},
-                {"name": "research"},
-                {"name": "agents"},
-            ]
+            "sidecar": {
+                "builtin": {"plans": {}, "beads": {}, "agents": {}},
+                "custom": {"research": {}},
+            }
         },
     }
     project_record = ProjectRecordWire(

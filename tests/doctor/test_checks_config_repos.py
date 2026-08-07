@@ -40,10 +40,10 @@ def test_repos_reports_ok_for_canonical_bucketed_config(
     assert check.next_steps == ()
 
 
-def test_repos_reports_legacy_list_with_target_buckets(
+def test_repos_reports_removed_list_with_target_buckets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Each legacy list entry names the bucket it must move to."""
+    """Each stale list entry names the bucket it must move to."""
     _patch_config(
         monkeypatch,
         {
@@ -64,7 +64,7 @@ def test_repos_reports_legacy_list_with_target_buckets(
     assert "repos.sidecar.custom.research" in messages[1]
 
 
-def test_repos_reports_empty_legacy_list(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_repos_reports_empty_removed_list(monkeypatch: pytest.MonkeyPatch) -> None:
     """An empty list still needs migrating to the mapping form."""
     _patch_config(monkeypatch, {"repos": {"sidecar": []}})
 

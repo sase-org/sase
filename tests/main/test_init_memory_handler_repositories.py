@@ -179,11 +179,12 @@ def test_init_memory_renders_project_and_home_sidecars_with_expected_slugs(
 is_sase_managed: true
 repos:
   sidecar:
-    - name: research
-      description: Durable SASE research reports and generated media.
-    - name: reports
-      repo: example-org/custom-reports
-      description: Project reports.
+    custom:
+      research:
+        description: Durable SASE research reports and generated media.
+      reports:
+        repo: example-org/custom-reports
+        description: Project reports.
 """,
     )
     write(
@@ -191,8 +192,9 @@ repos:
         """
 repos:
   sidecar:
-    - name: notes
-      description: Home notes.
+    custom:
+      notes:
+        description: Home notes.
 """,
     )
 
@@ -232,10 +234,13 @@ def test_init_memory_skips_auto_cloned_and_disabled_sidecars_before_validation(
 is_sase_managed: true
 repos:
   sidecar:
-    - auto_clone: true
-    - disabled: true
-    - name: artifacts
-      description: Lazy project artifacts.
+    custom:
+      lazy-clone:
+        auto_clone: true
+      opted-out:
+        disabled: true
+      artifacts:
+        description: Lazy project artifacts.
 """,
     )
 
@@ -330,14 +335,15 @@ def test_init_memory_reports_missing_sidecar_descriptions(
 is_sase_managed: true
 repos:
   sidecar:
-    - name: research
+    custom:
+      research: {}
 """,
     )
 
     assert run_handler() == 1
     err = capsys.readouterr().err
     assert "cannot generate project memory" in err
-    assert "repos.sidecar[0] ('research')" in err
+    assert "repos.sidecar.custom['research']" in err
     assert "field 'description'" in err
     assert not (project_root / "sase" / "memory").exists()
 
@@ -382,7 +388,6 @@ def test_init_memory_renders_bucketed_sidecars(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The mapping shape renders the same rows as the deprecated list form."""
     project_root = tmp_path / "sase"
     home_root = tmp_path / "home"
     config_dir = tmp_path / "config"
@@ -448,8 +453,9 @@ def test_init_memory_omits_minimal_hidden_agents_sidecar(
 is_sase_managed: true
 repos:
   sidecar:
-    - name: agents
-      auto_clone: true
+    builtin:
+      agents:
+        auto_clone: true
 """,
     )
 

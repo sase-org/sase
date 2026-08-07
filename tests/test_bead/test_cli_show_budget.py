@@ -65,7 +65,7 @@ def test_show_bounds_repo_inventory_subprocess_calls_for_ref_bearing_bead(
     (primary / ".git").mkdir()
     config = {
         "is_sase_managed": True,
-        "repos": {"sidecar": [{"name": "plans"}, {"name": "research"}]},
+        "repos": {"sidecar": {"builtin": {"plans": {}}, "custom": {"research": {}}}},
     }
     project_record = ProjectRecordWire(
         schema_version=3,

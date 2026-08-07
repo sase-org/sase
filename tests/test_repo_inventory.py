@@ -168,14 +168,15 @@ def test_inventory_surfaces_configured_sidecar_role_and_slug(
     _set_github_origin(Path(project.workspace_dir or ""))
     config = {
         "repos": {
-            "sidecar": [
-                {
-                    "name": "designs",
-                    "repo": "acme/shared-designs",
-                    "description": "Shared design documents",
-                    "visibility": "private",
+            "sidecar": {
+                "custom": {
+                    "designs": {
+                        "repo": "acme/shared-designs",
+                        "description": "Shared design documents",
+                        "visibility": "private",
+                    }
                 }
-            ]
+            }
         }
     }
     monkeypatch.setattr(
@@ -238,13 +239,14 @@ def test_inventory_gates_beads_auto_clone_on_store_record(
     )
     config = {
         "repos": {
-            "sidecar": [
-                {
-                    "name": "beads",
-                    "auto_clone": True,
-                    "description": DEFAULT_BEADS_DESCRIPTION,
+            "sidecar": {
+                "builtin": {
+                    "beads": {
+                        "auto_clone": True,
+                        "description": DEFAULT_BEADS_DESCRIPTION,
+                    }
                 }
-            ]
+            }
         }
     }
     monkeypatch.setattr(
@@ -288,7 +290,7 @@ def test_disabled_configured_sidecar_suppresses_store_record(
             },
         },
     )
-    config = {"repos": {"sidecar": [{"name": "research", "disabled": True}]}}
+    config = {"repos": {"sidecar": {"custom": {"research": {"disabled": True}}}}}
     monkeypatch.setattr(
         "sase.repo_inventory.list_project_records",
         lambda *_args, **_kwargs: [project],
@@ -329,7 +331,7 @@ def test_pinned_sidecar_identity_overrides_stale_store_repo(
         },
     )
     config = {
-        "repos": {"sidecar": [{"name": "research", "repo": "acme/shared-research"}]}
+        "repos": {"sidecar": {"custom": {"research": {"repo": "acme/shared-research"}}}}
     }
     monkeypatch.setattr(
         "sase.repo_inventory.list_project_records",
@@ -559,7 +561,7 @@ def test_inventory_dedupes_agents_row_when_store_record_lists_it(
         {},
         {
             "is_sase_managed": True,
-            "repos": {"sidecar": [{"name": "agents", "disabled": True}]},
+            "repos": {"sidecar": {"builtin": {"agents": {"disabled": True}}}},
         },
     ],
 )

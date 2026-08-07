@@ -314,8 +314,8 @@ repos:
 ```
 
 Reserved roles are written under `repos.sidecar.builtin` and document sidecars under
-`repos.sidecar.custom`. If `repos.sidecar` still uses the deprecated list form, the write stops with
-an error asking you to migrate it to the two-bucket mapping first; `sase doctor` names the target
+`repos.sidecar.custom`. If `repos.sidecar` still uses the removed list form, the write stops with an
+error asking you to migrate it to the two-bucket mapping first; `sase doctor` names the target
 bucket for each existing entry.
 
 An existing entry for any of those roles is preserved verbatim, including `disabled: true`;

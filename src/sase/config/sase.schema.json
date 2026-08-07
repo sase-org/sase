@@ -34,44 +34,6 @@
     },
     "sidecarRepo": {
       "type": "object",
-      "required": ["name"],
-      "additionalProperties": false,
-      "properties": {
-        "auto_clone": {
-          "type": "boolean",
-          "description": "Materialize and synchronize this sidecar automatically before each agent launch. The intrinsic agents role ignores this setting and is never exposed to launched agents or cloned into workspaces.",
-          "default": false
-        },
-        "description": {
-          "type": "string",
-          "description": "Human-readable purpose used in repository inventory and generated agent memory.",
-          "minLength": 1
-        },
-        "disabled": {
-          "type": "boolean",
-          "description": "Disable this sidecar entry and suppress matching implicit sidecar defaults, including the managed-project agents sidecar.",
-          "default": false
-        },
-        "name": {
-          "type": "string",
-          "description": "Stable role name and CLI lookup key. Ordinary roles clone at sase/repos/<name>; the intrinsic agents role uses the machine-level ~/.sase/projects/<project_key>/repos/agents path.",
-          "minLength": 1
-        },
-        "repo": {
-          "type": "string",
-          "description": "Optional owner/repo or bare repository slug. Omit to derive <project>--<name> in the project's organization.",
-          "minLength": 1
-        },
-        "visibility": {
-          "type": "string",
-          "description": "Visibility used when creating a missing sidecar repository. Set the managed-project agents role to private to override its public default.",
-          "enum": ["public", "private"],
-          "default": "public"
-        }
-      }
-    },
-    "sidecarRepoEntry": {
-      "type": "object",
       "description": "One sidecar repository, keyed by its role name under repos.sidecar.builtin or repos.sidecar.custom.",
       "additionalProperties": false,
       "properties": {
@@ -1874,47 +1836,34 @@
           "default": []
         },
         "sidecar": {
+          "type": "object",
           "description": "Project-owned sidecar repositories keyed by role name. Reserved roles (plans, beads, agents) belong under builtin; every other role is a document sidecar and belongs under custom. Ordinary roles clone below sase/repos/<role>; the hidden agents role is explicitly accessible only at ~/.sase/projects/<project_key>/repos/agents.",
-          "oneOf": [
-            {
+          "additionalProperties": false,
+          "properties": {
+            "builtin": {
               "type": "object",
-              "description": "Sidecar roles split into builtin overrides and custom document sidecars.",
-              "additionalProperties": false,
-              "properties": {
-                "builtin": {
-                  "type": "object",
-                  "description": "Overrides for the reserved sidecar roles. Keys are role names and must be one of plans, beads, or agents.",
-                  "propertyNames": {
-                    "enum": ["plans", "beads", "agents"]
-                  },
-                  "additionalProperties": {
-                    "$ref": "#/definitions/sidecarRepoEntry"
-                  }
-                },
-                "custom": {
-                  "type": "object",
-                  "description": "User-declared document sidecars such as research. Keys are role names and must not name a reserved role (plans, beads, agents).",
-                  "propertyNames": {
-                    "minLength": 1,
-                    "not": {
-                      "enum": ["plans", "beads", "agents"]
-                    }
-                  },
-                  "additionalProperties": {
-                    "$ref": "#/definitions/sidecarRepoEntry"
-                  }
-                }
+              "description": "Overrides for the reserved sidecar roles. Keys are role names and must be one of plans, beads, or agents.",
+              "propertyNames": {
+                "enum": ["plans", "beads", "agents"]
+              },
+              "additionalProperties": {
+                "$ref": "#/definitions/sidecarRepo"
               }
             },
-            {
-              "type": "array",
-              "description": "Deprecated list form where each entry carries a 'name' role field. Still parsed during the migration window; move reserved roles to repos.sidecar.builtin and document sidecars to repos.sidecar.custom.",
-              "deprecated": true,
-              "items": {
+            "custom": {
+              "type": "object",
+              "description": "User-declared document sidecars such as research. Keys are role names and must not name a reserved role (plans, beads, agents).",
+              "propertyNames": {
+                "minLength": 1,
+                "not": {
+                  "enum": ["plans", "beads", "agents"]
+                }
+              },
+              "additionalProperties": {
                 "$ref": "#/definitions/sidecarRepo"
               }
             }
-          ],
+          },
           "default": {}
         }
       },

@@ -66,16 +66,17 @@ def test_config_schema_accepts_canonical_linked_and_sidecar_repos() -> None:
                     "auto_clone": True,
                 }
             ],
-            "sidecar": [
-                {
-                    "name": "research",
-                    "repo": "sase-org/sase--research",
-                    "description": "Durable research.",
-                    "auto_clone": False,
-                    "visibility": "private",
-                    "disabled": False,
+            "sidecar": {
+                "custom": {
+                    "research": {
+                        "repo": "sase-org/sase--research",
+                        "description": "Durable research.",
+                        "auto_clone": False,
+                        "visibility": "private",
+                        "disabled": False,
+                    }
                 }
-            ],
+            },
         }
     }
 
@@ -100,7 +101,8 @@ def test_config_schema_documents_intrinsic_agents_sidecar_contract() -> None:
         in public_schema["properties"]["repos"]["properties"]["sidecar"]["description"]
     )
     assert (
-        "~/.sase/projects/<project_key>/repos/agents" in sidecar["name"]["description"]
+        "~/.sase/projects/<project_key>/repos/agents"
+        in public_schema["properties"]["repos"]["properties"]["sidecar"]["description"]
     )
     assert "never exposed" in sidecar["auto_clone"]["description"]
     assert "agents sidecar" in sidecar["disabled"]["description"]
@@ -110,24 +112,20 @@ def test_config_schema_documents_intrinsic_agents_sidecar_contract() -> None:
 @pytest.mark.parametrize(
     ("entry", "field"),
     [
-        ({"name": "research", "visibility": "internal"}, "visibility"),
-        ({"name": "research", "disabled": "no"}, "disabled"),
-        ({"name": "research", "auto_clone": "yes"}, "auto_clone"),
+        ({"visibility": "internal"}, "visibility"),
+        ({"disabled": "no"}, "disabled"),
+        ({"auto_clone": "yes"}, "auto_clone"),
     ],
 )
 def test_config_schema_rejects_invalid_sidecar_controls(
     entry: dict[str, object], field: str
 ) -> None:
-    config = {"repos": {"sidecar": [entry]}}
+    config = {"repos": {"sidecar": {"custom": {"research": entry}}}}
 
     errors = list(Draft7Validator(schema()).iter_errors(config))
 
-    # ``repos.sidecar`` is a ``oneOf`` while both shapes are accepted, so the
-    # top-level error names the key and the list branch's context error names
-    # the offending field.
-    assert [list(error.absolute_path) for error in errors] == [["repos", "sidecar"]]
-    assert ["repos", "sidecar", 0, field] in [
-        list(sub.absolute_path) for sub in errors[0].context
+    assert [list(error.absolute_path) for error in errors] == [
+        ["repos", "sidecar", "custom", "research", field]
     ]
 
 
@@ -179,11 +177,12 @@ def test_config_schema_accepts_bucketed_sidecar_repos() -> None:
     )
 
 
-def test_config_schema_still_accepts_legacy_sidecar_list() -> None:
-    """The deprecated list form keeps validating during the migration window."""
-    Draft7Validator(schema()).validate(
-        {"repos": {"sidecar": [{"name": "research", "description": "Docs."}]}}
-    )
+def test_config_schema_rejects_legacy_sidecar_list() -> None:
+    """The removed list form no longer validates."""
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate(
+            {"repos": {"sidecar": [{"name": "research", "description": "Docs."}]}}
+        )
 
 
 @pytest.mark.parametrize(

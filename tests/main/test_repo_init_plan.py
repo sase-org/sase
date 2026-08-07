@@ -300,21 +300,23 @@ def test_configured_sidecar_specs_preserve_pin_and_private_visibility(
     config = {
         "is_sase_managed": True,
         "repos": {
-            "sidecar": [
-                {"name": "plans", "auto_clone": True},
-                {
-                    "name": "artifacts",
-                    "repo": "acme/shared-artifacts",
-                    "visibility": "private",
-                    "description": "Durable artifacts.",
+            "sidecar": {
+                "builtin": {
+                    "plans": {"auto_clone": True},
+                    "agents": {
+                        "repo": "acme/private-agents",
+                        "visibility": "private",
+                        "description": "Private commit-associated agents.",
+                    },
                 },
-                {
-                    "name": "agents",
-                    "repo": "acme/private-agents",
-                    "visibility": "private",
-                    "description": "Private commit-associated agents.",
+                "custom": {
+                    "artifacts": {
+                        "repo": "acme/shared-artifacts",
+                        "visibility": "private",
+                        "description": "Durable artifacts.",
+                    }
                 },
-            ]
+            }
         },
     }
     monkeypatch.setattr(
@@ -348,11 +350,13 @@ def test_configured_sidecar_specs_suppress_disabled_agents(
     config = {
         "is_sase_managed": True,
         "repos": {
-            "sidecar": [
-                {"name": "plans", "auto_clone": True},
-                {"name": "research"},
-                {"name": "agents", "disabled": True},
-            ]
+            "sidecar": {
+                "builtin": {
+                    "plans": {"auto_clone": True},
+                    "agents": {"disabled": True},
+                },
+                "custom": {"research": {}},
+            }
         },
     }
     monkeypatch.setattr(

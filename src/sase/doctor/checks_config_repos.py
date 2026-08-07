@@ -29,10 +29,10 @@ def check_config_repos() -> DiagnosticCheck:
 
     ``repos.sidecar`` is a two-bucket mapping keyed by role: the reserved
     ``plans``/``beads``/``agents`` roles under ``builtin`` and every document
-    sidecar under ``custom``. The deprecated list form is still parsed, so this
-    check is the actionable report for configs that have not migrated, for
-    roles filed in the wrong bucket, and for entries the schema cannot reject
-    on its own.
+    sidecar under ``custom``. The removed list form is no longer parsed, so
+    this check is the actionable migration report for stale configs, for roles
+    filed in the wrong bucket, and for entries the schema cannot reject on its
+    own.
     """
     from sase.config.core import load_merged_config
 
@@ -85,7 +85,7 @@ def check_config_repos() -> DiagnosticCheck:
 
 
 def _legacy_list_problems(entries: list[Any]) -> list[dict[str, str]]:
-    """Report the deprecated list form, naming each entry's target bucket."""
+    """Report the removed list form, naming each entry's target bucket."""
 
     problems: list[dict[str, str]] = []
     for index, entry in enumerate(entries):
@@ -99,8 +99,8 @@ def _legacy_list_problems(entries: list[Any]) -> list[dict[str, str]]:
                 {
                     "key": key,
                     "message": (
-                        f"{key} is a legacy list entry with no usable 'name' "
-                        f"role; move it under {_SIDECAR_KEY}.custom.<role>"
+                        f"{key} is an unsupported list entry with no usable "
+                        f"'name' role; move it under {_SIDECAR_KEY}.custom.<role>"
                     ),
                 }
             )
@@ -111,8 +111,8 @@ def _legacy_list_problems(entries: list[Any]) -> list[dict[str, str]]:
             {
                 "key": key,
                 "message": (
-                    f"{key} ({role!r}) uses the deprecated list form; move it "
-                    f"to {target} and drop its 'name' field"
+                    f"{key} ({role!r}) uses the removed list form and is "
+                    f"ignored; move it to {target} and drop its 'name' field"
                 ),
             }
         )
@@ -121,8 +121,9 @@ def _legacy_list_problems(entries: list[Any]) -> list[dict[str, str]]:
             {
                 "key": _SIDECAR_KEY,
                 "message": (
-                    f"{_SIDECAR_KEY} uses the deprecated list form; replace it "
-                    "with a builtin/custom mapping keyed by role"
+                    f"{_SIDECAR_KEY} uses the removed list form and is "
+                    "ignored; replace it with a builtin/custom mapping keyed "
+                    "by role"
                 ),
             }
         )

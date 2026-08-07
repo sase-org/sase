@@ -106,31 +106,27 @@ def load_config(config_path: Path) -> Mapping[str, Any]:
 
 
 def _sidecar_entries(raw: Any) -> list[tuple[str, Mapping[str, Any]]]:
-    """Return ``(role, entry)`` pairs from either ``repos.sidecar`` shape.
+    """Return ``(role, entry)`` pairs from the ``repos.sidecar`` mapping.
 
-    The canonical shape is a ``{builtin: {...}, custom: {...}}`` mapping keyed
-    by role; the deprecated list form keeps the role in each entry's ``name``.
+    ``repos.sidecar`` is a ``{builtin: {...}, custom: {...}}`` mapping keyed by
+    role. A list is the removed legacy form and is a hard error.
     """
 
-    if isinstance(raw, Mapping):
-        pairs: list[tuple[str, Mapping[str, Any]]] = []
-        for bucket in ("builtin", "custom"):
-            values = raw.get(bucket)
-            if not isinstance(values, Mapping):
-                continue
-            for role, entry in values.items():
-                if isinstance(role, str) and role.strip() and isinstance(entry, Mapping):
-                    pairs.append((role.strip(), entry))
-        return pairs
-    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+    if raw is None:
         return []
-    pairs = []
-    for entry in raw:
-        if not isinstance(entry, Mapping):
+    if not isinstance(raw, Mapping):
+        raise BootstrapError(
+            "repos.sidecar must be a mapping with builtin and/or custom role "
+            "maps; the legacy list form is no longer supported"
+        )
+    pairs: list[tuple[str, Mapping[str, Any]]] = []
+    for bucket in ("builtin", "custom"):
+        values = raw.get(bucket)
+        if not isinstance(values, Mapping):
             continue
-        role = entry.get("name")
-        if isinstance(role, str) and role.strip():
-            pairs.append((role.strip(), entry))
+        for role, entry in values.items():
+            if isinstance(role, str) and role.strip() and isinstance(entry, Mapping):
+                pairs.append((role.strip(), entry))
     return pairs
 
 

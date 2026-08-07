@@ -1355,9 +1355,8 @@ agent instructions because agents do not need to open them manually.
 `research`. The map key _is_ the role, so an entry never carries a `name` field and a role cannot be
 declared twice in one bucket. Because both buckets are mappings, a later config layer merges into an
 inherited entry per key — a project-local `custom: {research: {disabled: true}}` opts out of a
-global `research` sidecar. The legacy list form (a sequence of entries each carrying `name`) is
-still accepted during the migration window; run `sase doctor` to see which bucket each entry belongs
-in.
+global `research` sidecar. The former list form (a sequence of entries each carrying `name`) is no
+longer accepted and is ignored; run `sase doctor` to see which bucket each stale entry belongs in.
 
 Sidecar entries use their role key as the primary CLI lookup key. Ordinary roles use
 `sase/repos/<role>` as their workspace clone directory. Their repository defaults to

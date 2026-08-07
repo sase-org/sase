@@ -163,14 +163,12 @@ def merged_sidecar_entries_from_config(
     *,
     primary_workspace_dir: str,
 ) -> list[Mapping[str, Any]]:
-    """Return merged, normalized ``repos.sidecar`` entries.
+    """Return normalized ``repos.sidecar`` entries.
 
-    In the canonical mapping form, layers already merged per role key. In the
-    deprecated list form, config-list concatenation preserves layer order, so
-    later entries are project-local overrides of earlier global entries and are
-    merged here by role name or resolved repository slug. A disabled override
-    deliberately remains in the result so it can suppress both earlier config
-    and implicit or store-record fallbacks.
+    ``repos.sidecar`` is a mapping keyed by role, so config layers already
+    merged per key before this point and no entry-level merging is needed here.
+    A disabled entry deliberately remains in the result so it can suppress
+    implicit or store-record fallbacks.
     """
 
     primary = str(Path(primary_workspace_dir).expanduser().resolve(strict=False))
@@ -184,32 +182,10 @@ def _merged_sidecar_entries_cached(
     config_key: RepoConfigCacheKey,
 ) -> tuple[Mapping[str, Any], ...]:
     config = config_key.config
-    raw_entries = _sidecar_config_entries(config)
-    merged: list[dict[str, Any]] = []
-    tokens_by_index: list[set[str]] = []
-    for raw_entry in raw_entries:
-        entry = dict(raw_entry)
-        tokens = _sidecar_entry_tokens(entry, primary_workspace_dir, config)
-        matched_index = next(
-            (
-                index
-                for index, existing_tokens in enumerate(tokens_by_index)
-                if tokens and tokens.intersection(existing_tokens)
-            ),
-            None,
-        )
-        if matched_index is None:
-            merged.append(entry)
-            tokens_by_index.append(tokens)
-            continue
-        merged[matched_index].update(entry)
-        tokens_by_index[matched_index] = _sidecar_entry_tokens(
-            merged[matched_index], primary_workspace_dir, config
-        )
-
     normalized: list[Mapping[str, Any]] = []
     primary = Path(primary_workspace_dir)
-    for entry in merged:
+    for raw_entry in _sidecar_config_entries(config):
+        entry = dict(raw_entry)
         identity = resolve_sidecar_repo_identity(
             entry,
             primary_workspace_dir=str(primary),
@@ -418,17 +394,17 @@ def _entries_for_key(config: Mapping[str, Any], key: str) -> list[Mapping[str, A
 def _sidecar_config_entries(config: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     """Return raw ``repos.sidecar`` entries with the role in ``name``.
 
-    Accepts both the canonical ``{builtin: {...}, custom: {...}}`` mapping and
-    the deprecated list form. Mapping entries emit the reserved builtin roles
-    in canonical ``plans, beads, agents`` order followed by custom roles in
-    configured order; a role declared in both buckets resolves to the ``custom``
-    entry, matching how custom model aliases win over builtin ones.
+    ``repos.sidecar`` is a ``{builtin: {...}, custom: {...}}`` mapping keyed by
+    role. The reserved builtin roles are emitted in canonical
+    ``plans, beads, agents`` order followed by custom roles in configured
+    order; a role declared in both buckets resolves to the ``custom`` entry,
+    matching how custom model aliases win over builtin ones.
     """
 
     repos = config.get(REPOS_CONFIG_KEY)
     raw = repos.get(REPOS_SIDECAR_CONFIG_KEY) if isinstance(repos, Mapping) else None
     if not isinstance(raw, Mapping):
-        return _entries_for_repos_key(config, REPOS_SIDECAR_CONFIG_KEY)
+        return []
 
     builtin = _sidecar_bucket_entries(raw, SIDECAR_BUILTIN_CONFIG_KEY)
     custom = _sidecar_bucket_entries(raw, SIDECAR_CUSTOM_CONFIG_KEY)
@@ -513,22 +489,6 @@ def _json_safe_entry(entry: Mapping[str, Any]) -> dict[str, object]:
         ),
         "auto_clone": entry.get("auto_clone") is True,
     }
-
-
-def _sidecar_entry_tokens(
-    entry: Mapping[str, Any],
-    primary_workspace_dir: str,
-    config: Mapping[str, Any],
-) -> set[str]:
-    identity = resolve_sidecar_repo_identity(
-        entry,
-        primary_workspace_dir=primary_workspace_dir,
-        default_entry=entry.get(_DEFAULT_LINKED_REPO_MARKER) is True,
-        config=config,
-    )
-    if identity is None:
-        return set()
-    return {identity.role, identity.slug}
 
 
 def _optional_entry_text(entry: Mapping[str, Any], key: str) -> str:
