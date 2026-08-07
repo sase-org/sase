@@ -312,3 +312,29 @@ def test_typed_gate_resolver_keeps_neutral_first_legacy_fallback_contract(
     assert legacy.request == legacy_root / legacy_request
     assert legacy.response == legacy_root / legacy_response
     assert legacy.legacy is True
+
+
+def test_gate_create_missing_title_prints_error_and_exits_1(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del gate_home
+    spec = custom_gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    del presentation["title"]
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(spec)))
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_gate_command(
+            argparse.Namespace(
+                gate_subcommand="create",
+                sender=None,
+                tag=None,
+            )
+        )
+
+    assert excinfo.value.code == 1
+    err = capsys.readouterr().err
+    assert "Error [missing_presentation] presentation.title:" in err

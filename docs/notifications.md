@@ -43,6 +43,20 @@ Plan, launch, question, and task-triage notifications require confirmation (`y` 
 dismissal to prevent accidental loss of pending decisions. The same `y` / `n` confirmation is used
 for bulk dismissal when at least one marked protected notification is included in the batch.
 
+### Gate Detail Pane
+
+Highlighting any gate-backed row — plan, epic, question, launch, custom, task-triage, or workflow
+HITL — always renders a live decision card in the right pane: a status line
+(`Awaiting your decision`, `Answered`, `Cancelled`, `Timed out`, or `Gate details unavailable`), the
+notification's context and tags, a `Decision` block listing every branch in canonical query order
+with the primary branch marked, and an `Attachments` line when the gate has files. The card renders
+instantly from the notification row and enriches itself with the verified bundle a moment later
+without blocking navigation. When a bundle cannot be resolved, hashed, or parsed — a deleted
+directory, a corrupted `request.json`, a legacy bundle layout — the card degrades to
+`▲ Gate details unavailable` rather than going blank; press `d` to open Gate Debug and see exactly
+why. Every other notification, including attachment-less ones, gets a compact summary card instead
+of an empty pane.
+
 ### Tabs and Ordering
 
 The modal renders a compact tab strip above the list when more than one tab is present. **Every
@@ -50,16 +64,16 @@ notification belongs to exactly one tab** — the Rust core decides which one by
 so the panel, the top-bar indicator, and the mobile snapshot always agree; see [Tags](#tags) below
 for that precedence in full. The tabs, in the panel's display order:
 
-| Tab       | Contents                                                                                                                                                              |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HITL`    | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.                                         |
-| Panel     | Gates with `presentation.panel`, sorted alphabetically after `HITL`; built-in task triage gates use the `Beads` panel, and a woken `BeadSnooze` gate lands there too. |
-| `Errors`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                                                       |
-| `General` | Untagged, unmuted notifications with no other classification.                                                                                                         |
-| `Done`    | Notifications carrying the `done` tag, pinned before other custom tags.                                                                                               |
-| Custom    | Other normalized notification tags, sorted alphabetically after `Done`.                                                                                               |
-| `Snoozed` | Muted notifications with a future wake time — snoozed notifications and notifications for snoozed task beads alike.                                                   |
-| `Muted`   | Muted notifications with no wake time.                                                                                                                                |
+| Tab       | Contents                                                                                                                                                               |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Gates`   | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.                                          |
+| Panel     | Gates with `presentation.panel`, sorted alphabetically after `Gates`; built-in task triage gates use the `Beads` panel, and a woken `BeadSnooze` gate lands there too. |
+| `Errors`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                                                        |
+| `General` | Untagged, unmuted notifications with no other classification.                                                                                                          |
+| `Done`    | Notifications carrying the `done` tag, pinned before other custom tags.                                                                                                |
+| Custom    | Other normalized notification tags, sorted alphabetically after `Done`.                                                                                                |
+| `Snoozed` | Muted notifications with a future wake time — snoozed notifications and notifications for snoozed task beads alike.                                                    |
+| `Muted`   | Muted notifications with no wake time.                                                                                                                                 |
 
 A row with multiple tags therefore occupies exactly one tab, not one per tag; dismissing it removes
 the row from at most one tab's count.
@@ -487,7 +501,7 @@ Memory proposal notifications created by `sase memory write --notify` carry the 
 the `memory` tab in ACE or `sase notify list --tag memory` to find proposal review notification
 rows.
 
-In ACE, tags create modal tabs above the notification list after the synthetic `HITL`, declared
+In ACE, tags create modal tabs above the notification list after the synthetic `Gates`, declared
 panel tabs, `Errors`, `General`, and `Done` tabs. **Every notification belongs to exactly one tab.**
 The Rust core decides which one, by this precedence, so the panel, the top-bar indicator, and the
 mobile snapshot always agree:
@@ -495,7 +509,8 @@ mobile snapshot always agree:
 1. `Snoozed` — muted with a `snooze_until` wake time
 2. `Muted` — muted with no wake time
 3. the gate's declared `presentation.panel`
-4. `HITL` — a human-in-the-loop gate action
+4. `Gates` — a human-in-the-loop gate action (the core still keys this synthetic tab `hitl`; only
+   the display label is `Gates`)
 5. `Errors` — an error report
 6. the **first** stored tag, in sender order
 7. `General` — everything else
@@ -505,9 +520,9 @@ one tab. Later tags still render as badges on the row, but they do not create ta
 
 A gate may declare `presentation.panel` to place its notification in a named panel tab. Panel names
 are stripped, lowercased, limited to 32 characters, and may contain lowercase letters, digits,
-underscores, and hyphens. The synthetic names `errors`, `general`, `hitl`, `muted`, and `snoozed`,
-along with names beginning with `__`, are reserved. A panel name matching a tag merges into that
-tag's tab, which then sorts as a panel tab.
+underscores, and hyphens. The synthetic names `errors`, `gates`, `general`, `hitl`, `muted`, and
+`snoozed`, along with names beginning with `__`, are reserved. A panel name matching a tag merges
+into that tag's tab, which then sorts as a panel tab.
 
 ### Tab colors
 
@@ -640,6 +655,17 @@ For example, this custom gate offers a restart-and-verify group plus a separate 
 stripped, limited to 128 characters, and stored without consulting the local agent registry so
 remote agent names remain valid. Both fields are projected into notification `action_data` as
 `panel` and `origin_agent`; producers may not write those protected keys directly through
+`presentation.action_data`.
+
+`presentation.title` is the one-line decision headline shown in the notification panel's
+[gate detail pane](#gate-detail-pane) and in the custom gate review modal's header. It is stripped,
+limited to 120 characters, must be a single line, and must not contain control characters; a missing
+title falls back to the gate kind's display title (for example `Custom Gate`). It is **required for
+`kind: "custom"`** — along with a non-empty `presentation.icon` and at least one non-blank
+`presentation.notes` entry — because a custom gate has no other source for the headline, icon, and
+context the panel renders. `plan`, `epic_plan`, `question`, `launch`, and `hitl` gates keep their
+existing contracts and do not require a title. `presentation.title` is projected into notification
+`action_data` as `gate_title`; producers may not write that protected key directly through
 `presentation.action_data`.
 
 `presentation.color` suggests the `#RRGGBB` accent for the tab the gate's notification lands in, as

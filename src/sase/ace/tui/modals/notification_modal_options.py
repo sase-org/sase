@@ -15,6 +15,7 @@ from sase.ace.tui.actions.navigation.jump_hints import (
     match_jump_hint,
     normalize_jump_key,
 )
+from sase.notification_gates import PRIVILEGED_GATE_ACTIONS
 from sase.notifications import (
     Notification,
     format_relative_time,
@@ -29,15 +30,18 @@ from sase.project_display_names import (
 from .notification_modal_constants import (
     ACTION_BADGES,
     DEFAULT_HINT_TEXT,
+    GATE_HINT_TEXT,
     QUESTION_HINT_TEXT,
     notification_icon,
 )
+
 from .notification_modal_tags import (
     notification_display_tags,
     notification_matches_tag_tab,
     shorten_notification_tag,
 )
 
+_GATE_HINT_ACTIONS = PRIVILEGED_GATE_ACTIONS - {"UserQuestion"}
 _REDUNDANT_AGENT_SENDERS = frozenset({"user-agent", "user-workflow"})
 
 
@@ -285,6 +289,8 @@ class NotificationOptionMixin:
             notification := self._get_highlighted_notification()
         ) is not None and notification.action == "UserQuestion":
             footer.update(QUESTION_HINT_TEXT)
+        elif notification is not None and notification.action in _GATE_HINT_ACTIONS:
+            footer.update(GATE_HINT_TEXT)
         else:
             footer.update(DEFAULT_HINT_TEXT)
 

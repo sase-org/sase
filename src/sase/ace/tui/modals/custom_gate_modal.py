@@ -53,6 +53,7 @@ class CustomGateModalData:
     preview_text: str | None
     gate: GateBranchData
     origin_agent: str | None = None
+    gate_title: str | None = None
 
 
 @dataclass(frozen=True)
@@ -227,9 +228,11 @@ class CustomGateModal(
         )
 
     def _title(self) -> str:
+        headline = self._data.gate_title or self._data.title
         return (
             f"[bold cyan]{escape(self._data.icon)} "
-            f"{escape(self._data.title)}[/bold cyan]  "
+            f"{escape(headline)}[/bold cyan]  "
+            f"[dim]{escape(self._data.title)}[/dim]  "
             f"[bold]{escape(self._data.sender)}[/bold]  "
             f"[dim]{escape(self._data.request_id)}[/dim]"
         )

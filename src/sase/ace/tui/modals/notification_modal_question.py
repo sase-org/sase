@@ -26,10 +26,12 @@ from sase.notifications import (
 )
 from sase.project_display_names import humanize_cl_name
 
-_QUESTION_CYAN = "#00D7FF"
-_AWAITING_GOLD = "#FFD700"
-_ANSWERED_GREEN = "#5FD787"
-_RULE_COLOR = "#3A526B"
+from .notification_modal_palette import (
+    PANE_ACCENT,
+    PANE_ANSWERED,
+    PANE_AWAITING,
+    PANE_RULE,
+)
 
 
 @dataclass(frozen=True)
@@ -67,10 +69,10 @@ class NotificationQuestionMixin:
             renderables.extend((Text(""), _detail_fallback(summary)))
 
         if summary.questions:
-            renderables.append(Rule(style=_RULE_COLOR))
+            renderables.append(Rule(style=PANE_RULE))
             for index, question in enumerate(summary.questions, start=1):
                 if index > 1:
-                    renderables.append(Rule(style=_RULE_COLOR))
+                    renderables.append(Rule(style=PANE_RULE))
                 renderables.append(_question_block(index, question))
 
         return "Agent Question", Group(*renderables)
@@ -155,10 +157,10 @@ def _status_line(summary: QuestionSummary) -> Table:
     status = Text()
     action = Text(justify="right")
     if summary.answer_state == "awaiting":
-        status.append("● Awaiting your answer", style=f"bold {_AWAITING_GOLD}")
+        status.append("● Awaiting your answer", style=f"bold {PANE_AWAITING}")
         action.append("press Enter to answer", style="bold #87D7FF")
     elif summary.answer_state == "answered":
-        status.append("✓ Answered", style=f"bold {_ANSWERED_GREEN}")
+        status.append("✓ Answered", style=f"bold {PANE_ANSWERED}")
         action.append("response recorded", style="dim")
     elif summary.answer_state == "expired":
         status.append("○ Expired or already handled", style="bold dim")
@@ -195,7 +197,7 @@ def _answer_overview(summary: QuestionSummary) -> Text | None:
     overview = Text()
     if selected:
         overview.append("You chose: ", style="dim")
-        overview.append(", ".join(selected), style=f"bold {_ANSWERED_GREEN}")
+        overview.append(", ".join(selected), style=f"bold {PANE_ANSWERED}")
     if custom:
         if overview:
             overview.append("\n")
@@ -222,7 +224,7 @@ def _detail_fallback(summary: QuestionSummary) -> Text:
 
 def _question_block(index: int, question: QuestionEntry) -> Group:
     heading = Text()
-    heading.append(f"Q{index}", style=f"bold {_QUESTION_CYAN}")
+    heading.append(f"Q{index}", style=f"bold {PANE_ACCENT}")
     if question.header:
         heading.append("  ")
         heading.append(question.header, style="bold")
@@ -233,7 +235,7 @@ def _question_block(index: int, question: QuestionEntry) -> Group:
         choices.append(Text(""))
         choices.extend(_option_line(option) for option in question.options)
     if question.custom_answer:
-        custom = Text("  ✎ Custom", style=f"bold {_ANSWERED_GREEN}")
+        custom = Text("  ✎ Custom", style=f"bold {PANE_ANSWERED}")
         custom.append(" — ", style="dim")
         custom.append(question.custom_answer)
         choices.append(custom)
@@ -246,8 +248,8 @@ def _question_block(index: int, question: QuestionEntry) -> Group:
 def _option_line(option: Any) -> Text:
     selected = bool(option.selected)
     marker = "●" if selected else "○"
-    marker_style = f"bold {_ANSWERED_GREEN}" if selected else "dim"
-    label_style = f"bold {_ANSWERED_GREEN}" if selected else "bold"
+    marker_style = f"bold {PANE_ANSWERED}" if selected else "dim"
+    label_style = f"bold {PANE_ANSWERED}" if selected else "bold"
     line = Text("  ")
     line.append(marker, style=marker_style)
     line.append(" ")

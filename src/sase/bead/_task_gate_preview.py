@@ -24,6 +24,21 @@ from sase.bead.reopen_presentation import (
 )
 from sase.bead_time_presentation import bead_created_cli, bead_created_label
 
+_MAX_GATE_TITLE_LENGTH = 120
+
+
+def bounded_gate_title(bead_id: str, title: str) -> str:
+    """Return the ``bead_id — title`` gate headline, bounded to one line.
+
+    Bead titles carry no length cap of their own, but ``presentation.title``
+    does (single line, at most 120 characters), so this is the one place that
+    boundary is enforced before it reaches gate validation.
+    """
+    full = f"{bead_id} — {title}".replace("\n", " ")
+    if len(full) <= _MAX_GATE_TITLE_LENGTH:
+        return full
+    return full[: _MAX_GATE_TITLE_LENGTH - 1].rstrip() + "…"
+
 
 def render_task_triage_preview(
     *,

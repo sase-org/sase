@@ -23,9 +23,11 @@ from sase.notification_gates.models import (
 from sase.notification_gates.presentation import (
     GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
     GATE_PANEL_ACTION_DATA_KEY,
+    GATE_TITLE_ACTION_DATA_KEY,
     normalize_gate_origin_agent,
     normalize_gate_panel,
     normalize_gate_snooze_until,
+    normalize_gate_title,
 )
 
 
@@ -103,7 +105,9 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         )
     validate_icon(presentation.get("icon"), "presentation.icon")
     validate_color(presentation.get("color"), "presentation.color")
-    _validate_string_or_list(presentation.get("notes", []), "presentation.notes")
+    notes = _validate_string_or_list(
+        presentation.get("notes", []), "presentation.notes"
+    )
     _validate_string_or_list(presentation.get("tags", []), "presentation.tags")
     files = _validate_string_or_list(
         presentation.get("files", []), "presentation.files"
@@ -143,6 +147,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         "bundle_path",
         GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
         GATE_PANEL_ACTION_DATA_KEY,
+        GATE_TITLE_ACTION_DATA_KEY,
         "request_id",
         "request_kind",
         "request_path",
@@ -167,6 +172,29 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
     normalize_gate_panel(presentation.get("panel"))
     normalize_gate_origin_agent(presentation.get("origin_agent"))
     normalize_gate_snooze_until(presentation.get("snooze_until"))
+    title = normalize_gate_title(presentation.get("title"))
+    if adapter.kind == "custom":
+        if title is None:
+            raise GateError(
+                "missing_presentation",
+                "presentation.title",
+                "custom gates require presentation.title: the one-line decision "
+                "headline shown in the notification panel",
+            )
+        if presentation.get("icon") is None:
+            raise GateError(
+                "missing_presentation",
+                "presentation.icon",
+                "custom gates require presentation.icon: one emoji or glyph "
+                "identifying the decision at a glance",
+            )
+        if not any(note.strip() for note in notes):
+            raise GateError(
+                "missing_presentation",
+                "presentation.notes",
+                "custom gates require presentation.notes: at least one line of "
+                "context explaining the decision",
+            )
     try:
         json.dumps(spec.payload, allow_nan=False)
         json.dumps(spec.producer, allow_nan=False)

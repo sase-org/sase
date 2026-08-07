@@ -333,7 +333,11 @@ def test_execute_mobile_gate_action_uses_selected_options_unchanged() -> None:
             "request_id": "mobile-custom",
             "producer": {"agent": "test"},
             "payload": {},
-            "presentation": {"icon": "📱", "notes": ["Confirm mobile action"]},
+            "presentation": {
+                "icon": "📱",
+                "title": "Confirm mobile action",
+                "notes": ["Confirm mobile action"],
+            },
             "query": "(approve AND audit)",
             "primary_branch": ["approve", "audit"],
             "options": [

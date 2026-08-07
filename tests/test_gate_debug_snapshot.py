@@ -53,6 +53,8 @@ def _spec(*, request_id: str = "debug-gate", timeout: float | None = None) -> di
         "payload": {"title": "Inspect this gate"},
         "presentation": {
             "sender": "debug-sender",
+            "icon": "🔍",
+            "title": "Inspect this gate",
             "notes": ["Review requested"],
             "tags": ["debug"],
             "files": ["preview.md"],

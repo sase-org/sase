@@ -129,7 +129,7 @@ def test_read_notifications_for_startup_uses_snapshot_tabs() -> None:
             [
                 NotificationTagTab(
                     tag="hitl",
-                    label="HITL",
+                    label="Gates",
                     count=7,
                     kind="hitl",
                     oldest_activity_at=timestamp,

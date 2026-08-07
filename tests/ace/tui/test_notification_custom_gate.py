@@ -77,6 +77,7 @@ def _spec(*, kind: str = "custom") -> dict[str, object]:
         "presentation": {
             "sender": "safety-agent",
             "icon": "🛡️",
+            "title": "Review guarded work",
             "notes": ["Confirm the guarded command."],
             "preview": "preview.md",
         },

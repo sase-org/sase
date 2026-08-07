@@ -7,6 +7,7 @@ import subprocess
 from typing import Any
 
 from rich.console import Group, RenderableType
+from rich.rule import Rule
 from rich.syntax import Syntax
 from rich.text import Text
 from textual.containers import VerticalScroll
@@ -26,131 +27,114 @@ from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER
 from sase.notifications import Notification
 
 from .notification_modal_constants import notification_icon
+from .notification_modal_palette import PANE_RULE
 
 
 class NotificationAttachmentMixin:
     """Render notification attachments and open the current file in an editor."""
 
     def _display_file(self: Any, notification: Notification | None) -> None:
-        """Render file content with syntax highlighting in the right pane."""
+        """Render the header card, plus an optional attachment body, in the right pane."""
         self._update_sent_at(notification)
         title = self.query_one("#notification-file-title", Label)
         content_widget = self.query_one("#notification-file-content", Static)
 
-        if notification is not None:
-            question_pane = self._render_question_pane(notification)
-            if question_pane is not None:
-                pane_title, pane_content = question_pane
-                self._set_image_preview_mode(False)
-                title.update(self._detail_title(notification, pane_title))
-                cleanup = self._consume_image_cleanup_segments()
-                content_widget.update(
-                    Group(*cleanup, pane_content) if cleanup else pane_content
-                )
-                self._reset_file_scroll()
-                return
-
-            report_pane = self._render_report_pane(notification)
-            if report_pane is not None:
-                pane_title, pane_content = report_pane
-                self._set_image_preview_mode(False)
-                title.update(self._detail_title(notification, pane_title))
-                cleanup = self._consume_image_cleanup_segments()
-                content_widget.update(
-                    Group(*cleanup, pane_content) if cleanup else pane_content
-                )
-                self._reset_file_scroll()
-                return
-
-        if notification is None or not notification.files:
+        if notification is None:
             self._set_image_preview_mode(False)
-            title.update(
-                "No files attached"
-                if notification is None
-                else self._detail_title(notification, "No files attached")
-            )
+            title.update("No notification selected")
             cleanup = self._consume_image_cleanup_segments()
             content_widget.update(Group(*cleanup, "") if cleanup else "")
             return
 
-        files = notification.files
-        if self._current_file_index >= len(files):
-            self._current_file_index = 0
-
-        file_path = files[self._current_file_index]
-        short = self._shorten_path(file_path)
-        title.update(
-            self._detail_title(
-                notification,
-                f"File {self._current_file_index + 1}/{len(files)}: {short}",
-            )
-        )
-
-        expanded_path = os.path.expanduser(file_path)
-
-        if is_supported_image_path(expanded_path):
-            self._set_image_preview_mode(True)
-            self._display_image_file(expanded_path, content_widget)
-            return
-        if is_supported_video_path(expanded_path):
+        question_pane = self._render_question_pane(notification)
+        if question_pane is not None:
+            pane_title, pane_content = question_pane
             self._set_image_preview_mode(False)
+            title.update(self._detail_title(notification, pane_title))
             cleanup = self._consume_image_cleanup_segments()
-            text = _video_attachment_placeholder(expanded_path)
-            content_widget.update(Group(*cleanup, text) if cleanup else text)
+            content_widget.update(
+                Group(*cleanup, pane_content) if cleanup else pane_content
+            )
             self._reset_file_scroll()
             return
 
-        self._set_image_preview_mode(False)
+        report_pane = self._render_report_pane(notification)
+        if report_pane is not None:
+            pane_title, pane_content = report_pane
+            self._set_image_preview_mode(False)
+            title.update(self._detail_title(notification, pane_title))
+            cleanup = self._consume_image_cleanup_segments()
+            content_widget.update(
+                Group(*cleanup, pane_content) if cleanup else pane_content
+            )
+            self._reset_file_scroll()
+            return
+
+        gate_pane = self._render_gate_pane(notification)
+        pane_title, header = (
+            gate_pane
+            if gate_pane is not None
+            else self._render_summary_pane(notification)
+        )
+        title.update(self._detail_title(notification, pane_title))
+
+        is_image, body = self._attachment_body(notification, content_widget)
+        self._set_image_preview_mode(is_image)
         cleanup = self._consume_image_cleanup_segments()
+        if body is not None:
+            content_widget.update(
+                Group(*cleanup, header, Text(""), Rule(style=PANE_RULE), body)
+            )
+        else:
+            content_widget.update(Group(*cleanup, header) if cleanup else header)
+        self._reset_file_scroll()
+
+    def _attachment_body(
+        self: Any, notification: Notification, content_widget: Static
+    ) -> tuple[bool, RenderableType | None]:
+        """Return ``(is_image, renderable)`` for the currently selected attachment."""
+        if not notification.files:
+            return False, None
+
+        files = notification.files
+        if self._current_file_index >= len(files):
+            self._current_file_index = 0
+        expanded_path = os.path.expanduser(files[self._current_file_index])
+
+        if is_supported_image_path(expanded_path):
+            context = self._image_render_context()
+            columns, rows = self._image_preview_size(content_widget)
+            renderable = self._image_preview(
+                expanded_path, context, columns=columns, rows=rows
+            )
+            return True, renderable
+        if is_supported_video_path(expanded_path):
+            return False, _video_attachment_placeholder(expanded_path)
+
         try:
             with open(expanded_path, encoding="utf-8") as f:
                 content = f.read()
         except Exception:
-            text = Text("Could not read file.", style="dim italic")
-            content_widget.update(Group(*cleanup, text) if cleanup else text)
-            self._reset_file_scroll()
-            return
+            return False, Text("Could not read file.", style="dim italic")
 
         if not content.strip():
-            text = Text("File is empty.", style="dim italic")
-            content_widget.update(Group(*cleanup, text) if cleanup else text)
-            self._reset_file_scroll()
-            return
+            return False, Text("File is empty.", style="dim italic")
 
         _, ext = os.path.splitext(expanded_path)
         lexer = _EXTENSION_TO_LEXER.get(ext.lower(), "text")
-
-        syntax = Syntax(
+        return False, Syntax(
             content,
             lexer,
             theme="monokai",
             line_numbers=True,
             word_wrap=True,
         )
-        content_widget.update(Group(*cleanup, syntax) if cleanup else syntax)
-        self._reset_file_scroll()
 
     @staticmethod
     def _detail_title(notification: Notification, title: str) -> str:
         """Build the icon-led header for the highlighted notification."""
         icon = notification_icon(notification.action, notification.icon)
         return f"{icon} {notification.sender} · {title}"
-
-    def _display_image_file(
-        self: Any, expanded_path: str, content_widget: Static
-    ) -> None:
-        """Render an image attachment using the TUI graphics preview layer."""
-        cleanup = self._consume_image_cleanup_segments()
-        context = self._image_render_context()
-        columns, rows = self._image_preview_size(content_widget)
-        renderable = self._image_preview(
-            expanded_path,
-            context,
-            columns=columns,
-            rows=rows,
-        )
-        content_widget.update(Group(*cleanup, renderable))
-        self._reset_file_scroll()
 
     def _image_preview_size(self: Any, content_widget: Static) -> tuple[int, int]:
         """Choose a preview size from the visible notification file pane."""

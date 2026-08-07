@@ -14,6 +14,9 @@ from sase.ace.tui.graphics import (
     ImageRenderContext,
     image_preview,
 )
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
+from sase.notification_gates.summary import GateSummary
 from sase.notifications import (
     Notification,
     mark_all_read,
@@ -29,6 +32,7 @@ from .base import OptionListNavigationMixin
 from .notification_modal_actions import NotificationStateActionsMixin
 from .notification_modal_attachments import NotificationAttachmentMixin
 from .notification_modal_constants import DEFAULT_HINT_TEXT, HEADER_ID_PREFIX
+from .notification_modal_gate import NotificationGateMixin, NotificationSummaryMixin
 from .notification_modal_options import NotificationOptionMixin
 from .notification_modal_question import NotificationQuestionMixin
 from .notification_modal_report import NotificationReportMixin
@@ -43,6 +47,8 @@ from .notification_modal_tags import (
 class NotificationModal(
     NotificationQuestionMixin,
     NotificationReportMixin,
+    NotificationGateMixin,
+    NotificationSummaryMixin,
     NotificationAttachmentMixin,
     NotificationOptionMixin,
     NotificationStateActionsMixin,
@@ -103,6 +109,8 @@ class NotificationModal(
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
         self._entry_jump_last_index: int | None = None
+        self._gate_summary_cache: dict[str, tuple[tuple[int, ...], GateSummary]] = {}
+        self._gate_summary_debouncer: DetailPanelDebouncer | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -282,6 +290,10 @@ class NotificationModal(
 
     def on_mount(self) -> None:
         """Focus the option list on mount and display initial file."""
+        try:
+            self._gate_summary_debouncer = DetailPanelDebouncer(self.app, delay_s=0.15)
+        except Exception:
+            self._gate_summary_debouncer = None
         display_index: int | None = None
         try:
             option_list = self.query_one("#notification-list", OptionList)
@@ -531,3 +543,7 @@ class NotificationModal(
         self._current_file_index = 0
         notification = self._get_highlighted_notification()
         self._display_file(notification)
+
+    def on_unmount(self) -> None:
+        """Cancel any in-flight gate summary enrichment when the modal closes."""
+        cancel_pump_free_tasks(self)

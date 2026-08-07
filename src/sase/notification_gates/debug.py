@@ -44,7 +44,17 @@ from sase.notification_gates.paths import (
     resolve_action_bundle,
 )
 from sase.notification_gates.registry import adapter_for_action
+from sase.notification_gates.summary import GateSummaryStatus, derive_gate_status
 from sase.notifications.models import Notification
+
+_STATUS_TO_DEBUG_STATUS: dict[GateSummaryStatus, GateDebugStatus] = {
+    "pending": "PENDING",
+    "answered": "ANSWERED",
+    "cancelled": "CANCELLED",
+    "timed_out": "TIMED OUT",
+    "overdue": "OVERDUE",
+    "unavailable": "UNKNOWN",
+}
 
 
 def debug_context_from_notification(notification: Notification) -> GateDebugContext:
@@ -277,19 +287,16 @@ def _derive_status(
     deadline: float | None,
     now: float,
 ) -> GateDebugStatus:
-    if terminal_kind is not None and terminal.status != "ok":
-        return "UNKNOWN"
-    if terminal_kind == "response":
-        return "ANSWERED"
-    if terminal_kind == "cancellation":
-        return (
-            "TIMED OUT" if terminal_payload.get("reason") == "timeout" else "CANCELLED"
-        )
-    if request.status != "ok":
-        return "UNKNOWN"
-    if deadline is not None and now > deadline:
-        return "OVERDUE"
-    return "PENDING"
+    raw_reason = terminal_payload.get("reason")
+    status = derive_gate_status(
+        request_readable=request.status == "ok",
+        terminal_kind=terminal_kind,
+        terminal_readable=terminal.status == "ok",
+        cancellation_reason=str(raw_reason) if raw_reason is not None else None,
+        deadline=deadline,
+        now=now,
+    )
+    return _STATUS_TO_DEBUG_STATUS[status]
 
 
 def _created_time(

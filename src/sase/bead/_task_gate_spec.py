@@ -15,6 +15,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
 from sase.bead._task_gate_preview import (
+    bounded_gate_title,
     render_task_triage_preview,
     task_triage_presentation_note,
 )
@@ -85,6 +86,7 @@ def build_task_triage_gate_spec(
     presentation: dict[str, Any] = {
         "sender": "bead",
         "icon": "✦",
+        "title": bounded_gate_title(bead_id, title),
         "notes": [
             task_triage_presentation_note(
                 bead_id,

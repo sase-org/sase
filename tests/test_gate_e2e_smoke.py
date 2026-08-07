@@ -70,6 +70,7 @@ def test_e2e_custom_gate_with_restart_verify_reject_query(
         "payload": {"operation": "restart"},
         "presentation": {
             "icon": "🔄",
+            "title": "Restart the service",
             "sender": "system-manager",
             "notes": ["Verify restart sequence"],
         },

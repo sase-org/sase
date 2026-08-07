@@ -93,6 +93,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
     from sase.notification_gates.hashing import load_and_verify_bundle
     from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import resolve_notification_bundle
+    from sase.notification_gates.summary import gate_summary_from_notification
 
     bundle = resolve_notification_bundle(notification)
     if bundle is None or bundle.legacy:
@@ -115,6 +116,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
     preview_path = _preview_path(notification)
     preview_text = _read_text_preview(preview_path)
     attachments = tuple(dict.fromkeys(Path(path).name for path in notification.files))
+    summary = gate_summary_from_notification(notification)
     return CustomGateModalData(
         request_id=str(envelope.get("request_id") or notification.id),
         title=adapter.display_title,
@@ -126,6 +128,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
         preview_text=preview_text,
         gate=gate,
         origin_agent=notification_origin_agent(notification),
+        gate_title=None if summary is None else summary.title,
     )
 
 

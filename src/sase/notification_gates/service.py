@@ -35,9 +35,11 @@ from sase.notification_gates.models import (
 from sase.notification_gates.presentation import (
     GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
     GATE_PANEL_ACTION_DATA_KEY,
+    GATE_TITLE_ACTION_DATA_KEY,
     normalize_gate_origin_agent,
     normalize_gate_panel,
     normalize_gate_snooze_until,
+    normalize_gate_title,
 )
 from sase.notification_gates.paths import (
     RESPONSE_FILENAME,
@@ -346,6 +348,9 @@ def _build_notification(
     origin_agent = normalize_gate_origin_agent(presentation.get("origin_agent"))
     if origin_agent is not None:
         action_data[GATE_ORIGIN_AGENT_ACTION_DATA_KEY] = origin_agent
+    title = normalize_gate_title(presentation.get("title"))
+    if title is not None:
+        action_data[GATE_TITLE_ACTION_DATA_KEY] = title
     if preview is not None:
         action_data["preview_path"] = str(owned_resource_path(paths.root, preview))
     sender = str(presentation.get("sender", adapter.sender)).strip()

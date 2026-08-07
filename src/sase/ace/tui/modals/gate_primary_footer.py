@@ -31,9 +31,9 @@ def _primary_branch_label(data: GateBranchData) -> str:
     return group.label if group is not None and group.label else first_option_label
 
 
-def primary_action_badge(data: GateBranchData, submit_key: str) -> Text:
-    """Build the bounded, literal key/action badge for a gate footer."""
-    label = Text(_primary_branch_label(data))
+def primary_action_badge_for_label(label_text: str, submit_key: str) -> Text:
+    """Build the bounded, literal key/action badge from a resolved label."""
+    label = Text(label_text)
     label.truncate(_PRIMARY_ACTION_LABEL_MAX_CELLS, overflow="ellipsis")
 
     badge = Text(no_wrap=True)
@@ -44,4 +44,9 @@ def primary_action_badge(data: GateBranchData, submit_key: str) -> Text:
     return badge
 
 
-__all__ = ["primary_action_badge"]
+def primary_action_badge(data: GateBranchData, submit_key: str) -> Text:
+    """Build the bounded, literal key/action badge for a gate footer."""
+    return primary_action_badge_for_label(_primary_branch_label(data), submit_key)
+
+
+__all__ = ["primary_action_badge", "primary_action_badge_for_label"]

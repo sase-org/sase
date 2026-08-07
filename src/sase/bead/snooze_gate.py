@@ -25,6 +25,7 @@ from sase.bead.model import CloseRecord, SnoozeRecord, TaskPlusOneEvidence
 from sase.bead.snooze_time import SnoozeTimeError, parse_snooze_request
 from sase.bead.task_gate import (
     bead_gate_actor,
+    bounded_gate_title,
     render_task_triage_preview,
     task_triage_presentation_note,
 )
@@ -150,6 +151,7 @@ def _build_bead_snooze_gate_spec(
     presentation: dict[str, Any] = {
         "sender": "bead",
         "icon": "◈",
+        "title": bounded_gate_title(bead_id, title),
         "notes": [
             bead_snooze_presentation_note(
                 bead_id,

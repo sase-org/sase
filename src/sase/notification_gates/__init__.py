@@ -1,5 +1,6 @@
 """Durable command-backed notification gate service."""
 
+from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.models import (
     GATE_REQUEST_SCHEMA_VERSION,
@@ -46,6 +47,7 @@ __all__ = [
     "GATE_RESULT_SCHEMA_VERSION",
     "PRIVILEGED_GATE_ACTIONS",
     "GateAdapter",
+    "GateBranchData",
     "GateBundlePaths",
     "GateCreationResult",
     "GateError",

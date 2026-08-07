@@ -58,3 +58,7 @@ QUESTION_HINT_TEXT = (
     "Enter: answer  d: debug  C-d/C-u: scroll  m: mark  x: dismiss  M: mute  "
     "s: snooze  []: tags  q: close"
 )
+GATE_HINT_TEXT = (
+    "Enter: review  d: debug  C-n/C-p: file  C-d/C-u: scroll  m: mark  x: dismiss  "
+    "M: mute  s: snooze  []: tags  q: close"
+)

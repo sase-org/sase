@@ -21,7 +21,9 @@ from sase.notification_gates.presentation import (
     normalize_gate_panel,
 )
 
-HITL_TAB_KEY = "hitl"
+# The Rust core still keys this synthetic tab "hitl" internally; only the
+# Python-owned display label below has changed to "Gates".
+GATES_TAB_KEY = "hitl"
 ERRORS_TAB_KEY = "errors"
 MUTED_TAB_KEY = "__muted__"
 SNOOZED_TAB_KEY = "__snoozed__"
@@ -29,7 +31,10 @@ SNOOZED_TAB_KEY = "__snoozed__"
 # The core names the catch-all tab; the modal has always spelled it ``None``.
 _CORE_GENERAL_TAB_KEY = "general"
 
-_HITL_ACTIONS = frozenset(
+# Mirrors the core's HITL_ACTIONS list exactly; a parity test depends on that.
+# BeadSnooze deliberately stays out: it declares panel: "beads" and routes
+# there by the higher-precedence panel rule.
+_GATE_TAB_ACTIONS = frozenset(
     {
         "PlanApproval",
         "EpicApproval",
@@ -41,7 +46,7 @@ _HITL_ACTIONS = frozenset(
     }
 )
 _SYNTHETIC_TAB_LABELS = {
-    HITL_TAB_KEY: "HITL",
+    GATES_TAB_KEY: "Gates",
     ERRORS_TAB_KEY: "Errors",
     MUTED_TAB_KEY: "Muted",
     SNOOZED_TAB_KEY: "Snoozed",
@@ -110,8 +115,8 @@ def _notification_modal_tab_key(notification: Notification) -> str | None:
     panel_key = _notification_panel_key(notification)
     if panel_key is not None:
         return panel_key
-    if notification.action in _HITL_ACTIONS:
-        return HITL_TAB_KEY
+    if notification.action in _GATE_TAB_ACTIONS:
+        return GATES_TAB_KEY
     if is_error(notification):
         return ERRORS_TAB_KEY
 

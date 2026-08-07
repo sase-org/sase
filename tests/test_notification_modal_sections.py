@@ -85,7 +85,7 @@ def test_hitl_actions_share_hitl_tab() -> None:
     modal = NotificationModal([plan, question, workflow_hitl, task_triage, regular])
 
     assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
-        ("hitl", "HITL", 4),
+        ("hitl", "Gates", 4),
         (None, "General", 1),
     ]
     assert modal._active_notification_tag == "hitl"
@@ -144,7 +144,7 @@ def test_invalid_stored_panel_falls_back_to_existing_routing(
     modal = NotificationModal([task_triage])
 
     assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
-        ("hitl", "HITL", 1)
+        ("hitl", "Gates", 1)
     ]
 
 
@@ -183,7 +183,7 @@ def test_synthetic_tabs_take_precedence_over_stored_tags() -> None:
     modal = NotificationModal([plan, error, done])
 
     assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
-        ("hitl", "HITL", 1),
+        ("hitl", "Gates", 1),
         ("errors", "Errors", 1),
         ("done", "Done", 1),
     ]
@@ -462,7 +462,7 @@ def test_mixed_tab_order_places_muted_last() -> None:
     modal = NotificationModal([zeta, muted, done, hitl, alpha, error, general])
 
     assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
-        ("hitl", "HITL", 1),
+        ("hitl", "Gates", 1),
         ("errors", "Errors", 1),
         (None, "General", 1),
         ("done", "Done", 1),

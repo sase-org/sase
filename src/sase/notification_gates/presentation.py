@@ -10,13 +10,17 @@ from sase.notification_gates.models import GateError
 
 GATE_PANEL_ACTION_DATA_KEY = "panel"
 GATE_ORIGIN_AGENT_ACTION_DATA_KEY = "origin_agent"
+GATE_TITLE_ACTION_DATA_KEY = "gate_title"
 # Every synthetic notification-panel tab key. A gate declaring one of these
 # would silently collide with the tab the panel already renders itself.
-RESERVED_GATE_PANELS = frozenset({"errors", "general", "hitl", "muted", "snoozed"})
+RESERVED_GATE_PANELS = frozenset(
+    {"errors", "gates", "general", "hitl", "muted", "snoozed"}
+)
 
 _GATE_PANEL_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 _MAX_GATE_PANEL_LENGTH = 32
 _MAX_GATE_ORIGIN_AGENT_LENGTH = 128
+_MAX_GATE_TITLE_LENGTH = 120
 
 
 def normalize_gate_panel(value: object) -> str | None:
@@ -89,6 +93,26 @@ def normalize_gate_origin_agent(value: object) -> str | None:
     return origin_agent
 
 
+def normalize_gate_title(value: object) -> str | None:
+    """Return the stripped one-line decision headline declared by a gate."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _invalid_title(value, "must be a string")
+    title = value.strip()
+    if not title:
+        raise _invalid_title(value, "must be non-empty")
+    if len(title) > _MAX_GATE_TITLE_LENGTH:
+        raise _invalid_title(
+            value, f"must be at most {_MAX_GATE_TITLE_LENGTH} characters"
+        )
+    if "\n" in title:
+        raise _invalid_title(value, "must be a single line")
+    if any(unicodedata.category(character) == "Cc" for character in title):
+        raise _invalid_title(value, "must not contain control characters")
+    return title
+
+
 def _invalid_panel(value: object, reason: str) -> GateError:
     return GateError(
         "invalid_presentation",
@@ -113,11 +137,21 @@ def _invalid_origin_agent(value: object, reason: str) -> GateError:
     )
 
 
+def _invalid_title(value: object, reason: str) -> GateError:
+    return GateError(
+        "invalid_presentation",
+        "presentation.title",
+        f"invalid title {value!r}: {reason}",
+    )
+
+
 __all__ = [
     "GATE_ORIGIN_AGENT_ACTION_DATA_KEY",
     "GATE_PANEL_ACTION_DATA_KEY",
+    "GATE_TITLE_ACTION_DATA_KEY",
     "RESERVED_GATE_PANELS",
     "normalize_gate_origin_agent",
     "normalize_gate_panel",
     "normalize_gate_snooze_until",
+    "normalize_gate_title",
 ]

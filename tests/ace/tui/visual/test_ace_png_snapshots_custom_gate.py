@@ -90,6 +90,7 @@ def _data(
             branches=branches,
             primary_branch=branches[0],
         ),
+        gate_title="Approve production deployment",
     )
 
 

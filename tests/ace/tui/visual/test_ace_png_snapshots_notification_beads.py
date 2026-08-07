@@ -152,7 +152,7 @@ async def test_notification_beads_tab_png_snapshot(
         await page.expect_modal("NotificationModal")
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "HITL")
+        assert_page_svg_contains(page, "Gates")
         assert_page_svg_contains(page, "Beads")
         assert_page_svg_contains(page, "Errors")
         assert_page_svg_contains(page, "Done")
@@ -253,6 +253,7 @@ def _task_triage_modal_data() -> CustomGateModalData:
             primary_branch=("launch",),
         ),
         origin_agent=str(presentation["origin_agent"]),
+        gate_title=str(presentation["title"]),
     )
 
 

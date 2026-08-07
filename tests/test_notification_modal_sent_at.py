@@ -256,7 +256,9 @@ class TestDisplayFileUpdatesSentAtLine:
 
 
 class TestCyclingAttachmentsLeavesSentAtLineUnchanged:
-    def test_next_file_changes_title_not_sent_line(self, tmp_path: Path) -> None:
+    def test_next_file_changes_content_not_title_or_sent_line(
+        self, tmp_path: Path
+    ) -> None:
         first = tmp_path / "a.txt"
         first.write_text("a", encoding="utf-8")
         second = tmp_path / "b.txt"
@@ -277,7 +279,14 @@ class TestCyclingAttachmentsLeavesSentAtLineUnchanged:
 
         modal.action_next_file()
 
-        title_texts = [call.args[0] for call in title.update.call_args_list]
-        assert any("b.txt" in text for text in title_texts)
+        # The header title reflects the notification, not the current attachment,
+        # so cycling files leaves it unchanged; the body composed into content
+        # is what carries the per-file "b.txt" reference now.
+        title_texts = {call.args[0] for call in title.update.call_args_list}
+        assert len(title_texts) == 1
+        content_texts = [
+            _render_plain(call.args[0]) for call in content.update.call_args_list
+        ]
+        assert any("b.txt" in text for text in content_texts)
         sent_at_texts = {call.args[0].plain for call in sent_at.update.call_args_list}
         assert sent_at_texts == {"sent today 13:18:42 · 4m ago"}

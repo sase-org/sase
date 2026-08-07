@@ -89,6 +89,7 @@ def custom_gate_spec(
         "payload": {"open": {"shape": True}},
         "presentation": {
             "icon": "🛡️",
+            "title": "Confirm guarded work",
             "sender": "safety-check",
             "notes": ["Confirm guarded work"],
         },

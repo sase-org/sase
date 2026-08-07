@@ -24,6 +24,7 @@ from sase.bead._task_gate_actions import (
     snooze_task_triage,
 )
 from sase.bead._task_gate_preview import (
+    bounded_gate_title,
     render_task_triage_preview,
     task_triage_presentation_note,
 )
@@ -113,6 +114,7 @@ __all__ = [
     "TaskTriageAction",
     "TaskTriageResponse",
     "bead_gate_actor",
+    "bounded_gate_title",
     "cancel_task_triage",
     "close_record_payload",
     "close_task_triage",
