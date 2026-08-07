@@ -36,6 +36,28 @@ _PRINT_WIDTH_FLAG_RE = re.compile(r"--print-width")
 _PROSE_WRAP_FLAG_RE = re.compile(r"--prose-wrap")
 
 
+def _width_aware_modules() -> list[Path]:
+    """Return the modules that have declared themselves prose-width-aware.
+
+    Scanning every module under ``src/`` for inline width literals would be the
+    flaky whole-repo grep this suite is meant to avoid: ``Console(width=120)``
+    in TUI code and every unrelated numeric comparison would trip it. Importing
+    ``sase.markdown_width`` is the narrow, self-declared signal that a module
+    wraps prose, so these are the modules held to the stricter standard.
+    """
+    modules = [
+        path
+        for path in sorted(_SRC_ROOT.rglob("*.py"))
+        if path != _WIDTH_AUTHORITY
+        and "markdown_width" in path.read_text(encoding="utf-8")
+    ]
+    assert modules, (
+        "no module imports sase.markdown_width — the inline-width guards below "
+        "would pass vacuously"
+    )
+    return modules
+
+
 def _prettier_config() -> dict[str, object]:
     package_json = json.loads((_REPO_ROOT / "package.json").read_text(encoding="utf-8"))
     config = package_json.get("prettier")
@@ -123,4 +145,70 @@ def test_only_the_width_authority_binds_a_width_to_an_integer_literal() -> None:
     assert not offenders, (
         f"these constants re-fork the prose width instead of deriving from "
         f"MARKDOWN_PRINT_WIDTH: {offenders}"
+    )
+
+
+def test_no_width_aware_module_passes_an_inline_width_literal() -> None:
+    """A width may not be re-forked as a bare ``width=<int>`` call argument.
+
+    The constant scan above only sees module-level bindings, which is how
+    ``textwrap.fill(description, width=118)`` in the generated-skill renderer
+    survived the unification and had to be caught by a failing golden instead.
+    """
+    offenders: list[str] = []
+    for path in _width_aware_modules():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            for keyword in node.keywords:
+                if keyword.arg is None or "width" not in keyword.arg:
+                    continue
+                if isinstance(keyword.value, ast.Constant) and isinstance(
+                    keyword.value.value, int
+                ):
+                    offenders.append(
+                        f"{path.relative_to(_REPO_ROOT).as_posix()}:"
+                        f"{keyword.value.lineno} {keyword.arg}="
+                        f"{keyword.value.value}"
+                    )
+
+    assert not offenders, (
+        f"these calls hardcode a width instead of deriving it from "
+        f"MARKDOWN_PRINT_WIDTH: {offenders}"
+    )
+
+
+def test_no_width_aware_module_compares_a_length_to_an_inline_literal() -> None:
+    """A line-length threshold must derive from the authority too.
+
+    ``len(f"description: {description}") > 120`` is the other shape the
+    constant scan misses: a width used as a comparison threshold rather than
+    bound to a name.
+    """
+    offenders: list[str] = []
+    for path in _width_aware_modules():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Compare):
+                continue
+            left = node.left
+            if not (
+                isinstance(left, ast.Call)
+                and isinstance(left.func, ast.Name)
+                and left.func.id == "len"
+            ):
+                continue
+            for comparator in node.comparators:
+                if isinstance(comparator, ast.Constant) and isinstance(
+                    comparator.value, int
+                ):
+                    offenders.append(
+                        f"{path.relative_to(_REPO_ROOT).as_posix()}:"
+                        f"{comparator.lineno} len(...) vs {comparator.value}"
+                    )
+
+    assert not offenders, (
+        f"these length thresholds hardcode a width instead of deriving it "
+        f"from MARKDOWN_PRINT_WIDTH: {offenders}"
     )
