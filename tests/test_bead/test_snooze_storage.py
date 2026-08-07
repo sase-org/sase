@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead import db as db_mod
+from sase.bead._db_schema import SCHEMA_SQL
 from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
 from sase.bead.model import Issue, IssueType, PhaseSize, SnoozeRecord, Status
 from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
@@ -247,7 +248,7 @@ class TestSnoozeSqliteMirror:
     ) -> None:
         db_path = tmp_path / "beads.db"
         legacy_schema = (
-            db_mod._SCHEMA.replace(", 'snoozed'", "")
+            SCHEMA_SQL.replace(", 'snoozed'", "")
             .replace("    snooze      TEXT,\n", "")
             .replace("    CHECK(status != 'snoozed' OR issue_type = 'task'),\n", "")
             .replace(

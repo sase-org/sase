@@ -11,6 +11,11 @@ import sqlite3
 from pathlib import Path
 
 from sase.bead import db as db_mod
+from sase.bead._db_codec import (
+    close_history_json,
+    plus_one_evidence_json,
+    snooze_json,
+)
 from sase.bead.close_history_codec import (
     close_history_from_dicts,
     close_history_to_dicts,
@@ -231,11 +236,9 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                     notes=issue.notes,
                     design=issue.design,
                     refs="\n".join(issue.refs),
-                    plus_one_evidence=db_mod.plus_one_evidence_json(
-                        issue.plus_one_evidence
-                    ),
-                    close_history=db_mod.close_history_json(issue.close_history),
-                    snooze=db_mod.snooze_json(issue.snooze),
+                    plus_one_evidence=plus_one_evidence_json(issue.plus_one_evidence),
+                    close_history=close_history_json(issue.close_history),
+                    snooze=snooze_json(issue.snooze),
                     model=issue.model,
                     size=issue.size.value if issue.size else None,
                     tier=issue.tier.value if issue.tier else None,

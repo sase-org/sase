@@ -4,8 +4,8 @@ import sqlite3
 
 import pytest
 
+from sase.bead._db_schema import SCHEMA_SQL
 from sase.bead.db import (
-    _SCHEMA,
     add_dependency,
     create_issue,
     get_issue,
@@ -51,8 +51,8 @@ class TestMigrationAddsColumn:
     def test_pre_refs_db_gets_empty_reference_list(self, tmp_path) -> None:
         db_path = tmp_path / "old_refs.db"
         old = sqlite3.connect(str(db_path))
-        schema_without_refs = _SCHEMA.replace(_REFS_COLUMN_DEFINITION, "")
-        assert schema_without_refs != _SCHEMA
+        schema_without_refs = SCHEMA_SQL.replace(_REFS_COLUMN_DEFINITION, "")
+        assert schema_without_refs != SCHEMA_SQL
         old.executescript(schema_without_refs)
         old.execute(
             "INSERT INTO issues "
@@ -74,8 +74,10 @@ class TestMigrationAddsColumn:
     def test_pre_resolution_db_gets_nullable_constrained_column(self, tmp_path) -> None:
         db_path = tmp_path / "old_resolution.db"
         old = sqlite3.connect(str(db_path))
-        schema_without_resolution = _SCHEMA.replace(_RESOLUTION_COLUMN_DEFINITION, "")
-        assert schema_without_resolution != _SCHEMA
+        schema_without_resolution = SCHEMA_SQL.replace(
+            _RESOLUTION_COLUMN_DEFINITION, ""
+        )
+        assert schema_without_resolution != SCHEMA_SQL
         old.executescript(schema_without_resolution)
         old.execute(
             "INSERT INTO issues "
@@ -220,8 +222,8 @@ class TestSizeConstraintMigration:
     def test_pre_size_db_adds_column_without_rebuilding_table(self, tmp_path) -> None:
         db_path = tmp_path / "old_without_size.db"
         old = sqlite3.connect(str(db_path))
-        schema_without_size = _SCHEMA.replace(_SIZE_COLUMN_DEFINITION, "")
-        assert schema_without_size != _SCHEMA
+        schema_without_size = SCHEMA_SQL.replace(_SIZE_COLUMN_DEFINITION, "")
+        assert schema_without_size != SCHEMA_SQL
         old.executescript(schema_without_size)
         old.execute(
             "INSERT INTO issues "
@@ -258,11 +260,11 @@ class TestSizeConstraintMigration:
 
     def test_legacy_three_size_db_is_relaxed_and_idempotent(self, tmp_path) -> None:
         db_path = tmp_path / "legacy_three_sizes.db"
-        legacy_schema = _SCHEMA.replace(
+        legacy_schema = SCHEMA_SQL.replace(
             "('xsmall', 'small', 'medium', 'large', 'xlarge')",
             "('small', 'medium', 'large')",
         )
-        assert legacy_schema != _SCHEMA
+        assert legacy_schema != SCHEMA_SQL
 
         old = sqlite3.connect(str(db_path))
         old.executescript(legacy_schema)
@@ -353,7 +355,7 @@ class TestStatusConstraintMigration:
     def test_pre_task_ready_db_is_migrated_and_idempotent(self, tmp_path) -> None:
         db_path = tmp_path / "legacy_three_statuses.db"
         legacy_schema = (
-            _SCHEMA.replace(
+            SCHEMA_SQL.replace(
                 "('open', 'claimed', 'ready', 'in_progress', 'closed')",
                 "('open', 'in_progress', 'closed')",
             )
@@ -372,7 +374,7 @@ class TestStatusConstraintMigration:
                 "",
             )
         )
-        assert legacy_schema != _SCHEMA
+        assert legacy_schema != SCHEMA_SQL
 
         old = sqlite3.connect(str(db_path))
         old.executescript(legacy_schema)

@@ -5,483 +5,33 @@ Production bead reads and mutations route through ``sase_core_rs`` facades.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 
-from sase.bead.close_history_codec import (
-    close_history_from_dicts,
-    close_history_to_dicts,
+from sase.bead._db_codec import (
+    close_history_json,
+    plus_one_evidence_from_json,
+    plus_one_evidence_json,
+    snooze_json,
 )
-from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
+from sase.bead._db_migrations import run_migrations
+from sase.bead._db_rows import load_dependencies, row_to_issue, rows_to_issues
+from sase.bead._db_schema import SCHEMA_SQL, connect
 from sase.bead.model import (
     BeadTier,
-    CloseRecord,
     Dependency,
     Issue,
     IssueType,
-    PhaseSize,
-    Resolution,
-    SnoozeRecord,
     Status,
-    TaskPlusOneEvidence,
 )
-from sase.core.rust import require_rust_binding
-
-_SCHEMA = """\
-CREATE TABLE IF NOT EXISTS issues (
-    id          TEXT PRIMARY KEY,
-    title       TEXT NOT NULL,
-    status      TEXT NOT NULL DEFAULT 'open'
-                  CHECK(status IN ('open', 'claimed', 'ready', 'snoozed', 'in_progress', 'closed')),
-    issue_type  TEXT NOT NULL DEFAULT 'phase'
-                  CHECK(issue_type IN ('plan', 'phase', 'task')),
-    tier        TEXT
-                  CHECK(tier IN ('plan', 'epic')),
-    parent_id   TEXT
-                  REFERENCES issues(id) ON DELETE CASCADE,
-    owner       TEXT,
-    assignee    TEXT,
-    created_at  TEXT NOT NULL,
-    created_by  TEXT,
-    updated_at  TEXT NOT NULL,
-    closed_at   TEXT,
-    close_reason TEXT,
-    resolution  TEXT
-                  CHECK(resolution IN ('done', 'canceled', 'superseded')),
-    description TEXT,
-    notes       TEXT,
-    design      TEXT,
-    refs        TEXT NOT NULL DEFAULT '',
-    plus_one_evidence TEXT NOT NULL DEFAULT '[]',
-    close_history TEXT NOT NULL DEFAULT '[]',
-    snooze      TEXT,
-    model       TEXT NOT NULL DEFAULT '',
-    size        TEXT
-                  CHECK(
-                    size IS NULL OR
-                    (issue_type IN ('phase', 'task') AND
-                     size IN ('xsmall', 'small', 'medium', 'large', 'xlarge'))
-                  ),
-    is_ready_to_work INTEGER NOT NULL DEFAULT 0,
-    changespec_name TEXT NOT NULL DEFAULT '',
-    changespec_bug_id TEXT NOT NULL DEFAULT '',
-    CHECK(
-        (issue_type = 'phase' AND parent_id IS NOT NULL) OR
-        (issue_type = 'plan') OR
-        (issue_type = 'task' AND parent_id IS NULL)
-    ),
-    CHECK(issue_type = 'plan' OR tier IS NULL),
-    CHECK(is_ready_to_work IN (0, 1)),
-    CHECK(issue_type = 'plan' OR is_ready_to_work = 0),
-    CHECK(status != 'ready' OR issue_type = 'task'),
-    CHECK(status != 'snoozed' OR issue_type = 'task'),
-    CHECK((status = 'snoozed') = (snooze IS NOT NULL)),
-    CHECK(
-        issue_type = 'plan' OR
-        (changespec_name = '' AND changespec_bug_id = '')
-    ),
-    CHECK(changespec_name != '' OR changespec_bug_id = '')
-);
-
-CREATE TABLE IF NOT EXISTS dependencies (
-    issue_id       TEXT NOT NULL,
-    depends_on_id  TEXT NOT NULL,
-    created_at     TEXT NOT NULL,
-    created_by     TEXT,
-    PRIMARY KEY (issue_id, depends_on_id),
-    FOREIGN KEY (issue_id) REFERENCES issues(id) ON DELETE CASCADE,
-    FOREIGN KEY (depends_on_id) REFERENCES issues(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
-CREATE INDEX IF NOT EXISTS idx_issues_type ON issues(issue_type);
-CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier);
-CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id);
-CREATE INDEX IF NOT EXISTS idx_deps_depends_on ON dependencies(depends_on_id);
-"""
-
-
-def _connect(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def _migrate_add_is_ready_to_work(conn: sqlite3.Connection) -> None:
-    """Add is_ready_to_work column to a pre-existing issues table if missing."""
-    row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
-    ).fetchone()
-    if row is None or "is_ready_to_work" in row["sql"]:
-        return
-    conn.execute(
-        "ALTER TABLE issues ADD COLUMN is_ready_to_work INTEGER NOT NULL DEFAULT 0"
-    )
-    conn.commit()
-
-
-def _migrate_add_changespec_metadata(conn: sqlite3.Connection) -> None:
-    """Add ChangeSpec metadata columns to a pre-existing issues table."""
-    columns = {
-        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
-    }
-    if not columns:
-        return
-    if "changespec_name" not in columns:
-        conn.execute(
-            "ALTER TABLE issues ADD COLUMN changespec_name TEXT NOT NULL DEFAULT ''"
-        )
-    if "changespec_bug_id" not in columns:
-        conn.execute(
-            "ALTER TABLE issues ADD COLUMN changespec_bug_id TEXT NOT NULL DEFAULT ''"
-        )
-    conn.commit()
-
-
-def _migrate_add_model(conn: sqlite3.Connection) -> None:
-    """Add model column to a pre-existing issues table if missing."""
-    columns = {
-        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
-    }
-    if not columns or "model" in columns:
-        return
-    conn.execute("ALTER TABLE issues ADD COLUMN model TEXT NOT NULL DEFAULT ''")
-    conn.commit()
-
-
-def _migrate_add_refs(conn: sqlite3.Connection) -> None:
-    """Add artifact-reference storage to a pre-existing issues table."""
-    columns = {
-        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
-    }
-    if not columns or "refs" in columns:
-        return
-    conn.execute("ALTER TABLE issues ADD COLUMN refs TEXT NOT NULL DEFAULT ''")
-    conn.commit()
-
-
-def _migrate_add_close_history(conn: sqlite3.Connection) -> None:
-    """Add archived close-record storage to a pre-existing issues table.
-
-    A plain ``ALTER TABLE`` suffices here: unlike ``plus_one_evidence`` this
-    column carries no CHECK constraint, so no table rebuild is needed.
-    """
-    columns = {
-        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
-    }
-    if not columns or "close_history" in columns:
-        return
-    conn.execute(
-        "ALTER TABLE issues ADD COLUMN close_history TEXT NOT NULL DEFAULT '[]'"
-    )
-    conn.commit()
-
-
-def _migrate_snoozed_status(conn: sqlite3.Connection) -> None:
-    """Admit the snoozed status and its record using the Rust policy.
-
-    The status is constrained by a CHECK, so this rebuilds the table; the
-    copied column list includes ``close_history``, which is why the caller
-    runs this after :func:`_migrate_add_close_history`.
-    """
-    row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
-    ).fetchone()
-    create_table_sql = None if row is None else row["sql"]
-    needs_migration = require_rust_binding("bead_needs_snoozed_status_migration")
-    if not needs_migration(create_table_sql):
-        return
-
-    migration_sql = require_rust_binding("bead_snoozed_status_migration_sql")
-    conn.executescript(migration_sql())
-
-
-def _migrate_add_plus_one_evidence(conn: sqlite3.Connection) -> None:
-    """Add structured task +1 evidence to the compatibility mirror."""
-    row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
-    ).fetchone()
-    create_sql = None if row is None else row["sql"]
-    binding = require_rust_binding("bead_needs_plus_one_evidence_migration")
-    if not binding(create_sql):
-        return
-    sql_binding = require_rust_binding("bead_plus_one_evidence_migration_sql")
-    conn.execute(sql_binding())
-    conn.commit()
-
-
-def plus_one_evidence_json(evidence: list[TaskPlusOneEvidence]) -> str:
-    return json.dumps(
-        [
-            {
-                "timestamp": entry.timestamp,
-                "reporter": entry.reporter,
-                "note": entry.note,
-                "refs": list(entry.refs),
-            }
-            for entry in evidence
-        ],
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-
-
-def close_history_json(history: list[CloseRecord]) -> str:
-    return json.dumps(
-        close_history_to_dicts(history),
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-
-
-def snooze_json(record: SnoozeRecord | None) -> str | None:
-    """Encode a snooze record for the mirror, or ``None`` when absent."""
-    if record is None:
-        return None
-    return json.dumps(
-        snooze_to_dict(record),
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-
-
-def _snooze_from_json(value: object) -> SnoozeRecord | None:
-    if value in (None, ""):
-        return None
-    try:
-        record = json.loads(str(value))
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return None
-    return snooze_from_dict(record)
-
-
-def _close_history_from_json(value: object) -> list[CloseRecord]:
-    try:
-        records = json.loads(str(value or "[]"))
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return []
-    return close_history_from_dicts(records)
-
-
-def _plus_one_evidence_from_json(value: object) -> list[TaskPlusOneEvidence]:
-    try:
-        records = json.loads(str(value or "[]"))
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return []
-    if not isinstance(records, list):
-        return []
-    return [
-        TaskPlusOneEvidence(
-            timestamp=str(record.get("timestamp", "")),
-            reporter=str(record.get("reporter", "")),
-            note=str(record.get("note", "")),
-            refs=tuple(str(ref) for ref in record.get("refs", [])),
-        )
-        for record in records
-        if isinstance(record, dict)
-    ]
-
-
-def _migrate_add_size(conn: sqlite3.Connection) -> None:
-    """Add phase-size metadata to a pre-existing issues table if missing."""
-    columns = {
-        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
-    }
-    if not columns or "size" in columns:
-        return
-    conn.execute(
-        "ALTER TABLE issues ADD COLUMN size TEXT "
-        "CHECK(size IN ('xsmall','small','medium','large','xlarge'))"
-    )
-    conn.commit()
-
-
-def _migrate_relax_size_check(conn: sqlite3.Connection) -> None:
-    """Expand the legacy three-value phase-size constraint via Rust policy."""
-    row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
-    ).fetchone()
-    create_table_sql = None if row is None else row["sql"]
-    needs_migration = require_rust_binding("bead_needs_size_check_relax_migration")
-    if not needs_migration(create_table_sql):
-        return
-
-    migration_sql = require_rust_binding("bead_size_check_relax_migration_sql")
-    conn.executescript(migration_sql())
-
-
-def _migrate_task_ready(conn: sqlite3.Connection) -> None:
-    """Admit task beads and ready status using the Rust migration policy."""
-    row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
-    ).fetchone()
-    create_table_sql = None if row is None else row["sql"]
-    needs_migration = require_rust_binding("bead_needs_task_ready_migration")
-    if not needs_migration(create_table_sql):
-        return
-
-    migration_sql = require_rust_binding("bead_task_ready_migration_sql")
-    conn.executescript(migration_sql())
-
-
-def _migrate_add_tier(conn: sqlite3.Connection) -> None:
-    """Add plan-tier metadata to a pre-existing issues table."""
-    columns = {
-        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
-    }
-    if not columns or "tier" in columns:
-        return
-    conn.execute(
-        "ALTER TABLE issues ADD COLUMN tier TEXT CHECK(tier IN ('plan','epic'))"
-    )
-    conn.execute(
-        "UPDATE issues SET tier = 'epic' "
-        "WHERE issue_type = 'plan' "
-        "AND id IN (SELECT DISTINCT parent_id FROM issues WHERE issue_type = 'phase')"
-    )
-    conn.execute(
-        "UPDATE issues SET tier = 'plan' WHERE issue_type = 'plan' AND tier IS NULL"
-    )
-    conn.commit()
-
-
-def _migrate_add_resolution(conn: sqlite3.Connection) -> None:
-    """Add close-resolution metadata using the Rust migration policy."""
-    row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
-    ).fetchone()
-    create_table_sql = None if row is None else row["sql"]
-    needs_migration = require_rust_binding("bead_needs_resolution_migration")
-    if not needs_migration(create_table_sql):
-        return
-
-    migration_sql = require_rust_binding("bead_resolution_migration_sql")
-    conn.execute(migration_sql())
-    conn.commit()
-
-
-def _migrate_issue_types(conn: sqlite3.Connection) -> None:
-    """Migrate from epic/child to plan/phase schema if needed."""
-    row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
-    ).fetchone()
-    if row is None or "'plan'" in row["sql"]:
-        return  # No table yet or already migrated
-
-    conn.execute("PRAGMA foreign_keys=OFF")
-    conn.execute(
-        "CREATE TABLE _issues_new ("
-        "  id TEXT PRIMARY KEY, title TEXT NOT NULL,"
-        "  status TEXT NOT NULL DEFAULT 'open'"
-        "    CHECK(status IN ('open','in_progress','closed')),"
-        "  issue_type TEXT NOT NULL DEFAULT 'phase'"
-        "    CHECK(issue_type IN ('plan','phase')),"
-        "  tier TEXT CHECK(tier IN ('plan','epic')),"
-        "  parent_id TEXT, owner TEXT, assignee TEXT,"
-        "  created_at TEXT NOT NULL, created_by TEXT,"
-        "  updated_at TEXT NOT NULL, closed_at TEXT,"
-        "  close_reason TEXT, description TEXT, notes TEXT, design TEXT,"
-        "  CHECK((issue_type='phase' AND parent_id IS NOT NULL)"
-        "    OR (issue_type='plan')),"
-        "  CHECK(issue_type='plan' OR tier IS NULL)"
-        ")"
-    )
-    conn.execute(
-        "INSERT INTO _issues_new "
-        "SELECT id, title, status,"
-        "  CASE issue_type"
-        "    WHEN 'epic' THEN 'plan' WHEN 'child' THEN 'phase'"
-        "    ELSE issue_type END,"
-        "  CASE issue_type"
-        "    WHEN 'epic' THEN 'epic'"
-        "    WHEN 'plan' THEN 'epic'"
-        "    ELSE NULL END,"
-        "  parent_id, owner, assignee, created_at, created_by,"
-        "  updated_at, closed_at, close_reason, description, notes, design "
-        "FROM issues"
-    )
-    conn.execute("DROP TABLE issues")
-    conn.execute("ALTER TABLE _issues_new RENAME TO issues")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_type ON issues(issue_type)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id)")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.commit()
 
 
 def init_db(db_path: Path) -> sqlite3.Connection:
     """Create or open the database, ensuring schema exists."""
-    conn = _connect(db_path)
-    _migrate_issue_types(conn)
-    _migrate_add_is_ready_to_work(conn)
-    _migrate_add_changespec_metadata(conn)
-    _migrate_add_tier(conn)
-    _migrate_add_model(conn)
-    _migrate_add_refs(conn)
-    _migrate_add_size(conn)
-    _migrate_add_resolution(conn)
-    _migrate_add_plus_one_evidence(conn)
-    _migrate_task_ready(conn)
-    _migrate_relax_size_check(conn)
-    # Runs after the table-rebuilding migrations above: those copy an explicit
-    # legacy column list, so a column added before them would be dropped.
-    _migrate_add_close_history(conn)
-    # Runs last: its rebuild copies close_history, so that column must exist.
-    _migrate_snoozed_status(conn)
-    conn.executescript(_SCHEMA)
+    conn = connect(db_path)
+    run_migrations(conn)
+    conn.executescript(SCHEMA_SQL)
     return conn
-
-
-def _row_to_issue(row: sqlite3.Row) -> Issue:
-    return Issue(
-        id=row["id"],
-        title=row["title"],
-        status=Status(row["status"]),
-        issue_type=IssueType(row["issue_type"]),
-        tier=BeadTier(row["tier"]) if row["tier"] else None,
-        parent_id=row["parent_id"],
-        owner=row["owner"] or "",
-        assignee=row["assignee"] or "",
-        created_at=row["created_at"],
-        created_by=row["created_by"] or "",
-        updated_at=row["updated_at"],
-        closed_at=row["closed_at"],
-        close_reason=row["close_reason"],
-        resolution=Resolution(row["resolution"]) if row["resolution"] else None,
-        description=row["description"] or "",
-        notes=row["notes"] or "",
-        design=row["design"] or "",
-        refs=(row["refs"] or "").splitlines(),
-        plus_one_evidence=_plus_one_evidence_from_json(row["plus_one_evidence"]),
-        close_history=_close_history_from_json(row["close_history"]),
-        snooze=_snooze_from_json(row["snooze"]),
-        model=row["model"] or "",
-        size=PhaseSize(row["size"]) if row["size"] else None,
-        is_ready_to_work=bool(row["is_ready_to_work"]),
-        changespec_name=row["changespec_name"] or "",
-        changespec_bug_id=row["changespec_bug_id"] or "",
-    )
-
-
-def _load_dependencies(conn: sqlite3.Connection, issue_id: str) -> list[Dependency]:
-    rows = conn.execute(
-        "SELECT issue_id, depends_on_id, created_at, created_by "
-        "FROM dependencies WHERE issue_id = ?",
-        (issue_id,),
-    ).fetchall()
-    return [
-        Dependency(
-            issue_id=r["issue_id"],
-            depends_on_id=r["depends_on_id"],
-            created_at=r["created_at"],
-            created_by=r["created_by"] or "",
-        )
-        for r in rows
-    ]
 
 
 def create_issue(
@@ -540,8 +90,8 @@ def get_issue(conn: sqlite3.Connection, issue_id: str) -> Issue | None:
     row = conn.execute("SELECT * FROM issues WHERE id = ?", (issue_id,)).fetchone()
     if row is None:
         return None
-    issue = _row_to_issue(row)
-    issue.dependencies = _load_dependencies(conn, issue_id)
+    issue = row_to_issue(row)
+    issue.dependencies = load_dependencies(conn, issue_id)
     return issue
 
 
@@ -567,13 +117,7 @@ def list_issues(
         query += f" AND tier IN ({placeholders})"
         params.extend(t.value for t in tiers)
     query += " ORDER BY created_at ASC"
-    rows = conn.execute(query, params).fetchall()
-    issues = []
-    for row in rows:
-        issue = _row_to_issue(row)
-        issue.dependencies = _load_dependencies(conn, issue.id)
-        issues.append(issue)
-    return issues
+    return rows_to_issues(conn, conn.execute(query, params).fetchall())
 
 
 def update_issue(
@@ -680,12 +224,7 @@ def get_epic_children(conn: sqlite3.Connection, epic_id: str) -> list[Issue]:
         "SELECT * FROM issues WHERE parent_id = ? ORDER BY created_at ASC",
         (epic_id,),
     ).fetchall()
-    issues = []
-    for row in rows:
-        issue = _row_to_issue(row)
-        issue.dependencies = _load_dependencies(conn, issue.id)
-        issues.append(issue)
-    return issues
+    return rows_to_issues(conn, rows)
 
 
 def stats(conn: sqlite3.Connection) -> dict[str, int]:
@@ -703,7 +242,7 @@ def stats(conn: sqlite3.Connection) -> dict[str, int]:
         r["cnt"] for r in conn.execute("SELECT COUNT(*) as cnt FROM issues").fetchall()
     )
     result["plus_one"] = sum(
-        len(_plus_one_evidence_from_json(row["plus_one_evidence"]))
+        len(plus_one_evidence_from_json(row["plus_one_evidence"]))
         for row in conn.execute("SELECT plus_one_evidence FROM issues").fetchall()
     )
     return result

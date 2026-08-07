@@ -17,7 +17,8 @@ from sase.bead.close_history_codec import (
     close_history_from_dicts,
     close_history_to_dicts,
 )
-from sase.bead.db import _SCHEMA, create_issue, get_issue, init_db
+from sase.bead._db_schema import SCHEMA_SQL
+from sase.bead.db import create_issue, get_issue, init_db
 from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
 from sase.bead.model import (
     CloseRecord,
@@ -252,8 +253,8 @@ class TestSqliteMirror:
     ) -> None:
         db_path = tmp_path / "old.db"
         old = sqlite3.connect(str(db_path))
-        schema_without_column = _SCHEMA.replace(_CLOSE_HISTORY_COLUMN_DEFINITION, "")
-        assert schema_without_column != _SCHEMA
+        schema_without_column = SCHEMA_SQL.replace(_CLOSE_HISTORY_COLUMN_DEFINITION, "")
+        assert schema_without_column != SCHEMA_SQL
         old.executescript(schema_without_column)
         old.execute(
             "INSERT INTO issues "
