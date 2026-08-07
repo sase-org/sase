@@ -23,6 +23,7 @@ from sase.notification_gates.durability import (
     file_lock,
     read_json_object,
 )
+from sase.notification_gates.feedback_input import apply_feedback_input
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.input_bounds import check_input_bounds
 from sase.notification_gates.journal import (
@@ -68,7 +69,11 @@ def execute_gate_selection(
     """Execute a non-empty subset of one branch and persist one response.
 
     Submitted ids are normalized to query order before command execution and
-    persistence. Every selected option receives the same JSON input value.
+    persistence. Every selected option receives the same JSON input value,
+    except that the reviewer's note is injected as ``input.feedback`` for
+    each selected option whose schema declares that property. That rule
+    lives here rather than in any surface so every client -- ACE, mobile,
+    Telegram, and headless callers -- answers one gate the same way.
 
     An AND branch runs its commands one at a time, and a later member may
     fail after earlier members already took effect. Every attempt is recorded
@@ -106,13 +111,21 @@ def execute_gate_selection(
             )
 
         normalized_input = {} if input_data is None else input_data
+        with _recorded_rejection(bundle_path, selected[0].id, source):
+            normalized_feedback = _normalize_feedback(selected, feedback)
+        option_inputs = apply_feedback_input(
+            selected,
+            {option.id: normalized_input for option in selected},
+            normalized_feedback,
+        )
         for option in selected:
             target = f"option {option.id} input"
             with _recorded_rejection(bundle_path, option.id, source):
-                check_input_bounds(normalized_input, target)
-                _validate_json_instance(normalized_input, option.input_schema, target)
+                check_input_bounds(option_inputs[option.id], target)
+                _validate_json_instance(
+                    option_inputs[option.id], option.input_schema, target
+                )
         with _recorded_rejection(bundle_path, selected[0].id, source):
-            normalized_feedback = _normalize_feedback(selected, feedback)
             adapter.validate_selection(
                 selected_option_ids=tuple(option.id for option in selected),
                 feedback=normalized_feedback,
@@ -120,7 +133,7 @@ def execute_gate_selection(
 
         request_hash = str(envelope["hashes"]["request"])
         input_digests = {
-            option.id: value_digest(normalized_input) for option in selected
+            option.id: value_digest(option_inputs[option.id]) for option in selected
         }
         attempt_id, replayed = _begin_attempt(
             bundle_path,
@@ -140,7 +153,7 @@ def execute_gate_selection(
                     bundle_path,
                     option,
                     envelope=envelope,
-                    normalized_input=normalized_input,
+                    normalized_input=option_inputs[option.id],
                     response_path=response_path,
                     cancellation_path=cancellation_path,
                     source=source,

@@ -64,14 +64,10 @@ def execute_mobile_gate_action(
         raise MobileGateActionError(
             "invalid_request", "bundle_path", "v2 gate bundle is missing"
         )
-    input_data: dict[str, Any] = {}
-    if feedback and "feedback" in selected_option_ids:
-        input_data["feedback"] = feedback
     try:
         execution = execute_gate_selection(
             bundle.root,
             selected_option_ids,
-            input_data,
             feedback=feedback,
             source="mobile",
         )

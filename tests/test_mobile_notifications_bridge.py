@@ -406,6 +406,80 @@ def test_execute_mobile_gate_action_uses_selected_options_unchanged() -> None:
     assert load_notifications(include_dismissed=True)[0].dismissed is True
 
 
+def test_execute_mobile_gate_action_delivers_the_note_to_declaring_options() -> None:
+    """The note reaches a declaring command regardless of the option's id.
+
+    The bridge used to copy it only when the literal option id ``feedback``
+    was selected, which no other surface agreed with.
+    """
+    command = (
+        "#!/usr/bin/env python3\n"
+        "import json, sys\n"
+        "print(json.dumps({'value': json.load(sys.stdin)}))\n"
+    )
+    gate = create_gate(
+        {
+            "schema_version": 3,
+            "kind": "custom",
+            "request_id": "mobile-note",
+            "producer": {"agent": "test"},
+            "payload": {},
+            "presentation": {
+                "icon": "📱",
+                "title": "Confirm mobile action",
+                "notes": ["Confirm mobile action"],
+            },
+            "query": "approve",
+            "primary_branch": ["approve"],
+            "options": [
+                {
+                    "id": "approve",
+                    "label": "Approve",
+                    "feedback": "optional",
+                    "command": {"argv": ["commands/approve"]},
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {"feedback": {"type": "string"}},
+                        "additionalProperties": False,
+                    },
+                },
+            ],
+            "resources": [
+                {
+                    "path": "commands/approve",
+                    "role": "command",
+                    "content": command,
+                },
+            ],
+        }
+    )
+    notification = load_notifications()[0]
+
+    with (
+        patch(
+            "sase.integrations._mobile_notification_snapshot.read_current_notification_snapshot",
+            return_value=_snapshot([notification]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id=notification.id,
+            prefix="mobile-n",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        result = execute_mobile_gate_action(
+            "mobile-n",
+            ["approve"],
+            feedback="Approved from mobile",
+        )
+
+    assert result.response_json["option_results"] == [
+        {"id": "approve", "result": {"value": {"feedback": "Approved from mobile"}}}
+    ]
+    assert gate.response_path.is_file()
+
+
 def test_execute_mobile_task_triage_reports_registered_action_kind(
     gate_home: Path,
 ) -> None:
