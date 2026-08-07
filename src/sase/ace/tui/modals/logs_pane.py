@@ -12,6 +12,8 @@ from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
 
+from sase.core.time import local_now
+
 from ..actions.navigation.jump_hints import normalize_jump_key
 from ..logs import LogSource, log_sources
 from ..util.selection import ProgrammaticSelectionGuard, restore_selection_by_identity
@@ -22,7 +24,7 @@ from .logs_pane_render import (
     CYAN as _CYAN,
     GOLD as _GOLD,
     format_mtime as _format_mtime,
-    format_size as _format_size,
+    format_size_compact as _format_size_compact,
     render_log_detail as _render_log_detail,
     source_label as _source_label,
     styled_log_line as _styled_log_line,
@@ -46,7 +48,10 @@ def _build_log_pane_load_result(
         )
     else:
         selected_index = 0
-    options = [(f"log__{source.id}", _source_label(source)) for source in sources]
+    now = local_now()
+    options = [
+        (f"log__{source.id}", _source_label(source, now=now)) for source in sources
+    ]
     active_count = sum(1 for source in sources if source.exists())
     detail = (
         _render_log_detail(sources[selected_index])
@@ -402,7 +407,7 @@ __all__ = [
     "_GOLD",
     "_build_log_pane_load_result",
     "_format_mtime",
-    "_format_size",
+    "_format_size_compact",
     "_render_log_detail",
     "_styled_log_line",
 ]

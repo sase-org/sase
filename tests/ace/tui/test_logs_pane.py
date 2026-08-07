@@ -3,21 +3,26 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from rich.cells import cell_len
+from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import ContentSwitcher, OptionList
 
 from sase.ace.testing import AcePage
+from sase.core.time import parse_local, to_local
 from sase.logs import launch_log, run_log, toast_log
 from sase.ace.tui.logs import log_sources
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import logs_pane as lp
+from sase.ace.tui.modals import logs_pane_render as lp_render
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.logs_pane import (
@@ -77,6 +82,11 @@ def log_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
 
 def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
+
+
+def _write_with_mtime(path: Path, text: str, epoch: float) -> None:
+    path.write_text(text, encoding="utf-8")
+    os.utime(path, (epoch, epoch))
 
 
 def _toast_json(
@@ -173,6 +183,104 @@ def test_render_empty_source_shows_friendly_empty_state(log_dir: Path) -> None:
     text = _render_log_detail(source).plain
 
     assert "No launch failures logged" in text
+
+
+@pytest.mark.parametrize(
+    "num_bytes, expected",
+    [
+        (0, "0B"),
+        (999, "999B"),
+        (1000, "1.0K"),
+        (1023, "1.0K"),
+        (13107, "13K"),
+        (619315, "605K"),
+        (1048000, "1.0M"),
+        (1782579, "1.7M"),
+        (2097152, "2.0M"),
+    ],
+)
+def test_format_size_compact_stays_within_four_cells(
+    num_bytes: int, expected: str
+) -> None:
+    result = lp_render.format_size_compact(num_bytes)
+
+    assert result == expected
+    assert len(result) <= 4
+
+
+_AGE_NOW_EPOCH = 1782000000.0
+_AGE_NOW_PARSED = parse_local(_AGE_NOW_EPOCH)
+assert _AGE_NOW_PARSED is not None
+_AGE_NOW = to_local(_AGE_NOW_PARSED)
+
+
+@pytest.mark.parametrize(
+    "delta_seconds, expected",
+    [
+        (-5, "now"),  # future mtime (clock skew) clamps to "now"
+        (0, "now"),
+        (59, "now"),
+        (60, "1m ago"),  # 59s/60s boundary
+        (2 * 60, "2m ago"),
+        (59 * 60, "59m ago"),
+        (60 * 60, "1h ago"),  # 59m/60m boundary
+        (3 * 3600, "3h ago"),
+        (23 * 3600, "23h ago"),
+        (24 * 3600, "1d ago"),  # 23h/24h boundary
+        (2 * 86400, "2d ago"),
+        (6 * 86400, "6d ago"),  # 6d/7d boundary (still relative)
+    ],
+)
+def test_format_relative_age_relative_bands(delta_seconds: int, expected: str) -> None:
+    epoch = _AGE_NOW_EPOCH - delta_seconds
+
+    assert lp_render._format_relative_age(epoch, now=_AGE_NOW) == expected
+
+
+@pytest.mark.parametrize(
+    "delta_seconds",
+    [7 * 86400, 30 * 86400, 364 * 86400],  # 6d/7d and 364d/365d boundaries
+)
+def test_format_relative_age_recent_absolute_band(delta_seconds: int) -> None:
+    epoch = _AGE_NOW_EPOCH - delta_seconds
+
+    result = lp_render._format_relative_age(epoch, now=_AGE_NOW)
+
+    assert result == lp_render.format_local(epoch, "%b %d")
+
+
+def test_format_relative_age_old_absolute_band() -> None:
+    epoch = _AGE_NOW_EPOCH - 365 * 86400
+
+    result = lp_render._format_relative_age(epoch, now=_AGE_NOW)
+
+    assert result == lp_render.format_local(epoch, "%b %Y")
+
+
+def test_source_label_shape(log_dir: Path) -> None:
+    epoch = _AGE_NOW_EPOCH
+    _write_with_mtime(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY, epoch)
+    source = next(s for s in log_sources() if s.id == "launch_failures")
+    parsed = parse_local(epoch)
+    assert parsed is not None
+    now = to_local(parsed) + timedelta(minutes=2)
+
+    label = lp_render.source_label(source, now=now)
+
+    expected_size = lp_render.format_size_compact(len(_LAUNCH_LOG_BODY.encode()))
+    assert label.plain == f"● Launch & Fan-out Failures\n  {expected_size:<4} · 2m ago"
+    assert label.no_wrap is True
+    assert label.overflow == "ellipsis"
+
+
+def test_source_label_empty_branch_shape(log_dir: Path) -> None:
+    source = next(s for s in log_sources() if s.id == "launch_failures")
+
+    label = lp_render.source_label(source)
+
+    assert label.plain == "○ Launch & Fan-out Failures\n  empty"
+    assert label.no_wrap is True
+    assert label.overflow == "ellipsis"
 
 
 def test_render_jsonl_source_is_pretty_not_raw(log_dir: Path) -> None:
@@ -343,6 +451,53 @@ def test_every_source_renders_without_error(log_dir: Path) -> None:
 # --------------------------------------------------------------------------
 # Pane pilot behavior
 # --------------------------------------------------------------------------
+
+
+async def test_logs_tab_source_rows_fit_the_pane_width(log_dir: Path) -> None:
+    _write(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY)
+    _write(log_dir / "tui.log", "2026-06-17 10:00:00,1 WARNING sase: heads up\n")
+
+    async with _ModalTestApp().run_test() as pilot:
+        _, pane = await _open_logs_pane(pilot)
+        option_list = pane._option_list()
+        assert option_list is not None
+
+        width = option_list.scrollable_content_region.width
+        for index in range(option_list.option_count):
+            label = option_list.get_option_at_index(index).prompt
+            assert isinstance(label, Text)
+            for line in label.plain.splitlines():
+                assert cell_len(line) <= width
+
+
+async def test_logs_tab_source_rows_render_on_exactly_two_lines(
+    log_dir: Path,
+) -> None:
+    _write(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY)
+    _write(log_dir / "tui.log", "2026-06-17 10:00:00,1 WARNING sase: heads up\n")
+
+    async with _ModalTestApp().run_test() as pilot:
+        _, pane = await _open_logs_pane(pilot)
+        option_list = pane._option_list()
+        assert option_list is not None
+        width = option_list.scrollable_content_region.width
+        console = Console(width=width)
+
+        for index in range(option_list.option_count):
+            label = option_list.get_option_at_index(index).prompt
+            assert isinstance(label, Text)
+            assert len(label.wrap(console, width)) == 2
+
+        # A hinted row is wider still (``[a] `` prefix) -- must still ellipsize
+        # to two lines rather than wrap to three.
+        await pilot.press("apostrophe")
+        await pilot.pause()
+        assert pane.jump_mode_active is True
+
+        for index in range(option_list.option_count):
+            label = option_list.get_option_at_index(index).prompt
+            assert isinstance(label, Text)
+            assert len(label.wrap(console, width)) == 2
 
 
 async def test_logs_tab_opens_with_launch_failures_selected(log_dir: Path) -> None:
@@ -547,7 +702,7 @@ async def test_logs_tab_jump_mode_reuses_cached_source_labels(
         option_list = pane.query_one("#log-source-list", OptionList)
         cached_plain = _option_plain(option_list, 0)
 
-        def fail_source_label(_source: object) -> Text:
+        def fail_source_label(*_a: object, **_kw: object) -> Text:
             raise AssertionError("_source_label should not run during jump rendering")
 
         monkeypatch.setattr(lp, "_source_label", fail_source_label)

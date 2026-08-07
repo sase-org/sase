@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from pathlib import Path
 
 from rich.text import Text
 
 from sase.core.paths import sase_home
-from sase.core.time import format_local
+from sase.core.time import format_local, local_now, parse_local, to_local
 from sase.logs import TOAST_HISTORY_LIMIT, current_toast_session, read_recent_toasts
 
 from ..logs import LogSource
@@ -33,16 +34,22 @@ _ERROR_LEVEL_RE = re.compile(r"\b(ERROR|CRITICAL|FATAL)\b")
 _WARNING_LEVEL_RE = re.compile(r"\bWARNING\b")
 
 
-def format_size(num_bytes: int) -> str:
-    """Human-readable byte size (``1.2 KB``, ``3 B``, ...)."""
-    size = float(num_bytes)
-    for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024 or unit == "GB":
-            if unit == "B":
-                return f"{int(size)} {unit}"
-            return f"{size:.1f} {unit}"
+_SIZE_UNITS = ("B", "K", "M", "G", "T")
+
+
+def format_size_compact(num_bytes: int) -> str:
+    """Human-readable byte size in at most four cells (``17K``, ``1.7M``)."""
+    size = float(max(0, num_bytes))
+    index = 0
+    while index + 1 < len(_SIZE_UNITS) and round(size) >= 1000:
         size /= 1024
-    return f"{size:.1f} GB"
+        index += 1
+    unit = _SIZE_UNITS[index]
+    if index == 0:
+        return f"{int(size)}{unit}"
+    if size < 10:
+        return f"{size:.1f}{unit}"
+    return f"{round(size)}{unit}"
 
 
 def format_mtime(source: LogSource) -> str | None:
@@ -54,9 +61,39 @@ def format_mtime(source: LogSource) -> str | None:
     return format_local(ts, "%Y-%m-%d %H:%M %Z")
 
 
+def _format_relative_age(epoch: float, *, now: datetime | None = None) -> str | None:
+    """Compact freshness label for a log mtime (``2m ago``, ``Jun 17``)."""
+    parsed = parse_local(epoch)
+    if parsed is None:
+        return None
+    reference = now if now is not None else local_now()
+    delta_seconds = max(0, int((reference - to_local(parsed)).total_seconds()))
+    if delta_seconds < 60:
+        return "now"
+    minutes = delta_seconds // 60
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    days = hours // 24
+    if days < 7:
+        return f"{days}d ago"
+    if days < 365:
+        return format_local(epoch, "%b %d")
+    return format_local(epoch, "%b %Y")
+
+
 def _source_size(source: LogSource) -> int | None:
     try:
         return source.path.stat().st_size
+    except OSError:
+        return None
+
+
+def _source_mtime_epoch(source: LogSource) -> float | None:
+    try:
+        return source.path.stat().st_mtime
     except OSError:
         return None
 
@@ -169,10 +206,10 @@ def render_log_detail(source: LogSource, max_lines: int = _MAX_TAIL_LINES) -> Te
     return text
 
 
-def source_label(source: LogSource) -> Text:
-    """Two-line row: ``● Title`` then a dim metadata subtitle."""
+def source_label(source: LogSource, *, now: datetime | None = None) -> Text:
+    """Two-line row: ``● Title`` then a compact, non-wrapping metadata subtitle."""
     non_empty = source.exists()
-    text = Text()
+    text = Text(no_wrap=True, overflow="ellipsis")
     if non_empty:
         text.append("● ", style="bold green")
         text.append(source.title, style=f"bold {CYAN}")
@@ -180,12 +217,22 @@ def source_label(source: LogSource) -> Text:
         text.append("○ ", style="dim")
         text.append(source.title, style="dim")
 
-    text.append("\n   ")
+    text.append("\n  ")
     if non_empty:
         size = _source_size(source)
-        mtime = format_mtime(source)
-        meta_parts = [p for p in (format_size(size) if size else None, mtime) if p]
-        text.append(" · ".join(meta_parts) or source.description, style="dim")
+        mtime_epoch = _source_mtime_epoch(source)
+        size_text = format_size_compact(size) if size is not None else None
+        age_text = (
+            _format_relative_age(mtime_epoch, now=now)
+            if mtime_epoch is not None
+            else None
+        )
+        if size_text is not None and age_text is not None:
+            subtitle = f"{size_text:<4} · {age_text}"
+        else:
+            meta_parts = [part for part in (size_text, age_text) if part]
+            subtitle = " · ".join(meta_parts) or source.description
+        text.append(subtitle, style="dim")
     else:
         text.append("empty", style="dim italic")
     return text
@@ -195,7 +242,7 @@ __all__ = [
     "CYAN",
     "GOLD",
     "format_mtime",
-    "format_size",
+    "format_size_compact",
     "render_log_detail",
     "source_label",
     "styled_log_line",
