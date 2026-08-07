@@ -464,13 +464,14 @@ change to the sase repo, land it on the canonical branch, and deploy from that c
 merged tree.
 
 Because of those guards, `--check` does not fail on chezmoi deploy drift it has no way
-to resolve. When generated skill files differ from their deployed chezmoi copies,
-`sase init skills --check` reports the pending count as a warning naming the post-land
-`sase init skills` rerun — plus the source-integrity reason when a dirty or unlanded
-tree would make the real deploy refuse — and drops those entries from its action list,
-so the check passes. This keeps an unrelated read-only check from either failing for
-drift only a land can clear or triggering a mutating deploy as a side effect. Writing
-plans (interactive onboarding and direct deploys) are unaffected, as is the deploy-side
+to resolve. When chezmoi deployment is enabled and generated skill files differ from
+their deployed chezmoi copies, `sase init skills --check` counts those files, reports
+them as a warning telling you to rerun `sase init skills` after landing, and drops them
+from its action list — so the check itself passes. If a dirty or unlanded tree would
+also make the real deploy refuse, that source-integrity reason is reported as a second
+warning. This keeps an unrelated read-only check from either failing for drift only a
+land can clear or triggering a mutating deploy as a side effect. Writing plans
+(interactive onboarding and direct deploys) are unaffected, as is the deploy-side
 integrity refusal. `sase validate` surfaces these warnings in its own `Warnings:` block;
 see [`sase validate`](configuration.md#sase-validate).
 

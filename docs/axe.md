@@ -254,22 +254,27 @@ Two things also force a replacement. A gate of the wrong kind for the bead's cur
 status is canceled as `bead_status_changed` and replaced in the same tick — a bead that
 was snoozed while its triage gate was pending is asking a different question now, so
 that check outranks the presentation comparison below. Otherwise the chop compares a
-presentation fingerprint covering the bead's status and its whole snooze record; a
-mismatch cancels the gate as `task_triage_presentation_changed` and re-raises it, so a
-re-snooze never leaves a gate advertising the old wake time. While a `BeadSnooze` gate
-stays pending and unchanged, the chop also re-snoozes its notification to match the
-bead's wake time, keeping a snoozed bead's notification snoozed alongside it.
+presentation fingerprint over every stored field the gate renders: status, the whole
+snooze record, title, description, notes, size, creation time, refs, +1 evidence, and
+close history. A mismatch cancels the gate as `task_triage_presentation_changed` and
+re-raises it, so an edited description or a re-snooze never leaves a gate advertising
+stale content or the old wake time. While a `BeadSnooze` gate stays pending and
+unchanged, the chop also re-snoozes its notification to match the bead's wake time
+(whenever that wake time is still in the future), keeping a snoozed bead's notification
+snoozed alongside it even after a crash or a manual unmute.
 
 The `TaskTriage` gate presents the task title, description, and notes, and offers three
 options. **Launch** (the primary branch) accepts optional feedback and submits a
 deduplicated global detached task for `sase bead work <task-id> --yes-to-all`; **Close**
 requires a reason and closes the bead as `canceled`; **Snooze (3d, 3d +2)** requires a
-duration and defers the task, moving it to `snoozed` so the next tick reconciles it into
-a `BeadSnooze` gate instead. That duration uses the same `"<duration> [+<N>]"`
-vocabulary as `sase bead snooze`. See
-[TaskTriage notifications](notifications.md#command-backed-interaction-gates) and the
-[standalone task workflow](beads.md#standalone-task-workflow) for the human-facing
-lifecycle.
+wake time and defers the task, moving it to `snoozed` so the next tick reconciles it
+into a `BeadSnooze` gate instead. The option label's parenthetical shows two example
+inputs: this field takes the same `"<duration> [+<N>]"` vocabulary the ACE snooze modal
+takes — the CLI's `-u` duration and `-p` +1 target combined into one feedback field. See
+[TaskTriage notifications](notifications.md#command-backed-interaction-gates), the
+[snooze workflow](beads.md#snoozing-a-task-bead) for what a `BeadSnooze` gate then asks,
+and the [standalone task workflow](beads.md#standalone-task-workflow) for the
+human-facing lifecycle.
 
 ### comments (1-minute interval)
 

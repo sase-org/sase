@@ -272,14 +272,18 @@ parsing joins those lines back into one logical bullet.
 SASE owns the header block; do not author it by hand. A bullet that deviates from the
 canonical form above is a validation error (`header-invalid`), not a style choice: a
 link-shaped section (`PLAN`, `PROMPT`, `PARENT`, `BEAD`) must be a bolded key followed
-by exactly one Markdown link and nothing else, and a list-shaped section (`AGENTS`,
-`ARTIFACTS`, `COMMITS`) must be a bare bolded key whose entries are indented bullets.
-The diagnostic names the offending path and the parser's reason, and it is reported
-identically at every validation surface — `sase plan validate`,
+by exactly one Markdown link and nothing else — `BEAD` alone may instead carry a bare
+unlinked label, as the table above notes — and a list-shaped section (`AGENTS`,
+`ARTIFACTS`, `COMMITS`) must be a bare bolded key with at least one indented sub-bullet
+and no inline content. Repeating a section, or carrying both `PLAN` and `PROMPT` in one
+document, is the same error.
+
+The diagnostic names the offending path and the parser's reason, and the same
+`header-invalid` code is raised at every validation surface: `sase plan validate`,
 `sase plan links validate`, `sase plan links refresh`, the plan approval gate, and
-`sase bead work`. At the archive boundary the header is validated against the source
-path _before_ anything is written, so a malformed block fails with the actionable
-diagnostic and leaves no partially written destination file behind.
+`sase bead work`. `sase bead work` validates the source file before it archives
+anything, so a malformed block fails with that diagnostic and leaves no partially
+written destination file behind.
 
 `BEAD`, `AGENTS`, and `COMMITS` are projections of durable state, never accumulators.
 `BEAD` comes from the plan's managed `bead_id` (or historical `bead`) frontmatter. It

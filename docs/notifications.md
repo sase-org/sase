@@ -85,10 +85,11 @@ Each tab's icon resolves through the same chain as its color; see
 [Tab icons](#tab-icons) below.
 
 The strip reflows to fit its measured width rather than clipping. When the full-label
-render would overflow, inactive tabs shed their labels and are identified by icon and
+render would overflow, every inactive tab sheds its label and is identified by icon and
 count alone, while the active tab keeps its name so the strip still says where you are.
-Every tab therefore stays visible and clickable at any modal width; the strip re-renders
-only when its width actually changes.
+Shedding labels is what keeps a tab from falling off the end of the line, where it would
+be both invisible and unclickable; a resize re-renders the strip only when the width
+actually changed.
 
 A row with multiple tags therefore occupies exactly one tab, not one per tag; dismissing
 it removes the row from at most one tab's count.

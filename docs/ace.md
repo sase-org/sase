@@ -132,11 +132,15 @@ jump mode open; the second completes the jump. Hints remain case-sensitive.
 Outside the Artifacts panes above, a single shared implementation backs `'` everywhere
 it appears: each Admin Center working section (see
 [Global Keybindings](#global-keybindings)) and three modals — the notification options
-modal, the model picker, and the saved-group revival modal. In all of them, `'` back
-pops a bounded back stack rather than toggling a single saved target, and the footer
-advertises `back` only while that stack is non-empty. Changes that shift which row is
-where — refiltering the model picker, paging or deleting in the revival modal — drop the
-stale back-stack entries instead of leaving them pointing at a renamed row.
+modal, the model picker, and the saved-group revival modal. In all of them, pressing `'`
+a second time while the hints are painted is the **jump back** key: it pops the most
+recent origin off a bounded stack of the last ten pre-jump positions, rather than
+toggling between one saved target and the current row. With an empty stack it falls
+through to the first hinted row instead. The footer shows which of the two the next `'`
+will do — `JUMP ' back` while the stack holds an origin, `JUMP ' first` when it does
+not. Changes that shift which row is where — refiltering the model picker, paging or
+deleting in the revival modal — discard the stored origins instead of leaving them
+pointing at whatever row inherited the index.
 
 ### Copy Mode in Commits, Beads, Plans, Chats, Other, and Bugs
 
@@ -345,14 +349,16 @@ The modal uses `j` / `k` for line scrolling, `Ctrl+D` / `Ctrl+U` for half pages,
 `G` for the ends, `y` to copy the full SHA, and `Esc` or `q` to close. When the current
 result contains multiple commits, `Ctrl+N` / `Ctrl+P` move through them with wraparound.
 
-The modal title carries a compact commit-time chip on its right — an absolute stamp plus
-a relative age, such as `Today 07:05:54 · 2h ago`. Today and yesterday show seconds;
-older commits show `HH:MM` after their day label. Times are the commit's author time in
-the configured local timezone. The chip is free on the Artifacts timeline, where the
-time is already known; opening a historical commit from the Agents tab recovers it from
-the VCS on demand, so it appears once that lookup lands. Commits made by SASE persist
-their author time in `commit_result.json` / `commit_results.json`, so later views need
-no lookup at all. A commit whose time cannot be resolved simply shows no chip.
+The modal's header block carries a compact commit-time chip, right-aligned on the line
+that also shows the diff path — an absolute stamp plus a relative age, such as
+`Today 07:05:54 · 2h ago`. Today and yesterday show seconds; older commits show `HH:MM`
+after their day label. Times are the commit's author time in the configured local
+timezone. The chip is free on the Artifacts timeline, where the commit time is already
+loaded; on the Agents tab, a commit whose stored metadata records no time has it looked
+up from the VCS alongside the diff, so the chip appears once that load lands. Commits
+made by SASE persist their author time in `commit_result.json` / `commit_results.json`,
+so later views need no lookup at all. A commit whose time cannot be resolved simply
+shows no chip.
 
 Press `p` in the commit modal to load the last structured `SASE_PLAN` footer tag and
 render its referenced local UTF-8 file as Markdown; press `p` again to return to the
@@ -3664,6 +3670,11 @@ ace:
       refresh: "f10"
       help: "f9"
 ```
+
+The example above names every Statistics binding, but only some are remapped: it shows
+`cycle_range`, `cycle_range_reverse`, `refresh`, and `help` moved off their `t`, `T`,
+`r`, and `?` defaults, and repeats the defaults for the rest. Override only the keys you
+want to change.
 
 These keys dispatch only while the Admin Center Statistics pane is focused. They may
 overlap app-level bindings without creating a global conflict, and the pane's hint bar

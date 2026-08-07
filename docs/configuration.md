@@ -190,13 +190,17 @@ The Config tab answers four questions for every field — what value is effectiv
   visible rows, and a hint key moves the cursor exactly as `j` / `k` would, detail panel
   and selection bookmark included. Hints label nodes in place, so entering and leaving
   jump mode preserves whatever you collapsed; collapsed children are not hinted and
-  cannot be jumped to. Anything that rebuilds the tree — a filter change, `m`, `r`, or a
-  `:` path jump — cancels an active jump, and `'` stays typable while the filter or path
-  input holds focus. The detail pane shows the type, default, effective value, and the
-  full provenance stack with the winning layer marked. Structured values (object maps
-  and arrays of objects, such as `ace.lumberjack` or [`repos`](#repos)) render as a
-  multi-line, syntax-highlighted YAML block instead of a one-line JSON blob, while
-  scalars and short flat lists keep their compact inline form.
+  cannot be jumped to. While hints are up they own the keyboard: `Esc` — or any key that
+  is neither a hint nor the first character of one — leaves jump mode without moving the
+  cursor, so reach for `/`, `m`, `r`, or `:` after exiting rather than during a jump (in
+  a tree large enough for those letters to be hints, they jump instead). A rebuild of
+  the tree that changes which fields are listed drops the hints and the jump-back
+  history with them. `'` stays typable while the filter or path input holds focus. The
+  detail pane shows the type, default, effective value, and the full provenance stack
+  with the winning layer marked. Structured values (object maps and arrays of objects,
+  such as `ace.lumberjack` or [`repos`](#repos)) render as a multi-line,
+  syntax-highlighted YAML block instead of a one-line JSON blob, while scalars and short
+  flat lists keep their compact inline form.
 - **Edit** (`↵` or `e` on a field): a typed editor is generated from the schema — a
   toggle for booleans, an option cycle for enums, validated inputs for numbers and
   strings, a line editor for string lists, and a raw-YAML escape hatch for complex
@@ -3650,12 +3654,12 @@ bare `sase init --check` and `sase doctor`, so clean CI hosts do not need a synt
 machine identity. The command can still fail on user/home memory or skill deployment
 drift even when repository-local SDD validation passes.
 
-A check can pass and still have something to say. When a passing check prints its own
-`Warnings:` section — `sase init skills --check` deferring a chezmoi redeploy is the
+A check can pass and still have something to say. When a check that exits 0 prints its
+own `Warnings:` section — `sase init skills --check` deferring a chezmoi redeploy is the
 common case — `sase validate` collects those lines and reprints them under a single
-`Warnings:` block after the per-check status lines. The block is informational: it does
-not change the exit code, and it is separate from the stdout dump that a failing check
-still produces.
+`Warnings:` block, after the per-check status lines and before any failure output. The
+block is informational: it does not change the exit code, and it is separate from the
+stdout dump that a failing or skipped check still produces.
 
 ### `sase doctor`
 
