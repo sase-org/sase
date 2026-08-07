@@ -5,12 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Label, Static, Tree
 from textual.widgets.tree import TreeNode
 from textual.worker import Worker, WorkerState
 
+from ..actions.navigation.jump_hints import normalize_jump_key
 from ..util.selection import restore_selection_by_identity
 from .config_commit import ConfigCommitOffer
 from .config_center_session import SelectionBookmark
@@ -24,9 +26,12 @@ from .config_pane_rendering import (
     visible_paths,
 )
 from .config_pane_view import ConfigPaneView, InputMode
+from .pane_entry_jump import PaneEntryJumpMixin, apply_jump_hint_prefix
 
 
-class ConfigPane(ConfigPaneEditingMixin, ConfigPaneNavigationMixin, Vertical):
+class ConfigPane(
+    ConfigPaneEditingMixin, ConfigPaneNavigationMixin, PaneEntryJumpMixin, Vertical
+):
     """Read-only, schema-driven config browser for the Config Center."""
 
     can_focus = False
@@ -45,6 +50,7 @@ class ConfigPane(ConfigPaneEditingMixin, ConfigPaneNavigationMixin, Vertical):
         ("slash", "focus_filter", "Filter"),
         ("m", "toggle_modified", "Modified only"),
         ("colon", "jump_to_path", "Jump to path"),
+        ("apostrophe", "jump_to_entry", "Jump"),
         ("r", "refresh", "Refresh"),
         ("e", "edit_field", "Edit"),
     ]
@@ -117,6 +123,92 @@ class ConfigPane(ConfigPaneEditingMixin, ConfigPaneNavigationMixin, Vertical):
         except Exception:
             pass
 
+    def on_key(self, event: events.Key) -> None:
+        """Give hint-jump mode first refusal at keys the tree would consume."""
+        if self._filter_input_has_focus():
+            return
+        if self.jump_mode_active:
+            key = normalize_jump_key(event.key, event.character)
+            if self.handle_jump_key(key):
+                event.prevent_default()
+                event.stop()
+                return
+        if event.key == "apostrophe":
+            event.prevent_default()
+            event.stop()
+            self.action_jump_to_entry()
+
+    def _filter_input_has_focus(self) -> bool:
+        """Whether the filter/path input owns focus, so ``'`` stays text."""
+        try:
+            return self.query_one("#config-filter-input", ConfigFilterInput).has_focus
+        except Exception:
+            return False
+
+    # -- entry jump --
+
+    def _jump_nodes(self) -> list[TreeNode[str]]:
+        """Currently visible tree rows in render order."""
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return []
+        return [
+            node
+            for node in self._visible_tree_nodes(tree)
+            if isinstance(node.data, str)
+        ]
+
+    def _jump_target_count(self) -> int:
+        return len(self._jump_nodes())
+
+    def _jump_current_index(self) -> int | None:
+        selected = self._selected_path
+        if selected is None:
+            return None
+        for index, node in enumerate(self._jump_nodes()):
+            if node.data == selected:
+                return index
+        return None
+
+    def _jump_select_index(self, index: int) -> None:
+        nodes = self._jump_nodes()
+        if not 0 <= index < len(nodes):
+            return
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return
+        self._move_cursor(tree, nodes[index])
+        # The mixin drops the hints before selecting, so this strips them.
+        self._jump_repaint()
+
+    def _jump_repaint(self) -> None:
+        self._repaint_tree_labels()
+        self._update_static("#config-pane-hints", self._hints())
+
+    def _repaint_tree_labels(self) -> None:
+        """Re-label rows in place, so hints never disturb the fold state.
+
+        ``_rebuild_tree`` re-expands every section, so painting hints through
+        it would silently unfold whatever the user collapsed.
+        """
+        view = self._view
+        if view is None:
+            return
+        hint_by_path: dict[str, str] = {}
+        if self.jump_mode_active:
+            for index, node in enumerate(self._jump_nodes()):
+                hint = self.jump_hint_for(index)
+                if hint is not None and isinstance(node.data, str):
+                    hint_by_path[node.data] = hint
+        for path, node in self._node_by_path.items():
+            label = render_row_label(view, path)
+            hint = hint_by_path.get(path)
+            if hint is not None:
+                label = apply_jump_hint_prefix(label, hint)
+            node.set_label(label)
+
     # -- loading --
 
     def _start_load(self, *, force: bool) -> None:
@@ -186,12 +278,14 @@ class ConfigPane(ConfigPaneEditingMixin, ConfigPaneNavigationMixin, Vertical):
             return
         prior_identity = self._bookmark.identity or self._selected_path
         prior_row = self._bookmark.row
+        previous_paths = list(self._node_by_path)
         self._syncing_tree = True
         tree.clear()
         self._node_by_path = {}
         view = self._view
         if view is None:
             self._syncing_tree = False
+            self._invalidate_jump_after_rebuild(previous_paths)
             self._update_detail(None)
             return
         try:
@@ -219,6 +313,7 @@ class ConfigPane(ConfigPaneEditingMixin, ConfigPaneNavigationMixin, Vertical):
                 else:
                     node = parent_node.add(label, data=field.path, expand=True)
                 self._node_by_path[field.path] = node
+            self._invalidate_jump_after_rebuild(previous_paths)
             if not visible_sequence:
                 if not any(field.leaf for field in view.field_model.fields):
                     self._bookmark.record(None, None)
@@ -249,6 +344,19 @@ class ConfigPane(ConfigPaneEditingMixin, ConfigPaneNavigationMixin, Vertical):
                 self._update_detail(None)
         finally:
             self._syncing_tree = False
+
+    def _invalidate_jump_after_rebuild(self, previous_paths: list[str]) -> None:
+        """Drop stale hints after the visible row set was rebuilt.
+
+        Every rebuild path -- filter changes, ``m``, ``r``, and ``:`` path
+        jumps -- funnels through ``_rebuild_tree``, so this is the one place
+        the stale-data rule has to be applied.
+        """
+        current_paths = list(self._node_by_path)
+        self.invalidate_jump_hints(
+            identities_changed=previous_paths != current_paths,
+            target_count=len(current_paths),
+        )
 
     def _update_detail(self, path: str | None) -> None:
         self._selected_path = path
@@ -328,11 +436,17 @@ class ConfigPane(ConfigPaneEditingMixin, ConfigPaneNavigationMixin, Vertical):
         return ""
 
     def _hints(self) -> str:
+        if self.jump_mode_active:
+            action = "back" if self.jump_back_stack else "first"
+            return f"JUMP ' {action}  <esc> cancel"
         mod = "mod ✓" if self._modified_only else "mod"
+        # Two jump keys share this line, so each names what it jumps by:
+        # ``'`` paints hints over rows, ``:`` takes a dotted path.  Existing
+        # segments are abbreviated to make room without dropping a key.
         return (
-            f"j/k: move  h/l: fold  g/G: top/bottom  ctrl+d/u: scroll  "
-            f"↵/e: edit  /: filter  :: jump  "
-            f"m: {mod}  r: refresh  Tab/Shift+Tab: tab  Esc: close"
+            f"j/k: move  h/l: fold  ^d/u,g/G: scroll  e: edit  "
+            f"/: filter  ': hint  :: path  "
+            f"m: {mod}  r: refresh  Esc: close"
         )
 
 

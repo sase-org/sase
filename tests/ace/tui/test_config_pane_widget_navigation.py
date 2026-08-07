@@ -114,8 +114,7 @@ def test_config_pane_binds_ctrl_d_and_ctrl_u_to_detail_scroll() -> None:
     assert _binding_action("G") == "scroll_to_bottom"
     assert _binding_action("h") == "collapse_tree"
     assert _binding_action("l") == "expand_tree"
-    assert "ctrl+d/u: scroll" in ConfigPane(auto_load=False)._hints()
-    assert "g/G: top/bottom" in ConfigPane(auto_load=False)._hints()
+    assert "^d/u,g/G: scroll" in ConfigPane(auto_load=False)._hints()
     assert "g: migrate" not in ConfigPane(auto_load=False)._hints()
 
 
