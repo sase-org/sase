@@ -1,0 +1,225 @@
+"""The surfaces every conformance case is run through.
+
+Each driver calls the real entry point its surface uses in production -- the
+CLI goes through ``sase gate``'s own parser and handler, ACE through the
+tracked-submission worker body, mobile through the host bridge action -- so a
+case passing here means that surface really behaves that way, not that a test
+helper does.
+
+``capabilities`` is the one place a surface's submission reach is declared.
+When a pending phase teaches a surface to carry per-option inputs, adding the
+capability here is the whole change: the cases it unlocks stop skipping.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import io
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import patch
+
+from tests.gate_conformance._cases import (
+    CAP_FEEDBACK,
+    CAP_OPTION_INPUTS,
+    CAP_RETRY,
+    CAP_SHARED_INPUT,
+    Submission,
+)
+
+#: Why a surface lacks a capability, quoted in the skip message.
+PENDING_CAPABILITY_PHASES = {
+    ("ace", CAP_OPTION_INPUTS): "sase-h7.6 (inputs-ace)",
+    ("mobile", CAP_OPTION_INPUTS): "sase-h7.8 (inputs-remote)",
+    ("mobile", CAP_SHARED_INPUT): "sase-h7.8 (inputs-remote)",
+    ("mobile", CAP_RETRY): "sase-h7.8 (inputs-remote)",
+}
+
+
+@dataclass(frozen=True)
+class SurfaceTarget:
+    """Everything a driver needs to address one created gate."""
+
+    bundle_path: Path
+    kind: str
+    request_id: str
+    notification_id: str | None
+
+
+@dataclass(frozen=True)
+class SurfaceOutcome:
+    """The surface-neutral projection of one submission attempt."""
+
+    answered: bool
+    message: str
+
+
+@dataclass(frozen=True)
+class Surface:
+    """One way a reviewer can answer a gate."""
+
+    name: str
+    capabilities: frozenset[str]
+    submit: Callable[[SurfaceTarget, Submission], SurfaceOutcome]
+
+    def missing(self, required: frozenset[str]) -> frozenset[str]:
+        return required - self.capabilities
+
+    def why_missing(self, capability: str) -> str:
+        return PENDING_CAPABILITY_PHASES.get(
+            (self.name, capability), "not yet supported"
+        )
+
+
+def _submit_via_cli(target: SurfaceTarget, submission: Submission) -> SurfaceOutcome:
+    """Answer through ``sase gate answer``, parser and handler included."""
+    import json
+
+    from sase.main.gate_handler import handle_gate_command
+    from sase.main.parser_gate import register_gate_parser
+
+    argv = ["gate", "answer", "--id", target.request_id, "--kind", target.kind]
+    for option_id in submission.selected:
+        argv += ["--option", option_id]
+    if submission.input_data is not None:
+        argv += ["--input", json.dumps(submission.input_data)]
+    for option_id, value in (submission.option_inputs or {}).items():
+        argv += ["--option-input", f"{option_id}={json.dumps(value)}"]
+    if submission.feedback is not None:
+        argv += ["--feedback", submission.feedback]
+    if submission.retry == "resume":
+        argv.append("--resume")
+    elif submission.retry == "restart":
+        argv.append("--restart")
+
+    parser = argparse.ArgumentParser(prog="sase")
+    register_gate_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(argv)
+
+    stdout, stderr = io.StringIO(), io.StringIO()
+    code = 0
+    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        try:
+            handle_gate_command(args)
+        except SystemExit as exc:
+            code = int(exc.code or 0)
+    return SurfaceOutcome(
+        answered=code == 0,
+        message=stderr.getvalue() or stdout.getvalue(),
+    )
+
+
+def _submit_via_ace(target: SurfaceTarget, submission: Submission) -> SurfaceOutcome:
+    """Answer through ACE's tracked-submission worker body."""
+    from sase.ace.tui.actions.agents._notification_gate_execution import (
+        GateSubmission,
+        _execute_gate_submission,
+    )
+
+    outcome = _execute_gate_submission(
+        target.bundle_path,
+        GateSubmission(
+            selected_option_ids=tuple(submission.selected),
+            feedback=submission.feedback,
+            input_data=submission.input_data,
+            retry=submission.retry,  # type: ignore[arg-type]
+        ),
+        reporter=_StubReporter(),  # type: ignore[arg-type]
+    )
+    return SurfaceOutcome(answered=outcome.success, message=outcome.message)
+
+
+def _submit_via_mobile(target: SurfaceTarget, submission: Submission) -> SurfaceOutcome:
+    """Answer through the mobile host bridge action."""
+    from sase.integrations._mobile_notification_models import MobileGateActionError
+    from sase.integrations.mobile_notifications import execute_mobile_gate_action
+    from sase.notifications.store import load_notifications
+
+    rows = [
+        row
+        for row in load_notifications(include_dismissed=True)
+        if row.id == target.notification_id
+    ]
+    snapshot = SimpleNamespace(
+        notifications=rows,
+        counts=SimpleNamespace(priority=1, errors=0, rest=1, muted=0),
+        expired_ids=[],
+    )
+    with (
+        patch(
+            "sase.integrations._mobile_notification_snapshot"
+            ".read_current_notification_snapshot",
+            return_value=snapshot,
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id=target.notification_id,
+            prefix="conf",
+            prefix_len=4,
+            resolution="unique_prefix",
+        )
+        try:
+            execute_mobile_gate_action(
+                "conf",
+                list(submission.selected),
+                feedback=submission.feedback,
+            )
+        except MobileGateActionError as exc:
+            return SurfaceOutcome(answered=False, message=f"{exc.code}: {exc}")
+    return SurfaceOutcome(answered=True, message="")
+
+
+class _StubReporter:
+    """The slice of ``TaskReporter`` the gate worker body actually calls."""
+
+    def __init__(self) -> None:
+        self.task_info = _StubTaskInfo()
+
+    def phase(self, _text: str) -> None: ...
+
+    def section(self, _text: str) -> None: ...
+
+    def set_command(self, _argv: Any) -> None: ...
+
+    def log(self, _line: str, *, stream: str = "stdout") -> None: ...
+
+
+class _StubTaskInfo:
+    def register_process(self, _process: Any) -> None: ...
+
+    def unregister_process(self, _process: Any) -> None: ...
+
+
+SURFACES: tuple[Surface, ...] = (
+    Surface(
+        name="cli",
+        capabilities=frozenset(
+            {CAP_FEEDBACK, CAP_OPTION_INPUTS, CAP_RETRY, CAP_SHARED_INPUT}
+        ),
+        submit=_submit_via_cli,
+    ),
+    Surface(
+        name="ace",
+        capabilities=frozenset({CAP_FEEDBACK, CAP_RETRY, CAP_SHARED_INPUT}),
+        submit=_submit_via_ace,
+    ),
+    Surface(
+        name="mobile",
+        capabilities=frozenset({CAP_FEEDBACK}),
+        submit=_submit_via_mobile,
+    ),
+)
+
+
+__all__ = [
+    "PENDING_CAPABILITY_PHASES",
+    "SURFACES",
+    "Surface",
+    "SurfaceOutcome",
+    "SurfaceTarget",
+]

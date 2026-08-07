@@ -209,7 +209,13 @@ def test_parser_registers_gate_create_wait_options_and_help() -> None:
         for action in gate_parser._actions
         if isinstance(action, argparse._SubParsersAction)
     )
-    assert list(gate_subparsers.choices) == ["create", "wait"]
+    assert list(gate_subparsers.choices) == [
+        "act",
+        "answer",
+        "create",
+        "show",
+        "wait",
+    ]
     create_help = gate_subparsers.choices["create"].format_help()
     assert "--origin-agent" in create_help
     assert "--panel" in create_help

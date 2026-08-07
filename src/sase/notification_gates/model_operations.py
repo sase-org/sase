@@ -182,9 +182,15 @@ class GateActionDisplay:
 
 
 def gate_operation_from_envelope(
-    envelope: Mapping[str, Any], operation_id: str, *, kind: str
+    envelope: Mapping[str, Any], operation_id: str, *, kind: str | None = None
 ) -> GateOperation:
-    """Return one declared action of the requested kind from an envelope."""
+    """Return one declared action from an envelope.
+
+    ``kind`` restricts the lookup to one action kind, which is what an
+    execution path wants: running an ``edit_file`` action as a command would
+    be a category error. A dispatcher that has yet to learn the kind -- the
+    headless ``sase gate act`` -- passes ``None`` and branches on the result.
+    """
     raw_operations = envelope.get("operations")
     if not isinstance(raw_operations, list):
         raise GateError("invalid_request", "operations", "operations are missing")
@@ -192,7 +198,7 @@ def gate_operation_from_envelope(
         if not isinstance(raw, Mapping) or raw.get("id") != operation_id:
             continue
         operation = GateOperation.from_mapping(raw, index)
-        if operation.kind != kind:
+        if kind is not None and operation.kind != kind:
             raise GateError(
                 "invalid_operation",
                 operation_id,

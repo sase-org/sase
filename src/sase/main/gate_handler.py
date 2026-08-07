@@ -14,14 +14,26 @@ from sase.notifications.models import normalize_notification_tags
 def handle_gate_command(args: argparse.Namespace) -> NoReturn:
     """Dispatch gate subcommands."""
     subcommand = getattr(args, "gate_subcommand", None)
+    if subcommand == "act":
+        from sase.notification_gates.cli_act import handle_gate_act
+
+        handle_gate_act(args)
+    if subcommand == "answer":
+        from sase.notification_gates.cli_answer import handle_gate_answer
+
+        handle_gate_answer(args)
     if subcommand == "create":
         _handle_gate_create(args)
+    if subcommand == "show":
+        from sase.notification_gates.cli_show import handle_gate_show
+
+        handle_gate_show(args)
     if subcommand == "wait":
         from sase.notifications.cli_wait import handle_gate_wait
 
         handle_gate_wait(args)
 
-    print("Usage: sase gate {create,wait}", file=sys.stderr)
+    print("Usage: sase gate {act,answer,create,show,wait}", file=sys.stderr)
     sys.exit(1)
 
 
