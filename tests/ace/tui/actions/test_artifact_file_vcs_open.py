@@ -190,7 +190,7 @@ def test_agents_open_artifact_files_with_stored_paths_skips_materialization(
     monkeypatch.setattr(_MATERIALIZE_TARGET, materialize)
     spawn = MagicMock(return_value=None)
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._panel_artifact_files.spawn_pump_free_task",
+        "sase.ace.tui.actions.agents._panel_artifact_open.spawn_pump_free_task",
         spawn,
     )
 
@@ -237,7 +237,7 @@ async def test_agents_open_artifact_files_byte_free_row_spawns_pump_free_task(
         return object()
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._panel_artifact_files.spawn_pump_free_task",
+        "sase.ace.tui.actions.agents._panel_artifact_open.spawn_pump_free_task",
         capture_task,
     )
 
