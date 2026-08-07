@@ -170,7 +170,9 @@ def notification_tabs_from_core(core_tabs: Any) -> list[NotificationTagTab]:
                 oldest_activity_at=tab.oldest_activity_at,
                 next_wake_at=tab.next_wake_at,
                 color=tab.color,
-                # Cores older than the tab-icon release omit this entirely.
+                # core_tabs also carries hand-built test doubles that predate
+                # this field; tolerate their absence the way tab.color once
+                # needed to for an older core.
                 icon=getattr(tab, "icon", None),
             )
         )

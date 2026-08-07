@@ -29,6 +29,7 @@ class _NotificationTabWire:
     oldest_activity_at: str | None = None
     next_wake_at: str | None = None
     color: str | None = None
+    icon: str | None = None
 
 
 @dataclass(frozen=True)

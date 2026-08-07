@@ -91,6 +91,25 @@ def test_a_snoozed_gate_leaves_its_declared_panel_tab() -> None:
     assert [tab.tag for tab in tabs] == [SNOOZED_TAB_KEY]
 
 
+def test_a_gate_declared_panel_icon_reaches_the_classified_tab() -> None:
+    """The core-donated icon survives the wire round trip onto the tab record.
+
+    This is the rung that only a real core binding can prove: a gate that
+    declares ``presentation.panel_icon`` projects it into
+    ``action_data["panel_icon"]``, the core donates it onto the tab, and the
+    Python wire layer must not drop it in transit.
+    """
+    row = make_notification(
+        id="deploy",
+        action="CustomGate",
+        action_data={"panel": "deployments", "panel_icon": "🚀"},
+    )
+
+    tabs, _ = classify_notification_modal_tabs([row])
+
+    assert [(tab.tag, tab.icon) for tab in tabs] == [("deployments", "🚀")]
+
+
 def test_every_row_lands_in_exactly_one_of_the_built_tabs() -> None:
     """Tab counts sum to the row count, so no row is double-counted."""
     rows = _fixture_rows()
