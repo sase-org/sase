@@ -233,6 +233,59 @@ def test_validate_skips_unavailable_prompt_archive_context(
     assert "run `sase doctor -v` or `sase doctor -j`" not in out
 
 
+def test_validate_prints_warnings_section_for_passing_checks(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    results = [
+        (0, "", ""),
+        (0, "", ""),
+        (
+            0,
+            "SASE initialization check\n"
+            "\n"
+            "Up to date:\n"
+            "  ok   init skills  provider skill files are current\n"
+            "\n"
+            "Warnings:\n"
+            "  init skills: 5 provider skill files out of sync with rendered "
+            "sources; redeploy is deferred until land. Rerun `sase init skills` "
+            "after landing.\n",
+            "",
+        ),
+        (0, "", ""),
+        (0, "", ""),
+    ]
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        text: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        returncode, stdout, stderr = results.pop(0)
+        return _completed(command, returncode, stdout=stdout, stderr=stderr)
+
+    monkeypatch.setattr(validate_handler.subprocess, "run", fake_run)
+
+    exit_code = _run_validate_command()
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "  ok     init skills --check\n" in out
+    assert "Warnings:\n" in out
+    assert (
+        "  init skills: 5 provider skill files out of sync with rendered "
+        "sources; redeploy is deferred until land. Rerun `sase init skills` "
+        "after landing.\n"
+    ) in out
+    # The failure detail dump must stay distinct from the passing-check
+    # warnings summary: no "failed"/"skipped" framing, no support hint.
+    assert "failed (exit" not in out
+    assert "run `sase doctor -v` or `sase doctor -j`" not in out
+
+
 def test_entry_dispatches_validate_command(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[str] = []
 

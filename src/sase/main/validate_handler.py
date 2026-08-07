@@ -99,6 +99,8 @@ def _print_results(results: list[_ValidationResult]) -> None:
         )
         print(f"  {status:<6} {result.check.label}")
 
+    _print_passing_warnings(results)
+
     for result in results:
         if result.returncode == 0:
             continue
@@ -109,6 +111,45 @@ def _print_results(results: list[_ValidationResult]) -> None:
     if any(not _is_success(result) for result in results):
         print()
         print(_SUPPORT_HINT)
+
+
+def _print_passing_warnings(results: list[_ValidationResult]) -> None:
+    """Surface warnings a passing check reported without failing it.
+
+    A check can exit 0 and still print its own ``Warnings:`` section (for
+    example ``init skills --check`` deferring a chezmoi redeploy). Only the
+    non-zero branch of ``_print_results`` dumped a check's stdout, so those
+    warnings were silently dropped from ``sase validate`` output even though
+    they were the whole point of the check passing with caveats.
+    """
+    warnings = [
+        warning
+        for result in results
+        if result.returncode == 0
+        for warning in _extract_check_warnings(result.stdout)
+    ]
+    if not warnings:
+        return
+    print()
+    print("Warnings:")
+    for warning in warnings:
+        print(f"  {warning}")
+
+
+def _extract_check_warnings(stdout: str) -> list[str]:
+    """Return warning lines from a ``Warnings:`` section in *stdout*, if any."""
+    lines = stdout.splitlines()
+    try:
+        start = lines.index("Warnings:")
+    except ValueError:
+        return []
+    warnings: list[str] = []
+    for line in lines[start + 1 :]:
+        stripped = line.strip()
+        if not stripped:
+            break
+        warnings.append(stripped)
+    return warnings
 
 
 def _is_skipped(result: _ValidationResult) -> bool:
