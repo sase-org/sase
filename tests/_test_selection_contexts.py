@@ -231,15 +231,20 @@ def cached_baselines(directory: Path) -> list[ContextBaseline]:
         and _SHA_PATTERN.match(entry.name[: -len(BASELINE_SUFFIX)])
         and entry.is_file()
     ]
-    baselines.sort(key=lambda baseline: _mtime(baseline.path), reverse=True)
+    # sha tie-breaks mtime ties instead of falling back to filesystem-arbitrary
+    # iteration order (coarse clocks, or shutil.copy2 carrying a source's mtime).
+    baselines.sort(
+        key=lambda baseline: (_mtime_ns(baseline.path), baseline.sha), reverse=True
+    )
     return baselines
 
 
-def _mtime(path: Path) -> float:
+def _mtime_ns(path: Path) -> int:
+    """Nanosecond mtime, avoiding the ~238ns rounding loss ``st_mtime`` has now."""
     try:
-        return path.stat().st_mtime
+        return path.stat().st_mtime_ns
     except OSError:
-        return 0.0
+        return 0
 
 
 def breadth_path(database: Path) -> Path:
