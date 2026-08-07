@@ -2415,12 +2415,12 @@ shipped default rather than raising: a broken `sase.yml` must never turn
 
 ```yaml
 markdown:
-  print_width: 100
+  print_width: 88
 ```
 
 | Field                  | Type | Default | Minimum | Description                                          |
 | ---------------------- | ---- | ------- | ------- | ---------------------------------------------------- |
-| `markdown.print_width` | int  | `100`   | `20`    | Column width SASE wraps generated Markdown prose at. |
+| `markdown.print_width` | int  | `88`    | `20`    | Column width SASE wraps generated Markdown prose at. |
 
 The minimum of `20` is the floor below which SASE's display wrapper stops wrapping
 entirely, so a smaller value would silently do nothing.
