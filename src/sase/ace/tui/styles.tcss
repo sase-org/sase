@@ -4333,6 +4333,10 @@ HelpModal #help-content-switcher {
 
 HelpModal #help-keymaps-view {
     height: 1fr;
+}
+
+HelpModal #help-keymaps-scroll {
+    height: 1fr;
     scrollbar-gutter: stable;
 }
 
@@ -4346,6 +4350,52 @@ HelpModal .help-guide-content {
     padding: 0 0;
     align-horizontal: center;
     scrollbar-gutter: stable;
+}
+
+HelpModal #help-filter-bar {
+    height: 1;
+    layout: horizontal;
+    margin-bottom: 1;
+    display: none;
+}
+
+HelpModal #help-filter-prompt {
+    width: 2;
+    color: #FFD700;
+}
+
+HelpModal #help-modal-container.-tab-changespecs #help-filter-prompt {
+    color: #00D7AF;
+}
+
+HelpModal #help-modal-container.-tab-agents #help-filter-prompt {
+    color: #87D7FF;
+}
+
+HelpModal #help-modal-container.-tab-axe #help-filter-prompt {
+    color: #FF5F5F;
+}
+
+HelpModal #help-filter-input {
+    width: 1fr;
+    border: none;
+    background: transparent;
+    padding: 0;
+    height: 1;
+}
+
+HelpModal #help-filter-status {
+    width: auto;
+    color: $text-muted;
+    text-align: right;
+}
+
+HelpModal #help-filter-empty {
+    display: none;
+    height: auto;
+    content-align: center middle;
+    color: $text-muted;
+    padding: 2 0;
 }
 
 HelpModal #help-columns {

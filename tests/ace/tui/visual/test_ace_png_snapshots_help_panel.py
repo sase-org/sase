@@ -65,6 +65,49 @@ async def test_help_panel_keymaps_png_snapshot(
         )
 
 
+async def test_help_panel_filter_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Typing into the `/` filter bar narrows the Keymaps view live."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        changespecs=changespecs(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+
+        modal = HelpModal(
+            current_tab="changespecs",
+            active_query=page.app.canonical_query_string,
+            registry=page.app._keymap_registry,
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("HelpModal")
+        await wait_for_visual_idle(page)
+
+        modal.action_focus_filter()
+        await page.press("b", "e", "a", "d", "s")
+        await page.wait_for(lambda _s: modal._filter_query == "beads")
+        await wait_for_visual_idle(page)
+
+        # "Beads" renders as its own highlighted span (the matched run), so it
+        # stays contiguous in the exported SVG even though "Beads Pane" as a
+        # whole does not.
+        assert_page_svg_contains(page, "Beads")
+        assert_page_svg_contains(page, "Pane")
+        ace_png_visual.assert_page_png(
+            page,
+            "help_keymaps_filter_120x40",
+            title="ACE Help panel keymaps filter (beads)",
+        )
+
+
 async def test_help_guide_axe_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

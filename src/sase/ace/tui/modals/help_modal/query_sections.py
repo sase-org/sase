@@ -6,6 +6,7 @@ from rich.text import Text
 
 from ....query_history import load_query_history
 from ....saved_queries import KEY_ORDER, load_saved_queries
+from ...widgets._completion_match_highlight import append_highlighted
 from ...widgets.changespec_detail import build_query_text
 from .bindings import CONTENT_WIDTH
 
@@ -17,6 +18,7 @@ def add_saved_queries_section(
     queries: Mapping[str, str] | None = None,
     saved_query_prefix: str = "*",
     content_width: int = CONTENT_WIDTH,
+    title_runs: tuple[tuple[int, int], ...] = (),
 ) -> None:
     """Add the saved queries section (ChangeSpecs tab only).
 
@@ -24,6 +26,7 @@ def add_saved_queries_section(
         text: The Text object to append to.
         active_query: The current active query string for highlighting.
         content_width: The content width for formatting.
+        title_runs: Matched-query runs to highlight in the section title.
     """
     if queries is None:
         queries = load_saved_queries()
@@ -31,7 +34,7 @@ def add_saved_queries_section(
     # Section header
     text.append("\n")
     text.append("  \u250c\u2500 ", style="dim #FFD700")
-    text.append("Saved Queries", style="bold #FFD700")
+    append_highlighted(text, "Saved Queries", title_runs, base_style="bold #FFD700")
     text.append(" ", style="")
     remaining = 50 - len("Saved Queries")
     text.append("\u2500" * remaining + "\u2510", style="dim #FFD700")
@@ -101,6 +104,7 @@ def add_query_history_section(
     prev_key: str = "^",
     next_key: str = "_",
     border_color: str = "#FFD700",
+    title_runs: tuple[tuple[int, int], ...] = (),
 ) -> None:
     """Add the query history stacks section (ChangeSpecs tab only).
 
@@ -109,13 +113,16 @@ def add_query_history_section(
     Args:
         text: The Text object to append to.
         border_color: Color for the border characters.
+        title_runs: Matched-query runs to highlight in the section title.
     """
     stacks = load_query_history()
 
     # Section header
     text.append("\n")
     text.append("  \u250c\u2500 ", style=f"dim {border_color}")
-    text.append("Query History", style=f"bold {border_color}")
+    append_highlighted(
+        text, "Query History", title_runs, base_style=f"bold {border_color}"
+    )
     text.append(" ", style="")
     remaining = 50 - len("Query History")
     text.append("\u2500" * remaining + "\u2510", style=f"dim {border_color}")

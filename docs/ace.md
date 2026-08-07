@@ -73,6 +73,14 @@ view. While Help is open, the configured tab-switch keys still switch ACE tabs a
 views in place. By default those keys are `Tab` and `Shift+Tab`; if you remap them, the modal
 follows the configured keys.
 
+Press `/` in the Keymaps view to open a live filter bar. Typing splits the query into
+whitespace-separated tokens that must **all** match — each token is checked against a row's section
+name, key display, or description, so a token that matches a section name (e.g. `beads`) pulls in
+every keymap in that section. Matched text is highlighted and a counter shows how many keymaps and
+sections matched. The filter follows you across ACE tab switches while Help stays open, but resets
+whenever the panel is closed and reopened. `Esc` clears an active filter before it closes the Help
+modal.
+
 On first use, empty tabs render onboarding states instead of blank panels: the PRs view shows a
 getting-started card when no ChangeSpecs or saved queries exist yet, and the Agents tab walks
 through launching a first agent — the project/ChangeSpec launch hint appears only when a launchable
