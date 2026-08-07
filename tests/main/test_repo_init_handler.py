@@ -9,6 +9,7 @@ import subprocess
 import pytest
 
 from sase._linked_repo_config import DEFAULT_AGENTS_DESCRIPTION
+from sase.main._repo_init_config import explicit_sidecar_config_update
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_registry import InitCommandSpec
 from sase.main.repo_init_handler import plan_repo_init, run_repo_init
@@ -43,14 +44,16 @@ def test_repo_init_writes_managed_sidecar_config_local_store_and_gitignore(
         "is_sase_managed: true\n"
         "repos:\n"
         "  sidecar:\n"
-        "    - name: plans\n"
-        "      auto_clone: true\n"
-        "    - name: beads\n"
-        "      auto_clone: true\n"
-        "    - name: research\n"
-        "      description: Durable SASE research reports and generated media.\n"
-        "    - name: agents\n"
-        f"      description: {DEFAULT_AGENTS_DESCRIPTION}\n"
+        "    builtin:\n"
+        "      plans:\n"
+        "        auto_clone: true\n"
+        "      beads:\n"
+        "        auto_clone: true\n"
+        "      agents:\n"
+        f"        description: {DEFAULT_AGENTS_DESCRIPTION}\n"
+        "    custom:\n"
+        "      research:\n"
+        "        description: Durable SASE research reports and generated media.\n"
     )
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == "/sase/repos/\n"
     assert (store_root / "README.md").is_file()
@@ -85,10 +88,12 @@ def test_bare_init_enable_management_also_writes_managed_sidecar_entries(
 
     config = (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
     assert "is_sase_managed: true" in config
-    assert "name: plans" in config
-    assert "name: beads" in config
-    assert "name: research" in config
-    assert "name: agents" in config
+    assert "    builtin:\n" in config
+    assert "      plans:\n" in config
+    assert "      beads:\n" in config
+    assert "      agents:\n" in config
+    assert "    custom:\n" in config
+    assert "      research:\n" in config
     assert "Durable SASE research reports and generated media." in config
 
 
@@ -102,8 +107,9 @@ def test_repo_init_appends_plans_without_losing_disabled_research_comments(
         "is_sase_managed: true\n"
         "repos:\n"
         "  sidecar:\n"
-        "    - name: research # shared\n"
-        "      disabled: true\n",
+        "    custom:\n"
+        "      research: # shared\n"
+        "        disabled: true\n",
     )
     root = tmp_path / ".sase" / "sdd"
     monkeypatch.setattr(
@@ -119,11 +125,11 @@ def test_repo_init_appends_plans_without_losing_disabled_research_comments(
 
     text = (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
     assert "# keep" in text
-    assert "name: research # shared" in text
-    assert text.count("name: plans") == 1
-    assert text.count("name: beads") == 1
-    assert text.count("name: research") == 1
-    assert text.count("name: agents") == 1
+    assert "research: # shared" in text
+    assert text.count("plans:") == 1
+    assert text.count("beads:") == 1
+    assert text.count("research:") == 1
+    assert text.count("agents:") == 1
     assert "Durable SASE research reports" not in text
 
 
@@ -136,14 +142,16 @@ def test_repo_init_preserves_existing_managed_sidecar_entries_verbatim(
         "is_sase_managed: true\n"
         "repos:\n"
         "  sidecar:\n"
-        "    - name: plans # custom\n"
-        "      disabled: true\n"
-        "    - name: beads # migration opt-out\n"
-        "      disabled: true\n"
-        "    - name: research # opted out\n"
-        "      disabled: true\n"
-        "    - name: agents # privacy opt-out\n"
-        "      disabled: true\n"
+        "    builtin:\n"
+        "      plans: # custom\n"
+        "        disabled: true\n"
+        "      beads: # migration opt-out\n"
+        "        disabled: true\n"
+        "      agents: # privacy opt-out\n"
+        "        disabled: true\n"
+        "    custom:\n"
+        "      research: # opted out\n"
+        "        disabled: true\n"
     )
     _mark_managed_project(tmp_path, config)
     root = tmp_path / ".sase" / "sdd"
@@ -185,8 +193,30 @@ def test_repo_init_sidecar_config_update_is_idempotent(
     second_output = capsys.readouterr().out
     assert (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8") == first
     assert "updated" not in second_output
-    assert first.count("name: beads") == 1
-    assert first.count("name: agents") == 1
+    assert first.count("beads:") == 1
+    assert first.count("agents:") == 1
+
+
+def test_legacy_list_sidecar_config_is_refused_with_a_migration_error(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "sase" / "sase.yml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        "is_sase_managed: true\n"
+        "repos:\n"
+        "  sidecar:\n"
+        "    - name: research\n"
+        "      description: Durable SASE research reports and generated media.\n",
+        encoding="utf-8",
+    )
+
+    update = explicit_sidecar_config_update(config_path)
+
+    assert update.error is not None
+    assert "deprecated list form" in update.error
+    assert "builtin/custom" in update.error
+    assert update.changed is False
 
 
 def test_repo_init_commits_only_owned_project_wiring(

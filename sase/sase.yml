@@ -26,14 +26,16 @@ repos:
       path: ../sase-nvim
       description: Neovim integration plugin for SASE syntax, completion, and editor support.
   sidecar:
-    - name: plans
-      auto_clone: true
-    - name: beads
-      auto_clone: true
-    - name: research
-      description: Durable SASE research reports and generated media.
-    - name: agents
-      description: Hidden sidecar that stores commit-associated sase agent data for this project.
+    builtin:
+      plans:
+        auto_clone: true
+      beads:
+        auto_clone: true
+      agents:
+        description: Hidden sidecar that stores commit-associated sase agent data for this project.
+    custom:
+      research:
+        description: Durable SASE research reports and generated media.
 xprompts:
   # keep-sorted start
 

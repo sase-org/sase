@@ -1349,9 +1349,18 @@ available through `sase repo open`, but their per-repository `*_DIR` environment
 exported until the clone exists. Repositories with `auto_clone: true` are omitted from generated
 agent instructions because agents do not need to open them manually.
 
-Sidecar entries use their `name` as the role and primary CLI lookup key. Ordinary roles use
-`sase/repos/<name>` as their workspace clone directory. Their repository defaults to
-`<project>--<name>` in the primary repository's GitHub organization; `repo` can pin a bare slug or
+`repos.sidecar` is a two-bucket mapping keyed by role: `builtin` holds overrides of the reserved
+`plans`, `beads`, and `agents` roles, and `custom` holds user-declared document sidecars such as
+`research`. The map key _is_ the role, so an entry never carries a `name` field and a role cannot be
+declared twice in one bucket. Because both buckets are mappings, a later config layer merges into an
+inherited entry per key — a project-local `custom: {research: {disabled: true}}` opts out of a
+global `research` sidecar. The legacy list form (a sequence of entries each carrying `name`) is
+still accepted during the migration window; run `sase doctor` to see which bucket each entry belongs
+in.
+
+Sidecar entries use their role key as the primary CLI lookup key. Ordinary roles use
+`sase/repos/<role>` as their workspace clone directory. Their repository defaults to
+`<project>--<role>` in the primary repository's GitHub organization; `repo` can pin a bare slug or
 `owner/repo`. An explicit unpinned entry uses that project-local derivation even when a legacy SDD
 store record names a different repository. Configured sidecars appear in `sase repo list` even
 before cloning and can be opened by role name or repository slug. Enabled ordinary sidecars that are
@@ -1360,9 +1369,10 @@ not auto-cloned also appear by repository slug in generated agent instruction fi
 config layer to suppress a matching global entry or implicit fallback; disabled and auto-cloned
 sidecars are omitted from generated instructions.
 
-The roles `plans`, `beads`, and `agents` are reserved. `plans` owns canonical plans, `beads` owns
-the event store, and `agents` is the hidden machine-level publication store plus the canonical
-prompt and prompt-artifact archive. Every other enabled role is a document sidecar: a
+The roles `plans`, `beads`, and `agents` are reserved and are configured under
+`repos.sidecar.builtin`. `plans` owns canonical plans, `beads` owns the event store, and `agents` is
+the hidden machine-level publication store plus the canonical prompt and prompt-artifact archive.
+Every other enabled role lives under `repos.sidecar.custom` and is a document sidecar: a
 `<YYYYMM>/*.md` corpus whose kind label is the role name. Document roles receive clone/store
 resolution, `sase repo path <role>`, doctor validation, commit routing, `SASE_SDD_<ROLE>_DIR`,
 plan-search visibility, and an ACE Plans kind. `research` is simply the default-seeded document
@@ -1411,29 +1421,32 @@ repos:
       description: Shared backend/domain behavior used by SASE frontends.
       auto_clone: true
   sidecar:
-    - name: plans
-      auto_clone: true
-    - name: research
-      description: Durable SASE research reports and generated media.
-      visibility: public
-    - name: agents
-      visibility: private
+    builtin:
+      plans:
+        auto_clone: true
+      agents:
+        visibility: private
+    custom:
+      research:
+        description: Durable SASE research reports and generated media.
+        visibility: public
 ```
 
-| Field                         | Type           | Default  | Description                                                                          |
-| ----------------------------- | -------------- | -------- | ------------------------------------------------------------------------------------ |
-| `github_orgs`                 | string or list | -        | GitHub user/org namespaces available to provider completion and PR workflows.        |
-| `default_linked_repos`        | boolean        | `true`   | Inject managed-project `--plans` and hidden `--agents` sidecars.                     |
-| `repos.linked[].auto_clone`   | boolean        | `false`  | Materialize and prepare the repository automatically before each agent launch.       |
-| `repos.linked[].name`         | string         | required | Stable alias used in generated environment variable names and memory summaries.      |
-| `repos.linked[].path`         | string         | required | Primary checkout path. Relative paths resolve from the project's primary workspace.  |
-| `repos.linked[].description`  | string         | required | Human-readable purpose used when generating agent memory for the linked repository.  |
-| `repos.sidecar[].name`        | string         | required | Role and CLI key; non-reserved names are document corpora, while `agents` is hidden. |
-| `repos.sidecar[].repo`        | string         | derived  | Optional bare slug or `owner/repo` pin.                                              |
-| `repos.sidecar[].description` | string         | -        | Purpose shown in inventory; required in generated instructions for lazy entries.     |
-| `repos.sidecar[].auto_clone`  | boolean        | `false`  | Materialize before agent launch; intrinsically ignored for `agents`.                 |
-| `repos.sidecar[].visibility`  | public/private | `public` | Remote visibility; project-local `private` overrides the `agents` default.           |
-| `repos.sidecar[].disabled`    | boolean        | `false`  | Disable the entry and suppress matching implicit sidecars, including `agents`.       |
+| Field                                | Type           | Default  | Description                                                                         |
+| ------------------------------------ | -------------- | -------- | ----------------------------------------------------------------------------------- |
+| `github_orgs`                        | string or list | -        | GitHub user/org namespaces available to provider completion and PR workflows.       |
+| `default_linked_repos`               | boolean        | `true`   | Inject managed-project `--plans` and hidden `--agents` sidecars.                    |
+| `repos.linked[].auto_clone`          | boolean        | `false`  | Materialize and prepare the repository automatically before each agent launch.      |
+| `repos.linked[].name`                | string         | required | Stable alias used in generated environment variable names and memory summaries.     |
+| `repos.linked[].path`                | string         | required | Primary checkout path. Relative paths resolve from the project's primary workspace. |
+| `repos.linked[].description`         | string         | required | Human-readable purpose used when generating agent memory for the linked repository. |
+| `repos.sidecar.builtin.<role>`       | object         | -        | Override for a reserved role; the key must be `plans`, `beads`, or `agents`.        |
+| `repos.sidecar.custom.<role>`        | object         | -        | User-declared document sidecar; the key is the role and must not be a reserved one. |
+| `repos.sidecar.*.<role>.repo`        | string         | derived  | Optional bare slug or `owner/repo` pin.                                             |
+| `repos.sidecar.*.<role>.description` | string         | -        | Purpose shown in inventory; required in generated instructions for lazy entries.    |
+| `repos.sidecar.*.<role>.auto_clone`  | boolean        | `false`  | Materialize before agent launch; intrinsically ignored for `agents`.                |
+| `repos.sidecar.*.<role>.visibility`  | public/private | `public` | Remote visibility; project-local `private` overrides the `agents` default.          |
+| `repos.sidecar.*.<role>.disabled`    | boolean        | `false`  | Disable the entry and suppress matching implicit sidecars, including `agents`.      |
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and

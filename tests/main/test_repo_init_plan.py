@@ -57,10 +57,12 @@ def test_plan_providerless_project_includes_store_config_and_ignore_actions(
         action for action in plan.actions if action.path.name == "sase.yml"
     )
     assert config_action.new_content is not None
-    assert "name: plans" in config_action.new_content
-    assert "name: beads" in config_action.new_content
-    assert "name: research" in config_action.new_content
-    assert "name: agents" in config_action.new_content
+    assert "    builtin:\n" in config_action.new_content
+    assert "      plans:\n" in config_action.new_content
+    assert "      beads:\n" in config_action.new_content
+    assert "      agents:\n" in config_action.new_content
+    assert "    custom:\n" in config_action.new_content
+    assert "      research:\n" in config_action.new_content
     assert "plans, beads, research, and agents sidecars" in plan.summary
     assert any(action.path.name == ".gitignore" for action in plan.actions)
     assert any(
@@ -163,10 +165,12 @@ def test_plan_reports_asset_only_agents_guide_refresh(
 is_sase_managed: true
 repos:
   sidecar:
-    - name: plans
-    - name: beads
-    - name: research
-    - name: agents
+    builtin:
+      plans: {}
+      beads: {}
+      agents: {}
+    custom:
+      research: {}
 """,
         encoding="utf-8",
     )
@@ -483,7 +487,9 @@ def test_run_uses_materialized_path_and_updates_project_wiring(
 
     assert run_repo_init(_args(tmp_path)) == 0
     assert (sdd_dir / "README.md").is_file()
-    assert "name: plans" in (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
+    assert "      plans:\n" in (tmp_path / "sase" / "sase.yml").read_text(
+        encoding="utf-8"
+    )
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == "/sase/repos/\n"
 
 

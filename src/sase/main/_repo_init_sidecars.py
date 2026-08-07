@@ -185,8 +185,8 @@ def _confirm_agents_sidecar_creation(
         "associations, and readable chat transcripts. Later syncs can refresh "
         "the same runs with newly available transcripts.\n"
         f"Repository visibility: {visibility.upper()}.\n"
-        "Set repos.sidecar[agents].visibility: private in sase/sase.yml for "
-        "a private repository, or disabled: true to opt out.\n\n"
+        "Set repos.sidecar.builtin.agents.visibility: private in sase/sase.yml "
+        "for a private repository, or disabled: true to opt out.\n\n"
         f"Create {visibility} {preflight.provider} agents sidecar repository "
         f"{preflight.repo} on {preflight.host}? [y/N] "
     )

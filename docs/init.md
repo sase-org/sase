@@ -303,13 +303,20 @@ also adds the explicit project-local plans, beads, and research declarations whe
 ```yaml
 repos:
   sidecar:
-    - name: plans
-      auto_clone: true
-    - name: beads
-      auto_clone: true
-    - name: research
-      description: Durable SASE research reports and generated media.
+    builtin:
+      plans:
+        auto_clone: true
+      beads:
+        auto_clone: true
+    custom:
+      research:
+        description: Durable SASE research reports and generated media.
 ```
+
+Reserved roles are written under `repos.sidecar.builtin` and document sidecars under
+`repos.sidecar.custom`. If `repos.sidecar` still uses the deprecated list form, the write stops with
+an error asking you to migrate it to the two-bucket mapping first; `sase doctor` names the target
+bucket for each existing entry.
 
 An existing entry for any of those roles is preserved verbatim, including `disabled: true`;
 disabling research is the project-local opt-out. The unpinned research entry derives

@@ -359,7 +359,7 @@ def test_noninteractive_bare_init_defers_missing_sidecar_creation(
 
     config = (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
     stderr = capsys.readouterr().err
-    assert "name: research" in config
+    assert "      research:\n" in config
     assert "acme/widget--research is missing" in stderr
     assert "run `sase repo init` interactively" in stderr
 

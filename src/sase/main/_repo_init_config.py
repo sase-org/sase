@@ -11,6 +11,8 @@ from sase._linked_repo_config import (
     AGENTS_SIDECAR_ROLE,
     DEFAULT_AGENTS_DESCRIPTION,
     DEFAULT_RESEARCH_DESCRIPTION,
+    SIDECAR_BUILTIN_CONFIG_KEY,
+    SIDECAR_CUSTOM_CONFIG_KEY,
 )
 from sase.config import ConfigEditError, set_key
 from sase.content_layout import LayoutCollisionError, resolve_project_layout
@@ -112,7 +114,7 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
         )
 
     try:
-        from ruamel.yaml.comments import CommentedMap, CommentedSeq
+        from ruamel.yaml.comments import CommentedMap
 
         from sase.config._edit_yaml_io import dump_yaml, make_yaml
 
@@ -134,47 +136,83 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
                 f"{config_path}: repos must be a YAML mapping",
             )
         sidecars = repos.get("sidecar") if isinstance(repos, MutableMapping) else None
-        if sidecars is not None and not isinstance(sidecars, MutableSequence):
+        if isinstance(sidecars, MutableSequence):
             return ConfigUpdate(
                 config_path,
                 current_text,
                 current_text,
-                f"{config_path}: repos.sidecar must be a YAML list",
+                f"{config_path}: repos.sidecar is the deprecated list form; migrate "
+                f"it to the {SIDECAR_BUILTIN_CONFIG_KEY}/{SIDECAR_CUSTOM_CONFIG_KEY} "
+                "mapping (run `sase doctor` for the per-entry bucket) before "
+                "running a config-writing init command",
             )
+        if sidecars is not None and not isinstance(sidecars, MutableMapping):
+            return ConfigUpdate(
+                config_path,
+                current_text,
+                current_text,
+                f"{config_path}: repos.sidecar must be a YAML mapping with "
+                f"{SIDECAR_BUILTIN_CONFIG_KEY} and {SIDECAR_CUSTOM_CONFIG_KEY} keys",
+            )
+        buckets: dict[str, MutableMapping[str, Any] | None] = {}
+        for bucket in (SIDECAR_BUILTIN_CONFIG_KEY, SIDECAR_CUSTOM_CONFIG_KEY):
+            value = sidecars.get(bucket) if sidecars is not None else None
+            if value is not None and not isinstance(value, MutableMapping):
+                return ConfigUpdate(
+                    config_path,
+                    current_text,
+                    current_text,
+                    f"{config_path}: repos.sidecar.{bucket} must be a YAML mapping",
+                )
+            buckets[bucket] = value
         existing_roles = {
-            _entry_text(entry, "name")
-            for entry in sidecars or ()
-            if isinstance(entry, Mapping)
+            str(role)
+            for value in buckets.values()
+            if isinstance(value, MutableMapping)
+            for role in value
         }
         entries = {
-            "plans": CommentedMap((("name", "plans"), ("auto_clone", True))),
-            "beads": CommentedMap((("name", "beads"), ("auto_clone", True))),
-            "research": CommentedMap(
-                (
-                    ("name", "research"),
-                    ("description", DEFAULT_RESEARCH_DESCRIPTION),
-                )
+            "plans": (
+                SIDECAR_BUILTIN_CONFIG_KEY,
+                CommentedMap((("auto_clone", True),)),
             ),
-            AGENTS_SIDECAR_ROLE: CommentedMap(
-                (
-                    ("name", AGENTS_SIDECAR_ROLE),
-                    ("description", DEFAULT_AGENTS_DESCRIPTION),
-                )
+            "beads": (
+                SIDECAR_BUILTIN_CONFIG_KEY,
+                CommentedMap((("auto_clone", True),)),
+            ),
+            "research": (
+                SIDECAR_CUSTOM_CONFIG_KEY,
+                CommentedMap((("description", DEFAULT_RESEARCH_DESCRIPTION),)),
+            ),
+            AGENTS_SIDECAR_ROLE: (
+                SIDECAR_BUILTIN_CONFIG_KEY,
+                CommentedMap((("description", DEFAULT_AGENTS_DESCRIPTION),)),
             ),
         }
         added_roles = tuple(role for role in entries if role not in existing_roles)
         if not added_roles:
             return ConfigUpdate(config_path, current_text, current_text)
 
-        new_entries = CommentedSeq(entries[role] for role in added_roles)
         if sidecars is None:
-            updated_text = set_key(
-                current_text,
-                ("repos", "sidecar"),
-                new_entries,
-            )
+            new_sidecars = CommentedMap()
+            for bucket in (SIDECAR_BUILTIN_CONFIG_KEY, SIDECAR_CUSTOM_CONFIG_KEY):
+                added = CommentedMap(
+                    (role, entries[role][1])
+                    for role in added_roles
+                    if entries[role][0] == bucket
+                )
+                if added:
+                    new_sidecars[bucket] = added
+            updated_text = set_key(current_text, ("repos", "sidecar"), new_sidecars)
         else:
-            sidecars.extend(new_entries)
+            for role in added_roles:
+                bucket, entry = entries[role]
+                target = buckets[bucket]
+                if target is None:
+                    target = CommentedMap()
+                    buckets[bucket] = target
+                    sidecars[bucket] = target
+                target[role] = entry
             updated_text = dump_yaml(handler, data)
     except (ConfigEditError, OSError, ValueError) as exc:
         return ConfigUpdate(
