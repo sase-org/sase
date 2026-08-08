@@ -22,6 +22,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from tests._contention import (  # noqa: E402
+    FAILURES_ENV,
+    format_tally,
+    read_failures,
+    tally_failures,
+)
 from tests._suite_gate import (  # noqa: E402
     WorkerTokenLease,
     automatic_worker_range,
@@ -102,6 +108,25 @@ SCOPED_WORKER_REMEDY = (
     "`just check-full` (or `just test`) for a governed parallel run, or "
     "SASE_TEST_SELECTION_SCOPED_WORKER_CEILING to bound the gear."
 )
+#: Opt-in diagnostic soak lane: the default (non-visual) selection run R times
+#: under deliberate CPU starvation, with a per-node failure tally at the end.
+#: Deliberately absent from `FULL_LANE_MODES` and `TIMINGS_RECORDING_MODES`, and
+#: unreachable from `just check` / `just check-full`: a run that starves the host
+#: on purpose is not evidence about what a scoped run should have selected, and
+#: recording it would poison the durable stores the flake triage reads.
+CONTENTION_MODE = "contention"
+CONTENTION_PLUGIN_MODULE = "tests._contention_plugin"
+CONTENTION_WORKERS_ENV = "SASE_CONTENTION_WORKERS"
+CONTENTION_REPEAT_ENV = "SASE_CONTENTION_REPEAT"
+#: 26 workers on two pinned CPUs is the 13x oversubscription
+#: `just test-visual-contention` already uses to make the PNG lane's timing
+#: flakes deterministic; the default lane copies the ratio rather than guessing.
+DEFAULT_CONTENTION_WORKERS = 26
+DEFAULT_CONTENTION_REPEAT = 3
+#: Per-repeat failure records, kept after the run so a soak can be re-read
+#: without re-running it. `.pytest_cache` is already the suite's diagnostic
+#: scratch space (see `.pytest_cache/sase-visual/`).
+CONTENTION_ARTIFACT_DIRECTORY = Path(".pytest_cache") / "sase-contention"
 #: Modes that run the whole fast suite, and whose failures are therefore
 #: evidence about what a scoped run should not have skipped.
 FULL_LANE_MODES = frozenset({"fast", "cov", CONTEXTS_MODE})
@@ -294,7 +319,7 @@ def _pytest_command(
         command.extend(["-m", VISUAL_MARKER_EXPRESSION])
     elif mode == "terminal-smoke":
         command.extend(["-m", TERMINAL_SMOKE_MARKER_EXPRESSION])
-    elif mode in ("fast", SCOPED_MODE):
+    elif mode in ("fast", SCOPED_MODE, CONTENTION_MODE):
         command.extend(["-m", FAST_MARKER_EXPRESSION])
     elif mode == "cov":
         command.extend(
@@ -489,6 +514,10 @@ def _configured_worker_count() -> int | None:
 DEFAULT_WORKER_REMEDY = (
     "use SASE_PYTEST_WORKERS for an exact worker request instead of passing "
     "-n/--numprocesses."
+)
+CONTENTION_WORKER_REMEDY = (
+    "use SASE_CONTENTION_WORKERS to set the soak's oversubscription width "
+    "instead of passing -n/--numprocesses."
 )
 
 
@@ -757,6 +786,139 @@ def _gear_manifest(
     return manifest_with_gear(selection.manifest, gear, selected=selected)
 
 
+def _positive_environment_int(name: str, default: int) -> int:
+    """A positive-integer knob, where unset and empty both mean the default.
+
+    Empty is the default too because these knobs are read through shell
+    parameter expansion in the ``Justfile``, where an exported-but-empty
+    variable is the normal way an override is absent.
+    """
+    raw_value = os.environ.get(name)
+    if raw_value is None or not raw_value.strip():
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError as error:
+        raise pytest.UsageError(f"{name} must be a positive integer") from error
+    if value < 1:
+        raise pytest.UsageError(f"{name} must be a positive integer")
+    return value
+
+
+def _contention_worker_count() -> int:
+    """The soak's oversubscription width for the pinned CPU set.
+
+    `SASE_PYTEST_WORKERS` still works, so a caller who already exports the
+    general width knob gets what it says; `SASE_CONTENTION_WORKERS` is the
+    lane-specific name and wins when both are set.
+    """
+    if os.environ.get(CONTENTION_WORKERS_ENV, "").strip():
+        return _positive_environment_int(
+            CONTENTION_WORKERS_ENV, DEFAULT_CONTENTION_WORKERS
+        )
+    return _configured_worker_count() or DEFAULT_CONTENTION_WORKERS
+
+
+def _contention_artifact_directory() -> Path:
+    """A cleared directory for this soak's per-repeat failure records.
+
+    Cleared, because a stale ``repeat-04.json`` from a longer previous soak
+    would otherwise be read as this soak's fourth repeat.
+    """
+    directory = REPO_ROOT / CONTENTION_ARTIFACT_DIRECTORY
+    shutil.rmtree(directory, ignore_errors=True)
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def _contention_environment(failures_path: Path) -> dict[str, str]:
+    """The child environment for one soak repeat.
+
+    The gate is disabled rather than leased: the soak exists to oversubscribe a
+    pinned CPU set, which is demand no token pool can account for, and waiting
+    for tokens it would then ignore only delays the diagnostic. Health
+    recording is disabled for the same reason -- a deliberately starved run is
+    not evidence about what a scoped run should have selected.
+    """
+    return {
+        **os.environ,
+        "SASE_TEST_GATE_DISABLED": "1",
+        HEALTH_DISABLED_ENV: "1",
+        FAILURES_ENV: str(failures_path),
+    }
+
+
+def _run_contention(args: list[str]) -> int:
+    """Run the default lane R times under contention and tally per-node failures.
+
+    Unlike every other parallel mode this cannot ``execv``: the tally is the
+    deliverable, and only a surviving parent can fold R repeats into one.
+    Returns the first repeat's non-zero exit status, so a red soak fails with
+    pytest's own code rather than a synthetic one.
+    """
+    _reject_numprocesses_args(args, remedy=CONTENTION_WORKER_REMEDY)
+    worker_count = _contention_worker_count()
+    repeat_count = _positive_environment_int(
+        CONTENTION_REPEAT_ENV, DEFAULT_CONTENTION_REPEAT
+    )
+    distribution_mode = _configured_distribution_mode()
+    command = _pytest_command(
+        CONTENTION_MODE,
+        ["-p", CONTENTION_PLUGIN_MODULE, *args],
+        worker_count=worker_count,
+        distribution_mode=distribution_mode,
+        serial=False,
+    )
+    artifacts = _contention_artifact_directory()
+    _prepare_pytest_tmpdir()
+    _sanitize_pytest_environment()
+    os.chdir(REPO_ROOT)
+
+    print(
+        f"contention soak: {repeat_count} repeat(s), {worker_count} workers, "
+        f"dist={distribution_mode}",
+        flush=True,
+    )
+    repeats: list[tuple[str, ...]] = []
+    red_repeats: list[int] = []
+    first_failure = 0
+    started = time.monotonic()
+    for index in range(1, repeat_count + 1):
+        failures_path = artifacts / f"repeat-{index:02d}.json"
+        print(
+            f"\n---------- contention repeat {index}/{repeat_count} ----------",
+            flush=True,
+        )
+        try:
+            returncode = subprocess.run(
+                command, env=_contention_environment(failures_path)
+            ).returncode
+        except KeyboardInterrupt:
+            # A soak is long enough that an operator interrupting it still
+            # wants the tally for the repeats that did finish.
+            print("\ncontention soak interrupted", file=sys.stderr, flush=True)
+            red_repeats.append(index)
+            first_failure = first_failure or int(pytest.ExitCode.INTERRUPTED)
+            break
+        repeats.append(read_failures(failures_path))
+        if returncode != 0:
+            red_repeats.append(index)
+            first_failure = first_failure or returncode
+
+    print(
+        "\n"
+        + format_tally(
+            tally_failures(repeats),
+            repeat_count=repeat_count,
+            red_repeats=red_repeats,
+            duration=time.monotonic() - started,
+        ),
+        flush=True,
+    )
+    print(f"per-repeat failure records: {_repo_relative(artifacts)}", flush=True)
+    return first_failure
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -769,6 +931,7 @@ def main(argv: list[str] | None = None) -> int:
             CONTEXTS_MODE,
             "terminal-smoke",
             SCOPED_MODE,
+            CONTENTION_MODE,
         ),
     )
     parser.add_argument("pytest_args", nargs=argparse.REMAINDER)
@@ -785,6 +948,10 @@ def main(argv: list[str] | None = None) -> int:
     scoped_worker_count: int | None = None
     manifest_path = _scoped_manifest_path()
     try:
+        if mode == CONTENTION_MODE:
+            # Never reaches the gate paths below: the soak is ungoverned by
+            # design, and it needs a surviving parent to emit the tally.
+            return _run_contention(pytest_args)
         if mode == SCOPED_MODE:
             _reject_scoped_worker_overrides(pytest_args)
             selection = _scoped_selection(manifest_path)

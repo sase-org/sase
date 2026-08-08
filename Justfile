@@ -390,6 +390,40 @@ test-visual-contention *args: _setup-visual (_header "test-visual-contention")
     @command -v taskset >/dev/null || { printf "test-visual-contention requires taskset\\n" >&2; exit 1; }
     @taskset -c "${SASE_VISUAL_CONTENTION_CPUS:-0,1}" env SASE_PYTEST_WORKERS="${SASE_VISUAL_CONTENTION_WORKERS:-26}" SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest visual "$@"
 
+# Reproduce the default (non-visual) lane's timing flakes, the same way
+# `test-visual-contention` reproduces the PNG lane's: a fixed 26-worker pool on
+# two CPUs (13x oversubscription), repeated N times, with a per-node failure
+# tally at the end. One pass is not evidence about a class whose base rate is
+# under one node per run; the tally is what makes a fix falsifiable.
+#
+# This lane is an opt-in diagnostic. It takes no suite-gate lease and records
+# nothing in the durable selection-health store, and it is deliberately
+# unreachable from `just check` and `just check-full`. It starves the host on
+# purpose, so other agents' runs on this machine will slow down while it runs.
+#
+# Pass paths or node IDs to restrict the soak -- a full-suite repeat is far too
+# slow to iterate a fix against:
+#   just test-contention -- tests/ace/tui/test_stall_watchdog_telemetry.py
+#
+# Pre-fix baseline (sase-h8.1), measured 2026-08-07 at 7bbd82a47 on the
+# 64-core host: 26 workers on two CPUs, 4 repeats of 188 items drawn from 19
+# files that own known reproducible-flake nodes, 480.4s total. 4 red repeats,
+# 4 distinct nodes:
+#   4/4  tests/test_contract_manifest.py::test_contract_set_serial_runtime_stays_within_budget
+#   3/4  tests/ace/tui/test_agent_metadata_search.py::test_inline_metadata_search_commit_repeat_q_and_passthrough
+#   3/4  tests/ace/tui/test_agent_metadata_search.py::test_inline_metadata_search_reverse_key_override
+#   1/4  tests/ace/tui/util/test_stall_watchdog.py::test_watchdog_records_one_stall_with_stack_and_context
+# The same selection is green unpinned (measured 12.6x faster), which is the
+# point: the pinning, not the selection, is what makes the class deterministic.
+#
+# Override the CPU list, worker count, or repeat count with
+# SASE_CONTENTION_CPUS, SASE_CONTENTION_WORKERS, and SASE_CONTENTION_REPEAT.
+[positional-arguments]
+test-contention *args: _setup-visual (_header "test-contention")
+    @printf "\n---------- Running default-lane pytest contention harness... ----------\n"
+    @command -v taskset >/dev/null || { printf "test-contention requires taskset\\n" >&2; exit 1; }
+    @taskset -c "${SASE_CONTENTION_CPUS:-0,1}" env SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest contention "$@"
+
 # Regenerate the complete ACE PNG golden corpus. The visual-suite fingerprint
 # fixture refuses updates outside the pinned renderer environment or canonical
 # Linux platform.

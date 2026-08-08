@@ -12,6 +12,7 @@ tests/test_justfile_sase_core_dir.py
 tests/test_project_display_presentation_audit.py
 tests/test_ruff_config.py
 tests/test_run_pytest_command.py
+tests/test_run_pytest_contention.py
 tests/test_run_pytest_health.py
 tests/test_run_pytest_main.py
 tests/test_run_pytest_scoped.py

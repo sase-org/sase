@@ -41,6 +41,7 @@ just test-visual   # ACE PNG visual regression snapshots only; the sole visual e
 just test-terminal-smoke  # Optional real-terminal ACE smoke test
 just test-cov      # Parallel test run with coverage + 50% gate, excluding visual snapshots
 just test-contexts # Record the per-test coverage baseline the selector consumes, and cache it host-locally
+just test-contention  # Diagnostic soak: repeat the default lane under pinned-CPU contention and tally per-node failures
 just check         # Agent default: whole-repo lint gates + a diff-scoped test lane
 just check-full    # Exhaustive verification: whole-repo lint gates + the full test suite
 just selection-health  # Health of the diff-scoped test lane, including false negatives
@@ -560,6 +561,36 @@ the shared pytest runner's private disk-backed temp root and leak guard, but it 
 always serial and never leases xdist worker tokens; `SASE_PYTEST_DIST` is therefore
 ignored. Set `SASE_PYTEST_TMPDIR` to override its scratch root while diagnosing
 temp-path behavior.
+
+### Reproducing Timing Flakes (`just test-contention`)
+
+The default lane's timing flakes are a class, not a list of nodes: individually rare,
+collectively frequent, and historically only reproducible under accidental host load.
+`just test-contention` makes them reproducible on demand, the same way
+`just test-visual-contention` already does for PNG convergence: `taskset` pins a
+26-worker pool to two CPUs (13x oversubscription), the selection runs N times, and the
+run ends with a per-node tally naming each failing node, how many repeats it failed in,
+and which ones.
+
+```bash
+just test-contention -- tests/ace/tui/util/test_stall_watchdog.py   # restrict the soak
+SASE_CONTENTION_REPEAT=6 just test-contention -- tests/test_bead    # soak harder
+```
+
+Override the pinned CPU list, the worker count, and the repeat count with
+`SASE_CONTENTION_CPUS`, `SASE_CONTENTION_WORKERS`, and `SASE_CONTENTION_REPEAT`
+(defaults `0,1`, `26`, and `3`). A full-suite repeat is far too slow to iterate against,
+so pass paths or node IDs; the tally is what turns "it went green once" into a
+before/after measurement a fix can be falsified by.
+
+Per-repeat failure records land in `.pytest_cache/sase-contention/repeat-NN.json`, so a
+finished soak can be re-read without re-running it.
+
+This lane is an opt-in diagnostic and is deliberately kept out of every governed path:
+it takes no suite-gate lease, writes nothing to the durable selection-health store, and
+is unreachable from `just check` and `just check-full`. A deliberately starved run is
+not evidence about what a scoped run should have selected. It also starves the host on
+purpose, so other agents' runs on the same machine slow down while it runs.
 
 ### Selection Health
 
