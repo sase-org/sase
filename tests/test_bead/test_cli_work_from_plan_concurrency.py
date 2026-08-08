@@ -11,6 +11,7 @@ from sase.bead.cli_work_from_plan import work_from_plan_file
 from sase.bead.project import BeadProject
 from sase.sdd.frontmatter import parse_frontmatter
 from sase.sdd.store import SddStore
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.test_bead.cli_work_from_plan_helpers import write_plan_update
 from tests.test_bead.sync_test_helpers import configure_git_identity
 
@@ -37,8 +38,6 @@ phases:
 
 Execute the rollout.
 """
-
-_CONCURRENCY_TIMEOUT_SECONDS = 10.0
 
 
 def test_concurrent_plan_file_launches_serialize_through_terminal_push(
@@ -93,7 +92,7 @@ def test_concurrent_plan_file_launches_serialize_through_terminal_push(
             events.append(("push-start", str(current_push)))
         if current_push == 1:
             first_push_started.set()
-            assert release_first_push.wait(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
+            assert release_first_push.wait(timeout=LOAD_TOLERANT_TIMEOUT)
         with events_lock:
             events.append(("push-end", str(current_push)))
 
@@ -115,13 +114,11 @@ def test_concurrent_plan_file_launches_serialize_through_terminal_push(
             )
             for source in (first_source, second_source)
         ]
-        assert first_push_started.wait(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
+        assert first_push_started.wait(timeout=LOAD_TOLERANT_TIMEOUT)
         with events_lock:
             assert sum(kind == "launch" for kind, _value in events) == 1
         release_first_push.set()
-        results = [
-            future.result(timeout=_CONCURRENCY_TIMEOUT_SECONDS) for future in futures
-        ]
+        results = [future.result(timeout=LOAD_TOLERANT_TIMEOUT) for future in futures]
 
     epic_ids = {result.epic_id for result in results}
     assert None not in epic_ids
@@ -215,7 +212,7 @@ def test_plan_link_write_and_commit_exclude_recovery_writer(
             )
             assert frontmatter["bead_id"]
             link_ready_to_commit.set()
-            assert finish_link_commit.wait(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
+            assert finish_link_commit.wait(timeout=LOAD_TOLERANT_TIMEOUT)
         assert already_locked is not message.startswith("Archive approved plan")
         return real_commit_sdd_store_files(
             commit_store,
@@ -254,15 +251,15 @@ def test_plan_link_write_and_commit_exclude_recovery_writer(
             no_push=False,
             render=False,
         )
-        if not link_ready_to_commit.wait(timeout=_CONCURRENCY_TIMEOUT_SECONDS):
+        if not link_ready_to_commit.wait(timeout=LOAD_TOLERANT_TIMEOUT):
             finish_link_commit.set()
-            exception = launch_future.exception(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
+            exception = launch_future.exception(timeout=LOAD_TOLERANT_TIMEOUT)
             pytest.fail(f"plan launch did not reach its link commit: {exception}")
         competitor_future = executor.submit(compete_for_store)
         assert competitor_entered.wait(timeout=0.2) is False
         finish_link_commit.set()
-        result = launch_future.result(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
-        assert competitor_future.result(timeout=_CONCURRENCY_TIMEOUT_SECONDS) is True
+        result = launch_future.result(timeout=LOAD_TOLERANT_TIMEOUT)
+        assert competitor_future.result(timeout=LOAD_TOLERANT_TIMEOUT) is True
 
     assert competitor_entered.is_set()
     assert launched == [result.epic_id]

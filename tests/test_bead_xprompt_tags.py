@@ -104,7 +104,7 @@ def _assert_no_wait_directives(name: str, task_instruction: str) -> None:
         ),
         (
             "bd/work_task",
-            "Can you complete the work for the {{ bead_id }} sase task bead",
+            "Can you complete the work for task bead {{ bead_id }}",
         ),
     ],
 )
