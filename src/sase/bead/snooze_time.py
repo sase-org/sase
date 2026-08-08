@@ -17,12 +17,12 @@ attached rather than being rejected: that is what someone typing
 ``2026-08-09T09:00`` means, and the store rejects a wake time that names no
 instant regardless.
 
-The gates' custom duration field and the ACE modal's custom field
-additionally accept a compact ``"<duration> [+<N>]"`` request that sets a +1
-wake target; the CLI takes that target as its own ``-p/--plus-ones`` flag
-instead. Both forms share :func:`parse_snooze_until`, one error type, and one
-accepted-forms string, so a wake time cannot be read one way from the CLI and
-another way from the gate or the ACE modal.
+The gates' duration field and the ACE modal's custom field additionally
+accept a compact ``"<duration> [+<N>]"`` request that sets a +1 wake target;
+the CLI takes that target as its own ``-p/--plus-ones`` flag instead. Both
+forms share :func:`parse_snooze_until`, one error type, and one accepted-forms
+string, so a wake time cannot be read one way from the CLI and another way
+from the gate or the ACE modal.
 """
 
 from __future__ import annotations

@@ -47,6 +47,25 @@ def test_task_triage_rejects_automatic_resolution(gate_home: Path) -> None:
             "invalid_task_triage_options",
         ),
         (
+            lambda spec: spec["options"][2]["inputs"][0].update(label="Wake after"),
+            "invalid_task_triage_options",
+        ),
+        (
+            lambda spec: spec["options"][2]["inputs"][0].update(type="text"),
+            "invalid_task_triage_options",
+        ),
+        (
+            lambda spec: spec["options"][2].update(
+                input_schema={
+                    "type": "object",
+                    "properties": {"duration": {"type": "string"}},
+                    "required": ["duration"],
+                    "additionalProperties": True,
+                }
+            ),
+            "conflicting_input_declaration",
+        ),
+        (
             lambda spec: spec["payload"].update(extra="forged"),
             "invalid_task_triage_payload",
         ),

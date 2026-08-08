@@ -296,8 +296,12 @@ def test_task_triage_loader_uses_generic_branch_modal_data(
     assert [[field.id for field in option.inputs] for option in data.gate.options] == [
         [],
         [],
-        ["duration", "custom_duration"],
+        ["duration"],
     ]
+    [duration_field] = data.gate.options[2].inputs
+    assert duration_field.label == "Wake time"
+    assert duration_field.type.value == "line"
+    assert duration_field.required is True
     assert ACTION_BADGES["TaskTriage"] == "[task]"
     assert notification_icon("TaskTriage", None) == "✦"
 

@@ -249,7 +249,7 @@ def _task_triage_modal_data() -> CustomGateModalData:
             query=str(spec["query"]),
             options=options,
             groups=(),
-            branches=(("launch",), ("close",)),
+            branches=(("launch",), ("close",), ("snooze",)),
             primary_branch=("launch",),
         ),
         origin_agent=str(presentation["origin_agent"]),
@@ -285,6 +285,7 @@ async def test_custom_gate_task_triage_png_snapshot(
         assert_page_svg_contains(page, "task.md")
         assert_page_svg_contains(page, "Launch")
         assert_page_svg_contains(page, "Close")
+        assert_page_svg_contains(page, "Snooze")
         ace_png_visual.assert_page_png(
             page,
             "custom_gate_task_triage_120x40",

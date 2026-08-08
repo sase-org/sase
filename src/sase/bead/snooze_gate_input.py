@@ -7,15 +7,13 @@ feedback field, which no option command can see, so the host re-parsed the
 note before persisting the response just to keep a typo from answering the
 gate with an instruction it could not follow.
 
-The duration is now an ordinary declared input: a preset ``enum`` covering
-the durations a deferred task actually waits, plus a ``line`` field for the
-full ``"<duration> [+<N>]"`` vocabulary
-:mod:`sase.bead.snooze_time` accepts. The presets mirror
-:class:`~sase.ace.tui.modals.bead_snooze_modal.BeadSnoozeModal`, so deferring
-a bead from its panel and deferring it from its gate offer the same choices.
+The wake time is now one ordinary declared line input. It carries the full
+``"<wake-time> [+<N>]"`` vocabulary :mod:`sase.bead.snooze_time` accepts, so a
+reviewer can type a relative duration, an absolute timestamp, and optionally
+one +1 wake threshold in the same place.
 
 The value reaches the option command on stdin, and the command -- not the
-host -- resolves it, so an unparsable duration fails the command and leaves
+host -- resolves it, so an unparsable wake time fails the command and leaves
 the gate pending exactly as the deleted host-side check did.
 """
 
@@ -27,19 +25,13 @@ from typing import Any
 from sase.bead.snooze_time import ACCEPTED_SNOOZE_FORMS, SnoozeTimeError
 
 SNOOZE_DURATION_FIELD_ID = "duration"
-SNOOZE_CUSTOM_DURATION_FIELD_ID = "custom_duration"
-SNOOZE_CUSTOM_DURATION_CHOICE = "custom"
-SNOOZE_DEFAULT_DURATION = "3d"
 
-_SNOOZE_DURATION_CHOICES: tuple[tuple[str, str], ...] = (
-    ("4h", "4 hours"),
-    ("1d", "1 day"),
-    (SNOOZE_DEFAULT_DURATION, "3 days"),
-    ("7d", "1 week"),
-    (SNOOZE_CUSTOM_DURATION_CHOICE, "Custom…"),
+_LEGACY_CUSTOM_DURATION_FIELD_ID = "custom_duration"
+_LEGACY_CUSTOM_DURATION_CHOICE = "custom"
+_SNOOZE_DURATION_PLACEHOLDER = "e.g., 3d, 2026-08-09T09:00:00-04:00, or 3d +2"
+_SNOOZE_DURATION_HELP = (
+    f"{ACCEPTED_SNOOZE_FORMS}; append +N to also wake after N more +1 reports"
 )
-
-_CUSTOM_PLACEHOLDER = "e.g., 2h, 1d12h, or '3d +2' to also wake at 2 more +1s"
 
 
 def snooze_duration_inputs() -> list[dict[str, Any]]:
@@ -51,23 +43,27 @@ def snooze_duration_inputs() -> list[dict[str, Any]]:
     return [
         {
             "id": SNOOZE_DURATION_FIELD_ID,
-            "label": "Wake after",
-            "type": "enum",
-            "required": True,
-            "default": SNOOZE_DEFAULT_DURATION,
-            "choices": [
-                {"value": value, "label": label}
-                for value, label in _SNOOZE_DURATION_CHOICES
-            ],
-        },
-        {
-            "id": SNOOZE_CUSTOM_DURATION_FIELD_ID,
-            "label": "Custom wake time",
+            "label": "Wake time",
             "type": "line",
-            "placeholder": _CUSTOM_PLACEHOLDER,
-            "help": ACCEPTED_SNOOZE_FORMS,
+            "required": True,
+            "placeholder": _SNOOZE_DURATION_PLACEHOLDER,
+            "help": _SNOOZE_DURATION_HELP,
         },
     ]
+
+
+def _legacy_custom_duration(raw_input: Mapping[str, Any]) -> str | None:
+    """Return the old two-field custom duration, when a pending bundle uses it."""
+    preset = raw_input.get(SNOOZE_DURATION_FIELD_ID)
+    if preset != _LEGACY_CUSTOM_DURATION_CHOICE:
+        return None
+    custom = raw_input.get(_LEGACY_CUSTOM_DURATION_FIELD_ID)
+    if not isinstance(custom, str) or not custom.strip():
+        raise SnoozeTimeError(
+            "a custom snooze needs a wake time in "
+            f"{_LEGACY_CUSTOM_DURATION_FIELD_ID}; {ACCEPTED_SNOOZE_FORMS}"
+        )
+    return custom.strip()
 
 
 def snooze_duration_result_property() -> dict[str, Any]:
@@ -78,9 +74,10 @@ def snooze_duration_result_property() -> dict[str, Any]:
 def resolve_snooze_duration(raw_input: Mapping[str, Any]) -> str:
     """Return the wake-time expression one submitted snooze input names.
 
-    The custom field wins whenever it carries text, so choosing ``Custom…``
-    and typing a duration and simply typing one over a preset both mean what
-    the reviewer sees. The returned expression is already known to parse.
+    New gates submit a single required ``duration`` line. The narrow legacy
+    branch keeps already-persisted two-field bundles answerable during rollout:
+    if their old enum selected ``custom``, the old ``custom_duration`` companion
+    is parsed instead. The returned expression is already known to parse.
 
     Raises:
         SnoozeTimeError: If the submitted value is missing, of the wrong
@@ -90,33 +87,19 @@ def resolve_snooze_duration(raw_input: Mapping[str, Any]) -> str:
     """
     from sase.bead.snooze_time import parse_snooze_request
 
-    custom = raw_input.get(SNOOZE_CUSTOM_DURATION_FIELD_ID)
-    if custom is not None and not isinstance(custom, str):
-        raise SnoozeTimeError(
-            f"{SNOOZE_CUSTOM_DURATION_FIELD_ID} must be a string; "
-            f"{ACCEPTED_SNOOZE_FORMS}"
-        )
-    text = (custom or "").strip()
-    if not text:
-        preset = raw_input.get(SNOOZE_DURATION_FIELD_ID)
-        if not isinstance(preset, str) or not preset:
+    text = _legacy_custom_duration(raw_input)
+    if text is None:
+        duration = raw_input.get(SNOOZE_DURATION_FIELD_ID)
+        if not isinstance(duration, str):
             raise SnoozeTimeError(
-                f"a snooze needs a wake time; {ACCEPTED_SNOOZE_FORMS}"
+                f"{SNOOZE_DURATION_FIELD_ID} must be a string; {ACCEPTED_SNOOZE_FORMS}"
             )
-        if preset == SNOOZE_CUSTOM_DURATION_CHOICE:
-            raise SnoozeTimeError(
-                "a custom snooze needs a wake time in "
-                f"{SNOOZE_CUSTOM_DURATION_FIELD_ID}; {ACCEPTED_SNOOZE_FORMS}"
-            )
-        text = preset
+        text = duration.strip()
     parse_snooze_request(text)
     return text
 
 
 __all__ = [
-    "SNOOZE_CUSTOM_DURATION_CHOICE",
-    "SNOOZE_CUSTOM_DURATION_FIELD_ID",
-    "SNOOZE_DEFAULT_DURATION",
     "SNOOZE_DURATION_FIELD_ID",
     "resolve_snooze_duration",
     "snooze_duration_inputs",

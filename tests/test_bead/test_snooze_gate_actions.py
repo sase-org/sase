@@ -123,7 +123,7 @@ def _resnooze(
     )
 
 
-def test_bead_snooze_resnooze_defers_again_with_the_custom_duration(
+def test_bead_snooze_resnooze_defers_again_with_the_typed_duration(
     gate_home: Path,
 ) -> None:
     del gate_home
@@ -138,11 +138,11 @@ def test_bead_snooze_resnooze_defers_again_with_the_custom_duration(
         patch("sase.bead.cli_common.bead_store_mutation", side_effect=mutation_scope),
         patch("sase.agent.identity.discover_agent_identity", return_value=None),
     ):
-        execution = _resnooze(gate, {"duration": "custom", "custom_duration": "3d +2"})
+        execution = _resnooze(gate, {"duration": "3d +2"})
 
     # The duration reaches the command on stdin and comes back as its result,
     # rather than being re-parsed out of the free-text note host-side.
-    assert execution.response["option_inputs"]["snooze"]["custom_duration"] == "3d +2"
+    assert execution.response["option_inputs"]["snooze"] == {"duration": "3d +2"}
     assert execution.response["option_results"] == [
         {"id": "snooze", "result": {"action": "snooze", "duration": "3d +2"}}
     ]
@@ -190,7 +190,7 @@ def test_bead_snooze_rejects_an_unparsable_duration_and_leaves_the_gate_pending(
     gate = create_gate(bead_snooze_spec(request_id="bead-snooze-typo"))
 
     with pytest.raises(GateError) as exc_info:
-        _resnooze(gate, {"duration": "custom", "custom_duration": "threeish days"})
+        _resnooze(gate, {"duration": "threeish days"})
 
     assert exc_info.value.code == "command_failed"
     assert not gate.response_path.exists()
@@ -202,15 +202,38 @@ def test_bead_snooze_rejects_an_unparsable_duration_and_leaves_the_gate_pending(
     assert notification.snooze_until == WAKE_TIME
 
 
-def test_bead_snooze_rejects_a_duration_outside_the_declared_choices(
+@pytest.mark.parametrize(
+    ("duration_input", "code"),
+    [
+        ({}, "schema_validation_failed"),
+        ({"duration": 3}, "schema_validation_failed"),
+        ({"duration": ""}, "command_failed"),
+    ],
+)
+def test_bead_snooze_rejects_unusable_duration_input(
     gate_home: Path,
+    duration_input: dict[str, Any],
+    code: str,
 ) -> None:
-    """A forged preset never reaches the command: the compiled schema stops it."""
     del gate_home
-    gate = create_gate(bead_snooze_spec(request_id="bead-snooze-forged-choice"))
+    gate = create_gate(bead_snooze_spec(request_id=f"bead-snooze-bad-{code}"))
 
     with pytest.raises(GateError) as exc_info:
-        _resnooze(gate, {"duration": "99d"})
+        _resnooze(gate, duration_input)
+
+    assert exc_info.value.code == code
+    assert not gate.response_path.exists()
+
+
+def test_bead_snooze_rejects_legacy_custom_duration_on_new_gate(
+    gate_home: Path,
+) -> None:
+    """The compiled one-line schema rejects the old companion property."""
+    del gate_home
+    gate = create_gate(bead_snooze_spec(request_id="bead-snooze-forged-extra"))
+
+    with pytest.raises(GateError) as exc_info:
+        _resnooze(gate, {"duration": "3d", "custom_duration": "3d +2"})
 
     assert exc_info.value.code == "schema_validation_failed"
     assert not gate.response_path.exists()
@@ -234,7 +257,7 @@ def test_bead_snooze_translation_requires_a_matching_result(gate_home: Path) -> 
     ("option_id", "command_input", "expected_stderr"),
     [
         ("close", b'{"unexpected": true}\n', b"must be empty"),
-        ("snooze", b"{}\n", b"a snooze needs a wake time"),
+        ("snooze", b"{}\n", b"duration must be a string"),
         (
             "snooze",
             b'{"duration": "custom"}\n',
@@ -262,3 +285,22 @@ def test_bead_snooze_commands_reject_unusable_input(
 
     assert completed.returncode == 2
     assert expected_stderr in completed.stderr
+
+
+def test_bead_snooze_command_accepts_legacy_custom_duration_payload(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    gate = create_gate(bead_snooze_spec(request_id="bead-snooze-legacy-command"))
+    command_path = gate.bundle_path / BEAD_SNOOZE_COMMAND_PATHS["snooze"]
+
+    completed = subprocess.run(
+        [str(command_path)],
+        cwd=gate.bundle_path,
+        input=b'{"duration": "custom", "custom_duration": "3d +2"}\n',
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    assert json.loads(completed.stdout) == {"action": "snooze", "duration": "3d +2"}

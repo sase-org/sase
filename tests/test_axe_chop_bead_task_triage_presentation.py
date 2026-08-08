@@ -1,4 +1,4 @@
-"""Presentation-fingerprint and persisted-state tests for the task triage chop."""
+"""Gate fingerprint and persisted-state tests for the task triage chop."""
 
 from __future__ import annotations
 
@@ -144,6 +144,28 @@ def test_presentation_fingerprint_covers_the_format_version(
 
     monkeypatch.setattr(task_triage, "_PRESENTATION_FORMAT_VERSION", 999)
 
+    assert task_triage._presentation_fingerprint(task) != fingerprint
+
+
+def test_presentation_fingerprint_covers_the_gate_contract_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bumping the gate contract version must refresh pending task gates once."""
+    task = make_task()
+    fingerprint = task_triage._presentation_fingerprint(task)
+
+    monkeypatch.setattr(
+        task_triage,
+        "_GATE_CONTRACT_VERSION",
+        task_triage._GATE_CONTRACT_VERSION,
+    )
+    assert task_triage._presentation_fingerprint(task) == fingerprint
+
+    monkeypatch.setattr(
+        task_triage,
+        "_GATE_CONTRACT_VERSION",
+        task_triage._GATE_CONTRACT_VERSION + 1,
+    )
     assert task_triage._presentation_fingerprint(task) != fingerprint
 
 

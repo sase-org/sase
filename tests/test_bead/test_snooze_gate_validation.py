@@ -62,13 +62,23 @@ def test_bead_snooze_gate_rejects_automatic_resolution(gate_home: Path) -> None:
             "invalid_bead_snooze_options",
         ),
         (
-            lambda spec: spec["options"][2]["inputs"][0].update(
-                choices=[
-                    {"value": "3d", "label": "3 days"},
-                    {"value": "99d", "label": "99 days"},
-                ]
-            ),
+            lambda spec: spec["options"][2]["inputs"][0].update(label="Wake after"),
             "invalid_bead_snooze_options",
+        ),
+        (
+            lambda spec: spec["options"][2]["inputs"][0].update(type="text"),
+            "invalid_bead_snooze_options",
+        ),
+        (
+            lambda spec: spec["options"][2].update(
+                input_schema={
+                    "type": "object",
+                    "properties": {"duration": {"type": "string"}},
+                    "required": ["duration"],
+                    "additionalProperties": True,
+                }
+            ),
+            "conflicting_input_declaration",
         ),
         (
             lambda spec: spec["options"][2].pop("inputs"),

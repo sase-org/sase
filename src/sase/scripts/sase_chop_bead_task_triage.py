@@ -43,6 +43,10 @@ _LOCK_FILENAME = "bead_task_triage.lock"
 # the reconciler replaces pending gates still advertising the superseded one.
 _PRESENTATION_FORMAT_VERSION = 2
 
+# Bumped whenever the trusted TaskTriage or BeadSnooze interaction contract
+# changes shape, so pending gates still exposing old option inputs are replaced.
+_GATE_CONTRACT_VERSION = 2
+
 _GateState = Literal["pending", "terminal", "missing"]
 
 _GATEABLE_STATUSES = (Status.READY, Status.SNOOZED)
@@ -220,7 +224,7 @@ def _request_id(project_name: str, bead_id: str, generation: int, kind: str) -> 
 
 
 def _presentation_fingerprint(issue: Issue) -> str:
-    """Hash every persisted field that changes the pending gate presentation.
+    """Hash every persisted field and contract version that changes a gate.
 
     The snooze record is part of it because both the wake gate's notification
     note and its preview render the wake conditions: a re-snooze must replace
@@ -232,11 +236,16 @@ def _presentation_fingerprint(issue: Issue) -> str:
     change the fingerprint. Bump the constant whenever a preview or
     notification-note renderer's output shape changes, so every pending gate
     is cancelled and recreated against the new shape on the next chop tick.
+
+    ``_GATE_CONTRACT_VERSION`` is the same guard for trusted option schemas
+    and command-facing inputs. Bump it when the interaction contract changes
+    even if the preview text stays byte-for-byte identical.
     """
 
     snooze = issue.snooze
     payload = {
         "format_version": _PRESENTATION_FORMAT_VERSION,
+        "gate_contract_version": _GATE_CONTRACT_VERSION,
         "status": issue.status.value,
         "snooze": (
             None

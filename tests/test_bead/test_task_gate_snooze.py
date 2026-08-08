@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.bead.task_gate import (
+    TASK_TRIAGE_COMMAND_PATHS,
     TASK_TRIAGE_SNOOZE_REASON,
     snooze_task_triage,
     translate_task_triage_response,
@@ -56,9 +58,7 @@ def test_task_triage_snooze_defers_the_bead_with_the_typed_duration_and_target(
         execution = execute_gate_selection(
             gate.bundle_path,
             ["snooze"],
-            option_inputs={
-                "snooze": {"duration": "custom", "custom_duration": "3d +2"}
-            },
+            option_inputs={"snooze": {"duration": "3d +2"}},
             source="tui",
         )
 
@@ -123,9 +123,7 @@ def test_task_triage_snooze_rejects_an_unparsable_duration_and_stays_pending(
         execute_gate_selection(
             gate.bundle_path,
             ["snooze"],
-            option_inputs={
-                "snooze": {"duration": "custom", "custom_duration": "threeish days"}
-            },
+            option_inputs={"snooze": {"duration": "threeish days"}},
             source="tui",
         )
 
@@ -135,6 +133,71 @@ def test_task_triage_snooze_rejects_an_unparsable_duration_and_stays_pending(
     recorded = json.loads(error.read_text(encoding="utf-8"))
     assert recorded["option_id"] == "snooze"
     assert "accepted forms" in recorded["stderr"]
+
+
+@pytest.mark.parametrize(
+    ("duration_input", "code"),
+    [
+        ({}, "schema_validation_failed"),
+        ({"duration": 3}, "schema_validation_failed"),
+        ({"duration": ""}, "command_failed"),
+    ],
+)
+def test_task_triage_snooze_rejects_unusable_duration_input(
+    gate_home: Path,
+    duration_input: dict[str, Any],
+    code: str,
+) -> None:
+    del gate_home
+    gate = create_gate(task_triage_spec(request_id=f"task-triage-snooze-bad-{code}"))
+
+    with pytest.raises(GateError) as exc_info:
+        execute_gate_selection(
+            gate.bundle_path,
+            ["snooze"],
+            option_inputs={"snooze": duration_input},
+            source="tui",
+        )
+
+    assert exc_info.value.code == code
+    assert not gate.response_path.exists()
+
+
+def test_task_triage_snooze_rejects_legacy_custom_duration_on_new_gate(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    gate = create_gate(task_triage_spec(request_id="task-triage-snooze-extra"))
+
+    with pytest.raises(GateError) as exc_info:
+        execute_gate_selection(
+            gate.bundle_path,
+            ["snooze"],
+            option_inputs={"snooze": {"duration": "3d", "custom_duration": "3d +2"}},
+            source="tui",
+        )
+
+    assert exc_info.value.code == "schema_validation_failed"
+    assert not gate.response_path.exists()
+
+
+def test_task_triage_snooze_command_accepts_legacy_custom_duration_payload(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    gate = create_gate(task_triage_spec(request_id="task-triage-snooze-legacy-command"))
+    command_path = gate.bundle_path / TASK_TRIAGE_COMMAND_PATHS["snooze"]
+
+    completed = subprocess.run(
+        [str(command_path)],
+        cwd=gate.bundle_path,
+        input=b'{"duration": "custom", "custom_duration": "3d +2"}\n',
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    assert json.loads(completed.stdout) == {"action": "snooze", "duration": "3d +2"}
 
 
 def test_task_triage_snooze_translation_requires_a_wake_time(

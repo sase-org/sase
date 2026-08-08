@@ -25,6 +25,7 @@ from sase.ace.tui.modals.gate_branch_controls import (
     GateBranchControls,
     GateBranchData,
 )
+from sase.bead._task_gate_spec import build_task_triage_gate_spec
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.notification_gates.models import GateGroup, GateOption
 
@@ -104,6 +105,48 @@ def _data(
             primary_branch=primary_branch or branches[0],
         ),
         origin_agent=origin_agent,
+    )
+
+
+def _task_triage_data() -> CustomGateModalData:
+    spec = build_task_triage_gate_spec(
+        request_id="task-triage-ace-modal",
+        bead_id="sase-task.1",
+        project="sase",
+        title="Review follow-up",
+        description="Preserve the compatibility path.",
+        notes="Raised by the land agent.",
+        created_by="claude_coder",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    presentation = spec["presentation"]
+    preview = next(
+        resource["content"]
+        for resource in spec["resources"]
+        if resource["path"] == "task.md"
+    )
+    options = tuple(
+        GateOption.from_mapping(option, index)
+        for index, option in enumerate(spec["options"])
+    )
+    return CustomGateModalData(
+        request_id=str(spec["request_id"]),
+        title="Task Triage",
+        sender=str(presentation["sender"]),
+        icon=str(presentation["icon"]),
+        notes=tuple(str(note) for note in presentation["notes"]),
+        attachments=("task.md",),
+        preview_name="task.md",
+        preview_text=str(preview),
+        gate=GateBranchData(
+            query=str(spec["query"]),
+            options=options,
+            groups=(),
+            branches=(("launch",), ("close",), ("snooze",)),
+            primary_branch=("launch",),
+        ),
+        origin_agent=str(presentation["origin_agent"]),
+        gate_title=str(presentation["title"]),
     )
 
 
@@ -280,6 +323,41 @@ async def test_numbered_shortcut_focuses_required_enum_then_submits() -> None:
             ("snooze",),
             None,
             option_inputs={"snooze": {"wake_after": "tomorrow"}},
+        )
+    ]
+
+
+async def test_task_triage_shortcut_focuses_duration_line_then_submits() -> None:
+    results: list[CustomGateModalResult | None] = []
+    modal = CustomGateModal(_task_triage_data())
+    app = _StyledTestApp()
+
+    async with app.run_test(size=(120, 24)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+
+        await pilot.press("3")
+        await pilot.pause()
+        duration = modal.query_one(
+            "#gate-branch-2-field-input-0", SingleLineVimTextArea
+        )
+        await wait_for(pilot, lambda: duration.has_focus)
+
+        assert results == []
+        assert (
+            "Fix the highlighted inputs before submitting",
+            "warning",
+        ) not in app.recorded_notifications
+
+        duration.text = "3d +2"
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+    assert results == [
+        CustomGateModalResult(
+            ("snooze",),
+            None,
+            option_inputs={"snooze": {"duration": "3d +2"}},
         )
     ]
 

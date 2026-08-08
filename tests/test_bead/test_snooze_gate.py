@@ -60,18 +60,21 @@ def test_bead_snooze_gate_builds_canonical_spec_and_snoozed_notification(
     # The wake time is a declared input rather than a convention the reviewer
     # has to know about the free-text note.
     snooze_option = request["options"][2]
-    assert [field["id"] for field in snooze_option["inputs"]] == [
-        "duration",
-        "custom_duration",
-    ]
-    assert snooze_option["input_schema"]["required"] == ["duration"]
-    assert snooze_option["input_schema"]["properties"]["duration"]["enum"] == [
-        "4h",
-        "1d",
-        "3d",
-        "7d",
-        "custom",
-    ]
+    assert len(snooze_option["inputs"]) == 1
+    [duration_field] = snooze_option["inputs"]
+    assert duration_field["id"] == "duration"
+    assert duration_field["label"] == "Wake time"
+    assert duration_field["type"] == "line"
+    assert duration_field["required"] is True
+    assert duration_field["default"] is None
+    assert duration_field["choices"] == []
+    assert "3d +2" in duration_field["placeholder"]
+    input_schema = snooze_option["input_schema"]
+    assert input_schema["required"] == ["duration"]
+    assert set(input_schema["properties"]) == {"duration", "feedback"}
+    assert "enum" not in input_schema["properties"]["duration"]
+    assert "custom_duration" not in input_schema["properties"]
+    assert input_schema["additionalProperties"] is False
     assert request["presentation"]["panel"] == "beads"
     assert request["presentation"]["panel_icon"] == "◈"
     assert request["presentation"]["snooze_until"] == WAKE_TIME

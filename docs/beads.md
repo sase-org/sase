@@ -365,16 +365,19 @@ notifications doc) for the whole deferral. When the wake time arrives, the notif
 resurfaces as a `BeadSnooze` gate with three options: **Close** (primary; empty feedback
 uses a preset "stale, no new evidence" reason, any feedback text replaces it), **Ready**
 (returns the bead to `ready`, where the ordinary `TaskTriage` gate takes over), and
-**Snooze** (re-snoozes with a new duration, using the same `"<duration> [+<N>]"`
-vocabulary as the `-u`/`-p` flags combined into one feedback field). Reaching the `+1`
-target instead of the wake time promotes the bead straight to `ready` with a preset note
-(`"Reopened by +1 threshold: ..."`) and cancels the pending `BeadSnooze` gate in favor
-of a fresh `TaskTriage` gate — the two gate kinds are mutually exclusive, and a task
-bead never holds more than one pending gate at a time.
+**Snooze** (re-snoozes with one required `duration` line using the same
+`"<wake-time> [+<N>]"` vocabulary as the `-u`/`-p` flags combined into one expression,
+for example `3d`, `2026-08-09T09:00:00-04:00`, or `3d +2`; optional feedback remains the
+deferral reason). Reaching the `+1` target instead of the wake time promotes the bead
+straight to `ready` with a preset note (`"Reopened by +1 threshold: ..."`) and cancels
+the pending `BeadSnooze` gate in favor of a fresh `TaskTriage` gate — the two gate kinds
+are mutually exclusive, and a task bead never holds more than one pending gate at a
+time.
 
 A ready task can also be snoozed directly from its `TaskTriage` gate's **Snooze**
-option, without a separate CLI call — the most common time to defer a task is exactly
-when the triage gate is already in front of you.
+option, without a separate CLI call; it uses the same required `duration` line and keeps
+optional feedback separate as the reason — the most common time to defer a task is
+exactly when the triage gate is already in front of you.
 
 `status:snoozed` and `-status:snoozed` work as query and filter tokens like any other
 status. The default bead-list filter (`-status:closed`) does **not** hide snoozed beads:

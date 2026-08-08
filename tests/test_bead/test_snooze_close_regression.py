@@ -210,7 +210,7 @@ def test_gate_resnooze_defers_a_woken_bead_and_leaves_the_store_readable(
         snooze_store,
         "snooze",
         request_id="snooze-again-real",
-        option_inputs={"snooze": {"duration": "custom", "custom_duration": "3d +2"}},
+        option_inputs={"snooze": {"duration": "3d +2"}},
     )
 
     reloaded = _reload(snooze_store)

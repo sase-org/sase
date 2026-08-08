@@ -55,11 +55,21 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
     # has to know about the free-text note.
     snooze_option = request["options"][2]
     assert snooze_option["label"] == "Snooze"
-    assert [field["id"] for field in snooze_option["inputs"]] == [
-        "duration",
-        "custom_duration",
-    ]
-    assert snooze_option["input_schema"]["required"] == ["duration"]
+    assert len(snooze_option["inputs"]) == 1
+    [duration_field] = snooze_option["inputs"]
+    assert duration_field["id"] == "duration"
+    assert duration_field["label"] == "Wake time"
+    assert duration_field["type"] == "line"
+    assert duration_field["required"] is True
+    assert duration_field["default"] is None
+    assert duration_field["choices"] == []
+    assert "3d +2" in duration_field["placeholder"]
+    input_schema = snooze_option["input_schema"]
+    assert input_schema["required"] == ["duration"]
+    assert set(input_schema["properties"]) == {"duration", "feedback"}
+    assert "enum" not in input_schema["properties"]["duration"]
+    assert "custom_duration" not in input_schema["properties"]
+    assert input_schema["additionalProperties"] is False
     assert request["presentation"]["sender"] == "bead"
     assert request["presentation"]["notes"] == [
         "sase-task.1 — Follow up on the cache · ⧖ 2025-12-31"

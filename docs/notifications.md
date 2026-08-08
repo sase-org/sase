@@ -309,14 +309,13 @@ gate offers three branches:
   prompt.
 - **Close** requires feedback and closes the bead with that reason and
   `resolution=canceled`.
-- **Snooze** collects the wake time as declared input: a `duration` enum of the common
-  deferrals (`4h`, `1d`, `3d`, `7d`, `custom`) plus an optional `custom_duration` line
-  taking the full `"<duration> [+<N>]"` form (for example `3d +2`), the same vocabulary
-  as [`sase bead snooze`](beads.md#snoozing-a-task-bead). Feedback is optional here and
-  records **why** the task was deferred. An unparsable custom value fails the option and
-  leaves the gate pending rather than losing the bead's only triage gate. It defers the
-  bead — the triage gate settles and a `BeadSnooze` wake gate takes its place once the
-  reconciler's next tick runs; see
+- **Snooze** collects one required `duration` line containing a wake time with an
+  optional `+N` suffix, for example `3d`, `2026-08-09T09:00:00-04:00`, or `3d +2`, the
+  same vocabulary as [`sase bead snooze`](beads.md#snoozing-a-task-bead). Feedback is
+  optional here and records **why** the task was deferred. An unparsable value fails the
+  option and leaves the gate pending rather than losing the bead's only triage gate. It
+  defers the bead — the triage gate settles and a `BeadSnooze` wake gate takes its place
+  once the reconciler's next tick runs; see
   [Snoozed Task Notification](#snoozed-task-notification) below.
 
 The gate cannot be resolved automatically. While one of `TaskTriage`/`BeadSnooze`
@@ -324,9 +323,9 @@ remains pending for a bead, the chop that owns both kinds (`bead_task_triage`)
 suppresses duplicates and keeps the two mutually exclusive — a task bead never holds
 both at once. If the bead's status changes out of band (leaves `ready`, gets snoozed, or
 wakes), the chop cancels the gate of the wrong kind and creates the right one on its
-next tick. If a gate becomes terminal, disappears, or uses an obsolete presentation
-contract while still expected, the next five-minute scan creates a replacement with a
-new generation-specific request ID.
+next tick. If a gate becomes terminal, disappears, or uses an obsolete presentation or
+option-input contract while still expected, the next five-minute scan creates a
+replacement with a new generation-specific request ID.
 
 ### Snoozed Task Notification
 
@@ -346,11 +345,10 @@ The gate offers three branches:
   replaces that reason verbatim. Resolution is `canceled`.
 - **Ready** returns the bead to `ready` with a preset note, and the ordinary
   `TaskTriage` gate takes over on the reconciler's next tick.
-- **Snooze** collects the same declared `duration` / `custom_duration` input as the
-  triage gate's snooze option and re-snoozes the bead with a new wake time (and optional
-  new `+1` target); an unparsable value fails the option and leaves the gate pending
-  rather than losing the bead. Feedback is optional and replaces the recorded deferral
-  reason.
+- **Snooze** collects the same required `duration` line as the triage gate's snooze
+  option and re-snoozes the bead with a new wake time and optional `+N` target; an
+  unparsable value fails the option and leaves the gate pending rather than losing the
+  bead. Feedback is optional and replaces the recorded deferral reason.
 
 Reaching a configured `+1` target wakes the bead independently of the wake-time gate:
 the bead promotes straight to `ready` with a preset note, and the pending `BeadSnooze`
