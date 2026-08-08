@@ -14,7 +14,7 @@ from sase.plan_approval_choices import (
     require_plan_approval_choice,
 )
 
-from .plan_approval_modal import (
+from .plan_approval_results import (
     PlanApprovalChoice,
     approval_protocol_for_choice,
 )

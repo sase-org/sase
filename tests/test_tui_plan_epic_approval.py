@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from sase.ace.tui.modals.plan_approval_modal import _plan_approval_result_for_choice
+from sase.ace.tui.modals.plan_approval_results import (
+    plan_approval_result_for_choice,
+)
 from sase.plan_approval_actions import PlanApprovalActionError
 from tests._plan_approval_tui_helpers import (
     make_approval_app_and_notification,
@@ -34,14 +36,14 @@ def test_tui_failed_epic_gate_keeps_response_unconsumed_until_fixed(
         handle_plan_approval(app, notification)
         on_dismiss = app.push_screen.call_args.args[1]
 
-        on_dismiss(_plan_approval_result_for_choice("epic"))
+        on_dismiss(plan_approval_result_for_choice("epic"))
 
         assert not (response_dir / "plan_response.json").exists()
         assert (response_dir / "plan_request.json").is_file()
         assert "approval blocked" in app.notify.call_args.kwargs["title"].lower()
 
         plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
-        on_dismiss(_plan_approval_result_for_choice("epic"))
+        on_dismiss(plan_approval_result_for_choice("epic"))
 
     response = json.loads((response_dir / "plan_response.json").read_text())
     assert response["action"] == "epic"
@@ -82,7 +84,7 @@ def test_tui_epic_approval_uses_shared_detached_launch(
     ):
         handle_plan_approval(app, notification)
         on_dismiss = app.push_screen.call_args.args[1]
-        on_dismiss(_plan_approval_result_for_choice("epic"))
+        on_dismiss(plan_approval_result_for_choice("epic"))
 
     response = json.loads(plan_response_path.read_text(encoding="utf-8"))
     assert order == ["detached"]
@@ -135,7 +137,7 @@ def test_tui_epic_launch_preflight_runs_only_inside_tracked_task(
     ):
         handle_plan_approval(app, notification)
         on_dismiss = app.push_screen.call_args.args[1]
-        on_dismiss(_plan_approval_result_for_choice("epic"))
+        on_dismiss(plan_approval_result_for_choice("epic"))
 
         prepare_launch.assert_not_called()
 
@@ -176,7 +178,7 @@ def test_tui_epic_submission_failure_is_loud_and_keeps_host_owner(
     ):
         handle_plan_approval(app, notification)
         on_dismiss = app.push_screen.call_args.args[1]
-        on_dismiss(_plan_approval_result_for_choice("epic"))
+        on_dismiss(plan_approval_result_for_choice("epic"))
 
     response = json.loads(
         (response_dir / "plan_response.json").read_text(encoding="utf-8")

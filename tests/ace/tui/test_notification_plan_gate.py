@@ -21,8 +21,8 @@ from sase.ace.tui.actions.agents._notification_modals import (
 from sase.ace.tui.modals.plan_approval_modal import (
     PlanApprovalModal,
     PlanApprovalResult,
-    _plan_approval_result_for_choice,
 )
+from sase.ace.tui.modals.plan_approval_results import plan_approval_result_for_choice
 from sase.notification_gates import paths
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
@@ -213,7 +213,7 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
     gate = create_plan_approval_gate(plan, f"tui-{choice}")
     [notification] = load_notifications()
-    result = _plan_approval_result_for_choice(
+    result = plan_approval_result_for_choice(
         choice,
         commit_plan=commit_plan,
         run_coder=True,
@@ -317,7 +317,7 @@ def test_neutral_epic_submission_records_ace_origin(
     plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
     create_plan_approval_gate(plan, "tui-epic-origin")
     [notification] = load_notifications()
-    result = _plan_approval_result_for_choice("epic")
+    result = plan_approval_result_for_choice("epic")
     app = _TrackedPlanApp()
 
     with (

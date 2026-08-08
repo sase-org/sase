@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sase.ace.tui.modals.plan_approval_modal import (
+from sase.ace.tui.modals.plan_approval_results import (
     PlanApprovalResult,
-    _plan_approval_result_for_choice,
+    plan_approval_result_for_choice,
 )
 from sase.notifications import Notification
 from tests._plan_approval_tui_helpers import make_approval_app_and_notification
@@ -111,7 +111,7 @@ def test_approval_choice_response_mapping() -> None:
         _plan_approval_status,
     )
 
-    approve = _plan_approval_result_for_choice("approve")
+    approve = plan_approval_result_for_choice("approve")
     assert _build_plan_approval_response(approve) == {
         "action": "approve",
         "commit_plan": False,
@@ -120,7 +120,7 @@ def test_approval_choice_response_mapping() -> None:
     assert _plan_approval_status(approve) == "PLAN APPROVED"
     assert _plan_approval_persist_action(approve) == "approve"
 
-    tale = _plan_approval_result_for_choice("tale", coder_prompt="#review+")
+    tale = plan_approval_result_for_choice("tale", coder_prompt="#review+")
     assert _build_plan_approval_response(tale) == {
         "action": "approve",
         "commit_plan": True,
@@ -130,7 +130,7 @@ def test_approval_choice_response_mapping() -> None:
     assert _plan_approval_status(tale) == "TALE APPROVED"
     assert _plan_approval_persist_action(tale) == "tale"
 
-    epic = _plan_approval_result_for_choice("epic")
+    epic = plan_approval_result_for_choice("epic")
     assert _build_plan_approval_response(epic) == {
         "action": "epic",
         "commit_plan": True,
