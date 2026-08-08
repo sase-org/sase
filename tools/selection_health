@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -15,8 +16,10 @@ if str(REPO_ROOT) not in sys.path:
 
 from tests._test_selection_health import (  # noqa: E402
     git_ancestor_oracle,
+    reproducible_flake_nodeids,
     summarize,
 )
+from tests._test_selection_health_records import FullRunRecord  # noqa: E402
 from tests._test_selection_health_records import load_records  # noqa: E402
 from tests._test_selection_health_report import (  # noqa: E402
     health_payload,
@@ -26,6 +29,150 @@ from tests._test_selection_health_store import (  # noqa: E402
     RETENTION_DAYS,
     store_directory,
 )
+
+
+DEFAULT_FLAKE_BASELINE = REPO_ROOT / "tests" / "reproducible_flake_baseline.txt"
+BASELINE_EFFECTIVE_AFTER_PREFIX = "effective-after:"
+MAX_GATED_FAILURES_PER_FULL_RUN = 5
+MIN_GATED_FULL_RUNS = 2
+
+
+class FlakeBaseline:
+    def __init__(
+        self,
+        *,
+        path: Path,
+        nodeids: frozenset[str],
+        effective_after: datetime | None = None,
+    ) -> None:
+        self.path = path
+        self.nodeids = nodeids
+        self.effective_after = effective_after
+
+
+def _parse_utc_timestamp(raw_value: str) -> datetime:
+    value = raw_value.strip()
+    if value.endswith("Z"):
+        value = f"{value[:-1]}+00:00"
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def load_flake_baseline(path: Path) -> FlakeBaseline:
+    """Read the committed node-ID baseline used by ``--fail-on-new-flake``."""
+    nodeids: list[str] = []
+    effective_after: datetime | None = None
+    for line_number, raw_line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), 1
+    ):
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            comment = line.removeprefix("#").strip()
+            if comment.lower().startswith(BASELINE_EFFECTIVE_AFTER_PREFIX):
+                raw_value = comment.split(":", 1)[1].strip()
+                try:
+                    effective_after = _parse_utc_timestamp(raw_value)
+                except ValueError as error:
+                    raise ValueError(
+                        f"{path}:{line_number}: invalid effective-after timestamp"
+                    ) from error
+            continue
+        nodeids.append(line)
+
+    duplicates = sorted({nodeid for nodeid in nodeids if nodeids.count(nodeid) > 1})
+    if duplicates:
+        duplicate_list = ", ".join(duplicates)
+        raise ValueError(
+            f"{path}: duplicate flake baseline node id(s): {duplicate_list}"
+        )
+    return FlakeBaseline(
+        path=path, nodeids=frozenset(nodeids), effective_after=effective_after
+    )
+
+
+def _recorded_at_utc(record: FullRunRecord) -> datetime | None:
+    if record.recorded_at is None:
+        return None
+    try:
+        return _parse_utc_timestamp(record.recorded_at)
+    except ValueError:
+        return None
+
+
+def _eligible_full_runs(
+    full_runs: tuple[FullRunRecord, ...], baseline: FlakeBaseline
+) -> tuple[FullRunRecord, ...]:
+    eligible: list[FullRunRecord] = []
+    for full_run in full_runs:
+        if full_run.changed_files is None:
+            continue
+        if len(full_run.failures) > MAX_GATED_FAILURES_PER_FULL_RUN:
+            continue
+        if baseline.effective_after is not None:
+            recorded_at = _recorded_at_utc(full_run)
+            if recorded_at is None or recorded_at <= baseline.effective_after:
+                continue
+        eligible.append(full_run)
+    return tuple(eligible)
+
+
+def _format_effective_after(baseline: FlakeBaseline) -> str:
+    if baseline.effective_after is None:
+        return "all retained records"
+    stamp = baseline.effective_after.isoformat().replace("+00:00", "Z")
+    return f"records after {stamp}"
+
+
+def _baseline_label(baseline: FlakeBaseline) -> str:
+    try:
+        return str(baseline.path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(baseline.path)
+
+
+def _flake_gate_result(
+    full_runs: tuple[FullRunRecord, ...], baseline: FlakeBaseline
+) -> tuple[int, list[str]]:
+    eligible = _eligible_full_runs(full_runs, baseline)
+    window = _format_effective_after(baseline)
+    if len(eligible) < MIN_GATED_FULL_RUNS:
+        return 0, [
+            "flake baseline gate: not enough full-lane records to judge; "
+            f"found {len(eligible)} eligible schema-2 record(s), need "
+            f"{MIN_GATED_FULL_RUNS} ({window}, at most "
+            f"{MAX_GATED_FAILURES_PER_FULL_RUN} failures per run). Passing."
+        ]
+
+    current = reproducible_flake_nodeids(
+        eligible, max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN
+    )
+    new_flakes = sorted(current - baseline.nodeids)
+    if not new_flakes:
+        return 0, [
+            "flake baseline gate: no new reproducible flakes "
+            f"({len(current)} current, {len(baseline.nodeids)} allowed; "
+            f"{window}, at most {MAX_GATED_FAILURES_PER_FULL_RUN} failures per run)."
+        ]
+
+    lines = [
+        "flake baseline gate: "
+        f"{len(new_flakes)} reproducible flake(s) exceed "
+        f"{_baseline_label(baseline)} "
+        f"({window}, at most {MAX_GATED_FAILURES_PER_FULL_RUN} failures per run):"
+    ]
+    lines.extend(f"  {nodeid}" for nodeid in new_flakes)
+    lines.append("Additions require a filed bead; fix or file the node before landing.")
+    return 1, lines
+
+
+def _print_gate_lines(lines: list[str], *, json_mode: bool) -> None:
+    stream = sys.stderr if json_mode else sys.stdout
+    for line in lines:
+        print(line, file=stream)
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -48,15 +195,28 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         help="exit non-zero when the store contains any false negative",
     )
+    parser.add_argument(
+        "--fail-on-new-flake",
+        action="store_true",
+        help="exit non-zero when reproducible flakes exceed the committed baseline",
+    )
+    parser.add_argument(
+        "--flake-baseline",
+        type=Path,
+        default=DEFAULT_FLAKE_BASELINE,
+        help=(
+            "node-ID baseline for --fail-on-new-flake "
+            f"(default: {DEFAULT_FLAKE_BASELINE.relative_to(REPO_ROOT)})"
+        ),
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     namespace = _parse_args(argv)
     store = namespace.store or store_directory(REPO_ROOT)
-    health = summarize(
-        load_records(store), is_ancestor=git_ancestor_oracle(REPO_ROOT)
-    )
+    records = load_records(store)
+    health = summarize(records, is_ancestor=git_ancestor_oracle(REPO_ROOT))
 
     if namespace.json:
         print(json.dumps(health_payload(health), indent=2))
@@ -67,9 +227,19 @@ def main(argv: list[str] | None = None) -> int:
         for line in render_report(health):
             print(line)
 
-    if namespace.fail_on_false_negative and health.false_negatives:
-        return 1
-    return 0
+    exit_status = (
+        1 if namespace.fail_on_false_negative and health.false_negatives else 0
+    )
+    if namespace.fail_on_new_flake:
+        try:
+            baseline = load_flake_baseline(namespace.flake_baseline)
+        except (OSError, ValueError) as error:
+            print(f"flake baseline gate: {error}", file=sys.stderr)
+            return 2
+        gate_status, gate_lines = _flake_gate_result(records.full_runs, baseline)
+        _print_gate_lines(gate_lines, json_mode=namespace.json)
+        exit_status = max(exit_status, gate_status)
+    return exit_status
 
 
 if __name__ == "__main__":

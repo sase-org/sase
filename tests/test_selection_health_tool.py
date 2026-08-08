@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOL_PATH = ROOT / "tools" / "selection_health"
 NOW = datetime(2026, 8, 5, 12, 0, 0, tzinfo=UTC)
 WORKSPACE = "/workspaces/sase_11"
+FLAKE_NODE = "tests/test_flaky.py::test_x"
 
 
 def _load_tool() -> ModuleType:
@@ -82,6 +83,48 @@ def _populate(store: Path, *, missed: bool) -> None:
             now=NOW,
         ),
     )
+
+
+def _write_full_run(
+    store: Path,
+    *,
+    minute: int,
+    changed_files: list[str],
+    failures: list[str],
+) -> None:
+    when = NOW + timedelta(minutes=minute)
+    path = allocate_record_path(
+        store, KIND_FULL_RUN, head=f"h{minute}", pid=minute, now=when
+    )
+    write_record(
+        path,
+        full_run_record(
+            head=f"h{minute}",
+            mode="fast",
+            failures=failures,
+            exit_status=1,
+            workspace=WORKSPACE,
+            changed_files=changed_files,
+            now=when,
+        ),
+    )
+
+
+def _baseline(
+    path: Path,
+    *,
+    nodeids: tuple[str, ...] = (),
+    effective_after: str | None = None,
+) -> Path:
+    lines = [
+        "# Reproducible-flake baseline for tests.",
+        "# Entries are debt to remove.",
+    ]
+    if effective_after is not None:
+        lines.append(f"# effective-after: {effective_after}")
+    lines.extend(nodeids)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
 
 
 def test_tool_script_is_executable() -> None:
@@ -141,3 +184,142 @@ def test_fail_on_false_negative_is_opt_in(
     assert tool.main(["--store", str(store)]) == 0
     assert "false negatives: 1" in capsys.readouterr().out
     assert tool.main(["--store", str(store), "--fail-on-false-negative"]) == 1
+
+
+def test_fail_on_new_flake_passes_when_store_has_too_few_records(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store = tmp_path / "store"
+    _write_full_run(
+        store,
+        minute=1,
+        changed_files=["src/sase/a.py"],
+        failures=[FLAKE_NODE],
+    )
+    baseline = _baseline(tmp_path / "baseline.txt")
+    tool = _load_tool()
+
+    assert (
+        tool.main(
+            [
+                "--store",
+                str(store),
+                "--flake-baseline",
+                str(baseline),
+                "--fail-on-new-flake",
+            ]
+        )
+        == 0
+    )
+
+    assert "not enough full-lane records to judge" in capsys.readouterr().out
+
+
+def test_fail_on_new_flake_reports_nodes_that_exceed_the_baseline(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store = tmp_path / "store"
+    _write_full_run(
+        store,
+        minute=1,
+        changed_files=["src/sase/a.py"],
+        failures=[FLAKE_NODE],
+    )
+    _write_full_run(
+        store,
+        minute=2,
+        changed_files=["src/sase/b.py"],
+        failures=[FLAKE_NODE],
+    )
+    baseline = _baseline(tmp_path / "baseline.txt")
+    tool = _load_tool()
+
+    assert (
+        tool.main(
+            [
+                "--store",
+                str(store),
+                "--flake-baseline",
+                str(baseline),
+                "--fail-on-new-flake",
+            ]
+        )
+        == 1
+    )
+
+    output = capsys.readouterr().out
+    assert "1 reproducible flake(s) exceed" in output
+    assert FLAKE_NODE in output
+
+
+def test_fail_on_new_flake_allows_committed_baseline_debt(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store = tmp_path / "store"
+    _write_full_run(
+        store,
+        minute=1,
+        changed_files=["src/sase/a.py"],
+        failures=[FLAKE_NODE],
+    )
+    _write_full_run(
+        store,
+        minute=2,
+        changed_files=["src/sase/b.py"],
+        failures=[FLAKE_NODE],
+    )
+    baseline = _baseline(tmp_path / "baseline.txt", nodeids=(FLAKE_NODE,))
+    tool = _load_tool()
+
+    assert (
+        tool.main(
+            [
+                "--store",
+                str(store),
+                "--flake-baseline",
+                str(baseline),
+                "--fail-on-new-flake",
+            ]
+        )
+        == 0
+    )
+
+    assert "no new reproducible flakes" in capsys.readouterr().out
+
+
+def test_fail_on_new_flake_ignores_records_before_the_baseline_effective_time(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store = tmp_path / "store"
+    _write_full_run(
+        store,
+        minute=1,
+        changed_files=["src/sase/a.py"],
+        failures=[FLAKE_NODE],
+    )
+    _write_full_run(
+        store,
+        minute=2,
+        changed_files=["src/sase/b.py"],
+        failures=[FLAKE_NODE],
+    )
+    baseline = _baseline(
+        tmp_path / "baseline.txt",
+        effective_after=(NOW + timedelta(minutes=3)).isoformat(),
+    )
+    tool = _load_tool()
+
+    assert (
+        tool.main(
+            [
+                "--store",
+                str(store),
+                "--flake-baseline",
+                str(baseline),
+                "--fail-on-new-flake",
+            ]
+        )
+        == 0
+    )
+
+    assert "not enough full-lane records to judge" in capsys.readouterr().out

@@ -153,7 +153,11 @@ def count_pre_schema_records(records: HealthRecords) -> PreSchemaRecords:
     )
 
 
-def reproducible_flake_nodeids(full_runs: Sequence[FullRunRecord]) -> frozenset[str]:
+def reproducible_flake_nodeids(
+    full_runs: Sequence[FullRunRecord],
+    *,
+    max_failures_per_run: int | None = None,
+) -> frozenset[str]:
     """Node IDs whose full-run failures share no change-set file in common.
 
     A genuine miss recurs only across the ancestors of the one diff that broke
@@ -177,9 +181,19 @@ def reproducible_flake_nodeids(full_runs: Sequence[FullRunRecord]) -> frozenset[
     Requires at least two full runs with a recorded change set (schema 2+) for
     the same node; a node seen failing only once, or only in runs with no
     identity, is never called reproducible here.
+
+    ``max_failures_per_run`` lets the regression gate ask the narrower question
+    this metric was built for: one-node or low-cardinality failures. A broken
+    suite run with hundreds of failures should not promote every node it names
+    into flake debt.
     """
     change_sets_by_node: dict[str, list[frozenset[str]]] = {}
     for full_run in full_runs:
+        if (
+            max_failures_per_run is not None
+            and len(full_run.failures) > max_failures_per_run
+        ):
+            continue
         if full_run.changed_files is None:
             continue
         for nodeid in full_run.failures:

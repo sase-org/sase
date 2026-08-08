@@ -238,6 +238,37 @@ def test_reproducible_flake_nodeids_flags_failures_with_no_change_set_in_common(
     )
 
 
+def test_reproducible_flake_nodeids_can_ignore_broken_cluster_runs() -> None:
+    runs = (
+        FullRunRecord(
+            name="a",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=("tests/test_x.py::test_flaky",),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/a.py"}),
+        ),
+        FullRunRecord(
+            name="b",
+            recorded_at=None,
+            head="bbb",
+            mode="fast",
+            failures=(
+                "tests/test_x.py::test_flaky",
+                "tests/test_y.py::test_broken",
+            ),
+            workspace="/workspaces/sase_3",
+            changed_files=frozenset({"src/b.py"}),
+        ),
+    )
+
+    assert reproducible_flake_nodeids(runs) == frozenset(
+        {"tests/test_x.py::test_flaky"}
+    )
+    assert reproducible_flake_nodeids(runs, max_failures_per_run=1) == frozenset()
+
+
 def test_reproducible_flake_nodeids_spares_a_failure_with_a_shared_file() -> None:
     # Both occurrences' diffs touch src/shared.py: a single genuine cause is
     # still plausible, so this is not called reproducible.

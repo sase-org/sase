@@ -242,7 +242,7 @@ _setup-terminal-smoke: _setup
         uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + pyscripts + changelog + symvision + toobig + keep-sorted)
+# Run linters (ruff + mypy + pyscripts + test waits + changelog + symvision + toobig + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
@@ -250,6 +250,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-mypy
     @printf "\n---------- Validating scripts/tools directory structure... ----------\n"
     @just _lint-pyscripts
+    @printf "\n---------- Checking retired test wait helpers... ----------\n"
+    @just _lint-test-waits
     @printf "\n---------- Validating generated changelog structure... ----------\n"
     @just _lint-changelog
     @printf "\n---------- Checking for unused Python definitions... ----------\n"
@@ -268,6 +270,10 @@ _lint-mypy: _setup
 # Validate scripts/tools directory structure (private, extracted for per-stage wrapping)
 _lint-pyscripts: _setup
     {{ venv_bin }}/python tools/pyscripts-260801
+
+# Check that retired ad-hoc bounded-wait helpers stay retired.
+_lint-test-waits: _setup
+    {{ venv_bin }}/python tools/check_test_wait_helpers
 
 # Check that CHANGELOG.md contains only release-please sections (private, extracted for per-stage wrapping)
 _lint-changelog: _setup
@@ -531,6 +537,7 @@ check: _setup
     @tools/run_silent "lint (ruff)"        just _lint-ruff
     @tools/run_silent "lint (mypy)"        just _lint-mypy
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
+    @tools/run_silent "lint (test waits)"  just _lint-test-waits
     @tools/run_silent "lint (changelog)"   just _lint-changelog
     @tools/run_silent "lint (symvision)"   just _lint-symvision
     @tools/run_silent "lint (toobig)"      just _lint-toobig
@@ -548,12 +555,14 @@ check-full: _setup
     @tools/run_silent "lint (ruff)"        just _lint-ruff
     @tools/run_silent "lint (mypy)"        just _lint-mypy
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
+    @tools/run_silent "lint (test waits)"  just _lint-test-waits
     @tools/run_silent "lint (changelog)"   just _lint-changelog
     @tools/run_silent "lint (symvision)"   just _lint-symvision
     @tools/run_silent "lint (toobig)"      just _lint-toobig
     @tools/run_silent "SASE validation"     just validate
     @tools/run_silent "committed plans"      just validate-committed-plans
     @tools/run_silent "test"               just test
+    @tools/run_silent "flake baseline"     just selection-health --fail-on-new-flake
 
 # Render the scripted ACE demo videos (GIF + MP4), stamp
 # demos/out/last_generated_date.txt, and offer to commit the results.

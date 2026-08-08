@@ -5,6 +5,9 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  schedule:
+    # Slow, intentionally contended flake reproducer. Keep it off PRs.
+    - cron: '17 6 * * *'
 
 # Latest-wins per ref for PRs: a newer push supersedes queued/in-flight CI for
 # the same PR ref so high push volume cannot grow the org-wide runner queue
@@ -274,6 +277,28 @@ jobs:
         with:
           name: ace-visual-artifacts
           path: .pytest_cache/sase-visual
+          if-no-files-found: ignore
+
+  contention-test:
+    needs: build-core
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install visual dependencies
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
+          install-recipe: install-visual
+      - name: Run default-lane contention harness
+        run: SASE_CONTENTION_REPEAT=3 just test-contention
+      - name: Upload contention failure records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: default-lane-contention-records
+          path: .pytest_cache/sase-contention
           if-no-files-found: ignore
 
   # Share one runner setup across the latency floors and bead benchmark smoke.

@@ -143,7 +143,7 @@ class _RunnerSlotFakeyHarness:
                 self.join(agent)
             return False
 
-        _wait_until(started_or_failed, f"fakey agent {agent.name} to start")
+        _wait_for_condition(started_or_failed, f"fakey agent {agent.name} to start")
 
     def wait_parked(self, agent: _Agent) -> None:
         waiting_path = agent.artifacts_dir / "waiting.json"
@@ -155,7 +155,9 @@ class _RunnerSlotFakeyHarness:
                 return False
             return bool(marker.get("slot_requested_at"))
 
-        _wait_until(is_slot_waiter, f"agent {agent.name} to park for a runner slot")
+        _wait_for_condition(
+            is_slot_waiter, f"agent {agent.name} to park for a runner slot"
+        )
 
     def release_agent(self, agent: _Agent) -> None:
         agent.release.parent.mkdir(parents=True, exist_ok=True)
@@ -261,7 +263,7 @@ class _RunnerSlotFakeyHarness:
         )
 
 
-def _wait_until(predicate: object, description: str) -> None:
+def _wait_for_condition(predicate: object, description: str) -> None:
     deadline = time.monotonic() + _TIMEOUT
     while time.monotonic() < deadline:
         if callable(predicate) and predicate():

@@ -76,7 +76,9 @@ class FakeyBarrier:
         ]
 
     def wait_until_started(self, timeout: float = LOAD_TOLERANT_TIMEOUT) -> None:
-        _wait_until(self.started.exists, timeout, f"fakey barrier {self.started}")
+        _wait_for_condition(
+            self.started.exists, timeout, f"fakey barrier {self.started}"
+        )
 
     def open(self) -> None:
         self.release.parent.mkdir(parents=True, exist_ok=True)
@@ -284,7 +286,7 @@ class FakeyRetryHarness:
         def wait_for_release(_seconds: float) -> None:
             barrier.started.parent.mkdir(parents=True, exist_ok=True)
             barrier.started.touch()
-            _wait_until(
+            _wait_for_condition(
                 barrier.release.exists,
                 barrier.timeout,
                 f"retry-wait barrier {barrier.release}",
@@ -471,7 +473,7 @@ class FakeyRetryHarness:
                 return True
             return False
 
-        _wait_until(state_matches, timeout, f"retry state {status!r}")
+        _wait_for_condition(state_matches, timeout, f"retry state {status!r}")
         return found[-1]
 
     def invocation_records(self) -> list[dict[str, Any]]:
@@ -513,7 +515,7 @@ def successful_attempt(reply: str = "fakey recovered") -> dict[str, object]:
     return {"succeed": {"reply": reply}}
 
 
-def _wait_until(
+def _wait_for_condition(
     predicate: Callable[[], bool], timeout: float, description: str
 ) -> None:
     deadline = time.monotonic() + timeout

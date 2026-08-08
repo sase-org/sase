@@ -48,6 +48,13 @@ def test_lint_includes_symvision_stage() -> None:
     assert "just _lint-symvision" in output
 
 
+def test_lint_includes_retired_test_wait_stage() -> None:
+    output = _dry_run("lint")
+
+    assert "Checking retired test wait helpers" in output
+    assert "just _lint-test-waits" in output
+
+
 def test_check_mirrors_lint_toobig_stage() -> None:
     output = _dry_run("check")
 
@@ -58,6 +65,12 @@ def test_check_mirrors_lint_symvision_stage() -> None:
     output = _dry_run("check")
 
     assert 'tools/run_silent "lint (symvision)"   just _lint-symvision' in output
+
+
+def test_check_mirrors_retired_test_wait_stage() -> None:
+    output = _dry_run("check")
+
+    assert 'tools/run_silent "lint (test waits)"  just _lint-test-waits' in output
 
 
 def test_lint_does_not_run_sase_validation() -> None:
@@ -178,6 +191,7 @@ _CHECK_GATE_LINES = (
     'tools/run_silent "lint (ruff)"        just _lint-ruff',
     'tools/run_silent "lint (mypy)"        just _lint-mypy',
     'tools/run_silent "lint (pyscripts)"   just _lint-pyscripts',
+    'tools/run_silent "lint (test waits)"  just _lint-test-waits',
     'tools/run_silent "lint (changelog)"   just _lint-changelog',
     'tools/run_silent "lint (symvision)"   just _lint-symvision',
     'tools/run_silent "lint (toobig)"      just _lint-toobig',
@@ -231,6 +245,19 @@ def test_check_full_does_not_print_a_scoped_summary() -> None:
     assert "tools/print_scoped_summary" not in output
 
 
+def test_check_full_runs_the_flake_baseline_gate_after_the_full_lane() -> None:
+    output = _dry_run("check-full")
+
+    test_line = 'tools/run_silent "test"               just test'
+    gate_line = (
+        'tools/run_silent "flake baseline"     just selection-health '
+        "--fail-on-new-flake"
+    )
+    assert test_line in output
+    assert gate_line in output
+    assert output.index(test_line) < output.index(gate_line)
+
+
 def test_check_and_check_full_share_an_identical_gate_list() -> None:
     """`check` and `check-full` must never drift on their non-test gates.
 
@@ -268,6 +295,12 @@ def test_selection_health_recipe_runs_the_reporting_tool() -> None:
     output = _dry_run("selection-health")
 
     assert "tools/selection_health" in output
+
+
+def test_retired_test_wait_lint_recipe_runs_the_tool() -> None:
+    output = _dry_run("_lint-test-waits")
+
+    assert "tools/check_test_wait_helpers" in output
 
 
 def test_selection_backtest_recipe_runs_the_backtest_tool() -> None:
@@ -310,3 +343,12 @@ def test_legacy_pyvision_wiring_is_absent() -> None:
 
     assert "_lint-pyvision" not in justfile
     assert not list((ROOT / "tools").glob("pyvision-*"))
+
+
+def test_ci_has_scheduled_contention_job_only() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+
+    assert "  schedule:\n" in workflow
+    assert "contention-test:\n" in workflow
+    assert "if: github.event_name == 'schedule'" in workflow
+    assert "SASE_CONTENTION_REPEAT=3 just test-contention" in workflow

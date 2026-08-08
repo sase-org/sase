@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""Reject private bounded-wait helper copies in test areas that have shared waits."""
+
+from __future__ import annotations
+
+import ast
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCANNED_ROOTS = (
+    REPO_ROOT / "tests" / "ace" / "tui",
+    REPO_ROOT / "tests" / "fakey",
+)
+FORBIDDEN_FUNCTION = "_wait_until"
+
+
+def _python_files(root: Path) -> list[Path]:
+    try:
+        return sorted(path for path in root.rglob("*.py") if path.is_file())
+    except OSError:
+        return []
+
+
+def _function_defs(tree: ast.AST) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+    return [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+
+def find_forbidden_helpers(
+    roots: tuple[Path, ...] = SCANNED_ROOTS,
+) -> list[tuple[Path, int]]:
+    findings: list[tuple[Path, int]] = []
+    for root in roots:
+        for path in _python_files(root):
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            except SyntaxError:
+                continue
+            for node in _function_defs(tree):
+                if node.name == FORBIDDEN_FUNCTION:
+                    findings.append((path, node.lineno))
+    return findings
+
+
+def main() -> int:
+    findings = find_forbidden_helpers()
+    if not findings:
+        return 0
+    print(
+        "Private _wait_until test helpers are retired in ACE/fakey tests. "
+        "Use sase.ace.testing.wait.wait_for for raw Textual pilots, or give "
+        "non-pilot harness waits a domain-specific name.",
+        file=sys.stderr,
+    )
+    for path, line_number in findings:
+        print(f"{path.relative_to(REPO_ROOT)}:{line_number}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
