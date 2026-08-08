@@ -5,6 +5,7 @@ import select
 
 from . import _subprocess_claude as _claude
 from . import _subprocess_codex as _codex
+from . import _subprocess_muse as _muse
 from . import _subprocess_opencode as _opencode
 from . import _subprocess_plain as _plain
 from . import _subprocess_qwen as _qwen
@@ -35,6 +36,7 @@ _open_live_reply_timestamps_file = open_live_reply_timestamps_file
 _opencode_texts = _opencode._opencode_texts
 _process_codex_json_line = _codex._process_codex_json_line
 _process_json_line = _claude._process_json_line
+_process_muse_json_line = _muse._process_muse_json_line
 _process_opencode_json_line = _opencode._process_opencode_json_line
 _process_qwen_json_line = _qwen._process_qwen_json_line
 _qwen_assistant_texts = _qwen._qwen_assistant_texts
@@ -45,6 +47,7 @@ _write_usage_artifact = write_usage_artifact
 start_interrupt_monitor = _plain.start_interrupt_monitor
 stream_and_parse_codex_json_output = _codex.stream_and_parse_codex_json_output
 stream_and_parse_json_output = _claude.stream_and_parse_json_output
+stream_and_parse_muse_json_output = _muse.stream_and_parse_muse_json_output
 stream_and_parse_opencode_json_output = _opencode.stream_and_parse_opencode_json_output
 stream_and_parse_qwen_json_output = _qwen.stream_and_parse_qwen_json_output
 stream_process_output = _plain.stream_process_output
@@ -66,6 +69,7 @@ __all__ = [
     "_opencode_texts",
     "_process_codex_json_line",
     "_process_json_line",
+    "_process_muse_json_line",
     "_process_opencode_json_line",
     "_process_qwen_json_line",
     "_qwen_assistant_texts",
@@ -78,6 +82,7 @@ __all__ = [
     "start_interrupt_monitor",
     "stream_and_parse_codex_json_output",
     "stream_and_parse_json_output",
+    "stream_and_parse_muse_json_output",
     "stream_and_parse_opencode_json_output",
     "stream_and_parse_qwen_json_output",
     "stream_process_output",

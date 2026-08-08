@@ -33,6 +33,11 @@ _PROVIDER_SETUP_FALLBACKS: dict[str, dict[str, str]] = {
         "install": "bundled with SASE — nothing to install",
         "auth": "no authentication required",
     },
+    "muse": {
+        "tool": "Muse Code",
+        "install": "run `sase agent-cli install muse`",
+        "auth": "run `muse login`, or set META_API_KEY",
+    },
     "opencode": {
         "tool": "OpenCode",
         "install": "install from https://opencode.ai/docs",
