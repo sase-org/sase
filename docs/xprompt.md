@@ -63,6 +63,7 @@ resolver order.
   - [Canonical Skill Sources](#canonical-skill-sources)
   - [Source, Reference, and Provider Names](#source-reference-and-provider-names)
   - [Bundled Skills](#bundled-skills)
+- [Memory Field](#memory-field)
 - [Built-in XPrompts](#built-in-xprompts)
 - [Config-Based XPrompts](#config-based-xprompts)
 - [Local Configuration Files](#local-configuration-files)
@@ -260,6 +261,11 @@ Skills are discovered separately, from canonical `skills/` directories only, and
 `skills/`-namespaced reference names. See
 [Canonical Skill Sources](#canonical-skill-sources) for that order; no location in the
 table above can define a skill.
+
+Memory notes are also discovered separately, from canonical (and legacy-compatible)
+`sase/memory/` directories only, and take `memory/`-namespaced reference names. See
+[Memory Field](#memory-field) and [Memory Order](content_layout.md#memory-order); no
+location in the table above can define a memory xprompt.
 
 Each directory-based source can contain individual `.md` files and, where supported,
 `.yml` or `.yaml` workflows plus a `steps/` directory. Project config is exclusive: if
@@ -1123,6 +1129,40 @@ sources, so `sase skill list` may show entries that are not bundled here:
 | `sase_repo`          | Open and audit linked, sidecar, other-project, or external repositories before accessing them |
 | `sase_run`           | Request an agent-initiated launch through `LaunchApproval`                                    |
 | `sase_var`           | Attach named output variables to the current SASE agent run                                   |
+
+## Memory Field
+
+Every valid, flat, non-README [SASE memory note](memory.md) that declares `type: short`
+or `type: long` frontmatter is automatically an xprompt — no opt-in field is required. A
+note's filename remains its identity: `sase/memory/glossary.md` (or the home equivalent)
+is invoked as `#memory/glossary`. Nested files such as `sase/memory/assets/**` and
+`README.md` are never catalog entries.
+
+The `memory/` reference segment is reserved. There is no bare `#glossary` alias for
+`#memory/glossary`, no `#memory/long/glossary` compatibility form, and an ordinary
+xprompt, workflow, config entry, plugin, or skill that claims the `memory/` namespace is
+rejected with a load diagnostic rather than silently losing the collision.
+
+Resolution is contextual and first-wins: the selected project's note shadows a same-stem
+home note, and an explicit registered-project selection reads only that project's
+workspace rather than merging in another project's notes. Canonical and legacy memory
+coexistence inside either scope still uses the memory subsystem's existing exclusive
+collision policy. See [Memory Order](content_layout.md#memory-order).
+
+Expansion uses the ordinary simple-Markdown-xprompt rendering path after memory
+frontmatter is stripped: a `#memory/<stem>` reference takes no arguments and does not
+synthesize the `## Children` section that [`sase memory read`](memory.md#audited-reads)
+appends. Xprompt references already authored in the note body still expand recursively.
+
+`#memory/<stem>` is a launch-time, explicitly authored inclusion, not an audited
+agent-side lookup: catalog discovery, previews, and expansion never append
+`sase memory read` audit events. Use `/sase_memory_read` (`sase memory read`) instead
+when an already-running agent needs to consult long-term memory on its own and have that
+access recorded. This is explicit prompt composition only — it does not restore the
+retired dynamic-memory runtime, so there is no keyword matching, prompt scanning, or
+automatic context injection.
+
+Source: `src/sase/xprompt/loader_memory.py`, `src/sase/content_layout.py`.
 
 ## Built-in XPrompts
 

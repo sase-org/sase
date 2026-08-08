@@ -131,3 +131,19 @@ Scopes 1 and 3 namespace the xprompt reference with the project, so a source nam
 is expanded as `#<project>/skills/foo` there and `#skills/foo` elsewhere. The provider
 skill name stays `foo` in every scope. See [Skill Field](xprompt.md#skill-field) for the
 full contract.
+
+## Memory Order
+
+Memory has its own first-wins order, shared by the memory-note reader and the
+`#memory/<stem>` xprompt catalog:
+
+1. `<project>/sase/memory/`
+2. `~/sase/memory/`
+
+Each scope's canonical and legacy (`<project>/memory/`, `~/memory/`) trees remain
+exclusive: a non-identical legacy tree next to its canonical counterpart is a collision
+that blocks reads instead of merging them. There is no project-specific home memory
+scope and no plugin or package memory source. A selected project's notes shadow
+same-stem home notes rather than aggregating with them. See
+[Memory Field](xprompt.md#memory-field) for the reference-naming contract and
+[Memory](memory.md) for note tiers and the audited-read workflow.

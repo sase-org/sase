@@ -61,8 +61,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 92
-- Approx. tokens: 1257
+- Lines: 96
+- Approx. tokens: 1298
 
 ### `sase/memory/gotchas.md`
 
@@ -142,16 +142,16 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
 - Parent: `AGENTS.md`
-- Lines: 90
-- Approx. tokens: 1320
+- Lines: 95
+- Approx. tokens: 1405
 
 ## Statistics
 
 - Total notes: 11
 - Short notes: 5
 - Long notes: 6
-- Total lines: 789
-- Total approx. tokens: 10191
+- Total lines: 798
+- Total approx. tokens: 10317
 
 ## Commands
 

@@ -28,6 +28,24 @@ for audited long-term reads, have agents use `sase memory write` only to create
 proposals, then have a human approve or reject those proposals with
 `sase memory review`.
 
+## XPrompt Inclusion
+
+Every valid, flat, non-README note is also available as an explicit `#memory/<stem>`
+xprompt reference: `sase/memory/glossary.md` (or the home equivalent) expands with
+`#memory/glossary`. The `memory/` prefix is required — there is no bare `#glossary`
+alias, and an ordinary xprompt cannot claim the `memory/` namespace. A selected
+project's note shadows a same-stem home note using the same first-wins precedence
+described in [Audited Reads](#audited-reads) below.
+
+This is explicit, launch-time prompt composition, not an audited lookup: expanding
+`#memory/<stem>` strips frontmatter and inlines the note body but does not append the
+`## Children` section, and never writes a `sase memory read` audit event. Use
+`sase memory read` (below) when an already-running agent needs to consult long-term
+memory on its own and have that access recorded. It is not a restoration of the retired
+dynamic-memory runtime — there is no keyword matching, prompt scanning, or automatic
+context injection. See [Memory Field](xprompt.md#memory-field) for the full expansion
+contract and [Memory Order](content_layout.md#memory-order) for source precedence.
+
 ## Inspect Context
 
 `sase memory` and `sase memory list` render the memory files visible from the current

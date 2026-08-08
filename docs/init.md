@@ -285,6 +285,11 @@ loading. The command strips one leading YAML frontmatter block from stdout and a
 `## Children` when nested long notes exist, but the audit log records only metadata such
 as path, agent name, timestamp, cwd, byte count, and reason.
 
+This audited path is distinct from `#memory/<stem>` xprompt inclusion: an explicitly
+authored `#memory/<stem>` reference in a prompt expands the same note body at launch
+time, for both `type: short` and `type: long` notes, without writing an audit event. See
+[Memory Field](xprompt.md#memory-field).
+
 Every read must include a non-empty reason via `-r` or `--reason`. The command also
 requires agent attribution from `SASE_AGENT_NAME`, `SASE_AGENT`, or
 `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a log
