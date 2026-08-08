@@ -35,6 +35,7 @@ from .loader_skills import (
     skill_destination_for_xprompt_dir,
 )
 from .models import InputArg, XPrompt
+from .reserved_namespaces import reject_reserved_memory_namespace
 from .tags import parse_tags
 
 log = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         skill_name=xp.skill_name,
         log_skill_use=xp.log_skill_use,
         local_xprompts=xp.local_xprompts,
+        memory_type=xp.memory_type,
     )
 
 
@@ -76,6 +78,8 @@ def _load_ordinary_xprompts_from_dir(directory: Path) -> Iterator[XPrompt]:
             continue
         xprompt = load_xprompt_from_file(md_file)
         if xprompt is None:
+            continue
+        if reject_reserved_memory_namespace(xprompt.name, source=md_file):
             continue
         if reject_misplaced_skill(xprompt, source=md_file, migrate_to=destination):
             continue
@@ -139,6 +143,9 @@ def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
     log_skill_use = front_matter.get("log_skill_use", True) if front_matter else True
 
     local_xprompts = _parse_markdown_local_xprompts(front_matter, str(file_path))
+
+    if reject_reserved_memory_namespace(name, source=file_path):
+        return None
 
     return XPrompt(
         name=name,
@@ -410,6 +417,8 @@ def load_xprompts_from_plugins() -> dict[str, XPrompt]:
     xprompts: dict[str, XPrompt] = {}
     for module in discover_plugin_resources("sase_xprompts"):
         for source, xprompt in load_plugin_markdown_xprompts(module, "xprompts"):
+            if reject_reserved_memory_namespace(xprompt.name, source=source):
+                continue
             if reject_misplaced_skill(
                 xprompt,
                 source=source,

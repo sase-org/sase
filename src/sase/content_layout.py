@@ -9,6 +9,7 @@ mapping home targets into a chezmoi source tree.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 import os
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ from sase.core.content_layout_wire import (
     LayoutCollisionError,
     LayoutPath,
     LayoutReadResolution,
+    MemorySource,
     ProjectContentLayout,
     SaseContentLayout,
     SkillPlacementIssue,
@@ -31,6 +33,34 @@ from sase.core.content_layout_wire import (
 from sase.core.rust import require_rust_binding
 
 _PROJECT_MARKERS = (".git", ".hg", ".jj")
+
+
+@dataclass(frozen=True)
+class MemoryFileSource:
+    """One memory-source record paired with its content root."""
+
+    source: MemorySource
+    root: Path
+
+    @property
+    def id(self) -> str:
+        return self.source.id
+
+    @property
+    def scope(self) -> str:
+        return self.source.scope
+
+    @property
+    def paths(self) -> CompatibleLayoutPath:
+        return self.source.paths
+
+    @property
+    def formats(self) -> tuple[str, ...]:
+        return self.source.formats
+
+    def resolve_read_root(self, label: str) -> Path | None:
+        """Return the selected canonical-or-legacy memory root."""
+        return self.paths.resolve_read(label)
 
 
 def _resolve_content_layout(
@@ -205,6 +235,52 @@ def resolve_skill_file_sources(
     return tuple(source for source in layout.skill_sources if source.path is not None)
 
 
+def resolve_memory_file_sources(
+    *,
+    project_root: Path | str | None = None,
+    home_root: Path | str | None = None,
+    project: str | None = None,
+    include_discovered_project: bool = True,
+) -> tuple[MemoryFileSource, ...]:
+    """Return ordered filesystem-backed xprompt-memory sources.
+
+    The Rust contract owns the ordered memory source records. This adapter only
+    pairs each record with the project or home content root needed by the
+    canonical memory note parser.
+    """
+    if project_root is None:
+        if include_discovered_project:
+            root = discover_project_root()
+            if root is None:
+                try:
+                    root = Path.cwd()
+                except OSError:
+                    root = None
+        else:
+            root = None
+    else:
+        root = Path(project_root)
+
+    layout = _resolve_content_layout(
+        project_root=root,
+        home_root=home_root,
+        project=project,
+    )
+    roots: dict[str, Path] = {"home": layout.home.root}
+    if layout.project is not None:
+        roots["project"] = layout.project.root
+
+    sources: list[MemoryFileSource] = []
+    for source in layout.memory_sources:
+        if "md" not in source.formats:
+            continue
+        source_root = roots.get(source.scope)
+        if source_root is None:
+            continue
+        sources.append(MemoryFileSource(source=source, root=source_root))
+    return tuple(sources)
+
+
 def skill_reference_name(skill_name: str, project: str | None = None) -> str:
     """Return the canonical ``skills/<name>`` xprompt reference for a skill.
 
@@ -213,6 +289,38 @@ def skill_reference_name(skill_name: str, project: str | None = None) -> str:
     """
     binding = require_rust_binding("skill_reference_name")
     return str(binding(skill_name, project))
+
+
+def memory_reference_name(stem: str) -> str:
+    """Return the canonical ``memory/<stem>`` xprompt reference."""
+    binding = require_rust_binding("memory_reference_name")
+    return str(binding(stem))
+
+
+def memory_note_issue(
+    source: Path | str,
+    *,
+    stem: str,
+    note_type: str,
+) -> SkillPlacementIssue | None:
+    """Apply the shared xprompt-memory note eligibility rule."""
+    binding = require_rust_binding("memory_note_issue")
+    payload: Mapping[str, Any] | None = binding(str(source), stem, note_type)
+    if payload is None:
+        return None
+    return skill_placement_issue_from_mapping(payload)
+
+
+def reserved_memory_namespace_issue(
+    source: Path | str,
+    reference: str,
+) -> SkillPlacementIssue | None:
+    """Return a diagnostic when an ordinary definition claims ``memory/``."""
+    binding = require_rust_binding("reserved_memory_namespace_issue")
+    payload: Mapping[str, Any] | None = binding(str(source), reference)
+    if payload is None:
+        return None
+    return skill_placement_issue_from_mapping(payload)
 
 
 def skill_placement_issue(
@@ -318,6 +426,8 @@ __all__ = [
     "LayoutCollisionError",
     "LayoutPath",
     "LayoutReadResolution",
+    "MemoryFileSource",
+    "MemorySource",
     "ProjectContentLayout",
     "SaseContentLayout",
     "SkillPlacementIssue",
@@ -330,9 +440,13 @@ __all__ = [
     "resolve_project_config_read_path",
     "resolve_project_config_write_path",
     "resolve_home_layout",
+    "resolve_memory_file_sources",
     "resolve_project_layout",
     "resolve_skill_file_sources",
     "resolve_xprompt_file_sources",
+    "memory_note_issue",
+    "memory_reference_name",
+    "reserved_memory_namespace_issue",
     "skill_placement_issue",
     "skill_reference_name",
 ]

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from sase.xprompt.models import XPrompt
+from sase.xprompt.models import MemoryType, XPrompt
 from sase.xprompt.workflow_models import Workflow
 
 
@@ -74,6 +74,7 @@ class StructuredCatalogEntry:
     definition_path: str | None = None
     skill_name: str | None = None
     """Provider-visible ``/`` name; ``name`` stays the ``#`` reference."""
+    memory_type: MemoryType | None = None
 
 
 @dataclass(frozen=True)
@@ -137,6 +138,7 @@ class StructuredCatalogSource:
     is_skill: bool = False
     content: str = ""
     skill_name: str | None = None
+    memory_type: MemoryType | None = None
 
 
 @dataclass

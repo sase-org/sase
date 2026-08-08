@@ -184,6 +184,20 @@ class SkillSource:
 
 
 @dataclass(frozen=True)
+class MemorySource:
+    """One ordered source of flat SASE memory notes exposed as xprompts."""
+
+    id: str
+    priority: int
+    scope: str
+    paths: CompatibleLayoutPath
+    formats: tuple[str, ...]
+    tracking: PathTracking
+    writable: bool
+    ordering: str | None
+
+
+@dataclass(frozen=True)
 class SkillPlacementIssue:
     """One definition rejected by the shared skill placement rules."""
 
@@ -201,6 +215,7 @@ class SaseContentLayout:
     chezmoi: ChezmoiContentLayout | None
     xprompt_sources: tuple[XpromptSource, ...]
     skill_sources: tuple[SkillSource, ...]
+    memory_sources: tuple[MemorySource, ...]
 
 
 def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
@@ -222,6 +237,10 @@ def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
         skill_sources=tuple(
             _skill_source(_mapping(item))
             for item in cast(list[Any], raw.get("skill_sources", []))
+        ),
+        memory_sources=tuple(
+            _memory_source(_mapping(item))
+            for item in cast(list[Any], raw.get("memory_sources", []))
         ),
     )
 
@@ -328,6 +347,19 @@ def _skill_source(raw: Mapping[str, Any]) -> SkillSource:
     )
 
 
+def _memory_source(raw: Mapping[str, Any]) -> MemorySource:
+    return MemorySource(
+        id=str(raw["id"]),
+        priority=int(raw["priority"]),
+        scope=str(raw["scope"]),
+        paths=_compatible_path(_mapping(raw["paths"])),
+        formats=tuple(str(item) for item in raw.get("formats", [])),
+        tracking=cast(PathTracking, raw["tracking"]),
+        writable=bool(raw.get("writable", False)),
+        ordering=(str(raw["ordering"]) if raw.get("ordering") is not None else None),
+    )
+
+
 def skill_placement_issue_from_mapping(
     raw: Mapping[str, Any],
 ) -> SkillPlacementIssue:
@@ -358,6 +390,7 @@ __all__ = [
     "LayoutCollisionError",
     "LayoutPath",
     "LayoutReadResolution",
+    "MemorySource",
     "ProjectContentLayout",
     "SaseContentLayout",
     "SkillPlacementIssue",

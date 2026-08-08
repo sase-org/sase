@@ -8,6 +8,7 @@ from sase.content_layout import (
     chezmoi_source_path,
     discover_project_root,
     display_path,
+    resolve_memory_file_sources,
     resolve_project_layout,
     resolve_xprompt_file_sources,
 )
@@ -22,7 +23,7 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
         project="demo",
     )
 
-    assert layout.schema_version == 2
+    assert layout.schema_version == 3
     assert layout.project is not None
     project = layout.project
     assert project.config.canonical.path == Path("/workspace/demo/sase/sase.yml")
@@ -164,6 +165,30 @@ def test_xprompt_priority_contract_covers_every_source_and_shared_steps() -> Non
     assert layout.xprompt_sources[8].collision_policy == "error"
     assert layout.xprompt_sources[10].ordering == "reverse_lexical_first_wins"
     assert layout.xprompt_sources[-1].steps_locator == "package:xprompts/steps"
+
+
+def test_memory_source_contract_orders_project_before_home(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "repo"
+    home.mkdir()
+    project.mkdir()
+    monkeypatch.setattr(Path, "home", lambda: home)
+
+    sources = resolve_memory_file_sources(project_root=project, project="demo")
+
+    assert [source.id for source in sources] == [
+        "project_memory",
+        "home_memory",
+    ]
+    assert [source.root for source in sources] == [project, home]
+    assert [source.paths.write_path for source in sources] == [
+        project / "sase" / "memory",
+        home / "sase" / "memory",
+    ]
+    assert [source.formats for source in sources] == [("md",), ("md",)]
 
 
 def test_discover_project_root_from_nested_and_missing_descendants(

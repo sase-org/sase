@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.xprompt.models import InputArg, OutputSpec, XPrompt
+from sase.xprompt.models import InputArg, MemoryType, OutputSpec, XPrompt
 
 if TYPE_CHECKING:
     from sase.xprompt.tags import XPromptTag
@@ -162,6 +162,7 @@ class Workflow:
     environment: dict[str, str] = field(default_factory=dict)
     description: str | None = None
     skill_name: str | None = None
+    memory_type: MemoryType | None = None
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this workflow has the given tag."""

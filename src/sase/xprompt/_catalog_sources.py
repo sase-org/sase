@@ -118,6 +118,7 @@ def classify_xprompt_for_structured(
         is_skill=bool(xp.skill),
         content=xp.content,
         skill_name=xp.skill_name,
+        memory_type=xp.memory_type,
     )
 
 
@@ -133,6 +134,7 @@ def classify_workflow(
             source_path=source,
             tags=workflow.tags,
             description=workflow.description,
+            memory_type=workflow.memory_type,
         ),
         project=project,
     )
@@ -143,6 +145,7 @@ def classify_workflow(
         project=catalog_entry.project,
         description=workflow.description,
         content=workflow.get_prompt_part_content(),
+        memory_type=workflow.memory_type,
     )
 
 

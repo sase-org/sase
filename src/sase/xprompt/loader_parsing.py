@@ -543,6 +543,8 @@ def parse_xprompt_entries(
             log_skill_use=log_skill_use,
             local_xprompts=local_xprompts,
         )
+        if _reject_reserved_memory_namespace(xprompt, source_path):
+            continue
         # A skill needs a Markdown file in a canonical skill directory for
         # generation to render from, so a config entry can never be one.
         if _reject_config_skill(xprompt, source_path):
@@ -563,6 +565,16 @@ def _reject_config_skill(xprompt: XPrompt, source_path: str) -> bool:
         xprompt,
         source=f"{source_path}:{xprompt.name}",
         migrate_to=config_skill_destination(),
+    )
+
+
+def _reject_reserved_memory_namespace(xprompt: XPrompt, source_path: str) -> bool:
+    """Drop a config-defined entry that claims the xprompt-memory namespace."""
+    from .reserved_namespaces import reject_reserved_memory_namespace
+
+    return reject_reserved_memory_namespace(
+        xprompt.name,
+        source=f"{source_path}:{xprompt.name}",
     )
 
 

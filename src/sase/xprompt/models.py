@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from sase.xprompt.tags import XPromptTag
@@ -17,6 +17,8 @@ UNSET = object()
 Use ``UNSET`` when an input has no default (i.e. it is required).
 ``None`` means the YAML value was explicitly ``null`` (pass-through to callee).
 """
+
+MemoryType = Literal["short", "long"]
 
 
 class InputType(Enum):
@@ -224,6 +226,7 @@ class XPrompt:
     skill_name: str | None = None
     log_skill_use: bool = True
     local_xprompts: dict[str, XPrompt] = field(default_factory=dict)
+    memory_type: MemoryType | None = None
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this xprompt has the given tag."""
@@ -285,6 +288,7 @@ def xprompt_to_workflow(xprompt: XPrompt) -> Workflow:
         description=xprompt.description,
         xprompts=xprompt.local_xprompts,
         skill_name=xprompt.skill_name,
+        memory_type=xprompt.memory_type,
     )
 
 

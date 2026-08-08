@@ -17,6 +17,10 @@ from .loader_skills import (
     load_skills_from_package,
     load_skills_from_plugins,
 )
+from .loader_memory import (
+    load_memory_xprompts,
+    load_project_memory_xprompts,
+)
 from .loader_sources import (
     load_xprompt_from_file,
     load_xprompts_from_config,
@@ -63,7 +67,9 @@ __all__ = [
     "get_xprompt_search_paths",
     "load_project_local_xprompts",
     "load_project_file_xprompts",
+    "load_project_memory_xprompts",
     "load_project_skills",
+    "load_memory_xprompts",
     "load_skills_from_files",
     "load_skills_from_package",
     "load_skills_from_plugins",
@@ -142,6 +148,23 @@ def _load_registered_project_xprompts(
     }
 
 
+def _load_contextual_memory_xprompts(
+    project: str | None,
+    *,
+    detected_project: str | None,
+) -> dict[str, XPrompt]:
+    """Load memory xprompts for the selected context without project leakage."""
+    if project is not None and canonical_xprompt_project(detected_project) != project:
+        workspace = known_project_namespaces().get(project)
+        if workspace is None:
+            return load_memory_xprompts(
+                project=project,
+                include_discovered_project=False,
+            )
+        return load_project_memory_xprompts(workspace, project)
+    return load_memory_xprompts(project=project)
+
+
 def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     """Get all xprompts from all sources, respecting priority order.
 
@@ -201,6 +224,12 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     # 1-4. File-based xprompts (highest priority) - already sorted
     file_xprompts = load_xprompts_from_files(project=effective_project)
     all_xprompts.update(file_xprompts)
+
+    memory_xprompts = _load_contextual_memory_xprompts(
+        effective_project,
+        detected_project=detected_project,
+    )
+    all_xprompts.update(memory_xprompts)
 
     # Skills occupy their own ``skills/`` reference namespace, so they can
     # never shadow (or be shadowed by) an ordinary xprompt of the same bare
