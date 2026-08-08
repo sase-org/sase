@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shlex
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Literal
 
 from rich.console import RenderableType
@@ -277,11 +278,15 @@ class AgentCliBrowserActionsMixin:
             reporter.phase("Updating agent CLIs")
 
             def task_runner(
-                argv: tuple[str, ...], *, timeout: float = 300.0
+                argv: tuple[str, ...],
+                *,
+                timeout: float = 300.0,
+                env_overlay: Mapping[str, str] | None = None,
             ) -> CommandResult:
                 return run_command(
                     argv,
                     timeout=timeout,
+                    env_overlay=env_overlay,
                     run_fn=reporter.subprocess_run_fn(),
                 )
 

@@ -5,6 +5,7 @@ from dataclasses import replace
 import pytest
 
 from sase.agent_clis import operations
+from sase.agent_clis.latest import LatestQuery, LatestVersion
 from sase.agent_clis.models import (
     AgentCliNothingToUpdate,
     AgentCliStatus,
@@ -14,6 +15,7 @@ from sase.agent_clis.models import (
     UpdateResultStatus,
     UpdateStrategy,
     UpdateTrigger,
+    VersionCompare,
 )
 from sase.agent_clis.operations import (
     detect_agent_cli_statuses_for_names,
@@ -21,6 +23,7 @@ from sase.agent_clis.operations import (
     plan_agent_cli_updates,
 )
 from sase.agent_clis.runner import CommandResult
+from sase.plugins.latest import is_newer
 
 
 def _status(
@@ -56,6 +59,138 @@ def _planner(*statuses: AgentCliStatus):
         return statuses
 
     return load
+
+
+def test_channel_versions_compare_exactly_where_pep_440_gives_up() -> None:
+    """``is_newer`` answers ``False`` for every channel release id."""
+    channel = replace(
+        _status("muse", method=InstallMethod.SELF_MANAGED),
+        installed_version="0.1.0-R708.1",
+        version_compare=VersionCompare.EXACT,
+    )
+
+    assert is_newer("0.1.0-R709", "0.1.0-R708.1") is False
+    assert operations._update_available(channel, "0.1.0-R709") is True
+    assert operations._update_available(channel, "0.1.0-R708.1") is False
+    assert operations._update_available(channel, None) is False
+
+
+def test_pep_440_comparator_remains_the_default() -> None:
+    npm_cli = replace(
+        _status("codex", method=InstallMethod.NPM), installed_version="1.9.0"
+    )
+
+    assert npm_cli.version_compare is VersionCompare.PEP440
+    assert operations._update_available(npm_cli, "1.10.0") is True
+    assert operations._update_available(npm_cli, "1.8.0") is False
+
+
+def test_collect_queries_channel_endpoints_and_npm_packages_together(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    channel_url = "https://api.example.test/channels/stable"
+    detected = (
+        replace(
+            _status("muse", method=InstallMethod.SELF_MANAGED, latest=None),
+            installed_version="0.1.0-R708.1",
+            latest_version_url=channel_url,
+            version_compare=VersionCompare.EXACT,
+        ),
+        replace(
+            _status("codex", method=InstallMethod.NPM, latest=None),
+            installed_version="1.0.0",
+            latest_version_package="@openai/codex",
+        ),
+    )
+    monkeypatch.setattr(
+        operations, "detect_agent_cli_statuses", lambda *_args, **_kwargs: detected
+    )
+    seen: list[tuple[LatestQuery, ...]] = []
+
+    def latest(queries: tuple[LatestQuery, ...], **_kwargs: object):
+        seen.append(queries)
+        return {
+            f"url:{channel_url}": LatestVersion("0.1.0-R709"),
+            "npm:@openai/codex": LatestVersion("2.0.0"),
+        }
+
+    statuses = {
+        status.name: status
+        for status in operations.collect_agent_cli_statuses(
+            metadata_payload={"providers": {}}, latest_fn=latest
+        )
+    }
+
+    assert seen == [
+        (LatestQuery.for_url(channel_url), LatestQuery.for_npm("@openai/codex"))
+    ]
+    assert statuses["muse"].latest_version == "0.1.0-R709"
+    assert statuses["muse"].update_available is True
+    assert statuses["codex"].latest_version == "2.0.0"
+    assert statuses["codex"].update_available is True
+
+
+def test_declared_channel_endpoint_wins_over_an_npm_mirror() -> None:
+    status = replace(
+        _status("muse", method=InstallMethod.SELF_MANAGED),
+        latest_version_url="https://api.example.test/channels/stable",
+        latest_version_package="muse-mirror",
+    )
+
+    assert operations._latest_query(status) == LatestQuery.for_url(
+        "https://api.example.test/channels/stable"
+    )
+    assert operations._latest_query(
+        replace(status, latest_version_url=None)
+    ) == LatestQuery.for_npm("muse-mirror")
+    assert (
+        operations._latest_query(
+            replace(status, latest_version_url=None, latest_version_package=None)
+        )
+        is None
+    )
+
+
+def test_declared_json_field_reaches_the_latest_query() -> None:
+    status = replace(
+        _status("muse", method=InstallMethod.SELF_MANAGED),
+        latest_version_url="https://api.example.test/channels/stable",
+        latest_version_json_field="release",
+    )
+
+    query = operations._latest_query(status)
+
+    assert query is not None
+    assert query.field == "release"
+
+
+def test_self_update_env_reaches_the_runner_without_leaking_into_the_reprobe() -> None:
+    status = replace(
+        _status("muse", method=InstallMethod.SELF_MANAGED, latest=None),
+        executable="/bin/muse",
+        installed_version="0.1.0-R708.1",
+        self_update_argv=("--version",),
+        self_update_env=(("MUSE_SYNC_UPDATE", "1"),),
+        version_regex=r"\((?P<version>[^)]+)\)",
+    )
+    plan = plan_agent_cli_updates(["muse"], status_fn=_planner(status))
+    assert isinstance(plan, AgentCliUpdatesReady)
+    assert plan.entries[0].env_overlay == (("MUSE_SYNC_UPDATE", "1"),)
+    calls: list[tuple[tuple[str, ...], object]] = []
+
+    def run(argv: tuple[str, ...], **kwargs: object) -> CommandResult:
+        calls.append((argv, kwargs.get("env_overlay")))
+        return CommandResult(argv, 0, stdout="Muse Code 0.1.0 (0.1.0-R709)")
+
+    result = execute_agent_cli_updates(plan, run_fn=run, record_fn=None)[0]
+
+    assert calls == [
+        (("/bin/muse", "--version"), {"MUSE_SYNC_UPDATE": "1"}),
+        (("/bin/muse", "--version"), None),
+    ]
+    assert result.status is UpdateResultStatus.UPDATED
+    assert result.new_version == "0.1.0-R709"
+    assert result.env_overlay == (("MUSE_SYNC_UPDATE", "1"),)
 
 
 def test_named_local_detection_zero_names_skips_registry(

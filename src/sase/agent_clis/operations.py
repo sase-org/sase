@@ -13,7 +13,7 @@ from sase.plugins.latest import is_newer
 
 from .detect import detect_agent_cli_statuses, probe_version
 from .history import RecordFn, record_agent_cli_update_run
-from .latest import LatestVersion, get_latest_versions
+from .latest import DEFAULT_JSON_FIELD, LatestQuery, LatestVersion, get_latest_versions
 from .models import (
     AgentCliNothingToUpdate,
     AgentCliStatus,
@@ -26,6 +26,7 @@ from .models import (
     UpdateResultStatus,
     UpdateStrategy,
     UpdateTrigger,
+    VersionCompare,
 )
 from .runner import AgentCliRunnerError, CommandResult, run_command
 
@@ -46,25 +47,58 @@ def collect_agent_cli_statuses(
     """Return detected CLIs enriched with cached/remote latest versions."""
     providers = _provider_metadata(metadata_payload)
     detected = detect_agent_cli_statuses(providers, env=env, run_fn=run_fn)
-    packages = tuple(
-        status.latest_version_package
+    queries = {
+        status.name: query
         for status in detected
-        if status.latest_version_package
-    )
-    latest = latest_fn(packages, offline=offline, refresh=refresh)
+        if (query := _latest_query(status)) is not None
+    }
+    latest = latest_fn(tuple(queries.values()), offline=offline, refresh=refresh)
     enriched: list[AgentCliStatus] = []
     for status in detected:
-        info = latest.get(status.latest_version_package or "")
+        query = queries.get(status.name)
+        info = latest.get(query.key) if query is not None else None
         latest_version = info.version if info is not None else None
         enriched.append(
             replace(
                 status,
                 latest_version=latest_version,
-                update_available=is_newer(latest_version, status.installed_version),
+                update_available=_update_available(status, latest_version),
                 latest_error=info.error if info is not None else None,
             )
         )
     return tuple(enriched)
+
+
+def _latest_query(status: AgentCliStatus) -> LatestQuery | None:
+    """Build the latest-version lookup a status declares, if any.
+
+    A declared JSON endpoint wins over an npm package: a CLI distributed by a
+    version channel is not meaningfully described by its npm mirror.
+    """
+    if status.latest_version_url:
+        return LatestQuery.for_url(
+            status.latest_version_url,
+            field=status.latest_version_json_field or DEFAULT_JSON_FIELD,
+        )
+    if status.latest_version_package:
+        return LatestQuery.for_npm(status.latest_version_package)
+    return None
+
+
+def _update_available(status: AgentCliStatus, latest_version: str | None) -> bool:
+    """Compare versions with the comparator the provider declared.
+
+    ``exact`` exists for channel-pinned distributions whose release ids are not
+    valid PEP 440 versions — ``is_newer`` silently answers ``False`` for those,
+    which would report "no known updates" forever.
+    """
+    if status.version_compare is VersionCompare.EXACT:
+        return (
+            latest_version is not None
+            and status.installed_version is not None
+            and latest_version != status.installed_version
+        )
+    return is_newer(latest_version, status.installed_version)
 
 
 def detect_agent_cli_statuses_for_names(
@@ -178,7 +212,7 @@ def execute_agent_cli_updates(
             continue
 
         try:
-            command_result = run_fn(entry.argv)
+            command_result = run_fn(entry.argv, env_overlay=dict(entry.env_overlay))
         except AgentCliRunnerError as exc:
             results.append(
                 AgentCliUpdateResult(
@@ -189,6 +223,7 @@ def execute_agent_cli_updates(
                     new_version=status.installed_version,
                     command=entry.argv,
                     docs_url=status.docs_url,
+                    env_overlay=entry.env_overlay,
                     reason=_with_docs(str(exc), status.docs_url),
                 )
             )
@@ -205,6 +240,7 @@ def execute_agent_cli_updates(
                     new_version=status.installed_version,
                     command=entry.argv,
                     docs_url=status.docs_url,
+                    env_overlay=entry.env_overlay,
                     elapsed=command_result.elapsed,
                     reason=_with_docs(
                         f"command failed with exit {command_result.returncode}",
@@ -252,6 +288,7 @@ def execute_agent_cli_updates(
                 new_version=new_version,
                 command=entry.argv,
                 docs_url=status.docs_url,
+                env_overlay=entry.env_overlay,
                 elapsed=command_result.elapsed,
                 reason=reason,
                 output_tail=output_tail,
@@ -334,6 +371,7 @@ def plan_agent_cli_status(status: AgentCliStatus) -> AgentCliUpdateEntry:
             status,
             UpdateStrategy.SELF_UPDATE,
             (status.executable, *status.self_update_argv),
+            env_overlay=status.self_update_env,
         )
     return AgentCliUpdateEntry(
         status,

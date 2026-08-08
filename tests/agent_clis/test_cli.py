@@ -393,3 +393,40 @@ def test_execute_json_reports_updated_current_and_skipped_as_success(
         "skipped": 0,
     }
     assert payload["agent_clis"][0]["reason"].endswith("https://example.test/codex")
+
+
+def test_dry_run_shows_the_env_overlay_the_update_will_carry(capsys: Any) -> None:
+    status = replace(
+        _status("muse", display_name="Muse Code"),
+        install_method=InstallMethod.SELF_MANAGED,
+        executable="/usr/local/bin/muse",
+        installed_version="0.1.0-R708.1",
+        latest_version="0.1.0-R709",
+    )
+    plan = AgentCliUpdatesReady(
+        entries=(
+            AgentCliUpdateEntry(
+                status,
+                UpdateStrategy.SELF_UPDATE,
+                ("/usr/local/bin/muse", "--version"),
+                env_overlay=(("MUSE_SYNC_UPDATE", "1"),),
+            ),
+        ),
+        all_clis=False,
+    )
+    console = _console()
+
+    code = handle_agent_cli_update_command(
+        _args(names=["muse"], dry_run=True),
+        console=console,
+        plan_fn=lambda names, **kwargs: plan,
+    )
+    json_code = handle_agent_cli_update_command(
+        _args(names=["muse"], dry_run=True, json=True),
+        plan_fn=lambda names, **kwargs: plan,
+    )
+
+    assert (code, json_code) == (0, 0)
+    assert "MUSE_SYNC_UPDATE=1 /usr/local/bin/muse --version" in _output(console)
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["agent_clis"][0]["env"] == {"MUSE_SYNC_UPDATE": "1"}

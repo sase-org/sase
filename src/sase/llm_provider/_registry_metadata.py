@@ -142,10 +142,17 @@ def _install_metadata(value: Any) -> dict[str, Any]:
         "docs_url",
         "version_regex",
         "latest_version_package",
+        "latest_version_url",
+        "latest_version_json_field",
+        "version_compare",
+        "install_script_url",
         "brew_package",
     ):
         if (normalized := _optional_str(value.get(key))) is not None:
             metadata[key] = normalized
+    for key in ("self_update_env", "install_env"):
+        if env := _env_metadata(value.get(key)):
+            metadata[key] = env
     if argv := _argv_metadata(value.get("self_update_argv")):
         metadata["self_update_argv"] = argv
     if "version_argv" in value:
@@ -153,6 +160,15 @@ def _install_metadata(value: Any) -> dict[str, Any]:
             value.get("version_argv"), default=("--version",)
         )
     return metadata
+
+
+def _env_metadata(value: Any) -> dict[str, str]:
+    """Normalize a declared env overlay; values are never secrets."""
+    return {
+        name.strip(): item
+        for name, item in normalize_str_dict(value).items()
+        if name.strip()
+    }
 
 
 def _argv_metadata(value: Any, *, default: tuple[str, ...] = ()) -> list[str]:

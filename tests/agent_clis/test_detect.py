@@ -10,7 +10,7 @@ from sase.agent_clis.detect import (
     _probe_npm_environment,
     detect_agent_cli_statuses,
 )
-from sase.agent_clis.models import InstallMethod
+from sase.agent_clis.models import InstallMethod, VersionCompare
 from sase.agent_clis.runner import CommandResult
 
 
@@ -219,3 +219,78 @@ def test_not_installed_provider_does_not_probe_npm() -> None:
     )
 
     assert statuses[0].install_method is InstallMethod.NOT_INSTALLED
+
+
+def test_channel_install_metadata_is_read_and_hints_the_install_subcommand(
+    tmp_path: Path,
+) -> None:
+    executable = tmp_path / "muse"
+    executable.write_text("", encoding="utf-8")
+    executable.chmod(0o755)
+    providers = {
+        "muse": {
+            "autodetect_cli_name": "muse",
+            "install": {
+                "manager": "script",
+                "display_name": "Muse Code",
+                "docs_url": "https://example.test/muse",
+                "version_regex": r"\((?P<version>[^)]+)\)",
+                "latest_version_url": "https://api.example.test/channels/stable",
+                "latest_version_json_field": "version",
+                "version_compare": "exact",
+                "self_update_argv": ["--version"],
+                "self_update_env": {"MUSE_SYNC_UPDATE": "1"},
+                "install_script_url": "https://example.test/install.sh",
+                "install_env": {"MUSE_UPGRADE_MODE": "1"},
+            },
+        }
+    }
+
+    status = detect_agent_cli_statuses(
+        providers,
+        env={"PATH": str(tmp_path)},
+        run_fn=lambda argv, **_kwargs: _result(argv, "Muse Code 0.1.0 (0.1.0-R708.1)"),
+    )[0]
+
+    assert status.installed_version == "0.1.0-R708.1"
+    assert status.install_manager == "script"
+    assert status.installs_from_script is True
+    assert status.install_script_url == "https://example.test/install.sh"
+    assert status.install_env == (("MUSE_UPGRADE_MODE", "1"),)
+    assert status.self_update_env == (("MUSE_SYNC_UPDATE", "1"),)
+    assert status.latest_version_url == "https://api.example.test/channels/stable"
+    assert status.latest_version_json_field == "version"
+    assert status.version_compare is VersionCompare.EXACT
+    assert status.install_hint == "run `sase agent-cli install muse`"
+    # A script-installed CLI that updates itself is still self-managed.
+    assert status.install_method is InstallMethod.SELF_MANAGED
+
+
+def test_unknown_version_compare_and_malformed_env_fall_back_to_defaults(
+    tmp_path: Path,
+) -> None:
+    executable = tmp_path / "tool"
+    executable.write_text("", encoding="utf-8")
+    executable.chmod(0o755)
+    providers = {
+        "tool": {
+            "autodetect_cli_name": "tool",
+            "install": {
+                "manager": "script",
+                "version_compare": "semver",
+                "self_update_env": ["MUSE_SYNC_UPDATE=1"],
+                "install_env": {"": "ignored", "KEEP": 1},
+            },
+        }
+    }
+
+    status = detect_agent_cli_statuses(
+        providers,
+        env={"PATH": str(tmp_path)},
+        run_fn=lambda argv, **_kwargs: _result(argv, "tool 1.0.0"),
+    )[0]
+
+    assert status.version_compare is VersionCompare.PEP440
+    assert status.self_update_env == ()
+    assert status.install_env == (("KEEP", "1"),)
+    assert status.installs_from_script is False

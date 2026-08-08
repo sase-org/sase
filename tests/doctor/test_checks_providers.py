@@ -177,6 +177,28 @@ def test_setup_hint_prefers_enriched_provider_metadata() -> None:
     }
 
 
+def test_setup_hint_points_script_installs_at_the_install_subcommand() -> None:
+    """A docs URL must not override the actionable install command."""
+    hint = setup_hint(
+        "muse",
+        {
+            "install": {
+                "manager": "script",
+                "display_name": "Muse Code",
+                "docs_url": "https://example.test/muse",
+                "install_script_url": "https://example.test/install.sh",
+            }
+        },
+    )
+
+    assert hint == {
+        "tool": "Muse Code",
+        "install": "run `sase agent-cli install muse`",
+        "auth": "follow the muse authentication flow",
+        "docs_url": "https://example.test/muse",
+    }
+
+
 def test_llm_registry_reports_metadata_load_failure(monkeypatch) -> None:
     def fail() -> dict[str, object]:
         raise RuntimeError("boom")

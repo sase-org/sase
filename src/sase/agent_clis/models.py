@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+# Env overlays travel as sorted key/value pairs so every model stays frozen,
+# hashable, and comparable; call sites materialize a dict at the boundary.
+EnvOverlay = tuple[tuple[str, str], ...]
+
 
 class InstallMethod(StrEnum):
     """How an installed provider CLI is managed."""
@@ -14,7 +18,15 @@ class InstallMethod(StrEnum):
     HOMEBREW = "homebrew"
     SELF_MANAGED = "self_managed"
     BUNDLED = "bundled"
+    SCRIPT = "script"
     UNKNOWN = "unknown"
+
+
+class VersionCompare(StrEnum):
+    """How an installed version is compared against the latest version."""
+
+    PEP440 = "pep440"
+    EXACT = "exact"
 
 
 class UpdateStrategy(StrEnum):
@@ -67,6 +79,21 @@ class AgentCliStatus:
     npm_root_writable: bool | None = None
     version_error: str | None = None
     latest_error: str | None = None
+    install_manager: str | None = None
+    install_script_url: str | None = None
+    install_env: EnvOverlay = ()
+    self_update_env: EnvOverlay = ()
+    latest_version_url: str | None = None
+    latest_version_json_field: str | None = None
+    version_compare: VersionCompare = VersionCompare.PEP440
+
+    @property
+    def installs_from_script(self) -> bool:
+        """Whether this CLI is installed by running a remote install script."""
+        return (
+            self.install_manager == InstallMethod.SCRIPT
+            and self.install_script_url is not None
+        )
 
     @property
     def installed(self) -> bool:
@@ -94,6 +121,7 @@ class AgentCliUpdateEntry:
     argv: tuple[str, ...] | None
     skip_reason: str | None = None
     manual_argv: tuple[str, ...] | None = None
+    env_overlay: EnvOverlay = ()
 
     @property
     def name(self) -> str:
@@ -150,6 +178,7 @@ class AgentCliUpdateResult:
     command: tuple[str, ...] | None
     docs_url: str | None
     suggested_command: tuple[str, ...] | None = None
+    env_overlay: EnvOverlay = ()
     elapsed: float = 0.0
     reason: str | None = None
     output_tail: str | None = None
@@ -171,6 +200,7 @@ __all__ = [
     "AgentCliUpdatePlan",
     "AgentCliUpdateResult",
     "AgentCliUpdatesReady",
+    "EnvOverlay",
     "InstallMethod",
     "NothingToUpdate",
     "UnknownName",
@@ -180,4 +210,5 @@ __all__ = [
     "UpdateResultStatus",
     "UpdateStrategy",
     "UpdateTrigger",
+    "VersionCompare",
 ]

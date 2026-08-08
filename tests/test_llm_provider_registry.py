@@ -237,6 +237,39 @@ def test_provider_metadata_tolerantly_normalizes_update_fields() -> None:
     }
 
 
+def test_provider_metadata_carries_channel_install_and_env_fields() -> None:
+    """Channel-versioned CLIs publish their oracle, comparator, and env."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+        def llm_install_metadata(self) -> dict[str, object]:
+            return {
+                "manager": "script",
+                "latest_version_url": " https://api.example.test/channels/stable ",
+                "latest_version_json_field": "version",
+                "version_compare": "exact",
+                "install_script_url": "https://example.test/install.sh",
+                "install_env": {"UPGRADE_MODE": 1, "": "dropped"},
+                "self_update_env": {" SYNC_UPDATE ": "1"},
+            }
+
+    install = registry._provider_metadata("fake", FakeProvider())["install"]
+
+    assert install == {
+        "manager": "script",
+        "package": None,
+        "scope": None,
+        "latest_version_url": "https://api.example.test/channels/stable",
+        "latest_version_json_field": "version",
+        "version_compare": "exact",
+        "install_script_url": "https://example.test/install.sh",
+        "install_env": {"UPGRADE_MODE": "1"},
+        "self_update_env": {"SYNC_UPDATE": "1"},
+    }
+
+
 def test_provider_metadata_hidden_from_model_pickers_true() -> None:
     """A provider that opts in to hiding is flagged in its metadata."""
 

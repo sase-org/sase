@@ -15,6 +15,7 @@ from rich.text import Text
 
 from .models import (
     AgentCliNothingToUpdate,
+    EnvOverlay,
     AgentCliUnknownName,
     AgentCliUpdateEntry,
     AgentCliUpdatePlan,
@@ -127,6 +128,7 @@ def _plan_entry_json(entry: AgentCliUpdateEntry) -> dict[str, Any]:
         "display_name": status.display_name,
         "strategy": entry.strategy.value,
         "command": list(entry.argv) if entry.argv else None,
+        "env": dict(entry.env_overlay),
         "suggested_command": list(entry.manual_argv) if entry.manual_argv else None,
         "reason": _reason_with_docs(entry.skip_reason, status.docs_url),
         "docs_url": status.docs_url,
@@ -157,6 +159,7 @@ def _result_entry_json(result: AgentCliUpdateResult) -> dict[str, Any]:
         "old_version": result.old_version,
         "new_version": result.new_version,
         "command": list(result.command) if result.command else None,
+        "env": dict(result.env_overlay),
         "suggested_command": (
             list(result.suggested_command) if result.suggested_command else None
         ),
@@ -180,7 +183,7 @@ def _render_dry_run(
             body.append("● ", style="bold cyan")
             body.append(entry.status.display_name, style="bold")
             body.append("\n  ")
-            body.append(shlex.join(entry.argv), style="cyan")
+            body.append(_command_text(entry.argv, entry.env_overlay), style="cyan")
         else:
             body.append("○ ", style="yellow")
             body.append(entry.status.display_name, style="bold")
@@ -229,7 +232,7 @@ def _render_results(
             )
         if result.command:
             body.append("\n  command: ", style="dim")
-            body.append(shlex.join(result.command), style="cyan")
+            body.append(_command_text(result.command, result.env_overlay), style="cyan")
         if result.suggested_command:
             body.append("\n  manual: ", style="dim")
             body.append(shlex.join(result.suggested_command), style="cyan")
@@ -363,6 +366,15 @@ def _docs_urls(entries: Sequence[AgentCliUpdateEntry]) -> tuple[str, ...]:
             entry.status.docs_url for entry in entries if entry.status.docs_url
         )
     )
+
+
+def _command_text(argv: Sequence[str], env_overlay: EnvOverlay) -> str:
+    """Render a command exactly as SASE will run it, env overlay included.
+
+    The ``NAME=value`` prefix is display only — SASE never uses a shell.
+    """
+    prefix = "".join(f"{name}={shlex.quote(value)} " for name, value in env_overlay)
+    return f"{prefix}{shlex.join(argv)}"
 
 
 def _version(value: str | None) -> str:

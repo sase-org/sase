@@ -108,8 +108,18 @@ class LLMHookSpec:
         descriptive fields used in diagnostic output. Providers may also
         declare ``display_name``, ``docs_url``, ``self_update_argv``,
         ``version_argv`` (default ``["--version"]``), ``version_regex``,
-        ``latest_version_package``, and ``brew_package``. Consumers must treat
-        every field as optional so third-party providers remain compatible.
+        ``latest_version_package``, and ``brew_package``.
+
+        CLIs distributed by a version channel rather than a package registry
+        may declare ``latest_version_url`` (an HTTPS JSON endpoint) with
+        ``latest_version_json_field`` (default ``version``), and
+        ``version_compare: "exact"`` when their release ids are not valid
+        PEP 440 versions. ``self_update_env`` and ``install_env`` are env
+        overlays applied to the update and install commands, and
+        ``manager: "script"`` with ``install_script_url`` marks a CLI that
+        ``sase agent-cli install`` can fetch and run. Values must not contain
+        secrets. Consumers must treat every field as optional so third-party
+        providers remain compatible.
         """
         ...
 

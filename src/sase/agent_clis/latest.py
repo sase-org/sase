@@ -1,4 +1,4 @@
-"""Npm-registry latest-version oracle with a tolerant TTL cache."""
+"""Latest-version oracles (npm registry, JSON endpoint) with a TTL cache."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ import urllib.request
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from sase.core.paths import ensure_sase_directory, sase_subdir
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 CACHE_SUBDIR = "agent_clis"
 CACHE_FILENAME = "latest_cache.json"
 LATEST_TTL_SECONDS = 6 * 60 * 60
@@ -31,10 +31,31 @@ class _Response(Protocol):
 
 
 UrlOpenFn = Callable[..., _Response]
-FetchFn = Callable[[str], str | None]
+FetchFn = Callable[["LatestQuery"], str | None]
 ReadCacheFn = Callable[[], dict[str, "CachedLatest"]]
 WriteCacheFn = Callable[[dict[str, "CachedLatest"]], None]
 ClockFn = Callable[[], float]
+
+LatestKind = Literal["npm", "url"]
+DEFAULT_JSON_FIELD = "version"
+
+
+@dataclass(frozen=True)
+class LatestQuery:
+    """One latest-version lookup: where to ask, and how to key the answer."""
+
+    key: str
+    kind: LatestKind
+    target: str
+    field: str = DEFAULT_JSON_FIELD
+
+    @classmethod
+    def for_npm(cls, package: str) -> LatestQuery:
+        return cls(key=f"npm:{package}", kind="npm", target=package)
+
+    @classmethod
+    def for_url(cls, url: str, *, field: str = DEFAULT_JSON_FIELD) -> LatestQuery:
+        return cls(key=f"url:{url}", kind="url", target=url, field=field)
 
 
 @dataclass(frozen=True)
@@ -77,8 +98,40 @@ def _fetch_npm_latest_version(
     return version.strip() if isinstance(version, str) and version.strip() else None
 
 
+def _fetch_url_latest_version(
+    url: str,
+    *,
+    field: str = DEFAULT_JSON_FIELD,
+    urlopen_fn: UrlOpenFn = urllib.request.urlopen,
+    timeout: float = REGISTRY_TIMEOUT_SECONDS,
+) -> str | None:
+    """Fetch a version string from *field* of an HTTPS JSON endpoint."""
+    if not url.startswith("https://"):
+        return None
+    request = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json", "User-Agent": "sase-agent-cli"},
+    )
+    try:
+        with urlopen_fn(request, timeout=timeout) as response:  # noqa: S310
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, ValueError, urllib.error.URLError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    version = payload.get(field)
+    return version.strip() if isinstance(version, str) and version.strip() else None
+
+
+def _fetch_latest_version(query: LatestQuery) -> str | None:
+    """Dispatch one query to the oracle that serves its ``kind``."""
+    if query.kind == "url":
+        return _fetch_url_latest_version(query.target, field=query.field)
+    return _fetch_npm_latest_version(query.target)
+
+
 def read_cache(path: Path | None = None) -> dict[str, CachedLatest]:
-    """Read cached npm versions; malformed entries are ignored."""
+    """Read cached latest versions; malformed entries are ignored."""
     try:
         envelope = json.loads((path or _cache_path()).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -92,8 +145,8 @@ def read_cache(path: Path | None = None) -> dict[str, CachedLatest]:
     if not isinstance(raw_entries, dict):
         return {}
     entries: dict[str, CachedLatest] = {}
-    for package, raw in raw_entries.items():
-        if not isinstance(package, str) or not isinstance(raw, dict):
+    for key, raw in raw_entries.items():
+        if not isinstance(key, str) or not isinstance(raw, dict):
             continue
         version = raw.get("version")
         fetched_at = raw.get("fetched_at")
@@ -101,12 +154,12 @@ def read_cache(path: Path | None = None) -> dict[str, CachedLatest]:
             continue
         if not isinstance(fetched_at, int | float) or isinstance(fetched_at, bool):
             continue
-        entries[package] = CachedLatest(version, float(fetched_at))
+        entries[key] = CachedLatest(version, float(fetched_at))
     return entries
 
 
 def write_cache(entries: dict[str, CachedLatest], *, path: Path | None = None) -> None:
-    """Atomically persist npm latest-version entries."""
+    """Atomically persist latest-version entries."""
     cache_path = path or _cache_path()
     if path is None:
         ensure_sase_directory(CACHE_SUBDIR)
@@ -115,8 +168,8 @@ def write_cache(entries: dict[str, CachedLatest], *, path: Path | None = None) -
     envelope: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "entries": {
-            package: {"version": item.version, "fetched_at": item.fetched_at}
-            for package, item in sorted(entries.items())
+            key: {"version": item.version, "fetched_at": item.fetched_at}
+            for key, item in sorted(entries.items())
         },
     }
     tmp_path = cache_path.with_name(f"{cache_path.name}.{os.getpid()}.tmp")
@@ -137,22 +190,34 @@ def is_fresh(
 
 
 def get_latest_versions(
-    packages: Iterable[str],
+    queries: Iterable[LatestQuery | str],
     *,
     offline: bool = False,
     refresh: bool = False,
     ttl_seconds: float = LATEST_TTL_SECONDS,
-    fetch_fn: FetchFn = _fetch_npm_latest_version,
+    fetch_fn: FetchFn = _fetch_latest_version,
     read_cache_fn: ReadCacheFn = read_cache,
     write_cache_fn: WriteCacheFn = write_cache,
     clock: ClockFn = time.time,
 ) -> dict[str, LatestVersion]:
-    """Resolve each package from fresh cache or the npm registry.
+    """Resolve each query from fresh cache or its remote oracle.
 
-    Offline mode never fetches. A stale cached value remains useful offline and
-    is returned with an ``offline_stale_cache`` marker.
+    Results and cache entries are keyed by ``LatestQuery.key``, so npm
+    packages and JSON endpoints share one TTL cache without colliding. Bare
+    strings are accepted as npm packages. Offline mode never fetches. A stale
+    cached value remains useful offline and is returned with an
+    ``offline_stale_cache`` marker.
     """
-    unique = tuple(dict.fromkeys(package for package in packages if package))
+    unique = tuple(
+        {
+            query.key: query
+            for query in (
+                item if isinstance(item, LatestQuery) else LatestQuery.for_npm(item)
+                for item in queries
+                if item
+            )
+        }.values()
+    )
     now = clock()
     try:
         cached = read_cache_fn()
@@ -162,35 +227,36 @@ def get_latest_versions(
     updated_cache = dict(cached)
     cache_changed = False
 
-    for package in unique:
-        item = cached.get(package)
+    for query in unique:
+        key = query.key
+        item = cached.get(key)
         if (
             item is not None
             and not refresh
             and is_fresh(item, now, ttl_seconds=ttl_seconds)
         ):
-            results[package] = LatestVersion(item.version, cached=True)
+            results[key] = LatestVersion(item.version, cached=True)
             continue
         if offline:
             if item is None:
-                results[package] = LatestVersion(None, error="offline")
+                results[key] = LatestVersion(None, error="offline")
             else:
-                results[package] = LatestVersion(
+                results[key] = LatestVersion(
                     item.version, error="offline_stale_cache", cached=True
                 )
             continue
         try:
-            version = fetch_fn(package)
+            version = fetch_fn(query)
         except Exception:  # noqa: BLE001 - network errors degrade to unknown.
             version = None
         if version is None and item is not None:
-            results[package] = LatestVersion(
+            results[key] = LatestVersion(
                 item.version, error="registry_unavailable", cached=True
             )
             continue
         error = None if version is not None else "registry_unavailable"
-        results[package] = LatestVersion(version, error=error)
-        updated_cache[package] = CachedLatest(version, now)
+        results[key] = LatestVersion(version, error=error)
+        updated_cache[key] = CachedLatest(version, now)
         cache_changed = True
 
     if cache_changed:
@@ -204,8 +270,10 @@ def get_latest_versions(
 __all__ = [
     "CACHE_FILENAME",
     "CACHE_SUBDIR",
+    "DEFAULT_JSON_FIELD",
     "LATEST_TTL_SECONDS",
     "CachedLatest",
+    "LatestQuery",
     "LatestVersion",
     "get_latest_versions",
     "is_fresh",

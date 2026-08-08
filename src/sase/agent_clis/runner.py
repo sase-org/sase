@@ -6,7 +6,7 @@ import os
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 from sase.core.paths import get_sase_managed_tmpdir
@@ -65,10 +65,15 @@ def run_command(
     argv: Sequence[str],
     *,
     timeout: float = COMMAND_TIMEOUT_SECONDS,
+    env_overlay: Mapping[str, str] | None = None,
     run_fn: RunFn = subprocess.run,
     clock: ClockFn = time.monotonic,
 ) -> CommandResult:
-    """Run *argv* without a shell and capture success or non-zero output."""
+    """Run *argv* without a shell and capture success or non-zero output.
+
+    *env_overlay* is applied over the inherited environment after ``TMPDIR``,
+    so a CLI whose update or install is env-driven never needs a shell.
+    """
     args = tuple(str(item) for item in argv)
     start = clock()
     try:
@@ -78,6 +83,7 @@ def run_command(
         ) as command_tmpdir:
             child_env = os.environ.copy()
             child_env["TMPDIR"] = command_tmpdir
+            child_env.update(env_overlay or {})
             completed = run_fn(
                 list(args),
                 stdin=subprocess.DEVNULL,

@@ -13,7 +13,7 @@ from typing import Any
 
 from sase.llm_provider import registry as llm_registry
 
-from .models import AgentCliStatus, InstallMethod
+from .models import AgentCliStatus, EnvOverlay, InstallMethod, VersionCompare
 from .runner import (
     PROBE_TIMEOUT_SECONDS,
     AgentCliRunnerError,
@@ -265,7 +265,11 @@ def detect_agent_cli_statuses(
                 update_available=False,
                 docs_url=docs_url,
                 install_hint=_install_hint(
-                    display_name, manager=manager, package=package, docs_url=docs_url
+                    name,
+                    display_name,
+                    manager=manager,
+                    package=package,
+                    docs_url=docs_url,
                 ),
                 package=package,
                 latest_version_package=_optional_str(
@@ -279,6 +283,15 @@ def detect_agent_cli_statuses(
                     npm.root_writable if method is InstallMethod.NPM else None
                 ),
                 version_error=version.error,
+                install_manager=manager,
+                install_script_url=_optional_str(install.get("install_script_url")),
+                install_env=_string_map(install.get("install_env")),
+                self_update_env=_string_map(install.get("self_update_env")),
+                latest_version_url=_optional_str(install.get("latest_version_url")),
+                latest_version_json_field=_optional_str(
+                    install.get("latest_version_json_field")
+                ),
+                version_compare=_version_compare(install.get("version_compare")),
             )
         )
     return tuple(statuses)
@@ -332,6 +345,7 @@ def _is_homebrew_path(executable: str, prefixes: Sequence[Path]) -> bool:
 
 
 def _install_hint(
+    name: str,
     display_name: str,
     *,
     manager: str | None,
@@ -342,6 +356,8 @@ def _install_hint(
         return "bundled with SASE — nothing to install"
     if manager == "npm" and package:
         return f"npm install -g {package}"
+    if manager == InstallMethod.SCRIPT:
+        return f"run `sase agent-cli install {name}`"
     if docs_url:
         return f"install from {docs_url}"
     return f"install the {display_name} CLI"
@@ -365,6 +381,25 @@ def _string_tuple(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list | tuple):
         return ()
     return tuple(str(item).strip() for item in value if str(item).strip())
+
+
+def _string_map(value: Any) -> EnvOverlay:
+    """Normalize a provider-declared env dict into sorted string pairs."""
+    if not isinstance(value, Mapping):
+        return ()
+    pairs = {
+        key.strip(): str(item)
+        for key, item in value.items()
+        if isinstance(key, str) and key.strip()
+    }
+    return tuple(sorted(pairs.items()))
+
+
+def _version_compare(value: Any) -> VersionCompare:
+    """Select a declared comparator, defaulting to today's PEP 440 rules."""
+    if isinstance(value, str) and value.strip() == VersionCompare.EXACT:
+        return VersionCompare.EXACT
+    return VersionCompare.PEP440
 
 
 __all__ = [

@@ -86,3 +86,34 @@ def test_run_command_routes_child_tempfiles_through_managed_storage(
     assert command_tmpdir.parent == Path(get_sase_managed_tmpdir("agent-clis"))
     assert not command_tmpdir.exists()
     assert not (watched_tmpdir / "opencode").exists()
+
+
+def test_run_command_applies_env_overlay_over_the_inherited_environment() -> None:
+    result = run_command(
+        [
+            sys.executable,
+            "-c",
+            "import os; print(os.environ['MUSE_SYNC_UPDATE'], os.environ['PATH'] != '')",
+        ],
+        env_overlay={"MUSE_SYNC_UPDATE": "1"},
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "1 True"
+
+
+def test_env_overlay_layers_over_the_managed_child_environment() -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0)
+
+    run_command(["tool"], env_overlay={"OVERLAY": "on"}, run_fn=fake_run)
+
+    child_env = captured["env"]
+    assert isinstance(child_env, dict)
+    assert child_env["OVERLAY"] == "on"
+    assert Path(child_env["TMPDIR"]).parent == Path(
+        get_sase_managed_tmpdir("agent-clis")
+    )

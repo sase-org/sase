@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, cast
 
 from sase.ace.comprehensive_update import (
@@ -71,11 +71,15 @@ class ComprehensiveUpdateExecutionMixin:
                 reporter.phase("Updating agent CLIs")
 
                 def task_runner(
-                    argv: tuple[str, ...], *, timeout: float = 300.0
+                    argv: tuple[str, ...],
+                    *,
+                    timeout: float = 300.0,
+                    env_overlay: Mapping[str, str] | None = None,
                 ) -> CommandResult:
                     return run_command(
                         argv,
                         timeout=timeout,
+                        env_overlay=env_overlay,
                         run_fn=reporter.subprocess_run_fn(),
                     )
 

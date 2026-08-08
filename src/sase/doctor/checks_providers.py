@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any, TYPE_CHECKING
 
 from sase.agent_clis.detect import resolve_executable
+from sase.agent_clis.models import InstallMethod
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 from sase.llm_provider import registry as llm_registry
 from sase.llm_provider.config import get_llm_provider_config
@@ -212,6 +213,8 @@ def setup_hint(
         install_text = f"npm install -g {package}"
     elif manager == "bundled":
         install_text = "bundled with SASE — nothing to install"
+    elif manager == InstallMethod.SCRIPT:
+        install_text = f"run `sase agent-cli install {provider_name}`"
     elif docs_url:
         install_text = f"install from {docs_url}"
     elif fallback is not None:
