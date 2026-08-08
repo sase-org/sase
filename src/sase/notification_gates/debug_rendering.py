@@ -189,7 +189,27 @@ def _option_inventory(envelope: Mapping[str, Any]) -> str:
                 else "?",
             )
         )
+        lines.extend(_declared_input_lines(value.get("inputs")))
     return "\n".join(lines)
+
+
+def _declared_input_lines(raw_inputs: object) -> list[str]:
+    """Render one gate option's declared ``inputs`` vocabulary, if any."""
+    if not isinstance(raw_inputs, list) or not raw_inputs:
+        return []
+    lines = []
+    for item in raw_inputs:
+        if not isinstance(item, Mapping):
+            continue
+        field_type = str(item.get("type") or "?")
+        if item.get("repeatable"):
+            field_type += "[]"
+        required = "required" if item.get("required") else "optional"
+        secret = " · secret" if item.get("secret") else ""
+        lines.append(
+            f"      · {item.get('id') or '?'} ({field_type}, {required}){secret}"
+        )
+    return lines
 
 
 def _resource_table(resources: tuple[Any, ...]) -> str:

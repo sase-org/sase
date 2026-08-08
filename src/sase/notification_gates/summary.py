@@ -16,7 +16,7 @@ import dataclasses
 import os
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -26,10 +26,12 @@ from sase.notification_gates.debug_artifacts import error_artifacts, terminal_ar
 from sase.notification_gates.debug_models import GateDebugBundlePaths
 from sase.notification_gates.debug_rendering import iso_from_unix
 from sase.notification_gates.hashing import load_and_verify_bundle
+from sase.notification_gates.model_results import effective_response_input
 from sase.notification_gates.models import (
     GateError,
     GateFeedbackMode,
     GateGroup,
+    GateInputField,
     GateOption,
 )
 from sase.notification_gates.paths import resolve_notification_bundle
@@ -76,6 +78,8 @@ class GateSummaryOption:
     feedback: GateFeedbackMode
     default_selected: bool
     selected: bool
+    input_fields: tuple[GateInputField, ...] = ()
+    submitted_input: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -107,6 +111,7 @@ class GateSummary:
     error_count: int
     bundle_path: Path | None
     unavailable_reason: str | None
+    option_inputs: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def gate_summary_from_notification(notification: Notification) -> GateSummary | None:
@@ -207,6 +212,7 @@ def load_gate_summary(notification: Notification) -> GateSummary | None:
         selected_option_ids: tuple[str, ...] = ()
         feedback: str | None = None
         cancellation_reason: str | None = None
+        option_inputs: dict[str, dict[str, Any]] = {}
         if terminal_kind == "response" and terminal_readable:
             raw_selected = terminal_payload.get("selected_option_ids")
             if isinstance(raw_selected, list):
@@ -214,6 +220,10 @@ def load_gate_summary(notification: Notification) -> GateSummary | None:
             raw_feedback = terminal_payload.get("feedback")
             if isinstance(raw_feedback, str) and raw_feedback:
                 feedback = raw_feedback
+            option_inputs = {
+                option_id: effective_response_input(terminal_payload, option_id)
+                for option_id in selected_option_ids
+            }
         elif terminal_kind == "cancellation" and terminal_readable:
             raw_reason = terminal_payload.get("reason")
             cancellation_reason = str(raw_reason) if raw_reason is not None else None
@@ -239,6 +249,7 @@ def load_gate_summary(notification: Notification) -> GateSummary | None:
                 groups_by_members=groups_by_members,
                 is_primary=branch == branch_data.primary_branch,
                 selected_ids=selected_ids,
+                option_inputs=option_inputs,
             )
             for branch in branch_data.branches
         )
@@ -258,6 +269,7 @@ def load_gate_summary(notification: Notification) -> GateSummary | None:
             error_count=error_count,
             bundle_path=bundle.root,
             unavailable_reason=None,
+            option_inputs=option_inputs,
         )
     except Exception as exc:  # noqa: BLE001 - the "never raises" contract is structural
         return dataclasses.replace(
@@ -274,6 +286,7 @@ def _summary_branch(
     groups_by_members: Mapping[frozenset[str], GateGroup],
     is_primary: bool,
     selected_ids: set[str],
+    option_inputs: Mapping[str, dict[str, Any]],
 ) -> GateSummaryBranch:
     first = options_by_id[branch[0]]
     if len(branch) == 1:
@@ -283,7 +296,8 @@ def _summary_branch(
         label = group.label or first.label
         icon = group.icon
     options = tuple(
-        _summary_option(options_by_id[option_id], selected_ids) for option_id in branch
+        _summary_option(options_by_id[option_id], selected_ids, option_inputs)
+        for option_id in branch
     )
     return GateSummaryBranch(
         option_ids=branch,
@@ -294,7 +308,11 @@ def _summary_branch(
     )
 
 
-def _summary_option(option: GateOption, selected_ids: set[str]) -> GateSummaryOption:
+def _summary_option(
+    option: GateOption,
+    selected_ids: set[str],
+    option_inputs: Mapping[str, dict[str, Any]],
+) -> GateSummaryOption:
     return GateSummaryOption(
         id=option.id,
         label=option.label,
@@ -303,6 +321,8 @@ def _summary_option(option: GateOption, selected_ids: set[str]) -> GateSummaryOp
         feedback=option.feedback,
         default_selected=option.default_selected,
         selected=option.id in selected_ids,
+        input_fields=option.inputs,
+        submitted_input=option_inputs.get(option.id),
     )
 
 

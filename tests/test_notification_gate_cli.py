@@ -48,6 +48,13 @@ def test_gate_wait_prints_stable_answered_json_and_human_summary(
         "selected_option_ids": ["proceed", "audit"],
         "feedback": "Looks good",
         "response_path": str(result.response_path),
+        "input": {},
+        "option_inputs": {"proceed": {}, "audit": {}},
+        "option_results": [
+            {"id": "proceed", "result": {"status": "ok"}},
+            {"id": "audit", "result": {"audit": {}}},
+        ],
+        "operations": [],
     }
 
     args.json = False

@@ -121,8 +121,13 @@ def append_journal_event(
     fsync_dir(path.parent)
 
 
-def _read_journal_events(bundle_path: Path) -> tuple[dict[str, Any], ...]:
-    """Return every well-formed journal record in append order."""
+def read_journal_records(bundle_path: Path) -> tuple[dict[str, Any], ...]:
+    """Return every well-formed journal record in append order.
+
+    Read-only and best-effort: a missing or unreadable ``journal.jsonl``
+    yields an empty tuple rather than raising, matching every other bounded
+    diagnostic reader in this package.
+    """
     path = bundle_path / EXECUTION_JOURNAL_FILENAME
     try:
         raw = path.read_text(encoding="utf-8")
@@ -146,7 +151,7 @@ def _read_journal_events(bundle_path: Path) -> tuple[dict[str, Any], ...]:
 
 def incomplete_attempt(bundle_path: Path) -> IncompleteAttempt | None:
     """Return the newest started attempt that never reached a terminal event."""
-    events = _read_journal_events(bundle_path)
+    events = read_journal_records(bundle_path)
     started: dict[str, dict[str, Any]] = {}
     order: list[str] = []
     terminal: set[str] = set()
@@ -203,11 +208,41 @@ def incomplete_attempt(bundle_path: Path) -> IncompleteAttempt | None:
     )
 
 
+def executed_operations(bundle_path: Path) -> tuple[dict[str, Any], ...]:
+    """Return every ``operation_ran`` record, oldest first.
+
+    A compact projection for headless consumers (``sase gate wait --json``):
+    which repeatable action ran, when, and whether it succeeded. The full
+    record -- attempt id, digests -- stays in the journal for ``d``/Gate
+    Debug, which renders the raw history instead.
+    """
+    executed: list[dict[str, Any]] = []
+    for record in read_journal_records(bundle_path):
+        if record.get("event") != "operation_ran":
+            continue
+        operation_id = record.get("operation_id")
+        if not isinstance(operation_id, str):
+            continue
+        at_unix = record.get("at_unix")
+        code = record.get("code")
+        executed.append(
+            {
+                "operation_id": operation_id,
+                "at_unix": at_unix if isinstance(at_unix, (int, float)) else None,
+                "ok": code is None,
+                "code": code if isinstance(code, str) else None,
+            }
+        )
+    return tuple(executed)
+
+
 __all__ = [
     "EXECUTION_JOURNAL_FILENAME",
     "EXECUTION_JOURNAL_SCHEMA_VERSION",
     "IncompleteAttempt",
     "append_journal_event",
+    "executed_operations",
     "incomplete_attempt",
+    "read_journal_records",
     "value_digest",
 ]

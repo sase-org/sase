@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
+from sase.notification_gates.models import GateInputField
 from sase.notification_gates.paths import resolve_notification_bundle
 from sase.notification_gates.summary import (
     GateSummary,
@@ -266,6 +268,8 @@ def _branch_block(
     multi = len(branch.options) > 1
     for option in branch.options:
         grid.add_row(*_option_row(option, multi=multi))
+        for line in _option_input_lines(option, terminal=terminal):
+            grid.add_row(line, Text(""))
     return grid
 
 
@@ -284,6 +288,52 @@ def _option_row(option: GateSummaryOption, *, multi: bool) -> tuple[Text, Text]:
         note = "✎ note required" if option.feedback == "required" else "✎ note optional"
         right.append(note, style=f"{PANE_MUTED} italic")
     return left, right
+
+
+def _option_input_lines(option: GateSummaryOption, *, terminal: bool) -> list[Text]:
+    """Declared fields before an answer; submitted values after one.
+
+    ``feedback`` is skipped here even when it rides along as an ordinary
+    declared field, because the pane already shows it in the "Note" section.
+    """
+    if terminal:
+        if not option.selected or not option.submitted_input:
+            return []
+        labels = {field.id: field.label for field in option.input_fields}
+        return [
+            _submitted_input_line(labels.get(field_id, field_id), value)
+            for field_id, value in option.submitted_input.items()
+            if field_id != "feedback"
+        ]
+    return [
+        _declared_input_line(field)
+        for field in option.input_fields
+        if field.id != "feedback"
+    ]
+
+
+def _declared_input_line(field: GateInputField) -> Text:
+    line = Text("       ", style=f"{PANE_MUTED} italic")
+    line.append(field.label)
+    line.append(f" ({field.type.value})", style=PANE_MUTED)
+    if field.required:
+        line.append(" · required", style=PANE_MUTED)
+    return line
+
+
+def _submitted_input_line(label: str, value: object) -> Text:
+    line = Text("       ", style=PANE_MUTED)
+    line.append(f"{label}: ")
+    line.append(_render_submitted_value(value), style="bold")
+    return line
+
+
+def _render_submitted_value(value: object) -> str:
+    if isinstance(value, Mapping) and value.get("$redacted") is True:
+        return "••• (redacted)"
+    if isinstance(value, list):
+        return ", ".join(_render_submitted_value(item) for item in value)
+    return str(value)
 
 
 def _attachments_group(self: Any, summary: GateSummary) -> list[RenderableType]:

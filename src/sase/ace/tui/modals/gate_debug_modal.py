@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-_TAB_NAMES = ("Overview", "Request", "Response", "Errors", "Row")
+_TAB_NAMES = ("Overview", "Request", "Response", "Journal", "Errors", "Row")
 _KIND_COLORS = {
     "plan": "#ff87d7",
     "epic": "#d787ff",
@@ -173,7 +173,7 @@ class GateDebugModal(CopyModeForwardingMixin, ModalScreen[None]):
     def _tab_strip(self) -> Text:
         labels = list(_TAB_NAMES)
         if self._snapshot is not None:
-            labels[3] = f"Errors ({self._snapshot.error_count})"
+            labels[4] = f"Errors ({self._snapshot.error_count})"
         text = Text()
         for index, label in enumerate(labels):
             if index:
@@ -189,6 +189,7 @@ class GateDebugModal(CopyModeForwardingMixin, ModalScreen[None]):
             self._snapshot.overview,
             self._snapshot.request,
             self._snapshot.response,
+            self._snapshot.journal,
             self._snapshot.errors_artifact,
             self._snapshot.row,
         )[self._tab_index]
@@ -198,7 +199,7 @@ class GateDebugModal(CopyModeForwardingMixin, ModalScreen[None]):
         if artifact is None:
             return
         content: Any
-        if self._tab_index in (1, 2, 4) and artifact.status == "ok":
+        if self._tab_index in (1, 2, 5) and artifact.status == "ok":
             content = Syntax(
                 artifact.body,
                 "json",
@@ -305,7 +306,7 @@ class GateDebugModal(CopyModeForwardingMixin, ModalScreen[None]):
             return None
         if self._tab_index == 0:
             return self._snapshot.request.path
-        if self._tab_index == 3 and self._snapshot.errors:
+        if self._tab_index == 4 and self._snapshot.errors:
             return self._snapshot.errors[0].path
         artifact = self._artifact_for_tab()
         return artifact.path if artifact is not None else None

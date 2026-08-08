@@ -16,7 +16,12 @@ from sase.notification_gates.debug_models import (
     GateDebugError,
     GateDebugResource,
 )
+from sase.notification_gates.debug_rendering import iso_from_unix
 from sase.notification_gates.durability import sha256_file, verify_mode
+from sase.notification_gates.journal import (
+    EXECUTION_JOURNAL_FILENAME,
+    read_journal_records,
+)
 from sase.notification_gates.paths import owned_resource_path
 from sase.notifications.models import Notification
 
@@ -164,6 +169,56 @@ def error_artifacts(
         count,
         GateDebugArtifact(status, text, text, path=directory, truncated=truncated),
     )
+
+
+def journal_artifact(bundle_path: Path) -> GateDebugArtifact:
+    """Render the execution journal: every attempt boundary and action run.
+
+    Newest first, matching :func:`error_artifacts`. Never raises --
+    :func:`~sase.notification_gates.journal.read_journal_records` is already
+    a best-effort reader, and each record's fields are read defensively here.
+    """
+    path = bundle_path / EXECUTION_JOURNAL_FILENAME
+    records = read_journal_records(bundle_path)
+    if not records:
+        text = "No execution journal recorded yet."
+        return GateDebugArtifact("missing", text, text, path=path)
+    bodies = [_journal_record_body(record) for record in reversed(records)]
+    text = "\n\n".join(bodies)
+    text, truncated = bound_text(text)
+    return GateDebugArtifact("ok", text, text, path=path, truncated=truncated)
+
+
+def _journal_record_body(record: Mapping[str, Any]) -> str:
+    at_unix = record.get("at_unix")
+    when = (
+        iso_from_unix(float(at_unix))
+        if isinstance(at_unix, (int, float)) and not isinstance(at_unix, bool)
+        else "unknown"
+    )
+    lines = [f"[{when}] {record.get('event') or 'unknown'}"]
+    option_id = record.get("option_id")
+    if isinstance(option_id, str):
+        lines.append(f"  option: {option_id}")
+    operation_id = record.get("operation_id")
+    if isinstance(operation_id, str):
+        lines.append(f"  action: {operation_id}")
+    selected = record.get("selected_option_ids")
+    if isinstance(selected, list) and selected:
+        lines.append(f"  selected: {', '.join(str(item) for item in selected)}")
+    code = record.get("code")
+    if isinstance(code, str):
+        lines.append(f"  code: {code}")
+    attempt_id = record.get("attempt_id")
+    if isinstance(attempt_id, str):
+        lines.append(f"  attempt: {attempt_id}")
+    input_digest = record.get("input_digest")
+    if isinstance(input_digest, str):
+        lines.append(f"  input digest: {input_digest}")
+    result_digest = record.get("result_digest")
+    if isinstance(result_digest, str):
+        lines.append(f"  result digest: {result_digest}")
+    return "\n".join(lines)
 
 
 def resource_integrity(

@@ -12,6 +12,8 @@ from sase.notification_gates.models import GateCreationResult
 from sase.notification_gates.presentation import GATE_TITLE_ACTION_DATA_KEY
 from sase.notification_gates.service import create_gate
 from sase.notification_gates.summary import (
+    GateSummary,
+    GateSummaryOption,
     gate_summary_from_notification,
     load_gate_summary,
 )
@@ -25,6 +27,82 @@ def _created_notification() -> tuple[GateCreationResult, Notification]:
     created = create_gate(custom_gate_spec())
     [notification] = load_notifications(include_dismissed=True)
     return created, notification
+
+
+def _echo_command() -> str:
+    return (
+        "#!/usr/bin/env python3\n"
+        "import json, sys\n"
+        "json.load(sys.stdin)\n"
+        "print(json.dumps({'status': 'ok'}))\n"
+    )
+
+
+def _inputs_gate_spec(*, request_id: str = "inputs-request") -> dict[str, object]:
+    """A custom gate with one option that declares typed and secret inputs."""
+    return {
+        "schema_version": 3,
+        "request_id": request_id,
+        "kind": "custom",
+        "producer": {"agent": "test"},
+        "payload": {},
+        "presentation": {
+            "icon": "🧪",
+            "title": "Deploy with inputs",
+            "notes": ["Deploy"],
+        },
+        "query": "deploy OR skip",
+        "primary_branch": ["deploy"],
+        "options": [
+            {
+                "id": "deploy",
+                "label": "Deploy",
+                "command": {"argv": ["commands/deploy"]},
+                "inputs": [
+                    {
+                        "id": "target_env",
+                        "label": "Target env",
+                        "type": "word",
+                        "required": True,
+                    },
+                    {
+                        "id": "token",
+                        "label": "Token",
+                        "type": "word",
+                        "secret": True,
+                    },
+                ],
+            },
+            {
+                "id": "skip",
+                "label": "Skip",
+                "command": {"argv": ["commands/skip"]},
+            },
+        ],
+        "resources": [
+            {"path": "commands/deploy", "role": "command", "content": _echo_command()},
+            {"path": "commands/skip", "role": "command", "content": _echo_command()},
+        ],
+        "auto": False,
+    }
+
+
+def _deploy_option(summary: GateSummary) -> GateSummaryOption:
+    return next(
+        option
+        for branch in summary.branches
+        for option in branch.options
+        if option.id == "deploy"
+    )
+
+
+def _skip_option(summary: GateSummary) -> GateSummaryOption:
+    return next(
+        option
+        for branch in summary.branches
+        for option in branch.options
+        if option.id == "skip"
+    )
 
 
 def test_gate_summary_from_notification_none_for_non_gate_row() -> None:
@@ -234,3 +312,46 @@ def test_load_gate_summary_never_raises_for_malformed_action_data(
 
     assert summary is not None
     assert summary.unavailable_reason is not None
+
+
+def test_load_gate_summary_pending_lists_declared_input_fields(gate_home: Path) -> None:
+    del gate_home
+    create_gate(_inputs_gate_spec())
+    [notification] = load_notifications(include_dismissed=True)
+
+    summary = load_gate_summary(notification)
+
+    assert summary is not None
+    deploy = _deploy_option(summary)
+    assert [field.id for field in deploy.input_fields] == ["target_env", "token"]
+    assert deploy.submitted_input is None
+    assert _skip_option(summary).input_fields == ()
+    assert summary.option_inputs == {}
+
+
+def test_load_gate_summary_answered_reports_submitted_input_with_secret_redacted(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    created = create_gate(_inputs_gate_spec(request_id="inputs-answered"))
+    [notification] = load_notifications(include_dismissed=True)
+    execute_gate_selection(
+        created.bundle_path,
+        ["deploy"],
+        option_inputs={"deploy": {"target_env": "staging", "token": "s3cr3t"}},
+    )
+
+    summary = load_gate_summary(notification)
+
+    assert summary is not None
+    deploy = _deploy_option(summary)
+    assert deploy.selected is True
+    assert deploy.submitted_input == {
+        "target_env": "staging",
+        "token": {"$redacted": True},
+    }
+    assert summary.option_inputs["deploy"] == deploy.submitted_input
+
+    skip = _skip_option(summary)
+    assert skip.selected is False
+    assert skip.submitted_input is None

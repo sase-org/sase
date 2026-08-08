@@ -71,6 +71,10 @@ def _snapshot(*, answered: bool) -> GateDebugSnapshot:
     {"id": "announce", "result": {"announced": true}}
   ]
 }"""
+    journal_body = (
+        "[2026-07-17T09:31:00-04:00] attempt_completed\n"
+        "  attempt: 11111111111111111111111111111111"
+    )
     error_body = (
         "✗ 1721224810-monitor.json\n"
         "  code: command_failed\n"
@@ -148,6 +152,12 @@ Pending action      available; transports notification_store, telegram"""
             if answered
             else "Pending — no response has been written yet.",
             path=_BUNDLE / "response.json",
+        ),
+        journal=GateDebugArtifact(
+            "ok" if answered else "missing",
+            journal_body if answered else "No execution journal recorded yet.",
+            journal_body if answered else "No execution journal recorded yet.",
+            path=_BUNDLE / "journal.jsonl",
         ),
         errors=(error,) if answered else (),
         error_count=1 if answered else 0,

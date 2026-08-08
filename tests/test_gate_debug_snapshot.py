@@ -13,6 +13,7 @@ from sase.notification_gates.debug import (
 )
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.models import GateCreationResult
+from sase.notification_gates.operations import execute_gate_operation
 from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
 from sase.notifications.models import Notification
@@ -104,6 +105,70 @@ def _created_notification() -> tuple[GateCreationResult, Notification]:
     created = create_gate(_spec())
     [notification] = load_notifications(include_dismissed=True)
     return created, notification
+
+
+def _spec_with_inputs_and_action(*, request_id: str = "debug-inputs") -> dict:
+    return {
+        "schema_version": 3,
+        "request_id": request_id,
+        "kind": "custom",
+        "producer": {"agent": "debug-producer", "machine": "test-host"},
+        "payload": {"title": "Inspect this gate"},
+        "presentation": {
+            "icon": "🔍",
+            "title": "Inspect this gate",
+            "notes": ["Review requested"],
+        },
+        "query": "approve",
+        "primary_branch": ["approve"],
+        "options": [
+            {
+                "id": "approve",
+                "label": "Approve",
+                "command": {"argv": ["commands/approve"]},
+                "inputs": [
+                    {
+                        "id": "ticket",
+                        "label": "Ticket",
+                        "type": "word",
+                        "required": True,
+                    },
+                    {"id": "token", "label": "Token", "type": "word", "secret": True},
+                ],
+            }
+        ],
+        "operations": [
+            {
+                "id": "show_diff",
+                "kind": "run_command",
+                "command": {"argv": ["commands/show_diff"]},
+                "result_schema": {"type": "object"},
+            }
+        ],
+        "resources": [
+            {
+                "path": "commands/approve",
+                "role": "command",
+                "content": (
+                    "#!/usr/bin/env python3\n"
+                    "import json, sys\n"
+                    "json.load(sys.stdin)\n"
+                    "print(json.dumps({'status': 'ok'}))\n"
+                ),
+            },
+            {
+                "path": "commands/show_diff",
+                "role": "command",
+                "content": (
+                    "#!/usr/bin/env python3\n"
+                    "import json, sys\n"
+                    "json.load(sys.stdin)\n"
+                    "print(json.dumps({'summary': 'diff'}))\n"
+                ),
+            },
+        ],
+        "auto": False,
+    }
 
 
 def test_pending_snapshot_includes_integrity_options_pending_and_raw_row(
@@ -333,3 +398,50 @@ def test_malformed_in_memory_row_is_normalized_for_diagnostics(
     assert snapshot.status == "UNKNOWN"
     assert snapshot.notification_id == "malformed"
     assert "No gate bundle attached" in snapshot.overview.body
+
+
+def test_overview_lists_declared_input_fields_per_option(gate_home: Path) -> None:
+    del gate_home
+    create_gate(_spec_with_inputs_and_action())
+    [notification] = load_notifications(include_dismissed=True)
+
+    snapshot = build_gate_debug_snapshot(notification, notification.action_data)
+
+    assert "ticket (word, required)" in snapshot.overview.body
+    assert "token (word, optional) · secret" in snapshot.overview.body
+
+
+def test_journal_tab_is_missing_before_any_execution(gate_home: Path) -> None:
+    del gate_home
+    create_gate(_spec_with_inputs_and_action(request_id="debug-journal-empty"))
+    [notification] = load_notifications(include_dismissed=True)
+
+    snapshot = build_gate_debug_snapshot(notification, notification.action_data)
+
+    assert snapshot.journal.status == "missing"
+    assert "No execution journal" in snapshot.journal.body
+
+
+def test_journal_tab_lists_attempts_and_executed_actions_newest_first(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    created = create_gate(_spec_with_inputs_and_action(request_id="debug-journal"))
+    [notification] = load_notifications(include_dismissed=True)
+    execute_gate_operation(created.bundle_path, "show_diff")
+    execute_gate_selection(
+        created.bundle_path,
+        ["approve"],
+        option_inputs={"approve": {"ticket": "SASE-1"}},
+    )
+
+    snapshot = build_gate_debug_snapshot(notification, notification.action_data)
+
+    assert snapshot.journal.status == "ok"
+    body = snapshot.journal.body
+    assert "attempt_completed" in body
+    assert "operation_ran" in body
+    assert "action: show_diff" in body
+    # Newest first: attempt_completed (from the answer) precedes operation_ran
+    # (from the action that ran before it).
+    assert body.index("attempt_completed") < body.index("operation_ran")

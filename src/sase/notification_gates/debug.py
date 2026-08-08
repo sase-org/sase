@@ -15,6 +15,7 @@ from sase.notification_gates.debug_artifacts import (
     MAX_ERROR_EXCERPT_BYTES,
     bound_text,
     error_artifacts,
+    journal_artifact,
     notification_row_artifact,
     parsed_json,
     read_json_artifact,
@@ -88,6 +89,7 @@ def build_gate_debug_snapshot(
         empty = "No gate bundle attached to this notification."
         request = GateDebugArtifact("missing", empty, empty)
         response = GateDebugArtifact("missing", empty, empty)
+        journal = GateDebugArtifact("missing", empty, empty)
         errors_artifact = GateDebugArtifact("missing", empty, empty)
         row = notification_row_artifact(notification)
         overview_text = build_no_bundle_overview(notification, kind, request_id)
@@ -103,6 +105,7 @@ def build_gate_debug_snapshot(
             overview=GateDebugArtifact("missing", overview_text, overview_text),
             request=request,
             response=response,
+            journal=journal,
             errors=(),
             error_count=0,
             errors_artifact=errors_artifact,
@@ -117,6 +120,7 @@ def build_gate_debug_snapshot(
         str(envelope.get("request_id") or request_id) if envelope else request_id
     )
     response, terminal_payload, terminal_kind = terminal_artifact(paths)
+    journal = journal_artifact(paths.root)
     errors, error_count, errors_artifact = error_artifacts(paths.root / "errors")
     resources = resource_integrity(paths.root, envelope)
     row = notification_row_artifact(notification)
@@ -173,6 +177,7 @@ def build_gate_debug_snapshot(
         overview=overview,
         request=request,
         response=response,
+        journal=journal,
         errors=errors,
         error_count=error_count,
         errors_artifact=errors_artifact,

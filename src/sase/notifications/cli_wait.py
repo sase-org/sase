@@ -11,6 +11,7 @@ from typing import NoReturn
 from rich.console import Console
 from rich.text import Text
 
+from sase.notification_gates.journal import executed_operations
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.poller import GatePollResult, wait_for_gate
@@ -43,7 +44,7 @@ def handle_gate_wait(args: argparse.Namespace) -> NoReturn:
         print(f"sase gate wait: cannot read gate: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    payload = _terminal_payload(result, paths.response)
+    payload = _terminal_payload(result, paths.response, paths.root)
     if bool(getattr(args, "json", False)):
         json.dump(payload, sys.stdout, indent=2)
         sys.stdout.write("\n")
@@ -56,12 +57,31 @@ def handle_gate_wait(args: argparse.Namespace) -> NoReturn:
     sys.exit(_EXIT_CODES[str(payload["status"])])
 
 
-def _terminal_payload(result: GatePollResult, response_path: Path) -> dict[str, object]:
+def _terminal_payload(
+    result: GatePollResult, response_path: Path, bundle_path: Path
+) -> dict[str, object]:
+    """Return the stable terminal projection, plus what was asked and received.
+
+    ``input``, ``option_inputs``, and ``option_results`` come straight off the
+    write-once response, so a consumer never has to open it itself. They are
+    only populated for an answered gate; ``operations`` -- the repeatable
+    non-terminal actions a reviewer ran before deciding -- comes from the
+    execution journal and is reported regardless of how the gate ended.
+    """
+    responded = result.status == "responded"
     return {
         "status": _STATUS_PROJECTION[result.status],
         "selected_option_ids": list(result.selected_option_ids),
         "feedback": result.feedback,
         "response_path": str(response_path),
+        "input": result.payload.get("input") if responded else None,
+        "option_inputs": (
+            dict(result.payload.get("option_inputs") or {}) if responded else {}
+        ),
+        "option_results": (
+            list(result.payload.get("option_results") or []) if responded else []
+        ),
+        "operations": list(executed_operations(bundle_path)),
     }
 
 

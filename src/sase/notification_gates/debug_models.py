@@ -81,6 +81,7 @@ class GateDebugSnapshot:
     overview: GateDebugArtifact
     request: GateDebugArtifact
     response: GateDebugArtifact
+    journal: GateDebugArtifact
     errors: tuple[GateDebugError, ...]
     error_count: int
     errors_artifact: GateDebugArtifact
