@@ -236,9 +236,12 @@ def test_muse_prompt_file_is_written_0o600_and_removed() -> None:
     seen: dict[str, object] = {}
 
     def _capture(
-        process: object, suppress_output: bool = False
+        process: object,
+        suppress_output: bool = False,
+        *,
+        session_id: str | None = None,
     ) -> tuple[str, str, int, dict[str, int]]:
-        del process, suppress_output
+        del process, suppress_output, session_id
         path = Path(seen["prompt_file"])  # type: ignore[arg-type]
         seen["existed"] = path.exists()
         seen["mode"] = path.stat().st_mode & 0o777
@@ -411,8 +414,9 @@ def test_muse_interrupt_reconstructs_the_continuation_prompt() -> None:
     def _fake_run(
         args: list[str],
         suppress_output: bool,
+        session_id: str | None = None,
     ) -> tuple[str, str, int, dict[str, int]]:
-        del suppress_output
+        del suppress_output, session_id
         prompt_file = Path(args[args.index("--prompt-file") + 1])
         prompts.append(prompt_file.read_text(encoding="utf-8"))
         if len(prompts) == 1:

@@ -32,16 +32,23 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import IO
 
+from ._muse_session_usage import read_muse_session_usage
 from ._subprocess_artifacts import (
     append_stream_text,
     initial_usage_totals,
     open_live_reply_file,
     open_live_reply_timestamps_file,
+    write_run_metadata_artifact,
     write_usage_artifact,
 )
 from ._subprocess_diagnostics import record_stdout_json_decode_diagnostic
 from ._subprocess_stream import append_error_events, stream_json_lines
 from ._tool_call_io import append_tool_call_collector_diagnostic
+from ._tool_call_muse import (
+    MUSE_TOOL_CALL_PAYLOAD_TYPES,
+    MuseToolCallTracker,
+    append_muse_tool_call_events,
+)
 
 # --- Muse event-stream vocabulary -------------------------------------
 # Every payload-type and envelope-field string Muse's stream parser depends
@@ -94,25 +101,28 @@ class _MuseStreamState:
     # configured, which closes the gap where a run with no SASE-resolved model
     # or effort shows blank while Muse quietly used its own defaults.
     model_id: str | None = None
+    provider_id: str | None = None
+    tool_calls: MuseToolCallTracker = field(default_factory=MuseToolCallTracker)
 
 
 def stream_and_parse_muse_json_output(
     process: subprocess.Popen[str],
     suppress_output: bool = False,
+    *,
+    session_id: str | None = None,
 ) -> tuple[str, str, int, dict[str, int]]:
     """Stream ``muse exec --json`` events and extract the authoritative reply.
 
     Returns ``(content, stderr_content, return_code, usage_totals)``. Muse's
-    stdout stream carries no token usage at all — it lives in the on-disk
-    session log SASE names via ``--session-id`` — so ``usage_totals`` is the
-    zeroed shape here and is populated by the tool-call/usage phase.
+    stdout stream carries no token usage at all, so ``usage_totals`` is
+    recovered after the process exits from the on-disk session log SASE named
+    via ``--session-id``. Without a *session_id* the totals stay zeroed.
     """
     state = _MuseStreamState(
         suppress_output=suppress_output,
         live_reply_file=open_live_reply_file(),
         timestamps_file=open_live_reply_timestamps_file(),
     )
-    usage_totals = initial_usage_totals()
 
     try:
         stderr_content, return_code = stream_json_lines(
@@ -127,7 +137,13 @@ def stream_and_parse_muse_json_output(
             state.timestamps_file.close()
 
     content = _resolve_muse_content(state)
+    # The session log is only complete once Muse has exited, so usage is read
+    # here rather than streamed.
+    usage_totals = (
+        read_muse_session_usage(session_id) if session_id else initial_usage_totals()
+    )
     write_usage_artifact(usage_totals)
+    _write_muse_run_metadata(state, session_id)
 
     stderr_content = append_error_events(stderr_content, return_code, state.diagnostics)
     if return_code == MUSE_USAGE_ERROR_EXIT_CODE:
@@ -172,9 +188,7 @@ def _process_muse_json_line(line: str, state: _MuseStreamState) -> None:
     elif payload_type.startswith(PAYLOAD_RUN_TERMINAL_PREFIX):
         _capture_run_terminal(payload, state)
     elif payload_type == PAYLOAD_RUN_MODEL_CONFIGURED:
-        model_id = payload.get("model_id")
-        if isinstance(model_id, str) and model_id:
-            state.model_id = model_id
+        _capture_model_identity(payload, state)
     elif payload_type in (
         PAYLOAD_TASK_REJECTED,
         PAYLOAD_TASK_CANCELLED,
@@ -183,6 +197,35 @@ def _process_muse_json_line(line: str, state: _MuseStreamState) -> None:
         _capture_task_diagnostic(payload_type, payload, state)
     # Any other payload type — including ones this release has never seen —
     # is deliberately ignored rather than treated as an error.
+
+    if payload_type in MUSE_TOOL_CALL_PAYLOAD_TYPES:
+        append_muse_tool_call_events(state.tool_calls, payload_type, payload)
+
+
+def _capture_model_identity(
+    payload: Mapping[str, object], state: _MuseStreamState
+) -> None:
+    """Record the model and provider Muse configured for this run."""
+    model_id = payload.get("model_id")
+    if isinstance(model_id, str) and model_id:
+        state.model_id = model_id
+    provider_id = payload.get("provider_id")
+    if isinstance(provider_id, str) and provider_id:
+        state.provider_id = provider_id
+
+
+def _write_muse_run_metadata(state: _MuseStreamState, session_id: str | None) -> None:
+    """Persist the model Muse actually configured, plus the session handle."""
+    fields: dict[str, object] = {}
+    if state.model_id:
+        fields["model_id"] = state.model_id
+    if state.provider_id:
+        fields["provider_id"] = state.provider_id
+    if session_id:
+        fields["muse_session_id"] = session_id
+    if fields:
+        fields["runtime"] = MUSE_RUNTIME_NAME
+        write_run_metadata_artifact(fields)
 
 
 def _stream_output_delta(

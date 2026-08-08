@@ -65,6 +65,37 @@ def write_usage_artifact(usage_totals: dict[str, int]) -> None:
         f.write("\n")
 
 
+def write_run_metadata_artifact(fields: dict[str, object]) -> None:
+    """Merge *fields* into ``run_metadata.json`` in the artifacts directory.
+
+    Provider-neutral run facts that are neither reply text nor token counts —
+    the model a CLI actually configured, for instance — land here. Merging
+    rather than overwriting lets a retry cycle add to what an earlier cycle
+    recorded, and a corrupt or missing file is replaced rather than raised.
+    """
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir or not fields:
+        return
+    path = os.path.join(artifacts_dir, "run_metadata.json")
+
+    metadata: dict[str, object] = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            existing = json.load(f)
+        if isinstance(existing, dict):
+            metadata = existing
+    except (OSError, json.JSONDecodeError):
+        metadata = {}
+
+    metadata.update(fields)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2, sort_keys=True)
+            f.write("\n")
+    except OSError:
+        pass
+
+
 def write_reply_timestamp(
     live_reply_file: IO[str],
     timestamps_file: IO[str] | None,
@@ -126,4 +157,5 @@ _open_live_reply_file = open_live_reply_file
 _open_live_reply_timestamps_file = open_live_reply_timestamps_file
 _strip_ansi = strip_ansi
 _write_reply_timestamp = write_reply_timestamp
+_write_run_metadata_artifact = write_run_metadata_artifact
 _write_usage_artifact = write_usage_artifact

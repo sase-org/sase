@@ -274,9 +274,9 @@ class MuseProvider(LLMProvider):
                 translated into ``--reasoning-effort`` args.
 
         Returns:
-            An ``InvokeResult`` with the response text and zeroed usage. Muse's
-            stdout stream carries no token counts; recovering them from the
-            session log SASE names is the artifacts phase's job.
+            An ``InvokeResult`` with the response text and token usage. Muse's
+            stdout stream carries no token counts, so usage is recovered from
+            the session log SASE names through ``--session-id``.
 
         Raises:
             subprocess.CalledProcessError: If the Muse CLI process fails. Exit
@@ -340,13 +340,15 @@ class MuseProvider(LLMProvider):
             # The prompt goes through a 0o600 managed temp file rather than
             # argv or stdin, and is removed as soon as the cycle ends.
             prompt_file = _write_prompt_file(current_prompt)
+            # SASE generates the session id rather than letting Muse pick one:
+            # it is the handle that locates the session log, which is where
+            # Muse's token usage actually lives.
+            session_id = str(uuid.uuid4())
             try:
                 command_args = [
                     *base_args,
-                    # SASE generates the session id rather than letting Muse
-                    # pick one: it is the handle that locates the session log.
                     "--session-id",
-                    str(uuid.uuid4()),
+                    session_id,
                     "--prompt-file",
                     prompt_file,
                 ]
@@ -354,12 +356,14 @@ class MuseProvider(LLMProvider):
                 if timer_context:
                     with timer_context:
                         content, stderr_content, return_code, usage = (
-                            self._run_subprocess(command_args, suppress_output)
+                            self._run_subprocess(
+                                command_args, suppress_output, session_id
+                            )
                         )
                         print()
                 else:
                     content, stderr_content, return_code, usage = self._run_subprocess(
-                        command_args, suppress_output
+                        command_args, suppress_output, session_id
                     )
             finally:
                 Path(prompt_file).unlink(missing_ok=True)
@@ -402,6 +406,7 @@ class MuseProvider(LLMProvider):
         self,
         args: list[str],
         suppress_output: bool,
+        session_id: str | None = None,
     ) -> tuple[str, str, int, dict[str, int]]:
         """Run the Muse Code subprocess and parse its JSONL event stream."""
         env = os.environ.copy()
@@ -424,5 +429,5 @@ class MuseProvider(LLMProvider):
         )
 
         return stream_and_parse_muse_json_output(
-            process, suppress_output=suppress_output
+            process, suppress_output=suppress_output, session_id=session_id
         )
