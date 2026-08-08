@@ -15,9 +15,15 @@ from sase.notification_gates.model_inputs import (
     GateInputField,
     compile_gate_input_schema,
 )
+from sase.notification_gates.model_validation import first_schema_error
 from sase.notification_gates.models import GateError, GateOption
 from sase.notification_gates.service import create_gate
-from sase.xprompt.models import InputChoice, InputType
+from sase.xprompt.models import (
+    InputArg,
+    InputChoice,
+    InputType,
+    XPromptValidationError,
+)
 from tests._notification_gates_fixtures import custom_gate_spec
 
 # -- compile_gate_input_schema -----------------------------------------------
@@ -26,14 +32,22 @@ from tests._notification_gates_fixtures import custom_gate_spec
 @pytest.mark.parametrize(
     ("input_type", "choices", "expected_fragment"),
     [
-        (InputType.WORD, (), {"type": "string", "minLength": 1, "pattern": r"^\S+$"}),
-        (InputType.AGENT, (), {"type": "string", "minLength": 1, "pattern": r"^\S+$"}),
-        (InputType.LINE, (), {"type": "string", "pattern": r"^[^\n]*$"}),
+        (
+            InputType.WORD,
+            (),
+            {"type": "string", "minLength": 1, "pattern": r"^\S+(?![\s\S])"},
+        ),
+        (
+            InputType.AGENT,
+            (),
+            {"type": "string", "minLength": 1, "pattern": r"^\S+(?![\s\S])"},
+        ),
+        (InputType.LINE, (), {"type": "string", "pattern": r"^[^\n]*(?![\s\S])"}),
         (InputType.TEXT, (), {"type": "string"}),
         (
             InputType.PATH,
             (),
-            {"type": "string", "minLength": 1, "pattern": r"^[^\n]*$"},
+            {"type": "string", "minLength": 1, "pattern": r"^[^\n]*(?![\s\S])"},
         ),
         (InputType.INT, (), {"type": "integer"}),
         (InputType.FLOAT, (), {"type": "number"}),
@@ -67,8 +81,37 @@ def test_compile_gate_input_schema_wraps_repeatable_fragment_in_array() -> None:
 
     assert schema["properties"]["tags"] == {
         "type": "array",
-        "items": {"type": "string", "minLength": 1, "pattern": r"^\S+$"},
+        "items": {"type": "string", "minLength": 1, "pattern": r"^\S+(?![\s\S])"},
     }
+
+
+@pytest.mark.parametrize(
+    "input_type",
+    [InputType.WORD, InputType.AGENT, InputType.LINE, InputType.PATH],
+)
+@pytest.mark.parametrize("value", ["ab\n", "ab\n\n", "ab", "a b"])
+def test_compiled_pattern_and_validate_and_convert_agree(
+    input_type: InputType, value: str
+) -> None:
+    """The schema layer and the typed layer must reach the same verdict.
+
+    Python's ``re`` lets ``$`` match before a trailing newline, so the original
+    ``^\\S+$`` accepted ``"ab\\n"`` through ``--option-input``, the ACE raw
+    editor, and the mobile bridge while a typed ACE form refused it.
+    """
+    field = GateInputField(id="value", label="Value", type=input_type)
+    schema = compile_gate_input_schema((field,), feedback_mode="disabled")
+    arg = InputArg(name="value", type=input_type)
+
+    schema_accepts = first_schema_error({"value": value}, schema) is None
+    try:
+        arg.validate_and_convert(value)
+    except XPromptValidationError:
+        typed_accepts = False
+    else:
+        typed_accepts = True
+
+    assert schema_accepts is typed_accepts
 
 
 def test_compile_gate_input_schema_collects_required_ids() -> None:
@@ -359,3 +402,53 @@ def test_secret_input_field_reaches_stdin_but_is_redacted_in_response(
     assert execution.response["option_inputs"]["proceed"] == {
         "token": {"$redacted": True}
     }
+
+
+def test_secret_echoed_by_a_command_is_redacted_out_of_the_journal(
+    gate_home: Path,
+) -> None:
+    """``journal.jsonl`` is audit data and must not hold a submitted secret.
+
+    The journal stores a completed option's raw result, and a command is free
+    to echo its stdin back -- the conformance matrix's own echo command does.
+    """
+    echo_input = (
+        "#!/usr/bin/env python3\n"
+        "import json, sys\n"
+        "value = json.load(sys.stdin)\n"
+        "print(json.dumps({'status': 'ok', 'input': value, "
+        "'note': 'used ' + value['token']}))\n"
+    )
+    spec: dict[str, Any] = custom_gate_spec(request_id="secret-journal")
+    spec["options"][0].pop("input_schema", None)
+    spec["options"][0]["inputs"] = [
+        {
+            "id": "token",
+            "label": "Token",
+            "type": "text",
+            "required": True,
+            "secret": True,
+        },
+        {"id": "reason", "label": "Reason", "type": "text"},
+    ]
+    spec["resources"][0]["content"] = echo_input
+    result = create_gate(spec)
+
+    execute_gate_selection(
+        result.bundle_path,
+        ["proceed"],
+        {"token": "hunter2", "reason": "rotation"},
+    )
+
+    journal = (result.bundle_path / "journal.jsonl").read_text()
+    assert "hunter2" not in journal
+    assert "rotation" in journal
+    [completed] = [
+        json.loads(line)
+        for line in journal.splitlines()
+        if line.strip() and json.loads(line).get("event") == "option_completed"
+    ]
+    assert completed["result"]["input"]["token"] == {"$redacted": True}
+    assert completed["result"]["input"]["reason"] == "rotation"
+    assert completed["result"]["note"] == {"$redacted": True}
+    assert completed["result"]["status"] == "ok"

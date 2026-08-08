@@ -204,6 +204,44 @@ def test_action_rewriting_an_undeclared_resource_fails_and_is_recorded(
     assert (record["event"], record["code"]) == ("operation_ran", "hash_mismatch")
 
 
+def test_an_adapters_own_rejection_type_still_reaches_errors(
+    gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-``GateError`` adapter rejection is diagnosable too.
+
+    The plan adapter rejects an edited resource with
+    ``PlanApprovalValidationError``; a recorder that caught only ``GateError``
+    left a reviewer pressing ``d`` with nothing to read.
+    """
+
+    class AdapterRefused(RuntimeError):
+        """Stands in for an adapter's own rejection type."""
+
+    gate = create_gate(
+        _report_action_spec(
+            request_id="adapter-rejection",
+            command=_rewrite_command("notes.md"),
+            targets=["notes.md"],
+            editable="notes.md",
+        )
+    )
+
+    from sase.notification_gates.adapters import GateAdapter
+
+    def reject(_self: GateAdapter, *, path: Path) -> None:
+        raise AdapterRefused(f"adapter refused {path.name}")
+
+    monkeypatch.setattr(GateAdapter, "validate_edited_resource", reject)
+
+    with pytest.raises(AdapterRefused):
+        execute_gate_operation(gate.bundle_path, "report")
+
+    [error] = _errors(gate.bundle_path)
+    assert error["code"] == "adapter_rejected"
+    assert error["option_id"] == "report"
+    assert "adapter refused notes.md" in str(error["message"])
+
+
 def test_action_rewriting_a_declared_target_rehashes_and_bumps_the_revision(
     gate_home: Path,
 ) -> None:

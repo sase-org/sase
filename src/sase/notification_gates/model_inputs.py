@@ -51,12 +51,33 @@ _GATE_INPUT_TYPE_SPELLINGS: dict[str, InputType] = {
     "enum": InputType.ENUM,
 }
 
+# Anchor the tail with a negative lookahead rather than ``$``. Python's ``re``
+# -- the engine ``jsonschema`` runs a compiled ``pattern`` through -- lets ``$``
+# match before a single trailing newline, so ``"ab\n"`` satisfied ``^\S+$``
+# while ``InputArg.validate_and_convert`` rejected it: the schema layer and the
+# typed layer disagreed about the same value. ``(?![\s\S])`` asserts the true
+# end of input and is portable to ECMA-262, which is the dialect a non-Python
+# client validates these schemas under.
+_END_OF_INPUT = r"(?![\s\S])"
+
 _TYPE_SCHEMA_FRAGMENTS: dict[InputType, dict[str, Any]] = {
-    InputType.WORD: {"type": "string", "minLength": 1, "pattern": r"^\S+$"},
-    InputType.AGENT: {"type": "string", "minLength": 1, "pattern": r"^\S+$"},
-    InputType.LINE: {"type": "string", "pattern": r"^[^\n]*$"},
+    InputType.WORD: {
+        "type": "string",
+        "minLength": 1,
+        "pattern": rf"^\S+{_END_OF_INPUT}",
+    },
+    InputType.AGENT: {
+        "type": "string",
+        "minLength": 1,
+        "pattern": rf"^\S+{_END_OF_INPUT}",
+    },
+    InputType.LINE: {"type": "string", "pattern": rf"^[^\n]*{_END_OF_INPUT}"},
     InputType.TEXT: {"type": "string"},
-    InputType.PATH: {"type": "string", "minLength": 1, "pattern": r"^[^\n]*$"},
+    InputType.PATH: {
+        "type": "string",
+        "minLength": 1,
+        "pattern": rf"^[^\n]*{_END_OF_INPUT}",
+    },
     InputType.INT: {"type": "integer"},
     InputType.FLOAT: {"type": "number"},
     InputType.BOOL: {"type": "boolean"},

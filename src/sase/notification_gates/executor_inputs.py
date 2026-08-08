@@ -72,9 +72,9 @@ def redact_option_inputs(
     through unchanged.
 
     Secrets reach the command's stdin unredacted; this redaction applies only
-    on the way to durable audit data. ``executor-integrity``'s
-    ``journal.jsonl`` records digests rather than values, so it inherits this
-    property with no extra work.
+    on the way to durable audit data. The journal's stored command result is
+    covered separately by :func:`redact_secrets_in_result`, which scrubs the
+    same values back out of whatever the command echoed.
     """
     return {
         option.id: _redact_value(option, resolved.get(option.id, {}))
@@ -95,4 +95,54 @@ def _redact_value(option: GateOption, value: Any) -> Any:
     return redacted
 
 
-__all__ = ["redact_option_inputs", "resolve_option_inputs"]
+def redact_secrets_in_result(option: GateOption, resolved: Any, result: Any) -> Any:
+    """Return ``result`` with every submitted secret value scrubbed out.
+
+    The journal stores a completed option's command result verbatim, and a
+    command is free to echo its stdin back into its stdout -- the conformance
+    matrix's own echo command does exactly that. Without this, a
+    ``secret: true`` value redacted out of ``response.json`` still lands in
+    ``journal.jsonl``, which is the same durable audit data.
+
+    Only non-empty *string* secrets are scrubbed. A secret boolean or small
+    integer carries no entropy but does collide with ordinary result values,
+    so matching on it would redact unrelated output rather than a secret.
+
+    Any string that *contains* a secret is replaced whole rather than spliced:
+    a result field built out of the secret is contaminated in full, and
+    partial scrubbing would leave its length and surroundings behind.
+    """
+    secrets = _submitted_secret_strings(option, resolved)
+    if not secrets:
+        return result
+    return _scrub(result, secrets)
+
+
+def _submitted_secret_strings(option: GateOption, resolved: Any) -> tuple[str, ...]:
+    if not option.inputs or not isinstance(resolved, Mapping):
+        return ()
+    found: list[str] = []
+    for gate_input_field in option.inputs:
+        if not gate_input_field.secret:
+            continue
+        submitted = resolved.get(gate_input_field.id)
+        candidates = submitted if isinstance(submitted, list) else [submitted]
+        found.extend(value for value in candidates if isinstance(value, str) and value)
+    return tuple(found)
+
+
+def _scrub(value: Any, secrets: tuple[str, ...]) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _scrub(item, secrets) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_scrub(item, secrets) for item in value]
+    if isinstance(value, str) and any(secret in value for secret in secrets):
+        return {"$redacted": True}
+    return value
+
+
+__all__ = [
+    "redact_option_inputs",
+    "redact_secrets_in_result",
+    "resolve_option_inputs",
+]

@@ -258,14 +258,21 @@ def recorded_rejection(
     Input-schema, bounds, feedback, and adapter-selection failures all happen
     before the first command runs, so without this they leave no trace and a
     reviewer pressing ``d`` sees nothing at all.
+
+    Every rejection is recorded, not only :class:`GateError`: an adapter
+    rejects with its own type -- the plan adapter raises
+    ``PlanApprovalValidationError`` from ``validate_edited_resource`` -- and a
+    narrower clause let exactly those rejections reach the reviewer with an
+    empty ``errors/``. The exception itself propagates unchanged so callers
+    that discriminate on the adapter's own type still can.
     """
     try:
         yield
-    except GateError as exc:
+    except Exception as exc:
         record_execution_error(
             bundle_path,
             option_id=option_id,
-            code=exc.code,
+            code=exc.code if isinstance(exc, GateError) else "adapter_rejected",
             message=str(exc),
             source=source,
         )
