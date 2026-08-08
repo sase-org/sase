@@ -5,8 +5,10 @@ SASE normally orchestrates an existing coding-agent CLI; the exception is the bu
 installed **and authenticated** for production work. This page collects the install
 command, the authentication command, and a link to each vendor's canonical documentation
 for every provider SASE currently supports. Claude Code, Codex CLI, and Qwen Code
-install via `npm` (so they need `node` and `npm` on your `PATH`); OpenCode and the
-Antigravity CLI use their own install methods, shown in their sections below.
+install via `npm` (so they need `node` and `npm` on your `PATH`); OpenCode, the
+Antigravity CLI, and Muse Code use their own install methods, shown in their sections
+below. Muse Code is the one provider SASE can install for you, with
+[`sase agent-cli install muse`](#inventory-and-updates).
 
 `sase doctor` — specifically `sase doctor -C llm.auth -v` — is the authoritative
 readiness check. It prints the same per-provider install and auth hints documented here,
@@ -92,6 +94,45 @@ Qwen Code can also use API-key access through variables such as `DASHSCOPE_API_K
 
 Canonical docs: <https://github.com/QwenLM/qwen-code>
 
+## Muse Code
+
+Meta's Muse Code CLI (`muse`). Muse is **explicit-only**: SASE never auto-detects it,
+because `muse` is a generic executable name. Select it with
+`llm_provider.provider: muse`, `%model:muse/<model>`, or `SASE_MUSE_PATH`.
+
+### Install
+
+```bash
+sase agent-cli install muse
+```
+
+SASE downloads <https://dev.meta.ai/install.sh> itself over HTTPS, shows the URL, the
+SHA-256 digest of exactly what it downloaded, the exact shell-free command, and the
+target directory (`$MUSE_INSTALL_DIR`, default `~/.local/bin`), and only then runs it
+after your confirmation. It passes `MUSE_UPGRADE_MODE=1`, which suppresses the
+installer's `export PATH=...` appends — **SASE never edits your shell startup files.**
+If the install directory is not on your `PATH`, SASE prints the exact export line to add
+yourself. Use `-n/--dry-run` to see the whole plan, digest included, without executing
+anything.
+
+### Authenticate
+
+SASE doctor hint: run `muse login`, or set `META_API_KEY`.
+
+### Update
+
+Muse is self-updating through its own launcher, so `sase agent-cli update muse` runs
+`MUSE_SYNC_UPDATE=1 muse --version`, which updates the launcher and the binary and then
+reports the resulting version. Latest versions come from Muse's channel endpoint rather
+than npm, and versions compare exactly rather than by PEP 440 — Muse's release ids
+(`0.1.0-R708.1`) are not PEP 440 versions, and a semver comparison would report "no
+known updates" forever.
+
+SASE always launches agent runs with `MUSE_NO_AUTO_UPDATE=1` so Muse cannot swap its own
+binary mid-run; update it through `sase agent-cli` instead.
+
+Canonical docs: <https://developer.meta.com/ai/resources/blog/build-with-muse-code/>
+
 ## Antigravity CLI
 
 Google's Antigravity CLI (`agy`). There is no separate "Gemini CLI" provider in SASE;
@@ -150,16 +191,16 @@ and check again.
 
 If a provider CLI lives at a non-standard path, point SASE at it with the provider's
 `SASE_<PROVIDER>_PATH` override environment variable — `SASE_CLAUDE_PATH`,
-`SASE_CODEX_PATH`, `SASE_OPENCODE_PATH`, `SASE_QWEN_PATH`, `SASE_AGY_PATH`, or
-`SASE_FAKEY_PATH`. For deeper integration details (model mapping, per-provider
-environment variables, retry/fallback behavior), see the
+`SASE_CODEX_PATH`, `SASE_OPENCODE_PATH`, `SASE_QWEN_PATH`, `SASE_AGY_PATH`,
+`SASE_MUSE_PATH`, or `SASE_FAKEY_PATH`. For deeper integration details (model mapping,
+per-provider environment variables, retry/fallback behavior), see the
 [LLM provider reference](llms.md).
 
 ## Inventory and Updates
 
-`sase agent-cli` is the inventory and update surface for independently manageable
-provider CLIs on this machine. Internal or bundled providers can opt out when they are
-not separately installed or updated. A bare `sase agent-cli` means
+`sase agent-cli` is the inventory, install, and update surface for independently
+manageable provider CLIs on this machine. Internal or bundled providers can opt out when
+they are not separately installed or updated. A bare `sase agent-cli` means
 `sase agent-cli list`.
 
 ```bash
@@ -167,15 +208,20 @@ sase agent-cli list            # manageable provider CLIs, versions, and install
 sase agent-cli list -v         # add resolved executable paths, docs URLs, and probe errors
 sase agent-cli update codex    # update one CLI
 sase agent-cli update -a -n    # preview every planned command without running anything
+sase agent-cli install muse    # install a CLI from the install script its provider declares
+sase agent-cli install muse -n # show the URL, digest, command, and target; execute nothing
 ```
 
 `list` shows each CLI's resolved binary, installed version, latest known version,
 install method, and an `↑` marker when an update is available. A CLI that is not
 installed shows its install hint instead. The footer summarizes how many of the
 supported CLIs are installed and whether any updates are known. Latest versions come
-from the npm registry and are cached: `-o/--offline` uses only the cache and never
-contacts the network, while `-r/--refresh` bypasses the cache. `-j/--json` emits a
-stable machine-readable envelope.
+from the npm registry — or, for a channel-versioned CLI such as Muse Code, from the
+provider-declared JSON endpoint — and are cached: `-o/--offline` uses only the cache and
+never contacts the network, while `-r/--refresh` bypasses the cache. `-j/--json` emits a
+stable machine-readable envelope. Most CLIs compare versions with PEP 440 semantics; a
+provider whose release ids are not PEP 440 (Muse Code) declares exact comparison
+instead, so "different from what I have" is precisely "there is an update".
 
 `update` takes CLI names (provider, binary, or display name) or `-a/--all` for every
 installed CLI; a bare `sase agent-cli update` with neither is a usage error. Commands
@@ -189,7 +235,7 @@ guesses an update command:
 | -------------------------------- | --------------------------------------------------------------------------------------- |
 | npm, writable global root        | Runs `npm install -g <package>@latest`.                                                 |
 | npm, non-writable global root    | Skipped as manual, with the exact command to run under an npm setup owned by your user. |
-| Self-managed with a self-update  | Runs the provider's own declared update command.                                        |
+| Self-managed with a self-update  | Runs the provider's own declared update command, with any env overlay it declares.      |
 | Homebrew                         | Skipped as manual, with the `brew upgrade <package>` command to run.                    |
 | Bundled visible provider         | Skipped; update it with the package that ships that provider.                           |
 | Not installed, or method unknown | Skipped, with the install hint or a note that SASE will not guess an update command.    |
@@ -198,8 +244,21 @@ Anything already at its latest known version is reported as an explicit
 `already up to date` skip rather than being reinstalled. Skips carry the provider's
 canonical docs URL where one is known.
 
-Runs from `sase agent-cli update` are journaled with the same bounded history used by
-ACE and `,U` at `~/.sase/logs/agent_cli_updates.jsonl`. Set
+`install` takes CLI names and installs each from the install script its provider
+declares. SASE fetches the script itself over HTTPS into a `0o600` temp file with a
+timeout and a size cap, refuses non-HTTPS URLs and redirects off HTTPS, computes its
+SHA-256, and shows the URL, digest, byte count, env overlay, target directory, and the
+exact `bash <tmpfile>` command before running it — never `curl | bash`, and never
+through a shell. Running a remote script always needs confirmation: pass `-y/--yes` or
+answer the interactive prompt. `-n/--dry-run` prints the plan, digest included, and
+executes nothing. An already-installed CLI is skipped unless you pass `-f/--force`, and
+a CLI whose provider declares no install script is skipped with the manual command to
+run instead. After a successful install SASE re-probes the version, reports where the
+binary landed and whether that directory is on `PATH`, and prints the exact export line
+to add when it is not. **SASE never edits your shell startup files.**
+
+Runs from `sase agent-cli install` and `sase agent-cli update` are journaled with the
+same bounded history used by ACE and `,U` at `~/.sase/logs/agent_cli_updates.jsonl`. Set
 `SASE_AGENT_CLI_UPDATE_JOURNAL_MAX_BYTES` to override that file's maximum size; runs
 where no command reaches a terminal outcome are not recorded.
 

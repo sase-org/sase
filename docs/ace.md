@@ -1695,6 +1695,7 @@ suffix:
 | 🤖    | Codex             |
 | 🐼    | Qwen              |
 | 🐙    | OpenCode          |
+| ♾️    | Muse Code (Meta)  |
 
 The same provider palette also colors the `<PROVIDER>(<model>)` suffix on the right edge
 of the row — the provider name, the parentheses, and the model name each render in a
@@ -3410,13 +3411,19 @@ and durations, while older completed-only `function_call` rows remain readable w
 limited detail. Qwen writes stream-derived rows from its `--output-format stream-json`
 output with `runtime: "qwen"` and `source: "stream"`; start/completion (and Qwen's
 `tool_use` / `tool_result`) pairs collapse into single rows the same way Codex pairs do.
-Antigravity (`agy`) runs in plain-stdout mode; SASE never scrapes display prose, but
-supported Antigravity versions may contribute guarded `source: "trajectory"` rows from
-the local trajectory DB. When that extractor is unavailable, the panel simply shows
-nothing for `agy` runs. See
+Muse Code writes stream-derived rows from its `muse exec --json` JSONL stream with
+`runtime: "muse"` and `source: "stream"`; proposed/scheduled and `tool.result` pairs
+collapse into single rows like the others. Muse's stream never carries tool _arguments_,
+so a Muse row's input target comes from `edit_facts.path` for edits, the parsed command
+for `bash`, and otherwise a bounded preview of the result text — SASE does not invent
+arguments Muse did not emit. Antigravity (`agy`) runs in plain-stdout mode; SASE never
+scrapes display prose, but supported Antigravity versions may contribute guarded
+`source: "trajectory"` rows from the local trajectory DB. When that extractor is
+unavailable, the panel simply shows nothing for `agy` runs. See
 [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks),
 [LLM Providers — Codex tool-call capture](llms.md#codex-tool-call-capture),
-[LLM Providers — Qwen tool-call capture](llms.md#qwen-tool-call-capture), and
+[LLM Providers — Qwen tool-call capture](llms.md#qwen-tool-call-capture),
+[LLM Providers — Muse tool-call capture](llms.md#muse-tool-call-capture), and
 [LLM Providers — Antigravity (`agy`) Integration](llms.md#antigravity-agy-integration)
 for provider integration details.
 
@@ -3550,16 +3557,21 @@ launches bead work directly, so those controls are hidden for Epic:
   used by Approve and Tale.
 - **Coder model** — Select an LLM model for the next follow-up agent instead of using
   the role default. For Approve and Tale that agent is the coder. Shows all registered
-  models grouped by provider (Claude, Codex, Antigravity, Qwen, OpenCode) with a
-  "Custom..." option for freeform input. Type to filter by provider, model id, label, or
-  short alias; use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to clear the
-  filter or cancel, and `'` for jump hints over the visible selectable rows. The
-  displayed default resolves to the model the handoff will actually use: the planner
-  provider's coder alias (`@<planner_provider>_coder`, e.g. `@claude_coder`, falling
-  back to `@coder` when planner provider metadata is missing). Out of the box, every
-  provider-coder alias inherits `@coder`. Selecting a specific model and then re-opening
-  the picker and choosing "Follow-up default" resets the follow-up back to that role
-  default (distinct from pressing `Esc`, which keeps the current selection).
+  models grouped by provider (Claude, Codex, Antigravity, Qwen, OpenCode, Muse Code)
+  with a "Custom..." option for freeform input. A model its provider flags with an
+  advisory carries a warning-styled `⚠ <label>` suffix on its row (`ⓘ` for informational
+  advisories), with the full advisory sentence in the row's secondary text — this is
+  where somebody actually chooses a model, so the trade is impossible to miss. See
+  [LLM Providers — Model advisories](llms.md#model-advisories). Type to filter by
+  provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter`
+  to select, `Esc` to clear the filter or cancel, and `'` for jump hints over the
+  visible selectable rows. The displayed default resolves to the model the handoff will
+  actually use: the planner provider's coder alias (`@<planner_provider>_coder`, e.g.
+  `@claude_coder`, falling back to `@coder` when planner provider metadata is missing).
+  Out of the box, every provider-coder alias inherits `@coder`. Selecting a specific
+  model and then re-opening the picker and choosing "Follow-up default" resets the
+  follow-up back to that role default (distinct from pressing `Esc`, which keeps the
+  current selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the
 selected outcome determines the commit location and follow-up behavior. Additional

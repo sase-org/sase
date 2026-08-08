@@ -794,6 +794,10 @@ axe:
             deleted agent-artifact directories, so a neglected root converges without blocking interactive commands.
 
 llm_provider:
+  # Registered provider to use. One of: claude, codex, qwen, opencode, agy,
+  # muse, fakey. Empty auto-detects by plugin-declared priority; `muse`
+  # declares no priority and is only ever selected by naming it here, by
+  # %model:muse/<model>, or via SASE_MUSE_PATH.
   provider: ""
   # Default reasoning-effort level for agent launches that don't request one
   # via %effort or a %model:<model>@<effort> suffix. Empty means no override.
@@ -809,8 +813,9 @@ llm_provider:
   # `A | B` for round-robin or `A || B` for ordered fallback; do not mix the
   # operators.
   # Values may be a bare known model (opus), an explicit
-  # provider/model (codex/gpt-5.6-sol), a nested provider-local path
-  # (opencode/anthropic/claude-sonnet-4-5), or an @<alias> reference. An alias
+  # provider/model (codex/gpt-5.6-sol or muse/muse-spark-1.2), a nested
+  # provider-local path (opencode/anthropic/claude-sonnet-4-5), or an
+  # @<alias> reference. An alias
   # reference may carry a trailing @<effort> that overrides its target's effort.
   # User-invented aliases live under custom and must include a description for
   # completions and the Models panel. Bucket membership is display-only: ACE
@@ -1067,7 +1072,7 @@ xprompts:
   epic: |
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
     keep in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `agy` /
-    `codex` / `qwen` / `opencode` command). #plan
+    `codex` / `qwen` / `opencode` / `muse` command). #plan
   if_not_plan: |
     If not, use your /sase_plan skill to plan the appropriate changes.
   plan: |

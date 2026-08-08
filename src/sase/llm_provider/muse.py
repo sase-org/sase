@@ -243,6 +243,12 @@ class MuseProvider(LLMProvider):
             "self_update_argv": ["--version"],
             "self_update_env": {"MUSE_SYNC_UPDATE": "1"},
             "install_script_url": "https://dev.meta.ai/install.sh",
+            # The installer writes the launcher to
+            # ``${MUSE_INSTALL_DIR:-~/.local/bin}/muse``; declaring both lets
+            # `sase agent-cli install` name the target directory up front and
+            # find the binary afterwards when it is not yet on PATH.
+            "install_dir": "~/.local/bin",
+            "install_dir_env": "MUSE_INSTALL_DIR",
             # Without MUSE_UPGRADE_MODE=1 the installer appends `export PATH=`
             # lines to the user's shell rc files.
             "install_env": {"MUSE_UPGRADE_MODE": "1"},

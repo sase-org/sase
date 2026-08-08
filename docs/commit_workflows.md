@@ -531,7 +531,7 @@ For SASE-launched agent sessions, the normal path is the provider-neutral finali
 `src/sase/llm_provider/commit_finalizer.py`. It runs after a successful provider
 invocation and before success postprocessing. The finalizer is deliberately outside any
 one runtime's native hook system, so Claude, Codex, Antigravity (`agy`), Qwen, OpenCode,
-and provider plugins share the same behavior.
+Muse Code, and provider plugins share the same behavior.
 
 **Flow:**
 

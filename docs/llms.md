@@ -1,9 +1,10 @@
 # LLM Provider Integration
 
 This document describes the LLM provider abstraction layer in sase. The system supports
-pluggable LLM backends (Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code, and
-OpenCode are bundled; additional providers can ship as external plugins) behind a shared
-orchestration layer that handles preprocessing, invocation, and postprocessing.
+pluggable LLM backends (Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code,
+OpenCode, and Meta's Muse Code are bundled; additional providers can ship as external
+plugins) behind a shared orchestration layer that handles preprocessing, invocation, and
+postprocessing.
 
 > This page documents how SASE _integrates_ each provider. To install and authenticate a
 > provider CLI in the first place, see
@@ -19,6 +20,7 @@ orchestration layer that handles preprocessing, invocation, and postprocessing.
 - [Codex CLI Integration](#codex-cli-integration)
 - [Qwen Code Integration](#qwen-code-integration)
 - [OpenCode Integration](#opencode-integration)
+- [Muse Code Integration](#muse-code-integration)
 - [External Provider Plugins](#external-provider-plugins)
 - [Configuration](#configuration)
 - [Per-Prompt Provider Switching](#per-prompt-provider-switching)
@@ -68,6 +70,10 @@ Key design principles:
 | `src/sase/llm_provider/agy.py`                    | Antigravity CLI (`agy`) provider implementation                                          |
 | `src/sase/llm_provider/qwen.py`                   | Qwen Code provider implementation                                                        |
 | `src/sase/llm_provider/opencode.py`               | OpenCode provider implementation                                                         |
+| `src/sase/llm_provider/muse.py`                   | Meta Muse Code provider implementation                                                   |
+| `src/sase/llm_provider/_subprocess_muse.py`       | Muse `exec --json` JSONL stream parser                                                   |
+| `src/sase/llm_provider/_tool_call_muse.py`        | Muse tool-call record extraction from the event stream                                   |
+| `src/sase/llm_provider/_muse_session_usage.py`    | Muse token-usage recovery from the on-disk session log                                   |
 | `src/sase/llm_provider/registry.py`               | Provider registration and lookup                                                         |
 | `src/sase/llm_provider/_registry_metadata.py`     | Provider metadata normalization and cache fingerprints                                   |
 | `src/sase/llm_provider/_registry_plugins.py`      | Plugin discovery/construction via `sase_llm` entry points                                |
@@ -129,6 +135,7 @@ claude = "sase.llm_provider.claude:ClaudeCodeProvider"
 codex  = "sase.llm_provider.codex:CodexProvider"
 fakey = "sase.llm_provider.fakey:FakeyProvider"
 agy = "sase.llm_provider.agy:AgyProvider"
+muse = "sase.llm_provider.muse:MuseProvider"
 opencode = "sase.llm_provider.opencode:OpenCodeProvider"
 qwen   = "sase.llm_provider.qwen:QwenProvider"
 ```
@@ -155,7 +162,10 @@ provider = get_provider("claude")  # Explicit provider name
    `llm_autodetect_cli_name()` is on `PATH`. Built-in priorities: `claude=0`,
    `codex=10`, `qwen=15`, `opencode=18`, `agy=30`. External plugins slot in by declaring
    their own priority. `agy` autodetects via the `agy` CLI name in the late-fallback
-   slot.
+   slot. A provider that declares no priority never participates in autodetection:
+   `muse` deliberately omits one, because `muse` is a generic executable name and
+   autodetect only checks `PATH` presence. Muse is reachable only by explicit selection
+   (see [Muse Code Integration](#muse-code-integration)).
 
 ## Commit Finalization
 
@@ -600,6 +610,197 @@ The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_OPENCODE_*_AR
 While waiting for a response, a `provider_timer("Waiting for OpenCode")` spinner is
 shown (unless `suppress_output` is `True`).
 
+## Muse Code Integration
+
+The `MuseProvider` invokes Meta's Muse Code CLI (`muse`).
+
+### Selection
+
+Muse is **explicit-only**. It publishes `llm_autodetect_cli_name` but deliberately no
+`llm_autodetect_priority`, so it never appears in autodetect candidates: `muse` is a
+generic executable name, and SASE's autodetect only checks whether a binary of that name
+is on `PATH`. Reach Muse with `llm_provider.provider: muse`, `%model:muse/<model>`, or
+by pointing `SASE_MUSE_PATH` at the binary. `provider_cli_available()` still uses the
+CLI name, so `sase doctor` and the `sase agent-cli` inventory see Muse normally.
+
+Muse's provider short name is `mus`, which enables `foo.mus` agent naming.
+
+### Command Construction
+
+```
+MUSE_NO_AUTO_UPDATE=1 muse exec --json --workspace <cwd> --model <model> [--reasoning-effort <level>] \
+  --trust-workspace --disable-approval --disable-sandbox \
+  --user-input-auto-resolve --no-foreign-personal-context \
+  --session-id <uuid> --prompt-file <tempfile> [extra_args...]
+```
+
+Decisions inside that command:
+
+- **`--prompt-file`, not stdin and not a positional argument.** `muse exec` reserves
+  stdin for `--api-key-stdin`, and SASE prompts routinely exceed comfortable argv
+  limits. The prompt is written to a `0o600` file under SASE's managed temp root and
+  removed as soon as the cycle ends.
+- **`MUSE_NO_AUTO_UPDATE=1`.** The Muse launcher otherwise checks for and swaps in a new
+  binary hourly; a multi-hour agent run must not have its binary replaced mid-flight.
+  Update Muse through [`sase agent-cli update muse`](agent_providers.md#muse-code)
+  instead.
+- **`--session-id` is generated by SASE**, not left to Muse, because it is the handle
+  that locates the session log SASE reads token usage from.
+- **Sandbox off by default.** Under Muse's sandbox, `.git`, `.muse`, and `.agents` are
+  read-only inside the workspace root, which breaks any in-run `sase commit` an agent
+  performs through the `sase_git_commit` skill. Disabling it matches what SASE already
+  does for Codex and OpenCode. Approvals must go regardless — a headless run cannot
+  answer them.
+- **No `-w/--worktree` and no `--subagent-worktree-isolation`.** SASE's workspace is the
+  workspace, and subagent isolation is a documented no-op.
+
+Set `SASE_MUSE_SANDBOX=on` for a hardened opt-in: SASE keeps Muse's sandbox and passes
+`--sandbox-network enabled` instead of `--disable-sandbox`. This is containment SASE has
+with no other provider and is genuinely useful for read-only research agents, but
+**in-run commits fail under it** because the sandbox makes `.git` read-only.
+
+### Model Mapping
+
+| Tier    | Muse Model       |
+| ------- | ---------------- |
+| `large` | `muse-spark-1.2` |
+| `small` | `muse-spark-1.2` |
+
+| Model                        | Context | In / Cached / Out (per 1M) | Notes                                                                                                                                         |
+| ---------------------------- | ------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `muse-spark-1.2`             | 1M      | $1.25 / $0.15 / $4.25      | Coding-optimized, purpose-built for agentic workflows.                                                                                        |
+| `muse-spark-1.2-contributor` | 1M      | $0.10 / $0.002 / $0.20     | Same model and capabilities. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only. |
+| `muse-spark-1.1`             | 1M      | $1.25 / $0.15 / $4.25      | Agentic and multimodal (text, images, video, documents).                                                                                      |
+
+**Both tiers map to `muse-spark-1.2` on purpose.** `small` is what `@cheap` and
+`@cheaper` reach for automatically, so mapping it to the Contributor model would
+silently ship a user's proprietary source into Meta's training corpus. SASE does not
+make that decision on anyone's behalf. The Contributor model stays fully available — it
+is a known model name, it has the short alias `spark12c`, and
+`%model:muse/muse-spark-1.2-contributor` works — but reaching it requires typing its
+name, and a [model advisory](#model-advisories) makes sure the trade is visible when you
+do.
+
+### Reasoning Effort
+
+Muse accepts `none|minimal|low|medium|high|xhigh|ultra` and rejects `max` by name, so
+SASE's canonical `max` maps onto Muse's `ultra`. Muse is the first provider to cover all
+seven canonical levels. Muse's own internal default is `high`, so a run with no resolved
+effort shows blank in SASE while Muse actually used `high`; the recorded model identity
+(below) closes the equivalent gap for the model.
+
+### The Event Stream
+
+`muse exec --json` writes pure JSONL to stdout; human diagnostics go to stderr. Every
+line is an envelope carrying `schema_version`, `payload_type`, `payload_schema_version`,
+and `payload`. SASE's parser rules, in priority order:
+
+1. **`run.terminal.completed` → `payload.text` is the authoritative reply.**
+   `payload.terminal` is the outcome and `payload.reason` the detail; SASE parses those
+   fields and never pattern-matches reply text.
+2. **`run.output.delta` is for live display only.** It is marked `ephemeral` and repeats
+   text the terminal event later carries in full. SASE streams it into `live_reply.md`
+   and the timestamps file but never appends it to the returned content, so replies do
+   not double.
+3. **A failed, rejected, or cancelled task is not a failed run.** Muse emits
+   `task.lifecycle.rejected` (`reason: "skip_if_running"`) and
+   `task.lifecycle.cancelled` (`reason: "main run completed"`) on runs that exit `0`.
+   Success is gated on `run.terminal.*` plus the exit code; task-level failures are
+   recorded as diagnostics only.
+4. **Unknown payload types and higher schema versions do not raise.** Parse failures
+   surface the observed versions as a stdout-decode diagnostic rather than returning an
+   empty success, and repeated schema diagnostics are capped.
+5. **Exit code 2 is a `muse exec` usage error**, not a run failure, and the raised
+   `CalledProcessError` diagnostics say so, so a bad flag does not read as a model
+   failure.
+
+Every flag and payload-type string lives in one module-level constant block in
+`_subprocess_muse.py`, so a beta rename is a one-line fix.
+
+### Muse Tool-Call Capture
+
+SASE builds tool-call records purely from the stdout stream; it does not wire Muse's
+hook system and does not read Muse state off disk for this. When `SASE_ARTIFACTS_DIR` is
+present, normalized records are appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with
+`runtime: "muse"` and `source: "stream"` for the ACE
+[Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). Fixture coverage is keyed to
+Muse release `0.1.0-R708.1`.
+
+| Event                                             | Carries                                                                   | Use                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `task.lifecycle.proposed`                         | `task_kind: "tool.<name>"`, `task_id`                                     | Opens a pending call — only for `task_kind` values under `tool.` |
+| `task.lifecycle.scheduled` / `side_effect_intent` | `idempotency_key: "tool:<call_id>"`, `operation`, `policy_decision`       | Binds `task_id` → `call_id`                                      |
+| `task.lifecycle.output`                           | `event.chunk`                                                             | Streamed tool output                                             |
+| `tool.result`                                     | `call_id`, `correlation_facts.{tool_name,outcome}`, optional `edit_facts` | Closes the call with its outcome and result                      |
+
+**Tool arguments are never in the stream.** SASE derives each record's target honestly
+and in this order: `edit_facts.path` when present; for `bash`, the `command` and
+`description` fields of the result JSON; otherwise a truncated preview of the result
+text. It does not invent arguments Muse did not emit. Non-tool tasks
+(`model.meta.response`, `reminder.agent.plugin:*`) never become tool records, and calls
+still pending at stream end are finalized like every other provider's.
+
+### Token Usage and Model Identity
+
+Muse's stdout stream carries **no token counts at all**; the numbers live in the on-disk
+session log. Because SASE passes `--session-id`, that location is deterministic:
+
+```
+$XDG_DATA_HOME/muse/sessions/YYYY/MM/DD/<session-id>/session.jsonl
+```
+
+(`XDG_DATA_HOME` defaults to `~/.local/share`; the date components are globbed rather
+than computed from today's date so a run spanning midnight still resolves.) After the
+subprocess exits, SASE sums `usage` across `runtime.session` events whose
+`payload.event.kind` is `model_completed`, mapping `input_tokens`, `output_tokens`,
+`cache_read_tokens` (falling back to the older `cached_tokens`), and
+`cache_write_tokens` onto SASE's counters. `goal_usage_attribution` events repeat the
+same numbers for the same call and are deliberately ignored — counting both would double
+every run's totals. A missing or unreadable session log is not an error: it degrades to
+zeroed usage plus a diagnostic.
+
+SASE does not shell out to `muse export` for this. It costs a subprocess, `--redacted`
+strips the `call_id`s, and unredacted output contains verbatim encrypted reasoning SASE
+has no reason to retain.
+
+`run.model.configured` carries the model Muse actually configured. SASE records its
+`model_id`, `provider_id`, and the session id into `run_metadata.json`, which closes the
+observability gap where a run with no explicitly resolved model shows blank in SASE
+while Muse used its own default.
+
+### Interrupts and Retries
+
+Muse has no headless resume (`muse resume` is interactive-only), so interrupt handling
+reuses the accumulated-context restart that Qwen, OpenCode, and Codex use: SASE
+reconstructs a continuation prompt and relaunches. The session log is kept for manual
+recovery. Muse ships no `llm_default_retry_config`; it already retries its own model
+stream internally, and a nonzero exit falls into SASE's generic retry path.
+
+### Skills and Instruction File
+
+SASE deploys Muse skills under `~/.config/muse/skills/<skill>/SKILL.md`, rendered with
+`provider_name: "Muse Code"`. Without that deploy path Muse picks up SASE's
+Claude-rendered skill copies from `~/.claude/skills/` and reads them as if it were
+Claude Code. Muse reads `AGENTS.md` natively, so there is no `MUSE.md` provider shim.
+
+### Environment Variables
+
+| Variable               | Description                                                         |
+| ---------------------- | ------------------------------------------------------------------- |
+| `SASE_LLM_LARGE_ARGS`  | Extra CLI args for `large` tier (generic, preferred)                |
+| `SASE_LLM_SMALL_ARGS`  | Extra CLI args for `small` tier (generic, preferred)                |
+| `SASE_MUSE_PATH`       | Path to the Muse Code CLI binary (default: `muse` on `PATH`)        |
+| `SASE_MUSE_LARGE_ARGS` | Extra CLI args for `large` tier (Muse-specific fallback)            |
+| `SASE_MUSE_SMALL_ARGS` | Extra CLI args for `small` tier (Muse-specific fallback)            |
+| `SASE_MUSE_SANDBOX`    | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled` |
+
+The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_MUSE_*_ARGS`.
+
+### Timer Display
+
+While waiting for a response, a `provider_timer("Waiting for Muse Code")` spinner is
+shown (unless `suppress_output` is `True`).
+
 ## External Provider Plugins
 
 Additional LLM providers are shipped as external packages that declare
@@ -621,7 +822,7 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 
 ```yaml
 llm_provider:
-  provider: claude # or "codex", "qwen", "opencode", "agy", "fakey" (default: auto-detect)
+  provider: claude # or "codex", "qwen", "opencode", "agy", "muse", "fakey" (default: auto-detect)
   default_effort: xhigh # default reasoning effort when a prompt sets none (default: unset)
   model_tier_map:
     large: opus
@@ -657,7 +858,7 @@ llm_provider:
 
 | Field                                | Type   | Default     | Description                                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------------------------ | ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback.                                                                                                                                                                                                                |
+| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback. `muse` declares no priority and is never auto-detected; select it explicitly.                                                                                                                                  |
 | `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                                                                                                               |
 | `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                                                                                                                                    |
 | `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                                                                                                                                    |
@@ -889,6 +1090,7 @@ Use `provider/model` to specify both explicitly:
 %model:agy/gemini-3.6-flash-high
 %model:qwen/qwen3.6-plus
 %model:opencode/anthropic/claude-sonnet-4-5
+%model:muse/muse-spark-1.2
 %model:fakey/fakey-large
 ```
 
@@ -903,6 +1105,7 @@ Known model names are automatically mapped to their provider:
 | `gemini-3.6-flash-high`, `gemini-3.6-flash-medium`, `gemini-3.6-flash-low`, `gemini-3.5-flash-high`, `gemini-3.5-flash-medium`, `gemini-3.5-flash-low`, `gemini-3.1-pro-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium` | agy      |
 | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                                                                               | qwen     |
 | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                                                                   | opencode |
+| `muse-spark-1.2`, `muse-spark-1.2-contributor`, `muse-spark-1.1`                                                                                                                                                                                                            | muse     |
 | `fakey-large`, `fakey-small`                                                                                                                                                                                                                                                | fakey    |
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()`
@@ -938,10 +1141,45 @@ yourself.
 | agy      | `gemini-3.6-flash-high` → `flash36h`, `gemini-3.6-flash-medium` → `flash36m`, `gemini-3.6-flash-low` → `flash36l`, `gemini-3.5-flash-high` → `flash35h`, `gemini-3.5-flash-medium` → `flash35m`, `gemini-3.5-flash-low` → `flash35l`, `gemini-3.1-pro-high` → `pro31h`, `gemini-3.1-pro-low` → `pro31l`, `claude-sonnet-4-6` → `sonnet46`, `claude-opus-4-6-thinking` → `opus46t`, `gpt-oss-120b-medium` → `gptoss120m` |
 | qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                                                                                                             |
 | opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                                                                                                             |
+| muse     | `muse-spark-1.2` → `spark12`, `muse-spark-1.2-contributor` → `spark12c`, `muse-spark-1.1` → `spark11`                                                                                                                                                                                                                                                                                                                   |
 | fakey    | `fakey-large` → `fakeyl`, `fakey-small` → `fakeys`                                                                                                                                                                                                                                                                                                                                                                      |
 
 Source: `llm_model_short_aliases()` in each provider module under
 `src/sase/llm_provider/`
+
+### Model Advisories
+
+A provider can flag individual models with an advisory through the
+[`llm_model_advisories()`](plugins.md#llm-provider-install-metadata-and-advisories) hook
+— a discounted tier that trains on its inputs, a preview model with no stability
+guarantee, and so on. Each advisory is
+`{"severity": "warn"|"info", "label": <short>, "detail": <sentence>}`. Providers that
+omit the hook contribute nothing, so the map is empty on an install with no
+advisory-flagged models.
+
+Advisories render at every point a user meets the model, all reading from the registry
+so no render site hardcodes a model id:
+
+| Surface                                    | Rendering                                                      |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| [ACE model picker](ace.md#custom-approval) | `⚠ <label>` suffix on the row, with `detail` as secondary text |
+| `%model` completion detail                 | `— ⚠ <label>` appended to the completion description           |
+| [Resolved model label](#model-tier-system) | An inline `⚠` marker for the run's whole life                  |
+| `sase doctor -C llm.model_advisory`        | A **warning** naming each configured route that lands on one   |
+
+`⚠` (orange) marks `severity: "warn"`; `ⓘ` (blue) marks `severity: "info"`.
+
+The doctor check resolves the configured default and every configured model alias and
+warns — it never fails — when one routes SASE traffic to an advisory-flagged model.
+Opting in globally is the user's call; doing it without being told is not. For the same
+reason, no bundled provider's tier map points at an advisory-flagged model, and a test
+asserts that so a future cost optimization cannot quietly reintroduce the problem.
+
+The only bundled advisory today is Muse's `muse-spark-1.2-contributor` (see
+[Muse Code Integration](#muse-code-integration)).
+
+Source: `model_advisory_map()` / `model_advisory_for()` in
+`src/sase/llm_provider/registry.py`, `src/sase/doctor/checks_providers_advisory.py`
 
 ## Reasoning Effort
 
@@ -1014,6 +1252,7 @@ governs what happens on a provider that cannot honor the requested level:
 | OpenCode            | `--variant <level>`                   | all (validated by OpenCode/model) | —             |
 | Antigravity (`agy`) | none today                            | —                                 | all           |
 | Qwen                | none today                            | —                                 | all           |
+| Muse Code           | `--reasoning-effort <level>`          | all seven (`max` sent as `ultra`) | —             |
 | Fakey               | `--effort <level>`                    | all                               | —             |
 
 For `agy` and `qwen` (no reasoning-effort mechanism today), every level is
@@ -1358,6 +1597,19 @@ provider separately as `exec_llm_provider`.
 | `SASE_OPENCODE_LARGE_ARGS` | OpenCode-specific extra args for `large` tier |
 | `SASE_OPENCODE_SMALL_ARGS` | OpenCode-specific extra args for `small` tier |
 
+### Muse Code-Specific
+
+| Variable               | Description                                                         |
+| ---------------------- | ------------------------------------------------------------------- |
+| `SASE_MUSE_PATH`       | Path to the Muse Code CLI binary (default: `muse` on `PATH`)        |
+| `SASE_MUSE_LARGE_ARGS` | Muse-specific extra args for `large` tier                           |
+| `SASE_MUSE_SMALL_ARGS` | Muse-specific extra args for `small` tier                           |
+| `SASE_MUSE_SANDBOX`    | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled` |
+
+SASE always launches Muse with `MUSE_NO_AUTO_UPDATE=1` so the launcher cannot swap the
+binary mid-run; `sase agent-cli update muse` sets `MUSE_SYNC_UPDATE=1` instead. The two
+must never be set together.
+
 External provider plugins document their own environment variables in their respective
 repos.
 
@@ -1596,8 +1848,11 @@ instead of exposing these thinking helpers as a panel.
 
 The LLM provider layer tracks token usage for providers that emit parseable usage
 events. Claude and Qwen usage is read from their stream-json result events. OpenCode
-usage is accumulated from `step_finish` token counters. Codex currently captures
-assistant text and reasoning summaries but does not emit `usage.json`.
+usage is accumulated from `step_finish` token counters. Muse emits no token counts on
+stdout at all, so its usage is recovered after the process exits from the
+[session log SASE named](#token-usage-and-model-identity) via `--session-id`. Codex
+currently captures assistant text and reasoning summaries but does not emit
+`usage.json`.
 
 When usage is available, input tokens, output tokens, cache-creation tokens, and
 cache-read tokens are persisted as a `usage.json` artifact in the agent run directory.
@@ -1686,7 +1941,8 @@ share the same artifact hooks for live replies and usage files.
 
 1. The provider spawns the CLI tool via `subprocess.Popen`. Providers that consume
    prompts from stdin set `stdin=PIPE`; OpenCode passes the prompt as the final
-   `opencode run` argument.
+   `opencode run` argument, and Muse passes a `0o600` `--prompt-file` under SASE's
+   managed temp root.
 2. The prompt is supplied using the provider's documented transport, either stdin or an
    argv message argument.
 3. Stdout and stderr are set to **non-blocking** mode via `os.set_blocking()`.
@@ -1707,7 +1963,8 @@ completes for the metadata panel's AGENT REPLY section.
 
 Providers that support richer streams may write sidecar artifacts. Codex writes
 reasoning summaries to `<SASE_ARTIFACTS_DIR>/codex_thinking.jsonl`; providers with token
-counters write `<SASE_ARTIFACTS_DIR>/usage.json`.
+counters write `<SASE_ARTIFACTS_DIR>/usage.json`; Muse records the model it actually
+configured and its session id in `<SASE_ARTIFACTS_DIR>/run_metadata.json`.
 
 ### Output Suppression
 

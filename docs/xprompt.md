@@ -1013,6 +1013,7 @@ targets are:
 | Antigravity (agy) | `~/.gemini/antigravity-cli/skills/<skill>/SKILL.md` |
 | Qwen              | `~/.qwen/skills/<skill>/SKILL.md`                   |
 | OpenCode          | `~/.config/opencode/skills/<skill>/SKILL.md`        |
+| Muse Code         | `~/.config/muse/skills/<skill>/SKILL.md`            |
 
 ### Bundled Skills
 
@@ -1263,6 +1264,7 @@ Directives use the same argument syntax as xprompt references:
 %model:codex/o3              # Provider/model syntax — switches both provider and model
 %m:agy/gemini-3.6-flash-high # Provider/model value with a stable Antigravity slug
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
+%model:muse/muse-spark-1.2   # Meta Muse Code — explicit-only, never auto-detected
 %model(opus, coder=codex/gpt-5.6-sol) # This agent uses opus; its coder follow-up uses Codex
 %model(coder=@medium_phase_worker) # Leave this agent on the default; route @coder through another alias
 %effort:xhigh                # Set the reasoning-effort level for this prompt
@@ -1366,10 +1368,10 @@ candidates; the original reference remains authoritative for display and metadat
 complete ordering, execution, and persistence details.
 
 The `%model` directive also supports automatic provider resolution: known model names
-(e.g., `opus`, `o3`, `qwen3.6-plus`) are automatically mapped to their provider. See
-[Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for the full
-model-to-provider mapping. ACE and the xprompt LSP complete `%model:` / `%m:` values
-from the same model catalog used for provider resolution. The inserted value is a
+(e.g., `opus`, `o3`, `qwen3.6-plus`, `muse-spark-1.2`) are automatically mapped to their
+provider. See [Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for
+the full model-to-provider mapping. ACE and the xprompt LSP complete `%model:` / `%m:`
+values from the same model catalog used for provider resolution. The inserted value is a
 canonical model name or configured alias; provider short aliases are only filter/display
 hints.
 

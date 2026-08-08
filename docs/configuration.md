@@ -304,10 +304,10 @@ leaving the TUI. Use `]` / `[` to cycle its three pane-local sub-tabs:
   experience into the TUI: filter the catalog, inspect a plugin, and install, update,
   uninstall, or switch install mode.
 - **Agent CLIs** is a provider-colored master/detail browser for Claude Code, Codex CLI,
-  OpenCode, Qwen Code, and Antigravity. Rows show installed → latest versions, install
-  method, `↑` availability, and update marks. Details show the resolved executable,
-  exact automatic or manual update command, skip reason, canonical vendor docs URL, and
-  the last result.
+  OpenCode, Qwen Code, Antigravity, and Muse Code. Rows show installed → latest
+  versions, install method, `↑` availability, and update marks. Details show the
+  resolved executable, exact automatic or manual update command, skip reason, canonical
+  vendor docs URL, and the last result.
 
 The Plugins browser stays visually consistent with the CLI by reusing the same catalog
 loader and Rich renderables. Its list is split into **Built-in** and **Community**
@@ -1200,7 +1200,7 @@ and invocation lifecycle.
 
 ```yaml
 llm_provider:
-  provider: claude # or "codex", "qwen", "opencode", "agy", "fakey" (default: auto-detect)
+  provider: claude # or "codex", "qwen", "opencode", "agy", "muse", "fakey" (default: auto-detect)
   model_tier_map:
     large: opus
     small: sonnet
@@ -1228,14 +1228,14 @@ llm_provider:
         description: Size-specific phase-agent roles.
 ```
 
-| Field                                | Type   | Default     | Description                                                                                                                              |
-| ------------------------------------ | ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy. |
-| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier.                                                                                                   |
-| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier.                                                                                                   |
-| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides. Values use the single-target grammar, `\|` round-robin pools, or `\|\|` ordered fallbacks.                      |
-| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`. |
-| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                              |
+| Field                                | Type   | Default     | Description                                                                                                                                                                                                          |
+| ------------------------------------ | ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy. `muse` declares no priority and is never auto-detected; name it explicitly. |
+| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier.                                                                                                                                                                               |
+| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier.                                                                                                                                                                               |
+| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides. Values use the single-target grammar, `\|` round-robin pools, or `\|\|` ordered fallbacks.                                                                                                  |
+| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                             |
+| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                          |
 
 Model aliases are resolved when an agent launches, so reusable xprompts can point at
 names such as `%model:@default` or `%model:@blogger` while each user's `sase.yml`
@@ -2836,6 +2836,10 @@ Source: `src/sase/default_config.yml`, `src/sase/mode_switch/repos.py`
 | `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS` | Override the no-progress continuation cap (default: `2`).                           |
 | `SASE_AGY_LARGE_ARGS`                    | Antigravity-specific extra args for `large` tier (fallback if generic unset).       |
 | `SASE_AGY_SMALL_ARGS`                    | Antigravity-specific extra args for `small` tier (fallback if generic unset).       |
+| `SASE_MUSE_PATH`                         | Path to the Muse Code CLI binary (default: `muse`).                                 |
+| `SASE_MUSE_LARGE_ARGS`                   | Muse-specific extra args for `large` tier (fallback if generic unset).              |
+| `SASE_MUSE_SMALL_ARGS`                   | Muse-specific extra args for `small` tier (fallback if generic unset).              |
+| `SASE_MUSE_SANDBOX`                      | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled`.                |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If
 unset, the provider-specific variable is used as a fallback. Values are split on
@@ -2861,6 +2865,23 @@ OpenCode uses
 and expects users to configure OpenCode auth/settings through its normal XDG paths.
 OpenCode model names usually include a provider prefix; use `opencode models` to list
 models in your configured environment.
+
+Muse Code uses
+`muse exec --json --workspace <cwd> --model <model> --trust-workspace --disable-approval --disable-sandbox --user-input-auto-resolve --no-foreign-personal-context --session-id <uuid> --prompt-file <tempfile>`
+and expects users to authenticate with `muse login` or `META_API_KEY`. SASE always sets
+`MUSE_NO_AUTO_UPDATE=1` for agent runs so Muse's launcher cannot replace its binary
+mid-run; update Muse with `sase agent-cli update muse` instead. Muse's sandbox makes
+`.git` read-only inside the workspace, which would break in-run commits, so SASE
+disables it by default; `SASE_MUSE_SANDBOX=on` keeps the sandbox with
+`--sandbox-network enabled` at the documented cost of in-run commits failing.
+
+Muse's `muse-spark-1.2-contributor` model carries a **model advisory**: Meta uses its
+inputs and outputs to train and improve Meta's AI models. SASE keeps it fully reachable
+by name but never routes a tier map, `@cheap`, or `@cheaper` to it automatically. The
+advisory renders in the ACE model picker, in `%model` completion detail, and in the
+resolved model label, and `sase doctor -C llm.model_advisory` warns when a configured
+default or model alias resolves to any advisory-flagged model. See
+[LLM Providers — Model advisories](llms.md#model-advisories).
 
 ### VCS Provider
 
@@ -3466,21 +3487,21 @@ in the provenance manifest — see
 [Commit Before Deploying](init.md#commit-before-deploying). `sase init skills` is a
 compatibility alias for `sase skill init`.
 
-| Form               | Flags                                                                   | Description                                                                                 |
-| ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `sase skill`       | -                                                                       | Show the same read-only dashboard as `sase skill list`.                                     |
-| `sase skill list`  | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                 |
-| `sase skill init`  | `-f, --force`                                                           | Overwrite deployed skill files without confirmation; bypass the provenance manifest guard.  |
-| `sase skill init`  | `-D, --allow-dirty`                                                     | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.  |
-| `sase skill init`  | `-n, --dry-run`                                                         | Show what would be written without writing files.                                           |
-| `sase skill init`  | `-c, --check`; `-d, --diff`                                             | Report or diff generated skill-file drift without writing files.                            |
-| `sase skill init`  | `-p, --provider {claude,agy,codex,opencode,qwen}`                       | Deploy only for one provider.                                                               |
-| `sase skill init`  | `-A, --no-apply`                                                        | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.    |
-| `sase skill init`  | `-C, --no-commit`                                                       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                   |
-| `sase skill init`  | `-P, --no-push`                                                         | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`. |
-| `sase skill log`   | `-a, --agent`; `-R, --runtime`; `-s, --skill`; `-i, --id`; `-j, --json` | Summarize or inspect audited generated skill-use events.                                    |
-| `sase skill use`   | `-r, --reason <reason>` required                                        | Agent-side audit event recording that the current agent is using a generated skill.         |
-| `sase init skills` | same as `sase skill init`                                               | Compatibility alias for `sase skill init`.                                                  |
+| Form               | Flags                                                                   | Description                                                                                     |
+| ------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `sase skill`       | -                                                                       | Show the same read-only dashboard as `sase skill list`.                                         |
+| `sase skill list`  | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                     |
+| `sase skill init`  | `-f, --force`                                                           | Overwrite deployed skill files without confirmation; bypass the provenance manifest guard.      |
+| `sase skill init`  | `-D, --allow-dirty`                                                     | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.      |
+| `sase skill init`  | `-n, --dry-run`                                                         | Show what would be written without writing files.                                               |
+| `sase skill init`  | `-c, --check`; `-d, --diff`                                             | Report or diff generated skill-file drift without writing files.                                |
+| `sase skill init`  | `-p, --provider <name>`                                                 | Deploy only for one registered provider (`claude`, `agy`, `codex`, `muse`, `opencode`, `qwen`). |
+| `sase skill init`  | `-A, --no-apply`                                                        | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.        |
+| `sase skill init`  | `-C, --no-commit`                                                       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                       |
+| `sase skill init`  | `-P, --no-push`                                                         | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`.     |
+| `sase skill log`   | `-a, --agent`; `-R, --runtime`; `-s, --skill`; `-i, --id`; `-j, --json` | Summarize or inspect audited generated skill-use events.                                        |
+| `sase skill use`   | `-r, --reason <reason>` required                                        | Agent-side audit event recording that the current agent is using a generated skill.             |
+| `sase init skills` | same as `sase skill init`                                               | Compatibility alias for `sase skill init`.                                                      |
 
 ### `sase repo init`
 
@@ -4123,17 +4144,19 @@ future-dated records or correctly dated imported records.
 
 ### `sase agent-cli`
 
-`sase agent-cli` inventories the supported coding-agent CLIs and updates the ones whose
-install method can be identified safely. With no subcommand, it defaults to
-`sase agent-cli list`. See [Agent providers](agent_providers.md#inventory-and-updates)
-for the per-install-method update behavior.
+`sase agent-cli` inventories the supported coding-agent CLIs, installs the ones whose
+provider declares an install script, and updates the ones whose install method can be
+identified safely. With no subcommand, it defaults to `sase agent-cli list`. See
+[Agent providers](agent_providers.md#inventory-and-updates) for the per-install-method
+update behavior.
 
-| Subcommand | Flags                                                                                 | Description                                                                                                                                                              |
-| ---------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `list`     | `-j/--json`, `-o/--offline`, `-r/--refresh`, `-v/--verbose`                           | List every supported CLI with its binary, installed and latest versions, install method, and update marker. `-v` adds executable paths, docs URLs, and probe errors.     |
-| `update`   | `<name> ...`, `-a/--all`, `-j/--json`, `-n/--dry-run`, `-o/--offline`, `-r/--refresh` | Update named CLIs or, with `-a`, every installed one. `-n` prints exact commands and skip reasons without running them. Passing neither names nor `-a` is a usage error. |
+| Subcommand | Flags                                                                                               | Description                                                                                                                                                                                                                                                                                              |
+| ---------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list`     | `-j/--json`, `-o/--offline`, `-r/--refresh`, `-v/--verbose`                                         | List every supported CLI with its binary, installed and latest versions, install method, and update marker. `-v` adds executable paths, docs URLs, and probe errors.                                                                                                                                     |
+| `update`   | `<name> ...`, `-a/--all`, `-j/--json`, `-n/--dry-run`, `-o/--offline`, `-r/--refresh`               | Update named CLIs or, with `-a`, every installed one. `-n` prints exact commands and skip reasons without running them. Passing neither names nor `-a` is a usage error.                                                                                                                                 |
+| `install`  | `<name> ...`, `-f/--force`, `-j/--json`, `-n/--dry-run`, `-o/--offline`, `-r/--refresh`, `-y/--yes` | Install named CLIs from the install script their provider declares. Shows the URL, SHA-256 digest, exact shell-free command, env overlay, and target directory, then requires `-y` or an interactive confirmation. `-n` prints that plan and executes nothing; `-f` reinstalls an already-installed CLI. |
 
-`-o/--offline` uses only cached latest-version data and never contacts the npm registry;
+`-o/--offline` uses only cached latest-version data and never contacts the network;
 `-r/--refresh` bypasses that cache.
 
 ### `sase chat`
