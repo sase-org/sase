@@ -91,15 +91,42 @@ def _extension_candidate_dirs(site_packages: Path) -> tuple[Path, Path]:
     return (site_packages, site_packages / "sase_core_rs")
 
 
+def _pth_path_entries(site_packages: Path) -> list[Path]:
+    entries: set[Path] = set()
+    for pth_file in site_packages.glob("*.pth"):
+        try:
+            lines = pth_file.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeError):
+            continue
+        for raw_line in lines:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or line.startswith("import "):
+                continue
+            entry = Path(line)
+            entries.add(entry if entry.is_absolute() else site_packages / entry)
+    return sorted(entries)
+
+
 def _extension_files(venv_dir: Path) -> list[Path]:
     files: set[Path] = set()
     for site_packages in _site_packages_dirs(venv_dir):
-        for directory in _extension_candidate_dirs(site_packages):
+        candidate_dirs: set[Path] = set(_extension_candidate_dirs(site_packages))
+        for entry in _pth_path_entries(site_packages):
+            candidate_dirs.update(_extension_candidate_dirs(entry))
+        for directory in sorted(candidate_dirs):
             if not directory.is_dir():
                 continue
             for pattern in _EXTENSION_PATTERNS:
                 files.update(path for path in directory.glob(pattern) if path.is_file())
     return sorted(files)
+
+
+def _fingerprint_path_label(prefix: str, path: Path, root: Path) -> str:
+    try:
+        suffix = path.relative_to(root)
+    except ValueError:
+        suffix = path
+    return f"{prefix}:{suffix}"
 
 
 def _fingerprint_inputs(
@@ -148,7 +175,7 @@ def _fingerprint_inputs(
     for path in _extension_files(venv_dir):
         _update_file_hash(
             extension_digest,
-            f"extension:{path.relative_to(venv_dir)}",
+            _fingerprint_path_label("extension", path, venv_dir),
             path,
         )
     inputs["extension"] = extension_digest.hexdigest()

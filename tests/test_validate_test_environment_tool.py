@@ -20,6 +20,7 @@ FORCE_ENV = "SASE_TEST_SETUP_FORCE_REVALIDATE"
 DEPENDENCY_GROUP_ERROR = 4
 CORE_VERSION_ERROR = 1
 CORE_VERSION_BEHIND_ERROR = 16
+CORE_BINDINGS_ERROR = 2
 
 
 def _load_tool() -> dict[str, Any]:
@@ -253,6 +254,29 @@ def test_extension_fingerprint_finds_the_nested_extension(tmp_path: Path) -> Non
             assert populated[key] == empty[key]
 
 
+def test_extension_fingerprint_follows_editable_pth_target(tmp_path: Path) -> None:
+    tool = _load_tool()
+    env = _fingerprint_environment(tmp_path)
+    site_packages = env["venv_dir"] / "lib/python3.14/site-packages"
+    editable_source = tmp_path / "editable-core" / "python"
+    (editable_source / "sase_core_rs").mkdir(parents=True)
+    (site_packages / "sase_core_rs.pth").write_text(
+        f"{editable_source}\n",
+        encoding="utf-8",
+    )
+    before = tool["_fingerprint_inputs"](**env)
+
+    (editable_source / "sase_core_rs" / "sase_core_rs.abi3.so").write_bytes(
+        b"editable-binary-v1"
+    )
+    after = tool["_fingerprint_inputs"](**env)
+
+    assert after["extension"] != before["extension"]
+    for key in before:
+        if key != "extension":
+            assert after[key] == before[key]
+
+
 def test_extension_fingerprint_is_content_based_not_stat_based(
     tmp_path: Path,
 ) -> None:
@@ -279,6 +303,22 @@ def _write_stub_validator(tmp_path: Path, name: str, exit_code: int) -> Path:
     script = tmp_path / name
     script.write_text(
         f"#!/usr/bin/env python3\nraise SystemExit({exit_code})\n",
+        encoding="utf-8",
+    )
+    return script
+
+
+def _write_core_bindings_marker_validator(tmp_path: Path, marker: Path) -> Path:
+    script = tmp_path / "stub-core-bindings-marker"
+    script.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env python3",
+                "from pathlib import Path",
+                f"raise SystemExit(0 if Path({str(marker)!r}).exists() else 1)",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     return script
@@ -331,6 +371,38 @@ def test_core_version_ahead_verdict_sets_bit_1_not_bit_16(tmp_path: Path) -> Non
 
     assert result & CORE_VERSION_ERROR
     assert not result & CORE_VERSION_BEHIND_ERROR
+
+
+def test_editable_extension_rebuild_invalidates_cached_core_binding_failure(
+    tmp_path: Path,
+) -> None:
+    tool = _load_tool()
+    env = _fingerprint_environment(tmp_path)
+    site_packages = env["venv_dir"] / "lib/python3.14/site-packages"
+    editable_source = tmp_path / "editable-core" / "python"
+    (editable_source / "sase_core_rs").mkdir(parents=True)
+    (site_packages / "sase_core_rs.pth").write_text(
+        f"{editable_source}\n",
+        encoding="utf-8",
+    )
+    marker = tmp_path / "binding-ok"
+    tool["VALIDATOR_PATHS"]["core-version"] = _write_stub_validator(
+        tmp_path, "stub-core-version-ok", 0
+    )
+    tool["VALIDATOR_PATHS"]["core-bindings"] = _write_core_bindings_marker_validator(
+        tmp_path, marker
+    )
+    namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
+
+    failed = tool["_validate"](namespace)
+    marker.touch()
+    (editable_source / "sase_core_rs" / "sase_core_rs.abi3.so").write_bytes(
+        b"editable-binary-v1"
+    )
+    rebuilt = tool["_validate"](namespace)
+
+    assert failed == CORE_BINDINGS_ERROR
+    assert rebuilt == 0
 
 
 def test_cache_written_at_old_schema_version_is_rejected(tmp_path: Path) -> None:
