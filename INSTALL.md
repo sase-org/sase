@@ -135,11 +135,11 @@ The lists below describe what each command is for.
 
 ### Required
 
-| Command              | Used for                                                                                                                                                                                                                                             |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `git`                | All core VCS operations: workspace clones, status/diff/commit flows, bead sync, and updates. `sase doctor` also verifies your `user.name` / `user.email` identity is configured.                                                                     |
-| One coding-agent CLI | SASE orchestrates an existing provider CLI. At least one of `claude` (Claude Code), `codex` (Codex), `agy` (Antigravity CLI), `qwen` (Qwen Code), or `opencode` (OpenCode) must be installed **and authenticated**. `sase doctor` reports readiness. |
-| A text editor        | Commit-message editing uses `$EDITOR`, falling back to `nvim`, then `vim`.                                                                                                                                                                           |
+| Command              | Used for                                                                                                                                                                                                                                                                                                             |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git`                | All core VCS operations: workspace clones, status/diff/commit flows, bead sync, and updates. `sase doctor` also verifies your `user.name` / `user.email` identity is configured.                                                                                                                                     |
+| One coding-agent CLI | SASE orchestrates an existing provider CLI. At least one of `claude` (Claude Code), `codex` (Codex), `agy` (Antigravity CLI), `qwen` (Qwen Code), `opencode` (OpenCode), or `muse` (Muse Code; explicit provider/model selection required) must be installed **and authenticated**. `sase doctor` reports readiness. |
+| A text editor        | Commit-message editing uses `$EDITOR`, falling back to `nvim`, then `vim`.                                                                                                                                                                                                                                           |
 
 For per-provider install and authentication commands, see
 [Installing & Authenticating Agent Providers](docs/agent_providers.md).

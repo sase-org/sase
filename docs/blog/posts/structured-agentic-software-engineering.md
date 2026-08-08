@@ -46,7 +46,8 @@ That got me a long way. It also made the missing layer painfully obvious.
 - 😈 One prompt launches one agent. Fan-out means typing the same thing several times.
 - 😈 Plans, approvals, retries, and "what did agent 4 change?" live in your head.
 
-SASE keeps the same five CLIs. The menu does not change. Everything around it grows up.
+SASE keeps the same operating idea. The menu can stay local and familiar; everything
+around it grows up.
 
 **SASE** (Structured Agentic Software Engineering, pronounced "sassy") is an open-source
 operating layer that orchestrates coding-agent CLIs into tracked, repeatable engineering
@@ -81,32 +82,35 @@ providers are thin. They construct CLI commands and run subprocesses; preprocess
 postprocessing live in SASE.
 
 That boundary is the whole trick. SASE never has to replace Claude Code, Codex,
-Antigravity CLI (`agy`), Qwen Code, or OpenCode. It launches the CLI you already
-installed and authenticated, then records durable state around the run: prompt,
-transcript, status, workspace metadata, generated files, plans, and completion
+Antigravity CLI (`agy`), Qwen Code, OpenCode, or Meta's Muse Code. It launches the CLI
+you already installed and authenticated, then records durable state around the run:
+prompt, transcript, status, workspace metadata, generated files, plans, and completion
 artifacts. You inherit each provider CLI's account model, sandbox choices, tool
 behavior, and future improvements instead of asking SASE to clone all of it.
 
-The five bundled agent CLIs are exactly `claude`, `codex`, `agy`, `qwen`, and
-`opencode`. `agy` is Antigravity CLI. It can route to model names that contain "Gemini",
-but those are model labels, not a separate `gemini` command or provider. This
-distinction matters because provider names show up in commands, config, model routing,
-skills, and ACE rows.
+The bundled agent CLIs are exactly `claude`, `codex`, `agy`, `qwen`, `opencode`, and
+`muse`. `agy` is Antigravity CLI. It can route to model names that contain "Gemini", but
+those are model labels, not a separate `gemini` command or provider. Muse Code is
+explicit-only: SASE never auto-detects the generic `muse` executable name, so select it
+with `llm_provider.provider: muse`, `SASE_MUSE_PATH`, or a `%model:muse/...` directive.
+This distinction matters because provider names show up in commands, config, model
+routing, skills, and ACE rows.
 
 Provider and model selection is still flexible per prompt. You can write
-`%model:codex/o3`, `%model:claude/opus`, `%m:agy/gemini-3.6-flash-high`, or
-`%model:opencode/anthropic/claude-sonnet-4-5`. Known model names auto-map to providers,
-and when no provider is configured SASE auto-detects installed built-ins in priority
-order: `claude`, `codex`, `qwen`, `opencode`, then `agy`. For repeated workflows, model
-aliases such as `%model:@default` or `%model:@blogger` let your `sase.yml` choose the
-concrete provider/model at launch time.
+`%model:codex/o3`, `%model:claude/opus`, `%m:agy/gemini-3.6-flash-high`,
+`%model:opencode/anthropic/claude-sonnet-4-5`, or `%model:muse/muse-spark-1.2`. Known
+model names auto-map to providers, and when no provider is configured SASE auto-detects
+installed built-ins with unambiguous CLI names in priority order: `claude`, `codex`,
+`qwen`, `opencode`, then `agy`. Muse Code remains explicit-only. For repeated workflows,
+model aliases such as `%model:@default` or `%model:@blogger` let your `sase.yml` choose
+the concrete provider/model at launch time.
 
 Uniformity is not just about launching. SASE skills, hooks, and commit finalization are
 provider-neutral by design. `sase skill init` renders skill sources into
 provider-specific `SKILL.md` targets such as `~/.claude/skills/...`,
-`~/.codex/skills/...`, `~/.qwen/skills/...`, and `~/.config/opencode/skills/...`.
-Generated provider instruction shims are full copies of the managed `AGENTS.md`. Write
-the SASE workflow once; let the selected runtime execute it.
+`~/.codex/skills/...`, `~/.qwen/skills/...`, `~/.config/opencode/skills/...`, and
+`~/.config/muse/skills/...`. Generated provider instruction shims are full copies of the
+managed `AGENTS.md`. Write the SASE workflow once; let the selected runtime execute it.
 
 The trade-off is honest. SASE has less direct control over provider token accounting,
 model semantics, and low-level tool protocols than it would have if it called raw model
@@ -120,7 +124,7 @@ second-rate replacement for them.
 _One GitHub prompt fans out to Claude, Codex, and Antigravity. All three agents run in
 isolated workspaces and remain controllable from the same ACE view._
 
-<!-- DIAGRAM: one_prompt_five_clis.prompt.md — placeholder for a diagram brief showing one SASE operating layer routing to five provider CLIs. -->
+<!-- DIAGRAM: one_prompt_provider_clis.prompt.md — placeholder for a diagram brief showing one SASE operating layer routing to supported provider CLIs. -->
 
 ## XPrompts
 
@@ -264,7 +268,7 @@ such as `N [S stopped · R running · W waiting · F failed · U unread · D don
 zero-count items omitted. Each row uses compact glyphs: `▶` for running, `✓` for done,
 `✎` for a submitted plan, `?` for a user question, `⏳` for waiting, `↻` for retrying,
 and `⚡` for autonomous plan approval. Provider emoji badges make the runtime visible at
-a glance: 🎭 Claude, 🪐 Antigravity, 🤖 Codex, 🐼 Qwen, and 🐙 OpenCode.
+a glance: 🎭 Claude, 🪐 Antigravity, 🤖 Codex, 🐼 Qwen, 🐙 OpenCode, and ♾️ Muse Code.
 
 State you used to keep in your head becomes a display. Which agent is waiting? Which one
 failed? Which one produced a plan? Which completed row is still unread? Which
@@ -311,9 +315,10 @@ from the window farm, but with records, gates, and one keyboard.
 
 SASE's boring install path is the right one. You need `uv`, Python 3.12 or newer, `git`
 with `user.name` and `user.email` configured, and at least one authenticated supported
-agent CLI: `claude`, `codex`, `agy`, `qwen`, or `opencode`. Prebuilt `sase-core-rs`
-wheels are available for CPython 3.12+ on Linux x86_64, Linux aarch64, and macOS; SASE
-targets POSIX platforms.
+agent CLI: `claude`, `codex`, `agy`, `qwen`, `opencode`, or `muse`. Muse Code requires
+explicit provider/model selection; the other built-in CLI names can be auto-detected.
+Prebuilt `sase-core-rs` wheels are available for CPython 3.12+ on Linux x86_64, Linux
+aarch64, and macOS; SASE targets POSIX platforms.
 
 Install and check the tool:
 
@@ -340,7 +345,8 @@ The minimal provider config lives in `~/.config/sase/sase.yml`:
 
 ```yaml
 llm_provider:
-  provider: claude # or "qwen", "opencode", "agy" (default: auto-detect)
+  provider: claude # default: auto-detect
+  # Other built-ins: qwen, opencode, agy, muse. Muse is explicit-only.
   model_tier_map:
     large: opus
     small: sonnet
@@ -371,10 +377,15 @@ rule. Skill initialization renders SASE skill sources to every provider's skill
 directory. That is the command-line version of the earlier promise: write the SASE
 workflow once, then deploy it across runtimes.
 
-After `sase doctor` reports a usable provider, launch a read-only first run:
+After `sase doctor` reports a usable provider, launch one read-only first run. Use the
+Muse form only when selecting Muse explicitly:
 
 ```bash
+# Auto-detected providers:
 sase run "#git:home summarize what this repository does; do not change files"
+# Muse Code:
+sase run "%model:muse/muse-spark-1.2 #git:home summarize what this repository does; do not change files"
+# Then:
 sase agent list
 sase ace
 ```

@@ -21,7 +21,7 @@ think.
 
 SASE needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and one authenticated
 coding-agent CLI such as Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code,
-OpenCode, or Muse Code. With Python and `uv` in place:
+OpenCode, or Meta's Muse Code. With Python and `uv` in place:
 
 ```bash
 uv tool install sase
@@ -47,18 +47,25 @@ sase doctor
 If the provider check reports a missing executable or an authentication gap, install and
 authenticate one provider CLI, then run `sase doctor` again.
 [Installing & Authenticating Agent Providers](agent_providers.md) has the per-provider
-install and auth commands; the [LLM provider reference](llms.md) covers how SASE
-integrates each provider once it is ready.
+install and auth commands plus the complete provider/model selection options; the
+[LLM provider reference](llms.md) covers how SASE integrates each provider once it is
+ready.
 
 **What you just did.** Verified that SASE can find a usable coding-agent provider before
 spending time on an agent run.
 
 ## Step 3 — Launch A Safe First Agent
 
-Start with a read-only task in SASE's managed `home` project:
+Start with a read-only task in SASE's managed `home` project. Use one launch form: the
+normal form when SASE can auto-detect an installed provider CLI, or the Muse form when
+Muse Code is your provider, because `muse` is explicit-only and never auto-detected:
 
 ```bash
+# Auto-detected providers:
 sase run "#git:home summarize this workspace's layout; do not change files"
+# Muse Code:
+sase run "%model:muse/muse-spark-1.2 #git:home summarize this workspace's layout; do not change files"
+# Then:
 sase agent list
 ```
 

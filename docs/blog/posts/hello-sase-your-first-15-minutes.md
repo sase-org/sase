@@ -20,12 +20,12 @@ links:
 # [01] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents
 
 SASE (pronounced "sassy" — yes, really) is a coordination layer that sits above
-coding-agent CLIs like Claude Code, Codex, or Antigravity CLI (`agy`). This post is the
-practical on-ramp: by the end you'll have installed `sase`, checked that a provider CLI
-is ready, launched a safe read-only agent run, found the resulting agent record, and
-picked up the vocabulary you'll keep bumping into in the rest of the docs. Plan on
-roughly fifteen minutes at a terminal, plus however long your favorite model takes to
-think.
+coding-agent CLIs like Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code, OpenCode,
+or Meta's Muse Code. This post is the practical on-ramp: by the end you'll have
+installed `sase`, checked that a provider CLI is ready, launched a safe read-only agent
+run, found the resulting agent record, and picked up the vocabulary you'll keep bumping
+into in the rest of the docs. Plan on roughly fifteen minutes at a terminal, plus
+however long your favorite model takes to think.
 
 <!-- more -->
 
@@ -37,8 +37,8 @@ names the parts afterward.
 ## Step 1 — Install SASE (≈90 seconds)
 
 SASE needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and one authenticated
-coding-agent CLI such as Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code, or
-OpenCode. With Python and `uv` in place:
+coding-agent CLI such as Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code,
+OpenCode, or Meta's Muse Code. With Python and `uv` in place:
 
 ```bash
 uv tool install sase
@@ -63,18 +63,24 @@ sase doctor
 
 If the provider check reports a missing executable or an authentication gap, install and
 authenticate one provider CLI, then run `sase doctor` again. The
-[LLM provider reference](../../llms.md) keeps the setup pointers in one place so this
-quickstart can stay focused.
+[agent provider guide](../../agent_providers.md) keeps install, authentication, and
+provider/model selection options in one place so this quickstart can stay focused.
 
 **What you just did.** Verified that SASE can find a usable coding-agent provider before
 spending time on an agent run.
 
 ## Step 3 — Launch a safe first agent (≈3 minutes, plus model time)
 
-Start with a read-only task in SASE's managed `home` project:
+Start with a read-only task in SASE's managed `home` project. Use one launch form: the
+normal form when SASE can auto-detect an installed provider CLI, or the Muse form when
+Muse Code is your provider, because `muse` is explicit-only and never auto-detected:
 
 ```bash
+# Auto-detected providers:
 sase run "#git:home summarize this workspace's layout; do not change files"
+# Muse Code:
+sase run "%model:muse/muse-spark-1.2 #git:home summarize this workspace's layout; do not change files"
+# Then:
 sase agent list
 ```
 
@@ -227,8 +233,8 @@ The names you'll keep bumping into, in one place:
 - **[SDD](../../sdd.md)** — Spec-Driven Development. Plans and epics as first-class
   artifacts on disk.
 - **[Plugins and providers](../../plugins.md)** — model and VCS providers behind a
-  common boundary: Claude Code, Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode for
-  agents; bare git and GitHub for version control.
+  common boundary: Claude Code, Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode, and
+  Muse Code for agents; bare git and GitHub for version control.
 
 ## What to read next
 

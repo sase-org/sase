@@ -71,8 +71,8 @@ is committed directly by the finalizer with a `SASE_TYPE=sdd` tag.
 
 That finalizer is runtime-uniform because it lives in the LLM provider orchestration
 layer, not in a provider-native hook. Claude, Codex, Antigravity (`agy`), Qwen,
-OpenCode, and plugin providers all follow the same control flow: changes exist →
-follow-up with skill name → skill wrapper delegates to `sase commit` → finalizer
+OpenCode, Muse Code, and plugin providers all follow the same control flow: changes
+exist → follow-up with skill name → skill wrapper delegates to `sase commit` → finalizer
 re-checks the workspaces. No runtime-specific branching in the agent prompt, no "if
 Codex then X" anywhere in the workflow.
 
@@ -87,8 +87,8 @@ closure of unrelated dirty work.
 Supported agent runtimes follow the same commit-finalizer control flow: the finalizer
 asks for the VCS-specific commit skill, the skill delegates to `sase commit`, and the
 finalizer re-checks for dirty work. The common Git skill surface is available across
-Claude, Codex, Antigravity (`agy`), Qwen, and OpenCode; provider-specific extras can be
-scoped to the runtimes that support that provider.
+Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, and Muse Code; provider-specific
+extras can be scoped to the runtimes that support that provider.
 
 ## The VCS Provider Boundary
 

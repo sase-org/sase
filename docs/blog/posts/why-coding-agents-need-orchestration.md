@@ -51,10 +51,10 @@ One notation note before we start:
 ## What SASE Is
 
 SASE is a local orchestration layer above coding-agent CLIs such as Codex, Claude Code,
-Antigravity CLI (`agy`), Qwen Code, and OpenCode. It gives those agents a common
-workflow: launch in isolated workspaces, expand reusable prompts, save prompt and
-response artifacts, track PR-sized work as ChangeSpecs, coordinate dependency graphs
-with Beads, and supervise background work through AXE.
+Antigravity CLI (`agy`), Qwen Code, OpenCode, and Meta's Muse Code. It gives those
+agents a common workflow: launch in isolated workspaces, expand reusable prompts, save
+prompt and response artifacts, track PR-sized work as ChangeSpecs, coordinate dependency
+graphs with Beads, and supervise background work through AXE.
 
 The repo split is intentionally boring:
 
@@ -76,8 +76,9 @@ Title: "SASE as the operating layer"
 Shape: horizontal layered architecture diagram.
 Top layer: "Human surfaces" with ACE TUI, Telegram, Neovim/XPrompt LSP, future Web UI, future Mobile app.
 Middle layer: "SASE Python host" with XPrompts, agent launcher, AXE daemon, ChangeSpecs, SDD, Beads, VCS/workspace plugins.
-Right side attached to middle: "Provider CLIs" with Codex, Claude Code, Antigravity (agy), Qwen, OpenCode. Draw them as replaceable
+Right side attached to middle: "Provider CLIs" with Codex, Claude Code, Antigravity (agy), Qwen, OpenCode, and Muse Code. Draw them as replaceable
 execution engines rather than the center of the system.
+Show Muse Code as explicitly selected by provider/model directive, not auto-detected.
 Bottom layer: "sase-core Rust" with state/indexing, mobile gateway, xprompt LSP core, deterministic file/query helpers.
 Persistent storage under everything: ~/.sase plus the resolved SDD store.
 Make the visual point that SASE is not another model wrapper; it is the state/control plane around several CLIs.
@@ -128,8 +129,8 @@ The quickstart has the fuller walkthrough: [Getting Started](../../getting_start
 
 SASE deliberately wraps CLI agents rather than raw model APIs. A SASE provider plugin
 constructs commands for existing agent runtimes: Codex CLI, Claude Code, Antigravity CLI
-(`agy`), Qwen Code, OpenCode, or another provider that implements the same boundary. The
-[LLM provider docs](../../llms.md) describe that layer in detail.
+(`agy`), Qwen Code, OpenCode, Muse Code, or another provider that implements the same
+boundary. The [LLM provider docs](../../llms.md) describe that layer in detail.
 
 This buys a lot:
 
