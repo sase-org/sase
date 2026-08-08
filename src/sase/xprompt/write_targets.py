@@ -23,7 +23,7 @@ from sase.xprompt.skill_locations import is_canonical_skill_directory
 
 
 @dataclass(frozen=True)
-class XPromptWriteTarget:
+class _XPromptWriteTarget:
     """Concrete file paths for editing an existing xprompt definition."""
 
     read_path: Path
@@ -67,7 +67,7 @@ class PostWriteActionOffer:
     command: tuple[str, ...] = ()
 
 
-def resolve_xprompt_write_target(read_path: Path | str) -> XPromptWriteTarget:
+def resolve_xprompt_write_target(read_path: Path | str) -> _XPromptWriteTarget:
     """Resolve where edits to *read_path* must be written.
 
     Home-managed paths are redirected to the matching chezmoi source only when
@@ -77,7 +77,7 @@ def resolve_xprompt_write_target(read_path: Path | str) -> XPromptWriteTarget:
     """
 
     read = Path(read_path).expanduser()
-    default = XPromptWriteTarget(
+    default = _XPromptWriteTarget(
         read_path=read,
         write_path=read,
         apply_target=None,
@@ -103,7 +103,7 @@ def resolve_xprompt_write_target(read_path: Path | str) -> XPromptWriteTarget:
     )
     if not source.exists():
         return default
-    return XPromptWriteTarget(
+    return _XPromptWriteTarget(
         read_path=read,
         write_path=source,
         apply_target=read,
@@ -111,7 +111,7 @@ def resolve_xprompt_write_target(read_path: Path | str) -> XPromptWriteTarget:
     )
 
 
-def write_target_for_written_path(path: Path | str) -> XPromptWriteTarget:
+def write_target_for_written_path(path: Path | str) -> _XPromptWriteTarget:
     """Return a write target for a path that is already the write location.
 
     Save-as destinations and external-editor surfaces often operate directly on
@@ -121,7 +121,7 @@ def write_target_for_written_path(path: Path | str) -> XPromptWriteTarget:
 
     write = Path(path).expanduser()
     apply_target = _chezmoi_apply_target_for_source(write)
-    return XPromptWriteTarget(
+    return _XPromptWriteTarget(
         read_path=apply_target or write,
         write_path=write,
         apply_target=apply_target,
@@ -168,7 +168,7 @@ def classify_written_file(
 
 
 def build_post_write_action_offers(
-    target: XPromptWriteTarget,
+    target: _XPromptWriteTarget,
     *,
     kind: WrittenFileKind,
     is_new: bool,
@@ -282,7 +282,7 @@ def _classify_single_written_path(path: Path) -> WrittenFileKind:
 
 
 def _commit_push_offer(
-    target: XPromptWriteTarget,
+    target: _XPromptWriteTarget,
     *,
     is_new: bool,
     xprompt_name: str,
@@ -390,7 +390,6 @@ __all__ = [
     "PostWriteActionKind",
     "PostWriteActionOffer",
     "WrittenFileKind",
-    "XPromptWriteTarget",
     "build_post_write_action_offers",
     "canonical_reference_for_path",
     "classify_written_file",

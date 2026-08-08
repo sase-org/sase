@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -20,6 +23,29 @@ __all__ = ["lifecycle_stubs", "projects_root"]
 
 
 class TestListAndShow:
+    def test_project_handler_imports_in_fresh_interpreter(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        env = os.environ.copy()
+        env["SASE_HOME"] = str(tmp_path / ".sase")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import sase.main.project_handler; print('ok')",
+            ],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "ok"
+
     def test_list_json_includes_all_states(
         self,
         projects_root: Path,

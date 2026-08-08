@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.content_layout import (
     LayoutCollisionError,
@@ -11,10 +12,12 @@ from sase.content_layout import (
     memory_reference_name,
     resolve_memory_file_sources,
 )
-from sase.memory.notes import MemoryNote, discover_memory_notes
 
 from .load_issues import record_load_issue
 from .models import MemoryType, XPrompt
+
+if TYPE_CHECKING:
+    from sase.memory.notes import MemoryNote
 
 MEMORY_LOAD_ISSUE_KIND = "memory"
 
@@ -52,6 +55,8 @@ def load_project_memory_xprompts(
 
 
 def _load_memory_xprompts_from_source(source: MemoryFileSource) -> tuple[XPrompt, ...]:
+    from sase.memory.notes import discover_memory_notes
+
     try:
         memory_root = source.resolve_read_root(f"{source.scope} memory")
     except LayoutCollisionError as exc:
