@@ -32,9 +32,6 @@ class XPromptWriteTarget:
     via_chezmoi: bool
 
 
-XPromptWriteTarget = _XPromptWriteTarget
-
-
 class WrittenFileKind(StrEnum):
     """Kind of source file written by an xprompt save surface."""
 
@@ -388,8 +385,6 @@ def _is_relative_to(path: Path, root: Path) -> bool:
         return False
     return True
 
-
-XPromptWriteTarget = _XPromptWriteTarget
 
 __all__ = [
     "PostWriteActionKind",
