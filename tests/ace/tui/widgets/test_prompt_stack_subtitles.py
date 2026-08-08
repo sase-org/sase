@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import CaptureApp
 
 
@@ -50,6 +53,26 @@ async def test_single_pane_insert_subtitle_keeps_normal_hint() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         assert bar.insert_mode_subtitle() == "[Enter] send  [Esc] normal  [^C] cancel"
+
+
+async def test_targeted_single_pane_insert_subtitle_uses_submit_hint(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "draft.md"
+    source.write_text("solo\n", encoding="utf-8")
+    app = CaptureApp("solo")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.target_xprompt(
+            XPromptBinding.for_file(source, reference="#draft"),
+            source_markdown="solo",
+        )
+
+        assert (
+            bar.insert_mode_subtitle() == "[Enter] submit…  [Esc] normal  [^C] cancel"
+        )
 
 
 async def test_multi_pane_normal_subtitle_advertises_stack_keys() -> None:

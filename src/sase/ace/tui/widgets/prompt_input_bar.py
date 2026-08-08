@@ -242,16 +242,19 @@ class PromptInputBar(
     def insert_mode_subtitle(self) -> str:
         """Return the insert-mode subtitle, advertising the stack when stacked.
 
-        ``<enter>`` opens the submit chooser, so a multi-pane stack swaps the
-        ``[Esc] normal`` hint for ``[Esc] nav`` and adds ``[^S] stash`` plus
-        ``[^G Enter] this`` hints for active-pane actions.  ``Esc`` still drops
-        into NORMAL mode for the normal ``g`` prefix; INSERT mode reaches the
-        same prompt-local actions through the ``Ctrl+G`` prefix.
+        ``<enter>`` opens the submit chooser for stacked or targeted prompts.
+        A multi-pane stack swaps the ``[Esc] normal`` hint for ``[Esc] nav``
+        and adds ``[^S] stash`` plus ``[^G Enter] this`` hints for active-pane
+        actions.  ``Esc`` still drops into NORMAL mode for the normal ``g``
+        prefix; INSERT mode reaches the same prompt-local actions through the
+        ``Ctrl+G`` prefix.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
             return (
                 "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] stash  [^G Enter] this"
             )
+        if self._mode == "prompt" and self._stack.binding is not None:
+            return "[Enter] submit…  [Esc] normal  [^C] cancel"
         return "[Enter] send  [Esc] normal  [^C] cancel"
 
     def normal_mode_subtitle(self) -> str:

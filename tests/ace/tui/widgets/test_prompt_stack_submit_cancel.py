@@ -14,15 +14,32 @@ Covers the core interaction behavior of the multi-agent prompt stack:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import CaptureApp
 
 
 # --- <enter>: submit-choice modal ------------------------------------------
+
+
+def _target_binding(tmp_path: Path, body: str = "draft\n") -> XPromptBinding:
+    source = tmp_path / "draft.md"
+    source.write_text(body, encoding="utf-8")
+    return XPromptBinding.for_file(source, reference="#draft")
+
+
+def _submit_choice_rows(modal: PromptSubmitChoiceModal) -> list[str]:
+    return [
+        str(row.render())
+        for row in modal.query(".prompt-submit-choice-row")
+        if hasattr(row, "render")
+    ]
 
 
 async def test_enter_on_multi_pane_pushes_submit_choice_modal() -> None:
@@ -37,6 +54,157 @@ async def test_enter_on_multi_pane_pushes_submit_choice_modal() -> None:
         assert isinstance(app.screen, PromptSubmitChoiceModal)
         assert app.submitted == []
         assert app.query(PromptInputBar)
+
+
+async def test_untargeted_multi_pane_choice_rows_are_unchanged() -> None:
+    app = CaptureApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+        assert _submit_choice_rows(app.screen) == [
+            ("  a   Submit all\n      Launch all 2 prompts as one xprompt swarm."),
+            (
+                "  c   Submit current\n"
+                "      Launch only the selected prompt as a single agent."
+            ),
+            "  a/^S all · c current · esc cancel",
+        ]
+
+
+async def test_enter_on_targeted_single_pane_pushes_submit_choice_modal(
+    tmp_path: Path,
+) -> None:
+    app = CaptureApp("draft")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.target_xprompt(_target_binding(tmp_path), source_markdown="draft")
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+        rows = _submit_choice_rows(app.screen)
+        assert any("Send" in row for row in rows)
+        assert any("Save to" in row and "#draft" in row for row in rows)
+        assert any("No unsaved changes since the last save." in row for row in rows)
+        assert any("Save as a new xprompt" in row for row in rows)
+        assert not any("Submit all" in row for row in rows)
+        assert app.submitted == []
+
+
+async def test_targeted_single_choice_send_submits_draft(tmp_path: Path) -> None:
+    app = CaptureApp("draft")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.target_xprompt(_target_binding(tmp_path), source_markdown="draft")
+
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("s")
+        await pilot.pause()
+
+        assert [event.value for event in app.submitted] == ["draft"]
+        assert app.write_xprompt_requested == []
+
+
+async def test_targeted_single_choice_write_posts_write_request(
+    tmp_path: Path,
+) -> None:
+    app = CaptureApp("draft")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        binding = _target_binding(tmp_path)
+        bar = app.query_one(PromptInputBar)
+        bar.target_xprompt(binding, source_markdown="draft")
+
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("w")
+        await pilot.pause()
+
+        assert app.submitted == []
+        assert len(app.write_xprompt_requested) == 1
+        assert app.write_xprompt_requested[0].binding == binding
+        assert [pane.text for pane in app.write_xprompt_requested[0].panes] == ["draft"]
+
+
+async def test_targeted_single_choice_save_as_posts_save_as_request(
+    tmp_path: Path,
+) -> None:
+    app = CaptureApp("draft")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.target_xprompt(_target_binding(tmp_path), source_markdown="draft")
+
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("X")
+        await pilot.pause()
+
+        assert app.submitted == []
+        assert len(app.save_as_xprompt_requested) == 1
+        assert [pane.text for pane in app.save_as_xprompt_requested[0].panes] == [
+            "draft"
+        ]
+
+
+async def test_targeted_multi_pane_choice_rows_include_launch_and_save(
+    tmp_path: Path,
+) -> None:
+    app = CaptureApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.target_xprompt(
+            _target_binding(tmp_path),
+            source_markdown="first\n---\nsecond",
+        )
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+        rows = _submit_choice_rows(app.screen)
+        assert any("Launch all 2" in row for row in rows)
+        assert any("Launch current" in row for row in rows)
+        assert any("Save to" in row and "#draft" in row for row in rows)
+        assert any("Save as a new xprompt" in row for row in rows)
+        assert rows[-1] == "  a/^S all · c current · w save · X save as · esc cancel"
+
+
+async def test_targeted_submit_choice_dirty_copy_names_write_path(
+    tmp_path: Path,
+) -> None:
+    app = CaptureApp("draft")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        binding = _target_binding(tmp_path)
+        bar = app.query_one(PromptInputBar)
+        bar.target_xprompt(binding, source_markdown="draft")
+        bar.active_text_area().text = "edited"
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        rows = _submit_choice_rows(app.screen)
+        assert any(
+            "Overwrite" in row and str(tmp_path / "draft.md") in row for row in rows
+        )
+        assert not any("No unsaved changes since the last save." in row for row in rows)
 
 
 @pytest.mark.parametrize("choice_key", ["a", "ctrl+s"])
@@ -168,7 +336,7 @@ async def test_g_enter_reattaches_frontmatter_to_single_pane_submit() -> None:
         assert bar.current_prompt_text() == "---\nmodel: opus\n---\nalpha"
 
 
-async def test_enter_on_empty_selected_pane_drops_it_without_submitting() -> None:
+async def test_enter_on_empty_selected_pane_opens_submit_choice() -> None:
     app = CaptureApp("first\n---\nsecond")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -183,9 +351,16 @@ async def test_enter_on_empty_selected_pane_drops_it_without_submitting() -> Non
 
         await pilot.press("enter")  # empty selected pane
         await pilot.pause()
+
+        # The chooser is stack-aware now, so it opens as long as any pane has
+        # content. Choosing current keeps the old empty-pane drop behavior.
+        assert app.submitted == []
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+        assert bar.all_prompt_texts() == ["first", "second", ""]
+
+        await pilot.press("c")
         await pilot.pause()
 
-        # Nothing launched; the empty pane is dropped.
         assert app.submitted == []
         assert bar.all_prompt_texts() == ["first", "second"]
 

@@ -229,7 +229,13 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
                     return
                 self._clear_file_completion()
             bar = self._find_prompt_bar()
-            if bar is not None and bar.is_multi_pane() and self.text.strip():
+            prompt_texts = bar.all_prompt_texts() if bar is not None else []
+            should_choose_submit = (
+                bar is not None
+                and (bar.is_multi_pane() or bar.xprompt_target() is not None)
+                and any(text.strip() for text in prompt_texts)
+            )
+            if should_choose_submit:
                 self._open_submit_choice_panel()
             else:
                 self._clear_xprompt_arg_hint()

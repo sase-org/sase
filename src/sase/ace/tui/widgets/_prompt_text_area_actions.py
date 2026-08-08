@@ -182,10 +182,14 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         )
 
         bar = self._find_prompt_bar()
-        if bar is None or not bar.is_multi_pane():
+        if bar is None:
+            return
+        target = bar.xprompt_target()
+        if not bar.is_multi_pane() and target is None:
             return
 
-        prompt_count = sum(1 for text in bar.all_prompt_texts() if text.strip())
+        prompt_texts = bar.all_prompt_texts()
+        prompt_count = sum(1 for text in prompt_texts if text.strip())
         if prompt_count <= 0:
             return
 
@@ -195,13 +199,24 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
 
         def _on_result(result: PromptSubmitChoice | None) -> None:
             self._refocus_if_needed()
-            if result == "all":
+            if result == "send":
+                self.action_submit_prompt()
+            elif result == "all":
                 self.action_submit_prompt_stack()
             elif result == "current":
                 self.action_submit_prompt()
+            elif result == "write":
+                bar.request_write_xprompt()
+            elif result == "save_as":
+                bar.request_save_as_xprompt()
 
         self.app.push_screen(
-            PromptSubmitChoiceModal(prompt_count=prompt_count),
+            PromptSubmitChoiceModal(
+                prompt_count=prompt_count,
+                pane_count=len(prompt_texts),
+                target=target,
+                is_dirty=bool(target is not None and bar._stack.is_dirty),
+            ),
             _on_result,
         )
 

@@ -46,7 +46,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("gx / Ctrl+G x / Ctrl+G Ctrl+X", "Open xprompt/snippet save panel"),
         ("gX / Ctrl+G X", "Save pane as local xprompt"),
         ("Ctrl+G p / @", "Stashed prompts panel"),
-        ("Enter", "Submit (chooser when stacked)"),
+        ("Enter", "Submit; chooser when needed"),
         ("g<enter>", "Submit current pane only"),
         ("gj / gk", "Focus prompt panes (NORMAL)"),
         ("gJ / gK", "Move prompt pane (NORMAL)"),
