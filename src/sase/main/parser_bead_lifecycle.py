@@ -145,10 +145,14 @@ def register_bead_create_parser(
     parser.add_argument(
         "-b",
         "--bug-id",
-        help="Bug ID to pass when creating the attached ChangeSpec",
+        help="Bug ID to pass when creating the attached Patch",
     )
     parser.add_argument(
-        "-c", "--changespec", help="Attach a ChangeSpec name to a plan bead"
+        "-c",
+        "--patch",
+        "--changespec",
+        dest="changespec",
+        help="Attach a Patch name to a plan bead",
     )
     parser.add_argument("-d", "--description", help="Issue description")
     parser.add_argument(

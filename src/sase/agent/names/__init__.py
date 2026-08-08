@@ -167,7 +167,7 @@ def resolve_agent_changespec(name: str) -> str:
             f"Cannot reference a failed agent's PR with @{name}"
         )
 
-    # Read done.json to get meta_changespec
+    # Read done.json to get the Patch created by a VCS workflow.
     done_path = os.path.join(agent.artifacts_dir, "done.json")
     try:
         with open(done_path, encoding="utf-8") as f:
@@ -184,7 +184,7 @@ def resolve_agent_changespec(name: str) -> str:
             f"The agent must have run a #pr workflow to create a PR."
         )
 
-    changespec = step_output.get("meta_changespec")
+    changespec = step_output.get("meta_patch") or step_output.get("meta_changespec")
     if not changespec:
         # Legacy fallback
         meta_new_cl = step_output.get("meta_new_cl")

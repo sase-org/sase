@@ -220,6 +220,7 @@ def build_agent_meta(
     agent_meta.update(inputs.preserved)
     agent_meta.update(inputs.epic_work)
     if inputs.cl_name:
+        agent_meta["patch_name"] = inputs.cl_name
         agent_meta["changespec_name"] = inputs.cl_name
         agent_meta.setdefault("cl_name", inputs.cl_name)
     if family_attach_plan:
@@ -281,6 +282,7 @@ def _add_family_metadata(
     if family_attach_plan.parent_workspace_num is not None:
         agent_meta["workspace_num"] = family_attach_plan.parent_workspace_num
     if family_attach_plan.parent_cl_name:
+        agent_meta["patch_name"] = family_attach_plan.parent_cl_name
         agent_meta["changespec_name"] = family_attach_plan.parent_cl_name
         agent_meta["cl_name"] = family_attach_plan.parent_cl_name
     if family_attach_plan.parent_agent_clan:

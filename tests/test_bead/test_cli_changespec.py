@@ -69,6 +69,32 @@ def test_create_plan_accepts_changespec_and_bug(
     assert "Created plan" in capsys.readouterr().out
 
 
+def test_create_plan_accepts_patch_alias(
+    project_dir: Path,
+) -> None:
+    plan = project_dir / "plan.md"
+    plan.write_text("# Plan\n")
+    parser = create_parser()
+    args = parser.parse_args(
+        [
+            "bead",
+            "create",
+            "-T",
+            f"plan({plan})",
+            "-t",
+            "Epic",
+            "--patch",
+            "feature_epic",
+        ]
+    )
+
+    bead_cli.handle_bead_create(args)
+
+    with BeadProject(project_dir) as proj:
+        issue = proj.list_issues()[0]
+        assert issue.patch_name == "feature_epic"
+
+
 def test_create_plan_stores_sibling_workspace_plan_path_relative_to_primary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -202,7 +228,7 @@ def test_create_rejects_bug_id_without_changespec(
         bead_cli.handle_bead_create(args)
 
     assert excinfo.value.code == 1
-    assert "--bug-id requires --changespec" in capsys.readouterr().err
+    assert "--bug-id requires --patch/--changespec" in capsys.readouterr().err
 
 
 def test_parser_accepts_model_on_create_short_and_long() -> None:

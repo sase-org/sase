@@ -222,6 +222,18 @@ def test_create_epic_with_changespec_metadata(project):
     assert project.show(issue.id).changespec_name == "feature_epic"
 
 
+def test_create_epic_with_patch_metadata_aliases(project):
+    issue = project.create(
+        "My Epic",
+        IssueType.PLAN,
+        patch_name="feature_epic",
+        patch_bug_id=12345,
+    )
+    assert issue.patch_name == "feature_epic"
+    assert issue.patch_bug_id == "12345"
+    assert project.show(issue.id).changespec_name == "feature_epic"
+
+
 def test_create_child(project):
     epic = project.create("Epic", IssueType.PLAN)
     child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
@@ -302,6 +314,17 @@ def test_update_changespec_metadata(project):
     )
     assert updated.changespec_name == "feature_epic"
     assert updated.changespec_bug_id == "12345"
+
+
+def test_update_patch_metadata_aliases(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    updated = project.update(
+        epic.id,
+        patch_name="feature_epic",
+        patch_bug_id=12345,
+    )
+    assert updated.patch_name == "feature_epic"
+    assert updated.patch_bug_id == "12345"
 
 
 def test_update_rejects_bug_id_without_changespec(project):

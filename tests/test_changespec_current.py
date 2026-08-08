@@ -270,7 +270,7 @@ def test_changespec_current_no_match_diagnoses_context(
 
     assert code == 1
     assert out == ""
-    assert "could not find a ChangeSpec" in err
+    assert "could not find a Patch" in err
     assert "project: proj" in err
     assert "branch: missing" in err
     assert "change_url: https://example.test/pr/1" in err
@@ -291,6 +291,6 @@ def test_changespec_current_ambiguous_match_fails(
 
     assert code == 1
     assert out == ""
-    assert "multiple ChangeSpecs match" in err
+    assert "multiple Patches match" in err
     assert "proj_feature_work_1" in err
     assert "proj_feature_work__1" in err

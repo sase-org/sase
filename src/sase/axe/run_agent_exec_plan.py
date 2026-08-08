@@ -57,6 +57,7 @@ def record_workflow_metadata(
     retained_fields = {
         "plan_submitted_at",
         "plan_path",
+        "patch_name",
         "changespec_name",
         "feedback_submitted_at",
         "sdd_prompt_path",
@@ -104,6 +105,7 @@ def handle_plan_marker(
         {
             "plan_submitted_at": plan_submitted_at,
             "plan_path": plan_data.get("plan_file"),
+            "patch_name": ctx.cl_name,
             "changespec_name": ctx.cl_name,
         },
     )
@@ -135,6 +137,7 @@ def handle_plan_marker(
         state.current_artifacts_dir,
         {
             "plan_path": plan_result.plan_file,
+            "patch_name": ctx.cl_name,
             "changespec_name": ctx.cl_name,
         },
     )
@@ -218,6 +221,7 @@ def handle_plan_marker(
             relationships={
                 "plan_path": plan_result.plan_file,
                 "feedback_submitted_at": feedback_submitted_at,
+                "patch_name": ctx.cl_name,
                 "changespec_name": ctx.cl_name,
                 "source_plan_agent_name": planner_agent,
             },

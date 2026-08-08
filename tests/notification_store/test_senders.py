@@ -72,9 +72,13 @@ class TestNotifyMentorsComplete:
         n = loaded[0]
         assert n.action == "JumpToMentorReview"
         assert n.action_data == {
+            "patch_name": "cl-1",
             "changespec_name": "cl-1",
+            "cl_name": "cl-1",
             "project_file": "/proj.sase",
+            "stitch_id": "2",
             "entry_id": "2",
+            "commit_entry_id": "2",
         }
         assert n.sender == "mentors"
         assert n.files == ["/proj.sase"]
@@ -118,6 +122,7 @@ class TestNotifyMentorsComplete:
         notification = load_notifications()[0]
         assert "widgets_review" in notification.notes[0]
         assert canonical not in notification.notes[0]
+        assert notification.action_data["patch_name"] == canonical
         assert notification.action_data["changespec_name"] == canonical
         assert notification.action_data["project_file"] == "/canonical/project.sase"
 

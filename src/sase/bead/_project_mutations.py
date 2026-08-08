@@ -48,6 +48,8 @@ class BeadProjectMutationMixin:
         refs: list[str] | tuple[str, ...] = (),
         assignee: str = "",
         tier: BeadTier | str | None = None,
+        patch_name: str | int | None = None,
+        patch_bug_id: str | int | None = None,
         changespec_name: str | int | None = "",
         changespec_bug_id: str | int | None = "",
         model: str = "",
@@ -78,6 +80,8 @@ class BeadProjectMutationMixin:
             design=design,
             refs=refs,
             assignee=assignee,
+            patch_name=patch_name,
+            patch_bug_id=patch_bug_id,
             changespec_name=changespec_name,
             changespec_bug_id=changespec_bug_id,
             model=model,
@@ -476,6 +480,18 @@ def _normalize_changespec_fields(
     fields: dict[str, str | int | None],
 ) -> dict[str, str | int | None]:
     normalized = dict(fields)
+    for canonical_name, legacy_name in (
+        ("patch_name", "changespec_name"),
+        ("patch_bug_id", "changespec_bug_id"),
+    ):
+        canonical_value = normalized.pop(canonical_name, None)
+        if canonical_value is None:
+            continue
+        legacy_value = _optional_text(normalized.get(legacy_name))
+        canonical_text = _optional_text(canonical_value)
+        if canonical_text and legacy_value and canonical_text != legacy_value:
+            raise ValueError(f"{canonical_name} conflicts with {legacy_name}")
+        normalized[legacy_name] = canonical_text or legacy_value
     for name in ("changespec_name", "changespec_bug_id"):
         if name in normalized:
             normalized[name] = _optional_text(normalized[name])

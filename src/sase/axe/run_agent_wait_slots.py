@@ -173,6 +173,7 @@ def _park_for_unavailable_limit(
         previous_threshold = 0
     marker.update(
         {
+            "patch_name": cl_name,
             "cl_name": cl_name,
             "timestamp": timestamp,
             "wait_runners": previous_threshold,
@@ -291,6 +292,7 @@ def _try_claim_runner_slot(
                 marker["eligible_since"] = eligible_since
             marker.update(
                 {
+                    "patch_name": cl_name,
                     "cl_name": cl_name,
                     "timestamp": timestamp,
                     "wait_runners": threshold,

@@ -272,6 +272,7 @@ def test_completion_notify_all_terminal_fires_once(
     assert len(notes) == 1
     assert notes[0].action == "JumpToMentorReview"
     assert notes[0].action_data["entry_id"] == "1"
+    assert notes[0].action_data["patch_name"] == "cl-1"
     assert notes[0].action_data["changespec_name"] == "cl-1"
     assert is_notified("/proj.sase", "cl-1", "1") is True
 

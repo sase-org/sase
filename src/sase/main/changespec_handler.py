@@ -1,4 +1,7 @@
-"""Handler for the ``sase changespec`` subcommands."""
+"""Handler for the ``sase patch`` subcommands.
+
+``sase changespec`` remains a compatibility alias.
+"""
 
 from __future__ import annotations
 
@@ -9,8 +12,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.ace.changespec import ChangeSpec, find_all_changespecs
-from sase.ace.changespec.refs_persistence import update_changespec_refs_field
+from sase.ace.patch import Patch, find_all_patches
+from sase.ace.patch.refs_persistence import update_patch_refs_field
 from sase.ace.deltas import refresh_deltas_for_changespec
 from sase.artifact_ref_lists import (
     ArtifactRefListEntry,
@@ -27,6 +30,8 @@ from sase.core.changespec import (
 from sase.project_display_names import humanize_cl_name, project_display_name_for
 from sase.vcs_provider import VCSProvider, get_vcs_provider
 from sase.workflows.utils import get_project_file_path, get_project_from_workspace
+
+find_all_changespecs = find_all_patches
 
 
 @dataclass(frozen=True)
@@ -57,8 +62,28 @@ def _project_from_project_file(project_file: str | None) -> str | None:
     return stem
 
 
+ChangeSpec = Patch
+
+
+def _command_name(args: argparse.Namespace) -> str:
+    command = getattr(args, "command", "patch")
+    return "changespec" if command == "changespec" else "patch"
+
+
+def _command_prefix(args: argparse.Namespace, subcommand: str) -> str:
+    return f"sase {_command_name(args)} {subcommand}"
+
+
+def _target_option(args: argparse.Namespace) -> str:
+    return "-c/--changespec" if _command_name(args) == "changespec" else "-p/--patch"
+
+
+def _patch_target(args: argparse.Namespace) -> str | None:
+    return getattr(args, "patch", None) or getattr(args, "changespec", None)
+
+
 def _resolve_project_context(explicit: str | None) -> tuple[str | None, str | None]:
-    """Resolve project and project-file context for ``changespec current``."""
+    """Resolve project and project-file context for ``patch current``."""
     if explicit:
         explicit_project_file = os.path.expanduser(explicit)
         return _project_from_project_file(explicit_project_file), explicit_project_file
@@ -209,7 +234,7 @@ def _file_location(cs: ChangeSpec) -> str:
 
 
 def _changespec_payload(cs: ChangeSpec) -> dict[str, object]:
-    """Stable JSON-serializable representation for ``changespec current``."""
+    """Stable JSON-serializable representation for ``patch current``."""
     return {
         "name": cs.name,
         "project": cs.project_basename,
@@ -223,8 +248,8 @@ def _changespec_payload(cs: ChangeSpec) -> dict[str, object]:
 
 
 def _display_current_markdown(cs: ChangeSpec) -> None:
-    """Print one ChangeSpec in compact agent-friendly markdown."""
-    print("# Current ChangeSpec")
+    """Print one Patch in compact agent-friendly markdown."""
+    print("# Current Patch")
     print("")
     print(f"## {humanize_cl_name(cs.name)}")
     print("")
@@ -257,7 +282,7 @@ def _display_current_plain(cs: ChangeSpec) -> None:
 
 
 def _display_current_json(cs: ChangeSpec) -> None:
-    """Print one ChangeSpec as JSON."""
+    """Print one Patch as JSON."""
     print(json.dumps(_changespec_payload(cs), sort_keys=True))
 
 
@@ -285,7 +310,8 @@ def _handle_current(args: argparse.Namespace) -> int:
     matches = _find_current_changespec(find_all_changespecs(), context, provider)
     if not matches:
         print(
-            "[sase changespec current] could not find a ChangeSpec for the current checkout.",
+            f"[{_command_prefix(args, 'current')}] could not find a Patch "
+            "for the current checkout.",
             file=sys.stderr,
         )
         for line in _diagnostic_lines(context):
@@ -293,7 +319,8 @@ def _handle_current(args: argparse.Namespace) -> int:
         return 1
     if len(matches) > 1:
         print(
-            "[sase changespec current] multiple ChangeSpecs match the current checkout:",
+            f"[{_command_prefix(args, 'current')}] multiple Patches match "
+            "the current checkout:",
             file=sys.stderr,
         )
         for cs in matches:
@@ -315,21 +342,23 @@ def _handle_current(args: argparse.Namespace) -> int:
     return 0
 
 
-def _resolve_ref_changespec(name: str | None) -> ChangeSpec | None:
-    """Resolve an explicit name or the current checkout to one ChangeSpec."""
+def _resolve_ref_changespec(
+    name: str | None, args: argparse.Namespace
+) -> ChangeSpec | None:
+    """Resolve an explicit name or the current checkout to one Patch."""
 
     changespecs = find_all_changespecs()
     if name:
         matches = [changespec for changespec in changespecs if changespec.name == name]
         if not matches:
             print(
-                f"[sase changespec ref] ChangeSpec not found: {name}",
+                f"[{_command_prefix(args, 'ref')}] Patch not found: {name}",
                 file=sys.stderr,
             )
             return None
         if len(matches) > 1:
             print(
-                f"[sase changespec ref] multiple ChangeSpecs are named {name}:",
+                f"[{_command_prefix(args, 'ref')}] multiple Patches are named {name}:",
                 file=sys.stderr,
             )
             for changespec in matches:
@@ -351,14 +380,14 @@ def _resolve_ref_changespec(name: str | None) -> ChangeSpec | None:
         return matches[0]
     if not matches:
         print(
-            "[sase changespec ref] could not find a ChangeSpec for the "
-            "current checkout; pass -c/--changespec.",
+            f"[{_command_prefix(args, 'ref')}] could not find a Patch for the "
+            f"current checkout; pass {_target_option(args)}.",
             file=sys.stderr,
         )
     else:
         print(
-            "[sase changespec ref] multiple ChangeSpecs match the current "
-            "checkout; pass -c/--changespec.",
+            f"[{_command_prefix(args, 'ref')}] multiple Patches match the current "
+            f"checkout; pass {_target_option(args)}.",
             file=sys.stderr,
         )
     return None
@@ -429,7 +458,7 @@ def _render_ref_list(changespec: ChangeSpec, *, resolve: bool, as_json: bool) ->
 
 
 def _handle_ref(args: argparse.Namespace) -> int:
-    changespec = _resolve_ref_changespec(args.changespec)
+    changespec = _resolve_ref_changespec(_patch_target(args), args)
     if changespec is None:
         return 1
 
@@ -455,16 +484,16 @@ def _handle_ref(args: argparse.Namespace) -> int:
             verb = "Detached"
             changed = [reference for reference in existing if reference in removed]
     except ValueError as exc:
-        print(f"[sase changespec ref] {exc}", file=sys.stderr)
+        print(f"[{_command_prefix(args, 'ref')}] {exc}", file=sys.stderr)
         return 1
 
-    if not update_changespec_refs_field(
+    if not update_patch_refs_field(
         changespec.file_path,
         changespec.name,
         updated,
     ):
         print(
-            f"[sase changespec ref] failed to update {changespec.name}",
+            f"[{_command_prefix(args, 'ref')}] failed to update {changespec.name}",
             file=sys.stderr,
         )
         return 1
@@ -481,14 +510,15 @@ def _handle_sync_deltas(args: argparse.Namespace) -> int:
     project_file = _resolve_project_file(args.project_file)
     if not project_file:
         print(
-            "[sase changespec sync-deltas] could not infer project file; "
+            f"[{_command_prefix(args, 'sync-deltas')}] could not infer project file; "
             "pass -p/--project-file or run inside a sase workspace.",
             file=sys.stderr,
         )
         return 1
     if not os.path.isfile(project_file):
         print(
-            f"[sase changespec sync-deltas] project file not found: {project_file}",
+            f"[{_command_prefix(args, 'sync-deltas')}] project file not found: "
+            f"{project_file}",
             file=sys.stderr,
         )
         return 1
@@ -499,7 +529,8 @@ def _handle_sync_deltas(args: argparse.Namespace) -> int:
         print(f"DELTAS refreshed for {args.cl_name} in {project_file}")
         return 0
     print(
-        f"[sase changespec sync-deltas] failed to refresh DELTAS for {args.cl_name}; "
+        f"[{_command_prefix(args, 'sync-deltas')}] failed to refresh DELTAS for "
+        f"{args.cl_name}; "
         "DELTAS preserved as-is. See logs for details.",
         file=sys.stderr,
     )
@@ -510,7 +541,7 @@ def _handle_migrate_extension(args: argparse.Namespace) -> int:
     """Run the ``.gp`` → ``.sase`` migration helper."""
     from pathlib import Path
 
-    from sase.ace.changespec.project_spec_migration import migrate_all_projects
+    from sase.ace.patch.project_spec_migration import migrate_all_projects
 
     projects_dir = Path(args.projects_dir).expanduser() if args.projects_dir else None
     report = migrate_all_projects(projects_dir, force=bool(args.force))
@@ -530,9 +561,11 @@ def _handle_migrate_extension(args: argparse.Namespace) -> int:
     return 0 if report.conflict_count == 0 else 1
 
 
-def handle_changespec_command(args: argparse.Namespace) -> None:
-    """Dispatch ``sase changespec`` subcommands."""
-    sub = getattr(args, "changespec_subcommand", None)
+def handle_patch_command(args: argparse.Namespace) -> None:
+    """Dispatch ``sase patch`` subcommands."""
+    sub = getattr(args, "patch_subcommand", None) or getattr(
+        args, "changespec_subcommand", None
+    )
     if sub == "current":
         sys.exit(_handle_current(args))
     if sub == "search":
@@ -547,8 +580,13 @@ def handle_changespec_command(args: argparse.Namespace) -> None:
     if sub == "migrate-extension":
         sys.exit(_handle_migrate_extension(args))
     print(
-        "Usage: sase changespec "
+        f"Usage: sase {_command_name(args)} "
         "{current,migrate-extension,ref,search,sync-deltas} [-h]",
         file=sys.stderr,
     )
     sys.exit(1)
+
+
+def handle_changespec_command(args: argparse.Namespace) -> None:
+    """Legacy dispatcher alias for :func:`handle_patch_command`."""
+    handle_patch_command(args)

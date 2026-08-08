@@ -91,6 +91,7 @@ def _build_mentor_prompt(
         "role": mentor.role,
         "focus_areas_json": focus_areas_json,
         "schema": schema,
+        "patch_name": cl_name,
         "cl_name": cl_name,
         "vcs_type": vcs_type,
         "diff_ref": diff_ref,

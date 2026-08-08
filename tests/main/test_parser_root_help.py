@@ -46,6 +46,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         "prompt",
         "agent",
         "memory",
+        "patch",
         "bead",
         "project",
         "vcs",

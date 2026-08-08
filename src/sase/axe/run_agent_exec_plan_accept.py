@@ -266,6 +266,7 @@ def _notify_epic_launch_failure(
             action="ViewErrorReport",
             action_data={
                 "error_report_path": ctx.output_path,
+                "patch_name": ctx.cl_name,
                 "cl_name": ctx.cl_name,
                 **({"agent_name": ctx.agent_name} if ctx.agent_name else {}),
             },
@@ -623,6 +624,7 @@ def handle_accepted_plan(
             else None,
             "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
             "plan_committed": plan_committed,
+            "patch_name": ctx.cl_name,
             "changespec_name": ctx.cl_name,
             "source_plan_agent_name": source_plan_agent_name,
         },

@@ -81,7 +81,7 @@ def _write_workflow_state(
         "status": status,
         "current_step_index": 0,
         "steps": [],
-        "context": {"cl_name": cl_name},
+        "context": {"patch_name": cl_name, "cl_name": cl_name},
         "artifacts_dir": artifacts_dir,
         "start_time": local_now().isoformat(),
         "pid": os.getpid(),
@@ -308,6 +308,7 @@ def main() -> None:
                 ],
                 action="JumpToAgent",
                 action_data={
+                    "patch_name": cl_name,
                     "cl_name": cl_name,
                     "raw_suffix": os.path.basename(artifacts_dir),
                 },

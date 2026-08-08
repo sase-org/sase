@@ -84,15 +84,29 @@ def candidate_from_sibling(sibling: _types.FamilyAttachSibling) -> dict[str, Any
 def record_cl_name(record: Any) -> str | None:
     meta = record.agent_meta
     if meta is not None:
-        for value in (meta.cl_name, meta.changespec_name):
+        for value in (
+            getattr(meta, "patch_name", None),
+            getattr(meta, "cl_name", None),
+            getattr(meta, "changespec_name", None),
+        ):
             if value:
                 return value
-    if record.done is not None and record.done.cl_name:
-        return record.done.cl_name
+    if record.done is not None:
+        for value in (
+            getattr(record.done, "patch_name", None),
+            getattr(record.done, "cl_name", None),
+        ):
+            if value:
+                return value
     if record.workflow_state is not None and record.workflow_state.cl_name:
         return record.workflow_state.cl_name
-    if record.running is not None and record.running.cl_name:
-        return record.running.cl_name
+    if record.running is not None:
+        for value in (
+            getattr(record.running, "patch_name", None),
+            getattr(record.running, "cl_name", None),
+        ):
+            if value:
+                return value
     return None
 
 

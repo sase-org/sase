@@ -9,6 +9,7 @@ from typing import Any
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.patch_metadata import canonicalize_patch_metadata
 
 
 def publish_phase_env(artifacts_dir: str) -> None:
@@ -30,6 +31,7 @@ def write_done_marker_and_update_index(
     done_marker: dict[str, Any],
 ) -> str:
     """Write ``done.json`` and refresh the artifact index for that directory."""
+    canonicalize_patch_metadata(done_marker)
     done_path = os.path.join(artifacts_dir, "done.json")
     with open(done_path, "w", encoding="utf-8") as f:
         json.dump(done_marker, f, indent=2)

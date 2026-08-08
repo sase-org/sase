@@ -32,9 +32,12 @@ class TestWriteResultMarker:
                 "message": "fix: bug",
                 "name": "feat-x",
                 "bead_id": "",
+                "patch_name": "proj_feat_1",
                 "changespec_name": "proj_feat_1",
+                "commit_patch_name": "proj_feat_1",
                 "commit_changespec_name": "proj_feat_1",
                 "entry_id": None,
+                "stitch_id": None,
                 "commit_entry_id": None,
                 "diff_path": None,
                 "commit_diff_path": None,
@@ -82,9 +85,12 @@ class TestWriteResultMarker:
                 "message": "fix: bug",
                 "name": "feat-x",
                 "bead_id": "",
+                "patch_name": "proj_feat_1",
                 "changespec_name": "proj_feat_1",
+                "commit_patch_name": "proj_feat_1",
                 "commit_changespec_name": "proj_feat_1",
                 "entry_id": None,
+                "stitch_id": None,
                 "commit_entry_id": None,
                 "diff_path": None,
                 "commit_diff_path": None,
@@ -98,7 +104,9 @@ class TestWriteResultMarker:
 
             data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
             assert data["result"] is None
+            assert data["patch_name"] is None
             assert data["changespec_name"] is None
+            assert data["stitch_id"] is None
             assert data["entry_id"] is None
 
     def test_writes_marker_with_entry_id(self) -> None:
@@ -111,6 +119,7 @@ class TestWriteResultMarker:
 
             data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
             assert data["entry_id"] == "entry_42"
+            assert data["stitch_id"] == "entry_42"
             assert data["commit_entry_id"] == "entry_42"
 
     def test_accumulates_commit_results_and_upserts_entry_id(self) -> None:

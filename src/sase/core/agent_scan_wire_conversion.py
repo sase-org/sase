@@ -33,6 +33,7 @@ from sase.core.agent_scan_wire_records import (
     AgentArtifactScanWire,
     AgentClanContextWire,
 )
+from sase.core.patch_metadata import canonicalize_patch_metadata
 from sase.core.wire import known_field_kwargs
 
 
@@ -50,6 +51,13 @@ def agent_scan_wire_to_json_dict(record: Any) -> Any:
     if hasattr(record, "__dataclass_fields__"):
         return asdict(record)
     return record
+
+
+def _dual_patch_name_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """Populate canonical Patch names and stable legacy aliases together."""
+    payload = dict(data)
+    canonicalize_patch_metadata(payload)
+    return payload
 
 
 def _options_from_dict(data: dict[str, Any]) -> AgentArtifactScanOptionsWire:
@@ -140,13 +148,11 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
         agent_meta=_agent_meta_from_dict(agent_meta)
         if isinstance(agent_meta, dict)
         else None,
-        done=DoneMarkerWire(**known_field_kwargs(DoneMarkerWire, done))
-        if isinstance(done, dict)
-        else None,
-        running=RunningMarkerWire(**known_field_kwargs(RunningMarkerWire, running))
+        done=_done_marker_from_dict(done) if isinstance(done, dict) else None,
+        running=_running_marker_from_dict(running)
         if isinstance(running, dict)
         else None,
-        waiting=WaitingMarkerWire(**known_field_kwargs(WaitingMarkerWire, waiting))
+        waiting=_waiting_marker_from_dict(waiting)
         if isinstance(waiting, dict)
         else None,
         pending_question=PendingQuestionMarkerWire(
@@ -179,7 +185,7 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
 
 
 def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
-    payload = canonicalize_agent_tribe_metadata(dict(data))
+    payload = canonicalize_agent_tribe_metadata(_dual_patch_name_payload(data))
     if bool(payload.get("agent_family_parallel", False)):
         if not payload.get("agent_clan"):
             payload["agent_clan"] = payload.get("agent_family")
@@ -190,6 +196,24 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
         raw_plan_committed if type(raw_plan_committed) is bool else None
     )
     return AgentMetaWire(**known_field_kwargs(AgentMetaWire, payload))
+
+
+def _done_marker_from_dict(data: dict[str, Any]) -> DoneMarkerWire:
+    return DoneMarkerWire(
+        **known_field_kwargs(DoneMarkerWire, _dual_patch_name_payload(data))
+    )
+
+
+def _running_marker_from_dict(data: dict[str, Any]) -> RunningMarkerWire:
+    return RunningMarkerWire(
+        **known_field_kwargs(RunningMarkerWire, _dual_patch_name_payload(data))
+    )
+
+
+def _waiting_marker_from_dict(data: dict[str, Any]) -> WaitingMarkerWire:
+    return WaitingMarkerWire(
+        **known_field_kwargs(WaitingMarkerWire, _dual_patch_name_payload(data))
+    )
 
 
 def _workflow_state_from_dict(data: dict[str, Any]) -> WorkflowStateWire:

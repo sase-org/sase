@@ -104,12 +104,12 @@ def handle_bead_create(args: argparse.Namespace) -> None:
     changespec_bug_id = getattr(args, "bug_id", None) or ""
     if issue_type != IssueType.PLAN and (changespec_name or changespec_bug_id):
         print(
-            "Error: ChangeSpec metadata can only be attached to plan beads",
+            "Error: Patch metadata can only be attached to plan beads",
             file=sys.stderr,
         )
         sys.exit(1)
     if changespec_bug_id and not changespec_name:
-        print("Error: --bug-id requires --changespec", file=sys.stderr)
+        print("Error: --bug-id requires --patch/--changespec", file=sys.stderr)
         sys.exit(1)
     tier = BeadTier(args.tier) if getattr(args, "tier", None) else None
     if issue_type != IssueType.PLAN and tier is not None:

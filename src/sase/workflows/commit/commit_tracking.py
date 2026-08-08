@@ -14,6 +14,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+from sase.core.patch_metadata import canonicalize_patch_metadata
 from sase.core.paths import sase_subdir
 from sase.output import print_status
 from sase.workflows.commit.plan_paths import format_sase_plan_reference
@@ -316,13 +317,15 @@ def _persist_primary_commit_metadata(
         ):
             return
         original_meta = dict(meta)
+        canonicalize_patch_metadata(meta)
         canonicalize_agent_tribe_metadata(meta)
         if diff_path and meta.get("commit_diff_path") != diff_path:
             meta["commit_diff_path"] = diff_path
         if (
             normalized_changespec_name
-            and meta.get("commit_changespec_name") != normalized_changespec_name
+            and meta.get("commit_patch_name") != normalized_changespec_name
         ):
+            meta["commit_patch_name"] = normalized_changespec_name
             meta["commit_changespec_name"] = normalized_changespec_name
         if meta == original_meta:
             return
@@ -548,9 +551,12 @@ def write_result_marker(
         "message": payload.get("message", ""),
         "name": payload.get("name", ""),
         "bead_id": payload.get("bead_id", ""),
+        "patch_name": changespec_name,
         "changespec_name": changespec_name,
+        "commit_patch_name": changespec_name,
         "commit_changespec_name": changespec_name,
         "entry_id": entry_id,
+        "stitch_id": entry_id,
         "commit_entry_id": entry_id,
         "diff_path": diff_path,
         "commit_diff_path": diff_path,

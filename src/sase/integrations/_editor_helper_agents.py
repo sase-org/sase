@@ -118,8 +118,14 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
             )
 
         cl_name = (
-            meta.cl_name
+            getattr(meta, "patch_name", None)
+            or meta.cl_name
             or meta.changespec_name
+            or (
+                getattr(record.done, "patch_name", None)
+                if record.done is not None
+                else None
+            )
             or (record.done.cl_name if record.done is not None else None)
         )
         persisted_tribe = _persisted_tribe_for_record(

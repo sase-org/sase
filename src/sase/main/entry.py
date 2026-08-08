@@ -153,11 +153,11 @@ def main() -> NoReturn:
             schedule_current_bead_refresh()
         sys.exit(0)
 
-    # --- changespec ---
-    if args.command == "changespec":
-        from .changespec_handler import handle_changespec_command
+    # --- patch / changespec ---
+    if args.command in {"patch", "changespec"}:
+        from .patch_handler import handle_patch_command
 
-        handle_changespec_command(args)
+        handle_patch_command(args)
 
     # --- chat ---
     if args.command == "chat":

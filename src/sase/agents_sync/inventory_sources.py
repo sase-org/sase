@@ -219,7 +219,11 @@ def run_from_dismissed(
         and step_output.get("imported_source_run_id") is not None
     ):
         return None
-    raw_name = _text(raw.get("agent_name")) or _text(raw.get("cl_name"))
+    raw_name = (
+        _text(raw.get("agent_name"))
+        or _text(raw.get("patch_name"))
+        or _text(raw.get("cl_name"))
+    )
     if raw_name is None:
         return None
     local_name = _canonical_local_name(raw_name, identity)

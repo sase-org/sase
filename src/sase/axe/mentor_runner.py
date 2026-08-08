@@ -74,7 +74,7 @@ def main() -> None:
     detect_write_and_persist_review_agent_meta(artifacts_dir, project_file, cl_name)
 
     print(f"Starting mentor workflow: {mentor_name}")
-    print(f"ChangeSpec: {cl_name}")
+    print(f"Patch: {cl_name}")
     print(f"Profile: {profile_name}")
     print(f"Entry ID: {entry_id}")
     print()
@@ -228,11 +228,13 @@ def main() -> None:
             action = "ViewErrorReport"
             action_data: dict[str, str] = {
                 "error_report_path": error_report_path,
+                "patch_name": cl_name,
                 "cl_name": cl_name,
             }
         else:
             action = "JumpToChangeSpec"
             action_data = {
+                "patch_name": cl_name,
                 "changespec_name": cl_name,
                 "project_file": project_file,
             }

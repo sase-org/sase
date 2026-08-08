@@ -127,6 +127,7 @@ def create_followup_artifacts(
         "workspace_dir",
         "name",
         "approve",
+        "patch_name",
         "changespec_name",
         "cl_name",
         "bead_id",

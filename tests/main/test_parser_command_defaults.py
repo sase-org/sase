@@ -108,10 +108,12 @@ def test_bare_list_group_records_delegation_metadata() -> None:
 
         label = " ".join(path)
         omitted_args = parser.parse_args([*path[1:]])
+        expected_label = "sase patch ref" if label == "sase changespec ref" else label
 
-        assert getattr(omitted_args, _DEFAULT_LIST_GROUP_DEST) == label, label
+        assert getattr(omitted_args, _DEFAULT_LIST_GROUP_DEST) == expected_label, label
         assert default_list_delegation_notice(omitted_args) == (
-            f"No subcommand provided for '{label}'; delegating to '{label} list'."
+            f"No subcommand provided for '{expected_label}'; "
+            f"delegating to '{expected_label} list'."
         ), label
 
 

@@ -42,6 +42,7 @@ def _launch_descriptor(
         "workspace_dir": str(getattr(result, "workspace_dir", "") or ""),
         "project_name": str(getattr(result, "project_name", "") or ""),
         "workflow_name": str(getattr(result, "workflow_name", "") or ""),
+        "patch_name": str(getattr(result, "cl_name", "") or ""),
         "cl_name": str(getattr(result, "cl_name", "") or ""),
         "timestamp": timestamp,
         "artifacts_timestamp": artifacts_timestamp,

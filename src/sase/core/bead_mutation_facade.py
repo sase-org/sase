@@ -49,6 +49,8 @@ def create(
     design: str = "",
     refs: list[str] | tuple[str, ...] = (),
     assignee: str = "",
+    patch_name: str | int | None = None,
+    patch_bug_id: str | int | None = None,
     changespec_name: str | int | None = "",
     changespec_bug_id: str | int | None = "",
     model: str = "",
@@ -58,6 +60,18 @@ def create(
 ) -> tuple[Issue, dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "create")
     binding = require_rust_binding("bead_create")
+    changespec_name = _resolve_patch_alias(
+        patch_name,
+        changespec_name,
+        canonical_name="patch_name",
+        legacy_name="changespec_name",
+    )
+    changespec_bug_id = _resolve_patch_alias(
+        patch_bug_id,
+        changespec_bug_id,
+        canonical_name="patch_bug_id",
+        legacy_name="changespec_bug_id",
+    )
     payload = _call_issue_operation(
         binding,
         str(beads_dir),
@@ -89,6 +103,7 @@ def update(
 ) -> tuple[Issue, dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "update")
     binding = require_rust_binding("bead_update")
+    fields = _normalize_patch_field_aliases(fields)
     payload = _call_issue_operation(binding, str(beads_dir), issue_id, fields)
     return _issue_payload(payload), payload
 
@@ -100,6 +115,7 @@ def update_many(
 ) -> tuple[list[Issue], dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "update_many")
     binding = require_rust_binding("bead_update_many")
+    fields = _normalize_patch_field_aliases(fields)
     payload = _call_issue_operation(binding, str(beads_dir), issue_ids, fields)
     return issues_from_list(payload.get("issues", [])), payload
 
@@ -430,8 +446,44 @@ def _issue_payload(payload: dict[str, Any]) -> Issue:
     return issue_from_dict(payload["issue"])
 
 
-def _optional_text(value: str | int | None) -> str:
+def _optional_text(value: str | int | bool | None) -> str:
     return "" if value is None else str(value)
+
+
+def _resolve_patch_alias(
+    canonical_value: str | int | bool | None,
+    legacy_value: str | int | bool | None,
+    *,
+    canonical_name: str,
+    legacy_name: str,
+) -> str:
+    legacy_text = _optional_text(legacy_value)
+    if canonical_value is None:
+        return legacy_text
+    canonical_text = _optional_text(canonical_value)
+    if canonical_text and legacy_text and canonical_text != legacy_text:
+        raise ValueError(f"{canonical_name} conflicts with {legacy_name}")
+    return canonical_text or legacy_text
+
+
+def _normalize_patch_field_aliases(
+    fields: dict[str, str | int | bool | None],
+) -> dict[str, str | int | bool | None]:
+    normalized = dict(fields)
+    for canonical_name, legacy_name in (
+        ("patch_name", "changespec_name"),
+        ("patch_bug_id", "changespec_bug_id"),
+    ):
+        canonical_value = normalized.pop(canonical_name, None)
+        if canonical_value is None:
+            continue
+        normalized[legacy_name] = _resolve_patch_alias(
+            canonical_value,
+            normalized.get(legacy_name),
+            canonical_name=canonical_name,
+            legacy_name=legacy_name,
+        )
+    return normalized
 
 
 __all__ = [

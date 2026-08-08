@@ -48,6 +48,22 @@ class TestAppendNotification:
         assert len(loaded) == 1
         assert loaded[0].tags == ["done", "review"]
 
+    def test_action_data_dual_reads_patch_metadata(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        n = make_notification(
+            action="JumpToMentorReview",
+            action_data={"changespec_name": "cl", "entry_id": "2a"},
+        )
+        append_notification(n)
+
+        loaded = load_notifications()
+
+        assert loaded[0].action_data["patch_name"] == "cl"
+        assert loaded[0].action_data["changespec_name"] == "cl"
+        assert loaded[0].action_data["stitch_id"] == "2a"
+        assert loaded[0].action_data["entry_id"] == "2a"
+
     def test_routes_through_rust_facade(self, temp_notifications_dir: Path) -> None:
         import sase.notifications.store as store
 

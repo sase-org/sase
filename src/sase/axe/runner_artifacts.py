@@ -49,6 +49,7 @@ def write_agent_meta(
     model: str | None = None,
     llm_provider: str | None = None,
     vcs_provider: str | None = None,
+    patch_name: str | None = None,
     tribe: str | None = None,
 ) -> None:
     """Write agent_meta.json to an axe runner's artifacts directory.
@@ -61,6 +62,7 @@ def write_agent_meta(
         model: Model name (e.g., "gemini-3.6-flash-high").
         llm_provider: LLM provider name (e.g., "agy").
         vcs_provider: VCS provider display name (e.g., "Mercurial").
+        patch_name: Patch name associated with this runner.
         tribe: Optional Agents-tab tribe.
     """
     meta: dict[str, object] = {"pid": os.getpid()}
@@ -70,6 +72,8 @@ def write_agent_meta(
         meta["llm_provider"] = llm_provider
     if vcs_provider:
         meta["vcs_provider"] = vcs_provider
+    if patch_name:
+        meta["patch_name"] = patch_name
     if tribe:
         meta["tribe"] = tribe
 
@@ -118,6 +122,7 @@ def _detect_and_write_agent_meta(
     artifacts_dir: str,
     project_file: str,
     *,
+    patch_name: str | None = None,
     tribe: str | None = None,
 ) -> None:
     """Detect model/VCS metadata and write agent_meta.json.
@@ -151,6 +156,7 @@ def _detect_and_write_agent_meta(
         model=model,
         llm_provider=llm_provider,
         vcs_provider=vcs_provider,
+        patch_name=patch_name,
         tribe=tribe,
     )
 
@@ -171,6 +177,7 @@ def detect_write_and_persist_review_agent_meta(
     _detect_and_write_agent_meta(
         artifacts_dir,
         project_file,
+        patch_name=cl_name,
         tribe=REVIEW_AGENT_TRIBE,
     )
 
@@ -243,6 +250,7 @@ def write_done_marker(
     outcome = "completed" if exit_code == 0 else "failed"
 
     done_data: dict[str, object] = {
+        "patch_name": cl_name,
         "cl_name": cl_name,
         "project_file": project_file,
         "timestamp": timestamp,

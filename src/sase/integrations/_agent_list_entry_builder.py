@@ -26,6 +26,7 @@ from sase.core.agent_scan_wire import (
     WaitingMarkerWire,
 )
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+from sase.core.patch_metadata import canonicalize_patch_metadata
 from sase.sdd.plan_tiers import cached_plan_tier
 from sase.core.time import get_timezone
 
@@ -128,10 +129,24 @@ def build_agent_list_entry(
         ),
         clan_tribe=agent.clan_tribe or _text(meta, "clan_tribe"),
         bead_id=_text(meta, "bead_id"),
-        changespec_name=_first_text(
-            _text(meta, "changespec_name"), _text(meta, "cl_name")
+        patch_name=_first_text(
+            _text(meta, "patch_name"),
+            _text(meta, "changespec_name"),
+            _text(meta, "cl_name"),
+            _text(done, "patch_name"),
+            _text(done, "cl_name"),
         ),
-        cl_name=_first_text(_text(meta, "cl_name"), _text(done, "cl_name")),
+        changespec_name=_first_text(
+            _text(meta, "changespec_name"),
+            _text(meta, "patch_name"),
+            _text(meta, "cl_name"),
+        ),
+        cl_name=_first_text(
+            _text(meta, "cl_name"),
+            _text(meta, "patch_name"),
+            _text(done, "cl_name"),
+            _text(done, "patch_name"),
+        ),
         workflow_name=_first_text(
             _text(meta, "workflow_name"),
             _text(
@@ -378,6 +393,7 @@ def _record_pending_question(
 def _read_meta(artifacts_dir: str | None) -> AgentMetaWire | None:
     data = _read_json_dict(artifacts_dir, "agent_meta.json")
     if data is not None:
+        canonicalize_patch_metadata(data)
         data = canonicalize_agent_tribe_metadata(dict(data))
     return _wire_from_dict(AgentMetaWire, data)
 
@@ -396,6 +412,8 @@ def _read_pending_question(
 
 def _read_done(artifacts_dir: str | None) -> DoneMarkerWire | None:
     data = _read_json_dict(artifacts_dir, "done.json")
+    if data is not None:
+        canonicalize_patch_metadata(data)
     return _wire_from_dict(DoneMarkerWire, data)
 
 

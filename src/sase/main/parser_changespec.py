@@ -1,23 +1,63 @@
-"""Argument parser definition for the ``sase changespec`` command group."""
+"""Argument parser definition for the ``sase patch`` command group.
+
+``sase changespec`` remains a top-level alias for compatibility.
+"""
 
 import argparse
 
 
-def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the 'changespec' subcommand parser."""
+class _PatchTargetAction(argparse.Action):
+    """Store canonical and legacy target names for Patch-target options."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, option_string
+        setattr(namespace, self.dest, values)
+        namespace.patch = values
+        namespace.changespec = values
+
+
+def _add_patch_target_argument(
+    parser: argparse.ArgumentParser,
+    *option_strings: str,
+    help: str,
+    dest: str = "patch",
+    required: bool = False,
+) -> None:
+    parser.add_argument(
+        *option_strings,
+        dest=dest,
+        action=_PatchTargetAction,
+        required=required,
+        help=help,
+    )
+    parser.set_defaults(patch=None, changespec=None)
+
+
+def register_patch_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the canonical 'patch' subcommand parser."""
     cs_parser = subparsers.add_parser(
-        "changespec",
-        help="Inspect and maintain ChangeSpecs",
+        "patch",
+        aliases=["changespec"],
+        help="Inspect and maintain Patches",
+        description="Inspect and maintain Patch lifecycle records.",
     )
     cs_subparsers = cs_parser.add_subparsers(
-        dest="changespec_subcommand", help="ChangeSpec subcommands"
+        dest="patch_subcommand", help="Patch subcommands"
     )
+    cs_parser.set_defaults(changespec_subcommand=None)
 
-    # sase changespec current [-f FORMAT] [-p <project_file>]
+    # sase patch current [-f FORMAT] [-p <project_file>]
     current_parser = cs_subparsers.add_parser(
         "current",
-        help="Show the ChangeSpec associated with the current VCS checkout",
+        help="Show the Patch associated with the current VCS checkout",
     )
+    current_parser.set_defaults(changespec_subcommand="current")
     current_parser.add_argument(
         "-f",
         "--format",
@@ -33,23 +73,27 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Path to the project .sase file (default: inferred from current workspace)",
     )
 
-    # sase changespec ref
+    # sase patch ref
     ref_parser = cs_subparsers.add_parser(
         "ref",
         help="Inspect and manage artifact references",
         description=(
-            "Inspect and manage ChangeSpec artifact references. Invoking "
-            "'sase changespec ref' without a subcommand delegates to "
-            "'sase changespec ref list'."
+            "Inspect and manage Patch artifact references. Invoking "
+            "'sase patch ref' without a subcommand delegates to "
+            "'sase patch ref list'."
         ),
     )
+    ref_parser.set_defaults(changespec_subcommand="ref")
     ref_subparsers = ref_parser.add_subparsers(dest="ref_action")
 
     ref_add_parser = ref_subparsers.add_parser("add", help="Attach artifact references")
-    ref_add_parser.add_argument(
+    _add_patch_target_argument(
+        ref_add_parser,
+        "-p",
+        "--patch",
         "-c",
         "--changespec",
-        help="Target ChangeSpec (default: current checkout)",
+        help="Target Patch (default: current checkout)",
     )
     ref_add_parser.add_argument(
         "refs",
@@ -58,10 +102,13 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     ref_list_parser = ref_subparsers.add_parser("list", help="List artifact references")
-    ref_list_parser.add_argument(
+    _add_patch_target_argument(
+        ref_list_parser,
+        "-p",
+        "--patch",
         "-c",
         "--changespec",
-        help="Target ChangeSpec (default: current checkout)",
+        help="Target Patch (default: current checkout)",
     )
     ref_list_parser.add_argument(
         "-j",
@@ -77,10 +124,13 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     ref_rm_parser = ref_subparsers.add_parser("rm", help="Detach artifact references")
-    ref_rm_parser.add_argument(
+    _add_patch_target_argument(
+        ref_rm_parser,
+        "-p",
+        "--patch",
         "-c",
         "--changespec",
-        help="Target ChangeSpec (default: current checkout)",
+        help="Target Patch (default: current checkout)",
     )
     ref_rm_parser.add_argument(
         "refs",
@@ -88,14 +138,15 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Artifact references to detach",
     )
 
-    # sase changespec search <query> [-f FORMAT]
+    # sase patch search <query> [-f FORMAT]
     search_parser = cs_subparsers.add_parser(
         "search",
-        help="Search for ChangeSpecs matching a query and display them",
+        help="Search for Patches matching a query and display them",
     )
+    search_parser.set_defaults(changespec_subcommand="search")
     search_parser.add_argument(
         "query",
-        help="Query string for filtering ChangeSpecs. "
+        help="Query string for filtering Patches. "
         "Examples: '\"feature\" AND \"Ready\"', '+myproject', '!!! OR @@@'",
     )
     search_parser.add_argument(
@@ -107,17 +158,22 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         "'markdown' for agent-friendly markdown (default: rich)",
     )
 
-    # sase changespec sync-deltas -c <cl_name> [-p <project_file>]
+    # sase patch sync-deltas -P <patch_name> [-p <project_file>]
     sync_deltas_parser = cs_subparsers.add_parser(
         "sync-deltas",
-        help="Recompute the DELTAS field for a ChangeSpec from the live VCS state",
+        help="Recompute the DELTAS field for a Patch from the live VCS state",
     )
-    sync_deltas_parser.add_argument(
+    sync_deltas_parser.set_defaults(changespec_subcommand="sync-deltas")
+    _add_patch_target_argument(
+        sync_deltas_parser,
+        "-P",
+        "--patch",
         "-c",
         "--cl",
+        "--changespec",
         dest="cl_name",
         required=True,
-        help="NAME of the ChangeSpec whose DELTAS should be recomputed",
+        help="NAME of the Patch whose DELTAS should be recomputed",
     )
     sync_deltas_parser.add_argument(
         "-p",
@@ -134,7 +190,7 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         help="VCS workspace directory to query (default: current directory)",
     )
 
-    # sase changespec migrate-extension [--force] [--projects-dir DIR]
+    # sase patch migrate-extension [--force] [--projects-dir DIR]
     migrate_parser = cs_subparsers.add_parser(
         "migrate-extension",
         help=(
@@ -142,6 +198,7 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
             "the canonical .sase extension"
         ),
     )
+    migrate_parser.set_defaults(changespec_subcommand="migrate-extension")
     migrate_parser.add_argument(
         "--force",
         action="store_true",
@@ -160,3 +217,8 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
             "spec files. Primarily useful for testing."
         ),
     )
+
+
+def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Legacy registrar alias for :func:`register_patch_parser`."""
+    register_patch_parser(subparsers)

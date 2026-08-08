@@ -43,6 +43,17 @@ def _optional_str_list(value: object) -> list[str]:
     return [str(entry) for entry in value if entry is not None]
 
 
+def _optional_aliased_str(
+    data: dict[str, object],
+    canonical_key: str,
+    legacy_key: str,
+) -> str:
+    value = data.get(canonical_key)
+    if value is None or value == "":
+        value = data.get(legacy_key, "")
+    return _optional_str(value)
+
+
 def _plus_one_evidence_list(value: object) -> list[TaskPlusOneEvidence]:
     if not isinstance(value, list):
         return []
@@ -158,8 +169,10 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         model=_optional_str(data.get("model", "")),
         size=PhaseSize(str(data["size"])) if data.get("size") else None,
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
-        changespec_name=_optional_str(data.get("changespec_name", "")),
-        changespec_bug_id=_optional_str(data.get("changespec_bug_id", "")),
+        changespec_name=_optional_aliased_str(data, "patch_name", "changespec_name"),
+        changespec_bug_id=_optional_aliased_str(
+            data, "patch_bug_id", "changespec_bug_id"
+        ),
         dependencies=deps,
     )
     issue.validate()

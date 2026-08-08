@@ -458,7 +458,12 @@ def _imported_markers(
         "model": fields.get("model"),
         "llm_provider": fields.get("llm_provider"),
         "vcs_provider": fields.get("vcs_provider"),
-        "cl_name": fields.get("changespec_name") or fields.get("cl_name"),
+        "patch_name": fields.get("patch_name")
+        or fields.get("changespec_name")
+        or fields.get("cl_name"),
+        "cl_name": fields.get("patch_name")
+        or fields.get("changespec_name")
+        or fields.get("cl_name"),
         "hidden": fields.get("hidden") is True,
         "approve": fields.get("approve") is True,
         "finished_at": (

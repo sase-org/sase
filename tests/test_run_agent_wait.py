@@ -267,6 +267,7 @@ def test_bead_only_wait_writes_marker_and_names_only_beads(
     assert marker_snapshots == [
         {
             "waiting_for": [],
+            "patch_name": "cl",
             "cl_name": "cl",
             "timestamp": "20260720120000",
             "wait_for_beads": ["sase-87.3"],

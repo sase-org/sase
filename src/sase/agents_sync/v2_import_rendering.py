@@ -47,6 +47,7 @@ def artifact_payload(
         for key in (
             "approve",
             "bead_id",
+            "patch_name",
             "changespec_name",
             "cl_name",
             "epic_bead_id",
@@ -114,6 +115,7 @@ def artifact_payload(
         "name": run.localized_name,
         "timestamp": run.destination_id,
         "artifacts_timestamp": run.destination_id,
+        "patch_name": _cl_name(target, metadata),
         "cl_name": _cl_name(target, metadata),
         "project_file": str(_project_file(target)),
         "outcome": _historical_outcome(record.state),
@@ -188,6 +190,7 @@ def bundle_payload(
     )
     bundle: dict[str, Any] = {
         "agent_type": "run",
+        "patch_name": _cl_name(target, metadata),
         "cl_name": _cl_name(target, metadata),
         "project_file": str(_project_file(target)),
         "status": _display_status(record.state),
@@ -260,6 +263,7 @@ def saved_family_group(
         refs.append(
             {
                 "agent_type": bundle["agent_type"],
+                "patch_name": bundle.get("patch_name"),
                 "cl_name": bundle["cl_name"],
                 "raw_suffix": bundle["raw_suffix"],
                 "bundle_path": str(bundle_paths[source_id]),
@@ -423,7 +427,8 @@ def _display_status(state: str) -> str:
 
 def _cl_name(target: ProjectTarget, metadata: Mapping[str, Any]) -> str:
     return (
-        _optional_text(metadata.get("changespec_name"))
+        _optional_text(metadata.get("patch_name"))
+        or _optional_text(metadata.get("changespec_name"))
         or _optional_text(metadata.get("cl_name"))
         or target.project_key
     )

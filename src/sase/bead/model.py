@@ -202,6 +202,24 @@ class Issue:
     dependencies: list[Dependency] = field(default_factory=list)
 
     @property
+    def patch_name(self) -> str:
+        """Canonical alias for the legacy bead ChangeSpec name field."""
+        return self.changespec_name
+
+    @patch_name.setter
+    def patch_name(self, value: str) -> None:
+        self.changespec_name = value
+
+    @property
+    def patch_bug_id(self) -> str:
+        """Canonical alias for the legacy bead ChangeSpec bug ID field."""
+        return self.changespec_bug_id
+
+    @patch_bug_id.setter
+    def patch_bug_id(self, value: str) -> None:
+        self.changespec_bug_id = value
+
+    @property
     def plus_one_count(self) -> int:
         return len(self.plus_one_evidence)
 

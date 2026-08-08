@@ -37,6 +37,7 @@ PORTABLE_META_FIELDS = frozenset(
         "agent_family_role",
         "approve",
         "bead_id",
+        "patch_name",
         "changespec_name",
         "cl_name",
         "clan_summary",

@@ -85,7 +85,11 @@ def notify_sync_result(
         notes=[f"Sync {status} for {display_name}"],
         files=[project_file],
         action="JumpToChangeSpec",
-        action_data={"changespec_name": cl_name, "project_file": project_file},
+        action_data={
+            "patch_name": cl_name,
+            "changespec_name": cl_name,
+            "project_file": project_file,
+        },
     )
     append_notification(n)
 
@@ -125,8 +129,10 @@ def notify_mentors_complete(
         files=[project_file],
         action="JumpToMentorReview",
         action_data={
+            "patch_name": cl_name,
             "changespec_name": cl_name,
             "project_file": project_file,
+            "stitch_id": entry_id,
             "entry_id": entry_id,
         },
     )

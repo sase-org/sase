@@ -336,6 +336,36 @@ def test_snapshot_workflow_hidden_maps_to_agent_hidden(tmp_path: Path) -> None:
     assert agents[0].hidden is True
 
 
+def test_agent_scan_wire_dual_reads_patch_metadata(tmp_path: Path) -> None:
+    projects_root = tmp_path / "projects"
+    record = minimal_record(projects_root, "20260514120000", "worker")
+    record["agent_meta"] = {
+        "patch_name": "feature",
+        "commit_patch_name": "feature",
+        "stitch_id": "2a",
+    }
+    record["done"] = {"cl_name": "legacy-done"}
+    record["running"] = {"cl_name": "legacy-running"}
+    record["waiting"] = {"cl_name": "legacy-waiting"}
+
+    from sase.core.agent_scan_wire import agent_scan_wire_from_dict
+
+    parsed = agent_scan_wire_from_dict(minimal_snapshot(str(projects_root), [record]))
+    parsed_record = parsed.records[0]
+
+    assert parsed_record.agent_meta is not None
+    assert parsed_record.agent_meta.patch_name == "feature"
+    assert parsed_record.agent_meta.changespec_name == "feature"
+    assert parsed_record.agent_meta.stitch_id == "2a"
+    assert parsed_record.agent_meta.commit_entry_id == "2a"
+    assert parsed_record.done is not None
+    assert parsed_record.done.patch_name == "legacy-done"
+    assert parsed_record.running is not None
+    assert parsed_record.running.patch_name == "legacy-running"
+    assert parsed_record.waiting is not None
+    assert parsed_record.waiting.patch_name == "legacy-waiting"
+
+
 def test_scan_agent_artifacts_missing_extension_raises_importerror(
     fixture_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

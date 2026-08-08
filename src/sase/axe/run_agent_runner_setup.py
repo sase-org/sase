@@ -201,7 +201,7 @@ def setup_artifacts_directory(
         "status": "running",
         "current_step_index": 0,
         "steps": [],
-        "context": {"cl_name": cl_name},
+        "context": {"patch_name": cl_name, "cl_name": cl_name},
         "artifacts_dir": artifacts_dir,
         "pid": os.getpid(),
         "appears_as_agent": True,
@@ -545,6 +545,7 @@ def write_home_running_marker(
     """
     running_marker_path = os.path.join(artifacts_dir, "running.json")
     running_marker: dict[str, Any] = {
+        "patch_name": cl_name,
         "cl_name": cl_name,
         "pid": os.getpid(),
         "timestamp": timestamp,

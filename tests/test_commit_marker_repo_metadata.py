@@ -45,6 +45,7 @@ class TestWriteResultMarkerRepoMetadata:
             assert meta == {
                 "name": "agent-alpha",
                 "commit_diff_path": diff_path,
+                "commit_patch_name": "proj_feat_1",
                 "commit_changespec_name": "proj_feat_1",
             }
             assert "commit_entry_id" not in meta
@@ -285,6 +286,7 @@ class TestWriteResultMarkerRepoMetadata:
             meta = json.loads(meta_path.read_text())
             assert meta == {
                 "name": "agent-alpha",
+                "commit_patch_name": "proj_feat_1",
                 "commit_changespec_name": "proj_feat_1",
             }
             update_index.assert_called_once_with(tmpdir)
@@ -297,6 +299,7 @@ class TestWriteResultMarkerRepoMetadata:
         meta = {
             "workspace_dir": str(primary),
             "commit_diff_path": "/tmp/primary.diff",
+            "commit_patch_name": "primary_spec",
             "commit_changespec_name": "primary_spec",
         }
         meta_path = artifacts_dir / "agent_meta.json"

@@ -58,6 +58,17 @@ def phase_size_value(size: PhaseSize | str) -> str:
     return size.value if isinstance(size, PhaseSize) else str(size)
 
 
+def _optional_aliased_text(
+    data: dict[str, Any],
+    canonical_key: str,
+    legacy_key: str,
+) -> str:
+    value = data.get(canonical_key)
+    if value is None or value == "":
+        value = data.get(legacy_key, "")
+    return "" if value is None else str(value)
+
+
 def issue_from_dict(data: dict[str, Any]) -> Issue:
     return Issue(
         id=str(data["id"]),
@@ -112,15 +123,9 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
         model="" if data.get("model") is None else str(data.get("model", "")),
         size=PhaseSize(str(data["size"])) if data.get("size") else None,
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
-        changespec_name=(
-            ""
-            if data.get("changespec_name") is None
-            else str(data.get("changespec_name", ""))
-        ),
-        changespec_bug_id=(
-            ""
-            if data.get("changespec_bug_id") is None
-            else str(data.get("changespec_bug_id", ""))
+        changespec_name=_optional_aliased_text(data, "patch_name", "changespec_name"),
+        changespec_bug_id=_optional_aliased_text(
+            data, "patch_bug_id", "changespec_bug_id"
         ),
         dependencies=[
             Dependency(

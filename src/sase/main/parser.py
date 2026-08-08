@@ -27,7 +27,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "artifact-file": ("sase.main.parser_artifact", "register_artifact_parser"),
     "axe": ("sase.main.parser_ace", "register_axe_parser"),
     "bead": ("sase.main.parser_bead", "register_bead_parser"),
-    "changespec": ("sase.main.parser_commands", "register_changespec_parser"),
+    "changespec": ("sase.main.parser_patch", "register_patch_parser"),
     "chat": ("sase.main.parser_chat", "register_chat_parser"),
     "comments": ("sase.main.parser_commands", "register_comments_parser"),
     "commit": ("sase.main.parser_commit", "register_commit_parser"),
@@ -47,6 +47,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "mobile": ("sase.main.parser_mobile", "register_mobile_parser"),
     "notify": ("sase.main.parser_commands", "register_notify_parser"),
     "path": ("sase.main.parser_commands", "register_path_parser"),
+    "patch": ("sase.main.parser_patch", "register_patch_parser"),
     "plan": ("sase.main.parser_commands", "register_plan_parser"),
     "plugin": ("sase.main.parser_plugin", "register_plugin_parser"),
     "project": ("sase.main.parser_project", "register_project_parser"),
@@ -157,6 +158,10 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
     _CompactRootCommand(
         "memory",
         "Inspect loaded memory, review proposals, and audit long-term memory activity.",
+    ),
+    _CompactRootCommand(
+        "patch",
+        "Inspect and maintain Patch lifecycle records, refs, and delta metadata.",
     ),
     _CompactRootCommand(
         "bead",

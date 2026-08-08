@@ -141,6 +141,7 @@ class TestExtractDirectivesMetadata:
 
         meta = result["meta"]
         assert meta["name"] == "alpha"
+        assert meta["patch_name"] == "feature-branch"
         assert meta["changespec_name"] == "feature-branch"
         assert meta["cl_name"] == "feature-branch"
 
@@ -252,6 +253,7 @@ class TestExtractDirectivesMetadata:
         assert info.name is None
         assert "name" not in meta
         assert meta["workspace_dir"] == str(workspace)
+        assert meta["patch_name"] == "feature-branch"
         assert meta["changespec_name"] == "feature-branch"
 
 

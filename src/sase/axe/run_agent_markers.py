@@ -100,6 +100,7 @@ def build_done_marker(
 ) -> dict[str, Any]:
     """Build a done marker dict for writing to done.json."""
     marker: dict[str, Any] = {
+        "patch_name": cl_name,
         "cl_name": cl_name,
         "project_file": project_file,
         "timestamp": timestamp,

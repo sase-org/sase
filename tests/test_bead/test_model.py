@@ -226,6 +226,10 @@ class TestIssueValidation:
         )
         issue.validate()
 
+        assert issue.patch_name == "feature_epic"
+        issue.patch_name = "feature_next"
+        assert issue.changespec_name == "feature_next"
+
     def test_plan_with_changespec_bug_id_is_valid(self) -> None:
         issue = Issue(
             id="test-1",
@@ -235,6 +239,10 @@ class TestIssueValidation:
             changespec_bug_id="12345",
         )
         issue.validate()
+
+        assert issue.patch_bug_id == "12345"
+        issue.patch_bug_id = "67890"
+        assert issue.changespec_bug_id == "67890"
 
     def test_phase_with_changespec_metadata_raises(self) -> None:
         issue = Issue(

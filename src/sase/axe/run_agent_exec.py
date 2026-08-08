@@ -92,6 +92,7 @@ def _build_named_args(ctx: AgentExecContext) -> dict[str, Any]:
     from sase.xprompt.workflow_runner import _WORKFLOW_INHERITED_VCS_TAG_ARG
 
     named_args: dict[str, Any] = {
+        "patch_name": ctx.cl_name,
         "cl_name": ctx.cl_name,
         "workspace_num": ctx.workspace_num,
     }

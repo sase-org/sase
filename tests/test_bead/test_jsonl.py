@@ -321,6 +321,32 @@ class TestImport:
         assert issue.changespec_name == "feature_epic"
         assert issue.changespec_bug_id == "12345"
 
+    def test_import_patch_metadata_aliases(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        jsonl_path = tmp_path / "issues.jsonl"
+        data = {
+            "id": "e-1",
+            "title": "Imported Epic",
+            "status": "open",
+            "issue_type": "plan",
+            "parent_id": None,
+            "created_at": NOW,
+            "updated_at": NOW,
+            "patch_name": "feature_epic",
+            "patch_bug_id": "12345",
+            "dependencies": [],
+        }
+        jsonl_path.write_text(json.dumps(data) + "\n")
+        import_from_jsonl(jsonl_path, conn)
+        issue = get_issue(conn, "e-1")
+        assert issue is not None
+        assert issue.patch_name == "feature_epic"
+        assert issue.patch_bug_id == "12345"
+
     def test_import_missing_changespec_metadata_defaults_empty(
         self, conn: sqlite3.Connection, tmp_path: object
     ) -> None:

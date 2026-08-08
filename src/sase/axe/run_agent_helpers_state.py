@@ -66,8 +66,13 @@ def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
     if cwd := _text(commit_result.get("cwd")):
         metadata["meta_commit_cwd"] = cwd
     if changespec := (
-        _text(commit_result.get("changespec_name")) or _text(commit_result.get("name"))
+        _text(commit_result.get("patch_name"))
+        or _text(commit_result.get("changespec_name"))
+        or _text(commit_result.get("commit_patch_name"))
+        or _text(commit_result.get("commit_changespec_name"))
+        or _text(commit_result.get("name"))
     ):
+        metadata["meta_patch"] = changespec
         metadata["meta_changespec"] = changespec
     if diff_path := _text(commit_result.get("diff_path")):
         metadata["diff_path"] = diff_path
@@ -87,8 +92,12 @@ def _commit_result_list_record(item: dict[str, Any]) -> dict[str, str] | None:
     if repo_name := _text(item.get("repo_name")):
         record["repo_name"] = repo_name
     if changespec_name := (
-        _text(item.get("changespec_name")) or _text(item.get("commit_changespec_name"))
+        _text(item.get("patch_name"))
+        or _text(item.get("changespec_name"))
+        or _text(item.get("commit_patch_name"))
+        or _text(item.get("commit_changespec_name"))
     ):
+        record["patch_name"] = changespec_name
         record["changespec_name"] = changespec_name
     if diff_path := (
         _text(item.get("diff_path")) or _text(item.get("commit_diff_path"))

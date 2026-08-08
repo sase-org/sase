@@ -311,7 +311,7 @@ def _record_imported_dismissed_agents(journal: dict[str, Any]) -> None:
 
 def _dismissed_identity_row(bundle: Mapping[str, Any]) -> dict[str, str | None]:
     agent_type = bundle.get("agent_type")
-    cl_name = bundle.get("cl_name")
+    cl_name = bundle.get("patch_name") or bundle.get("cl_name")
     raw_suffix = bundle.get("raw_suffix")
     if not isinstance(agent_type, str) or not agent_type:
         raise AgentsSyncFormatError("dismissed import identity missing agent_type")

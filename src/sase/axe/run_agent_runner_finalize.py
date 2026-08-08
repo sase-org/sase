@@ -356,6 +356,7 @@ def send_completion_notification(
         action = "ViewErrorReport"
         action_data = {
             "error_report_path": error_report_path,
+            "patch_name": cl_name,
             "cl_name": cl_name,
             "raw_suffix": artifacts_timestamp,
             **({"agent_name": agent_name} if agent_name else {}),
@@ -368,6 +369,7 @@ def send_completion_notification(
     else:
         action = "JumpToAgent"
         action_data = {
+            "patch_name": cl_name,
             "cl_name": cl_name,
             "raw_suffix": artifacts_timestamp,
             **({"agent_name": agent_name} if agent_name else {}),

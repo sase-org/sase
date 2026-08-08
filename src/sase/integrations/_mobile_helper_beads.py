@@ -271,7 +271,10 @@ def _bead_summary_wire(
         "block_count": _block_count(issue.id, all_issues),
         "child_count": _child_count(issue.id, all_issues),
         "plan_path_display": design,
+        "patch_name": issue.patch_name or None,
         "changespec_name": issue.changespec_name or None,
+        "patch_bug_id": issue.patch_bug_id or None,
+        "changespec_bug_id": issue.changespec_bug_id or None,
         "changespec_status": None,
     }
 

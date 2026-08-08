@@ -228,7 +228,9 @@ def _artifact_identity(
     done: dict[str, Any] | None,
 ) -> DismissedIdentity | None:
     cl_name = _first_text(
+        (done or {}).get("patch_name"),
         (done or {}).get("cl_name"),
+        (meta or {}).get("patch_name"),
         (meta or {}).get("changespec_name"),
         (meta or {}).get("cl_name"),
     )

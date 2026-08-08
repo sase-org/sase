@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+from sase.core.patch_metadata import canonicalize_patch_metadata
 
 
 def write_agent_meta_atomic(
@@ -21,6 +22,7 @@ def write_agent_meta_atomic(
 ) -> None:
     """Publish ``agent_meta.json`` as a complete sibling-file replacement."""
     payload = dict(agent_meta)
+    canonicalize_patch_metadata(payload)
     canonicalize_agent_tribe_metadata(payload)
     if isinstance(agent_meta, MutableMapping):
         agent_meta.clear()

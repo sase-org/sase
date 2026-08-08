@@ -193,6 +193,7 @@ def handle_questions_marker(
         "question_request_path": response.get("_question_request_path"),
         "question_response_path": response.get("_question_response_path"),
         "question_session_id": response.get("_question_session_id"),
+        "patch_name": ctx.cl_name,
         "changespec_name": ctx.cl_name,
     }
     record_workflow_metadata(state.current_artifacts_dir, question_relationships)

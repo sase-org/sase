@@ -43,8 +43,8 @@ def test_ref_parser_defaults_to_list_and_documents_options() -> None:
 
     assert args.ref_action == "list"
     assert default_list_delegation_notice(args) == (
-        "No subcommand provided for 'sase changespec ref'; "
-        "delegating to 'sase changespec ref list'."
+        "No subcommand provided for 'sase patch ref'; "
+        "delegating to 'sase patch ref list'."
     )
 
     explicit = parser.parse_args(
@@ -61,6 +61,11 @@ def test_ref_parser_defaults_to_list_and_documents_options() -> None:
     assert explicit.changespec == "sase_feature"
     assert explicit.json is True
     assert explicit.resolve is True
+
+    canonical = parser.parse_args(["patch", "ref", "list", "--patch", "sase_feature"])
+    assert canonical.command == "patch"
+    assert canonical.patch == "sase_feature"
+    assert canonical.changespec == "sase_feature"
 
 
 def test_ref_add_normalizes_deduplicates_and_persists(

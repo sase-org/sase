@@ -141,6 +141,7 @@ def wait_for_dependencies(
         waiting_path = os.path.join(artifacts_dir, "waiting.json")
         waiting_data: dict[str, Any] = {
             "waiting_for": wait_names,
+            "patch_name": cl_name,
             "cl_name": cl_name,
             "timestamp": timestamp,
         }
@@ -250,6 +251,7 @@ def wait_for_dependencies(
         waiting_path = os.path.join(artifacts_dir, "waiting.json")
         until_waiting_data: dict[str, Any] = {
             "waiting_for": [],
+            "patch_name": cl_name,
             "cl_name": cl_name,
             "timestamp": timestamp,
             "wait_until": wait_until,
@@ -283,6 +285,7 @@ def wait_for_dependencies(
         waiting_path = os.path.join(artifacts_dir, "waiting.json")
         dur_waiting_data: dict[str, Any] = {
             "waiting_for": [],
+            "patch_name": cl_name,
             "cl_name": cl_name,
             "timestamp": timestamp,
             "wait_duration": duration,

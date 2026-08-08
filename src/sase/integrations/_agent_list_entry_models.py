@@ -111,6 +111,7 @@ class AgentListEntry:
     agent_clan_generation: str | None = None
     clan_tribe: str | None = None
     bead_id: str | None = None
+    patch_name: str | None = None
     changespec_name: str | None = None
     cl_name: str | None = None
     workflow_name: str | None = None

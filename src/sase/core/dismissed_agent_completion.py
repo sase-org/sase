@@ -216,7 +216,9 @@ def _artifact_archive_identity(
 ) -> _ArtifactArchiveIdentity | None:
     if not project_name:
         return None
-    changespec_name = meta.get("changespec_name")
+    changespec_name = meta.get("patch_name")
+    if not isinstance(changespec_name, str) or not changespec_name:
+        changespec_name = meta.get("changespec_name")
     if not isinstance(changespec_name, str) or not changespec_name:
         changespec_name = meta.get("cl_name")
     agent_name = meta.get("name")
@@ -253,7 +255,7 @@ def _payload_matches(
         return False
     if data.get("raw_suffix") != completion.raw_suffix:
         return False
-    if data.get("cl_name") != completion.changespec_name:
+    if (data.get("patch_name") or data.get("cl_name")) != completion.changespec_name:
         return False
     if data.get("agent_name") != completion.agent_name:
         return False

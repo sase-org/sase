@@ -2,7 +2,6 @@
 
 import argparse
 
-from sase.main.parser_changespec import register_changespec_parser
 from sase.main.parser_plan import register_plan_parser
 
 

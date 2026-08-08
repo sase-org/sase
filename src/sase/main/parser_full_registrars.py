@@ -9,7 +9,6 @@ from sase.main.parser_artifact import register_artifact_parser
 from sase.main.parser_bead import register_bead_parser
 from sase.main.parser_chat import register_chat_parser
 from sase.main.parser_commands import (
-    register_changespec_parser,
     register_comments_parser,
     register_config_parser,
     register_file_history_parser,
@@ -23,6 +22,7 @@ from sase.main.parser_commands import (
     register_revive_log_parser,
     register_run_parser,
 )
+from sase.main.parser_patch import register_patch_parser
 from sase.main.parser_commit import (
     register_commit_parser,
     register_restore_parser,
@@ -66,7 +66,6 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_artifact_parser,
         register_axe_parser,
         register_bead_parser,
-        register_changespec_parser,
         register_chat_parser,
         register_comments_parser,
         register_commit_parser,
@@ -86,6 +85,7 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_mobile_parser,
         register_notify_parser,
         register_path_parser,
+        register_patch_parser,
         register_plan_parser,
         register_plugin_parser,
         register_project_parser,

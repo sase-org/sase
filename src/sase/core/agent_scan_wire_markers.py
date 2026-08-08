@@ -27,7 +27,8 @@ class DoneMarkerWire:
         finished_at: Unix epoch seconds. Float because some writers emit
             fractional seconds. ``None`` when the field is missing or
             non-numeric.
-        cl_name: ChangeSpec name recorded at completion.
+        patch_name: Patch name recorded at completion.
+        cl_name: Legacy ChangeSpec/branch name recorded at completion.
         project_file: Absolute path to the project ``.gp`` file.
         workspace_num: Workspace number released on completion.
         workspace_dir: Resolved directory the agent ran in, when recorded.
@@ -65,6 +66,7 @@ class DoneMarkerWire:
 
     outcome: str | None = None
     finished_at: float | None = None
+    patch_name: str | None = None
     cl_name: str | None = None
     project_file: str | None = None
     workspace_num: int | None = None
@@ -107,6 +109,7 @@ class AgentMetaWire:
     name: str | None = None
     artifact_agent_id: str | None = None
     artifact_source_dir: str | None = None
+    patch_name: str | None = None
     changespec_name: str | None = None
     cl_name: str | None = None
     bead_id: str | None = None
@@ -119,7 +122,9 @@ class AgentMetaWire:
     question_session_id: str | None = None
     epic_bead_id: str | None = None
     phase_bead_id: str | None = None
+    commit_patch_name: str | None = None
     commit_changespec_name: str | None = None
+    stitch_id: str | None = None
     commit_entry_id: str | None = None
     commit_result: str | None = None
     commit_diff_path: str | None = None
@@ -185,6 +190,7 @@ class RunningMarkerWire:
     """
 
     pid: int | None = None
+    patch_name: str | None = None
     cl_name: str | None = None
     model: str | None = None
     llm_provider: str | None = None
@@ -201,6 +207,8 @@ class WaitingMarkerWire:
     and to display an updated wait list edited from the TUI ``w`` keymap.
     """
 
+    patch_name: str | None = None
+    cl_name: str | None = None
     waiting_for: list[str] = field(default_factory=list)
     wait_for_beads: list[str] = field(default_factory=list)
     wait_duration: float | None = None

@@ -41,6 +41,7 @@ def test_extract_step_output_preserves_multiline_commit_result_message(
     assert step_output["meta_commit_message"] == full_message
     assert step_output["meta_new_commit"] == "abc123"
     assert step_output["meta_commit_cwd"] == "/workspace/sase-core_7"
+    assert step_output["meta_patch"] == "sase-full-message"
     assert step_output["meta_changespec"] == "sase-full-message"
     assert diff_path is None
 
@@ -134,7 +135,7 @@ def test_extract_step_output_surfaces_commit_results_list(
                     "message": "fix: primary",
                     "result": "abc123",
                     "cwd": "/workspace/sase_7",
-                    "changespec_name": "sase-primary",
+                    "patch_name": "sase-primary",
                     "diff_path": "/tmp/primary.diff",
                     "entry_id": "1",
                 },
@@ -168,6 +169,7 @@ def test_extract_step_output_surfaces_commit_results_list(
             "message": "fix: primary",
             "sha": "abc123",
             "cwd": "/workspace/sase_7",
+            "patch_name": "sase-primary",
             "changespec_name": "sase-primary",
             "diff_path": "/tmp/primary.diff",
         },
@@ -176,6 +178,7 @@ def test_extract_step_output_surfaces_commit_results_list(
             "sha": "def456",
             "cwd": "/workspace/sase-core_7",
             "repo_name": "sase-core",
+            "patch_name": "sase-linked",
             "changespec_name": "sase-linked",
             "diff_path": "/tmp/linked.diff",
         },

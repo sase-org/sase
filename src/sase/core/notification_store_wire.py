@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from sase.core.patch_metadata import canonicalize_patch_metadata
 from sase.core.wire import known_field_kwargs
 from sase.notifications.models import Notification
 
@@ -122,6 +123,8 @@ def notification_store_wire_to_json_dict(record: Any) -> Any:
 
 
 def _notification_from_dict(data: dict[str, Any]) -> Notification:
+    action_data = {str(k): str(v) for k, v in (data.get("action_data") or {}).items()}
+    canonicalize_patch_metadata(action_data)
     return Notification(
         id=str(data["id"]),
         timestamp=str(data["timestamp"]),
@@ -132,9 +135,7 @@ def _notification_from_dict(data: dict[str, Any]) -> Notification:
         files=list(data.get("files") or []),
         tags=[str(item) for item in data.get("tags") or []],
         action=None if data.get("action") is None else str(data["action"]),
-        action_data={
-            str(k): str(v) for k, v in (data.get("action_data") or {}).items()
-        },
+        action_data=action_data,
         read=bool(data.get("read", False)),
         dismissed=bool(data.get("dismissed", False)),
         silent=bool(data.get("silent", False)),

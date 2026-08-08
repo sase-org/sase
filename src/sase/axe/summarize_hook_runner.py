@@ -273,11 +273,13 @@ def main() -> int:
         action = "ViewErrorReport"
         action_data: dict[str, str] = {
             "error_report_path": error_report_path,
+            "patch_name": changespec_name,
             "cl_name": changespec_name,
         }
     else:
         action = "JumpToChangeSpec"
         action_data = {
+            "patch_name": changespec_name,
             "changespec_name": changespec_name,
             "project_file": project_file,
         }

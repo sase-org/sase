@@ -48,10 +48,28 @@ def test_narrow_parser_supports_compatibility_alias() -> None:
     assert args.command == "artifact-file"
 
 
+@pytest.mark.parametrize("command", ["patch", "changespec"])
+def test_patch_parser_supports_canonical_command_and_legacy_alias(
+    command: str,
+) -> None:
+    parser = create_parser(only=command)
+
+    assert _root_commands(parser) == {"patch", "changespec"}
+    args = parser.parse_args([command, "sync-deltas", "--patch", "feature"])
+    assert args.command == command
+    assert args.patch_subcommand == "sync-deltas"
+    assert args.changespec_subcommand == "sync-deltas"
+    assert args.patch == "feature"
+    assert args.changespec == "feature"
+    assert args.cl_name == "feature"
+
+
 @pytest.mark.parametrize(
     ("argv", "expected"),
     [
         (["sase", "bead"], "bead"),
+        (["sase", "patch"], "patch"),
+        (["sase", "changespec"], "changespec"),
         (["sase"], None),
         (["sase", "--help"], None),
         (["sase", "-H"], None),

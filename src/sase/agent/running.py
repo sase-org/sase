@@ -241,6 +241,7 @@ def _read_str_field(data: dict[str, object] | None, *keys: str) -> str | None:
 def _read_cl_name_from_artifacts(artifacts_path: Path) -> str | None:
     meta_value = _read_str_field(
         _read_agent_meta(artifacts_path),
+        "patch_name",
         "cl_name",
         "changespec_name",
     )
@@ -249,6 +250,7 @@ def _read_cl_name_from_artifacts(artifacts_path: Path) -> str | None:
 
     waiting_value = _read_str_field(
         _read_json_dict(artifacts_path / "waiting.json"),
+        "patch_name",
         "cl_name",
     )
     if waiting_value is not None:
@@ -257,7 +259,7 @@ def _read_cl_name_from_artifacts(artifacts_path: Path) -> str | None:
     workflow_state = _read_json_dict(artifacts_path / "workflow_state.json")
     context = workflow_state.get("context") if workflow_state is not None else None
     if isinstance(context, dict):
-        return _read_str_field(context, "cl_name")
+        return _read_str_field(context, "patch_name", "cl_name")
     return None
 
 
@@ -308,7 +310,7 @@ def _remove_agent_state_markers(
 
 
 def _read_cl_name_from_meta(artifacts_path: Path) -> str | None:
-    return _read_str_field(_read_agent_meta(artifacts_path), "cl_name")
+    return _read_str_field(_read_agent_meta(artifacts_path), "patch_name", "cl_name")
 
 
 def _record_dismissal(cl_name: str | None, raw_suffix: str) -> None:
