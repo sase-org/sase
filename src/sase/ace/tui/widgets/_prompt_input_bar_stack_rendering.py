@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
     XPromptBinding,
+    XPromptReadonlyTarget,
     split_frontmatter,
     split_prompt_text,
 )
@@ -128,11 +129,14 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         _g_prefix_hints_visible: bool
         _mode: str
         _placeholder: str
+        _readonly_xprompt_target: XPromptReadonlyTarget | None
         _search_command_line_count: int
         _search_command_visible: bool
         _stack: PromptStackState
         _subtitle_base: str
         _title_mode_suffix: str
+        _xprompt_source_stale: bool
+        _xprompt_target_generation: int
 
         @property
         def _base_title(self) -> str: ...
@@ -149,6 +153,8 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         def _resolve_pane_target(
             self, target_text_area: object, pane_id: str
         ) -> PromptTextArea | None: ...
+        def _refresh_prompt_mode_subtitle(self) -> None: ...
+        def _schedule_xprompt_stale_check(self, *, force: bool = False) -> None: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
         def show_jinja_diagnostics(self, diagnostics: object) -> None: ...
 
@@ -392,6 +398,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         *,
         binding: XPromptBinding | None = None,
         preserve_target: bool = False,
+        read_only_target: XPromptReadonlyTarget | None = None,
     ) -> None:
         """Reload the whole bar from edited xprompt markdown (the multi-pane ``^G`` return).
 
@@ -405,19 +412,41 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         keeping the body text verbatim.
         """
         previous_stack = self._stack if preserve_target else None
+        previous_readonly_target = (
+            self._readonly_xprompt_target if preserve_target else None
+        )
+        previous_stale = self._xprompt_source_stale if preserve_target else False
         self._stack = PromptStackState.from_text(text)
         self._rebuild_stack()
         if binding is not None:
             self.target_xprompt(binding, source_markdown=text)
-        elif previous_stack is not None and previous_stack.binding is not None:
+        elif read_only_target is not None:
+            self.mark_readonly_xprompt_target(read_only_target)  # type: ignore[attr-defined]
+        elif (
+            preserve_target
+            and previous_stack is not None
+            and previous_stack.binding is not None
+        ):
+            self._readonly_xprompt_target = None  # type: ignore[attr-defined]
             self._stack.binding = previous_stack.binding
             self._stack._clean_content_hash = previous_stack._clean_content_hash
             self._stack._bound_source_markdown = previous_stack._bound_source_markdown
             self._stack._bound_source_texts = previous_stack._bound_source_texts
+            self._xprompt_source_stale = previous_stale  # type: ignore[attr-defined]
+            self._xprompt_target_generation += 1  # type: ignore[attr-defined]
             self._refresh_target_classes()
             self._refresh_title()
+            self._refresh_prompt_mode_subtitle()  # type: ignore[attr-defined]
+            self._schedule_xprompt_stale_check(force=True)  # type: ignore[attr-defined]
+        elif preserve_target and previous_readonly_target is not None:
+            self.mark_readonly_xprompt_target(previous_readonly_target)  # type: ignore[attr-defined]
         else:
+            self._readonly_xprompt_target = None  # type: ignore[attr-defined]
+            self._xprompt_source_stale = False  # type: ignore[attr-defined]
+            self._xprompt_target_generation += 1  # type: ignore[attr-defined]
             self._refresh_target_classes()
+            self._refresh_title()
+            self._refresh_prompt_mode_subtitle()  # type: ignore[attr-defined]
         self.refresh_frontmatter_panel_from_stack()
 
     def target_xprompt(
@@ -427,15 +456,25 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         source_markdown: str | None = None,
     ) -> None:
         """Set the xprompt definition this prompt stack edits."""
+        self._readonly_xprompt_target = None  # type: ignore[attr-defined]
+        self._xprompt_source_stale = False  # type: ignore[attr-defined]
+        self._xprompt_target_generation += 1  # type: ignore[attr-defined]
         self._stack.bind(binding, source_markdown=source_markdown)
         self._refresh_target_classes()
         self._refresh_title()
+        self._refresh_prompt_mode_subtitle()  # type: ignore[attr-defined]
+        self.refresh_frontmatter_panel_from_stack()
+        self._schedule_xprompt_stale_check(force=True)  # type: ignore[attr-defined]
 
     def clear_xprompt_target(self) -> None:
         """Clear the current xprompt target from the prompt stack."""
         self._stack.unbind()
+        self._readonly_xprompt_target = None  # type: ignore[attr-defined]
+        self._xprompt_source_stale = False  # type: ignore[attr-defined]
+        self._xprompt_target_generation += 1  # type: ignore[attr-defined]
         self._refresh_target_classes()
         self._refresh_title()
+        self._refresh_prompt_mode_subtitle()  # type: ignore[attr-defined]
 
     def xprompt_target(self) -> XPromptBinding | None:
         """Return the current xprompt target, if any."""
@@ -443,9 +482,13 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
 
     def _refresh_target_classes(self) -> None:
         binding = self._stack.binding
-        has_target = binding is not None
+        readonly = getattr(self, "_readonly_xprompt_target", None) is not None
+        stale = bool(getattr(self, "_xprompt_source_stale", False))
+        has_target = binding is not None or readonly
         self.set_class(has_target, "xprompt-target")
         self.set_class(has_target and self._stack.is_dirty, "dirty")
+        self.set_class(readonly, "readonly")
+        self.set_class(binding is not None and stale, "stale")
 
     def update_active_pane(self, text: str) -> None:
         """Replace only the active pane's text with *text* (the ``^G`` path).
@@ -563,6 +606,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
 
     def on_descendant_focus(self, event: object) -> None:
         """Track the active pane when focus moves between panes."""
+        self._schedule_xprompt_stale_check()  # type: ignore[attr-defined]
         widget = getattr(event, "widget", None)
         if widget is None or len(self._stack) <= 1:
             return

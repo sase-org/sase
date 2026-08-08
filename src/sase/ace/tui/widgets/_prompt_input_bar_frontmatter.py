@@ -266,8 +266,13 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         self.focus_frontmatter_panel()
 
     def auto_show_frontmatter_panel(self) -> None:
-        """Auto-show (without stealing focus) when opening on existing frontmatter."""
-        if self._mode != "prompt" or not self._stack.frontmatter:
+        """Auto-show properties for frontmatter or xprompt target editing."""
+        if self._mode != "prompt":
+            return
+        has_target = self._stack.binding is not None or (
+            getattr(self, "_readonly_xprompt_target", None) is not None
+        )
+        if not self._stack.frontmatter and not has_target:
             return
         self._show_frontmatter_panel(focus=False)
 
@@ -285,7 +290,10 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         panel = self._frontmatter_panel()
         if panel is None:
             return
-        if self._stack.frontmatter:
+        has_target = self._stack.binding is not None or (
+            getattr(self, "_readonly_xprompt_target", None) is not None
+        )
+        if self._stack.frontmatter or has_target:
             self._show_frontmatter_panel(focus=False)
         else:
             panel.add_class("hidden")

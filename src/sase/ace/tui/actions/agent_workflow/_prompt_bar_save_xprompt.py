@@ -264,6 +264,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
                 source_markdown=preserved,
                 loaded_fingerprint=loaded_fingerprint,
             )
+            bar._mark_xprompt_source_fresh()
             bar._refresh_title()
         self.notify(f"Wrote xprompt '{binding.name}'")  # type: ignore[attr-defined]
         from pathlib import Path
@@ -328,6 +329,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         if bar.is_mounted:
             bar.load_stack_from_xprompt_markdown(markdown, binding=refreshed)
             bar.auto_show_frontmatter_panel()
+            bar._mark_xprompt_source_fresh()
             bar._refresh_title()
             self.notify(f"Reloaded xprompt '{binding.name}'")  # type: ignore[attr-defined]
 

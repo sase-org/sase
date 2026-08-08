@@ -496,6 +496,7 @@ class XPromptSelectModal(
             display_name=loaded.display_name,
             binding=loaded.binding,
             read_only=loaded.read_only,
+            read_only_path=loaded.read_only_path,
             has_comments=loaded.has_comments,
         )
 

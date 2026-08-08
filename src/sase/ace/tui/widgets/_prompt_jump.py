@@ -233,10 +233,14 @@ class PromptJumpMixin(_MixinBase):
         if not callable(load):
             self.notify("Prompt input bar cannot load this target", severity="error")
             return
-        from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+        from sase.ace.tui.widgets.prompt_stack import (
+            XPromptBinding,
+            XPromptReadonlyTarget,
+        )
         from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
         binding = None
+        read_only_target = None
         if payload.is_editable:
             try:
                 if (
@@ -270,7 +274,16 @@ class PromptJumpMixin(_MixinBase):
                     )
             except OSError:
                 binding = None
-        load(payload.loadable_markdown, binding=binding)
+        else:
+            read_only_target = XPromptReadonlyTarget(
+                reference=payload.title,
+                path=payload.source_path,
+            )
+        load(
+            payload.loadable_markdown,
+            binding=binding,
+            read_only_target=read_only_target,
+        )
         if not payload.is_editable:
             self.notify("Read-only source — gw will save-as", severity="warning")
         if PromptFrontmatter.parse(payload.loadable_markdown).has_comments:

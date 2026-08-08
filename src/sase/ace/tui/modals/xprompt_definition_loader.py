@@ -24,6 +24,7 @@ class _XPromptDefinitionLoad:
     display_name: str
     binding: XPromptBinding | None
     read_only: bool
+    read_only_path: str | None
     has_comments: bool
 
 
@@ -62,5 +63,6 @@ async def load_xprompt_definition_for_prompt_bar(
         display_name=reference,
         binding=binding,
         read_only=not editable,
+        read_only_path=file_path if not editable else None,
         has_comments=PromptFrontmatter.parse(markdown).has_comments,
     )

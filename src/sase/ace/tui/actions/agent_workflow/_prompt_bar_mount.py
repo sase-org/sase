@@ -12,7 +12,7 @@ from ._types import PromptContext
 
 if TYPE_CHECKING:
     from sase.xprompt.models import InputArg
-    from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+    from sase.ace.tui.widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
 
 _EDITOR_REVIEW_MARKER = " @"
 
@@ -357,6 +357,7 @@ class PromptBarMountMixin:
         as_xprompt_markdown: bool = False,
         frontmatter_inputs: list[InputArg] | None = None,
         binding: XPromptBinding | None = None,
+        read_only_target: XPromptReadonlyTarget | None = None,
     ) -> None:
         """Show prompt input bar for home directory mode.
 
@@ -397,6 +398,8 @@ class PromptBarMountMixin:
             bar = PromptInputBar(initial_value=initial_text, id="prompt-input-bar")
         if binding is not None:
             bar.target_xprompt(binding, source_markdown=initial_text)
+        elif read_only_target is not None:
+            bar.mark_readonly_xprompt_target(read_only_target)
         # Stage declared inputs into the stack's frontmatter pre-mount: the
         # panel refresh is a no-op until the bar mounts, and ``on_mount`` then
         # auto-shows the frontmatter panel from the seeded stack.
@@ -446,13 +449,22 @@ class PromptBarMountMixin:
         display_name: str,
         binding: XPromptBinding | None,
         read_only: bool = False,
+        read_only_path: str | None = None,
         has_comments: bool = False,
     ) -> None:
         """Close the browser and author a raw simple xprompt definition."""
         from textual.screen import ModalScreen
 
+        from ...widgets.prompt_stack import XPromptReadonlyTarget
+
         if isinstance(self.screen, ModalScreen):  # type: ignore[attr-defined]
             self.pop_screen()  # type: ignore[attr-defined]
+
+        read_only_target = (
+            XPromptReadonlyTarget(reference=display_name, path=read_only_path)
+            if read_only
+            else None
+        )
 
         def _mount() -> None:
             self._show_prompt_input_bar_for_home(
@@ -461,6 +473,7 @@ class PromptBarMountMixin:
                 history_sort_key="home",
                 as_xprompt_markdown=True,
                 binding=binding,
+                read_only_target=read_only_target,
             )
             if read_only:
                 self.notify("Read-only source — gw will save-as", severity="warning")  # type: ignore[attr-defined]

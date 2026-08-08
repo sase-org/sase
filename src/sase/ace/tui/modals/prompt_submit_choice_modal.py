@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+from rich.cells import cell_len
 from rich.markup import escape
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -18,6 +19,37 @@ if TYPE_CHECKING:
 
 
 type PromptSubmitChoice = Literal["send", "all", "current", "write", "save_as"]
+
+
+def _take_cells(value: str, width: int, *, from_right: bool = False) -> str:
+    if width <= 0:
+        return ""
+    chars = reversed(value) if from_right else iter(value)
+    used = 0
+    taken: list[str] = []
+    for char in chars:
+        char_width = max(cell_len(char), 0)
+        if used + char_width > width:
+            break
+        taken.append(char)
+        used += char_width
+    if from_right:
+        taken.reverse()
+    return "".join(taken)
+
+
+def _middle_elide_cells(value: str, width: int) -> str:
+    if width <= 0:
+        return ""
+    value = " ".join(value.splitlines())
+    if cell_len(value) <= width:
+        return value
+    if width == 1:
+        return "…"
+    left_width = max(1, (width - 1) // 2)
+    right_width = max(0, width - 1 - left_width)
+    suffix = _take_cells(value, right_width, from_right=True)
+    return f"{_take_cells(value, left_width)}…{suffix}"
 
 
 @dataclass(frozen=True)
@@ -171,25 +203,48 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
     def _target_chip(self) -> str:
         if self._target is None:
             return ""
-        return f"[bold #00D7AF]✎ {escape(self._target.reference)}[/]"
+        theme = self._current_theme()
+        foreground = self._theme_color(theme, "background", "black")
+        background = self._theme_color(theme, "secondary", "cyan")
+        return (
+            f"[bold {foreground} on {background}] ✎ "
+            f"{escape(self._target.reference)} [/]"
+        )
 
     def _write_subtitle(self) -> str:
         if self._target is None:
             return ""
         if not self._is_dirty:
             return "No unsaved changes since the last save."
-        return f"Overwrite {escape(self._display_path(self._target.write_path))} with your edits."
+        return (
+            f"Overwrite {escape(self._display_path(self._target.write_path))} "
+            "with your edits."
+        )
 
     @staticmethod
     def _display_path(path: str) -> str:
         home = str(Path.home())
         if path.startswith(home + "/"):
-            return "~" + path[len(home) :]
-        return path
+            path = "~" + path[len(home) :]
+        return _middle_elide_cells(path, 20)
 
     @staticmethod
     def _render_choice(key: str, title: str, subtitle: str) -> str:
         return f"  [bold]{key}[/]   [bold]{title}[/]\n      [dim]{subtitle}[/]"
+
+    def _current_theme(self) -> object | None:
+        try:
+            return self.app.current_theme
+        except Exception:
+            return None
+
+    @staticmethod
+    def _theme_color(theme: object | None, attr: str, fallback: str) -> str:
+        if theme is not None:
+            color = getattr(theme, attr, None)
+            if color:
+                return str(color)
+        return fallback
 
     @staticmethod
     def _row_classes(row: _PromptSubmitChoiceRow) -> str:

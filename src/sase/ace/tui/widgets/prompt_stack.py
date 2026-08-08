@@ -144,6 +144,14 @@ class XPromptBinding:
         return self.entry_name or Path(self.path).stem
 
 
+@dataclass(frozen=True)
+class XPromptReadonlyTarget:
+    """A loaded xprompt definition that can be inspected but not overwritten."""
+
+    reference: str
+    path: str | None = None
+
+
 def split_prompt_text(text: str) -> list[str]:
     """Split *text* into prompt segments using canonical multi-prompt parsing.
 
@@ -600,6 +608,7 @@ __all__ = [
     "PromptStackState",
     "SourceFingerprint",
     "XPromptBinding",
+    "XPromptReadonlyTarget",
     "split_frontmatter",
     "split_prompt_text",
 ]

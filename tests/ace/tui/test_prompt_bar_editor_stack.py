@@ -49,13 +49,21 @@ class _FakeTextArea:
 
 class _FakeBar:
     def __init__(
-        self, *, stacked: bool, markdown: str = "alpha\n\n---\n\nbeta"
+        self,
+        *,
+        stacked: bool,
+        markdown: str = "alpha\n\n---\n\nbeta",
+        binding: Any = None,
+        readonly_target: Any = None,
     ) -> None:
         self._stacked = stacked
         self._markdown = markdown
+        self._binding = binding
+        self._readonly_xprompt_target = readonly_target
         self.updated_panes: list[str] = []
         self.loaded_markdown: list[str] = []
         self.loaded_preserve_target: list[bool] = []
+        self.loaded_targets: list[tuple[Any, Any]] = []
         self._text_area = _FakeTextArea()
 
     def is_stacked(self) -> bool:
@@ -67,11 +75,20 @@ class _FakeBar:
     def xprompt_markdown_for_editor(self) -> str:
         return self._markdown
 
+    def xprompt_target(self) -> Any:
+        return self._binding
+
     def load_stack_from_xprompt_markdown(
-        self, text: str, *, preserve_target: bool = False
+        self,
+        text: str,
+        *,
+        binding: Any = None,
+        preserve_target: bool = False,
+        read_only_target: Any = None,
     ) -> None:
         self.loaded_markdown.append(text)
         self.loaded_preserve_target.append(preserve_target)
+        self.loaded_targets.append((binding, read_only_target))
 
     def active_text_area(self) -> _FakeTextArea:
         return self._text_area
@@ -307,6 +324,28 @@ def test_all_editor_strips_review_marker_on_reload() -> None:
     assert bar.loaded_markdown == ["uno\n---\ndos"]
     assert bar.loaded_preserve_target == [True]
     assert harness.finished == []
+
+
+def test_all_editor_preserves_writable_target_on_reload() -> None:
+    binding = object()
+    bar = _FakeBar(stacked=True, binding=binding)
+    harness = _EditorHarness(bar=bar, editor_result="uno\n---\ndos")
+
+    harness.on_prompt_input_bar_all_editor_requested(_all_event())
+
+    assert bar.loaded_preserve_target == [True]
+    assert bar.loaded_targets == [(None, None)]
+
+
+def test_all_editor_preserves_readonly_target_on_reload() -> None:
+    readonly_target = object()
+    bar = _FakeBar(stacked=True, readonly_target=readonly_target)
+    harness = _EditorHarness(bar=bar, editor_result="uno\n---\ndos")
+
+    harness.on_prompt_input_bar_all_editor_requested(_all_event())
+
+    assert bar.loaded_preserve_target == [True]
+    assert bar.loaded_targets == [(None, None)]
 
 
 def test_all_editor_empty_return_keeps_bar_and_refocuses() -> None:

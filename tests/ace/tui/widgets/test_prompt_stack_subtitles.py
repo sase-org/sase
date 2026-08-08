@@ -71,7 +71,8 @@ async def test_targeted_single_pane_insert_subtitle_uses_submit_hint(
         )
 
         assert (
-            bar.insert_mode_subtitle() == "[Enter] submit…  [Esc] normal  [^C] cancel"
+            bar.insert_mode_subtitle()
+            == "[Enter] submit…  [Esc] normal  [^C] cancel  [^G w] save #draft"
         )
 
 

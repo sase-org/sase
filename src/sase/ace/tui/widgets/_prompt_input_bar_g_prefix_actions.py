@@ -425,7 +425,13 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         return "save as xprompt"
 
     def _g_prefix_label_write_xprompt(self) -> str:
-        return "write xprompt" if self._stack.binding is not None else "save as xprompt"
+        readonly = getattr(self, "_readonly_xprompt_target", None)
+        if readonly is not None:
+            return f"save as {readonly.reference}"
+        binding = self._stack.binding
+        if binding is not None:
+            return f"save {binding.reference}"
+        return "save as xprompt"
 
     def _g_prefix_label_convert_local_xprompt(self) -> str:
         """Return the ``gX`` label."""

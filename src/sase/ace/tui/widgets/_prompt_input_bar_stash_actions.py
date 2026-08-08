@@ -33,6 +33,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             *,
             binding: object | None = None,
             preserve_target: bool = False,
+            read_only_target: object | None = None,
         ) -> None: ...
         def _rebuild_stack(self, enter_mode: str | None = None) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
@@ -125,7 +126,11 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         self.post_message(self.Stashed(panes, source="all", dismiss_bar=True))
 
     def stash_all_and_load_xprompt_markdown(
-        self, markdown: str, *, binding: object | None = None
+        self,
+        markdown: str,
+        *,
+        binding: object | None = None,
+        read_only_target: object | None = None,
     ) -> None:
         """Stash the whole bar as one bundle, then load *markdown* in its place."""
         if self._mode != "prompt":
@@ -134,11 +139,19 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         if panes:
             self._clear_active_completion_state()
             self.post_message(self.Stashed(panes, source="all", dismiss_bar=False))
-        from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+        from sase.ace.tui.widgets.prompt_stack import (
+            XPromptBinding,
+            XPromptReadonlyTarget,
+        )
 
         self.load_stack_from_xprompt_markdown(
             markdown,
             binding=binding if isinstance(binding, XPromptBinding) else None,
+            read_only_target=(
+                read_only_target
+                if isinstance(read_only_target, XPromptReadonlyTarget)
+                else None
+            ),
         )
 
     def request_update_pinned_stash(self) -> None:

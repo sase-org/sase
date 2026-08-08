@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
 from sase.ace.tui.widgets import StashedPromptsIndicator
+from sase.ace.tui.widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -24,6 +27,29 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+TARGETED_MARKDOWN = (
+    "---\n"
+    "description: Review the changed prompt target flow\n"
+    "tags:\n"
+    "  - ace\n"
+    "  - target\n"
+    "---\n"
+    "Audit the targeted xprompt editing state and keep the review notes concise."
+)
+
+
+def _write_target_source(
+    tmp_path: Path,
+    name: str,
+    body: str = TARGETED_MARKDOWN,
+) -> tuple[Path, Path]:
+    fake_home = tmp_path / "home"
+    source = fake_home / "sase" / "xprompts" / f"{name}.md"
+    source.parent.mkdir(parents=True)
+    source.write_text(body, encoding="utf-8")
+    return source, fake_home
 
 
 async def test_prompt_stack_two_panes_png_snapshot(
@@ -98,6 +124,136 @@ async def test_prompt_submit_choice_modal_png_snapshot(
             page,
             "prompt_submit_choice_modal_120x40",
             title="ACE prompt stack — submit chooser",
+        )
+
+
+async def test_prompt_stack_targeted_clean_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    source, fake_home = _write_target_source(tmp_path, "visual-clean")
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        bar = await mount_prompt_bar(page, "placeholder")
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+        bar.load_stack_from_xprompt_markdown(
+            TARGETED_MARKDOWN,
+            binding=XPromptBinding.for_file(source, reference="#visual-clean"),
+        )
+        await wait_for_svg_contains(page, "#visual-clean")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_stack_targeted_clean_120x40",
+            title="ACE prompt stack — targeted clean",
+        )
+
+
+async def test_prompt_stack_targeted_dirty_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    source, fake_home = _write_target_source(tmp_path, "visual-dirty")
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        bar = await mount_prompt_bar(page, "placeholder")
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+        bar.load_stack_from_xprompt_markdown(
+            TARGETED_MARKDOWN,
+            binding=XPromptBinding.for_file(source, reference="#visual-dirty"),
+        )
+        bar.active_text_area().text = (
+            "Audit the targeted xprompt editing state, then add the dirty note."
+        )
+        bar._sync_state_from_widgets()
+        bar._refresh_title()
+        await wait_for_svg_contains(page, "#visual-dirty")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_stack_targeted_dirty_120x40",
+            title="ACE prompt stack — targeted dirty",
+        )
+
+
+async def test_prompt_stack_targeted_readonly_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    source, fake_home = _write_target_source(tmp_path, "visual-readonly")
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        bar = await mount_prompt_bar(page, "placeholder")
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+        bar.load_stack_from_xprompt_markdown(
+            TARGETED_MARKDOWN,
+            read_only_target=XPromptReadonlyTarget(
+                reference="#visual-readonly",
+                path=str(source),
+            ),
+        )
+        await wait_for_svg_contains(page, "read-only")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_stack_targeted_readonly_120x40",
+            title="ACE prompt stack — targeted read-only",
+        )
+
+
+async def test_prompt_submit_choice_targeted_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    source, fake_home = _write_target_source(tmp_path, "visual-menu")
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        await mount_prompt_bar(page, "Review the targeted submit menu.")
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+        binding = XPromptBinding.for_file(source, reference="#visual-menu")
+
+        page.app.push_screen(
+            PromptSubmitChoiceModal(
+                prompt_count=1,
+                target=binding,
+                is_dirty=True,
+            )
+        )
+        await page.expect_modal("PromptSubmitChoiceModal")
+        await wait_for_svg_contains(page, "Save to")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_submit_choice_targeted_120x40",
+            title="ACE prompt stack — targeted submit chooser",
         )
 
 

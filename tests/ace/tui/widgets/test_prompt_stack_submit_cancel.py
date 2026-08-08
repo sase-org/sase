@@ -201,9 +201,7 @@ async def test_targeted_submit_choice_dirty_copy_names_write_path(
         await pilot.pause()
 
         rows = _submit_choice_rows(app.screen)
-        assert any(
-            "Overwrite" in row and str(tmp_path / "draft.md") in row for row in rows
-        )
+        assert any("Overwrite" in row and "draft.md" in row for row in rows)
         assert not any("No unsaved changes since the last save." in row for row in rows)
 
 

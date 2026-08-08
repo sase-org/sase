@@ -143,4 +143,5 @@ async def test_read_only_definition_payload_has_no_target(tmp_path: Path) -> Non
 
     assert loaded.binding is None
     assert loaded.read_only is True
+    assert loaded.read_only_path == str(source)
     assert loaded.markdown == "read only"

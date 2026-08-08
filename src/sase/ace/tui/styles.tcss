@@ -3289,6 +3289,19 @@ PromptInputBar {
     padding: 0 1;
 }
 
+PromptInputBar.xprompt-target {
+    border: double $secondary;
+}
+
+PromptInputBar.xprompt-target.dirty,
+PromptInputBar.xprompt-target.stale {
+    border: double $warning;
+}
+
+PromptInputBar.xprompt-target.readonly {
+    border: double $foreground 50%;
+}
+
 PromptInputBar #prompt-completion {
     width: 100%;
     height: auto;
@@ -3336,6 +3349,32 @@ PromptInputBar #frontmatter-panel.hidden {
 
 PromptInputBar #frontmatter-panel:focus {
     border: round $accent;
+}
+
+PromptInputBar.xprompt-target #frontmatter-panel {
+    border: round $secondary;
+}
+
+PromptInputBar.xprompt-target.dirty #frontmatter-panel,
+PromptInputBar.xprompt-target.stale #frontmatter-panel {
+    border: round $warning;
+}
+
+PromptInputBar.xprompt-target.readonly #frontmatter-panel {
+    border: round $foreground 50%;
+}
+
+PromptInputBar.xprompt-target #frontmatter-panel:focus {
+    border: round $secondary;
+}
+
+PromptInputBar.xprompt-target.dirty #frontmatter-panel:focus,
+PromptInputBar.xprompt-target.stale #frontmatter-panel:focus {
+    border: round $warning;
+}
+
+PromptInputBar.xprompt-target.readonly #frontmatter-panel:focus {
+    border: round $foreground 50%;
 }
 
 /* Prompt `g` prefix hints, directly above the prompt stack. */
