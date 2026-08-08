@@ -249,9 +249,12 @@ def test_execute_mobile_gate_action_secret_field_is_redacted_in_response() -> No
     assert result.response_json["option_inputs"] == {
         "approve": {"token": {"$redacted": True}}
     }
+    # The command echoes its stdin, so the result is the other place the same
+    # secret would land in the same durable file.
     assert result.response_json["option_results"] == [
-        {"id": "approve", "result": {"value": {"token": "hunter2"}}}
+        {"id": "approve", "result": {"value": {"token": {"$redacted": True}}}}
     ]
+    assert "hunter2" not in gate.response_path.read_text(encoding="utf-8")
     assert gate.response_path.is_file()
 
 

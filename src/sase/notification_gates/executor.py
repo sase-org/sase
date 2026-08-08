@@ -28,6 +28,7 @@ from sase.notification_gates.durability import (
 from sase.notification_gates.executor_inputs import (
     redact_option_inputs,
     redact_secrets_in_result,
+    redact_shared_input,
     resolve_option_inputs,
 )
 from sase.notification_gates.feedback_input import apply_feedback_input
@@ -183,7 +184,10 @@ def execute_gate_selection(
                     code=exc.code,
                 )
                 raise
-            option_results.append({"id": option.id, "result": result})
+            recorded = redact_secrets_in_result(
+                option, resolved_inputs[option.id], result
+            )
+            option_results.append({"id": option.id, "result": recorded})
             append_journal_event(
                 bundle_path,
                 attempt_id=attempt_id,
@@ -192,9 +196,7 @@ def execute_gate_selection(
                 option_id=option.id,
                 input_digest=input_digests[option.id],
                 result_digest=value_digest(result),
-                result=redact_secrets_in_result(
-                    option, resolved_inputs[option.id], result
-                ),
+                result=recorded,
             )
 
         append_journal_event(
@@ -208,7 +210,7 @@ def execute_gate_selection(
             "request_id": envelope["request_id"],
             "kind": adapter.kind,
             "selected_option_ids": [option.id for option in selected],
-            "input": normalized_input,
+            "input": redact_shared_input(selected, normalized_input),
             "option_inputs": redact_option_inputs(selected, resolved_inputs),
             "option_results": option_results,
             "feedback": normalized_feedback,

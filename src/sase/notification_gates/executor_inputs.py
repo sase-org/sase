@@ -72,13 +72,42 @@ def redact_option_inputs(
     through unchanged.
 
     Secrets reach the command's stdin unredacted; this redaction applies only
-    on the way to durable audit data. The journal's stored command result is
-    covered separately by :func:`redact_secrets_in_result`, which scrubs the
-    same values back out of whatever the command echoed.
+    on the way to durable audit data. The command *result* stored beside it --
+    in ``response.json``'s ``option_results`` and in the journal -- is covered
+    separately by :func:`redact_secrets_in_result`, which scrubs the same
+    values back out of whatever the command echoed.
     """
     return {
         option.id: _redact_value(option, resolved.get(option.id, {}))
         for option in selected
+    }
+
+
+def redact_shared_input(selected: tuple[GateOption, ...], value: Any) -> Any:
+    """Return a response-safe copy of the legacy shared ``input`` value.
+
+    A reviewer answering through ``--input`` or a pre-``inputs`` bundle sends
+    one value for every selected option, and ``response.json`` records it
+    under ``input`` *beside* the per-option copy ``option_inputs`` already
+    redacts. Redacting only the per-option copy leaves the same secret in the
+    same file one key over.
+
+    A name is secret when any selected option declares it so, which is the
+    same reach the shared value itself has.
+    """
+    if not isinstance(value, Mapping):
+        return value
+    secret_ids = {
+        gate_input_field.id
+        for option in selected
+        for gate_input_field in option.inputs
+        if gate_input_field.secret
+    }
+    if not secret_ids:
+        return value
+    return {
+        name: {"$redacted": True} if name in secret_ids else item
+        for name, item in value.items()
     }
 
 
@@ -98,11 +127,17 @@ def _redact_value(option: GateOption, value: Any) -> Any:
 def redact_secrets_in_result(option: GateOption, resolved: Any, result: Any) -> Any:
     """Return ``result`` with every submitted secret value scrubbed out.
 
-    The journal stores a completed option's command result verbatim, and a
-    command is free to echo its stdin back into its stdout -- the conformance
-    matrix's own echo command does exactly that. Without this, a
-    ``secret: true`` value redacted out of ``response.json`` still lands in
-    ``journal.jsonl``, which is the same durable audit data.
+    ``response.json``'s ``option_results`` and the journal both store a
+    completed option's command result, and a command is free to echo its
+    stdin back into its stdout -- the conformance matrix's own echo command
+    does exactly that. Without this, a ``secret: true`` value redacted out of
+    ``response.json``'s ``option_inputs`` lands right back in the same two
+    files under a different key.
+
+    The result is scrubbed once and used for both, so a resumed attempt --
+    which replays the journal's stored results -- and a fresh one write the
+    same value. The journal's ``result_digest`` is taken from the raw result
+    and still identifies exactly what the command returned.
 
     Only non-empty *string* secrets are scrubbed. A secret boolean or small
     integer carries no entropy but does collide with ordinary result values,
@@ -144,5 +179,6 @@ def _scrub(value: Any, secrets: tuple[str, ...]) -> Any:
 __all__ = [
     "redact_option_inputs",
     "redact_secrets_in_result",
+    "redact_shared_input",
     "resolve_option_inputs",
 ]

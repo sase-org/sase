@@ -404,13 +404,16 @@ def test_secret_input_field_reaches_stdin_but_is_redacted_in_response(
     }
 
 
-def test_secret_echoed_by_a_command_is_redacted_out_of_the_journal(
+def test_secret_echoed_by_a_command_is_redacted_out_of_both_audit_files(
     gate_home: Path,
 ) -> None:
-    """``journal.jsonl`` is audit data and must not hold a submitted secret.
+    """Neither durable file may hold a submitted secret.
 
-    The journal stores a completed option's raw result, and a command is free
-    to echo its stdin back -- the conformance matrix's own echo command does.
+    ``response.json`` and ``journal.jsonl`` both store a completed option's
+    result, and a command is free to echo its stdin back -- the conformance
+    matrix's own echo command does. Redacting the secret out of
+    ``option_inputs`` alone leaves it sitting in ``option_results`` one key
+    over, in the very file the redaction exists to protect.
     """
     echo_input = (
         "#!/usr/bin/env python3\n"
@@ -441,14 +444,19 @@ def test_secret_echoed_by_a_command_is_redacted_out_of_the_journal(
     )
 
     journal = (result.bundle_path / "journal.jsonl").read_text()
+    response = (result.bundle_path / "response.json").read_text()
     assert "hunter2" not in journal
+    assert "hunter2" not in response
     assert "rotation" in journal
+    assert "rotation" in response
     [completed] = [
         json.loads(line)
         for line in journal.splitlines()
         if line.strip() and json.loads(line).get("event") == "option_completed"
     ]
-    assert completed["result"]["input"]["token"] == {"$redacted": True}
-    assert completed["result"]["input"]["reason"] == "rotation"
-    assert completed["result"]["note"] == {"$redacted": True}
-    assert completed["result"]["status"] == "ok"
+    [recorded] = json.loads(response)["option_results"]
+    for stored in (completed["result"], recorded["result"]):
+        assert stored["input"]["token"] == {"$redacted": True}
+        assert stored["input"]["reason"] == "rotation"
+        assert stored["note"] == {"$redacted": True}
+        assert stored["status"] == "ok"

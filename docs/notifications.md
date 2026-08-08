@@ -1005,7 +1005,13 @@ against the field's own compiled fragment, so a default no client could submit i
 creation error rather than a gate that fails on first answer. `secret: true` reaches the
 command's stdin unredacted but is written to `response.json` and the execution journal
 as `{"$redacted": true}` — masked display alone would not be enough, since the response
-file is durable audit data.
+file is durable audit data. That covers every place those two files hold the value:
+`option_inputs`, the legacy shared `input` beside it, and the stored command result. A
+command is free to echo its stdin back, so any result string that merely _contains_ a
+submitted secret is replaced whole rather than spliced. Only non-empty string secrets
+are matched, because a secret boolean or small integer carries no entropy and matching
+on it would redact unrelated output. The journal's `result_digest` is taken from the raw
+result and still identifies exactly what the command returned.
 
 `inputs` and a raw `input_schema` are mutually exclusive per option: declaring both is a
 creation error unless the raw schema exactly equals what `inputs` would compile to. An

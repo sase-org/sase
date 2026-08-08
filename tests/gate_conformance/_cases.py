@@ -25,6 +25,16 @@ _ECHO_COMMAND = (
     "print(json.dumps({'status': 'ok', 'input': json.load(sys.stdin)}))\n"
 )
 
+#: Proves both halves of the secret contract from one result: ``token_len``
+#: could only be computed from the unredacted value on stdin, and ``echoed``
+#: is that same value handed straight back, which the bundle must scrub.
+_SECRET_WITNESS_COMMAND = (
+    "#!/usr/bin/env python3\n"
+    "import json, sys\n"
+    "value = json.load(sys.stdin)['token']\n"
+    "print(json.dumps({'status': 'ok', 'token_len': len(value), 'echoed': value}))\n"
+)
+
 
 def _counting_command(counter: Path, *, fail_first: bool = False) -> str:
     """A command that reports how many times it has run.
@@ -422,13 +432,18 @@ def _secret_field(_tmp: Path) -> ConformanceCase:
                     ],
                 }
             ],
+            commands={"rotate": _SECRET_WITNESS_COMMAND},
         ),
         submission=Submission(
             selected=("rotate",), option_inputs={"rotate": {"token": "hunter2"}}
         ),
         requires=frozenset({CAP_OPTION_INPUTS}),
-        # Unredacted on stdin, redacted in the durable audit record.
-        expected_results={"rotate": {"input": {"token": "hunter2"}}},
+        # Unredacted on stdin -- the command reports the length of what it
+        # actually read -- and redacted everywhere the bundle keeps it,
+        # including the result the command echoed straight back.
+        expected_results={
+            "rotate": {"token_len": 7, "echoed": {"$redacted": True}},
+        },
         expected_response_inputs={"rotate": {"token": {"$redacted": True}}},
     )
 

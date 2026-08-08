@@ -428,6 +428,18 @@ def test_secret_input_reaches_the_command_and_is_redacted_in_json(
                     ],
                 }
             ],
+            # Reports the length of the value it read, which only the
+            # unredacted secret can produce, and echoes the value itself,
+            # which the response must not keep.
+            commands={
+                "rotate": (
+                    "#!/usr/bin/env python3\n"
+                    "import json, sys\n"
+                    "value = json.load(sys.stdin)['token']\n"
+                    "print(json.dumps("
+                    "{'token_len': len(value), 'echoed': value}))\n"
+                )
+            },
         )
     )
 
@@ -448,7 +460,10 @@ def test_secret_input_reaches_the_command_and_is_redacted_in_json(
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "answered"
     assert payload["option_inputs"] == {"rotate": {"token": {"$redacted": True}}}
-    assert payload["option_results"][0]["result"]["input"] == {"token": "hunter2"}
+    assert payload["option_results"][0]["result"] == {
+        "token_len": len("hunter2"),
+        "echoed": {"$redacted": True},
+    }
 
 
 def test_cancelled_gate_exits_with_the_cancelled_code(
