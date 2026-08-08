@@ -424,7 +424,7 @@ Quick Start:
   sase bead doctor --fix-design-refs             Repair legacy plan links
   sase bead doctor --fix-issue-prefix            Reset a leaked ProjectSpec-key issue prefix
   sase bead doctor --fix-projection              Repair issues.jsonl drift
-  sase bead work <epic-or-task-id>               Launch epic or task agents""")
+  sase bead work <target> [<target> ...]        Launch plan, epic, or task agents in order""")
 
 
 def handle_bead_resolve_conflicts(args: argparse.Namespace) -> None:

@@ -19,24 +19,39 @@ def handle_bead_work(
     *,
     timer_factory: Callable[..., Any],
 ) -> None:
-    """Dispatch a plan-file or bead-id work target."""
+    """Dispatch plan-file or bead-id work targets in authored order."""
     json_output = bool(getattr(args, "json", False))
-    target = str(getattr(args, "target", getattr(args, "id", "")))
+    targets = _normalize_targets(args)
+    first_target = targets[0] if targets else ""
     from sase.dev_update.code_swap_lock import code_swap_reader_lock
 
     with code_swap_reader_lock(op="bead.work", command=sys.argv) as lock:
         if not lock.acquired:
             _exit_code_swap_lock_error(
                 _code_swap_lock_error(lock.blocked_by),
-                target=target,
+                target=first_target,
                 json_output=json_output,
             )
-        _handle_bead_work_locked(
-            args,
-            timer_factory=timer_factory,
-            json_output=json_output,
-            target=target,
-        )
+        for target in targets:
+            _handle_bead_work_locked(
+                args,
+                timer_factory=timer_factory,
+                json_output=json_output,
+                target=target,
+            )
+
+
+def _normalize_targets(args: argparse.Namespace) -> list[str]:
+    raw_targets = getattr(args, "target", None)
+    if raw_targets is None:
+        raw_targets = getattr(args, "id", "")
+
+    if isinstance(raw_targets, (list, tuple)):
+        targets = [str(target) for target in raw_targets]
+    else:
+        targets = [str(raw_targets)]
+
+    return targets or [""]
 
 
 def _handle_bead_work_locked(

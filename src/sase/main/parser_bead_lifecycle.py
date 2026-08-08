@@ -245,9 +245,12 @@ def register_bead_work_parser(
     """Register ``sase bead work``."""
     parser = subparsers.add_parser(
         "work",
-        help="Create or launch work for an epic plan or task bead",
+        help="Create or launch one or more epic plan or task bead targets",
         description=(
-            "Launch an existing epic plan or standalone task bead. An epic "
+            "Launch one or more existing epic plan or standalone task beads, "
+            "Markdown epic plans, or an ordered mix of both. Each target is "
+            "processed completely before the next begins, and the command stops "
+            "at the first error while preserving earlier side effects. An epic "
             "launch schedules its phase and land agents. A task launch starts "
             "one deterministic worker. A Markdown epic plan can also be "
             "validated, archived into the SDD store, compiled into a bead DAG, "
@@ -258,10 +261,13 @@ def register_bead_work_parser(
             "Examples:\n"
             "  sase bead work sase-64\n"
             "  sase bead work sase-task --yes\n"
+            "  sase bead work sase-64 sase-task --yes\n"
             "  sase bead work ./epic_plan.md --dry-run\n"
             "  sase bead work ./epic_plan.md --parent sase-64.2 --yes\n"
             "  sase bead work ./epic_plan.md --parent top-level --yes\n"
             "  sase bead work ./epic_plan.md --yes\n"
+            "  sase bead work ./epic_plan.md sase-task --yes\n"
+            "  sase bead work ./epic_plan.md ./followup_plan.md --yes-to-all\n"
             "  sase bead work ./epic_plan.md --yes-to-all\n"
             "  sase bead work ./epic_plan.md --json"
         ),
@@ -269,8 +275,11 @@ def register_bead_work_parser(
     )
     parser.add_argument(
         "target",
+        nargs="+",
+        metavar="TARGET",
         help=(
-            "Full or shorthand epic/task bead ID, or path to a validated epic plan file"
+            "One or more full or shorthand epic/task bead IDs or paths to "
+            "validated epic plan files, processed in order"
         ),
     )
     parser.add_argument(
@@ -304,8 +313,9 @@ def register_bead_work_parser(
         "--json",
         action="store_true",
         help=(
-            "Print one machine-readable result object; implies --yes-to-all, "
-            "so no confirmation prompt is shown"
+            "Print one machine-readable result object per processed target; "
+            "multi-target output is JSON Lines; implies --yes-to-all, so no "
+            "confirmation prompt is shown"
         ),
     )
     parser.add_argument(

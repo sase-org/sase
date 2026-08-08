@@ -482,19 +482,19 @@ and historical root-level scratch files are not part of the committed-plan sweep
 SDD's durable operations live primarily on the repo and plan command groups; executable
 epic handoff uses the bead command group:
 
-| Command                    | Purpose                                                                                    |
-| -------------------------- | ------------------------------------------------------------------------------------------ |
-| `sase repo init`           | Initialize configured sidecars, generated guides, config, and the repository ignore rule   |
-| `sase init repo`           | Alias for `sase repo init`                                                                 |
-| `sase repo path REPO`      | Print a primary or sidecar path; `-e/--ensure` materializes the selected sidecar           |
-| `sase plan links [list]`   | Print each prompt/plan artifact link and whether its reverse link is intact                |
-| `sase plan links refresh`  | Preview header-block reconciliation; `-w/--write` applies it, `-P/--plan REF` scopes it    |
-| `sase plan links repair`   | Preview canonical link migration; add `-w/--write` to update unambiguous pairs             |
-| `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, and `-W/--show-warnings` tune output            |
-| `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                |
-| `sase plan show [TARGET]`  | Resolve any plan reference form and render it; `-f/--format` picks full/compact/json/raw   |
-| `sase plan validate`       | Validate by authored tier; `-e/--explain`, `-j/--json`, and `-q/--quiet` tune output       |
-| `sase bead work PLAN_FILE` | Validate, archive, link, and launch an epic plan; `-n/--dry-run` previews without mutation |
+| Command                              | Purpose                                                                                                           |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `sase repo init`                     | Initialize configured sidecars, generated guides, config, and the repository ignore rule                          |
+| `sase init repo`                     | Alias for `sase repo init`                                                                                        |
+| `sase repo path REPO`                | Print a primary or sidecar path; `-e/--ensure` materializes the selected sidecar                                  |
+| `sase plan links [list]`             | Print each prompt/plan artifact link and whether its reverse link is intact                                       |
+| `sase plan links refresh`            | Preview header-block reconciliation; `-w/--write` applies it, `-P/--plan REF` scopes it                           |
+| `sase plan links repair`             | Preview canonical link migration; add `-w/--write` to update unambiguous pairs                                    |
+| `sase plan links validate`           | Validate links; `-j/--json`, `-q/--quiet`, and `-W/--show-warnings` tune output                                   |
+| `sase plan search`                   | Search or browse tale, epic, prompt, and research artifacts                                                       |
+| `sase plan show [TARGET]`            | Resolve any plan reference form and render it; `-f/--format` picks full/compact/json/raw                          |
+| `sase plan validate`                 | Validate by authored tier; `-e/--explain`, `-j/--json`, and `-q/--quiet` tune output                              |
+| `sase bead work TARGET [TARGET ...]` | Validate, archive, link, and launch epic plans or bead targets in order; `-n/--dry-run` previews without mutation |
 
 The link subcommands accept `-p/--path`, which may point at an SDD root or a project
 root. Bare `sase plan links` defaults to `sase plan links list`. Validation no longer

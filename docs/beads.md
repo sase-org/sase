@@ -80,6 +80,7 @@ sase bead work "$PLANS_ROOT/202605/epic.md" --yes       # Create, link, and laun
 sase bead work beads-001                                # Launch agents for an epic plan bead
 sase bead work beads-002 --dry-run                      # Preview one standalone task worker
 sase bead work beads-002 --yes                          # Launch one standalone task worker
+sase bead work "$PLANS_ROOT/202605/epic.md" beads-002 --yes # Run targets in order, stopping at first error
 ```
 
 ## Bead ID Arguments
@@ -1374,15 +1375,32 @@ evaluated against the whole batch: a descendant that is itself being closed by t
 invocation counts as closed, so argument order does not matter, but a descendant left
 out of the batch still rejects the whole update.
 
-### `sase bead work <target>`
+<a id="sase-bead-work-target"></a>
 
-Create or resume an epic from a validated Markdown plan, launch an existing epic-tier
-plan bead, or launch one standalone task bead. A target is treated as a plan file when
-it ends in `.md`, contains a path separator, or names an existing file; other targets
-are bead IDs whose type selects the epic or task path. Epic modes run one agent per
-non-closed, non-delegated phase plus a final land agent. Task mode runs exactly one
-deterministic worker; see [Standalone Task Workflow](#standalone-task-workflow) for its
-full lifecycle.
+### `sase bead work <target> [<target> ...]`
+
+Create or resume one or more epics from validated Markdown plans, launch existing
+epic-tier plan beads, launch standalone task beads, or run an ordered mix of those
+targets. Each target is treated as a plan file when it ends in `.md`, contains a path
+separator, or names an existing file; other targets are bead IDs whose type selects the
+epic or task path. Epic modes run one agent per non-closed, non-delegated phase plus a
+final land agent. Task mode runs exactly one deterministic worker; see
+[Standalone Task Workflow](#standalone-task-workflow) for its full lifecycle.
+
+Multiple targets use shell-`&&` style sequencing: SASE finishes each target before
+starting the next, stops at the first error, and does not validate or launch later
+targets after that error. Successful earlier targets keep their output and side effects;
+there is no batch rollback. A declined launch confirmation still counts the same way it
+does for a one-target command: the current target returns success after printing
+`Aborted.`, so the next target may run.
+
+Flags are command-wide and are applied independently to every processed target.
+Target-local validation is unchanged, so plan-only flags such as `--parent`,
+`--artifacts-dir`, and `--cl-name` work for earlier plan files and then stop the
+sequence if a later bead-ID target reaches the same incompatible flag. `--json` prints
+one complete result object per processed target. A one-target JSON run is unchanged; a
+multi-target JSON run is newline-delimited JSON, one object per line, including the
+first failing target's error object when the command stops.
 
 For a task bead, `sase bead work <task-id>` accepts `ready` (normal), `open` (manual
 launch), or recoverable `in_progress` state. It does not launch a duplicate when the

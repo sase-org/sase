@@ -41,5 +41,5 @@ parentheticals.
 - `sase bead history <id>` replays the bead's canonical event history.
 - `sase bead pages refresh` previews regenerated bead pages; add `--write` to update and commit them.
 - `sase bead pages url <id>` prints a bead's hosted page URL when the sidecar remote and branch resolve locally.
-- `sase bead work <epic-id|plan.md>` launches an epic's phase and landing agents.
+- `sase bead work <target> [<target> ...]` launches plan, epic, or task targets in order.
 - `sase repo path beads` prints this clone's root.

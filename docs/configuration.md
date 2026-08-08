@@ -3668,15 +3668,19 @@ once. Removal is irreversible.
 
 | Flag                  | Values                 | Default    | Description                                                                                        |
 | --------------------- | ---------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
-| `target`              | bead ID or plan path   | (required) | Existing epic or task bead to launch, or validated epic plan file to create/launch                 |
-| `-a, --artifacts-dir` | directory              | -          | Back-fill planner artifacts after an approved epic; plan-file targets only                         |
-| `-c, --cl-name`       | ChangeSpec name        | -          | Approved epic's ChangeSpec name; plan-file targets only                                            |
+| `targets`             | bead IDs or plan paths | (required) | One or more epic/task beads or validated epic plan files, processed in order until the first error |
+| `-a, --artifacts-dir` | directory              | -          | Back-fill planner artifacts after each approved epic; plan-file targets only                       |
+| `-c, --cl-name`       | ChangeSpec name        | -          | Approved epic ChangeSpec name applied per plan-file target                                         |
 | `-n, --dry-run`       | flag                   | -          | Preview the epic wave plan or task prompt without mutating files, beads, or agents                 |
-| `-j, --json`          | flag                   | -          | Print one machine-readable result object and imply `--yes-to-all`                                  |
+| `-j, --json`          | flag                   | -          | Print one result object per processed target as JSON Lines and imply `--yes-to-all`                |
 | `-P, --no-push`       | flag                   | -          | Commit checkpoint state locally but skip post-commit pushes                                        |
 | `-p, --parent`        | bead ID or `top-level` | -          | Override a plan file's `parent_bead`, including forcing an unparented epic; plan-file targets only |
 | `-y, --yes`           | flag                   | -          | Skip only the launch confirmation prompt                                                           |
 | `-Y, --yes-to-all`    | flag                   | -          | Skip both destructive-cleanup and launch confirmation prompts                                      |
+
+Multiple `sase bead work` targets are non-atomic: earlier successes are not rolled back,
+later targets are not prevalidated, and every command-wide flag is checked again for the
+current target.
 
 ### SDD repository and plan commands
 
