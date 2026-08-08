@@ -153,6 +153,21 @@ class XPromptSelectModal(
         content = workflow.get_prompt_part_content()
         inputs = [inp for inp in workflow.inputs if not inp.is_step_input]
         has_input_descriptions = any(inp.description for inp in inputs)
+        if workflow.memory_type is not None:
+            memory_lines: list[str] = [
+                f"# Memory: {workflow.name}",
+                "",
+                f"memory type: {workflow.memory_type}",
+                "",
+            ]
+            if workflow.description:
+                memory_lines.extend([workflow.description, ""])
+            if inputs:
+                memory_lines.append("## Inputs")
+                memory_lines.extend(_input_preview_lines(inputs))
+                memory_lines.append("")
+            memory_lines.extend(["## Content", content])
+            return "\n".join(memory_lines)
         if not workflow.description and not has_input_descriptions:
             return content
 
@@ -252,6 +267,14 @@ class XPromptSelectModal(
             text.append("⚙ ", style="bold #FFD700")  # Gold gear for workflows
             text.append(prefix, style="bold #87D7FF")
             text.append(name)
+        elif kind == "memory":
+            text.append(prefix, style="bold #87D7FF")
+            text.append(name)
+            if workflow and workflow.memory_type:
+                text.append(
+                    f"  memory · {workflow.memory_type}",
+                    style="dim #87D7FF",
+                )
         else:
             text.append(prefix, style="bold #87D7FF")
             text.append(name)

@@ -109,6 +109,7 @@ def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
                 "insertion": entry.insertion,
                 "reference_prefix": entry.reference_prefix,
                 "kind": entry.kind,
+                "memory_type": entry.memory_type,
                 "description": entry.description,
                 "source_bucket": entry.source_bucket,
                 "project": entry.project,
@@ -138,6 +139,7 @@ def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
             "total_count": projection.stats.total_count,
             "project_count": projection.stats.project_count,
             "skill_count": projection.stats.skill_count,
+            "memory_count": projection.stats.memory_count,
             "pdf_requested": projection.stats.pdf_requested,
         },
         "catalog_attachment": None

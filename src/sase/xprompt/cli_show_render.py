@@ -106,7 +106,10 @@ def _header(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
         record.reference,
         style=_role_style("xprompt.invocation", styles_enabled=styles_enabled),
     )
-    chips = [record.kind.replace("_", " ")]
+    if record.kind == "memory" and record.memory_type is not None:
+        chips = [f"memory · {record.memory_type}"]
+    else:
+        chips = [record.kind.replace("_", " ")]
     if record.is_skill:
         chips.append(f"skill · /{record.skill_name}" if record.skill_name else "skill")
     if record.is_swarm:
@@ -134,6 +137,8 @@ def _properties(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
                 style=_role_style("xprompt.invocation", styles_enabled=styles_enabled),
             ),
         )
+    if record.memory_type:
+        _add_detail_row(table, "memory type", Text(record.memory_type))
     if record.project:
         _add_detail_row(table, "project", Text(record.project))
 
@@ -403,7 +408,7 @@ def _references(
 
 
 def _hint(record: XPromptShowRecord, *, styles_enabled: bool) -> Text:
-    if record.kind == "xprompt":
+    if record.kind in {"xprompt", "memory"}:
         command = f"sase xprompt expand '{record.reference}'"
         explanation = "preview the expansion"
     else:

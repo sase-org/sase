@@ -157,6 +157,7 @@ def resolve_show_record(
         reference=workflow_reference_insertion(name, selected_workflow),
         prefix=workflow_reference_prefix(selected_workflow),
         kind=workflow_kind_value(selected_workflow),
+        memory_type=selected_workflow.memory_type,
         is_skill=bool(selected_xprompt and selected_xprompt.skill),
         skill_name=selected_xprompt.skill_name if selected_xprompt else None,
         is_swarm=segment_count > 1,
@@ -207,6 +208,7 @@ def _workflow_descriptor(workflow: Workflow) -> XPrompt:
         tags=workflow.tags,
         description=workflow.description,
         local_xprompts=workflow.xprompts,
+        memory_type=workflow.memory_type,
     )
 
 
@@ -436,6 +438,10 @@ def _show_reference_kind(
 ) -> str | None:
     if name in local_xprompts:
         return "local helper"
+    if isinstance(item, XPrompt) and item.memory_type is not None:
+        return "memory"
+    if isinstance(item, Workflow) and item.memory_type is not None:
+        return "memory"
     if isinstance(item, XPrompt) and item.skill:
         return "skill"
     if kind == "part":

@@ -9,6 +9,11 @@ from sase.ace.tui.modals.xprompt_browser_helpers import (
     classify_source,
     is_yaml_backed_source,
 )
+from sase.ace.tui.modals.xprompt_browser_options import create_item_label
+from sase.ace.tui.modals.xprompt_browser_preview import (
+    create_meta_text,
+    create_simple_preview,
+)
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -36,6 +41,20 @@ def test_classify_source_default_xprompts_builtin(tmp_path: Path) -> None:
     assert category == "Built-in"
     assert display_path.endswith("default_xprompts/research_swarm.md")
     assert is_editable is False
+
+
+def test_classify_source_project_memory_note(tmp_path: Path, monkeypatch) -> None:
+    project_root = tmp_path / "workspace"
+    memory_source = project_root / "sase" / "memory" / "glossary.md"
+    memory_source.parent.mkdir(parents=True)
+    memory_source.write_text("---\ntype: short\n---\nbody\n")
+    monkeypatch.chdir(project_root)
+
+    category, display_path, is_editable = classify_source(str(memory_source))
+
+    assert category == "Project sase/memory/"
+    assert display_path == "sase/memory/glossary.md"
+    assert is_editable is True
 
 
 def test_append_input_args_keeps_required_and_optional_modal_styles() -> None:
@@ -119,3 +138,31 @@ def test_browser_filters_and_previews_descriptions() -> None:
     preview = pane._create_simple_preview(prompts["review"])
     assert "Review a selected diff." in preview
     assert "Diff file to inspect." in preview
+
+
+def test_browser_labels_and_previews_memory_entries() -> None:
+    from sase.ace.tui.modals.xprompt_browser_helpers import BrowserItem
+
+    workflow = Workflow(
+        name="memory/glossary",
+        description="Glossary terms.",
+        memory_type="short",
+        steps=[WorkflowStep(name="prompt", prompt_part="Memory body")],
+    )
+    item = BrowserItem(
+        name="memory/glossary",
+        workflow=workflow,
+        source_category="Project sase/memory/",
+        source_path="/tmp/sase/memory/glossary.md",
+        display_path="sase/memory/glossary.md",
+        is_editable=True,
+        item_type="xprompt",
+        kind="memory",
+        insertion="#memory/glossary",
+    )
+
+    assert create_item_label(item).plain == "  #memory/glossary  memory · short"
+    preview = create_simple_preview(workflow)
+    assert "# Memory: memory/glossary" in preview
+    assert "memory type: short" in preview
+    assert "Type: memory · short (simple)" in create_meta_text(item).plain

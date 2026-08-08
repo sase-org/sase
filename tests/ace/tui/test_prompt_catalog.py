@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from sase.ace.tui import prompt_catalog
@@ -63,6 +64,59 @@ def test_prompt_source_token_changes_for_project_file(
     after = prompt_catalog._prompt_source_token(["sase"])
 
     assert before != after
+
+
+def test_prompt_source_token_changes_for_memory_file_create(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    memory_dir = tmp_path / "sase" / "memory"
+    memory_dir.mkdir(parents=True)
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    monkeypatch.setattr(prompt_catalog, "CONFIG_DIR", config_dir)
+    monkeypatch.setattr(prompt_catalog, "get_xprompt_search_paths", lambda: [])
+    monkeypatch.setattr(prompt_catalog, "current_config_token", lambda: ("config",))
+    monkeypatch.setattr(
+        prompt_catalog,
+        "resolve_memory_file_sources",
+        lambda **_kwargs: (
+            SimpleNamespace(
+                paths=SimpleNamespace(candidates=(memory_dir,)),
+            ),
+        ),
+    )
+
+    before = prompt_catalog._prompt_source_token([None])
+    (memory_dir / "glossary.md").write_text("---\ntype: short\n---\nbody\n")
+    after = prompt_catalog._prompt_source_token([None])
+
+    assert before != after
+
+
+def test_prompt_source_watch_paths_include_memory_roots(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    memory_dir = tmp_path / "sase" / "memory"
+    memory_dir.mkdir(parents=True)
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    monkeypatch.setattr(prompt_catalog, "CONFIG_DIR", config_dir)
+    monkeypatch.setattr(prompt_catalog, "get_xprompt_search_paths", lambda: [])
+    monkeypatch.setattr(
+        prompt_catalog,
+        "resolve_memory_file_sources",
+        lambda **_kwargs: (
+            SimpleNamespace(
+                paths=SimpleNamespace(candidates=(memory_dir,)),
+            ),
+        ),
+    )
+
+    paths = prompt_catalog.prompt_source_watch_paths([None])
+
+    assert memory_dir in paths
 
 
 def test_build_prompt_catalog_snapshot_short_circuits_unchanged_token(

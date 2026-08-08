@@ -29,6 +29,7 @@ class CatalogStats:
     with_description: int
     with_inputs: int
     skills: int
+    memory: int
     generated_at: datetime
 
 
@@ -85,6 +86,7 @@ class StructuredCatalogStats:
     project_count: int
     skill_count: int
     pdf_requested: bool
+    memory_count: int = 0
 
 
 @dataclass(frozen=True)

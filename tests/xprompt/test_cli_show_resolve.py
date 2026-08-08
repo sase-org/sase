@@ -332,9 +332,42 @@ def test_record_json_projection_is_complete_and_serializable(
         "raw",
         "warnings",
         "references",
+        "memory_type",
         "raw_available",
     }
     json.loads(json.dumps(projection))
+
+
+def test_memory_record_projects_kind_and_type(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.xprompt.cli_show_resolve as resolve_module
+
+    path = tmp_path / "glossary.md"
+    path.write_text("---\ntype: long\n---\nbody\n")
+    xprompt = XPrompt(
+        name="memory/glossary",
+        content="body\n",
+        source_path=str(path),
+        description="Glossary terms.",
+        memory_type="long",
+    )
+    _patch_catalog(
+        monkeypatch,
+        resolve_module,
+        xprompts={"memory/glossary": xprompt},
+    )
+
+    record = resolve_show_record("#memory/glossary")
+
+    assert isinstance(record, XPromptShowRecord)
+    assert record.reference == "#memory/glossary"
+    assert record.kind == "memory"
+    assert record.memory_type == "long"
+    projection = record.to_json_dict()
+    assert projection["kind"] == "memory"
+    assert projection["memory_type"] == "long"
 
 
 def test_step_record_reuses_shared_type_and_output_schema(

@@ -43,6 +43,12 @@ def test_xprompt_list_includes_kind_and_insertion(
 ) -> None:
     prompts = {
         "commit": _simple_workflow("commit"),
+        "memory/glossary": Workflow(
+            name="memory/glossary",
+            source_path="/tmp/sase/memory/glossary.md",
+            memory_type="short",
+            steps=[WorkflowStep(name="prompt", prompt_part="Glossary body")],
+        ),
         "multi": _xprompt_swarm_workflow("multi"),
         "gh": _embeddable_workflow("gh"),
         "sync": _standalone_workflow("sync"),
@@ -63,6 +69,14 @@ def test_xprompt_list_includes_kind_and_insertion(
     assert rows["commit"]["prefix"] == "#"
     assert rows["commit"]["insertion"] == "#commit"
     assert rows["commit"]["is_skill"] is False
+    assert rows["commit"]["memory_type"] is None
+
+    assert rows["memory/glossary"]["type"] == "xprompt"
+    assert rows["memory/glossary"]["kind"] == "memory"
+    assert rows["memory/glossary"]["prefix"] == "#"
+    assert rows["memory/glossary"]["insertion"] == "#memory/glossary"
+    assert rows["memory/glossary"]["memory_type"] == "short"
+    assert rows["memory/glossary"]["source"] == "/tmp/sase/memory/glossary.md"
 
     assert rows["multi"]["type"] == "xprompt"
     assert rows["multi"]["kind"] == "xprompt"

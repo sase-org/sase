@@ -62,10 +62,17 @@ def create_item_label(item: BrowserItem) -> Text:
     elif item.kind == "embeddable_workflow":
         text.append("  ⚙ ", style="bold #FFD700")
         text.append(prefix, style="bold #87D7FF")
+    elif item.kind == "memory":
+        text.append(f"  {prefix}", style="bold #87D7FF")
     else:
         text.append(f"  {prefix}", style="bold #87D7FF")
     text.append(item.name)
     append_input_args(text, item.workflow.inputs)
+    if item.kind == "memory" and item.workflow.memory_type:
+        text.append(
+            f"  memory · {item.workflow.memory_type}",
+            style="dim #87D7FF",
+        )
     return text
 
 

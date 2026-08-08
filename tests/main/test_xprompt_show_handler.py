@@ -9,7 +9,11 @@ import pytest
 
 from sase.main.parser import create_parser
 from sase.main.xprompt_handler import handle_xprompt_command
-from sase.xprompt.cli_show_model import ShowProvenance, XPromptShowRecord
+from sase.xprompt.cli_show_model import (
+    SHOW_SCHEMA_VERSION,
+    ShowProvenance,
+    XPromptShowRecord,
+)
 from sase.xprompt.cli_show_resolve import ShowLookupMiss
 
 
@@ -111,7 +115,7 @@ def test_show_json_outputs_parseable_schema_and_stderr_warnings(
 
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == SHOW_SCHEMA_VERSION
     assert payload["name"] == "demo"
     assert captured.err == "arguments ignored\n"
 

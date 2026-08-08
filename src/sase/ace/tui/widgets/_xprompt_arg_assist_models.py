@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from sase.xprompt.models import MemoryType
+
 
 @dataclass(frozen=True, slots=True)
 class XPromptInputHint:
@@ -34,6 +36,7 @@ class XPromptAssistEntry:
     is_skill: bool = False
     skill_name: str | None = None
     """Provider-visible ``/`` name; ``name`` stays the ``#`` reference."""
+    memory_type: MemoryType | None = None
 
 
 @dataclass(frozen=True, slots=True)

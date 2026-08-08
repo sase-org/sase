@@ -144,6 +144,7 @@ def _handle_list() -> None:
                 "kind": workflow_kind_value(wf),
                 "prefix": workflow_reference_prefix(wf),
                 "insertion": workflow_reference_insertion(name, wf),
+                "memory_type": wf.memory_type,
                 "is_skill": bool(skill_xprompt and skill_xprompt.skill),
                 # The provider-visible ``/`` name; ``name`` above stays the
                 # ``#skills/<name>`` xprompt reference.
@@ -227,6 +228,7 @@ def _handle_catalog(args: argparse.Namespace) -> None:
         "with_description": stats.with_description,
         "with_inputs": stats.with_inputs,
         "skills": stats.skills,
+        "memory": stats.memory,
         "generated_at": stats.generated_at.isoformat(),
     }
     print(str(artifact.pdf_path))

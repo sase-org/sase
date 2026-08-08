@@ -38,6 +38,7 @@ def test_editor_helper_bridge_aliases_xprompt_catalog(
                     insertion="#edit",
                     reference_prefix="#",
                     kind="xprompt",
+                    memory_type=None,
                     description="Editor helper prompt",
                     source_bucket="project",
                     project="sase",
@@ -53,6 +54,7 @@ def test_editor_helper_bridge_aliases_xprompt_catalog(
                 total_count=1,
                 project_count=1,
                 skill_count=0,
+                memory_count=0,
                 pdf_requested=False,
             ),
             warnings=[],
@@ -76,6 +78,7 @@ def test_editor_helper_bridge_aliases_xprompt_catalog(
     assert data["context"] == {"project": "sase", "scope": "explicit"}
     assert data["entries"][0]["name"] == "edit"
     assert data["entries"][0]["skill_name"] is None
+    assert data["entries"][0]["memory_type"] is None
 
 
 def test_editor_helper_bridge_carries_the_provider_skill_name(
@@ -91,6 +94,7 @@ def test_editor_helper_bridge_carries_the_provider_skill_name(
                     insertion="#skills/sase_plan",
                     reference_prefix="#",
                     kind="xprompt",
+                    memory_type=None,
                     description="Create an implementation plan",
                     source_bucket="package",
                     project=None,
@@ -107,6 +111,7 @@ def test_editor_helper_bridge_carries_the_provider_skill_name(
                 total_count=1,
                 project_count=0,
                 skill_count=1,
+                memory_count=0,
                 pdf_requested=False,
             ),
             warnings=[],
@@ -131,6 +136,7 @@ def test_editor_helper_bridge_carries_the_provider_skill_name(
     assert entry["name"] == "skills/sase_plan"
     assert entry["is_skill"] is True
     assert entry["skill_name"] == "sase_plan"
+    assert entry["memory_type"] is None
 
 
 def test_editor_helper_bridge_outputs_definition_path_for_real_catalog_file(

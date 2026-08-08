@@ -297,6 +297,40 @@ def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
     assert projection.stats.skill_count >= 1
 
 
+def test_structured_catalog_marks_memory_xprompts(tmp_path: Path) -> None:
+    source = tmp_path / "sase" / "memory" / "glossary.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("---\ntype: long\n---\nGlossary body\n")
+    memory_xp = make_xprompt(
+        "memory/glossary",
+        source_path=str(source),
+        description="Glossary terms.",
+        content="Glossary body",
+        memory_type="long",
+    )
+
+    with (
+        patch(
+            "sase.xprompt.catalog.get_all_xprompts",
+            return_value={"memory/glossary": memory_xp},
+        ),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        projection = build_structured_xprompts_catalog(query="glossary")
+
+    entry = projection.entries[0]
+    assert entry.name == "memory/glossary"
+    assert entry.insertion == "#memory/glossary"
+    assert entry.reference_prefix == "#"
+    assert entry.kind == "memory"
+    assert entry.memory_type == "long"
+    assert entry.is_skill is False
+    assert entry.skill_name is None
+    assert entry.definition_path == str(source.resolve())
+    assert projection.stats.memory_count == 1
+
+
 def test_structured_catalog_definition_paths_for_real_sources(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

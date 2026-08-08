@@ -117,6 +117,18 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
         )
         return label, display_path(path, project_root=project_root), True
 
+    for candidate in project_layout.memory.candidates:
+        try:
+            path.relative_to(candidate)
+        except ValueError:
+            continue
+        label = (
+            "Project sase/memory/"
+            if candidate == project_layout.memory.write_path
+            else "Project memory/ (legacy)"
+        )
+        return label, display_path(path, project_root=project_root), True
+
     home_candidates = home_layout.xprompts.candidates
     for candidate in home_candidates:
         try:
@@ -134,6 +146,18 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
             "Home ~/sase/xprompts/"
             if candidate == home_layout.xprompts.write_path
             else "Home xprompts/ (legacy)"
+        )
+        return label, display_path(path, home_root=home_path), True
+
+    for candidate in home_layout.memory.candidates:
+        try:
+            path.relative_to(candidate)
+        except ValueError:
+            continue
+        label = (
+            "Home ~/sase/memory/"
+            if candidate == home_layout.memory.write_path
+            else "Home memory/ (legacy)"
         )
         return label, display_path(path, home_root=home_path), True
 

@@ -64,6 +64,28 @@ def test_render_html_contains_input_descriptions() -> None:
     assert "Diff file to inspect." in html
 
 
+def test_render_html_contains_memory_badges() -> None:
+    from sase.xprompt.catalog import _CatalogEntry, _build_document
+
+    entries = [
+        _CatalogEntry(
+            make_xprompt(
+                "memory/glossary",
+                source_path="config",
+                memory_type="long",
+            ),
+            bucket="config",
+            project=None,
+        )
+    ]
+    stats = _compute_stats(entries)
+    document = _build_document(entries, stats)
+    html = _render_html(document)
+
+    assert "memory · long" in html
+    assert "1 memory notes" in html
+
+
 def test_build_raises_when_no_xprompts() -> None:
     with (
         patch("sase.xprompt.catalog.get_all_xprompts", return_value={}),

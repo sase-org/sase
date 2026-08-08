@@ -25,6 +25,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     xprompt_completion_suffix_skeleton,
 )
 from sase.xprompt.models import UNSET, InputArg, InputType, OutputSpec, XPrompt
+from sase.xprompt.models import MemoryType
 
 
 def _make_xprompt(
@@ -35,6 +36,7 @@ def _make_xprompt(
     content: str = "body",
     skill: bool | list[str] | None = None,
     description: str | None = None,
+    memory_type: MemoryType | None = None,
 ) -> XPrompt:
     return XPrompt(
         name=name,
@@ -43,6 +45,7 @@ def _make_xprompt(
         source_path=source_path,
         skill=skill,
         description=description,
+        memory_type=memory_type,
     )
 
 
@@ -127,6 +130,7 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
     assert entry.insertion == "#typed"
     assert entry.reference_prefix == "#"
     assert entry.kind == "xprompt"
+    assert entry.memory_type is None
     assert entry.input_signature == (
         "(required_word: word, string_default?: line, null_default?: text, "
         "count?: int, enabled?: bool)"
@@ -152,6 +156,36 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
         "enabled",
     ]
     assert [inp.name for inp in required_inputs(entry)] == ["required_word"]
+
+
+def test_assist_adapter_preserves_memory_identity(tmp_path: Path) -> None:
+    source = tmp_path / "sase" / "memory" / "glossary.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("---\ntype: short\n---\nbody\n")
+    xp = _make_xprompt(
+        "memory/glossary",
+        source_path=str(source),
+        description="Glossary terms.",
+        memory_type="short",
+    )
+
+    with (
+        patch(
+            "sase.xprompt.catalog.get_all_xprompts",
+            return_value={"memory/glossary": xp},
+        ),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        entries = build_xprompt_assist_entries()
+
+    entry = entries[0]
+    assert entry.name == "memory/glossary"
+    assert entry.insertion == "#memory/glossary"
+    assert entry.kind == "memory"
+    assert entry.memory_type == "short"
+    assert entry.is_skill is False
+    assert entry.skill_name is None
 
 
 def test_assist_adapter_filters_project_entries(tmp_path: Path) -> None:

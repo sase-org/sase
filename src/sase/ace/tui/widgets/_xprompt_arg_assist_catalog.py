@@ -43,6 +43,7 @@ def build_xprompt_assist_entries(
             content_preview=entry.content_preview,
             is_skill=entry.is_skill,
             skill_name=entry.skill_name,
+            memory_type=entry.memory_type,
         )
         for entry in projection.entries
     ]
@@ -70,6 +71,7 @@ def xprompt_assist_entry_from_workflow(
         content_preview=(
             workflow.get_prompt_part_content() if workflow.is_simple_xprompt() else None
         ),
+        memory_type=workflow.memory_type,
     )
 
 

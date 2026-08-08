@@ -8,6 +8,7 @@ from pathlib import Path
 
 from sase.content_layout import (
     discover_project_root,
+    resolve_home_layout,
     resolve_project_config_read_path,
 )
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
@@ -241,6 +242,18 @@ def source_path_display(
         except (ValueError, OSError):
             continue
         return f"{package_dir.name}/{rel.as_posix()}"
+
+    try:
+        home_layout = resolve_home_layout()
+    except Exception:
+        home_layout = None
+    if home_layout is not None:
+        for memory_root in home_layout.memory.candidates:
+            try:
+                path.resolve().relative_to(memory_root.resolve())
+            except (ValueError, OSError):
+                continue
+            return safe_path_display(path)
 
     config_dir = Path.home() / ".config" / "sase"
     try:

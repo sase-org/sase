@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from sase.xprompt.models import MemoryType
 
-SHOW_SCHEMA_VERSION = 1
+SHOW_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +88,7 @@ class XPromptShowRecord:
     raw: str | None
     warnings: list[str]
     references: list[ShowReference]
+    memory_type: MemoryType | None = None
 
     @property
     def raw_available(self) -> bool:

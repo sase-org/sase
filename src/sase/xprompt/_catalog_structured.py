@@ -93,6 +93,9 @@ def build_structured_xprompts_catalog(
                 {entry.project for entry in filtered_entries if entry.project}
             ),
             skill_count=sum(1 for entry in filtered_entries if entry.is_skill),
+            memory_count=sum(
+                1 for entry in filtered_entries if entry.memory_type is not None
+            ),
             pdf_requested=include_pdf,
         ),
         warnings=warnings,

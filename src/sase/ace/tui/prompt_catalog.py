@@ -19,12 +19,20 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 from sase.config.core import CONFIG_DIR, current_config_token, stat_token
 from sase.content_layout import (
     discover_project_root,
+    resolve_memory_file_sources,
     resolve_project_layout,
     resolve_xprompt_file_sources,
 )
 from sase.core.snippet_catalog_facade import compose_snippet_catalog
-from sase.xprompt.loader import get_all_xprompts, get_xprompt_search_paths
-from sase.xprompt.project_identity import canonical_xprompt_project
+from sase.xprompt.loader import (
+    detect_project,
+    get_all_xprompts,
+    get_xprompt_search_paths,
+)
+from sase.xprompt.project_identity import (
+    canonical_xprompt_project,
+    known_project_namespaces,
+)
 from sase.xprompt.snippet_bridge import build_xprompt_snippet_entries_from_catalog
 
 PROMPT_SOURCE_SUFFIXES = frozenset({".md", ".yml", ".yaml"})
@@ -135,11 +143,17 @@ def _prompt_source_token(projects: Iterable[str | None]) -> tuple[Any, ...]:
         if project is not None
         for directory in _project_xprompt_dirs(project)
     ]
+    memory_dirs = [
+        directory
+        for project in project_tuple
+        for directory in _memory_source_dirs(project)
+    ]
     return (
         ("projects", project_tuple),
         ("config", current_config_token()),
         ("xprompt_files", _prompt_file_tokens(get_xprompt_search_paths())),
         ("project_files", _project_prompt_file_tokens(project_dirs)),
+        ("memory_files", _prompt_file_tokens(memory_dirs)),
     )
 
 
@@ -153,6 +167,11 @@ def prompt_source_watch_paths(projects: Iterable[str | None]) -> list[Path]:
             for project in _normalize_prompt_catalog_projects(projects)
             if project is not None
             for directory in _project_xprompt_dirs(project)
+        ],
+        *[
+            directory
+            for project in _normalize_prompt_catalog_projects(projects)
+            for directory in _memory_source_dirs(project)
         ],
         *[path.parent for path in _project_config_paths()],
     ]
@@ -225,6 +244,28 @@ def _project_xprompt_dirs(project: str) -> tuple[Path, ...]:
     )
     configured_legacy = CONFIG_DIR / "xprompts" / canonical
     return tuple(dict.fromkeys((*resolved, configured_legacy)))
+
+
+def _memory_source_dirs(project: str | None) -> tuple[Path, ...]:
+    """Return flat memory roots that can contribute ``memory/<stem>`` entries."""
+    canonical = canonical_xprompt_project(project) if project is not None else None
+    detected = canonical_xprompt_project(detect_project())
+    if canonical is not None and detected != canonical:
+        workspace = known_project_namespaces().get(canonical)
+        if workspace is not None:
+            sources = resolve_memory_file_sources(
+                project=canonical,
+                project_root=workspace,
+            )
+        else:
+            sources = resolve_memory_file_sources(
+                project=canonical,
+                include_discovered_project=False,
+            )
+    else:
+        sources = resolve_memory_file_sources(project=canonical)
+    roots = [candidate for source in sources for candidate in source.paths.candidates]
+    return tuple(dict.fromkeys(roots))
 
 
 def _project_config_paths() -> tuple[Path, ...]:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sase.xprompt.catalog import _CatalogEntry
-from sase.xprompt.models import InputArg, InputType, XPrompt
+from sase.xprompt.models import InputArg, InputType, MemoryType, XPrompt
 from sase.xprompt.tags import XPromptTag
 
 
@@ -15,6 +15,7 @@ def make_xprompt(
     skill: bool | None = None,
     content: str = "body",
     snippet: bool | None = None,
+    memory_type: MemoryType | None = None,
 ) -> XPrompt:
     return XPrompt(
         name=name,
@@ -25,6 +26,7 @@ def make_xprompt(
         description=description,
         skill=skill,
         snippet=snippet,
+        memory_type=memory_type,
     )
 
 
@@ -47,7 +49,7 @@ def seed_entries() -> list[_CatalogEntry]:
             project="alpha",
         ),
         _CatalogEntry(
-            make_xprompt("c"),
+            make_xprompt("c", memory_type="short"),
             bucket="config",
             project=None,
         ),

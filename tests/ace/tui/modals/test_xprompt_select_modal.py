@@ -147,6 +147,28 @@ def test_xprompt_select_filters_and_previews_descriptions() -> None:
     assert "Diff file to inspect." in preview
 
 
+def test_xprompt_select_labels_and_previews_memory_entries() -> None:
+    prompts = {
+        "memory/glossary": Workflow(
+            name="memory/glossary",
+            description="Glossary terms.",
+            memory_type="long",
+            steps=[WorkflowStep(name="prompt", prompt_part="Memory body")],
+        )
+    }
+    with patch(
+        "sase.ace.tui.modals.xprompt_select_modal.get_all_prompts",
+        return_value=prompts,
+    ):
+        modal = XPromptSelectModal()
+
+    label = modal._create_styled_label("memory/glossary")
+    assert label.plain == "#memory/glossary  memory · long"
+    preview = modal._all_items["memory/glossary"][0]
+    assert "# Memory: memory/glossary" in preview
+    assert "memory type: long" in preview
+
+
 async def test_xprompt_select_action_opens_selected_source_path(
     tmp_path: Path,
 ) -> None:

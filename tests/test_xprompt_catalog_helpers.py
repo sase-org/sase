@@ -19,6 +19,7 @@ def test_compute_stats_basic() -> None:
     assert stats.with_description == 1
     assert stats.with_inputs == 1
     assert stats.skills == 1
+    assert stats.memory == 1
 
 
 def test_truncate_content_short() -> None:
