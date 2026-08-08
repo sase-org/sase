@@ -5,28 +5,18 @@ from __future__ import annotations
 from datetime import datetime
 from unittest.mock import patch
 import pytest
-from rich.text import Text
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
-from sase.ace.testing import AcePage
+from sase.ace.testing import AcePage, set_agent_prompt_document
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui._agents_zoom_panel_helpers import _make_agent
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     wait_for_startup,
 )
-
-
-async def _set_prompt_text(page: AcePage, content: str) -> AgentPromptPanel:
-    await page.wait_for(lambda _state: not page.app._agent_detail_debouncer.is_pending)
-    panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-    panel.update(Text(content))
-    await page.pause()
-    return panel
 
 
 def _search_agents() -> list[Agent]:
@@ -59,7 +49,7 @@ async def test_inline_metadata_search_commit_repeat_q_and_passthrough(
     ) as page:
         await wait_for_startup(page)
         await page.expect_state("agent_count", 2)
-        await _set_prompt_text(
+        await set_agent_prompt_document(
             page,
             "Alpha needle result\nSecond needle result\n"
             + "\n".join(f"filler line {index}" for index in range(80)),
@@ -160,7 +150,7 @@ async def test_inline_metadata_search_yank_and_frozen_refresh(
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
-        prompt = await _set_prompt_text(
+        await set_agent_prompt_document(
             page,
             "Alpha needle result\nSecond needle result\n",
         )
@@ -168,8 +158,10 @@ async def test_inline_metadata_search_yank_and_frozen_refresh(
         await page.pause()
 
         frozen = page.app._agent_metadata_search.corpus
-        prompt.update(Text("replacement content from background refresh"))
-        await page.pause()
+        await set_agent_prompt_document(
+            page,
+            "replacement content from background refresh",
+        )
         overlay = page.app.query_one("#agent-search-panel", Static)
         assert "needle" in (renderable_to_text(overlay.content) or "")
         assert page.app._agent_metadata_search.corpus == frozen
@@ -195,6 +187,36 @@ async def test_inline_metadata_search_yank_and_frozen_refresh(
         ]
 
 
+async def test_pinned_metadata_document_survives_a_debounced_repaint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A queued detail repaint must not replace the pinned corpus.
+
+    Before the document was pinned this is exactly what dropped the
+    injected corpus under load, after which ``/`` captured the real agent
+    document and the search legitimately found nothing.
+    """
+    patch_startup_loaders(monkeypatch, agents=_search_agents())
+
+    async with AcePage(
+        query='"search-fixture"',
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        await page.expect_state("agent_count", 2)
+        panel = await set_agent_prompt_document(page, "Alpha needle result\n")
+
+        page.app._agent_detail_debouncer.schedule(
+            page.app._fire_debounced_detail_update
+        )
+        await page.wait_for(
+            lambda _state: not page.app._agent_detail_debouncer.is_pending,
+        )
+        await page.pause()
+
+        assert "needle" in (renderable_to_text(panel.content) or "")
+
+
 async def test_inline_metadata_search_exits_when_identity_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -205,7 +227,7 @@ async def test_inline_metadata_search_exits_when_identity_changes(
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
-        await _set_prompt_text(page, "Alpha needle result\n")
+        await set_agent_prompt_document(page, "Alpha needle result\n")
         await page.press("slash", "n")
         assert page.app._agent_metadata_search.is_active
 
@@ -247,7 +269,7 @@ async def test_inline_metadata_search_reverse_key_override(
             initial_tab="agents",
         ) as page:
             await wait_for_startup(page)
-            await _set_prompt_text(
+            await set_agent_prompt_document(
                 page,
                 "Alpha needle result\nSecond needle result\n",
             )
