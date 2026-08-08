@@ -10,7 +10,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.bead.claims import claim_bead_for_waiting_agent
+from sase.bead.claims import (
+    claim_bead_for_waiting_agent,
+    retain_in_progress_bead_for_replacement,
+)
 from sase.bead.model import Status
 from sase.bead.project import BeadProject
 
@@ -347,3 +350,62 @@ def test_declined_wait_claim_leaves_in_progress_store_untouched(
     with BeadProject(tmp_path) as project:
         issue = project.show(bead_id)
         assert (issue.status, issue.assignee) == (Status.IN_PROGRESS, "active")
+
+
+def test_force_reuse_replacement_retains_in_progress_wait_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        AgentOwnerIdentity,
+    )
+
+    beads_dir, bead_id = project_with_committed_phase(tmp_path)
+    with BeadProject(tmp_path) as project:
+        project.update(
+            bead_id,
+            status=Status.IN_PROGRESS.value,
+            assignee="alice.athena.worker",
+        )
+    subprocess.run(["git", "add", "sdd/beads"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "mark active"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    commits = commit_count(tmp_path)
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    identity = AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"), ("athena",))
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
+    )
+
+    assert retain_in_progress_bead_for_replacement(
+        project_name="proj",
+        bead_id=bead_id,
+        agent_name="worker",
+        prior_owner="athena.worker",
+    )
+
+    assert commit_count(tmp_path) == commits
+    assert (
+        subprocess.run(
+            ["git", "status", "--porcelain=v1"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        == ""
+    )
+    assert capsys.readouterr().out == (
+        f"Retained in-progress bead {bead_id} for replacement agent worker\n"
+    )

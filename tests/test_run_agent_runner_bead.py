@@ -90,7 +90,7 @@ def test_claim_helper_claims_in_tree_store_and_refreshes_projection(
     publish.assert_not_called()
 
 
-def test_claim_helper_commits_managed_store_and_allows_reassignment(
+def test_claim_helper_commits_managed_store_and_rejects_active_reassignment(
     tmp_path: Path,
 ) -> None:
     sdd_dir = tmp_path / ".sase/sdd"
@@ -111,15 +111,16 @@ def test_claim_helper_commits_managed_store_and_allows_reassignment(
             workspace_num=2,
             artifacts_dir=str(tmp_path / "artifacts"),
         )
-        second = claim_bead_for_agent_launch(
-            agent_name="worker.2",
-            bead_id=bead_id,
-            workspace_dir=str(tmp_path),
-            workspace_num=2,
-            artifacts_dir=str(tmp_path / "artifacts"),
-        )
+        with pytest.raises(RuntimeError, match="already in_progress"):
+            claim_bead_for_agent_launch(
+                agent_name="worker.2",
+                bead_id=bead_id,
+                workspace_dir=str(tmp_path),
+                workspace_num=2,
+                artifacts_dir=str(tmp_path / "artifacts"),
+            )
         repeated = claim_bead_for_agent_launch(
-            agent_name="worker.2",
+            agent_name="worker.1",
             bead_id=bead_id,
             workspace_dir=str(tmp_path),
             workspace_num=2,
@@ -127,17 +128,96 @@ def test_claim_helper_commits_managed_store_and_allows_reassignment(
         )
 
     assert first.assignee == "worker.1"
-    assert second.assignee == "worker.2"
-    assert repeated.assignee == "worker.2"
-    assert commit.call_count == 2
+    assert repeated.assignee == "worker.1"
+    assert commit.call_count == 1
     assert commit.call_args.kwargs["auto_commit_type"] == "beads"
     assert commit.call_args.kwargs["paths"] == [sdd_dir / "beads"]
     assert commit.call_args.kwargs["push_after_commit"] is False
     assert commit.call_args.kwargs["artifacts_dir"] == tmp_path / "artifacts"
     assert publish.call_args_list == [
         call(sdd_dir / "beads", bead_id, "worker.1"),
-        call(sdd_dir / "beads", bead_id, "worker.2"),
     ]
+
+
+def test_claim_helper_retains_force_reuse_in_progress_without_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        AgentOwnerIdentity,
+    )
+
+    sdd_dir = tmp_path / ".sase/sdd"
+    bead_id = _seed_store(sdd_dir, beads_dirname="beads")
+    with BeadProject(sdd_dir, beads_dirname="beads") as project:
+        project.update(
+            bead_id,
+            status=Status.IN_PROGRESS.value,
+            assignee="alice.athena.worker",
+        )
+    store = SddStore(storage="local", sdd_dir=sdd_dir, repo_root=sdd_dir)
+    commit = MagicMock(return_value=True)
+    publish = MagicMock()
+    identity = AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"), ("athena",))
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
+    )
+
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch("sase.sdd.files.commit_sdd_store_files", commit),
+        patch("sase.bead.sync.publish_bead_claim", publish),
+    ):
+        issue = claim_bead_for_agent_launch(
+            agent_name="worker",
+            bead_id=bead_id,
+            workspace_dir=str(tmp_path),
+            workspace_num=2,
+            artifacts_dir=str(tmp_path / "artifacts"),
+            force_reuse_prior_owner="athena.worker",
+        )
+
+    assert issue.status == Status.IN_PROGRESS
+    assert issue.assignee == "alice.athena.worker"
+    commit.assert_not_called()
+    publish.assert_not_called()
+
+
+def test_claim_helper_rejects_force_reuse_marker_for_another_owner(
+    tmp_path: Path,
+) -> None:
+    sdd_dir = tmp_path / ".sase/sdd"
+    bead_id = _seed_store(sdd_dir, beads_dirname="beads")
+    with BeadProject(sdd_dir, beads_dirname="beads") as project:
+        project.update(
+            bead_id,
+            status=Status.IN_PROGRESS.value,
+            assignee="active",
+        )
+    store = SddStore(storage="local", sdd_dir=sdd_dir, repo_root=sdd_dir)
+    commit = MagicMock(return_value=True)
+    publish = MagicMock()
+
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch("sase.sdd.files.commit_sdd_store_files", commit),
+        patch("sase.bead.sync.publish_bead_claim", publish),
+        pytest.raises(RuntimeError, match="already in_progress"),
+    ):
+        claim_bead_for_agent_launch(
+            agent_name="replacement",
+            bead_id=bead_id,
+            workspace_dir=str(tmp_path),
+            workspace_num=2,
+            artifacts_dir=str(tmp_path / "artifacts"),
+            force_reuse_prior_owner="replacement",
+        )
+
+    commit.assert_not_called()
+    publish.assert_not_called()
 
 
 def test_claim_helper_routes_split_store_commit_and_publish_to_beads_sidecar(

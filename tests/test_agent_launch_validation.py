@@ -18,6 +18,7 @@ from sase.agent.launch_validation import (
     AgentNameReuseConfirmationRequiredError,
     AgentNameSyntaxError,
     INTERNAL_AGENT_NAME_BYPASS_ENV,
+    force_reuse_bead_associations_by_prompt,
     force_reuse_owner_names,
     internal_agent_name_bypass_enabled,
     preflight_launch_name_requests,
@@ -56,6 +57,61 @@ def test_extracts_forced_reuse_clan_member_name_request() -> None:
     names = force_reuse_owner_names(["%id(!worker, clan=research)\nDo work"])
 
     assert names == ["research.worker"]
+
+
+def test_extracts_forced_reuse_bead_association_for_clan_member() -> None:
+    associations = force_reuse_bead_associations_by_prompt(
+        ["%i(!3, clan=sase-hq, bead=sase-hq.3)\nDo work"]
+    )
+
+    assert associations[0] is not None
+    assert associations[0].owner_name == "sase-hq.3"
+    assert associations[0].bead_id == "sase-hq.3"
+
+
+def test_extracts_forced_reuse_bead_association_for_family_member() -> None:
+    associations = force_reuse_bead_associations_by_prompt(
+        ["%id(!reviewer, family=foo, bead=sase-1.2)\nDo work"]
+    )
+
+    assert associations[0] is not None
+    assert associations[0].owner_name == "foo--reviewer"
+    assert associations[0].bead_id == "sase-1.2"
+
+
+def test_forced_reuse_bead_association_ignores_protected_regions() -> None:
+    associations = force_reuse_bead_associations_by_prompt(
+        [
+            "```text\n%id(!hidden, bead=sase-hidden)\n```\n"
+            "%xprompts_enabled:false\n"
+            "%id(!disabled, bead=sase-disabled)\n"
+            "%xprompts_enabled:true\n\n"
+            "%id(!worker, bead=sase-1)\nDo work"
+        ]
+    )
+
+    assert associations[0] is not None
+    assert associations[0].owner_name == "worker"
+    assert associations[0].bead_id == "sase-1"
+
+
+def test_forced_reuse_bead_association_absent_without_force_or_bead() -> None:
+    associations = force_reuse_bead_associations_by_prompt(
+        ["%id(worker, bead=sase-1)\nDo work", "%id:!worker\nDo work"]
+    )
+
+    assert associations == [None, None]
+
+
+def test_forced_reuse_bead_association_preflight_rejects_duplicates() -> None:
+    with pytest.raises(RuntimeError, match="Ambiguous forced bead authorization"):
+        preflight_launch_name_requests(
+            [
+                "%id(!worker, bead=sase-1)\n"
+                "%i(!reviewer, family=foo, bead=sase-2)\nDo work"
+            ],
+            allow_force_reuse=True,
+        )
 
 
 def test_rewrites_forced_reuse_to_normal_name_directive() -> None:

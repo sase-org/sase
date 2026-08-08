@@ -50,6 +50,7 @@ def run_agent_launch_body(
         return outcome.with_warning_messages(unresolved_warning_messages)
 
     from sase.agent.launch_validation import (
+        force_reuse_bead_associations_by_prompt,
         force_reuse_owner_names,
         preflight_launch_name_requests,
         rewrite_force_reuse_name_directives,
@@ -57,6 +58,7 @@ def run_agent_launch_body(
     )
     from sase.agent.multi_prompt import parse_multi_prompt
 
+    force_reuse_segment_envs: list[dict[str, str] | None] | None = None
     force_reuse_rewritten_prompt = rewrite_force_reuse_name_directives(prompt)
     if force_reuse_rewritten_prompt != prompt:
         # Parsing and syntax validation are both non-mutating. Complete them
@@ -78,8 +80,12 @@ def run_agent_launch_body(
                 LaunchTaskOutcome(str(exc), severity="error")
             )
         force_reuse_names = force_reuse_owner_names(force_reuse_prompts)
+        force_reuse_bead_associations = force_reuse_bead_associations_by_prompt(
+            force_reuse_prompts
+        )
     else:
         force_reuse_names = []
+        force_reuse_bead_associations = []
     if force_reuse_names:
         try:
             wipe_names_for_forced_reuse(force_reuse_names)
@@ -107,6 +113,12 @@ def run_agent_launch_body(
                 )
             )
         prompt = force_reuse_rewritten_prompt
+        from sase.agent.force_reuse_bead import force_reuse_bead_env
+
+        force_reuse_segment_envs = [
+            force_reuse_bead_env(association) or None
+            for association in force_reuse_bead_associations
+        ]
 
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
@@ -169,9 +181,32 @@ def run_agent_launch_body(
 
         enable_known_project_vcs_refs_for_launch_prompt("\n---\n".join(multi.segments))
     with timer.stage("xprompt_swarm_expand", segment_count=len(multi.segments)):
-        expanded_records = expand_xprompt_swarms_with_metadata(
-            multi.segments, multi.local_xprompts
-        )
+        if force_reuse_segment_envs is None:
+            expanded_records = expand_xprompt_swarms_with_metadata(
+                multi.segments, multi.local_xprompts
+            )
+        else:
+            from itertools import count
+
+            expanded_records = []
+            expanded_segment_envs: list[dict[str, str] | None] = []
+            group_counter = count()
+            qualification_counter = count()
+            for segment, env in zip(
+                multi.segments, force_reuse_segment_envs, strict=True
+            ):
+                segment_records = expand_xprompt_swarms_with_metadata(
+                    [segment],
+                    multi.local_xprompts,
+                    group_counter=group_counter,
+                    qualification_counter=qualification_counter,
+                )
+                expanded_records.extend(segment_records)
+                expanded_segment_envs.extend(
+                    env if slot_index == 0 else None
+                    for slot_index, _record in enumerate(segment_records)
+                )
+            force_reuse_segment_envs = expanded_segment_envs
         multi.segments = [record.prompt for record in expanded_records]
         multi.template_groups = [record.template_group for record in expanded_records]
         multi.swarm_xprompts = [
@@ -255,6 +290,7 @@ def run_agent_launch_body(
             ctx,
             mp_vcs_ref,
             submitted_xprompt,
+            force_reuse_segment_envs,
         )
         return _with_unresolved_warnings(
             LaunchTaskOutcome(
@@ -275,6 +311,10 @@ def run_agent_launch_body(
                 multi.swarm_xprompts[0]
             )
         }
+    if force_reuse_segment_envs:
+        single_extra_env = _merge_extra_env(
+            single_extra_env, force_reuse_segment_envs[0]
+        )
 
     return run_single_agent_launch_body(
         app,
@@ -287,3 +327,14 @@ def run_agent_launch_body(
         timer=timer,
         extra_env=single_extra_env,
     )
+
+
+def _merge_extra_env(
+    base: dict[str, str] | None,
+    extra: dict[str, str] | None,
+) -> dict[str, str] | None:
+    if not extra:
+        return base
+    merged = dict(base or {})
+    merged.update(extra)
+    return merged

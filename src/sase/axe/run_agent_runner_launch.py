@@ -135,13 +135,23 @@ def _promote_bead_claim(
         raise RuntimeError(
             f"Cannot claim bead '{bead_id}' without a resolved agent name"
         )
-    claim_bead_for_agent_launch(
-        agent_name=state.agent_name,
-        bead_id=bead_id,
-        workspace_dir=state.workspace_dir,
-        workspace_num=state.workspace_num,
-        artifacts_dir=state.artifacts_dir,
-    )
+    if bootstrap.force_reuse_bead_association is None:
+        claim_bead_for_agent_launch(
+            agent_name=state.agent_name,
+            bead_id=bead_id,
+            workspace_dir=state.workspace_dir,
+            workspace_num=state.workspace_num,
+            artifacts_dir=state.artifacts_dir,
+        )
+    else:
+        claim_bead_for_agent_launch(
+            agent_name=state.agent_name,
+            bead_id=bead_id,
+            workspace_dir=state.workspace_dir,
+            workspace_num=state.workspace_num,
+            artifacts_dir=state.artifacts_dir,
+            force_reuse_prior_owner=(bootstrap.force_reuse_bead_association.owner_name),
+        )
     bootstrap.agent_meta["bead_claim_promoted"] = True
     write_agent_meta(state.artifacts_dir, bootstrap.agent_meta)
     clear_bead_claim_marker(state.artifacts_dir)

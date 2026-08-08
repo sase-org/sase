@@ -19,6 +19,7 @@ Dispatch routing paths through the body live in
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from contextlib import ExitStack
 from datetime import datetime
@@ -27,6 +28,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
 from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
 from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskOutcome
 from sase.ace.tui.task_queue import TaskInfo
@@ -312,6 +314,63 @@ def test_finish_agent_launch_forced_family_attach_wipes_exact_member() -> None:
         assert call.args == ([rewritten],)
     save_history.assert_called_once_with(rewritten)
     assert app.launched[0]["prompt"] == rewritten
+    marker = json.loads(app.launched[0]["extra_env"][SASE_AGENT_FORCE_REUSE_BEAD_ENV])
+    assert marker == {"bead_id": "sase-1", "owner_name": "foo--code"}
+    assert outcome.success is True
+
+
+def test_finish_agent_launch_force_reuse_threads_segment_bead_markers() -> None:
+    app = _SubmitLaunchBodyApp()
+    prompt = (
+        "%id(!a, bead=sase-1)\nFirst\n---\n"
+        "%id:ordinary\nSecond\n---\n"
+        "%i(!b, clan=crew, bead=sase-2)\nThird"
+    )
+    rewritten = (
+        "%id(a, bead=sase-1)\nFirst\n---\n"
+        "%id:ordinary\nSecond\n---\n"
+        "%i(b, clan=crew, bead=sase-2)\nThird"
+    )
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+                return_value=["forced-ts"],
+            )
+        )
+        _enter_launch_body_base_patches(stack)
+        wipe_names = stack.enter_context(
+            patch("sase.agent.launch_validation.wipe_names_for_forced_reuse")
+        )
+        validate_names = stack.enter_context(
+            patch("sase.agent.launch_validation.validate_launch_name_requests")
+        )
+        stack.enter_context(patch("sase.history.prompt.add_or_update_prompt"))
+
+        app._finish_agent_launch(prompt)
+        outcome = app.launch_tasks[0]["task_callable"]()
+
+    wipe_names.assert_called_once_with(["a", "crew.b"])
+    validate_names.assert_called_once_with(
+        [
+            "%id(a, bead=sase-1)\nFirst",
+            "%id:ordinary\nSecond",
+            "%i(b, clan=crew, bead=sase-2)\nThird",
+        ]
+    )
+    queued_args = app.scheduled[0][1]
+    assert queued_args[3] == rewritten
+    segment_envs = queued_args[4]
+    assert json.loads(segment_envs[0][SASE_AGENT_FORCE_REUSE_BEAD_ENV]) == {
+        "bead_id": "sase-1",
+        "owner_name": "a",
+    }
+    assert segment_envs[1] is None
+    assert json.loads(segment_envs[2][SASE_AGENT_FORCE_REUSE_BEAD_ENV]) == {
+        "bead_id": "sase-2",
+        "owner_name": "crew.b",
+    }
     assert outcome.success is True
 
 

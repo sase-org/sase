@@ -14,9 +14,14 @@ def claim_bead_for_agent_launch(
     workspace_dir: str,
     workspace_num: int,
     artifacts_dir: str,
+    force_reuse_prior_owner: str | None = None,
 ) -> Issue:
     """Claim *bead_id* after launch preparation and persist the mutation."""
     try:
+        from sase.bead.force_reuse import (
+            issue_is_in_progress_for_another_agent,
+            issue_retains_force_reuse_owner,
+        )
         from sase.bead.store_locator import open_bead_project_for_beads_dir
         from sase.bead.sync import bead_store_write_lock
         from sase.sdd.store import ensure_sdd_kind_clone, resolve_sdd_store
@@ -47,8 +52,28 @@ def claim_bead_for_agent_launch(
         # over the dirty mutation would discard the uncommitted claim.
         with bead_store_write_lock(beads_dir) as already_locked:
             with open_bead_project_for_beads_dir(beads_dir) as project:
-                issue = project.claim_for_agent_launch(bead_id, agent_name)
-                changed = project.mutation_changed
+                current_issue = project.show(bead_id)
+                if (
+                    force_reuse_prior_owner is not None
+                    and issue_retains_force_reuse_owner(
+                        current_issue,
+                        agent_name=agent_name,
+                        prior_owner=force_reuse_prior_owner,
+                    )
+                ):
+                    issue = current_issue
+                    changed = False
+                else:
+                    if issue_is_in_progress_for_another_agent(
+                        current_issue,
+                        agent_name=agent_name,
+                    ):
+                        raise RuntimeError(
+                            f"bead '{bead_id}' is already in_progress and "
+                            f"assigned to '{current_issue.assignee}'"
+                        )
+                    issue = project.claim_for_agent_launch(bead_id, agent_name)
+                    changed = project.mutation_changed
 
             # In-tree bead mutations remain ordinary workspace edits that the
             # agent will commit with its implementation. Every managed

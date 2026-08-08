@@ -213,6 +213,50 @@ def claim_bead_for_waiting_agent(
         return False
 
 
+def retain_in_progress_bead_for_replacement(
+    *,
+    project_name: str,
+    bead_id: str,
+    agent_name: str,
+    prior_owner: str,
+) -> bool:
+    """Return true when a confirmed replacement already owns an in-progress bead."""
+    if project_name == "home":
+        return False
+
+    try:
+        from sase.bead.force_reuse import issue_retains_force_reuse_owner
+        from sase.bead.store_locator import (
+            canonical_beads_dir_for_project,
+            open_bead_project_for_beads_dir,
+        )
+        from sase.bead.sync import bead_store_write_lock
+
+        beads_dir = canonical_beads_dir_for_project(project_name)
+        if beads_dir is None:
+            raise RuntimeError(f"no canonical bead store for project '{project_name}'")
+
+        with bead_store_write_lock(beads_dir):
+            with open_bead_project_for_beads_dir(beads_dir) as project:
+                issue = project.show(bead_id)
+
+        if not issue_retains_force_reuse_owner(
+            issue,
+            agent_name=agent_name,
+            prior_owner=prior_owner,
+        ):
+            return False
+        print(f"Retained in-progress bead {bead_id} for replacement agent {agent_name}")
+        return True
+    except Exception as exc:  # noqa: BLE001 - replacement retention is advisory.
+        print(
+            f"Warning: Failed to retain bead '{bead_id}' for replacement agent "
+            f"'{agent_name}': {exc}",
+            file=sys.stderr,
+        )
+        return False
+
+
 def _is_missing_bead_error(exc: Exception) -> bool:
     return isinstance(exc, KeyError) and "Issue not found:" in str(exc)
 

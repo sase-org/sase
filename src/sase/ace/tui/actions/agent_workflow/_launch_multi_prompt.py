@@ -12,6 +12,8 @@ from ..failure_messages import with_log_panel_hint
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from ._types import PromptContext
 
 
@@ -24,6 +26,7 @@ class MultiPromptLaunchMixin:
         ctx: PromptContext,
         vcs_ref: tuple[str, str] | None,
         submitted_prompt: str | None = None,
+        segment_extra_env: Sequence[dict[str, str] | None] | None = None,
     ) -> None:
         """Launch each multi-prompt segment as a separate agent.
 
@@ -49,7 +52,7 @@ class MultiPromptLaunchMixin:
             cl_name=snap.display_name,
             project_file=snap.project_file,
             task_callable=lambda: self._run_multi_prompt_launch(
-                multi, snap, vcs_ref, submitted_prompt
+                multi, snap, vcs_ref, submitted_prompt, segment_extra_env
             ),
             submitted_prompt=submitted_prompt,
         )
@@ -60,6 +63,7 @@ class MultiPromptLaunchMixin:
         ctx: PromptContext,
         vcs_ref: tuple[str, str] | None,
         submitted_prompt: str | None = None,
+        segment_extra_env: Sequence[dict[str, str] | None] | None = None,
     ) -> LaunchTaskOutcome:
         """Worker-thread body for :meth:`_launch_multi_prompt_agents`."""
         from sase.agent.multi_prompt import MultiPrompt
@@ -80,6 +84,7 @@ class MultiPromptLaunchMixin:
                 is_home_mode=ctx.is_home_mode,
                 vcs_ref=vcs_ref,
                 default_bare_segments_to_home=ctx.is_home_mode,
+                segment_extra_env=segment_extra_env,
                 segment_template_groups=getattr(multi, "template_groups", None),
                 segment_swarm_xprompts=getattr(multi, "swarm_xprompts", None),
                 multi_agent_prompt_text=(

@@ -35,8 +35,10 @@ from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.bead.claims import (
     BeadClaimMarker,
     claim_bead_for_waiting_agent,
+    retain_in_progress_bead_for_replacement,
     write_bead_claim_marker,
 )
+from sase.agent.force_reuse_bead import ForceReuseBeadAssociation
 from sase.telemetry import init_telemetry, register_flush_on_exit
 
 
@@ -52,6 +54,7 @@ class RunnerBootstrap:
     has_dependency_wait: bool
     # ``has_dependency_wait`` plus the runner-slot queue admissions.
     has_wait: bool
+    force_reuse_bead_association: ForceReuseBeadAssociation | None = None
 
 
 def _write_bootstrap_agent_meta(
@@ -112,9 +115,43 @@ def _wait_flags(info: AgentInfo) -> tuple[bool, bool]:
     return has_dependency_wait, has_wait
 
 
-def _claim_bead_before_wait(state: RunnerRunState, info: AgentInfo) -> None:
+def _force_reuse_bead_association_for_run(
+    *,
+    agent_name: str | None,
+    bead_id: str | None,
+) -> ForceReuseBeadAssociation | None:
+    """Consume the one-shot replacement marker if it matches this run."""
+    from sase.agent.force_reuse_bead import consume_force_reuse_bead_association
+    from sase.bead.force_reuse import same_current_owner_agent_name
+
+    association = consume_force_reuse_bead_association(os.environ)
+    if association is None or agent_name is None or bead_id is None:
+        return None
+    if association.bead_id != bead_id:
+        return None
+    if not same_current_owner_agent_name(association.owner_name, agent_name):
+        return None
+    return association
+
+
+def _claim_bead_before_wait(
+    state: RunnerRunState,
+    info: AgentInfo,
+    *,
+    force_reuse_bead_association: ForceReuseBeadAssociation | None,
+) -> None:
     """Hold this run's bead across the wait so a peer cannot take it."""
     if info.bead_id is None or state.agent_name is None or not state.project_name:
+        return
+    if (
+        force_reuse_bead_association is not None
+        and retain_in_progress_bead_for_replacement(
+            project_name=state.project_name,
+            bead_id=info.bead_id,
+            agent_name=state.agent_name,
+            prior_owner=force_reuse_bead_association.owner_name,
+        )
+    ):
         return
     if not claim_bead_for_waiting_agent(
         project_name=state.project_name,
@@ -204,6 +241,10 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     state.agent_llm_provider = info.llm_provider
     state.agent_vcs_provider = info.vcs_provider
     state.agent_hidden = info.hidden
+    force_reuse_bead_association = _force_reuse_bead_association_for_run(
+        agent_name=state.agent_name,
+        bead_id=info.bead_id,
+    )
 
     agent_meta = apply_retry_chain_to_meta(
         retry_handoff=retry_handoff,
@@ -218,7 +259,11 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
             "is empty; refusing to continue in the placeholder workspace"
         )
     if has_wait:
-        _claim_bead_before_wait(state, info)
+        _claim_bead_before_wait(
+            state,
+            info,
+            force_reuse_bead_association=force_reuse_bead_association,
+        )
 
     return RunnerBootstrap(
         info=info,
@@ -227,4 +272,5 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
         deferred_workspace=deferred_workspace,
         has_dependency_wait=has_dependency_wait,
         has_wait=has_wait,
+        force_reuse_bead_association=force_reuse_bead_association,
     )

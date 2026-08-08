@@ -6,6 +6,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from sase.agent.force_reuse_bead import ForceReuseBeadAssociation
 from sase.plan_chain import AGENT_FAMILY_SEPARATOR
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "AgentNameSyntaxError",
     "INTERNAL_AGENT_NAME_BYPASS_ENV",
     "AgentNameReuseConfirmationRequiredError",
+    "force_reuse_bead_associations_by_prompt",
     "force_reuse_owner_names",
     "internal_agent_name_bypass_enabled",
     "preflight_launch_name_requests",
@@ -34,7 +36,19 @@ class _LaunchNameRequest:
     force_reuse: bool
     name_template: bool
     prompt_index: int
+    bead_id: str | None = None
     family_attach_parent: str | None = None
+
+
+@dataclass(frozen=True)
+class _ParsedLaunchNameDirective:
+    """A top-level ``%id``/``%i`` directive parsed for launch preflight."""
+
+    name: str
+    force_reuse: bool
+    name_template: bool
+    family_attach_parent: str | None = None
+    bead_id: str | None = None
 
 
 class _LaunchNameValidationError(RuntimeError):
@@ -191,14 +205,14 @@ def _explicit_launch_name_requests(prompts: list[str]) -> list[_LaunchNameReques
         parsed = _extract_explicit_name(prompt)
         if parsed is None:
             continue
-        name, force_reuse, name_template, family_attach_parent = parsed
         requests.append(
             _LaunchNameRequest(
-                name=name,
-                force_reuse=force_reuse,
-                name_template=name_template,
+                name=parsed.name,
+                force_reuse=parsed.force_reuse,
+                name_template=parsed.name_template,
                 prompt_index=i,
-                family_attach_parent=family_attach_parent,
+                bead_id=parsed.bead_id,
+                family_attach_parent=parsed.family_attach_parent,
             )
         )
     return requests
@@ -329,6 +343,8 @@ def _preflight_launch_name_requests(
 ) -> list[_LaunchNameRequest]:
     """Return syntax-checked requests without consulting reservation state."""
     requests = _explicit_launch_name_requests(prompts)
+    if allow_force_reuse:
+        _validate_force_reuse_bead_authorizations(prompts)
 
     if not allow_reserved_family_separator_names:
         for request in requests:
@@ -441,6 +457,49 @@ def force_reuse_owner_names(prompts: list[str]) -> list[str]:
     return names
 
 
+def force_reuse_bead_associations_by_prompt(
+    prompts: list[str],
+) -> list[ForceReuseBeadAssociation | None]:
+    """Return one confirmed force-reuse bead pair for each prompt segment."""
+    associations: list[ForceReuseBeadAssociation | None] = []
+    for prompt in prompts:
+        matches = _force_reuse_bead_associations_for_prompt(prompt)
+        associations.append(matches[0] if matches else None)
+    return associations
+
+
+def _validate_force_reuse_bead_authorizations(prompts: list[str]) -> None:
+    for prompt in prompts:
+        matches = _force_reuse_bead_associations_for_prompt(prompt)
+        if len(matches) <= 1:
+            continue
+        pairs = ", ".join(f"{match.owner_name}->{match.bead_id}" for match in matches)
+        raise _AgentNameDirectiveSyntaxError(
+            "Ambiguous forced bead authorization in one launch segment: "
+            f"{pairs}. Put exactly one force-reuse %id(..., bead=...) directive "
+            "in each segment."
+        )
+
+
+def _force_reuse_bead_associations_for_prompt(
+    prompt: str,
+) -> list[ForceReuseBeadAssociation]:
+    associations: list[ForceReuseBeadAssociation] = []
+    for directive in _iter_explicit_name_directives(prompt):
+        if (
+            directive.force_reuse
+            and directive.bead_id is not None
+            and not directive.name_template
+        ):
+            associations.append(
+                ForceReuseBeadAssociation(
+                    owner_name=directive.name,
+                    bead_id=directive.bead_id,
+                )
+            )
+    return associations
+
+
 def wipe_names_for_forced_reuse(names: list[str]) -> None:
     """Remove explicit force-reuse owners or fail before launch mutation."""
     for name in names:
@@ -459,11 +518,20 @@ def wipe_names_for_forced_reuse(names: list[str]) -> None:
 
 def _extract_explicit_name(
     prompt: str,
-) -> tuple[str, bool, bool, str | None] | None:
+) -> _ParsedLaunchNameDirective | None:
+    directives = _iter_explicit_name_directives(prompt, stop_after_first_directive=True)
+    return directives[0] if directives else None
+
+
+def _iter_explicit_name_directives(
+    prompt: str,
+    *,
+    stop_after_first_directive: bool = False,
+) -> list[_ParsedLaunchNameDirective]:
     if "%" not in prompt:
-        return None
+        return []
     if _prompt_has_launch_fanout(prompt):
-        return None
+        return []
 
     from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
     from sase.xprompt._disabled_regions import protect_disabled_regions
@@ -475,12 +543,14 @@ def _extract_explicit_name(
     disabled: list[str] = []
     protected = protect_disabled_regions(protected, disabled)
 
+    directives: list[_ParsedLaunchNameDirective] = []
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         raw_name = match.group(1)
         if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "id":
             continue
 
         value = ""
+        bead_id: str | None = None
         if match.group(2) is not None:
             paren_start = match.end() - 1
             paren_end = find_matching_paren_for_args(protected, paren_start)
@@ -502,20 +572,36 @@ def _extract_explicit_name(
                     and parsed.family_suffix is not None
                 ):
                     if not parsed.force_reuse:
-                        return None
+                        if stop_after_first_directive:
+                            return directives
+                        continue
                     from sase.agent.family_attach import normalize_family_suffix_arg
 
                     exact_name = (
                         f"{parsed.family_parent}"
                         f"{normalize_family_suffix_arg(parsed.family_suffix)}"
                     )
-                    return exact_name, True, False, parsed.family_parent
+                    directives.append(
+                        _ParsedLaunchNameDirective(
+                            name=exact_name,
+                            force_reuse=True,
+                            name_template=False,
+                            family_attach_parent=parsed.family_parent,
+                            bead_id=parsed.bead_id,
+                        )
+                    )
+                    if stop_after_first_directive:
+                        return directives
+                    continue
                 value = parsed.plain_name or ""
+                bead_id = parsed.bead_id
                 if parsed.clan is not None:
                     value = f"{parsed.clan}.{value}"
                 force_reuse = parsed.force_reuse or value.startswith("!")
             else:
-                force_reuse = False
+                if stop_after_first_directive:
+                    return directives
+                continue
         elif match.group(3) is not None:
             colon_arg = match.group(3)
             value = (
@@ -525,17 +611,32 @@ def _extract_explicit_name(
             )
             force_reuse = value.startswith("!")
         else:
-            force_reuse = False
+            if stop_after_first_directive:
+                return directives
+            continue
 
         if not value:
-            return None
+            if stop_after_first_directive:
+                return directives
+            continue
         if value.startswith("!"):
             value = value[1:]
         name = value
         if "#" in name or not name:
-            return None
-        return name, force_reuse, "@" in name, None
-    return None
+            if stop_after_first_directive:
+                return directives
+            continue
+        directives.append(
+            _ParsedLaunchNameDirective(
+                name=name,
+                force_reuse=force_reuse,
+                name_template="@" in name,
+                bead_id=bead_id,
+            )
+        )
+        if stop_after_first_directive:
+            return directives
+    return directives
 
 
 def _prompt_has_launch_fanout(prompt: str) -> bool:

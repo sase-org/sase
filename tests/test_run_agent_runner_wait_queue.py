@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +16,7 @@ from sase.axe import (
     run_agent_runner_bootstrap,
     run_agent_runner_launch,
 )
+from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
 from sase.bead.claims import BEAD_CLAIM_MARKER
 
 
@@ -68,6 +70,7 @@ def _run_runner_with_wait_result(
     wait_result: object,
     *,
     bead_id: str | None = None,
+    force_reuse_marker: dict[str, str] | None = None,
 ) -> dict[str, object]:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
@@ -108,19 +111,26 @@ def _run_runner_with_wait_result(
         assert persisted_meta["output_path"] == str(tmp_path / "output.log")
         assert agent_meta["output_path"] == str(tmp_path / "output.log")
         if bead_id is not None:
-            claim_marker = json.loads(
-                (Path(wait_artifacts_dir) / BEAD_CLAIM_MARKER).read_text(
-                    encoding="utf-8"
-                )
-            )
-            assert claim_marker == {
-                "agent_name": "foo--reviewer",
-                "bead_id": bead_id,
-                "project_name": "sase",
-            }
+            claim_marker_path = Path(wait_artifacts_dir) / BEAD_CLAIM_MARKER
+            if force_reuse_marker is not None:
+                assert not claim_marker_path.exists()
+            else:
+                claim_marker = json.loads(claim_marker_path.read_text(encoding="utf-8"))
+                assert claim_marker == {
+                    "agent_name": "foo--reviewer",
+                    "bead_id": bead_id,
+                    "project_name": "sase",
+                }
         return wait_result
 
     with ExitStack() as stack:
+        if force_reuse_marker is not None:
+            stack.enter_context(
+                patch.dict(
+                    os.environ,
+                    {SASE_AGENT_FORCE_REUSE_BEAD_ENV: json.dumps(force_reuse_marker)},
+                )
+            )
         stack.enter_context(
             patch.object(
                 run_agent_runner,
@@ -244,6 +254,13 @@ def _run_runner_with_wait_result(
                 side_effect=lambda **_kwargs: lifecycle_events.append("claim") or True,
             )
         )
+        retain_for_replacement = stack.enter_context(
+            patch.object(
+                run_agent_runner_bootstrap,
+                "retain_in_progress_bead_for_replacement",
+                side_effect=lambda **_kwargs: lifecycle_events.append("retain") or True,
+            )
+        )
         claim_for_launch = stack.enter_context(
             patch.object(
                 run_agent_runner_launch,
@@ -307,6 +324,7 @@ def _run_runner_with_wait_result(
         "claim_for_wait": claim_for_wait,
         "lifecycle_events": lifecycle_events,
         "notify": notify,
+        "retain_for_replacement": retain_for_replacement,
         "run_execution_loop": run_execution_loop,
         "shutdown_states": shutdown_states,
         "wait_for_dependencies": wait_for_dependencies,
@@ -369,6 +387,41 @@ def test_waiting_bead_claims_before_wait_and_promotes_before_execution(
     claim_for_launch = result["claim_for_launch"]
     assert isinstance(claim_for_launch, MagicMock)
     claim_for_launch.assert_called_once()
+    shutdown_states = result["shutdown_states"]
+    assert isinstance(shutdown_states, list)
+    assert shutdown_states[0].held_bead_claim_id is None
+
+
+def test_force_reuse_bead_marker_retains_wait_claim_without_release_marker(
+    tmp_path: Path,
+) -> None:
+    result = _run_runner_with_wait_result(
+        tmp_path,
+        None,
+        bead_id="sase-87.2",
+        force_reuse_marker={
+            "owner_name": "foo--reviewer",
+            "bead_id": "sase-87.2",
+        },
+    )
+
+    assert result["lifecycle_events"] == ["retain", "wait", "promote", "execute"]
+    claim_for_wait = result["claim_for_wait"]
+    assert isinstance(claim_for_wait, MagicMock)
+    claim_for_wait.assert_not_called()
+    retain = result["retain_for_replacement"]
+    assert isinstance(retain, MagicMock)
+    retain.assert_called_once_with(
+        project_name="sase",
+        bead_id="sase-87.2",
+        agent_name="foo--reviewer",
+        prior_owner="foo--reviewer",
+    )
+    claim_for_launch = result["claim_for_launch"]
+    assert isinstance(claim_for_launch, MagicMock)
+    assert claim_for_launch.call_args.kwargs["force_reuse_prior_owner"] == (
+        "foo--reviewer"
+    )
     shutdown_states = result["shutdown_states"]
     assert isinstance(shutdown_states, list)
     assert shutdown_states[0].held_bead_claim_id is None
