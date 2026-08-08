@@ -28,6 +28,10 @@ from .models import (
     MemoryFileChange,
     MemoryRootPlan,
 )
+from .glossary import (
+    GeneratedGlossaryMemory,
+    is_generated_glossary_memory_content,
+)
 from .root_rendering import (
     generated_long_notes,
     generated_short_notes,
@@ -193,6 +197,50 @@ def _retired_note_paths(root: Path, *, include_bead_memory: bool) -> tuple[Path,
     if current != generated_content:
         return ()
     return (path,)
+
+
+def _generated_glossary_relative_path() -> Path:
+    return CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md"
+
+
+def _retired_glossary_note_paths(
+    root: Path, *, generated_glossary: GeneratedGlossaryMemory | None
+) -> tuple[Path, ...]:
+    """Return a generated glossary memory note this root no longer manages."""
+    if generated_glossary is not None:
+        return ()
+    path = root / _generated_glossary_relative_path()
+    if not path.exists():
+        return ()
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ()
+    if not is_generated_glossary_memory_content(current):
+        return ()
+    return (path,)
+
+
+def _glossary_collision_blocker(
+    root: Path, *, generated_glossary: GeneratedGlossaryMemory | None
+) -> str | None:
+    """Return a blocker when generated glossary output would overwrite a user note."""
+    if generated_glossary is None:
+        return None
+    path = root / _generated_glossary_relative_path()
+    if not path.exists():
+        return None
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return f"{path}: failed to inspect existing glossary memory note: {exc}"
+    if is_generated_glossary_memory_content(current):
+        return None
+    return (
+        f"{path}: refusing to overwrite unmarked glossary memory note; migrate "
+        "its content into glossary entries in sase.yml or remove it before "
+        "rerunning `sase memory init`"
+    )
 
 
 def _merge_expected_files(
@@ -416,6 +464,7 @@ def memory_root_context(
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
+    generated_glossary: GeneratedGlossaryMemory | None = None,
     manage_memory: bool = True,
     enable_amd: bool = False,
     derive_project_title: bool = False,
@@ -446,13 +495,27 @@ def memory_root_context(
             blockers=migration.blockers,
         )
 
-    retired_note_paths = _retired_note_paths(
-        root, include_bead_memory=include_bead_memory
+    glossary_collision = _glossary_collision_blocker(
+        root, generated_glossary=generated_glossary
     )
-    excluded_note_paths = (
-        frozenset({(CANONICAL_MEMORY_RELATIVE_ROOT / "sase_beads.md").as_posix()})
-        if retired_note_paths
-        else frozenset()
+    if glossary_collision is not None:
+        return _MemoryRootContext(
+            amd_sync=None,
+            expected_files=(),
+            shim_plan=ProviderShimPlan(writes=(), deletes=()),
+            additional_shim_plans=(),
+            source_memory_root=migration.source_memory_root,
+            blockers=(glossary_collision,),
+        )
+
+    retired_note_paths = (
+        *_retired_note_paths(root, include_bead_memory=include_bead_memory),
+        *_retired_glossary_note_paths(root, generated_glossary=generated_glossary),
+    )
+    root_resolved = root.resolve(strict=False)
+    excluded_note_paths = frozenset(
+        path.resolve(strict=False).relative_to(root_resolved).as_posix()
+        for path in retired_note_paths
     )
 
     generated_sase_body, sase_render_error = render_generated_sase_memory_body(
@@ -490,7 +553,9 @@ def memory_root_context(
         root,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
-        generated_short_notes=generated_short_notes(generated_sase_body),
+        generated_short_notes=generated_short_notes(
+            generated_sase_body, generated_glossary=generated_glossary
+        ),
         generated_long_notes=(
             generated_long_notes(generated_beads_content)
             if include_bead_memory and generated_beads_content is not None
@@ -506,6 +571,7 @@ def memory_root_context(
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
         generated_beads_content=generated_beads_content,
+        generated_glossary=generated_glossary,
         source_memory_root=migration.source_memory_root,
         include_bead_memory=include_bead_memory,
         excluded_note_paths=excluded_note_paths,
@@ -549,6 +615,7 @@ def plan_memory_root(
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
+    generated_glossary: GeneratedGlossaryMemory | None = None,
     manage_memory: bool = True,
     enable_amd: bool = False,
     derive_project_title: bool = False,
@@ -560,6 +627,7 @@ def plan_memory_root(
         root,
         linked_entries,
         project_name=project_name,
+        generated_glossary=generated_glossary,
         manage_memory=manage_memory,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,

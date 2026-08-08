@@ -194,6 +194,7 @@ def _short_memory_bodies(
     generated_short_notes: Mapping[str, str],
     *,
     source_memory_root: Path | None = None,
+    excluded_note_paths: frozenset[str] = frozenset(),
 ) -> dict[str, str]:
     """Return short-note bodies to inline, keyed by root-relative path.
 
@@ -206,7 +207,7 @@ def _short_memory_bodies(
     bodies: dict[str, str] = {
         note.relative_path: note.body
         for note in discover_memory_notes(root, source_memory_root=source_memory_root)
-        if note.type == "short"
+        if note.type == "short" and note.relative_path not in excluded_note_paths
     }
     bodies.update(generated_short_notes)
     return dict(sorted(bodies.items()))
@@ -395,6 +396,7 @@ def plan_amd_memory_sync(
         root,
         generated_short_notes or {},
         source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
     )
     structure_blockers = _short_memory_structure_blockers(short_memory_bodies)
     if structure_blockers:

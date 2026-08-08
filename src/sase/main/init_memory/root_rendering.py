@@ -26,6 +26,7 @@ from sase.memory.paths import (
 )
 
 from .formatting import format_generated_memory_markdown
+from .glossary import GeneratedGlossaryMemory
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile
 
 MEMORY_DIRECTORY_MAP_FILENAME = "memory-directory-map.png"
@@ -301,6 +302,7 @@ def render_expected_memory_files(
     amd_sync: AmdMemorySyncPlan | None = None,
     generated_sase_body: str | None = None,
     generated_beads_content: str | None = None,
+    generated_glossary: GeneratedGlossaryMemory | None = None,
     source_memory_root: Path | None = None,
     include_bead_memory: bool = False,
     excluded_note_paths: frozenset[str] = frozenset(),
@@ -323,6 +325,10 @@ def render_expected_memory_files(
     note_overlay = {
         generated_sase_path: generated_sase_content,
     }
+    if generated_glossary is not None:
+        note_overlay[root / (CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md")] = (
+            generated_glossary.content
+        )
     if include_bead_memory and generated_beads_content is not None:
         note_overlay[root / _generated_beads_memory_relative_path()] = (
             generated_beads_content
@@ -352,6 +358,14 @@ def render_expected_memory_files(
                 path=root / _generated_beads_memory_relative_path(),
                 content=generated_beads_content,
                 detail="generated SASE bead memory",
+            )
+        )
+    if generated_glossary is not None:
+        expected.append(
+            MemoryExpectedFile(
+                path=root / (CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md"),
+                content=generated_glossary.content,
+                detail="generated glossary memory",
             )
         )
     expected.extend(
@@ -400,9 +414,18 @@ def render_expected_memory_files(
     return tuple(expected), None
 
 
-def generated_short_notes(generated_sase_body: str) -> dict[str, str]:
+def generated_short_notes(
+    generated_sase_body: str,
+    *,
+    generated_glossary: GeneratedGlossaryMemory | None = None,
+) -> dict[str, str]:
     """Return the freshly generated short-note bodies keyed by relative path."""
-    return {_generated_sase_memory_relative_path().as_posix(): generated_sase_body}
+    notes = {_generated_sase_memory_relative_path().as_posix(): generated_sase_body}
+    if generated_glossary is not None:
+        notes[(CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md").as_posix()] = (
+            generated_glossary.body
+        )
+    return notes
 
 
 def generated_long_notes(generated_beads_content: str) -> dict[str, str]:

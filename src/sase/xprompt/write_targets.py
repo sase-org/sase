@@ -389,6 +389,8 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     return True
 
 
+XPromptWriteTarget = _XPromptWriteTarget
+
 __all__ = [
     "PostWriteActionKind",
     "PostWriteActionOffer",
