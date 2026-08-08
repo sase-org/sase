@@ -15,17 +15,18 @@ from rich.text import Text
 from sase.config.file_hooks import FileHookConfig, get_all_file_hooks
 
 
-FILE_HOOK_LIST_JSON_SCHEMA_VERSION = 2
+FILE_HOOK_LIST_JSON_SCHEMA_VERSION = 3
 
 
 def _filter_text(hook: FileHookConfig) -> Text:
     text = Text()
+    filters = hook.filters
     rows = (
-        ("projects", hook.projects),
-        ("sidecars", hook.sidecars),
-        ("path_globs", hook.path_globs),
-        ("agent_name_globs", hook.agent_name_globs),
-        ("ops", hook.ops),
+        ("projects", filters.projects),
+        ("sidecars", filters.sidecars),
+        ("path_globs", filters.path_globs),
+        ("agent_name_globs", filters.agent_name_globs),
+        ("ops", filters.ops),
     )
     for index, (label, values) in enumerate(rows):
         if index:

@@ -9,7 +9,7 @@ from typing import Any
 
 from rich.console import Console
 
-from sase.config.file_hooks import FileHookConfig
+from sase.config.file_hooks import FileHookConfig, FileHookFilters
 from sase.main.file_hook_handler import (
     FILE_HOOK_LIST_JSON_SCHEMA_VERSION,
     _handle_file_hook_list_command,
@@ -22,12 +22,14 @@ def _hook() -> FileHookConfig:
         name="research-highlights",
         description="Render new research reports.",
         command="bob highlights create",
-        projects=("sase",),
-        sidecars=("research",),
-        path_globs=("20*/**/*.md", "!20*/*/*__*.md"),
-        agent_name_globs=("!research.*.cld", "!research.*.cdx"),
-        ops=("ADD",),
         timeout_seconds=120,
+        filters=FileHookFilters(
+            projects=("sase",),
+            sidecars=("research",),
+            path_globs=("20*/**/*.md", "!20*/*/*__*.md"),
+            agent_name_globs=("!research.*.cld", "!research.*.cdx"),
+            ops=("ADD",),
+        ),
         source_layer="user",
     )
 
@@ -75,13 +77,28 @@ def test_file_hook_list_json_is_versioned(capsys: Any) -> None:
 
     payload = json.loads(capsys.readouterr().out)
     assert code == 0
-    assert payload["schema_version"] == FILE_HOOK_LIST_JSON_SCHEMA_VERSION == 2
+    assert payload["schema_version"] == FILE_HOOK_LIST_JSON_SCHEMA_VERSION == 3
     assert payload["count"] == 1
     entry = payload["file_hooks"][0]
     assert entry["source_layer"] == "user"
     assert entry["timeout_seconds"] == 120
-    assert entry["path_globs"] == ["20*/**/*.md", "!20*/*/*__*.md"]
-    assert entry["agent_name_globs"] == ["!research.*.cld", "!research.*.cdx"]
+    assert entry["filters"]["path_globs"] == [
+        "20*/**/*.md",
+        "!20*/*/*__*.md",
+    ]
+    assert entry["filters"]["agent_name_globs"] == [
+        "!research.*.cld",
+        "!research.*.cdx",
+    ]
+    assert entry["filters"]["projects"] == ["sase"]
+    assert entry["filters"]["sidecars"] == ["research"]
+    assert entry["filters"]["ops"] == ["ADD"]
+    assert "filters" in entry
+    assert "path_globs" not in entry
+    assert "agent_name_globs" not in entry
+    assert "projects" not in entry
+    assert "sidecars" not in entry
+    assert "ops" not in entry
     assert "globs" not in entry
 
 

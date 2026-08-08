@@ -277,6 +277,21 @@
           "minLength": 1,
           "description": "Shell command whose final argument is the matched file path."
         },
+        "filters": {
+          "$ref": "#/definitions/fileHookFilters",
+          "description": "Optional event-selection criteria; omitted or empty means unrestricted outside project-local auto-scoping."
+        },
+        "timeout": {
+          "type": "string",
+          "pattern": "^[0-9]+(ms|s|m|h)$",
+          "description": "Per-run timeout duration (default: 120s)."
+        }
+      }
+    },
+    "fileHookFilters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
         "projects": {
           "type": "array",
           "items": { "type": "string" },
@@ -301,11 +316,6 @@
           "type": "array",
           "items": { "type": "string", "enum": ["ADD", "MODIFY", "REMOVE"] },
           "description": "Optional file operations; omitted means all operations."
-        },
-        "timeout": {
-          "type": "string",
-          "pattern": "^[0-9]+(ms|s|m|h)$",
-          "description": "Per-run timeout duration (default: 120s)."
         }
       }
     },

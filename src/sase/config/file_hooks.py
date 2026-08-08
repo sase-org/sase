@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 import logging
 import re
-from dataclasses import dataclass
 from typing import Any, cast, Literal
 
 from sase.config.core import (
@@ -33,17 +34,42 @@ _KNOWN_FILE_HOOK_KEYS = frozenset(
         "name",
         "description",
         "command",
+        "filters",
+        "timeout",
+    }
+)
+_FILE_HOOK_FILTER_KEYS = frozenset(
+    {
         "projects",
         "sidecars",
         "path_globs",
         "agent_name_globs",
         "ops",
-        "timeout",
     }
 )
+_MISSING = object()
 
 _file_hooks_cache_token: tuple[Any, ...] | None = None
 _file_hooks_cache_value: list[FileHookConfig] | None = None
+
+
+@dataclass(frozen=True)
+class FileHookFilters:
+    """Event-selection criteria for one file hook."""
+
+    projects: tuple[str, ...] | None = None
+    sidecars: tuple[str, ...] | None = None
+    path_globs: tuple[str, ...] | None = None
+    agent_name_globs: tuple[str, ...] | None = None
+    ops: tuple[FileHookOp, ...] | None = None
+
+    def __post_init__(self) -> None:
+        """Validate values supplied directly as well as parsed YAML entries."""
+        if self.ops is not None:
+            unknown_ops = set(self.ops) - FILE_HOOK_OPS
+            if unknown_ops:
+                joined = ", ".join(sorted(unknown_ops))
+                raise ValueError(f"unknown operation(s): {joined}")
 
 
 @dataclass(frozen=True)
@@ -53,12 +79,8 @@ class FileHookConfig:
     name: str
     description: str | None
     command: str
-    projects: tuple[str, ...] | None
-    sidecars: tuple[str, ...] | None
-    path_globs: tuple[str, ...] | None
-    agent_name_globs: tuple[str, ...] | None
-    ops: tuple[FileHookOp, ...] | None
     timeout_seconds: float
+    filters: FileHookFilters = field(default_factory=FileHookFilters)
     source_layer: str = "unknown"
 
     def __post_init__(self) -> None:
@@ -70,11 +92,6 @@ class FileHookConfig:
             )
         if not self.command.strip():
             raise ValueError("'command' must be non-empty")
-        if self.ops is not None:
-            unknown_ops = set(self.ops) - FILE_HOOK_OPS
-            if unknown_ops:
-                joined = ", ".join(sorted(unknown_ops))
-                raise ValueError(f"unknown operation(s): {joined}")
         if self.timeout_seconds < 0:
             raise ValueError("'timeout' must not be negative")
 
@@ -136,15 +153,61 @@ def _optional_string_tuple(
     return tuple(value)
 
 
-def _optional_ops(value: object) -> tuple[FileHookOp, ...] | None:
-    raw_ops = _optional_string_tuple(value, "ops")
+def _optional_ops(value: object, field: str) -> tuple[FileHookOp, ...] | None:
+    raw_ops = _optional_string_tuple(value, field)
     if raw_ops is None:
         return None
     unknown_ops = set(raw_ops) - FILE_HOOK_OPS
     if unknown_ops:
         joined = ", ".join(sorted(unknown_ops))
-        raise ValueError(f"unknown operation(s): {joined}")
+        raise ValueError(f"'{field}' contains unknown operation(s): {joined}")
     return cast(tuple[FileHookOp, ...], raw_ops)
+
+
+def _parse_file_hook_filters(
+    value: object,
+    *,
+    source_layer: str,
+    detected_project: str | None,
+) -> FileHookFilters:
+    if value is _MISSING:
+        raw_filters: Mapping[object, object] = {}
+    elif isinstance(value, Mapping):
+        raw_filters = value
+    else:
+        raise ValueError("'filters' must be a mapping")
+
+    filter_keys = {str(key) for key in raw_filters}
+    unknown_keys = filter_keys - _FILE_HOOK_FILTER_KEYS
+    if unknown_keys:
+        if "globs" in unknown_keys:
+            raise ValueError("'filters.globs' was renamed to 'filters.path_globs'")
+        joined = ", ".join(sorted(unknown_keys))
+        raise ValueError(f"unknown filters field(s): {joined}")
+
+    projects = _optional_string_tuple(
+        raw_filters.get("projects"),
+        "filters.projects",
+    )
+    if projects is None and source_layer == "local" and detected_project is not None:
+        projects = (detected_project,)
+
+    return FileHookFilters(
+        projects=projects,
+        sidecars=_optional_string_tuple(
+            raw_filters.get("sidecars"),
+            "filters.sidecars",
+        ),
+        path_globs=_optional_string_tuple(
+            raw_filters.get("path_globs"),
+            "filters.path_globs",
+        ),
+        agent_name_globs=_optional_string_tuple(
+            raw_filters.get("agent_name_globs"),
+            "filters.agent_name_globs",
+        ),
+        ops=_optional_ops(raw_filters.get("ops"), "filters.ops"),
+    )
 
 
 def _parse_file_hook(
@@ -153,13 +216,19 @@ def _parse_file_hook(
     source_layer: str,
     detected_project: str | None,
 ) -> FileHookConfig:
-    if not isinstance(item, dict):
+    if not isinstance(item, Mapping):
         raise ValueError("each file hook must be a dictionary")
 
     unknown_keys = {str(key) for key in item} - _KNOWN_FILE_HOOK_KEYS
     if unknown_keys:
+        legacy_filter_keys = unknown_keys & _FILE_HOOK_FILTER_KEYS
+        if legacy_filter_keys:
+            joined = ", ".join(sorted(legacy_filter_keys))
+            raise ValueError(
+                f"file-hook filter field(s) must be nested under 'filters': {joined}"
+            )
         if "globs" in unknown_keys:
-            raise ValueError("'globs' was renamed to 'path_globs'")
+            raise ValueError("'globs' was renamed to 'filters.path_globs'")
         joined = ", ".join(sorted(unknown_keys))
         raise ValueError(f"unknown field(s): {joined}")
 
@@ -170,22 +239,15 @@ def _parse_file_hook(
     if not isinstance(command, str):
         raise ValueError("'command' is required and must be a string")
 
-    projects = _optional_string_tuple(item.get("projects"), "projects")
-    if projects is None and source_layer == "local" and detected_project is not None:
-        projects = (detected_project,)
-
     return FileHookConfig(
         name=name,
         description=_optional_string(item.get("description"), "description"),
         command=command,
-        projects=projects,
-        sidecars=_optional_string_tuple(item.get("sidecars"), "sidecars"),
-        path_globs=_optional_string_tuple(item.get("path_globs"), "path_globs"),
-        agent_name_globs=_optional_string_tuple(
-            item.get("agent_name_globs"),
-            "agent_name_globs",
+        filters=_parse_file_hook_filters(
+            item.get("filters", _MISSING),
+            source_layer=source_layer,
+            detected_project=detected_project,
         ),
-        ops=_optional_ops(item.get("ops")),
         timeout_seconds=_parse_duration(item.get("timeout", "120s")),
         source_layer=source_layer,
     )
@@ -212,6 +274,17 @@ def _effective_raw_file_hooks() -> list[tuple[object, str]]:
     return effective
 
 
+def _needs_detected_project(item: object, source_layer: str) -> bool:
+    if source_layer != "local" or not isinstance(item, Mapping):
+        return False
+    if "filters" not in item:
+        return True
+    raw_filters = item.get("filters")
+    if not isinstance(raw_filters, Mapping):
+        return True
+    return raw_filters.get("projects") is None
+
+
 def _load_file_hooks() -> list[FileHookConfig]:
     """Load validated file hooks, memoized on the merged config token."""
     global _file_hooks_cache_token, _file_hooks_cache_value
@@ -222,10 +295,7 @@ def _load_file_hooks() -> list[FileHookConfig]:
 
     raw_hooks = _effective_raw_file_hooks()
     detected_project: str | None = None
-    if any(
-        source == "local" and isinstance(item, dict) and item.get("projects") is None
-        for item, source in raw_hooks
-    ):
+    if any(_needs_detected_project(item, source) for item, source in raw_hooks):
         from sase.xprompt.loader import detect_project
 
         detected_project = detect_project()
@@ -243,7 +313,9 @@ def _load_file_hooks() -> list[FileHookConfig]:
                 raise ValueError(f"duplicate hook name '{hook.name}'")
         except ValueError as exc:
             hook_name = (
-                item.get("name", "<unknown>") if isinstance(item, dict) else "<unknown>"
+                item.get("name", "<unknown>")
+                if isinstance(item, Mapping)
+                else "<unknown>"
             )
             logger.warning(
                 "Skipping invalid file hook '%s' from config layer '%s': %s",
@@ -278,21 +350,22 @@ def _glob_matches(patterns: tuple[str, ...], value: str) -> bool:
 
 def hook_matches_event(hook: FileHookConfig, event: FileHookEvent) -> bool:
     """Return whether all configured hook filters accept one event."""
-    if hook.projects is not None and event.project not in hook.projects:
+    filters = hook.filters
+    if filters.projects is not None and event.project not in filters.projects:
         return False
-    if hook.sidecars is not None and event.sidecar_role not in hook.sidecars:
+    if filters.sidecars is not None and event.sidecar_role not in filters.sidecars:
         return False
-    if hook.ops is not None and event.op not in hook.ops:
+    if filters.ops is not None and event.op not in filters.ops:
         return False
 
-    if hook.path_globs:
+    if filters.path_globs:
         rel_path = event.rel_path.replace("\\", "/").removeprefix("./")
-        if not _glob_matches(hook.path_globs, rel_path):
+        if not _glob_matches(filters.path_globs, rel_path):
             return False
     # An unattributed event is matched as the empty string, so it clears a
     # negative-only list but never one containing a positive pattern.
-    return not hook.agent_name_globs or _glob_matches(
-        hook.agent_name_globs,
+    return not filters.agent_name_globs or _glob_matches(
+        filters.agent_name_globs,
         event.agent_name or "",
     )
 
@@ -314,6 +387,7 @@ __all__ = [
     "FILE_HOOK_OPS",
     "FileHookConfig",
     "FileHookEvent",
+    "FileHookFilters",
     "FileHookOp",
     "PlannedRun",
     "get_all_file_hooks",

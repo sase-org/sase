@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.artifact_cli.create import handle_create
-from sase.config.file_hooks import FileHookConfig
+from sase.config.file_hooks import FileHookConfig, FileHookFilters
 from sase.core.artifact_file_types import ArtifactFile
 from sase.file_hooks.engine import (
     CapturedFileEvent,
@@ -73,12 +73,8 @@ def _hook(
         name=name,
         description=None,
         command=command,
-        projects=None,
-        sidecars=None,
-        path_globs=None,
-        agent_name_globs=agent_name_globs,
-        ops=None,
         timeout_seconds=timeout_seconds,
+        filters=FileHookFilters(agent_name_globs=agent_name_globs),
     )
 
 

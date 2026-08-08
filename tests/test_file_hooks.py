@@ -5,9 +5,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import pytest
+
 from sase.config.file_hooks import (
     FileHookConfig,
     FileHookEvent,
+    FileHookFilters,
     _load_file_hooks,
     get_all_file_hooks,
     hook_matches_event,
@@ -43,12 +46,14 @@ def _hook(
         name="test-hook",
         description=None,
         command="check",
-        projects=projects,
-        sidecars=sidecars,
-        path_globs=path_globs,
-        agent_name_globs=agent_name_globs,
-        ops=ops,  # type: ignore[arg-type]
         timeout_seconds=120,
+        filters=FileHookFilters(
+            projects=projects,
+            sidecars=sidecars,
+            path_globs=path_globs,
+            agent_name_globs=agent_name_globs,
+            ops=ops,  # type: ignore[arg-type]
+        ),
     )
 
 
@@ -110,6 +115,50 @@ def test_loader_preserves_merge_sources_and_parses_timeout(
     assert _load_file_hooks() is hooks
 
 
+def test_loader_parses_nested_filters(monkeypatch: Any) -> None:
+    layers = [
+        _layer(
+            "user",
+            [
+                {
+                    "name": "research-highlights",
+                    "command": "bob highlights create",
+                    "filters": {
+                        "projects": ["sase"],
+                        "sidecars": ["research"],
+                        "path_globs": ["20*/**/*.md", "!20*/*/*__*.md"],
+                        "agent_name_globs": [
+                            "!research.*.cld",
+                            "!research.*.cdx",
+                        ],
+                        "ops": ["ADD"],
+                    },
+                }
+            ],
+            strategy="replace",
+        )
+    ]
+    monkeypatch.setattr(
+        "sase.config.file_hooks.current_config_token", lambda: ("token",)
+    )
+    monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
+
+    hooks = _load_file_hooks()
+
+    assert len(hooks) == 1
+    filters = hooks[0].filters
+    assert filters.projects == ("sase",)
+    assert filters.sidecars == ("research",)
+    assert filters.path_globs == ("20*/**/*.md", "!20*/*/*__*.md")
+    assert filters.agent_name_globs == ("!research.*.cld", "!research.*.cdx")
+    assert filters.ops == ("ADD",)
+
+
+def test_file_hook_filters_validate_direct_operation_names() -> None:
+    with pytest.raises(ValueError, match="unknown operation"):
+        FileHookFilters(ops=("CREATE",))  # type: ignore[arg-type]
+
+
 def test_loader_warns_and_skips_invalid_and_duplicate_entries(
     monkeypatch: Any,
     caplog: Any,
@@ -150,7 +199,7 @@ def test_loader_auto_scopes_project_local_hooks(monkeypatch: Any) -> None:
                 {
                     "name": "explicit",
                     "command": "run",
-                    "projects": ["other"],
+                    "filters": {"projects": ["other"]},
                 },
             ],
         )
@@ -163,8 +212,21 @@ def test_loader_auto_scopes_project_local_hooks(monkeypatch: Any) -> None:
 
     hooks = _load_file_hooks()
 
-    assert hooks[0].projects == ("sase",)
-    assert hooks[1].projects == ("other",)
+    assert hooks[0].filters.projects == ("sase",)
+    assert hooks[1].filters.projects == ("other",)
+
+
+def test_loader_auto_scopes_empty_project_local_filters(monkeypatch: Any) -> None:
+    layers = [_layer("local", [{"name": "auto", "command": "run", "filters": {}}])]
+    monkeypatch.setattr(
+        "sase.config.file_hooks.current_config_token", lambda: ("token",)
+    )
+    monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
+    monkeypatch.setattr("sase.xprompt.loader.detect_project", lambda: "sase")
+
+    hooks = _load_file_hooks()
+
+    assert hooks[0].filters.projects == ("sase",)
 
 
 def test_public_loader_fails_soft(monkeypatch: Any, caplog: Any) -> None:
@@ -261,6 +323,42 @@ def test_path_and_agent_name_filters_are_anded() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("legacy_key", "value"),
+    [
+        ("projects", ["sase"]),
+        ("sidecars", ["research"]),
+        ("path_globs", ["*.md"]),
+        ("agent_name_globs", ["research.*"]),
+        ("ops", ["ADD"]),
+    ],
+)
+def test_loader_rejects_legacy_top_level_filter_fields(
+    legacy_key: str,
+    value: object,
+    monkeypatch: Any,
+    caplog: Any,
+) -> None:
+    layers = [
+        _layer(
+            "user",
+            [{"name": "legacy", "command": "run", legacy_key: value}],
+            strategy="replace",
+        )
+    ]
+    monkeypatch.setattr(
+        "sase.config.file_hooks.current_config_token", lambda: ("token",)
+    )
+    monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
+
+    with caplog.at_level(logging.WARNING):
+        hooks = _load_file_hooks()
+
+    assert hooks == []
+    assert "file-hook filter field(s) must be nested under 'filters'" in caplog.text
+    assert legacy_key in caplog.text
+
+
 def test_loader_rejects_legacy_globs_key_and_unknown_fields(
     monkeypatch: Any,
     caplog: Any,
@@ -272,10 +370,17 @@ def test_loader_rejects_legacy_globs_key_and_unknown_fields(
                 {"name": "legacy", "command": "run", "globs": ["*.md"]},
                 {"name": "typo", "command": "run", "agent_globs": ["bob"]},
                 {
+                    "name": "nested-typo",
+                    "command": "run",
+                    "filters": {"agent_globs": ["bob"]},
+                },
+                {
                     "name": "modern",
                     "command": "run",
-                    "path_globs": ["20*/**/*.md", "!20*/*/*__*.md"],
-                    "agent_name_globs": ["!research.*.cld"],
+                    "filters": {
+                        "path_globs": ["20*/**/*.md", "!20*/*/*__*.md"],
+                        "agent_name_globs": ["!research.*.cld"],
+                    },
                 },
             ],
             strategy="replace",
@@ -290,10 +395,49 @@ def test_loader_rejects_legacy_globs_key_and_unknown_fields(
         hooks = _load_file_hooks()
 
     assert [hook.name for hook in hooks] == ["modern"]
-    assert "'globs' was renamed to 'path_globs'" in caplog.text
+    assert "'globs' was renamed to 'filters.path_globs'" in caplog.text
     assert "unknown field(s): agent_globs" in caplog.text
-    assert hooks[0].path_globs == ("20*/**/*.md", "!20*/*/*__*.md")
-    assert hooks[0].agent_name_globs == ("!research.*.cld",)
+    assert "unknown filters field(s): agent_globs" in caplog.text
+    assert hooks[0].filters.path_globs == ("20*/**/*.md", "!20*/*/*__*.md")
+    assert hooks[0].filters.agent_name_globs == ("!research.*.cld",)
+
+
+def test_loader_rejects_malformed_filters_and_nested_values(
+    monkeypatch: Any,
+    caplog: Any,
+) -> None:
+    layers = [
+        _layer(
+            "user",
+            [
+                {"name": "null-filters", "command": "run", "filters": None},
+                {"name": "bad-filters", "command": "run", "filters": []},
+                {
+                    "name": "bad-paths",
+                    "command": "run",
+                    "filters": {"path_globs": "*.md"},
+                },
+                {
+                    "name": "bad-op",
+                    "command": "run",
+                    "filters": {"ops": ["CREATE"]},
+                },
+            ],
+            strategy="replace",
+        )
+    ]
+    monkeypatch.setattr(
+        "sase.config.file_hooks.current_config_token", lambda: ("token",)
+    )
+    monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
+
+    with caplog.at_level(logging.WARNING):
+        hooks = _load_file_hooks()
+
+    assert hooks == []
+    assert "'filters' must be a mapping" in caplog.text
+    assert "'filters.path_globs' must be a list of strings" in caplog.text
+    assert "'filters.ops' contains unknown operation(s): CREATE" in caplog.text
 
 
 def test_project_sidecar_and_op_filters_and_unrestricted_defaults() -> None:
@@ -320,12 +464,8 @@ def test_match_events_returns_hook_order_then_event_order() -> None:
         name="second",
         description=None,
         command="check-two",
-        projects=None,
-        sidecars=None,
-        path_globs=None,
-        agent_name_globs=None,
-        ops=None,
         timeout_seconds=120,
+        filters=FileHookFilters(),
     )
     events = [_event("one.md"), _event("two.txt")]
 
