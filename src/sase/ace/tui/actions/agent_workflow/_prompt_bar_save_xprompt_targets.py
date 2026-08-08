@@ -41,10 +41,15 @@ def write_binding_sync(
 ) -> None:
     """Write a bound stack without depending on modal target types."""
     if binding.target_format == SaveTargetFormat.MARKDOWN:
-        save_markdown_xprompt(binding.path, frontmatter, body)
+        save_markdown_xprompt(binding.write_path, frontmatter, body)
         return
     if binding.target_format == SaveTargetFormat.CONFIG and binding.entry_name:
-        if save_config_xprompt(binding.path, binding.entry_name, frontmatter, body):
+        if save_config_xprompt(
+            binding.write_path,
+            binding.entry_name,
+            frontmatter,
+            body,
+        ):
             return
         raise RuntimeError("config insertion failed")
     raise RuntimeError("invalid xprompt binding")

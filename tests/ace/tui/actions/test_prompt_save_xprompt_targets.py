@@ -10,6 +10,10 @@ from unittest.mock import patch
 import yaml  # type: ignore[import-untyped]
 
 from sase.ace.tui.modals import UnifiedXPromptSaveResult
+from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_targets import (
+    write_binding_sync,
+)
+from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat
@@ -67,6 +71,31 @@ async def test_unified_config_result_inserts_xprompt(tmp_path: Path) -> None:
         "description": "Review code",
         "content": "check this",
     }
+
+
+def test_bound_markdown_write_uses_resolved_write_path(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    home = tmp_path / "home"
+    source_root = home / ".local" / "share" / "chezmoi" / "home"
+    read_path = home / "sase" / "xprompts" / "review.md"
+    write_path = source_root / "sase" / "xprompts" / "review.md"
+    read_path.parent.mkdir(parents=True)
+    write_path.parent.mkdir(parents=True)
+    read_path.write_text("applied\n", encoding="utf-8")
+    write_path.write_text("old source\n", encoding="utf-8")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr("sase.xprompt.write_targets.CHEZMOI_HOME", source_root)
+    monkeypatch.setattr("sase.xprompt.write_targets.get_use_chezmoi", lambda: True)
+    binding = XPromptBinding.for_file(read_path, reference="#review")
+
+    write_binding_sync(binding, PromptFrontmatter(description="Saved"), "new body")
+
+    assert read_path.read_text(encoding="utf-8") == "applied\n"
+    written = write_path.read_text(encoding="utf-8")
+    assert "description: Saved" in written
+    assert written.endswith("new body\n")
 
 
 async def test_unified_snippet_result_writes_only_active_pane_and_refreshes(

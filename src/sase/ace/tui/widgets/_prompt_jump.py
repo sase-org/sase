@@ -259,10 +259,15 @@ class PromptJumpMixin(_MixinBase):
                     )
                 ):
                     binding = XPromptBinding.for_config(
-                        payload.source_path, payload.definition_name or ""
+                        payload.source_path,
+                        payload.definition_name or "",
+                        reference=payload.title,
                     )
                 else:
-                    binding = XPromptBinding.for_file(payload.source_path)
+                    binding = XPromptBinding.for_file(
+                        payload.source_path,
+                        reference=payload.title,
+                    )
             except OSError:
                 binding = None
         load(payload.loadable_markdown, binding=binding)

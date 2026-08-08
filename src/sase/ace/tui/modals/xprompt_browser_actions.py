@@ -90,13 +90,23 @@ class XPromptBrowserActionsMixin:
                     load_config_xprompt_markdown, file_path, name
                 )
                 binding = (
-                    XPromptBinding.for_config(file_path, name) if editable else None
+                    XPromptBinding.for_config(
+                        file_path,
+                        name,
+                        reference=f"#{name}",
+                    )
+                    if editable
+                    else None
                 )
             else:
                 markdown = await asyncio.to_thread(
                     Path(file_path).read_text, encoding="utf-8"
                 )
-                binding = XPromptBinding.for_file(file_path) if editable else None
+                binding = (
+                    XPromptBinding.for_file(file_path, reference=f"#{name}")
+                    if editable
+                    else None
+                )
         except Exception as exc:
             if request_id == self._edit_xprompt_request_id:
                 self.notify(f"Could not load definition: {exc}", severity="error")  # type: ignore[attr-defined]

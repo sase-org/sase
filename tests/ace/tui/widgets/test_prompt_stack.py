@@ -13,6 +13,7 @@ from pathlib import Path
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
+    SourceFingerprint,
     XPromptBinding,
     split_frontmatter,
     split_prompt_text,
@@ -596,6 +597,57 @@ def test_binding_dirty_and_external_change_detection(tmp_path: Path) -> None:
     state.selected_item.text = "changed"
     assert state.is_dirty
     source.write_text("external\n", encoding="utf-8")
+    assert state.source_changed()
+
+
+def test_source_fingerprint_stat_signature_is_cheap_staleness_hint(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "review.md"
+    source.write_text("body\n", encoding="utf-8")
+    fingerprint = SourceFingerprint.from_path(source)
+
+    assert SourceFingerprint.stat_signature(source) == (
+        fingerprint.mtime_ns,
+        fingerprint.size,
+    )
+    assert fingerprint.matches_stat(source)
+
+    source.write_text("external\n", encoding="utf-8")
+    assert not fingerprint.matches_stat(source)
+
+
+def test_binding_uses_chezmoi_source_for_fingerprint_and_staleness(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    home = tmp_path / "home"
+    source_root = home / ".local" / "share" / "chezmoi" / "home"
+    read_path = home / "sase" / "xprompts" / "review.md"
+    write_path = source_root / "sase" / "xprompts" / "review.md"
+    read_path.parent.mkdir(parents=True)
+    write_path.parent.mkdir(parents=True)
+    read_path.write_text("applied\n", encoding="utf-8")
+    write_path.write_text("body\n", encoding="utf-8")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr("sase.xprompt.write_targets.CHEZMOI_HOME", source_root)
+    monkeypatch.setattr("sase.xprompt.write_targets.get_use_chezmoi", lambda: True)
+
+    binding = XPromptBinding.for_file(read_path, reference="#review")
+    state = PromptStackState.from_text("body\n")
+    state.bind(binding)
+
+    assert binding.path == str(read_path)
+    assert binding.write_path == str(write_path)
+    assert binding.apply_target == str(read_path)
+    assert binding.via_chezmoi is True
+    assert binding.reference == "#review"
+    assert not state.source_changed()
+
+    read_path.write_text("applied changed\n", encoding="utf-8")
+    assert not state.source_changed()
+
+    write_path.write_text("source changed\n", encoding="utf-8")
     assert state.source_changed()
 
 

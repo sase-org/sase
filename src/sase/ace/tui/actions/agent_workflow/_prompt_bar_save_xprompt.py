@@ -189,7 +189,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         frontmatter = self._captured_xprompt_frontmatter(event.panes)
         try:
             current = await asyncio.to_thread(
-                SourceFingerprint.from_path, event.binding.path
+                SourceFingerprint.from_path, event.binding.write_path
             )
         except OSError:
             current = None
@@ -208,7 +208,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
                     bar.request_save_as_xprompt()
 
             self.push_screen(  # type: ignore[attr-defined]
-                XPromptWriteConflictModal(event.binding.name, event.binding.path),
+                XPromptWriteConflictModal(event.binding.name, event.binding.write_path),
                 _resolved,
             )
             return
@@ -224,7 +224,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         import asyncio
 
         from ...widgets import PromptInputBar
-        from ...widgets.prompt_stack import XPromptBinding
+        from ...widgets.prompt_stack import SourceFingerprint, XPromptBinding
         from sase.xprompt.save import save_markdown_document
 
         if not isinstance(bar, PromptInputBar) or not isinstance(
@@ -236,7 +236,11 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             if binding.target_format is SaveTargetFormat.MARKDOWN:
                 preserved = bar._stack.markdown_preserving_unchanged_body(frontmatter)
             if preserved is not None:
-                await asyncio.to_thread(save_markdown_document, binding.path, preserved)
+                await asyncio.to_thread(
+                    save_markdown_document,
+                    binding.write_path,
+                    preserved,
+                )
             else:
                 await asyncio.to_thread(write_binding_sync, binding, frontmatter, body)
         except SkillPlacementError as exc:
@@ -245,11 +249,28 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         except Exception as exc:
             self.notify(f"Failed to write xprompt: {exc}", severity="error")  # type: ignore[attr-defined]
             return
+        try:
+            loaded_fingerprint = await asyncio.to_thread(
+                SourceFingerprint.from_path,
+                binding.write_path,
+            )
+        except OSError as exc:
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to refresh xprompt fingerprint: {exc}", severity="error"
+            )
+            return
         if bar.is_mounted and bar._stack.binding == binding:
-            bar._stack.mark_written(source_markdown=preserved)
+            bar._stack.mark_written(
+                source_markdown=preserved,
+                loaded_fingerprint=loaded_fingerprint,
+            )
             bar._refresh_title()
         self.notify(f"Wrote xprompt '{binding.name}'")  # type: ignore[attr-defined]
-        self._offer_git_commit(binding.path, is_new=False, xprompt_name=binding.name)
+        self._offer_git_commit(
+            binding.write_path,
+            is_new=False,
+            xprompt_name=binding.name,
+        )
 
     async def _reload_bound_xprompt(self, bar: object, binding: object) -> None:
         import asyncio
@@ -269,12 +290,19 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
                 markdown = await asyncio.to_thread(
                     load_config_xprompt_markdown, binding.path, binding.entry_name
                 )
-                refreshed = XPromptBinding.for_config(binding.path, binding.entry_name)
+                refreshed = XPromptBinding.for_config(
+                    binding.path,
+                    binding.entry_name,
+                    reference=binding.reference,
+                )
             else:
                 markdown = await asyncio.to_thread(
                     Path(binding.path).read_text, encoding="utf-8"
                 )
-                refreshed = XPromptBinding.for_file(binding.path)
+                refreshed = XPromptBinding.for_file(
+                    binding.path,
+                    reference=binding.reference,
+                )
         except Exception as exc:
             self.notify(f"Failed to reload xprompt: {exc}", severity="error")  # type: ignore[attr-defined]
             return
@@ -352,12 +380,16 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             return
         if target.target_format is SaveTargetFormat.CONFIG:
             name = target.entry_name or target.name
-            binding = XPromptBinding.for_config(target.path, name)
+            binding = XPromptBinding.for_config(
+                target.path,
+                name,
+                reference=f"#{name}",
+            )
             source_markdown = None
         else:
-            binding = XPromptBinding.for_file(target.path)
-        origin_bar._stack.bind(binding, source_markdown=source_markdown)
-        origin_bar._refresh_title()
+            reference = None if target.frontmatter.skill else f"#{target.name}"
+            binding = XPromptBinding.for_file(target.path, reference=reference)
+        origin_bar.target_xprompt(binding, source_markdown=source_markdown)
 
 
 _existing_snippet_names = existing_snippet_names

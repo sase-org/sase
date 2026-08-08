@@ -160,13 +160,14 @@ class PromptInputBar(
             except Exception:
                 pass
             binding = self._stack.binding
-            path = binding.path
+            path = binding.write_path
             home = str(Path.home())
             if path.startswith(home + "/"):
                 path = "~" + path[len(home) :]
-            title = f"{title} · {binding.name} · {path}"
+            title = f"{title} · {binding.reference} · {path}"
             if self._stack.is_dirty:
                 title = f"{title} [bold #D0A215]●[/]"
+            self._refresh_target_classes()
         if mode_suffix:
             # Border titles parse Rich markup; escape literal mode brackets.
             mode_suffix = mode_suffix.replace("[", "\\[")

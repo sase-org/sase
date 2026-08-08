@@ -401,10 +401,39 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         keeping the body text verbatim.
         """
         self._stack = PromptStackState.from_text(text)
-        if binding is not None:
-            self._stack.bind(binding, source_markdown=text)
         self._rebuild_stack()
+        if binding is not None:
+            self.target_xprompt(binding, source_markdown=text)
+        else:
+            self._refresh_target_classes()
         self.refresh_frontmatter_panel_from_stack()
+
+    def target_xprompt(
+        self,
+        binding: XPromptBinding,
+        *,
+        source_markdown: str | None = None,
+    ) -> None:
+        """Set the xprompt definition this prompt stack edits."""
+        self._stack.bind(binding, source_markdown=source_markdown)
+        self._refresh_target_classes()
+        self._refresh_title()
+
+    def clear_xprompt_target(self) -> None:
+        """Clear the current xprompt target from the prompt stack."""
+        self._stack.unbind()
+        self._refresh_target_classes()
+        self._refresh_title()
+
+    def xprompt_target(self) -> XPromptBinding | None:
+        """Return the current xprompt target, if any."""
+        return self._stack.binding
+
+    def _refresh_target_classes(self) -> None:
+        binding = self._stack.binding
+        has_target = binding is not None
+        self.set_class(has_target, "xprompt-target")
+        self.set_class(has_target and self._stack.is_dirty, "dirty")
 
     def update_active_pane(self, text: str) -> None:
         """Replace only the active pane's text with *text* (the ``^G`` path).

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.prompt_frontmatter import LOCAL_XPROMPT_SOURCE, PromptFrontmatter
 
@@ -100,6 +101,32 @@ async def test_load_stack_from_xprompt_markdown_lifts_single_body_pane() -> None
         assert len(app.query(".prompt-input")) == 1
         assert bar.active_text() == "just body"
         assert bar._stack.frontmatter == "---\ndescription: hi\n---"
+
+
+async def test_prompt_bar_target_api_sets_and_clears_binding(tmp_path: Path) -> None:
+    source = tmp_path / "review.md"
+    source.write_text("body\n", encoding="utf-8")
+    binding = XPromptBinding.for_file(source, reference="#review")
+    app = _PromptBarApp("only one")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.load_stack_from_xprompt_markdown("body\n", binding=binding)
+        await pilot.pause()
+
+        assert bar.xprompt_target() == binding
+        assert bar.active_text() == "body"
+        assert not bar._stack.is_dirty
+        assert bar.has_class("xprompt-target")
+        assert "#review" in str(bar.border_title)
+
+        bar.clear_xprompt_target()
+        await pilot.pause()
+
+        assert bar.xprompt_target() is None
+        assert not bar.has_class("xprompt-target")
 
 
 async def test_load_stack_from_xprompt_markdown_clears_frontmatter_panel() -> None:

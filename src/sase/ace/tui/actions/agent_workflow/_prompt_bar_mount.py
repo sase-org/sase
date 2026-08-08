@@ -396,7 +396,7 @@ class PromptBarMountMixin:
         else:
             bar = PromptInputBar(initial_value=initial_text, id="prompt-input-bar")
         if binding is not None:
-            bar._stack.bind(binding, source_markdown=initial_text)
+            bar.target_xprompt(binding, source_markdown=initial_text)
         # Stage declared inputs into the stack's frontmatter pre-mount: the
         # panel refresh is a no-op until the bar mounts, and ``on_mount`` then
         # auto-shows the frontmatter panel from the seeded stack.
