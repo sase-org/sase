@@ -2836,19 +2836,20 @@ surface because they are supplied by workflow execution rather than typed by the
 
 ### Keybindings
 
-| Key       | Action                                                |
-| --------- | ----------------------------------------------------- |
-| `j` / `↓` | Navigate to next xprompt                              |
-| `k` / `↑` | Navigate to previous xprompt                          |
-| `Ctrl+N`  | Navigate to next xprompt                              |
-| `Ctrl+P`  | Navigate to previous xprompt                          |
-| `'`       | Jump to a non-header row via adaptive hints           |
-| `Ctrl+D`  | Scroll preview panel down                             |
-| `Ctrl+U`  | Scroll preview panel up / clear input                 |
-| `Enter`   | Edit highlighted xprompt in `$EDITOR`                 |
-| `Ctrl+O`  | Add a new xprompt                                     |
-| `Ctrl+I`  | Load the highlighted xprompt into the home prompt bar |
-| `Esc`     | Close SASE Admin Center                               |
+| Key       | Action                                                                       |
+| --------- | ---------------------------------------------------------------------------- |
+| `j` / `↓` | Navigate to next xprompt                                                     |
+| `k` / `↑` | Navigate to previous xprompt                                                 |
+| `Ctrl+N`  | Navigate to next xprompt                                                     |
+| `Ctrl+P`  | Navigate to previous xprompt                                                 |
+| `'`       | Jump to a non-header row via adaptive hints                                  |
+| `Ctrl+D`  | Scroll preview panel down                                                    |
+| `Ctrl+U`  | Scroll preview panel up / clear input                                        |
+| `Enter`   | Target the highlighted xprompt: load it into the home prompt bar for editing |
+| `E`       | Open the highlighted definition in `$EDITOR`                                 |
+| `Ctrl+O`  | Add a new xprompt                                                            |
+| `Ctrl+I`  | Inline-expand the highlighted xprompt into the home prompt bar               |
+| `Esc`     | Close SASE Admin Center                                                      |
 
 Type in the filter input to narrow the list in real time. The filter input is focused by
 default, so two keys are reserved while it is **empty**: digits `1`–`9`/`0` jump to an
@@ -2858,11 +2859,17 @@ values such as `bug2` or a filter ending in a literal apostrophe can be typed no
 
 ### Editing XPrompts
 
-Press `Enter` on any xprompt to edit it in `$EDITOR`. All xprompts are editable,
-including legacy, plugin, and built-in sources — read-only sources are copied to the
-canonical user directory (`~/sase/xprompts/`) before opening, so edits create an
-override rather than modifying the original. After saving, the browser offers to commit
-and push changes to git if applicable.
+Press `Enter` on any xprompt to load its definition into the home prompt bar and target
+it for editing — see
+[Editing an Existing XPrompt from the TUI](#editing-an-existing-xprompt-from-the-tui)
+for the full targeting loop, including the visual chip states, the target-aware `Enter`
+save menu, and the chezmoi-aware write path. Project, home, and config sources are
+editable and bind the bar to their source file. Read-only sources (legacy, plugin, and
+built-in) load without a target: the bar shows a persistent read-only marker instead,
+and `gw` falls through to the save-as flow so your edits land in a new, editable copy
+rather than being silently discarded. Press `E` to open an editable definition directly
+in `$EDITOR` instead; after saving, the browser offers the applicable follow-up actions
+(commit/push, a scoped chezmoi apply, or `sase memory init` / `sase skill init`).
 
 ### Creating XPrompts
 
@@ -2875,7 +2882,9 @@ Press `Ctrl+O` to start the guided creation flow:
 2. **Filename modal** — Enter a filename (`.md` for prompt parts, `.yml` for workflows).
    Workflow files are pre-filled with a YAML template containing the workflow scaffold.
 3. **Editor** — The file opens in `$EDITOR` for editing.
-4. **Git commit** — After saving, the browser offers to commit and push changes.
+4. **Follow-up actions** — After saving, the browser offers the actions that apply to
+   the new file: commit/push, and — when `use_chezmoi` redirected the write to the
+   chezmoi source — a scoped `chezmoi apply` of just that file.
 
 ## Jump All Modal
 
@@ -4005,7 +4014,7 @@ prefix actions currently available.
 
 | Key         | Action                                                                                                 |
 | ----------- | ------------------------------------------------------------------------------------------------------ |
-| `Enter`     | Open the submit chooser; when one pane remains, `Enter` submits it normally                            |
+| `Enter`     | Open the submit chooser when stacked or targeted; an untargeted single pane sends normally             |
 | `Ctrl+S`    | Stash the active pane; from an empty prompt, open the stashed-prompt picker                            |
 | `g<enter>`  | Launch the selected pane and remove it from the stack                                                  |
 | `Ctrl+C`    | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally |
@@ -4075,7 +4084,68 @@ while unpinned rows are popped. Number keys `1`-`9` and `0` restore rows 1-10 di
 with the same pin-aware behavior. A small top-bar badge shows how many restorable drafts
 are currently stashed.
 
-### Completion
+### Editing an Existing XPrompt from the TUI
+
+Loading a definition into the prompt bar for editing puts the bar into a **targeting**
+state instead of a plain draft: the bar tracks the exact source file your edits will
+write to, and everything below applies whenever the bar shows a target. Every surface
+that loads an editable definition enters this state the same way:
+
+- The Admin Center XPrompts tab's `Enter` (see [Editing XPrompts](#editing-xprompts)).
+- The Select XPrompt `#` picker's `Ctrl+O` ("edit here"), alongside its existing
+  `Ctrl+E` (open in `$EDITOR`) and `Ctrl+I` (inline-expand) keys.
+- The jump panel (`Ctrl+]`, `gd`) and `gd` under the cursor in the prompt bar.
+- Returning from a whole-bar `$EDITOR` round trip (`Ctrl+G g`) preserves whatever target
+  the bar already had — your edits stay bound to the same file.
+
+A read-only source (legacy, plugin, built-in) loads without a target: the bar shows a
+persistent read-only marker instead of binding, and `gw` falls through to the save-as
+flow rather than clobbering the original.
+
+**Visual state.** A targeted bar's border switches from a solid to a **double** rule so
+the state reads at a glance in any theme: `$secondary` when clean, `$warning` when dirty
+or when the source changed on disk underneath you, and a dim `$foreground` when
+read-only. The border title shows a `✎ <reference>` chip using the canonical reference
+you'd actually type (`#foo`, `#memory/foo`, `/skill-name`) — not the file stem —
+followed by a state marker: dim `✓` (clean), gold `●` (dirty), `🔒 read-only`, or
+`⚠ changed on disk` (another process edited the file since you loaded it). The
+frontmatter panel's border tints to match and auto-shows on a targeted load, even before
+you add any frontmatter fields.
+
+**Saving.** `Enter` opens the submit chooser whenever the bar is targeted or has more
+than one pane; an untargeted single-pane draft still sends immediately, unchanged from
+before. The chooser's rows are target- and pane-count-aware: `s` sends a single targeted
+pane, `a`/`c` submit all/current in a multi-pane stack, `w` saves to the targeted
+reference (its subtitle names the destination when dirty, or says there's nothing to
+save when clean), and `X` forks the definition to a new location. `gw` / `Ctrl+G w`
+performs the same save directly, and the bar's subtitle shows a
+`[^G w] save <reference>` hint whenever a target is active. If the source changed on
+disk since you loaded it, the save opens a conflict prompt offering overwrite, reload,
+or save-as instead of silently clobbering the external edit.
+
+**Chezmoi-managed homes.** With `use_chezmoi: true`, editing a definition under `$HOME`
+whose chezmoi source already exists writes to that chezmoi **source** file, not the
+applied copy — the applied copy is regenerated by `chezmoi apply` and would otherwise
+silently discard your edit on the next apply. The border title and the follow-up actions
+modal both surface this redirect so it's never a surprise.
+
+**Follow-up actions.** After a save (or an `E` / `$EDITOR` edit), a follow-up modal
+offers only the actions that apply to the file you just wrote, each toggleable and run
+through the tracked task queue in order:
+
+- **Commit & push** — offered when the write path is inside a git repo with changes.
+- **Apply chezmoi** — offered when the write redirected to a chezmoi source; scoped to
+  just the one home target, never a whole-home apply.
+- **`sase memory init`** — offered instead of the two above when you edited a
+  [SASE memory note](memory.md), since it already commits and pushes for you while
+  regenerating `AGENTS.md` and the provider instruction shims.
+- **`sase skill init`** — offered instead of the two above when you edited a canonical
+  [skill source](xprompt.md#skill-field), since it already commits, pushes, and deploys
+  the generated skill files for you.
+
+With a single offered action, `Enter` runs it and `Esc` skips, matching the previous
+plain commit/push confirmation. With more than one, each row's key toggles it and
+`Enter` runs everything still selected.
 
 Press `Ctrl+T` to activate token completion. The completion kind is determined by the
 token under the cursor:

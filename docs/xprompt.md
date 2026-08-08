@@ -1208,6 +1208,11 @@ enabled, `sase skill init` commits, pushes, and applies the generated files unle
 passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed `SKILL.md`
 files directly. `sase init skills` is a compatibility alias for `sase skill init`.
 
+Editing an existing skill source from the ACE TUI targets it like any other xprompt
+definition, and saving it offers `sase skill init` in place of a bare commit/push, since
+that command already commits, pushes, and deploys for you — see
+[Editing an Existing XPrompt from the TUI](ace.md#editing-an-existing-xprompt-from-the-tui).
+
 Provider plugins declare where generated skills should be written. A source can target
 multiple providers, and a provider can have multiple filesystem targets. Built-in
 targets are:
@@ -1279,6 +1284,15 @@ when an already-running agent needs to consult long-term memory on its own and h
 access recorded. This is explicit prompt composition only — it does not restore the
 retired dynamic-memory runtime, so there is no keyword matching, prompt scanning, or
 automatic context injection.
+
+Editing an existing note from the ACE TUI targets it like any other xprompt definition,
+and saving it offers `sase memory init` in place of a bare commit/push, since that
+command already regenerates `AGENTS.md` and the provider instruction shims and commits
+and pushes for you — see
+[Editing an Existing XPrompt from the TUI](ace.md#editing-an-existing-xprompt-from-the-tui).
+With `use_chezmoi` enabled, the write itself redirects to the chezmoi source rather than
+the applied copy under `~/sase/memory/`; see
+[Paths That Did Not Move](content_layout.md#paths-that-did-not-move).
 
 Source: `src/sase/xprompt/loader_memory.py`, `src/sase/content_layout.py`.
 
