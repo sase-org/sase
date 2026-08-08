@@ -32,10 +32,22 @@ from tests.gate_conformance._cases import (
 )
 
 #: Why a surface lacks a capability, quoted in the skip message.
+#:
+#: An entry here is a standing limitation with a reason, not a to-do: it must
+#: name why the surface cannot submit the capability today, never a bead that
+#: might close without the entry being revisited.
 PENDING_CAPABILITY_PHASES = {
-    ("mobile", CAP_OPTION_INPUTS): "sase-h7.8 (inputs-remote)",
-    ("mobile", CAP_SHARED_INPUT): "sase-h7.8 (inputs-remote)",
-    ("mobile", CAP_RETRY): "sase-h7.8 (inputs-remote)",
+    ("mobile", CAP_SHARED_INPUT): (
+        "the bridge wire carries no shared `input` field, so a pre-`inputs` "
+        "bundle whose schema requires a value can only be answered from a "
+        "surface that has one"
+    ),
+    ("mobile", CAP_RETRY): (
+        "the bridge wire carries no `retry` field, so a mobile reviewer who "
+        "reaches a partially executed AND branch gets `partial_attempt` and "
+        "must resume or restart from the CLI or ACE -- a dead end, never a "
+        "silent re-run"
+    ),
 }
 
 
@@ -168,6 +180,7 @@ def _submit_via_mobile(target: SurfaceTarget, submission: Submission) -> Surface
                 "conf",
                 list(submission.selected),
                 feedback=submission.feedback,
+                option_inputs=submission.option_inputs,
             )
         except MobileGateActionError as exc:
             return SurfaceOutcome(answered=False, message=f"{exc.code}: {exc}")
@@ -212,7 +225,7 @@ SURFACES: tuple[Surface, ...] = (
     ),
     Surface(
         name="mobile",
-        capabilities=frozenset({CAP_FEEDBACK}),
+        capabilities=frozenset({CAP_FEEDBACK, CAP_OPTION_INPUTS}),
         submit=_submit_via_mobile,
     ),
 )

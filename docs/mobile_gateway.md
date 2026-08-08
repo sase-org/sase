@@ -452,7 +452,10 @@ curl -sS -X POST "$BASE_URL/api/v1/actions/gate/$PREFIX" \
 ```
 
 When a selected option declares `inputs`, submit its typed value under `option_inputs`,
-keyed by option ID — omitted fields fall back to the option's own declared default:
+keyed by option ID. An omitted optional field reaches the command as absent rather than
+as its declared default — a default is authoring metadata a form seeds its control from,
+never a value the host injects — so send every field the reviewer should be answering
+with:
 
 ```bash
 curl -sS -X POST "$BASE_URL/api/v1/actions/gate/$PREFIX" \
@@ -463,8 +466,22 @@ curl -sS -X POST "$BASE_URL/api/v1/actions/gate/$PREFIX" \
 
 `schema_version` bumped from 4 to 5 to add `option_inputs`; it is an optional field
 (`#[serde(default)]` in the Rust wire struct), so an older client that omits it keeps
-working exactly as before and the host falls back to the legacy shared-value submission
-path.
+working exactly as before and every selected option is judged against its own schema
+with an empty value.
+
+Two submission shapes the other surfaces have are deliberately absent from this wire:
+
+- **No shared `input`.** A bundle authored before `inputs` existed declares a raw
+  `input_schema` and expects one value shared by every selected option. `option_inputs`
+  cannot express that, so if such a schema requires a property, the gate must be
+  answered from `sase gate answer --input` or ACE's raw editor.
+- **No `retry`.** A reviewer who submits a group whose commands partly ran gets the
+  `partial_attempt` error and cannot resume or restart from the phone. This is a dead
+  end, never a silent re-run: use `sase gate answer --resume` / `--restart` or ACE.
+
+`tests/gate_conformance/` runs the shared fixture set through this bridge and skips
+exactly the cases those two gaps cover, so the limitations stay stated rather than
+drifting.
 
 Question prompts support stable option IDs, option indices, labels, and custom free
 text:

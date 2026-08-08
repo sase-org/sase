@@ -16,7 +16,10 @@ agreement here, not by inspection.
 
 Each surface declares the submission capabilities it has today
 (:mod:`tests.gate_conformance._surfaces`). A case that needs a capability a
-surface lacks is skipped with a message naming the phase that will land it,
-so coverage widens by flipping one capability flag rather than by rewriting
-cases.
+surface lacks is skipped with a message stating why that surface cannot
+submit it, so coverage widens by flipping one capability flag rather than by
+rewriting cases. A skip reason is a standing limitation, not a to-do: it says
+what the surface cannot do and what a reviewer must do instead, never that
+some pending work will fix it -- an excuse pointing at a bead outlives the
+bead and silently stops collecting the coverage it deferred.
 """

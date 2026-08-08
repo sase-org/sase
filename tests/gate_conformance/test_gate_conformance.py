@@ -10,6 +10,7 @@ implies the coercion layer was exercised.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,16 @@ import pytest
 from sase.notification_gates.executor import cancel_gate
 from sase.notification_gates.service import create_gate
 from tests.gate_conformance._cases import CASE_BUILDERS, ConformanceCase
-from tests.gate_conformance._surfaces import SURFACES, Surface, SurfaceTarget
+from tests.gate_conformance._surfaces import (
+    PENDING_CAPABILITY_PHASES,
+    SURFACES,
+    Surface,
+    SurfaceTarget,
+)
+
+#: A bead id, which a skip reason must never be, since the bead closes and the
+#: reason does not.
+_BEAD_ID = re.compile(r"\bsase-[a-z]?\d+(\.\d+)+\b")
 
 
 @pytest.mark.parametrize("case_id", sorted(CASE_BUILDERS))
@@ -88,6 +98,38 @@ def _assert_rejected(case: ConformanceCase, message: str, bundle_path: Path) -> 
         assert case.expected_error_code in _recorded_error_codes(bundle_path), (
             "every rejection must be diagnosable under errors/"
         )
+
+
+def test_every_surface_gap_states_why_it_cannot_submit() -> None:
+    """A skipped case must name the limitation, not a bead that will close.
+
+    The mobile leg spent this epic skipping ten cases against three entries
+    that all named an already-closed phase, so the coverage they deferred was
+    never collected. A gap has to explain itself, and an entry has to vanish
+    when the surface grows the capability.
+    """
+    declared = {
+        capability for surface in SURFACES for capability in surface.capabilities
+    }
+    surfaces = {surface.name: surface for surface in SURFACES}
+
+    for (surface_name, capability), reason in PENDING_CAPABILITY_PHASES.items():
+        surface = surfaces[surface_name]
+        assert capability in declared, (
+            f"{surface_name} defers an unknown capability {capability!r}"
+        )
+        assert capability not in surface.capabilities, (
+            f"{surface_name} declares {capability!r}; drop its stale excuse"
+        )
+        assert not _BEAD_ID.search(reason), (
+            f"{surface_name}/{capability} defers to a bead: {reason!r}"
+        )
+
+    for surface in SURFACES:
+        for capability in sorted(surface.missing(frozenset(declared))):
+            assert (surface.name, capability) in PENDING_CAPABILITY_PHASES, (
+                f"{surface.name} cannot submit {capability!r} and says nothing"
+            )
 
 
 def _recorded_error_codes(bundle_path: Path) -> set[str]:
