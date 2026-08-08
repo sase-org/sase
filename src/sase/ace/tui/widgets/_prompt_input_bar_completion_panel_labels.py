@@ -55,6 +55,8 @@ def completion_panel_title(
         return token
     if kinds.artifact_ref:
         return _at_reference_panel_title(token, rows, group_directory)
+    if kinds.xprompt_arg_ref:
+        return _xprompt_ref_arg_panel_title(token, rows)
     if kinds.xprompt_arg_agent:
         return "fork targets"
     if kinds.kind == "xprompt_arg_name":
@@ -76,6 +78,29 @@ def completion_panel_title(
     if "/" in token:
         return token[: token.rindex("/") + 1]
     return token
+
+
+def _xprompt_ref_arg_panel_title(
+    token: str,
+    rows: list[CompletionCandidate],
+) -> str:
+    for candidate in rows:
+        metadata = candidate.metadata
+        if isinstance(metadata, ArtifactRefPayloadCompletionMetadata):
+            return (
+                f"ref/{metadata.kind}: {_artifact_ref_payload_source_label(metadata)}"
+            )
+    return "ref payloads" if token else "ref"
+
+
+def _artifact_ref_payload_source_label(
+    metadata: ArtifactRefPayloadCompletionMetadata,
+) -> str:
+    if metadata.source == "document":
+        return "documents"
+    if metadata.source == "file":
+        return "artifacts"
+    return f"{metadata.source}s"
 
 
 def _at_reference_panel_title(

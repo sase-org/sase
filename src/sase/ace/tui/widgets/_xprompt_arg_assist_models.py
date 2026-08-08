@@ -37,6 +37,10 @@ class XPromptAssistEntry:
     skill_name: str | None = None
     """Provider-visible ``/`` name; ``name`` stays the ``#`` reference."""
     memory_type: MemoryType | None = None
+    ref_kind: str | None = None
+    ref_sidecar_role: str | None = None
+    ref_path_globs: tuple[str, ...] | None = None
+    ref_shadowed_sources: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +82,7 @@ class XPromptArgCompletionContext:
         "xprompt_arg_value",
         "xprompt_arg_agent",
         "xprompt_arg_name",
+        "xprompt_arg_ref",
         "xprompt_arg_type_hint",
     ]
     value_start: int

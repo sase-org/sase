@@ -22,6 +22,8 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefCommitCandidate,
     ArtifactRefPayloadCompletionMetadata,
     _ArtifactRefDocumentCandidate,
+    build_artifact_ref_completion_result,
+    detect_artifact_ref_completion_context,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
@@ -30,6 +32,10 @@ from sase.ace.tui.widgets.prompt_path_inventory import (
     PromptPathSnapshot,
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    XPromptInputHint,
+)
 
 from ._artifact_ref_completion_helpers import (
     CATALOG,
@@ -37,6 +43,28 @@ from ._artifact_ref_completion_helpers import (
     seed_paths,
 )
 from ._completion_helpers import CompletionTestApp
+
+
+def _ref_xprompt_entry(kind: str) -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name=f"ref/{kind}",
+        insertion=f"#ref/{kind}",
+        reference_prefix="#",
+        kind="ref",
+        input_signature=None,
+        inputs=(
+            XPromptInputHint(
+                name="path",
+                type="path",
+                required=True,
+                default_display=None,
+                position=0,
+            ),
+        ),
+        content_preview=None,
+        ref_kind=kind,
+        ref_sidecar_role=kind,
+    )
 
 
 async def test_bare_at_opens_artifact_kinds_only() -> None:
@@ -59,6 +87,49 @@ async def test_bare_at_opens_artifact_kinds_only() -> None:
             for row in text_area._file_completion_candidates
         )
         assert text_area._artifact_ref_files_suppressed is True
+
+
+async def test_ref_xprompt_arg_completion_uses_artifact_payload_catalog() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        text_area = app.query_one(PromptTextArea)
+        seed_catalog(text_area, CATALOG)
+        text_area._xprompt_arg_assist_entries_by_project[None] = [
+            _ref_xprompt_entry("plans")
+        ]
+        text_area.load_text("#ref/plans:202607/")
+        text_area.cursor_location = (0, len(text_area.text))
+
+        await pilot.press("ctrl+t")
+
+        at_context = detect_artifact_ref_completion_context(
+            "@plans:202607/",
+            len("@plans:202607/"),
+            CATALOG.kinds,
+        )
+        assert at_context is not None
+        at_result = build_artifact_ref_completion_result(at_context, CATALOG)
+        assert text_area.text == "#ref/plans:202607/"
+        assert text_area._completion_kind == "xprompt_arg_ref"
+        assert [row.insertion for row in text_area._file_completion_candidates] == [
+            row.insertion.removeprefix("@plans:") for row in at_result.candidates
+        ]
+        assert all(
+            isinstance(row.metadata, ArtifactRefPayloadCompletionMetadata)
+            for row in text_area._file_completion_candidates
+        )
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "ref/plans: documents"
+
+        selected_payload = text_area._file_completion_candidates[
+            text_area._file_completion_index
+        ].insertion
+        await pilot.press("ctrl+l")
+
+    assert text_area.text == f"#ref/plans:{selected_payload}"
+    assert text_area._file_completion_active is False
 
 
 async def test_ctrl_t_reveals_gated_files_before_accepting_lone_kind() -> None:

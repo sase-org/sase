@@ -261,6 +261,10 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
                 "" if artifact_ctx is None else artifact_ctx.prefix
             )
             return True
+        if self._completion_kind == "xprompt_arg_ref":
+            arg_ctx = self._get_xprompt_arg_completion_context()
+            self._update_file_completion_panel("" if arg_ctx is None else arg_ctx.token)
+            return True
         ctx = self._get_token_context()
         self._update_file_completion_panel("" if ctx is None else ctx[3])
         return True
@@ -278,6 +282,8 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             return self._accept_vcs_repo_completion(selected)
         if self._completion_kind == ARTIFACT_REF_COMPLETION_KIND:
             return self._accept_artifact_ref_completion(selected)
+        if self._completion_kind == "xprompt_arg_ref":
+            return self._accept_ref_xprompt_arg_completion(selected)
         if self._completion_kind == "jinja":
             jinja_result = build_jinja_completion_result(
                 self.text,
@@ -393,6 +399,35 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
                 self._refresh_xprompt_arg_hint_from_cursor()
             else:
                 self._clear_xprompt_arg_hint()
+        return True
+
+    def _accept_ref_xprompt_arg_completion(
+        self,
+        selected: CompletionCandidate,
+    ) -> bool:
+        """Accept a payload candidate inside ``#ref/<kind>`` argument syntax."""
+        ctx = self._get_xprompt_arg_completion_context()
+        if ctx is None or ctx.completion_kind != "xprompt_arg_ref":
+            self._clear_file_completion(clear_xprompt_arg_hint=False)
+            self._refresh_xprompt_arg_hint_from_cursor()
+            return False
+        result = self._ref_xprompt_arg_completion_result(ctx)
+        if (
+            result is None
+            or not selected.insertion
+            or selected.insertion
+            not in {candidate.insertion for candidate in result.candidates}
+        ):
+            self._clear_file_completion(clear_xprompt_arg_hint=False)
+            self._refresh_xprompt_arg_hint_from_cursor()
+            return False
+        self._replace_absolute_range(
+            ctx.value_start,
+            ctx.value_end,
+            selected.insertion,
+        )
+        self._clear_file_completion(clear_xprompt_arg_hint=False)
+        self._refresh_xprompt_arg_hint_from_cursor()
         return True
 
     def _accept_artifact_ref_completion(

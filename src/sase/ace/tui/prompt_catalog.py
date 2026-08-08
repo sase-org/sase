@@ -7,6 +7,7 @@ snapshot on the UI thread.
 
 from __future__ import annotations
 
+import importlib.resources
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,9 +22,11 @@ from sase.content_layout import (
     discover_project_root,
     resolve_memory_file_sources,
     resolve_project_layout,
+    resolve_ref_file_sources,
     resolve_xprompt_file_sources,
 )
 from sase.core.snippet_catalog_facade import compose_snippet_catalog
+from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     detect_project,
     get_all_xprompts,
@@ -148,12 +151,18 @@ def _prompt_source_token(projects: Iterable[str | None]) -> tuple[Any, ...]:
         for project in project_tuple
         for directory in _memory_source_dirs(project)
     ]
+    ref_dirs = [
+        directory
+        for project in project_tuple
+        for directory in _ref_source_dirs(project)
+    ]
     return (
         ("projects", project_tuple),
         ("config", current_config_token()),
         ("xprompt_files", _prompt_file_tokens(get_xprompt_search_paths())),
         ("project_files", _project_prompt_file_tokens(project_dirs)),
         ("memory_files", _prompt_file_tokens(memory_dirs)),
+        ("ref_files", _prompt_file_tokens(ref_dirs)),
     )
 
 
@@ -172,6 +181,11 @@ def prompt_source_watch_paths(projects: Iterable[str | None]) -> list[Path]:
             directory
             for project in _normalize_prompt_catalog_projects(projects)
             for directory in _memory_source_dirs(project)
+        ],
+        *[
+            directory
+            for project in _normalize_prompt_catalog_projects(projects)
+            for directory in _ref_source_dirs(project)
         ],
         *[path.parent for path in _project_config_paths()],
     ]
@@ -200,7 +214,7 @@ def prompt_source_change_touches_config(changed_paths: Iterable[Path]) -> bool:
         path = raw_path.expanduser()
         if path == CONFIG_DIR:
             return True
-        if path.name == "sase.yml":
+        if path.name in {"sase.yml", "default_config.yml"}:
             return True
         if path.name.startswith("sase_") and path.suffix.lower() in {
             ".yml",
@@ -265,6 +279,46 @@ def _memory_source_dirs(project: str | None) -> tuple[Path, ...]:
     else:
         sources = resolve_memory_file_sources(project=canonical)
     roots = [candidate for source in sources for candidate in source.paths.candidates]
+    return tuple(dict.fromkeys(roots))
+
+
+def _ref_source_dirs(project: str | None) -> tuple[Path, ...]:
+    """Return editable ref roots that can contribute ``ref/<kind>`` entries."""
+    canonical = canonical_xprompt_project(project) if project is not None else None
+    detected = canonical_xprompt_project(detect_project())
+    if canonical is not None and detected != canonical:
+        workspace = known_project_namespaces().get(canonical)
+        if workspace is not None:
+            sources = resolve_ref_file_sources(
+                project=canonical,
+                project_root=workspace,
+            )
+        else:
+            sources = resolve_ref_file_sources(project=canonical)
+    else:
+        sources = resolve_ref_file_sources(project=canonical)
+    roots = [
+        *[source.path for source in sources if source.path is not None],
+        *_plugin_ref_source_dirs(),
+    ]
+    return tuple(dict.fromkeys(roots))
+
+
+def _plugin_ref_source_dirs() -> tuple[Path, ...]:
+    if is_plugin_disabled("XPROMPTS"):
+        return ()
+    roots: list[Path] = []
+    for module in discover_plugin_resources("sase_xprompts"):
+        try:
+            resource = importlib.resources.files(module).joinpath("refs")
+        except (TypeError, AttributeError):
+            continue
+        candidate = Path(str(resource))
+        try:
+            if candidate.is_dir():
+                roots.append(candidate)
+        except OSError:
+            continue
     return tuple(dict.fromkeys(roots))
 
 

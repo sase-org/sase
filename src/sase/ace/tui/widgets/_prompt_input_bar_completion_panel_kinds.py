@@ -52,6 +52,7 @@ class CompletionPanelKinds:
     vcs_ref: bool
     vcs_repo: bool
     artifact_ref: bool
+    xprompt_arg_ref: bool
 
     @classmethod
     def classify(
@@ -84,6 +85,7 @@ class CompletionPanelKinds:
             vcs_ref=completion_kind == VCS_REF_COMPLETION_KIND,
             vcs_repo=completion_kind == VCS_REPO_COMPLETION_KIND,
             artifact_ref=completion_kind == ARTIFACT_REF_COMPLETION_KIND,
+            xprompt_arg_ref=completion_kind == "xprompt_arg_ref",
         )
 
 

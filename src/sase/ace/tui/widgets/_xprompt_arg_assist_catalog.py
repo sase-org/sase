@@ -44,6 +44,10 @@ def build_xprompt_assist_entries(
             is_skill=entry.is_skill,
             skill_name=entry.skill_name,
             memory_type=entry.memory_type,
+            ref_kind=entry.ref_kind,
+            ref_sidecar_role=entry.ref_sidecar_role,
+            ref_path_globs=entry.ref_path_globs,
+            ref_shadowed_sources=entry.ref_shadowed_sources,
         )
         for entry in projection.entries
     ]
@@ -72,6 +76,10 @@ def xprompt_assist_entry_from_workflow(
             workflow.get_prompt_part_content() if workflow.is_simple_xprompt() else None
         ),
         memory_type=workflow.memory_type,
+        ref_kind=workflow.ref_kind,
+        ref_sidecar_role=workflow.ref_sidecar_role,
+        ref_path_globs=workflow.ref_path_globs,
+        ref_shadowed_sources=workflow.ref_shadowed_sources,
     )
 
 

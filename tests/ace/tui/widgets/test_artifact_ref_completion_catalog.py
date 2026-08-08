@@ -22,6 +22,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefPayloadCompletionMetadata,
     _ArtifactRefDocumentCandidate,
     build_artifact_ref_completion_result,
+    build_ref_xprompt_arg_completion_result,
     detect_artifact_ref_completion_context,
     load_artifact_ref_completion_catalog,
 )
@@ -132,6 +133,77 @@ def test_document_catalog_loads_each_role_without_prompt_corpus_starvation(
     assert metadata.title_match == ((5, 9),)
     assert metadata.match_tier == 2
     assert result.truncated_payloads == 0
+
+
+def test_document_catalog_filters_role_payloads_with_shared_matcher(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "plans"
+    plans.mkdir()
+    context = ArtifactRefContext(
+        document_roots=(
+            ArtifactRefDocumentRoot(
+                "plans",
+                plans,
+                path_globs=("**/*.md", "!secret/**"),
+            ),
+        ),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "missing-index.jsonl",
+        repositories=(),
+        projects=(),
+    )
+
+    def match(relpath: str, title: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            plan=SimpleNamespace(
+                relpath=relpath,
+                title=title,
+                created_at="2026-07-30T00:00:00Z",
+            )
+        )
+
+    def search(**_kwargs):
+        return [
+            match("README.md", "Root Markdown"),
+            match("docs/guide.md", "Guide"),
+            match("docs/data.json", "JSON"),
+            match("secret/hidden.md", "Hidden"),
+        ]
+
+    with (
+        patch("sase.plan_search.facade.search", side_effect=search),
+        patch("sase.history.chat_storage.iter_chat_files", return_value=()),
+    ):
+        catalog = load_artifact_ref_completion_catalog(None, context)
+
+    assert [(row.kind, row.payload) for row in catalog.documents] == [
+        ("plans", "README.md"),
+        ("plans", "docs/guide.md"),
+    ]
+    assert catalog.payload_truncation["plans"] == 0
+
+
+def test_ref_xprompt_arg_payload_rows_match_at_reference_payload_rows() -> None:
+    at_context = detect_artifact_ref_completion_context(
+        "@plans:",
+        len("@plans:"),
+        _CATALOG.kinds,
+    )
+    assert at_context is not None
+    at_result = build_artifact_ref_completion_result(at_context, _CATALOG)
+    ref_result = build_ref_xprompt_arg_completion_result("plans", "", _CATALOG)
+    assert ref_result is not None
+
+    assert [candidate.insertion for candidate in ref_result.candidates] == [
+        candidate.insertion.removeprefix("@plans:")
+        for candidate in at_result.candidates
+    ]
+    assert [candidate.metadata for candidate in ref_result.candidates] == [
+        candidate.metadata for candidate in at_result.candidates
+    ]
+    assert ref_result.payload_count == at_result.payload_count
+    assert ref_result.payload_total == at_result.payload_total
 
 
 def test_warm_payload_index_and_metadata_are_reused_across_keystrokes() -> None:

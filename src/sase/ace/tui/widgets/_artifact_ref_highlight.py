@@ -49,12 +49,14 @@ class _KnownKindsResult:
     kinds: frozenset[str]
     catalog: ArtifactRefCompletionCatalog | None = None
     context: ArtifactRefContext | None = None
+    generation: int = 0
 
 
 def _load_known_artifact_ref_kinds(
     project: str | None,
     workspace_dir: str | None,
     workspace_num: int,
+    generation: int = 0,
 ) -> _KnownKindsResult:
     """Load known kinds from the workspace represented by the cache key.
 
@@ -87,12 +89,14 @@ def _load_known_artifact_ref_kinds(
             project,
             kinds,
             ArtifactRefCompletionCatalog(project, tuple(BUILTIN_ARTIFACT_REF_KINDS)),
+            generation=generation,
         )
     return _KnownKindsResult(
         project,
         frozenset(context.known_kinds),
         load_artifact_ref_completion_catalog(project, context),
         context,
+        generation,
     )
 
 
@@ -107,6 +111,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
         _artifact_ref_kind_worker_projects: dict[str, str | None]
         _artifact_ref_kinds_warming: set[str | None]
         _artifact_ref_contexts_by_project: dict[str | None, ArtifactRefContext]
+        _artifact_ref_catalog_generation: int
 
         def _append_highlight_span(
             self,
@@ -125,6 +130,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
         self._artifact_ref_contexts_by_project = {}
         self._artifact_ref_kinds_warming = set()
         self._artifact_ref_kind_worker_projects = {}
+        self._artifact_ref_catalog_generation = 0
         super().__init__(*args, **kwargs)
 
     def on_mount(self) -> None:
@@ -265,11 +271,15 @@ class ArtifactRefHighlightMixin(_MixinBase):
         )
         self._artifact_ref_kinds_warming.add(project)
         self._artifact_ref_kind_worker_projects[worker_name] = project
+        generation = self._artifact_ref_catalog_generation
         self.run_worker(
-            lambda: _load_known_artifact_ref_kinds(
-                project,
-                workspace_dir,
-                workspace_num,
+            lambda: dataclasses.replace(
+                _load_known_artifact_ref_kinds(
+                    project,
+                    workspace_dir,
+                    workspace_num,
+                ),
+                generation=generation,
             ),
             name=worker_name,
             group=_ARTIFACT_REF_WORKER_GROUP,
@@ -291,6 +301,13 @@ class ArtifactRefHighlightMixin(_MixinBase):
         if event.state == WorkerState.SUCCESS:
             result = event.worker.result
             if isinstance(result, _KnownKindsResult):
+                if result.generation != self._artifact_ref_catalog_generation:
+                    self._artifact_ref_kinds_warming.discard(result.project)
+                    self._artifact_ref_kind_worker_projects.pop(
+                        event.worker.name,
+                        None,
+                    )
+                    return
                 self._artifact_ref_known_kinds_by_project[result.project] = result.kinds
                 if result.catalog is not None:
                     self._artifact_ref_completion_catalogs_by_project[
@@ -308,7 +325,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
                     result.catalog is not None
                     and getattr(self, "_file_completion_active", False)
                     and getattr(self, "_completion_kind", "")
-                    == ARTIFACT_REF_COMPLETION_KIND
+                    in {ARTIFACT_REF_COMPLETION_KIND, "xprompt_arg_ref"}
                     and self._xprompt_arg_assist_project_from_text() == result.project
                 ):
                     refresh_completion = getattr(
@@ -329,6 +346,22 @@ class ArtifactRefHighlightMixin(_MixinBase):
         handler = getattr(super(), "on_worker_state_changed", None)
         if callable(handler):
             handler(event)
+
+    def invalidate_artifact_ref_completion_cache(self) -> None:
+        """Drop warm ref catalogs after xprompt/ref source configuration changes."""
+        self._artifact_ref_catalog_generation += 1
+        self._artifact_ref_known_kinds_by_project.clear()
+        self._artifact_ref_completion_catalogs_by_project.clear()
+        self._artifact_ref_contexts_by_project.clear()
+        self._artifact_ref_kinds_warming.clear()
+        self._artifact_ref_kind_worker_projects.clear()
+        if getattr(self, "_completion_kind", "") in {
+            ARTIFACT_REF_COMPLETION_KIND,
+            "xprompt_arg_ref",
+        }:
+            self._warm_current_artifact_ref_completion_catalog()
+        self._build_highlight_map()
+        self.refresh()
 
     def _register_artifact_ref_text_area_theme(
         self,

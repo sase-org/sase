@@ -66,6 +66,7 @@ _wire_match_runs = _menu.wire_match_runs
 _build_catalog_payload_memos = _menu.build_catalog_payload_memos
 _index_payload_rows = _menu.index_payload_rows
 _snapshot_payload_memo = _menu.snapshot_payload_memo
+_build_ref_xprompt_arg_completion_result = _menu.build_ref_xprompt_arg_completion_result
 
 
 def at_reference_leading_match_count(
@@ -115,6 +116,29 @@ def build_artifact_ref_completion_result(
         _menu_builder=at_reference_menu,
         _inventory_builder=at_reference_inventory,
         _payload_inventory_builder=_payload_inventory,
+    )
+
+
+def build_ref_xprompt_arg_completion_result(
+    ref_kind: str,
+    token: str,
+    catalog: ArtifactRefCompletionCatalog,
+    *,
+    commits: Sequence[ArtifactRefCommitCandidate] = (),
+    commits_loading: bool = False,
+    commits_truncated_payloads: int = 0,
+    bugs: Sequence[ArtifactRefBugCandidate] = (),
+) -> ArtifactRefCompletionResult | None:
+    """Build payload-only completion rows for one ``#ref/<kind>`` argument."""
+    return _menu.build_ref_xprompt_arg_completion_result(
+        ref_kind,
+        token,
+        catalog,
+        commits=commits,
+        commits_loading=commits_loading,
+        commits_truncated_payloads=commits_truncated_payloads,
+        bugs=bugs,
+        _result_builder=build_artifact_ref_completion_result,
     )
 
 
@@ -208,6 +232,7 @@ __all__ = [
     "ArtifactRefPayloadCompletionMetadata",
     "at_reference_leading_match_count",
     "build_artifact_ref_completion_result",
+    "build_ref_xprompt_arg_completion_result",
     "detect_artifact_ref_completion_context",
     "load_artifact_ref_completion_catalog",
 ]

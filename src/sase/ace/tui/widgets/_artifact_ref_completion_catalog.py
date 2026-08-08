@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.artifact_refs import ArtifactRefContext
+from sase.artifact_refs import ArtifactRefContext, filter_artifact_ref_paths
 from sase.ace.tui.widgets import _artifact_ref_entity_catalogs as entity_catalogs
 from sase.ace.tui.widgets._artifact_ref_completion_menu import (
     ArtifactRefCompletionCatalog,
@@ -134,10 +134,12 @@ def load_document_candidate_catalog(
     """Load each document role independently so large roles cannot starve peers."""
     corpora_by_role: dict[str, list[tuple[Path, str]]] = {}
     role_names: dict[str, str] = {}
+    path_globs_by_role: dict[str, tuple[str, ...] | None] = {}
     for root in context.document_roots:
         folded = root.kind.casefold()
         role_names.setdefault(folded, root.kind)
         corpora_by_role.setdefault(folded, []).append((root.root, root.kind))
+        path_globs_by_role.setdefault(folded, root.path_globs)
     if not corpora_by_role:
         return ArtifactRefLoadedCandidates(())
 
@@ -173,23 +175,47 @@ def load_document_candidate_catalog(
             if key in seen:
                 continue
             seen.add(key)
-            if len(role_rows) < max_rows_per_kind:
-                role_rows.append(
-                    ArtifactRefDocumentCandidate(
-                        kind=role,
-                        payload=plan.relpath,
-                        title=plan.title,
-                        created_at=plan.created_at,
-                    )
+            role_rows.append(
+                ArtifactRefDocumentCandidate(
+                    kind=role,
+                    payload=plan.relpath,
+                    title=plan.title,
+                    created_at=plan.created_at,
                 )
-        rows.extend(role_rows)
+            )
+        filtered_rows = _filter_document_rows(
+            role,
+            role_rows,
+            path_globs=path_globs_by_role.get(folded),
+        )
+        rows.extend(filtered_rows[:max_rows_per_kind])
         truncated.append(
             (
                 folded,
-                max(0, len(seen) - max_rows_per_kind),
+                max(0, len(filtered_rows) - max_rows_per_kind),
             )
         )
     return ArtifactRefLoadedCandidates(tuple(rows), tuple(truncated))
+
+
+def _filter_document_rows(
+    role: str,
+    rows: list[ArtifactRefDocumentCandidate],
+    *,
+    path_globs: tuple[str, ...] | None,
+) -> tuple[ArtifactRefDocumentCandidate, ...]:
+    if not rows:
+        return ()
+    try:
+        filter_result = filter_artifact_ref_paths(
+            role,
+            tuple(row.payload for row in rows),
+            path_globs=path_globs,
+        )
+    except Exception:
+        return ()
+    allowed_payloads = set(filter_result.allowed)
+    return tuple(row for row in rows if row.payload in allowed_payloads)
 
 
 def load_artifact_file_candidate_catalog(

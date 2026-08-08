@@ -281,9 +281,19 @@ class StartupPromptCatalogMixin:
             if not getattr(text_area, "is_mounted", False):
                 continue
             try:
-                if getattr(text_area, "_file_completion_active", False) and str(
-                    getattr(text_area, "_completion_kind", "")
-                ).startswith("xprompt"):
+                completion_kind = str(getattr(text_area, "_completion_kind", ""))
+                invalidate_artifact_refs = getattr(
+                    text_area,
+                    "invalidate_artifact_ref_completion_cache",
+                    None,
+                )
+                if callable(invalidate_artifact_refs):
+                    invalidate_artifact_refs()
+                if (
+                    getattr(text_area, "_file_completion_active", False)
+                    and completion_kind.startswith("xprompt")
+                    and completion_kind != "xprompt_arg_ref"
+                ):
                     text_area._refresh_file_completion_from_cursor()
                 if getattr(text_area, "_active_xprompt_arg_hint", None) is not None:
                     text_area._refresh_xprompt_arg_hint_from_cursor()
