@@ -38,6 +38,17 @@ class _FakePumpApp:
         callback()
 
 
+class _FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
 @pytest.mark.asyncio
 async def test_watchdog_emits_nothing_while_loop_progresses(
     tmp_path: Path,
@@ -66,23 +77,22 @@ async def test_watchdog_records_one_stall_with_stack_and_context(
 ) -> None:
     path = tmp_path / "tui_stalls.jsonl"
     monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    clock = _FakeClock()
     watchdog = _EventLoopStallWatchdog(
         asyncio.get_running_loop(),
         threshold_seconds=0.05,
         poll_interval_seconds=0.01,
+        monotonic=clock.monotonic,
         context_provider=lambda: {
             "current_tab": "agents",
             "last_action": "launch",
             "last_keypress_age_s": 1.25,
         },
     )
-    try:
-        watchdog.start()
-        await asyncio.sleep(0.03)
-        time.sleep(0.14)
-        await _wait_for_path(path)
-    finally:
-        watchdog.stop()
+
+    assert watchdog._poll_once() is True
+    clock.advance(0.06)
+    assert watchdog._poll_once() is True
 
     records = [json.loads(line) for line in path.read_text().splitlines()]
     assert len(records) == 1
@@ -103,18 +113,19 @@ async def test_watchdog_writes_loop_recovery_record(
 ) -> None:
     path = tmp_path / "tui_stalls.jsonl"
     monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    clock = _FakeClock()
     watchdog = _EventLoopStallWatchdog(
         asyncio.get_running_loop(),
         threshold_seconds=0.05,
         poll_interval_seconds=0.01,
+        monotonic=clock.monotonic,
     )
-    try:
-        watchdog.start()
-        await asyncio.sleep(0.03)
-        time.sleep(0.14)
-        await _wait_for_event(path, "tui_stall_recovered")
-    finally:
-        watchdog.stop()
+
+    assert watchdog._poll_once() is True
+    clock.advance(0.06)
+    assert watchdog._poll_once() is True
+    await asyncio.sleep(0)
+    assert watchdog._poll_once() is True
 
     records = _read_records(path)
     assert [record["event"] for record in records] == [
@@ -153,11 +164,13 @@ async def test_watchdog_records_compact_loop_hitch_and_recovery(
 ) -> None:
     path = tmp_path / "tui_stalls.jsonl"
     monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    clock = _FakeClock()
     watchdog = _EventLoopStallWatchdog(
         asyncio.get_running_loop(),
         threshold_seconds=1.0,
         hitch_threshold_seconds=0.05,
         poll_interval_seconds=0.01,
+        monotonic=clock.monotonic,
         context_provider=lambda: {
             "current_tab": "agents",
             "current_idx": 7,
@@ -165,29 +178,17 @@ async def test_watchdog_records_compact_loop_hitch_and_recovery(
             "last_keypress_age_s": 0.8,
         },
     )
-    try:
-        watchdog.start()
-        await asyncio.sleep(0.03)
-        time.sleep(0.14)
-        await _wait_for_balanced_hitch_events(path)
-    finally:
-        watchdog.stop()
+
+    assert watchdog._poll_once() is True
+    clock.advance(0.06)
+    assert watchdog._poll_once() is True
+    await asyncio.sleep(0)
+    assert watchdog._poll_once() is True
 
     records = _read_records(path)
     events = [record["event"] for record in records]
-    # Under host contention, the pre-block `await asyncio.sleep(0.03)` settle
-    # can itself overrun the 0.05s hitch threshold (same mechanism as
-    # test_watchdog_keeps_hitch_and_stall_state_machines_independent),
-    # recording an extra tui_hitch/tui_hitch_recovered pair before the
-    # deliberate `time.sleep(0.14)` block. The hitch state machine only ever
-    # has one episode in flight, so pairs are strictly ordered in the file and
-    # the deliberate block's pair is always last; _wait_for_balanced_hitch_events
-    # (rather than waiting for the first tui_hitch_recovered) guards against
-    # returning while that last pair is still mid-flight.
-    assert len(events) >= 2
-    assert len(events) % 2 == 0
-    assert events[-2:] == ["tui_hitch", "tui_hitch_recovered"]
-    hitch, recovery = records[-2:]
+    assert events == ["tui_hitch", "tui_hitch_recovered"]
+    hitch, recovery = records
     assert hitch["stall_seconds"] >= 0.05
     assert hitch["suppressed_count"] == 0
     assert hitch["current_tab"] == "agents"
@@ -208,33 +209,30 @@ async def test_watchdog_keeps_hitch_and_stall_state_machines_independent(
 ) -> None:
     path = tmp_path / "tui_stalls.jsonl"
     monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    clock = _FakeClock()
     watchdog = _EventLoopStallWatchdog(
         asyncio.get_running_loop(),
         threshold_seconds=0.08,
         hitch_threshold_seconds=0.03,
         poll_interval_seconds=0.01,
+        monotonic=clock.monotonic,
     )
-    try:
-        watchdog.start()
-        await asyncio.sleep(0.03)
-        time.sleep(0.14)
-        await _wait_for_event(path, "tui_stall_recovered")
-    finally:
-        watchdog.stop()
+
+    assert watchdog._poll_once() is True
+    clock.advance(0.04)
+    assert watchdog._poll_once() is True
+    clock.advance(0.05)
+    assert watchdog._poll_once() is True
+    await asyncio.sleep(0)
+    assert watchdog._poll_once() is True
 
     events = [record["event"] for record in _read_records(path)]
-    # Counts are `>= 1` rather than `== 1`: under host contention, the
-    # pre-block `await asyncio.sleep(0.03)` settle can itself overrun the
-    # 0.03s hitch threshold (both loop scheduling and the watchdog's poll
-    # thread share the same contended host), recording an extra
-    # tui_hitch/tui_hitch_recovered pair before the deliberate block. The
-    # invariant this test cares about — the two state machines fire
-    # independently and hitch precedes stall — holds regardless.
-    assert events.count("tui_hitch") >= 1
-    assert events.count("tui_stall") >= 1
-    assert events.count("tui_hitch_recovered") >= 1
-    assert events.count("tui_stall_recovered") >= 1
-    assert events.index("tui_hitch") < events.index("tui_stall")
+    assert events == [
+        "tui_hitch",
+        "tui_stall",
+        "tui_hitch_recovered",
+        "tui_stall_recovered",
+    ]
 
 
 @pytest.mark.asyncio
@@ -305,6 +303,7 @@ async def test_watchdog_records_compact_pump_hitch_and_recovery(
     path = tmp_path / "tui_stalls.jsonl"
     monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
     pump = _FakePumpApp()
+    clock = _FakeClock()
     watchdog = _EventLoopStallWatchdog(
         asyncio.get_running_loop(),
         pump_app=pump,
@@ -314,19 +313,24 @@ async def test_watchdog_records_compact_pump_hitch_and_recovery(
         pump_threshold_seconds=1.0,
         pump_hitch_threshold_seconds=0.05,
         pump_poll_interval_seconds=0.01,
+        monotonic=clock.monotonic,
     )
-    try:
-        watchdog.start()
-        await _wait_for_event(path, "tui_pump_hitch")
-        assert len(pump.callbacks) == 1
-        pump.deliver()
-        await _wait_for_event(path, "tui_pump_hitch_recovered")
-    finally:
-        watchdog.stop()
+
+    clock.advance(0.01)
+    assert watchdog._poll_once() is True
+    clock.advance(0.06)
+    assert watchdog._poll_once() is True
+    await asyncio.sleep(0)
+    assert len(pump.callbacks) == 1
+    pump.deliver()
+    assert watchdog._poll_once() is True
 
     records = _read_records(path)
-    hitch = next(r for r in records if r["event"] == "tui_pump_hitch")
-    recovery = next(r for r in records if r["event"] == "tui_pump_hitch_recovered")
+    assert [record["event"] for record in records] == [
+        "tui_pump_hitch",
+        "tui_pump_hitch_recovered",
+    ]
+    hitch, recovery = records
     assert hitch["stall_seconds"] >= 0.05
     assert hitch["main_thread_stack"]
     assert "asyncio_task_stacks" not in hitch
@@ -498,25 +502,25 @@ async def test_nested_pause_requires_final_resume_before_detection(
 ) -> None:
     path = tmp_path / "tui_stalls.jsonl"
     monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    clock = _FakeClock()
     watchdog = _EventLoopStallWatchdog(
         asyncio.get_running_loop(),
         threshold_seconds=0.05,
         poll_interval_seconds=0.01,
+        monotonic=clock.monotonic,
     )
-    try:
-        watchdog.start()
-        watchdog.pause()
-        watchdog.pause()  # depth 2
-        watchdog.resume()  # depth 1 — still paused
-        time.sleep(0.15)  # blocked but still paused → no record
-        await asyncio.sleep(0.03)
-        assert not path.exists()
-        watchdog.resume()  # depth 0 — detection restored
-        await asyncio.sleep(0.03)  # warm up
-        time.sleep(0.15)  # real block → exactly one stall
-        await _wait_for_path(path)
-    finally:
-        watchdog.stop()
+
+    watchdog.pause()
+    watchdog.pause()
+    watchdog.resume()
+    clock.advance(0.15)
+    assert watchdog._poll_once() is True
+    assert not path.exists()
+
+    watchdog.resume()
+    assert watchdog._poll_once() is True
+    clock.advance(0.06)
+    assert watchdog._poll_once() is True
 
     records = [json.loads(line) for line in path.read_text().splitlines()]
     assert len(records) == 1
@@ -620,24 +624,3 @@ async def _wait_for_event(path: Path, event: str) -> None:
             return
         await asyncio.sleep(0.01)
     raise AssertionError(f"{event} was not written to {path}")
-
-
-async def _wait_for_balanced_hitch_events(path: Path) -> None:
-    """Wait until every recorded ``tui_hitch`` has a matching recovery.
-
-    A bare wait for the first ``tui_hitch_recovered`` can return while a
-    later (deliberate) hitch is still mid-flight, if an earlier spurious
-    hitch/recovery pair already satisfied it — see
-    test_watchdog_records_compact_loop_hitch_and_recovery.
-    """
-    deadline = time.monotonic() + 2.0
-    while time.monotonic() < deadline:
-        records = _read_records(path)
-        hitches = sum(1 for record in records if record["event"] == "tui_hitch")
-        recoveries = sum(
-            1 for record in records if record["event"] == "tui_hitch_recovered"
-        )
-        if hitches > 0 and hitches == recoveries:
-            return
-        await asyncio.sleep(0.01)
-    raise AssertionError(f"tui_hitch/tui_hitch_recovered never balanced in {path}")

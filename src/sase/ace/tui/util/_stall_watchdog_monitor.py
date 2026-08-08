@@ -7,6 +7,7 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 from ._stall_watchdog_config import (
@@ -60,8 +61,10 @@ class EventLoopStallWatchdog(StallRecordMixin):
         hitch_rate_limit_per_minute: int = DEFAULT_HITCH_RATE_LIMIT_PER_MINUTE,
         hitch_rate_limit_window_seconds: float = HITCH_RATE_LIMIT_WINDOW_SECONDS,
         loop_thread_ident: int | None = None,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._loop = loop
+        self._monotonic = monotonic
         self._hitch_enabled = (
             os.environ.get(ENV_HITCH_DISABLE, "").lower() not in _TRUTHY
         )
@@ -126,7 +129,7 @@ class EventLoopStallWatchdog(StallRecordMixin):
         self._loop_thread_ident = loop_thread_ident or threading.get_ident()
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
-        self._last_progress_mono = time.monotonic()
+        self._last_progress_mono = self._monotonic()
         self._ping_pending = False
         self._in_hitch = False
         self._hitch_started_mono: float | None = None
@@ -181,7 +184,7 @@ class EventLoopStallWatchdog(StallRecordMixin):
         """
         with self._lock:
             self._pause_depth += 1
-            self._last_progress_mono = time.monotonic()
+            self._last_progress_mono = self._monotonic()
             self._reset_pump_state_locked()
 
     def resume(self) -> None:
@@ -198,7 +201,7 @@ class EventLoopStallWatchdog(StallRecordMixin):
             self._pause_depth -= 1
             if self._pause_depth > 0:
                 return
-            self._last_progress_mono = time.monotonic()
+            self._last_progress_mono = self._monotonic()
             self._ping_pending = False
             self._in_hitch = False
             self._hitch_started_mono = None
@@ -209,48 +212,53 @@ class EventLoopStallWatchdog(StallRecordMixin):
 
     def _run(self) -> None:
         while not self._stop_event.wait(self._poll_interval_seconds):
-            if self._loop.is_closed():
+            if not self._poll_once():
                 return
-            now_mono = time.monotonic()
-            with self._lock:
-                paused = self._pause_depth > 0
-                if paused:
-                    self._last_progress_mono = now_mono
+
+    def _poll_once(self) -> bool:
+        if self._loop.is_closed():
+            return False
+        now_mono = self._monotonic()
+        with self._lock:
+            paused = self._pause_depth > 0
             if paused:
-                continue
-            self._schedule_ping()
-            self._schedule_pump_ping(now_mono)
-            with self._lock:
-                gap = now_mono - self._last_progress_mono
-                in_hitch = self._in_hitch
-                in_stall = self._in_stall
-                pump_started = self._pump_ping_started_mono
-                pump_gap = (
-                    now_mono - pump_started
-                    if self._pump_ping_pending and pump_started is not None
-                    else 0.0
-                )
-                pump_in_hitch = self._pump_in_hitch
-                pump_in_stall = self._pump_in_stall
-            if self._hitch_enabled:
-                if gap >= self._hitch_threshold_seconds and not in_hitch:
-                    self._record_hitch(now_mono, gap)
-                elif gap < self._hitch_threshold_seconds and in_hitch:
-                    self._record_hitch_recovery(now_mono)
-            if gap >= self._threshold_seconds and not in_stall:
-                self._record_stall(now_mono, gap)
-            elif gap < self._threshold_seconds and in_stall:
-                self._record_recovery(now_mono)
-            if self._pump_hitch_enabled:
-                if pump_gap >= self._pump_hitch_threshold_seconds and not pump_in_hitch:
-                    self._record_pump_hitch(now_mono, pump_gap)
-                elif pump_gap < self._pump_hitch_threshold_seconds and pump_in_hitch:
-                    self._record_pump_hitch_recovery(now_mono)
-            if self._pump_stall_enabled:
-                if pump_gap >= self._pump_threshold_seconds and not pump_in_stall:
-                    self._record_pump_stall(now_mono, pump_gap)
-                elif pump_gap < self._pump_threshold_seconds and pump_in_stall:
-                    self._record_pump_recovery(now_mono)
+                self._last_progress_mono = now_mono
+        if paused:
+            return True
+        self._schedule_ping()
+        self._schedule_pump_ping(now_mono)
+        with self._lock:
+            gap = now_mono - self._last_progress_mono
+            in_hitch = self._in_hitch
+            in_stall = self._in_stall
+            pump_started = self._pump_ping_started_mono
+            pump_gap = (
+                now_mono - pump_started
+                if self._pump_ping_pending and pump_started is not None
+                else 0.0
+            )
+            pump_in_hitch = self._pump_in_hitch
+            pump_in_stall = self._pump_in_stall
+        if self._hitch_enabled:
+            if gap >= self._hitch_threshold_seconds and not in_hitch:
+                self._record_hitch(now_mono, gap)
+            elif gap < self._hitch_threshold_seconds and in_hitch:
+                self._record_hitch_recovery(now_mono)
+        if gap >= self._threshold_seconds and not in_stall:
+            self._record_stall(now_mono, gap)
+        elif gap < self._threshold_seconds and in_stall:
+            self._record_recovery(now_mono)
+        if self._pump_hitch_enabled:
+            if pump_gap >= self._pump_hitch_threshold_seconds and not pump_in_hitch:
+                self._record_pump_hitch(now_mono, pump_gap)
+            elif pump_gap < self._pump_hitch_threshold_seconds and pump_in_hitch:
+                self._record_pump_hitch_recovery(now_mono)
+        if self._pump_stall_enabled:
+            if pump_gap >= self._pump_threshold_seconds and not pump_in_stall:
+                self._record_pump_stall(now_mono, pump_gap)
+            elif pump_gap < self._pump_threshold_seconds and pump_in_stall:
+                self._record_pump_recovery(now_mono)
+        return True
 
     def _schedule_ping(self) -> None:
         with self._lock:
@@ -265,7 +273,7 @@ class EventLoopStallWatchdog(StallRecordMixin):
             self._stop_event.set()
 
     def _mark_loop_progress(self) -> None:
-        now_mono = time.monotonic()
+        now_mono = self._monotonic()
         with self._lock:
             self._last_progress_mono = now_mono
             self._ping_pending = False
@@ -309,7 +317,7 @@ class EventLoopStallWatchdog(StallRecordMixin):
     def _reset_pump_state_locked(self) -> None:
         self._pump_ping_pending = False
         self._pump_ping_started_mono = None
-        self._last_pump_ping_mono = time.monotonic()
+        self._last_pump_ping_mono = self._monotonic()
         self._pump_in_hitch = False
         self._pump_hitch_started_mono = None
         self._pump_hitch_was_recorded = False
