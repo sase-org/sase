@@ -421,6 +421,8 @@ test-visual-contention *args: _setup-visual (_header "test-visual-contention")
 #   1/4  tests/ace/tui/util/test_stall_watchdog.py::test_watchdog_records_one_stall_with_stack_and_context
 # The same selection is green unpinned (measured 12.6x faster), which is the
 # point: the pinning, not the selection, is what makes the class deterministic.
+# The contract-set runtime node named above was retired in favor of a
+# deterministic manifest-entry guard; keep the line as historical baseline.
 #
 # Override the CPU list, worker count, or repeat count with
 # SASE_CONTENTION_CPUS, SASE_CONTENTION_WORKERS, and SASE_CONTENTION_REPEAT.

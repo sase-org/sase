@@ -366,11 +366,11 @@ just refresh-contract-manifest   # rewrite tests/contract_manifest.txt from -m c
 marker, so a forgotten refresh surfaces as a test failure rather than a silently stale
 selection. The same module carries a **budget guard** bounding the size of the set:
 every agent pays for it on every `just check`, so growth has to be deliberate. The guard
-measures child CPU of a nested contract run and normalizes it against a fixed
-calibration probe measured the same way, because a raw wall-clock ceiling on a loaded
-host or a small CI runner reads host contention rather than set size.
+asserts a manifest-entry cap calibrated from the current measured serial cost instead of
+timing a nested contract run; timing proved too load-sensitive to use as a correctness
+oracle under real xdist contention.
 
-Both guards live outside the contract set on purpose — regenerating and re-timing the
+Both guards live outside the contract set on purpose — regenerating and re-budgeting the
 whole set from inside that same set would charge every `just check` for it twice — so
 they run only in the exhaustive lane (`just test`, `just check-full`, CI). Marking a
 test and forgetting the refresh therefore survives a `just check`: run `just check-full`
