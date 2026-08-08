@@ -104,7 +104,7 @@ def _assert_no_wait_directives(name: str, task_instruction: str) -> None:
         ),
         (
             "bd/work_task",
-            "Can you complete the work for task bead {{ bead_id }}",
+            "Can you complete the work for the {{ bead_id }} sase task bead",
         ),
     ],
 )
@@ -131,13 +131,11 @@ def test_builtin_phase_and_land_prompts_capture_follow_ups() -> None:
     assert "sase bead create -T task" not in land_body
 
 
-def test_builtin_task_prompt_routes_distinct_follow_ups_through_skill() -> None:
+def test_builtin_task_prompt_defers_commits_to_finalizer() -> None:
     body = get_all_prompts()["bd/work_task"].steps[0].prompt_part
     assert body is not None
 
-    assert "genuinely distinct follow-up work" in body
-    assert "use `/sase_new_task`" in body
-    assert "sase bead create -T task" not in body
+    assert "Do not commit your changes unless/until the finalizer asks you to." in body
 
 
 def test_builtin_plan_review_uses_prompt_archive_and_plan_glob(

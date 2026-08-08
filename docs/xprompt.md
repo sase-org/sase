@@ -1193,7 +1193,7 @@ same name overrides the packaged defaults. Common entries include:
 | `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
 | `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
 | `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`; uses the default queue priority                  |
-| `#bd/work_task`       | Task-agent prompt used by `sase bead work`; routes distinct follow-ups through `/sase_new_task`   |
+| `#bd/work_task`       | Task-agent prompt used by `sase bead work`; defers commits to the finalizer                       |
 | `#bd/land_epic`       | Final lander; reviews all bead notes and routes distinct follow-ups through `/sase_new_task`      |
 | `#bd/review/plan`     | Plan-review helper for an epic plan                                                               |
 | `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
@@ -1226,11 +1226,11 @@ runner's default priority (`10`) when otherwise eligible. Higher-precedence proj
 user, config, and plugin overrides supply their own bodies and may choose a different
 priority.
 
-The bundled task worker invokes `/sase_new_task` before recording a genuinely distinct
-follow-up. The epic lander reviews the epic's own notes and every child note, keeps
-unresolved issues caused by the epic inside that epic, and uses the same skill only for
-distinct follow-ups. Phase workers remain prohibited from creating tasks and instead
-append `PROPOSED FOLLOW-UP:` notes for the lander.
+The bundled task worker reads, completes, and closes its assigned task without
+committing unless the finalizer asks it to. The epic lander reviews the epic's own notes
+and every child note, keeps unresolved issues caused by the epic inside that epic, and
+uses `/sase_new_task` only for distinct follow-ups. Phase workers remain prohibited from
+creating tasks and instead append `PROPOSED FOLLOW-UP:` notes for the lander.
 
 ### Bundled Follow-Up XPrompts
 
