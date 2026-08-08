@@ -822,9 +822,23 @@ sase gate wait --id <request_id> --kind <kind> --timeout 60
 
 Human output is colored and summarizes the selected options, feedback, and response
 path. `-j/--json` emits the stable shape `status`, `selected_option_ids`, `feedback`,
-and `response_path`. Status is `answered`, `cancelled`, or `timeout`, with exit codes 0,
-3, and 4 respectively. A CLI timeout can shorten but never extend the request's own gate
-timeout.
+and `response_path`, plus `input`, `option_inputs`, and `option_results` off the
+write-once response (populated only once the gate is answered) and `operations` — the
+repeatable actions a reviewer ran before deciding, from the execution journal, reported
+regardless of how the gate ended. Status is `answered`, `cancelled`, or `timeout`, with
+exit codes 0, 3, and 4 respectively. A CLI timeout can shorten but never extend the
+request's own gate timeout.
+
+`sase gate answer`, `sase gate act`, and `sase gate show` are the headless counterparts
+to the ACE modals: `answer` selects a branch and supplies each selected option's
+declared input (`--set field=value` typed by its declaration,
+`--option-input <opt>=@file.json` for a whole per-option value, or `--input @file.json`
+for the legacy shared value) and resumes or restarts a partially executed AND branch
+with `--resume` / `--restart`; `act` runs one declared action headlessly, including
+opening `$EDITOR` for an `edit_file` action, without answering the gate; `show` prints a
+gate's declared branches, each option's input fields, and its declared actions, so an
+author can check that the gate they wrote asks for what they intended. See `--help` on
+each for the full flag reference.
 
 For read-only inspection, list recent notifications as either a compact table or stable
 JSON:
@@ -881,9 +895,9 @@ reviewed previews or attachments, and adapter-owned commands. The request record
 continuation mode, optional gate timeout, typed payload, presentation metadata and icon,
 option-query branches, the declared primary branch, options with configurable icons and
 feedback modes, AND-group submit metadata, input/result schemas, and hashes for the
-request and owned resources. Commands are argv arrays executed without a shell. Plan
-editing is the one non-terminal operation: after `$EDITOR` exits, SASE revalidates the
-authored tier and refreshes the reviewed hashes before approval can continue.
+request and owned resources. Commands are argv arrays executed without a shell. A gate
+may also declare repeatable, non-terminal **actions** the reviewer can run any number of
+times without answering the gate; see [Gate actions](#gate-actions) below.
 
 Manual creation succeeds only after the bundle, notification row, and pending-action
 registration are durable. A partial failure is compensated, and retries are idempotent
@@ -904,8 +918,9 @@ AND branches expose one toggle per option and a configurable submit control; the
 AND branch starts expanded. Top-level branches have fixed one-based digit selectors in
 canonical query order, while AND members remain unnumbered and use Space to toggle.
 Enter submits the declared primary branch, Ctrl+S submits the active branch, and `q` or
-Escape cancels the modal. Surfaces submit only `selected_option_ids` and feedback, and
-the shared executor runs the selected commands in query order.
+Escape cancels the modal. Surfaces submit `selected_option_ids`, feedback, and each
+selected option's declared input (see [Gate inputs](#gate-inputs) below), and the shared
+executor runs the selected commands in query order.
 
 Tale plan approval uses `(approve AND commit) OR reject OR feedback`. The approve and
 commit options start selected, the group submit is labeled **Tale**, and the two
@@ -937,6 +952,145 @@ side effects.
 Workflow `HITL` remains a legacy producer, but a HITL notification that references a
 neutral bundle is resolved through the same hash-verified executor in ACE and Telegram.
 Only legacy HITL bundles use the direct response-file writer.
+
+### Gate inputs
+
+An option's command reads its input as **stdin JSON**, never as command arguments —
+templating reviewer-supplied values into `argv` would break the hashed-command trust
+model, so there is no "extra args" escape hatch. An option declares what it needs under
+`inputs`, a closed, declarative vocabulary that compiles into the option's
+`input_schema` at creation time. `input_schema` stays the single enforcement layer: the
+executor validates the submitted value against the compiled schema, so a reader that
+knows nothing about `inputs` still enforces correctly.
+
+```json
+{
+  "id": "restart",
+  "label": "Restart service",
+  "command": { "argv": ["commands/restart"] },
+  "feedback": "optional",
+  "inputs": [
+    {
+      "id": "target_env",
+      "label": "Environment",
+      "type": "enum",
+      "required": true,
+      "choices": ["staging", "production"]
+    },
+    { "id": "delay_seconds", "label": "Delay (seconds)", "type": "int", "default": 0 },
+    { "id": "api_token", "label": "API token", "type": "line", "secret": true }
+  ]
+}
+```
+
+Each field has an `id` (the JSON property name, `^[a-z][a-z0-9_]*$`), a `label`, and a
+`type`:
+
+| `type`  | Compiles to                                 |
+| ------- | ------------------------------------------- |
+| `word`  | Non-empty string with no whitespace         |
+| `line`  | String with no newlines                     |
+| `text`  | Any string                                  |
+| `path`  | Non-empty single-line string                |
+| `agent` | Same as `word`                              |
+| `int`   | Integer                                     |
+| `bool`  | Boolean                                     |
+| `float` | Number                                      |
+| `enum`  | One of a declared, non-empty `choices` list |
+
+`repeatable: true` wraps the compiled fragment in a JSON array. `choices` accepts either
+plain strings or `{value, label}` objects and is required (and only valid) for `enum`.
+`default`, `placeholder`, and `help` are optional; a declared `default` is validated
+against the field's own compiled fragment, so a default no client could submit is a
+creation error rather than a gate that fails on first answer. `secret: true` reaches the
+command's stdin unredacted but is written to `response.json` and the execution journal
+as `{"$redacted": true}` — masked display alone would not be enough, since the response
+file is durable audit data.
+
+`inputs` and a raw `input_schema` are mutually exclusive per option: declaring both is a
+creation error unless the raw schema exactly equals what `inputs` would compile to. An
+option declaring neither means "this command takes no input", which compiles to the
+honest `{"type": "object", "additionalProperties": false}` schema; an author who
+genuinely wants the permissive schema writes `"input_schema": {}` explicitly. A declared
+`format` keyword is annotation-only — the executor validates with no `FormatChecker` —
+so it is documentation, never a constraint. Every stored schema is pinned to the Draft
+2020-12 dialect.
+
+At creation, every option's effective schema is checked for **answerability**: SASE
+builds the richest value a client could actually submit — `{}` plus every declared
+`inputs` default plus `feedback` when the option's feedback mode allows it — and
+validates it against the schema. An option that could never be answered by any surface
+fails `sase gate create` with `unanswerable_option`, naming the offending required
+property, instead of being accepted and dying silently on first submission. Every input
+value is also bounded, both at creation and at submission: canonical JSON at most 64
+KiB, nesting depth at most 16, at most 128 properties in one object, and at most 512
+items in one array.
+
+**Feedback is one rule everywhere.** The reviewer's free-text note is injected as
+`input.feedback` for a selected option **iff that option's effective `input_schema`
+declares a `feedback` property** — an option with no `feedback` property is left alone,
+and an option with an ordinary `feedback` field declared under its own `inputs` is
+respected as-is. The same rule runs inside the shared executor for every caller — ACE,
+mobile, Telegram, and `sase gate answer` alike — so a gate answers identically
+regardless of where it was tapped.
+
+**Submission is per option.** A surface submits `option_inputs`, a mapping of selected
+option id to that option's own JSON value; a two-member AND branch can hand each member
+a different value without either schema having to tolerate the other's fields. The
+legacy shared-value contract (`input_data`, one JSON value applied to every selected
+option) still works for bundles that predate per-option submission; the two are mutually
+exclusive, and supplying both is a creation-time `conflicting_input` error.
+`response.json` always records `option_inputs` (every entry is the same value under the
+legacy path) alongside the existing `input` field, so nothing that reads `input` today
+breaks.
+
+### Gate actions
+
+A gate action is a control the reviewer may run **as many times as they need** and that
+**never answers the gate** — it exists so a reviewer can iterate toward a decision (edit
+the plan until it validates, read a diff, run a dry run) instead of being forced to
+answer or cancel immediately. Actions are declared in the request's `operations` array
+(the field name that predates this mechanism, kept for wire compatibility) and rendered
+in an **Actions** section, kept visually distinct from and above **Decision**; the
+section is omitted entirely when a gate declares no actions.
+
+Two kinds are declared:
+
+- **`edit_file`** opens an editable resource in `$EDITOR`. `edit_target: "resource"`
+  (the default) edits the bundle's own copy, exactly as before. `edit_target: "origin"`
+  instead opens the durable file the resource was copied from — for example, a plan or
+  epic gate's `edit_plan` action opens the file under `~/.sase/plans/` that
+  `sase plan propose` wrote, not the bundle's snapshot of it. The edit is copied into
+  the bundle and accepted only when the kind adapter validates it (for plan and epic
+  gates, only when `sase plan validate` passes); on rejection the bundle keeps its last
+  accepted revision and the reviewer's draft stays in the origin file rather than being
+  discarded, so reopening the editor resumes their work. **While an origin file holds an
+  edit the gate never accepted, every submit control is disabled — including reject —**
+  and the surface shows a banner naming the file; discarding the draft (a separate,
+  confirmed action) restores the origin from the last accepted revision.
+- **`run_command`** runs an owned bundle command and shows the reviewer its output. Its
+  stdout must be one JSON value validated against the action's own `result_schema`; the
+  surface reads a small closed display record out of it — `summary` (a one-line toast),
+  `body` (rendered per the declared `display`: `markdown`, `text`, `json`, or `none`),
+  and `refresh` (whether the surface should reload and re-verify the bundle before
+  re-rendering) — and everything else stays in the result and the execution journal.
+  `targets` lists the editable resources the command is allowed to rewrite; after the
+  command exits every resource is re-hashed, and a change to any resource **not** listed
+  in `targets` is a `hash_mismatch` failure. This is what stops a display command from
+  quietly rewriting the very command the reviewer is about to approve.
+
+An action never writes `response.json` and refuses to run once the gate already has a
+response or a cancellation. Every run — successful or failed — appends to the bundle's
+execution journal (`journal.jsonl`), which is also what `sase gate wait --json` reports
+under `operations`: the audit trail of what a reviewer ran before deciding.
+
+An action may declare a single-character `key` (for example `key: "e"` on the plan and
+epic `edit_plan` action). Creation rejects a key already reserved by the static gate
+modal bindings (`q`, `d`, `g`, `G`, and the digit branch selectors `1`-`9`) or reused by
+another action on the same gate. A collision with the reviewer's own configured gate
+modal keymaps cannot be known at creation time; ACE resolves it at render time by
+reassigning from a deterministic fallback pool and displaying whichever key it actually
+bound.
 
 ### Debugging a gate
 

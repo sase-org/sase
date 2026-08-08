@@ -402,13 +402,17 @@ curl -sS "$BASE_URL/api/v1/notifications/$NOTIFICATION_ID" \
 
 Detail responses include full notes, action state, and attachment manifests. Every
 actionable gate kind projects the same verified `branches` model. A branch contains
-`options`; each option includes `id`, `label`, optional `icon`, `default_selected`, and
-`feedback` (`disabled`, `optional`, or `required`). Group branches also include `submit`
-metadata with the button label and optional icon. Mobile clients keep selection state
-locally and submit only option IDs from one branch plus feedback through the host bridge
-— never a command, path, cwd, or environment value. Download tokens are minted only in
-detail responses, are bound to the authenticated device, expire after a short TTL, and
-must still pass path and size checks at download time.
+`options`; each option includes `id`, `label`, optional `icon`, `default_selected`,
+`feedback` (`disabled`, `optional`, or `required`), and `inputs` — the option's declared
+input fields, each with `id`, `label`, `type` (`word`, `line`, `text`, `path`, `agent`,
+`int`, `bool`, `float`, or `enum`), `required`, `default`, `choices`, `placeholder`,
+`help`, `secret`, and `repeatable`, mirroring the fields ACE's typed input form already
+renders for xprompt launches. Group branches also include `submit` metadata with the
+button label and optional icon. Mobile clients keep selection state locally and submit
+option IDs from one branch, feedback, and each selected option's own input value through
+the host bridge — never a command, path, cwd, or environment value. Download tokens are
+minted only in detail responses, are bound to the authenticated device, expire after a
+short TTL, and must still pass path and size checks at download time.
 
 Mark a notification read or dismiss it without taking its pending action:
 
@@ -435,7 +439,7 @@ PREFIX="abcdef12"
 curl -sS -X POST "$BASE_URL/api/v1/actions/gate/$PREFIX" \
   -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
-  -d '{"schema_version":4,"selected_option_ids":["approve","commit"],"feedback":null}'
+  -d '{"schema_version":5,"selected_option_ids":["approve","commit"],"feedback":null}'
 ```
 
 For a feedback branch, send its option ID and the supplied text:
@@ -444,8 +448,23 @@ For a feedback branch, send its option ID and the supplied text:
 curl -sS -X POST "$BASE_URL/api/v1/actions/gate/$PREFIX" \
   -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
-  -d '{"schema_version":4,"selected_option_ids":["feedback"],"feedback":"Revise the rollout section"}'
+  -d '{"schema_version":5,"selected_option_ids":["feedback"],"feedback":"Revise the rollout section"}'
 ```
+
+When a selected option declares `inputs`, submit its typed value under `option_inputs`,
+keyed by option ID — omitted fields fall back to the option's own declared default:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/actions/gate/$PREFIX" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":5,"selected_option_ids":["restart"],"feedback":null,"option_inputs":{"restart":{"mode":"quick"}}}'
+```
+
+`schema_version` bumped from 4 to 5 to add `option_inputs`; it is an optional field
+(`#[serde(default)]` in the Rust wire struct), so an older client that omits it keeps
+working exactly as before and the host falls back to the legacy shared-value submission
+path.
 
 Question prompts support stable option IDs, option indices, labels, and custom free
 text:

@@ -635,6 +635,31 @@ save-time conversion, and literal-zone rules.
 | `int`   | `integer` | Must parse as an integer                                |
 | `bool`  | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off` |
 | `float` | --        | Must parse as a float                                   |
+| `enum`  | --        | Must be one of the input's declared `choices`           |
+
+### Enum Choices
+
+An `enum` input must declare a non-empty `choices` list; every other type must leave
+`choices` unset. Choices are either plain scalars or `{value, label}` mappings — `label`
+is optional display text a rich surface (ACE, Gate Debug, editor completion) can show in
+place of the raw value, while the value itself is always what gets passed to the
+template:
+
+```yaml
+input:
+  - name: log_level
+    type: enum
+    choices: [debug, info, warn, error]
+    default: info
+  - name: environment
+    type: enum
+    choices:
+      - { value: staging, label: "Staging" }
+      - { value: prod, label: "Production" }
+```
+
+A value outside the declared `choices` fails validation and lists the allowed values in
+the error.
 
 ### Defaults
 
