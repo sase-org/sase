@@ -285,6 +285,8 @@ def detect_agent_cli_statuses(
                 version_error=version.error,
                 install_manager=manager,
                 install_script_url=_optional_str(install.get("install_script_url")),
+                install_dir=_optional_str(install.get("install_dir")),
+                install_dir_env=_optional_str(install.get("install_dir_env")),
                 install_env=_string_map(install.get("install_env")),
                 self_update_env=_string_map(install.get("self_update_env")),
                 latest_version_url=_optional_str(install.get("latest_version_url")),

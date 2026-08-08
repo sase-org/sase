@@ -158,7 +158,7 @@ def plan_agent_cli_updates(
     else:
         resolved: list[AgentCliStatus] = []
         for query in names or ():
-            status = _find_status(statuses, query)
+            status = find_agent_cli_status(statuses, query)
             if status is None:
                 known = tuple(item.name for item in statuses)
                 return AgentCliUnknownName(
@@ -224,12 +224,12 @@ def execute_agent_cli_updates(
                     command=entry.argv,
                     docs_url=status.docs_url,
                     env_overlay=entry.env_overlay,
-                    reason=_with_docs(str(exc), status.docs_url),
+                    reason=reason_with_docs(str(exc), status.docs_url),
                 )
             )
             continue
 
-        output_tail = _output_tail(command_result.output)
+        output_tail = command_output_tail(command_result.output)
         if command_result.returncode != 0:
             results.append(
                 AgentCliUpdateResult(
@@ -242,7 +242,7 @@ def execute_agent_cli_updates(
                     docs_url=status.docs_url,
                     env_overlay=entry.env_overlay,
                     elapsed=command_result.elapsed,
-                    reason=_with_docs(
+                    reason=reason_with_docs(
                         f"command failed with exit {command_result.returncode}",
                         status.docs_url,
                     ),
@@ -272,7 +272,7 @@ def execute_agent_cli_updates(
             else UpdateResultStatus.UPDATED
         )
         reason = (
-            _with_docs(
+            reason_with_docs(
                 f"post-update version probe failed: {reprobe.error}",
                 status.docs_url,
             )
@@ -312,7 +312,7 @@ def plan_agent_cli_status(status: AgentCliStatus) -> AgentCliUpdateEntry:
             status,
             UpdateStrategy.NONE,
             None,
-            _with_docs(f"not installed; {status.install_hint}", docs_url),
+            reason_with_docs(f"not installed; {status.install_hint}", docs_url),
         )
     if status.install_method is InstallMethod.BUNDLED:
         return AgentCliUpdateEntry(
@@ -330,7 +330,7 @@ def plan_agent_cli_status(status: AgentCliStatus) -> AgentCliUpdateEntry:
             status,
             UpdateStrategy.NONE,
             None,
-            _with_docs("already up to date", docs_url),
+            reason_with_docs("already up to date", docs_url),
         )
     if status.install_method is InstallMethod.NPM and status.package:
         argv = ("npm", "install", "-g", f"{status.package}@latest")
@@ -340,7 +340,7 @@ def plan_agent_cli_status(status: AgentCliStatus) -> AgentCliUpdateEntry:
                 status,
                 UpdateStrategy.MANUAL,
                 None,
-                _with_docs(
+                reason_with_docs(
                     f"npm global root is not writable; run `{command}` manually "
                     "with an npm setup owned by your user (SASE never uses sudo)",
                     docs_url,
@@ -359,7 +359,7 @@ def plan_agent_cli_status(status: AgentCliStatus) -> AgentCliUpdateEntry:
             status,
             UpdateStrategy.MANUAL,
             None,
-            _with_docs(detail, docs_url),
+            reason_with_docs(detail, docs_url),
             manual_argv=manual,
         )
     if (
@@ -377,16 +377,17 @@ def plan_agent_cli_status(status: AgentCliStatus) -> AgentCliUpdateEntry:
         status,
         UpdateStrategy.MANUAL,
         None,
-        _with_docs(
+        reason_with_docs(
             "install method is unknown; SASE will not guess an update command",
             docs_url,
         ),
     )
 
 
-def _find_status(
+def find_agent_cli_status(
     statuses: Sequence[AgentCliStatus], query: str
 ) -> AgentCliStatus | None:
+    """Resolve one user-supplied name against provider, binary, or display name."""
     key = _name_key(query)
     for status in statuses:
         if key in {
@@ -406,13 +407,17 @@ def _already_current(entry: AgentCliUpdateEntry) -> bool:
     return bool(entry.skip_reason and "already up to date" in entry.skip_reason)
 
 
-def _with_docs(reason: str, docs_url: str | None) -> str:
+def reason_with_docs(reason: str, docs_url: str | None) -> str:
+    """Append a provider's canonical docs URL to a reason exactly once."""
     if not docs_url or docs_url in reason:
         return reason
     return f"{reason}. See {docs_url}"
 
 
-def _output_tail(output: str, *, lines: int = 20, chars: int = 2000) -> str | None:
+def command_output_tail(
+    output: str, *, lines: int = 20, chars: int = 2000
+) -> str | None:
+    """Return the tail of a command's combined output, or ``None`` if empty."""
     if not output.strip():
         return None
     tail = "\n".join(output.strip().splitlines()[-lines:])
@@ -426,9 +431,12 @@ list_agent_clis = collect_agent_cli_statuses
 
 __all__ = [
     "collect_agent_cli_statuses",
+    "command_output_tail",
     "detect_agent_cli_statuses_for_names",
     "execute_agent_cli_updates",
+    "find_agent_cli_status",
     "list_agent_clis",
     "plan_agent_cli_status",
     "plan_agent_cli_updates",
+    "reason_with_docs",
 ]

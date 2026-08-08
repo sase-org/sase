@@ -20,7 +20,12 @@ from sase.logs._bounded import (
     max_bytes_from_env,
 )
 
-from .models import AgentCliUpdateResult, UpdateResultStatus, UpdateTrigger
+from .models import (
+    AgentCliOperation,
+    AgentCliUpdateResult,
+    UpdateResultStatus,
+    UpdateTrigger,
+)
 
 AGENT_CLI_UPDATE_JOURNAL: str | None = None
 ENV_MAX_BYTES = "SASE_AGENT_CLI_UPDATE_JOURNAL_MAX_BYTES"
@@ -33,7 +38,7 @@ log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class AgentCliUpdateRunEntry:
-    """The durable subset of one agent CLI's update result."""
+    """The durable subset of one agent CLI's update or install result."""
 
     name: str
     display_name: str
@@ -44,6 +49,8 @@ class AgentCliUpdateRunEntry:
     reason: str | None
     elapsed_seconds: float
     output_tail: str | None
+    operation: AgentCliOperation = AgentCliOperation.UPDATE
+    script_digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -204,6 +211,8 @@ def _run_entry(result: AgentCliUpdateResult) -> AgentCliUpdateRunEntry:
             if result.status is UpdateResultStatus.FAILED
             else None
         ),
+        operation=result.operation,
+        script_digest=result.script_digest,
     )
 
 
@@ -228,6 +237,8 @@ def _run_record(run: AgentCliUpdateRun) -> dict[str, Any]:
                 "reason": entry.reason,
                 "elapsed_seconds": entry.elapsed_seconds,
                 "output_tail": entry.output_tail,
+                "operation": entry.operation.value,
+                "script_digest": entry.script_digest,
             }
             for entry in run.entries
         ],
@@ -279,7 +290,24 @@ def _decode_entry(payload: Mapping[str, object]) -> AgentCliUpdateRunEntry:
         reason=_optional_str(payload, "reason"),
         elapsed_seconds=_required_float(payload, "elapsed_seconds"),
         output_tail=_optional_str(payload, "output_tail"),
+        operation=_operation(payload.get("operation")),
+        script_digest=_absent_or_str(payload.get("script_digest")),
     )
+
+
+def _operation(value: object) -> AgentCliOperation:
+    """Decode an operation, defaulting to the update-only records SASE wrote first."""
+    if not isinstance(value, str):
+        return AgentCliOperation.UPDATE
+    try:
+        return AgentCliOperation(value)
+    except ValueError:
+        return AgentCliOperation.UPDATE
+
+
+def _absent_or_str(value: object) -> str | None:
+    """Read a field added after the schema shipped; absence is not corruption."""
+    return value if isinstance(value, str) else None
 
 
 def _truncate_start(value: str | None, limit: int) -> str | None:

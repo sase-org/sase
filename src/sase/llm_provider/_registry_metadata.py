@@ -146,6 +146,8 @@ def _install_metadata(value: Any) -> dict[str, Any]:
         "latest_version_json_field",
         "version_compare",
         "install_script_url",
+        "install_dir",
+        "install_dir_env",
         "brew_package",
     ):
         if (normalized := _optional_str(value.get(key))) is not None:

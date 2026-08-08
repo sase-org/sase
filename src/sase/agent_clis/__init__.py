@@ -9,8 +9,20 @@ from .history import (
     record_agent_cli_update_run,
     should_record_run,
 )
+from .install import (
+    AgentCliInstallEntry,
+    AgentCliInstallError,
+    AgentCliInstallPlan,
+    AgentCliInstallsPlanned,
+    InstallScript,
+    execute_agent_cli_installs,
+    fetch_install_script,
+    plan_agent_cli_install_status,
+    plan_agent_cli_installs,
+)
 from .models import (
     AgentCliNothingToUpdate,
+    AgentCliOperation,
     AgentCliStatus,
     AgentCliUnknownName,
     AgentCliUpdateEntry,
@@ -32,7 +44,12 @@ from .operations import (
 )
 
 __all__ = [
+    "AgentCliInstallEntry",
+    "AgentCliInstallError",
+    "AgentCliInstallPlan",
+    "AgentCliInstallsPlanned",
     "AgentCliNothingToUpdate",
+    "AgentCliOperation",
     "AgentCliStatus",
     "AgentCliUnknownName",
     "AgentCliUpdateEntry",
@@ -42,6 +59,7 @@ __all__ = [
     "AgentCliUpdateRunEntry",
     "AgentCliUpdatesReady",
     "InstallMethod",
+    "InstallScript",
     "UpdateResultStatus",
     "UpdateStrategy",
     "UpdateTrigger",
@@ -49,8 +67,12 @@ __all__ = [
     "build_agent_cli_update_run",
     "collect_agent_cli_statuses",
     "detect_agent_cli_statuses_for_names",
+    "execute_agent_cli_installs",
     "execute_agent_cli_updates",
+    "fetch_install_script",
     "list_agent_clis",
+    "plan_agent_cli_install_status",
+    "plan_agent_cli_installs",
     "plan_agent_cli_status",
     "plan_agent_cli_updates",
     "read_agent_cli_update_runs",

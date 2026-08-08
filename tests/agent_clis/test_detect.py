@@ -242,6 +242,8 @@ def test_channel_install_metadata_is_read_and_hints_the_install_subcommand(
                 "self_update_env": {"MUSE_SYNC_UPDATE": "1"},
                 "install_script_url": "https://example.test/install.sh",
                 "install_env": {"MUSE_UPGRADE_MODE": "1"},
+                "install_dir": "~/.local/bin",
+                "install_dir_env": "MUSE_INSTALL_DIR",
             },
         }
     }
@@ -257,6 +259,8 @@ def test_channel_install_metadata_is_read_and_hints_the_install_subcommand(
     assert status.installs_from_script is True
     assert status.install_script_url == "https://example.test/install.sh"
     assert status.install_env == (("MUSE_UPGRADE_MODE", "1"),)
+    assert status.install_dir == "~/.local/bin"
+    assert status.install_dir_env == "MUSE_INSTALL_DIR"
     assert status.self_update_env == (("MUSE_SYNC_UPDATE", "1"),)
     assert status.latest_version_url == "https://api.example.test/channels/stable"
     assert status.latest_version_json_field == "version"

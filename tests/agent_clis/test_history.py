@@ -17,6 +17,7 @@ from sase.agent_clis.history import (
     should_record_run,
 )
 from sase.agent_clis.models import (
+    AgentCliOperation,
     AgentCliUpdateResult,
     UpdateResultStatus,
     UpdateTrigger,
@@ -275,3 +276,48 @@ def test_successful_noop_does_not_append(tmp_path: Path) -> None:
         is None
     )
     assert not path.exists()
+
+
+def test_install_runs_journal_their_operation_and_script_digest(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "history.jsonl"
+    install = replace(
+        _result(UpdateResultStatus.UPDATED, name="muse"),
+        operation=AgentCliOperation.INSTALL,
+        script_digest="d" * 64,
+    )
+
+    run = record_agent_cli_update_run(
+        (install,),
+        trigger=UpdateTrigger.CLI,
+        elapsed=1.0,
+        path=path,
+        now=_NOW,
+    )
+
+    assert run is not None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["entries"][0]["operation"] == "install"
+    assert payload["entries"][0]["script_digest"] == "d" * 64
+    assert read_agent_cli_update_runs(path=path) == (run,)
+
+
+def test_records_written_before_installs_shipped_still_decode(tmp_path: Path) -> None:
+    path = tmp_path / "history.jsonl"
+    assert record_agent_cli_update_run(
+        (_result(UpdateResultStatus.UPDATED),),
+        trigger=UpdateTrigger.CLI,
+        elapsed=1.0,
+        path=path,
+        now=_NOW,
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["entries"][0].pop("operation")
+    payload["entries"][0].pop("script_digest")
+    path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    entry = read_agent_cli_update_runs(path=path)[0].entries[0]
+
+    assert entry.operation is AgentCliOperation.UPDATE
+    assert entry.script_digest is None

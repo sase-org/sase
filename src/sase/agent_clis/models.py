@@ -29,6 +29,13 @@ class VersionCompare(StrEnum):
     EXACT = "exact"
 
 
+class AgentCliOperation(StrEnum):
+    """Which SASE-managed operation produced one agent-CLI result."""
+
+    UPDATE = "update"
+    INSTALL = "install"
+
+
 class UpdateStrategy(StrEnum):
     """The operation SASE can safely use for an agent CLI."""
 
@@ -81,6 +88,8 @@ class AgentCliStatus:
     latest_error: str | None = None
     install_manager: str | None = None
     install_script_url: str | None = None
+    install_dir: str | None = None
+    install_dir_env: str | None = None
     install_env: EnvOverlay = ()
     self_update_env: EnvOverlay = ()
     latest_version_url: str | None = None
@@ -182,6 +191,10 @@ class AgentCliUpdateResult:
     elapsed: float = 0.0
     reason: str | None = None
     output_tail: str | None = None
+    operation: AgentCliOperation = AgentCliOperation.UPDATE
+    script_digest: str | None = None
+    install_dir: str | None = None
+    install_dir_on_path: bool | None = None
 
 
 # Short aliases keep call sites readable while retaining descriptive public names.
@@ -194,6 +207,7 @@ UpdateResult = AgentCliUpdateResult
 
 __all__ = [
     "AgentCliNothingToUpdate",
+    "AgentCliOperation",
     "AgentCliStatus",
     "AgentCliUnknownName",
     "AgentCliUpdateEntry",

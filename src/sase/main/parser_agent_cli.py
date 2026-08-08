@@ -34,12 +34,14 @@ def register_agent_cli_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Inspect and safely update supported coding-agent CLIs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Inspect the coding-agent CLIs supported by SASE and update installs "
-            "whose management method can be identified safely. SASE automates "
-            "npm-managed installs and provider-declared self-update commands; "
-            "ambiguous installs are left untouched with an exact manual command "
-            "when available and a canonical documentation URL. SASE never uses "
-            "sudo and never guesses an update command.\n"
+            "Inspect the coding-agent CLIs supported by SASE and install or "
+            "update installs whose management method can be identified safely. "
+            "SASE automates npm-managed installs, provider-declared self-update "
+            "commands, and provider-declared install scripts; ambiguous installs "
+            "are left untouched with an exact manual command when available and "
+            "a canonical documentation URL. SASE never uses sudo, never uses a "
+            "shell, never guesses an update command, and never edits your shell "
+            "startup files.\n"
             "\n"
             "With no subcommand, `sase agent-cli` defaults to "
             "`sase agent-cli list`."
@@ -47,6 +49,8 @@ def register_agent_cli_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  sase agent-cli                       # same as `sase agent-cli list`\n"
+            "  sase agent-cli install muse -n       # preview URL, digest, target\n"
+            "  sase agent-cli install muse -y       # fetch and run the installer\n"
             "  sase agent-cli list                  # inspect all supported CLIs\n"
             "  sase agent-cli list -v               # include paths and docs URLs\n"
             "  sase agent-cli list -o -j            # cached inventory as JSON\n"
@@ -59,7 +63,79 @@ def register_agent_cli_parser(subparsers: argparse._SubParsersAction) -> None:
     agent_cli_sub = agent_cli_parser.add_subparsers(
         dest="agent_cli_subcommand",
         help="Agent CLI subcommands",
-        metavar="{list,update}",
+        metavar="{install,list,update}",
+    )
+
+    install_parser = agent_cli_sub.add_parser(
+        "install",
+        help="Install agent CLIs that declare an install script",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Install one or more supported coding-agent CLIs from the install "
+            "script their provider declares. SASE downloads the script itself, "
+            "shows the URL, its SHA-256 digest, the exact command, and the "
+            "target directory, and only then runs it without a shell. CLIs that "
+            "declare no install script are reported as explicit skips with the "
+            "manual command to run instead.\n"
+            "\n"
+            "Running a remote script always needs confirmation: pass `-y|--yes` "
+            "or answer the interactive prompt. Use `-n|--dry-run` to see the "
+            "plan, digest included, without executing anything.\n"
+            "\n"
+            "After a successful install SASE reports where the binary landed "
+            "and whether that directory is on PATH, printing the exact export "
+            "line to add when it is not. SASE never edits your shell startup "
+            "files."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase agent-cli install muse --dry-run\n"
+            "  sase agent-cli install muse --yes\n"
+            "  sase agent-cli install muse --force --yes\n"
+            "  sase agent-cli install muse --dry-run --json"
+        ),
+    )
+    install_parser.add_argument(
+        "names",
+        nargs="*",
+        metavar="<name>",
+        help="CLI names to install (provider, binary, or display name)",
+    )
+    install_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Reinstall even when the CLI is already installed",
+    )
+    install_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a stable, machine-readable JSON envelope",
+    )
+    install_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Show the URL, digest, command, and target without running anything",
+    )
+    install_parser.add_argument(
+        "-o",
+        "--offline",
+        action="store_true",
+        help="Use cached latest versions only; never contact the npm registry",
+    )
+    install_parser.add_argument(
+        "-r",
+        "--refresh",
+        action="store_true",
+        help="Bypass cached latest versions and query the npm registry",
+    )
+    install_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Run the install script without an interactive confirmation",
     )
 
     list_parser = agent_cli_sub.add_parser(

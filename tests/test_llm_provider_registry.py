@@ -251,6 +251,8 @@ def test_provider_metadata_carries_channel_install_and_env_fields() -> None:
                 "latest_version_json_field": "version",
                 "version_compare": "exact",
                 "install_script_url": "https://example.test/install.sh",
+                "install_dir": "~/.local/bin",
+                "install_dir_env": "FAKE_INSTALL_DIR",
                 "install_env": {"UPGRADE_MODE": 1, "": "dropped"},
                 "self_update_env": {" SYNC_UPDATE ": "1"},
             }
@@ -265,6 +267,8 @@ def test_provider_metadata_carries_channel_install_and_env_fields() -> None:
         "latest_version_json_field": "version",
         "version_compare": "exact",
         "install_script_url": "https://example.test/install.sh",
+        "install_dir": "~/.local/bin",
+        "install_dir_env": "FAKE_INSTALL_DIR",
         "install_env": {"UPGRADE_MODE": "1"},
         "self_update_env": {"SYNC_UPDATE": "1"},
     }

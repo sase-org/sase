@@ -117,7 +117,9 @@ class LLMHookSpec:
         PEP 440 versions. ``self_update_env`` and ``install_env`` are env
         overlays applied to the update and install commands, and
         ``manager: "script"`` with ``install_script_url`` marks a CLI that
-        ``sase agent-cli install`` can fetch and run. Values must not contain
+        ``sase agent-cli install`` can fetch and run; ``install_dir`` and
+        ``install_dir_env`` name where that installer writes the binary so
+        SASE can report whether it landed on ``PATH``. Values must not contain
         secrets. Consumers must treat every field as optional so third-party
         providers remain compatible.
         """

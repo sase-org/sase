@@ -1,10 +1,10 @@
-"""Rich and JSON presentation for ``sase agent-cli update``."""
+"""Rich and JSON presentation for ``sase agent-cli install``."""
 
 from __future__ import annotations
 
 import argparse
 import json
-import shlex
+import sys
 from collections import Counter
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -13,88 +13,123 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from .cli_update import command_text, render_reason
+from .install import (
+    AgentCliInstallEntry,
+    AgentCliInstallPlan,
+    AgentCliInstallsPlanned,
+    execute_agent_cli_installs,
+    plan_agent_cli_installs,
+)
 from .models import (
-    AgentCliNothingToUpdate,
-    EnvOverlay,
     AgentCliUnknownName,
-    AgentCliUpdateEntry,
-    AgentCliUpdatePlan,
     AgentCliUpdateResult,
-    AgentCliUpdatesReady,
     UpdateResultStatus,
     UpdateTrigger,
 )
-from .operations import execute_agent_cli_updates, plan_agent_cli_updates
 
-UPDATE_AGENT_CLI_JSON_SCHEMA_VERSION = 1
+INSTALL_AGENT_CLI_JSON_SCHEMA_VERSION = 1
 
-PlanFn = Callable[..., AgentCliUpdatePlan]
+_RC_NOTICE = "SASE never edits your shell startup files."
+
+PlanFn = Callable[..., AgentCliInstallPlan]
 ExecuteFn = Callable[..., tuple[AgentCliUpdateResult, ...]]
+ConfirmFn = Callable[[AgentCliInstallsPlanned, Console], bool]
+IsTtyFn = Callable[[], bool]
 
 
-def handle_agent_cli_update_command(
+def handle_agent_cli_install_command(
     args: argparse.Namespace,
     *,
     console: Console | None = None,
     err_console: Console | None = None,
-    plan_fn: PlanFn = plan_agent_cli_updates,
-    execute_fn: ExecuteFn = execute_agent_cli_updates,
+    plan_fn: PlanFn = plan_agent_cli_installs,
+    execute_fn: ExecuteFn = execute_agent_cli_installs,
+    confirm_fn: ConfirmFn | None = None,
+    is_tty_fn: IsTtyFn | None = None,
 ) -> int:
-    """Plan, optionally preview, and execute agent-CLI updates."""
+    """Fetch, preview, confirm, and run provider-declared install scripts."""
     names = tuple(getattr(args, "names", ()) or ())
-    all_clis = bool(getattr(args, "all", False))
     as_json = bool(getattr(args, "json", False))
     dry_run = bool(getattr(args, "dry_run", False))
+    force = bool(getattr(args, "force", False))
     offline = bool(getattr(args, "offline", False))
     refresh = bool(getattr(args, "refresh", False))
+    assume_yes = bool(getattr(args, "yes", False))
     out = console or Console()
     err = err_console or Console(stderr=True)
+    confirm = confirm_fn or _confirm_interactively
+    is_tty = is_tty_fn or _stdin_is_tty
 
-    if not all_clis and not names:
+    if not names:
         return _usage_error(as_json=as_json, err=err)
 
     try:
         plan = plan_fn(
             names,
-            all_clis=all_clis,
+            force=force,
             refresh=refresh,
             offline=offline,
         )
     except Exception as exc:  # noqa: BLE001 - CLI boundary must remain actionable.
         return _operation_error(
-            f"Could not plan agent CLI updates: {exc}",
-            as_json=as_json,
-            err=err,
+            f"Could not plan agent CLI installs: {exc}", as_json=as_json, err=err
         )
 
     if isinstance(plan, AgentCliUnknownName):
         return _unknown_name(plan, as_json=as_json, err=err)
 
+    try:
+        return _run_plan(
+            plan,
+            as_json=as_json,
+            dry_run=dry_run,
+            assume_yes=assume_yes,
+            out=out,
+            err=err,
+            execute_fn=execute_fn,
+            confirm=confirm,
+            is_tty=is_tty,
+        )
+    finally:
+        plan.cleanup()
+
+
+def _run_plan(
+    plan: AgentCliInstallsPlanned,
+    *,
+    as_json: bool,
+    dry_run: bool,
+    assume_yes: bool,
+    out: Console,
+    err: Console,
+    execute_fn: ExecuteFn,
+    confirm: ConfirmFn,
+    is_tty: IsTtyFn,
+) -> int:
     if dry_run:
         if as_json:
             print(json.dumps(_dry_run_json(plan), indent=2, sort_keys=True))
         else:
-            _render_dry_run(plan.entries, console=out)
+            _render_plan(plan.entries, console=out, dry_run=True)
         return 0
+
+    if plan.runnable_entries and not assume_yes:
+        if as_json or not is_tty():
+            return _confirmation_required(plan, as_json=as_json, out=out, err=err)
+        if not confirm(plan, out):
+            err.print(Text("Aborted; no install script was executed.", style="yellow"))
+            return 2
 
     try:
         results = execute_fn(plan, trigger=UpdateTrigger.CLI)
     except Exception as exc:  # noqa: BLE001 - preserve a stable CLI failure shape.
         return _operation_error(
-            f"Could not execute agent CLI updates: {exc}",
-            as_json=as_json,
-            err=err,
-            docs_urls=_docs_urls(plan.entries),
+            f"Could not execute agent CLI installs: {exc}", as_json=as_json, err=err
         )
 
     if as_json:
-        print(
-            json.dumps(
-                _result_json(results, all_clis=plan.all_clis),
-                indent=2,
-                sort_keys=True,
-            )
-        )
+        print(json.dumps(_result_json(results), indent=2, sort_keys=True))
     else:
         _render_results(results, console=out)
     return (
@@ -104,14 +139,42 @@ def handle_agent_cli_update_command(
     )
 
 
-def _dry_run_json(
-    plan: AgentCliUpdatesReady | AgentCliNothingToUpdate,
-) -> dict[str, Any]:
-    ready = sum(entry.ready for entry in plan.entries)
+def _stdin_is_tty() -> bool:
+    return sys.stdin.isatty()
+
+
+def _confirm_interactively(plan: AgentCliInstallsPlanned, out: Console) -> bool:
+    _render_plan(plan.entries, console=out, dry_run=False)
+    try:
+        answer = out.input("Run the install script(s) above? [y/N] ")
+    except EOFError:
+        return False
+    return answer.strip().lower() in {"y", "yes"}
+
+
+def _confirmation_required(
+    plan: AgentCliInstallsPlanned, *, as_json: bool, out: Console, err: Console
+) -> int:
+    message = (
+        "Running a remote install script needs confirmation. Re-run with "
+        "-y|--yes, or preview it first with -n|--dry-run."
+    )
+    if as_json:
+        payload = _dry_run_json(plan)
+        payload["error"] = message
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        _render_plan(plan.entries, console=out, dry_run=False)
+        err.print(Text(message, style="bold yellow"))
+    return 2
+
+
+def _dry_run_json(plan: AgentCliInstallsPlanned) -> dict[str, Any]:
+    ready = len(plan.runnable_entries)
     return {
-        "schema_version": UPDATE_AGENT_CLI_JSON_SCHEMA_VERSION,
+        "schema_version": INSTALL_AGENT_CLI_JSON_SCHEMA_VERSION,
         "dry_run": True,
-        "all": plan.all_clis,
+        "shell_rc_notice": _RC_NOTICE,
         "counts": {
             "ready": ready,
             "skipped": len(plan.entries) - ready,
@@ -121,31 +184,32 @@ def _dry_run_json(
     }
 
 
-def _plan_entry_json(entry: AgentCliUpdateEntry) -> dict[str, Any]:
+def _plan_entry_json(entry: AgentCliInstallEntry) -> dict[str, Any]:
     status = entry.status
+    script = entry.script
     return {
         "name": status.name,
         "display_name": status.display_name,
-        "strategy": entry.strategy.value,
         "command": list(entry.argv) if entry.argv else None,
         "env": dict(entry.env_overlay),
-        "suggested_command": list(entry.manual_argv) if entry.manual_argv else None,
-        "reason": render_reason(entry.skip_reason, status.docs_url),
-        "docs_url": status.docs_url,
+        "install_script_url": status.install_script_url,
+        "script_sha256": script.digest if script is not None else None,
+        "script_bytes": script.size_bytes if script is not None else None,
+        "install_dir": entry.install_dir,
         "installed_version": status.installed_version,
-        "latest_version": status.latest_version,
+        "docs_url": status.docs_url,
+        "reason": render_reason(entry.error or entry.skip_reason, status.docs_url),
+        "error": entry.error,
         "ready": entry.ready,
     }
 
 
-def _result_json(
-    results: Sequence[AgentCliUpdateResult], *, all_clis: bool
-) -> dict[str, Any]:
+def _result_json(results: Sequence[AgentCliUpdateResult]) -> dict[str, Any]:
     counts = Counter(result.status.value for result in results)
     return {
-        "schema_version": UPDATE_AGENT_CLI_JSON_SCHEMA_VERSION,
+        "schema_version": INSTALL_AGENT_CLI_JSON_SCHEMA_VERSION,
         "dry_run": False,
-        "all": all_clis,
+        "shell_rc_notice": _RC_NOTICE,
         "counts": {status.value: counts[status.value] for status in UpdateResultStatus},
         "agent_clis": [_result_entry_json(result) for result in results],
     }
@@ -160,9 +224,9 @@ def _result_entry_json(result: AgentCliUpdateResult) -> dict[str, Any]:
         "new_version": result.new_version,
         "command": list(result.command) if result.command else None,
         "env": dict(result.env_overlay),
-        "suggested_command": (
-            list(result.suggested_command) if result.suggested_command else None
-        ),
+        "script_sha256": result.script_digest,
+        "install_dir": result.install_dir,
+        "install_dir_on_path": result.install_dir_on_path,
         "elapsed_seconds": round(result.elapsed, 3),
         "reason": render_reason(result.reason, result.docs_url),
         "output_tail": result.output_tail,
@@ -170,37 +234,46 @@ def _result_entry_json(result: AgentCliUpdateResult) -> dict[str, Any]:
     }
 
 
-def _render_dry_run(
-    entries: Sequence[AgentCliUpdateEntry], *, console: Console
+def _render_plan(
+    entries: Sequence[AgentCliInstallEntry], *, console: Console, dry_run: bool
 ) -> None:
     body = Text()
     if not entries:
-        body.append("No supported agent CLIs were found.", style="yellow")
+        body.append("No agent CLIs were selected.", style="yellow")
     for index, entry in enumerate(entries):
         if index:
             body.append("\n")
-        if entry.argv:
+        status = entry.status
+        if entry.script is not None and entry.argv is not None:
             body.append("● ", style="bold cyan")
-            body.append(entry.status.display_name, style="bold")
-            body.append("\n  ")
+            body.append(status.display_name, style="bold")
+            body.append("\n  url:     ", style="dim")
+            body.append(entry.script.url, style="cyan")
+            body.append("\n  sha256:  ", style="dim")
+            body.append(entry.script.digest, style="magenta")
+            body.append(f"  ({entry.script.size_bytes} bytes)", style="dim")
+            body.append("\n  command: ", style="dim")
             body.append(command_text(entry.argv, entry.env_overlay), style="cyan")
+            if entry.install_dir:
+                body.append("\n  target:  ", style="dim")
+                body.append(entry.install_dir, style="cyan")
         else:
             body.append("○ ", style="yellow")
-            body.append(entry.status.display_name, style="bold")
+            body.append(status.display_name, style="bold")
             body.append(" — ")
             body.append(
-                render_reason(entry.skip_reason, entry.status.docs_url) or "skipped",
-                style="yellow",
+                render_reason(entry.error or entry.skip_reason, status.docs_url)
+                or "skipped",
+                style="red" if entry.error else "yellow",
             )
-            if entry.manual_argv:
-                body.append("\n  manual: ", style="dim")
-                body.append(shlex.join(entry.manual_argv), style="cyan")
 
     console.print(
         Panel(
             body,
-            title="Agent CLI update preview",
-            subtitle="Dry run · no commands executed",
+            title="Agent CLI install preview",
+            subtitle=(
+                f"Dry run · nothing executed · {_RC_NOTICE}" if dry_run else _RC_NOTICE
+            ),
             border_style="cyan",
         )
     )
@@ -211,30 +284,31 @@ def _render_results(
 ) -> None:
     body = Text()
     if not results:
-        body.append("No supported agent CLIs were selected.", style="yellow")
+        body.append("No agent CLIs were selected.", style="yellow")
     for index, result in enumerate(results):
         if index:
             body.append("\n")
         glyph, style, label = {
-            UpdateResultStatus.UPDATED: ("✓", "green", "updated"),
-            UpdateResultStatus.ALREADY_CURRENT: ("✓", "cyan", "already current"),
+            UpdateResultStatus.UPDATED: ("✓", "green", "installed"),
+            UpdateResultStatus.ALREADY_CURRENT: ("✓", "cyan", "already installed"),
             UpdateResultStatus.FAILED: ("✗", "bold red", "failed"),
             UpdateResultStatus.SKIPPED: ("○", "yellow", "skipped"),
         }[result.status]
         body.append(f"{glyph} ", style=style)
         body.append(result.display_name, style="bold")
         body.append(f" — {label}", style=style)
-        if result.status is UpdateResultStatus.UPDATED:
+        if result.new_version and result.status is UpdateResultStatus.UPDATED:
+            body.append(f" ({result.new_version})", style="green")
+        if result.install_dir and result.status is UpdateResultStatus.UPDATED:
+            body.append("\n  location: ", style="dim")
+            body.append(result.install_dir, style="cyan")
             body.append(
-                f" ({_version(result.old_version)} → {_version(result.new_version)})",
-                style="green",
+                " (on PATH)" if result.install_dir_on_path else " (not on PATH)",
+                style="green" if result.install_dir_on_path else "yellow",
             )
-        if result.command:
-            body.append("\n  command: ", style="dim")
-            body.append(command_text(result.command, result.env_overlay), style="cyan")
-        if result.suggested_command:
-            body.append("\n  manual: ", style="dim")
-            body.append(shlex.join(result.suggested_command), style="cyan")
+        if result.script_digest:
+            body.append("\n  sha256:   ", style="dim")
+            body.append(result.script_digest, style="magenta")
         reason = render_reason(result.reason, result.docs_url)
         if reason:
             body.append("\n  ")
@@ -250,8 +324,7 @@ def _render_results(
     subtitle = " · ".join(
         f"{counts[status.value]} {label}"
         for status, label in (
-            (UpdateResultStatus.UPDATED, "updated"),
-            (UpdateResultStatus.ALREADY_CURRENT, "current"),
+            (UpdateResultStatus.UPDATED, "installed"),
             (UpdateResultStatus.SKIPPED, "skipped"),
             (UpdateResultStatus.FAILED, "failed"),
         )
@@ -260,8 +333,8 @@ def _render_results(
     console.print(
         Panel(
             body,
-            title="Agent CLI updates",
-            subtitle=subtitle or "No changes",
+            title="Agent CLI installs",
+            subtitle=f"{subtitle or 'No changes'} · {_RC_NOTICE}",
             border_style="red" if counts[UpdateResultStatus.FAILED.value] else "green",
         )
     )
@@ -269,14 +342,14 @@ def _render_results(
 
 def _usage_error(*, as_json: bool, err: Console) -> int:
     message = (
-        "Specify one or more agent CLIs to update, or pass -a|--all to update "
-        "every safe candidate."
+        "Specify one or more agent CLIs to install, for example "
+        "`sase agent-cli install muse`."
     )
     if as_json:
         print(
             json.dumps(
                 {
-                    "schema_version": UPDATE_AGENT_CLI_JSON_SCHEMA_VERSION,
+                    "schema_version": INSTALL_AGENT_CLI_JSON_SCHEMA_VERSION,
                     "error": message,
                 },
                 indent=2,
@@ -298,7 +371,7 @@ def _unknown_name(plan: AgentCliUnknownName, *, as_json: bool, err: Console) -> 
         print(
             json.dumps(
                 {
-                    "schema_version": UPDATE_AGENT_CLI_JSON_SCHEMA_VERSION,
+                    "schema_version": INSTALL_AGENT_CLI_JSON_SCHEMA_VERSION,
                     "error": message,
                     "query": plan.query,
                     "known_names": list(plan.known_names),
@@ -319,13 +392,7 @@ def _unknown_name(plan: AgentCliUnknownName, *, as_json: bool, err: Console) -> 
     return 2
 
 
-def _operation_error(
-    message: str,
-    *,
-    as_json: bool,
-    err: Console,
-    docs_urls: Sequence[str] = (),
-) -> int:
+def _operation_error(message: str, *, as_json: bool, err: Console) -> int:
     pointer = (
         "Canonical provider documentation is available with `sase agent-cli list -v`."
     )
@@ -333,9 +400,8 @@ def _operation_error(
         print(
             json.dumps(
                 {
-                    "schema_version": UPDATE_AGENT_CLI_JSON_SCHEMA_VERSION,
+                    "schema_version": INSTALL_AGENT_CLI_JSON_SCHEMA_VERSION,
                     "error": message,
-                    "docs_urls": list(docs_urls),
                     "docs": pointer,
                 },
                 indent=2,
@@ -344,46 +410,11 @@ def _operation_error(
         )
     else:
         err.print(Text(message, style="bold red"))
-        for url in docs_urls:
-            err.print(f"Docs: {url}")
-        if not docs_urls:
-            err.print(pointer)
+        err.print(pointer)
     return 1
 
 
-def render_reason(reason: str | None, docs_url: str | None) -> str | None:
-    """Render one reason with its docs URL, falling back to the URL alone."""
-    if not reason:
-        return f"See {docs_url}" if docs_url else None
-    if not docs_url or docs_url in reason:
-        return reason
-    return f"{reason}. See {docs_url}"
-
-
-def _docs_urls(entries: Sequence[AgentCliUpdateEntry]) -> tuple[str, ...]:
-    return tuple(
-        dict.fromkeys(
-            entry.status.docs_url for entry in entries if entry.status.docs_url
-        )
-    )
-
-
-def command_text(argv: Sequence[str], env_overlay: EnvOverlay) -> str:
-    """Render a command exactly as SASE will run it, env overlay included.
-
-    The ``NAME=value`` prefix is display only — SASE never uses a shell.
-    """
-    prefix = "".join(f"{name}={shlex.quote(value)} " for name, value in env_overlay)
-    return f"{prefix}{shlex.join(argv)}"
-
-
-def _version(value: str | None) -> str:
-    return value or "unknown"
-
-
 __all__ = [
-    "UPDATE_AGENT_CLI_JSON_SCHEMA_VERSION",
-    "command_text",
-    "handle_agent_cli_update_command",
-    "render_reason",
+    "INSTALL_AGENT_CLI_JSON_SCHEMA_VERSION",
+    "handle_agent_cli_install_command",
 ]
