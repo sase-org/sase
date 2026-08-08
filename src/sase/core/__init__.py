@@ -12,6 +12,7 @@ This package also hosts the Rust-bindable facade layer (see
 - :mod:`sase.core.graph_index_facade` — :func:`build_changespec_graph_index`.
 - :mod:`sase.core.status_facade` — status transitions + pure status helpers.
 - :mod:`sase.core.git_query_facade` — Git query parsers.
+- :mod:`sase.core.glossary_facade` — glossary validation and matching.
 
 The Rust extension is a hard runtime dependency. Ported facades call
 :func:`sase.core.rust.require_rust_binding` to look up the relevant
@@ -32,6 +33,19 @@ from sase.core.changespec import (
     strip_reverted_suffix,
 )
 from sase.core.clipboard import copy_to_system_clipboard
+from sase.core.glossary_facade import (
+    GlossaryCatalog,
+    GlossaryDiagnostic,
+    GlossaryEntry,
+    GlossaryInputEntry,
+    GlossarySource,
+    GlossarySpan,
+    build_glossary_catalog,
+    compile_glossary_catalog,
+    lookup_glossary_span,
+    scan_glossary_spans,
+    validate_glossary_entries,
+)
 from sase.core.paths import (
     ensure_sase_directory,
     get_sase_managed_tmpdir,
@@ -54,6 +68,12 @@ __all__ = [
     "copy_to_system_clipboard",
     "ensure_sase_directory",
     "generate_timestamp",
+    "GlossaryCatalog",
+    "GlossaryDiagnostic",
+    "GlossaryEntry",
+    "GlossaryInputEntry",
+    "GlossarySource",
+    "GlossarySpan",
     "get_next_suffix_number",
     "get_sase_managed_tmpdir",
     "get_sase_directory",
@@ -62,9 +82,14 @@ __all__ = [
     "get_workspace_directory_for_changespec",
     "has_suffix",
     "make_safe_filename",
+    "build_glossary_catalog",
+    "compile_glossary_catalog",
+    "lookup_glossary_span",
     "run_shell_command",
     "run_workspace_command",
+    "scan_glossary_spans",
     "shorten_path",
     "strip_hook_prefix",
     "strip_reverted_suffix",
+    "validate_glossary_entries",
 ]

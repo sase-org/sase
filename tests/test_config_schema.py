@@ -149,6 +149,33 @@ def test_config_schema_allows_base_config_without_identity() -> None:
     )
 
 
+def test_config_schema_validates_project_glossary_shape() -> None:
+    validator = Draft7Validator(schema())
+
+    validator.validate(
+        {
+            "glossary": {
+                "Agent Clan": {
+                    "aliases": ["agent clans", "clan"],
+                    "definition": "A named, rootless container.",
+                },
+                "Workspace": {
+                    "definition": "A numbered project checkout.",
+                },
+            }
+        }
+    )
+    for invalid in (
+        {"Agent Clan": {"aliases": ["clan"]}},
+        {"Agent Clan": {"definition": ""}},
+        {"Agent Clan": {"definition": "Valid", "aliases": ["two\nlines"]}},
+        {"Agent Clan": {"definition": "Valid", "unknown": True}},
+        {"": {"definition": "Blank term"}},
+    ):
+        with pytest.raises(ValidationError):
+            validator.validate({"glossary": invalid})
+
+
 def test_config_schema_validates_nested_owner_and_legacy_machine_name() -> None:
     validator = Draft7Validator(schema())
 

@@ -350,6 +350,30 @@
         }
       }
     },
+    "glossaryEntry": {
+      "type": "object",
+      "description": "One project-local glossary entry keyed by its canonical displayed term.",
+      "required": ["definition"],
+      "additionalProperties": false,
+      "properties": {
+        "definition": {
+          "type": "string",
+          "description": "Nonblank Markdown definition for the canonical term.",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "aliases": {
+          "type": "array",
+          "description": "Additional single-line aliases matched after the canonical term.",
+          "default": [],
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?=.*\\S)[^\\r\\n]+$"
+          }
+        }
+      }
+    },
     "xpromptInputDefinitions": {
       "description": "Input argument definitions (array or object shorthand)",
       "oneOf": [
@@ -439,6 +463,17 @@
       "type": ["string", "null"],
       "description": "Optional root-relative path to the Jinja2 template used for generated sase/memory/README.md files.",
       "default": null
+    },
+    "glossary": {
+      "type": "object",
+      "description": "Project-local domain glossary. Valid only in a project's canonical sase/sase.yml; user, overlay, plugin, and builtin layers are diagnosed by the Rust config backend.",
+      "propertyNames": {
+        "description": "Canonical displayed glossary term.",
+        "pattern": "\\S"
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/glossaryEntry"
+      }
     },
     "is_sase_managed": {
       "type": "boolean",
