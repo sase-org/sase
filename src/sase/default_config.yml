@@ -1063,12 +1063,12 @@ xprompts:
     input:
       bead_id: word
     content: |
-      Can you complete the work for task bead {{ bead_id }}? The bead is already reserved for you and assigned to your
-      agent name: it was set to status=in_progress by the launch that started you; do not set the status by hand. Run
-      `sase bead show {{ bead_id }}`, read the description and notes, do the work, and close the bead with
-      `sase bead close {{ bead_id }} --note "<what you verified>"`. If you discover genuinely distinct follow-up work,
-      do not expand this bead's scope: use `/sase_new_task` to check duplicates and active epics, then record it in the
-      location that skill selects.
+      Can you complete the work for the {{ bead_id }} sase task bead by running the
+      `sase bead show {{ bead_id }}` command, reviewing the command's output, doing the work, and
+      then closing the bead by running the
+      `sase bead close {{ bead_id }} --note "<what you verified>"` command?
+
+      IMPORTANT: Do not commit your changes unless/until the finalizer asks you to.
   epic: |
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
     keep in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `agy` /
