@@ -31,7 +31,6 @@ from tests.fakey.harness import (
 pytestmark = pytest.mark.visual
 
 _VISUAL_NOW = datetime(2026, 7, 6, 12, 0, 0)
-_CONTENTION_STATE_TIMEOUT = 60
 
 
 def _patch_sentinel_pid_liveness(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -80,17 +79,14 @@ async def test_real_fakey_retry_countdown_png_snapshot(
         monkeypatch,
         [retryable_failure(), successful_attempt("retry recovered")],
     )
-    retry_wait = harness.barrier("retry-wait", timeout=60)
+    retry_wait = harness.barrier("retry-wait")
     harness.hold_retry_wait(monkeypatch, retry_wait)
     patch_startup_loaders(monkeypatch, use_real_agent_loader=True)
 
     handle = harness.run_in_background()
     try:
-        # The contention harness starts 26 pytest workers on two CPUs. Match
-        # the retry barrier's load-tolerant budget so process startup cannot
-        # exhaust the helper's otherwise useful five-second unit-test default.
-        harness.wait_for_retry_state("retrying", timeout=_CONTENTION_STATE_TIMEOUT)
-        retry_wait.wait_until_started(timeout=_CONTENTION_STATE_TIMEOUT)
+        harness.wait_for_retry_state("retrying")
+        retry_wait.wait_until_started()
         harness.normalize_visual_timestamps(_VISUAL_NOW, countdown_seconds=9)
         _patch_sentinel_pid_liveness(monkeypatch)
         monkeypatch.setattr(time, "time", lambda: _VISUAL_NOW.timestamp())
@@ -182,7 +178,7 @@ async def test_real_fakey_running_fallback_png_snapshot(
         is_home_mode=True,
     )
     harness.seed_running_agent(started_at=datetime(2026, 7, 6, 11, 59, 0))
-    fallback = harness.barrier("fallback", timeout=60)
+    fallback = harness.barrier("fallback")
     harness.use_scenario(
         monkeypatch,
         [
@@ -198,10 +194,8 @@ async def test_real_fakey_running_fallback_png_snapshot(
 
     handle = harness.run_in_background()
     try:
-        fallback.wait_until_started(timeout=60)
-        state = harness.wait_for_retry_state(
-            "running_fallback", timeout=_CONTENTION_STATE_TIMEOUT
-        )
+        fallback.wait_until_started()
+        state = harness.wait_for_retry_state("running_fallback")
         assert state.fallback_model == "fakey-small"
         harness.normalize_visual_timestamps(_VISUAL_NOW)
         _patch_sentinel_pid_liveness(monkeypatch)

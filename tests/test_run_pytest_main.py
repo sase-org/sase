@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from tests._run_pytest_fixtures import (
+    AMBIENT_MODE_ENV_VARS,
     PINNED_ENV_VARS,
     isolate_run_pytest_environment,  # noqa: F401 (registers autouse env-isolation fixture)
     load_run_pytest,
@@ -25,6 +26,31 @@ pytestmark = pytest.mark.contract
 def test_pinned_env_vars_cover_every_key_main_sanitizes() -> None:
     runner = load_run_pytest()
     assert set(runner.PYTEST_ENV_UNSET_KEYS) <= set(PINNED_ENV_VARS)
+
+
+def test_pinned_env_vars_cover_every_request_main_writes_for_its_plugins() -> None:
+    """The record requests leak past teardown unless they are pinned too.
+
+    `main()` writes these straight to `os.environ` for the plugins it is about
+    to `execv` into. A test that drives `main()` without pinning them leaves
+    them set for every later test on the same worker, which is what made
+    `test_repeat_runs_neither_lease_the_gate_nor_record_health` fail only when
+    a health test happened to run before it.
+    """
+    runner = load_run_pytest()
+    assert {
+        runner.COVERAGE_CORE_ENV,
+        runner.RECORD_ENV,
+        runner.TIMINGS_RECORD_ENV,
+    } <= set(PINNED_ENV_VARS)
+
+
+def test_ambient_mode_env_vars_name_the_switch_the_contention_harness_exports() -> None:
+    runner = load_run_pytest()
+    assert runner.HEALTH_DISABLED_ENV in AMBIENT_MODE_ENV_VARS
+    assert runner._contention_environment(Path("failures.json")).keys() >= {
+        runner.HEALTH_DISABLED_ENV
+    }
 
 
 def test_sanitizes_commit_workflow_environment(

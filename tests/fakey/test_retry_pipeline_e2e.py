@@ -73,14 +73,22 @@ def test_retryable_failure_then_success_records_lifecycle_and_nudge(
         monkeypatch,
         [retryable_failure(), successful_attempt("second attempt succeeded")],
     )
+    # Hold the retry wait open instead of racing it. `retry_state.json` only
+    # exists between the failed attempt and the retry, so a real one-second
+    # sleep makes the assertions below a bet on this thread being scheduled
+    # inside that window -- a bet the contention reproducer wins 5 times in 8.
+    retry_wait = harness.barrier("retry-wait")
+    harness.hold_retry_wait(monkeypatch, retry_wait)
 
     handle = harness.run_in_background("Keep the original task intact.")
     try:
         retrying = harness.wait_for_retry_state("retrying")
         assert retrying.retry_count == 1
         assert retrying.max_retries == 1
+        retry_wait.open()
         result = handle.finish()
     finally:
+        retry_wait.open()
         if handle.thread.is_alive():
             runner_utils._killed_state["killed"] = True
             handle.thread.join(5)
@@ -195,13 +203,21 @@ def test_kill_during_retry_wait_stops_before_another_subprocess(
         monkeypatch,
         [retryable_failure("wait before retry"), successful_attempt("must not run")],
     )
+    # The subject is *where* the kill is observed, not how fast: the barrier
+    # parks the executor inside the retry wait so the kill lands there by
+    # construction rather than by the test outrunning a five-second sleep.
+    retry_wait = harness.barrier("retry-wait")
+    harness.hold_retry_wait(monkeypatch, retry_wait)
 
     handle = harness.run_in_background()
     try:
         harness.wait_for_retry_state("retrying")
+        retry_wait.wait_until_started()
         runner_utils._killed_state["killed"] = True
-        result = handle.finish(timeout=3)
+        retry_wait.open()
+        result = handle.finish()
     finally:
+        retry_wait.open()
         if handle.thread.is_alive():
             runner_utils._killed_state["killed"] = True
             handle.thread.join(5)

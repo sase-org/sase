@@ -22,11 +22,13 @@ ROOT = Path(__file__).resolve().parents[1]
 RUN_PYTEST_PATH = ROOT / "tools" / "run_pytest"
 
 # Every process global `tools/run_pytest`'s main() mutates on its way to
-# execv: TMPDIR and SASE_PYTEST_TMP_REDIRECTED (_prepare_pytest_tmpdir()), and
-# the four keys _sanitize_pytest_environment() pops
-# (run_pytest.PYTEST_ENV_UNSET_KEYS). Duplicated here rather than derived by
-# calling load_run_pytest(), which would re-exec the module on every test; a
-# contract test in test_run_pytest_main.py pins the two lists together.
+# execv: TMPDIR and SASE_PYTEST_TMP_REDIRECTED (_prepare_pytest_tmpdir()), the
+# four keys _sanitize_pytest_environment() pops
+# (run_pytest.PYTEST_ENV_UNSET_KEYS), and the three requests it hands the
+# plugins it is about to exec (COVERAGE_CORE, and the health and timings record
+# requests). Duplicated here rather than derived by calling load_run_pytest(),
+# which would re-exec the module on every test; contract tests in
+# test_run_pytest_main.py pin the lists together.
 PINNED_ENV_VARS: tuple[str, ...] = (
     "TMPDIR",
     "SASE_PYTEST_TMP_REDIRECTED",
@@ -34,6 +36,9 @@ PINNED_ENV_VARS: tuple[str, ...] = (
     "SASE_COMMIT_METHOD_ALLOW_OVERRIDE",
     "SASE_PR_NAME",
     "SASE_PR_STATUS",
+    "COVERAGE_CORE",
+    "SASE_TEST_SELECTION_HEALTH_RECORD",
+    "SASE_TEST_SELECTION_TIMINGS_RECORD",
 )
 
 # The markers that tell `tools/run_pytest` an ancestor's lease already paid for
@@ -44,6 +49,16 @@ GATE_EXEMPTION_ENV_VARS: tuple[str, ...] = (
     "PYTEST_XDIST_WORKER",
     "SASE_TEST_GATE_GOVERNED",
 )
+
+# The ambient switches that decide which behaviour `main()` even reaches, and
+# which a parent run can therefore silently rewrite these tests to describe.
+# `just test-contention` exports SASE_TEST_SELECTION_HEALTH_DISABLED=1 into
+# every repeat (`_contention_environment`), so a test that asserts health
+# recording happened -- or that the escalated command carries the health plugin
+# -- fails deterministically under the soak and nowhere else. Cleared so every
+# test starts from the recording-enabled default; the tests that describe the
+# disabled case set the variable themselves.
+AMBIENT_MODE_ENV_VARS: tuple[str, ...] = ("SASE_TEST_SELECTION_HEALTH_DISABLED",)
 
 
 @pytest.fixture(autouse=True)
@@ -57,15 +72,16 @@ def isolate_run_pytest_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     teardown and poisons every later test on the same xdist worker. Every
     module that calls `load_run_pytest()` imports this fixture.
 
-    It also clears the inherited gate-exemption markers, so every test starts
-    from the top-level run it is describing rather than from this suite's own.
+    It also clears the inherited gate-exemption and ambient-mode markers, so
+    every test starts from the top-level run it is describing rather than from
+    whatever parent run happens to be driving this suite.
     """
     for name in PINNED_ENV_VARS:
         current = os.environ.get(name)
         monkeypatch.setenv(name, "" if current is None else current)
         if current is None:
             monkeypatch.delenv(name, raising=False)
-    for name in GATE_EXEMPTION_ENV_VARS:
+    for name in GATE_EXEMPTION_ENV_VARS + AMBIENT_MODE_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(os.getcwd())
 

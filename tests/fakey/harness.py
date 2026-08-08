@@ -23,6 +23,18 @@ from sase.axe.run_agent_exec_types import AgentExecResult
 from sase.llm_provider.retry_config import RetryState
 
 
+# Every bounded wait in this harness is a deadlock detector, not a speed
+# assertion. What they wait on is a background thread and the real subprocess
+# it drives, and under the contention reproducer (26 xdist workers pinned to
+# two CPUs) that pair legitimately needs tens of seconds to do what an idle
+# machine does in milliseconds. The previous five-second ceiling was tight
+# enough to be a speed assertion, which made
+# `test_retryable_failure_then_success_records_lifecycle_and_nudge` the
+# parallel-suite flake class's second-strongest reproducer at 5/8 repeats
+# (sase-h8.3). Sized so an unstarved run never reaches it while a genuine hang
+# still fails its own test instead of stalling the suite.
+LOAD_TOLERANT_TIMEOUT = 60.0
+
 _CONTROL_ENV = (
     "FAKEY_DELAY",
     "FAKEY_EXIT_CODE",
@@ -63,7 +75,7 @@ class FakeyBarrier:
             {"wait_for": {"path": str(self.release), "timeout": self.timeout}},
         ]
 
-    def wait_until_started(self, timeout: float = 5) -> None:
+    def wait_until_started(self, timeout: float = LOAD_TOLERANT_TIMEOUT) -> None:
         _wait_until(self.started.exists, timeout, f"fakey barrier {self.started}")
 
     def open(self) -> None:
@@ -79,7 +91,7 @@ class ExecutionHandle:
     _results: list[AgentExecResult] = field(default_factory=list)
     _errors: list[BaseException] = field(default_factory=list)
 
-    def finish(self, timeout: float = 10) -> AgentExecResult:
+    def finish(self, timeout: float = LOAD_TOLERANT_TIMEOUT) -> AgentExecResult:
         self.thread.join(timeout)
         if self.thread.is_alive():
             raise TimeoutError("retry execution did not finish before its timeout")
@@ -198,7 +210,9 @@ class FakeyRetryHarness:
         monkeypatch.setenv("FAKEY_SCENARIO", str(scenario))
         return scenario
 
-    def barrier(self, name: str, *, timeout: float = 5) -> FakeyBarrier:
+    def barrier(
+        self, name: str, *, timeout: float = LOAD_TOLERANT_TIMEOUT
+    ) -> FakeyBarrier:
         barrier_dir = self.root / "barriers"
         return FakeyBarrier(
             started=barrier_dir / f"{name}.started",
@@ -437,7 +451,17 @@ class FakeyRetryHarness:
     def retry_state(self) -> RetryState | None:
         return RetryState.read_from(str(self.artifacts))
 
-    def wait_for_retry_state(self, status: str, *, timeout: float = 5) -> RetryState:
+    def wait_for_retry_state(
+        self, status: str, *, timeout: float = LOAD_TOLERANT_TIMEOUT
+    ) -> RetryState:
+        """Block until the executor publishes ``status``, or the ceiling trips.
+
+        ``retry_state.json`` is transient: it is written on the way into the
+        retry wait and cleared on the way out. A caller that lets the executor
+        sleep a real interval is racing that window, so callers who need to
+        *observe* the retrying state should hold the wait open with
+        :meth:`hold_retry_wait` rather than rely on this poll winning the race.
+        """
         found: list[RetryState] = []
 
         def state_matches() -> bool:
