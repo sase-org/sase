@@ -35,7 +35,8 @@ def _hook(
     *,
     projects: tuple[str, ...] | None = None,
     sidecars: tuple[str, ...] | None = None,
-    globs: tuple[str, ...] | None = None,
+    path_globs: tuple[str, ...] | None = None,
+    agent_name_globs: tuple[str, ...] | None = None,
     ops: tuple[str, ...] | None = None,
 ) -> FileHookConfig:
     return FileHookConfig(
@@ -44,7 +45,8 @@ def _hook(
         command="check",
         projects=projects,
         sidecars=sidecars,
-        globs=globs,
+        path_globs=path_globs,
+        agent_name_globs=agent_name_globs,
         ops=ops,  # type: ignore[arg-type]
         timeout_seconds=120,
     )
@@ -56,6 +58,7 @@ def _event(
     project: str = "sase",
     sidecar: str | None = "research",
     op: str = "ADD",
+    agent: str | None = None,
 ) -> FileHookEvent:
     return FileHookEvent(
         project=project,
@@ -63,6 +66,7 @@ def _event(
         sidecar_role=sidecar,
         rel_path=path,
         op=op,  # type: ignore[arg-type]
+        agent_name=agent,
     )
 
 
@@ -175,8 +179,8 @@ def test_public_loader_fails_soft(monkeypatch: Any, caplog: Any) -> None:
     assert "Failed to load file hooks: broken config" in caplog.text
 
 
-def test_glob_positive_or_and_negative_veto() -> None:
-    hook = _hook(globs=("src/*.py", "tests/*.py", "!tests/private*.py"))
+def test_path_glob_positive_or_and_negative_veto() -> None:
+    hook = _hook(path_globs=("src/*.py", "tests/*.py", "!tests/private*.py"))
 
     assert hook_matches_event(hook, _event("src/main.py"))
     assert hook_matches_event(hook, _event("tests/test_main.py"))
@@ -184,16 +188,16 @@ def test_glob_positive_or_and_negative_veto() -> None:
     assert not hook_matches_event(hook, _event("docs/main.py"))
 
 
-def test_negative_only_globs_mean_everything_except() -> None:
-    hook = _hook(globs=("!**/*__*.md",))
+def test_negative_only_path_globs_mean_everything_except() -> None:
+    hook = _hook(path_globs=("!**/*__*.md",))
 
     assert hook_matches_event(hook, _event("202607/report/report.md"))
     assert not hook_matches_event(hook, _event("202607/report/report__draft.md"))
 
 
 def test_star_does_not_cross_slashes_and_globstar_does() -> None:
-    shallow = _hook(globs=("src/*.py",))
-    recursive = _hook(globs=("src/**/*.py",))
+    shallow = _hook(path_globs=("src/*.py",))
+    recursive = _hook(path_globs=("src/**/*.py",))
 
     assert hook_matches_event(shallow, _event("src/main.py"))
     assert not hook_matches_event(shallow, _event("src/nested/main.py"))
@@ -201,9 +205,95 @@ def test_star_does_not_cross_slashes_and_globstar_does() -> None:
 
 
 def test_dotglob_and_posix_path_normalization() -> None:
-    hook = _hook(globs=("src/**/*.py",))
+    hook = _hook(path_globs=("src/**/*.py",))
 
     assert hook_matches_event(hook, _event(r".\src\.hidden\check.py"))
+
+
+def test_positive_agent_name_globs_match_only_listed_agents() -> None:
+    hook = _hook(agent_name_globs=("research.*.final", "bob"))
+
+    assert hook_matches_event(hook, _event("report.md", agent="research.7.final"))
+    assert hook_matches_event(hook, _event("report.md", agent="bob"))
+    assert not hook_matches_event(hook, _event("report.md", agent="research.7.cld"))
+
+
+def test_negative_only_agent_name_globs_mean_everything_except() -> None:
+    hook = _hook(agent_name_globs=("!research.*.cld", "!research.*.cdx"))
+
+    assert not hook_matches_event(hook, _event("report.md", agent="research.7.cld"))
+    assert not hook_matches_event(hook, _event("report.md", agent="research.7.cdx"))
+    assert hook_matches_event(hook, _event("report.md", agent="research.7.final"))
+    assert hook_matches_event(hook, _event("report.md", agent="bbugyi200.athena.cld"))
+
+
+def test_mixed_agent_name_globs_or_positives_then_apply_the_veto() -> None:
+    hook = _hook(agent_name_globs=("research.*", "!research.*.cld"))
+
+    assert hook_matches_event(hook, _event("report.md", agent="research.7.final"))
+    assert not hook_matches_event(hook, _event("report.md", agent="research.7.cld"))
+    assert not hook_matches_event(hook, _event("report.md", agent="bob"))
+
+
+def test_unattributed_event_clears_only_negative_only_agent_globs() -> None:
+    negative_only = _hook(agent_name_globs=("!research.*.cld",))
+    with_positive = _hook(agent_name_globs=("research.*", "!research.*.cld"))
+
+    assert hook_matches_event(negative_only, _event("report.md"))
+    assert not hook_matches_event(with_positive, _event("report.md"))
+
+
+def test_path_and_agent_name_filters_are_anded() -> None:
+    hook = _hook(
+        path_globs=("20*/**/*.md", "!20*/*/*__*.md"),
+        agent_name_globs=("!research.*.cld", "!research.*.cdx"),
+    )
+
+    assert hook_matches_event(hook, _event("202608/foo.md", agent="research.7.final"))
+    assert hook_matches_event(
+        hook,
+        _event("202608/foo/foo.md", agent="research.7.final"),
+    )
+    assert not hook_matches_event(hook, _event("202608/foo.md", agent="research.7.cld"))
+    assert not hook_matches_event(
+        hook,
+        _event("202608/foo/foo__a.md", agent="research.7.final"),
+    )
+
+
+def test_loader_rejects_legacy_globs_key_and_unknown_fields(
+    monkeypatch: Any,
+    caplog: Any,
+) -> None:
+    layers = [
+        _layer(
+            "user",
+            [
+                {"name": "legacy", "command": "run", "globs": ["*.md"]},
+                {"name": "typo", "command": "run", "agent_globs": ["bob"]},
+                {
+                    "name": "modern",
+                    "command": "run",
+                    "path_globs": ["20*/**/*.md", "!20*/*/*__*.md"],
+                    "agent_name_globs": ["!research.*.cld"],
+                },
+            ],
+            strategy="replace",
+        )
+    ]
+    monkeypatch.setattr(
+        "sase.config.file_hooks.current_config_token", lambda: ("token",)
+    )
+    monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
+
+    with caplog.at_level(logging.WARNING):
+        hooks = _load_file_hooks()
+
+    assert [hook.name for hook in hooks] == ["modern"]
+    assert "'globs' was renamed to 'path_globs'" in caplog.text
+    assert "unknown field(s): agent_globs" in caplog.text
+    assert hooks[0].path_globs == ("20*/**/*.md", "!20*/*/*__*.md")
+    assert hooks[0].agent_name_globs == ("!research.*.cld",)
 
 
 def test_project_sidecar_and_op_filters_and_unrestricted_defaults() -> None:
@@ -225,14 +315,15 @@ def test_project_sidecar_and_op_filters_and_unrestricted_defaults() -> None:
 
 
 def test_match_events_returns_hook_order_then_event_order() -> None:
-    first = _hook(globs=("**/*.md",))
+    first = _hook(path_globs=("**/*.md",))
     second = FileHookConfig(
         name="second",
         description=None,
         command="check-two",
         projects=None,
         sidecars=None,
-        globs=None,
+        path_globs=None,
+        agent_name_globs=None,
         ops=None,
         timeout_seconds=120,
     )

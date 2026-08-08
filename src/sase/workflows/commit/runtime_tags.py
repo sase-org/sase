@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -62,24 +61,11 @@ def _resolve_runtime_commit_tags() -> dict[str, CommitTagValue]:
 
 def resolve_local_agent_name() -> str | None:
     """Resolve the current locally stored SASE agent name, if available."""
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if artifacts_dir:
-        meta_path = Path(artifacts_dir) / "agent_meta.json"
-        try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
-            pass
-        else:
-            if isinstance(meta, dict):
-                meta_name = _sanitize_tag_value(meta.get("name"))
-                if meta_name:
-                    # Family members can replace one another inside a single
-                    # process, leaving SASE_AGENT_NAME set to the lane while
-                    # this run's metadata carries the concrete member needed
-                    # to derive the lane provenance tag.
-                    return meta_name
+    from sase.agent.identity import (
+        resolve_local_agent_name as identity_resolve_local_agent_name,
+    )
 
-    return _sanitize_tag_value(os.environ.get("SASE_AGENT_NAME"))
+    return _sanitize_tag_value(identity_resolve_local_agent_name())
 
 
 def apply_runtime_commit_tags(payload: dict) -> None:

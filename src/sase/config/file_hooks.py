@@ -25,6 +25,22 @@ _DURATION_MULTIPLIERS = {
     "m": 60.0,
     "h": 3600.0,
 }
+#: Config layers are not validated against ``sase.schema.json`` at runtime, so
+#: unknown keys must be rejected here. A stale ``globs:`` entry would otherwise
+#: parse to ``path_globs=None``, which means *match every file*.
+_KNOWN_FILE_HOOK_KEYS = frozenset(
+    {
+        "name",
+        "description",
+        "command",
+        "projects",
+        "sidecars",
+        "path_globs",
+        "agent_name_globs",
+        "ops",
+        "timeout",
+    }
+)
 
 _file_hooks_cache_token: tuple[Any, ...] | None = None
 _file_hooks_cache_value: list[FileHookConfig] | None = None
@@ -39,7 +55,8 @@ class FileHookConfig:
     command: str
     projects: tuple[str, ...] | None
     sidecars: tuple[str, ...] | None
-    globs: tuple[str, ...] | None
+    path_globs: tuple[str, ...] | None
+    agent_name_globs: tuple[str, ...] | None
     ops: tuple[FileHookOp, ...] | None
     timeout_seconds: float
     source_layer: str = "unknown"
@@ -71,6 +88,9 @@ class FileHookEvent:
     sidecar_role: str | None
     rel_path: str
     op: FileHookOp
+    #: ``None`` is legitimate for a commit made outside a SASE agent, so this
+    #: field is deliberately not validated below.
+    agent_name: str | None = None
 
     def __post_init__(self) -> None:
         if self.op not in FILE_HOOK_OPS:
@@ -136,6 +156,13 @@ def _parse_file_hook(
     if not isinstance(item, dict):
         raise ValueError("each file hook must be a dictionary")
 
+    unknown_keys = {str(key) for key in item} - _KNOWN_FILE_HOOK_KEYS
+    if unknown_keys:
+        if "globs" in unknown_keys:
+            raise ValueError("'globs' was renamed to 'path_globs'")
+        joined = ", ".join(sorted(unknown_keys))
+        raise ValueError(f"unknown field(s): {joined}")
+
     name = item.get("name")
     command = item.get("command")
     if not isinstance(name, str):
@@ -153,7 +180,11 @@ def _parse_file_hook(
         command=command,
         projects=projects,
         sidecars=_optional_string_tuple(item.get("sidecars"), "sidecars"),
-        globs=_optional_string_tuple(item.get("globs"), "globs"),
+        path_globs=_optional_string_tuple(item.get("path_globs"), "path_globs"),
+        agent_name_globs=_optional_string_tuple(
+            item.get("agent_name_globs"),
+            "agent_name_globs",
+        ),
         ops=_optional_ops(item.get("ops")),
         timeout_seconds=_parse_duration(item.get("timeout", "120s")),
         source_layer=source_layer,
@@ -238,11 +269,11 @@ def get_all_file_hooks() -> list[FileHookConfig]:
         return []
 
 
-def _glob_matches(globs: tuple[str, ...], rel_path: str) -> bool:
+def _glob_matches(patterns: tuple[str, ...], value: str) -> bool:
     from wcmatch import glob
 
     flags = glob.DOTGLOB | glob.GLOBSTAR | glob.NEGATE | glob.NEGATEALL
-    return glob.globmatch(rel_path, globs, flags=flags)
+    return glob.globmatch(value, patterns, flags=flags)
 
 
 def hook_matches_event(hook: FileHookConfig, event: FileHookEvent) -> bool:
@@ -254,8 +285,16 @@ def hook_matches_event(hook: FileHookConfig, event: FileHookEvent) -> bool:
     if hook.ops is not None and event.op not in hook.ops:
         return False
 
-    rel_path = event.rel_path.replace("\\", "/").removeprefix("./")
-    return not hook.globs or _glob_matches(hook.globs, rel_path)
+    if hook.path_globs:
+        rel_path = event.rel_path.replace("\\", "/").removeprefix("./")
+        if not _glob_matches(hook.path_globs, rel_path):
+            return False
+    # An unattributed event is matched as the empty string, so it clears a
+    # negative-only list but never one containing a positive pattern.
+    return not hook.agent_name_globs or _glob_matches(
+        hook.agent_name_globs,
+        event.agent_name or "",
+    )
 
 
 def match_events(

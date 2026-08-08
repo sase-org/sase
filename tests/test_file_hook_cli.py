@@ -24,7 +24,8 @@ def _hook() -> FileHookConfig:
         command="bob highlights create",
         projects=("sase",),
         sidecars=("research",),
-        globs=("20*/*/*.md", "!20*/*/*__*.md"),
+        path_globs=("20*/**/*.md", "!20*/*/*__*.md"),
+        agent_name_globs=("!research.*.cld", "!research.*.cdx"),
         ops=("ADD",),
         timeout_seconds=120,
         source_layer="user",
@@ -74,10 +75,14 @@ def test_file_hook_list_json_is_versioned(capsys: Any) -> None:
 
     payload = json.loads(capsys.readouterr().out)
     assert code == 0
-    assert payload["schema_version"] == FILE_HOOK_LIST_JSON_SCHEMA_VERSION
+    assert payload["schema_version"] == FILE_HOOK_LIST_JSON_SCHEMA_VERSION == 2
     assert payload["count"] == 1
-    assert payload["file_hooks"][0]["source_layer"] == "user"
-    assert payload["file_hooks"][0]["timeout_seconds"] == 120
+    entry = payload["file_hooks"][0]
+    assert entry["source_layer"] == "user"
+    assert entry["timeout_seconds"] == 120
+    assert entry["path_globs"] == ["20*/**/*.md", "!20*/*/*__*.md"]
+    assert entry["agent_name_globs"] == ["!research.*.cld", "!research.*.cdx"]
+    assert "globs" not in entry
 
 
 def test_file_hook_list_renders_all_fields() -> None:
@@ -97,7 +102,10 @@ def test_file_hook_list_renders_all_fields() -> None:
     assert "bob highlights create" in rendered
     assert "projects: sase" in rendered
     assert "sidecars: research" in rendered
-    assert "20*/*/*.md" in rendered
+    assert "path_globs: 20*/**/*.md, !20*/*/*__*.md" in rendered
+    # The agent-name row wraps at this width, so assert its parts separately.
+    assert "agent_name_globs: !research.*.cld," in rendered
+    assert "!research.*.cdx" in rendered
     assert "ops: ADD" in rendered
     assert "120s" in rendered
     assert "user" in rendered

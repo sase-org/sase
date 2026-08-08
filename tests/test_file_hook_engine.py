@@ -22,6 +22,8 @@ from sase.file_hooks.engine import (
     CapturedFileEvent,
     _derive_commit_file_events,
     capture_artifact_file_event,
+    emit_artifact_file_hook_event,
+    emit_commit_file_hook_events,
     emit_file_hook_events,
 )
 from sase.file_hooks.runner import _prune_file_hook_state, execute_batch
@@ -65,6 +67,7 @@ def _hook(
     command: str = "true",
     *,
     timeout_seconds: float = 120,
+    agent_name_globs: tuple[str, ...] | None = None,
 ) -> FileHookConfig:
     return FileHookConfig(
         name=name,
@@ -72,13 +75,19 @@ def _hook(
         command=command,
         projects=None,
         sidecars=None,
-        globs=None,
+        path_globs=None,
+        agent_name_globs=agent_name_globs,
         ops=None,
         timeout_seconds=timeout_seconds,
     )
 
 
-def _event(repo: Path, path: str = "report.md") -> CapturedFileEvent:
+def _event(
+    repo: Path,
+    path: str = "report.md",
+    *,
+    agent_name: str | None = None,
+) -> CapturedFileEvent:
     return CapturedFileEvent(
         abs_path=str(repo / path),
         repo_root=str(repo),
@@ -87,7 +96,13 @@ def _event(repo: Path, path: str = "report.md") -> CapturedFileEvent:
         sidecar_role="research",
         rel_path=path,
         op="ADD",
+        agent_name=agent_name,
     )
+
+
+def _clear_agent_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
 
 
 def test_commit_event_derivation_handles_root_add_modify_delete_and_rename(
@@ -177,6 +192,137 @@ def test_emit_persists_versioned_batch_and_detaches_once_per_commit(
     assert payload["commit_sha"] == "a" * 40
     assert payload["runs"][0]["command"] == "true"
     assert payload["runs"][0]["abs_path"] == str(repo / "report.md")
+
+
+def _emitted_agent_names(batch_path: Path) -> list[str | None]:
+    payload = json.loads(batch_path.read_text(encoding="utf-8"))
+    return [run["agent_name"] for run in payload["runs"]]
+
+
+def _stub_detached_spawn(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the real batch payload while never spawning a runner process."""
+    monkeypatch.setattr(
+        "sase.file_hooks.engine.emit_file_hook_events",
+        lambda events, **kwargs: emit_file_hook_events(
+            events,
+            popen=lambda *args, **spawn_kwargs: MagicMock(),
+            **kwargs,
+        ),
+    )
+
+
+def _emit_commit(
+    monkeypatch: pytest.MonkeyPatch,
+    repo: Path,
+    sha: str,
+    hook: FileHookConfig,
+) -> Path | None:
+    _stub_detached_spawn(monkeypatch)
+    return emit_commit_file_hook_events(repo_root=repo, commit_sha=sha, hooks=[hook])
+
+
+def test_commit_batch_records_the_producing_agent_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    (repo / "report.md").write_text("# report\n", encoding="utf-8")
+    (repo / "notes.md").write_text("# notes\n", encoding="utf-8")
+    sha = _commit(repo, "add reports")
+    _clear_agent_env(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_NAME", "research.7.final")
+
+    batch_path = _emit_commit(monkeypatch, repo, sha, _hook("render"))
+
+    assert batch_path is not None
+    assert _emitted_agent_names(batch_path) == ["research.7.final"] * 2
+
+
+def test_agent_meta_name_wins_over_the_environment_variable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    (repo / "report.md").write_text("# report\n", encoding="utf-8")
+    sha = _commit(repo, "add report")
+    artifacts = tmp_path / "agent"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"name": "research.7.cld"}),
+        encoding="utf-8",
+    )
+    _clear_agent_env(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_NAME", "research.7")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+
+    batch_path = _emit_commit(monkeypatch, repo, sha, _hook("render"))
+
+    assert batch_path is not None
+    assert _emitted_agent_names(batch_path) == ["research.7.cld"]
+
+
+def test_unattributed_commit_still_runs_negative_only_agent_hooks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    (repo / "report.md").write_text("# report\n", encoding="utf-8")
+    sha = _commit(repo, "add report")
+    _clear_agent_env(monkeypatch)
+
+    batch_path = _emit_commit(
+        monkeypatch,
+        repo,
+        sha,
+        _hook("render", agent_name_globs=("!research.*.cld",)),
+    )
+
+    assert batch_path is not None
+    assert _emitted_agent_names(batch_path) == [None]
+
+
+def test_excluded_agent_produces_no_batch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _clear_agent_env(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_NAME", "research.7.cld")
+
+    assert (
+        emit_file_hook_events(
+            [_event(repo, agent_name="research.7.cld")],
+            hooks=[_hook("render", agent_name_globs=("!research.*.cld",))],
+            popen=lambda *args, **kwargs: MagicMock(),
+        )
+        is None
+    )
+
+
+def test_artifact_capture_and_emit_preserve_the_agent_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    source = repo / "report.md"
+    source.write_text("# report\n", encoding="utf-8")
+    stored = tmp_path / "stored.md"
+    stored.write_text("# report\n", encoding="utf-8")
+    _clear_agent_env(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_NAME", "research.7.final")
+    monkeypatch.setattr(
+        "sase.file_hooks.engine.get_all_file_hooks",
+        lambda: [_hook("render")],
+    )
+    _stub_detached_spawn(monkeypatch)
+
+    captured = capture_artifact_file_event(source)
+    assert captured.agent_name == "research.7.final"
+
+    batch_path = emit_artifact_file_hook_event(captured, stored)
+
+    assert batch_path is not None
+    assert _emitted_agent_names(batch_path) == ["research.7.final"]
 
 
 def test_detached_spawn_failure_is_non_gating_and_leaves_no_pending_batch(

@@ -133,6 +133,9 @@ def _notify_run(
         f"operation: {run['op']}",
         f"project: {run['project']}",
         f"repository: {run['repo_kind']}",
+        # ``.get`` so a batch written before agent attribution existed still
+        # executes and notifies.
+        f"agent: {run.get('agent_name') or '-'}",
         f"duration: {duration_seconds:.3f}s",
         f"exit code: {exit_code if exit_code is not None else failure}",
     ]

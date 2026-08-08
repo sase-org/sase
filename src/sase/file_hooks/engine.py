@@ -47,6 +47,7 @@ class CapturedFileEvent:
     sidecar_role: str | None
     rel_path: str
     op: FileHookOp
+    agent_name: str | None = None
 
     def matching_event(self) -> FileHookEvent:
         """Return the config matcher's intentionally smaller event view."""
@@ -56,7 +57,18 @@ class CapturedFileEvent:
             sidecar_role=self.sidecar_role,
             rel_path=self.rel_path,
             op=self.op,
+            agent_name=self.agent_name,
         )
+
+
+def _current_agent_name() -> str | None:
+    """Best-effort SASE agent attribution for events captured in-process."""
+    try:
+        from sase.agent.identity import resolve_local_agent_name
+
+        return resolve_local_agent_name()
+    except Exception:
+        return None
 
 
 def _file_hooks_root() -> Path:
@@ -127,6 +139,7 @@ def _batch_payload(
                 "sidecar_role": captured.sidecar_role,
                 "rel_path": captured.rel_path,
                 "op": captured.op,
+                "agent_name": captured.agent_name,
             }
         )
     return {
@@ -248,6 +261,7 @@ def _derive_commit_file_events(
     project: str,
     repo_kind: RepoKind,
     sidecar_role: str | None,
+    agent_name: str | None = None,
 ) -> list[CapturedFileEvent]:
     """Derive canonical file operations for one newly created commit."""
     root = Path(repo_root).expanduser().resolve()
@@ -274,6 +288,7 @@ def _derive_commit_file_events(
             sidecar_role=sidecar_role,
             rel_path=Path(rel_path).as_posix(),
             op=op,
+            agent_name=agent_name,
         )
         for op, rel_path in entries
     ]
@@ -394,6 +409,7 @@ def emit_commit_file_hook_events(
             project=project,
             repo_kind=repo_kind,
             sidecar_role=effective_sidecar,
+            agent_name=_current_agent_name(),
         )
         return emit_file_hook_events(
             events,
@@ -448,6 +464,7 @@ def capture_artifact_file_event(source_path: str | Path) -> CapturedFileEvent:
         sidecar_role=sidecar_role,
         rel_path=rel_path,
         op="ADD",
+        agent_name=_current_agent_name(),
     )
 
 
@@ -464,6 +481,7 @@ def emit_artifact_file_hook_event(
         sidecar_role=captured_source.sidecar_role,
         rel_path=captured_source.rel_path,
         op="ADD",
+        agent_name=captured_source.agent_name,
     )
     return emit_file_hook_events([event])
 

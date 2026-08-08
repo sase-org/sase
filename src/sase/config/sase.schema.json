@@ -287,10 +287,15 @@
           "items": { "type": "string" },
           "description": "Optional sidecar role names; omitted means any repository."
         },
-        "globs": {
+        "path_globs": {
           "type": "array",
           "items": { "type": "string" },
           "description": "Optional repo-relative path globs, including !-prefixed exclusions."
+        },
+        "agent_name_globs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional SASE agent-name globs matched against the agent that produced the event, including !-prefixed exclusions."
         },
         "ops": {
           "type": "array",

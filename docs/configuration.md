@@ -2050,21 +2050,23 @@ file_hooks:
     command: bob highlights create
     projects: [sase]
     sidecars: [research]
-    globs: ["20*/*/*.md", "!20*/*/*__*.md"]
+    path_globs: ["20*/**/*.md", "!20*/*/*__*.md"]
+    agent_name_globs: ["!research.*.cld", "!research.*.cdx"]
     ops: [ADD]
     timeout: 120s
 ```
 
-| Field         | Type         | Required | Default        | Description                                                                 |
-| ------------- | ------------ | -------- | -------------- | --------------------------------------------------------------------------- |
-| `name`        | string       | yes      | —              | Unique lowercase slug shown in notifications and `sase file-hook list`.     |
-| `description` | string       | no       | —              | Human-readable purpose for the hook.                                        |
-| `command`     | string       | yes      | —              | Shell command; the matched absolute file path is appended as its final arg. |
-| `projects`    | list[string] | no       | all projects   | User-facing project names.                                                  |
-| `sidecars`    | list[string] | no       | all repos      | Sidecar role names such as `research`, `plans`, or `beads`.                 |
-| `globs`       | list[string] | no       | all files      | Repo-relative POSIX globs; `!` prefixes a veto exclusion.                   |
-| `ops`         | list[string] | no       | all operations | Any subset of `ADD`, `MODIFY`, and `REMOVE`.                                |
-| `timeout`     | duration     | no       | `120s`         | Per-run integer duration with an `ms`, `s`, `m`, or `h` suffix.             |
+| Field              | Type         | Required | Default        | Description                                                                                             |
+| ------------------ | ------------ | -------- | -------------- | ------------------------------------------------------------------------------------------------------- |
+| `name`             | string       | yes      | —              | Unique lowercase slug shown in notifications and `sase file-hook list`.                                 |
+| `description`      | string       | no       | —              | Human-readable purpose for the hook.                                                                    |
+| `command`          | string       | yes      | —              | Shell command; the matched absolute file path is appended as its final arg.                             |
+| `projects`         | list[string] | no       | all projects   | User-facing project names.                                                                              |
+| `sidecars`         | list[string] | no       | all repos      | Sidecar role names such as `research`, `plans`, or `beads`.                                             |
+| `path_globs`       | list[string] | no       | all files      | Repo-relative POSIX globs; `!` prefixes a veto exclusion.                                               |
+| `agent_name_globs` | list[string] | no       | all agents     | SASE agent-name globs matched against the agent that produced the event; `!` prefixes a veto exclusion. |
+| `ops`              | list[string] | no       | all operations | Any subset of `ADD`, `MODIFY`, and `REMOVE`.                                                            |
+| `timeout`          | duration     | no       | `120s`         | Per-run integer duration with an `ms`, `s`, `m`, or `h` suffix.                                         |
 
 Matching semantics:
 
@@ -2074,10 +2076,18 @@ Matching semantics:
 - **Ops.** Commit operations come from `git diff --name-status`; renames split into
   `REMOVE` plus `ADD`, root-commit files are `ADD`, and unknown status letters fold to
   `MODIFY`.
-- **Glob matching.** Globs match the file's repo-root-relative POSIX path. Positive
-  globs are OR-ed, while any matching `!` negative veto-excludes the file. `*` does not
-  cross `/`; `**` does. A negative-only list means “everything except.” Dotfiles are
-  eligible.
+- **Path glob matching.** `path_globs` match the file's repo-root-relative POSIX path.
+  Positive globs are OR-ed, while any matching `!` negative veto-excludes the file. `*`
+  does not cross `/`; `**` does. A negative-only list means “everything except.”
+  Dotfiles are eligible.
+- **Agent-name matching.** `agent_name_globs` match the resolved SASE agent name.
+  Positives are OR-ed and `!` vetoes, exactly as for paths. Agent names contain no `/`,
+  so `*` spans the whole name (`research.*.cld` matches `research.7.cld`). An event with
+  no resolvable agent name matches a negative-only list, but never a list containing any
+  positive pattern.
+- **Attribution.** The agent name is resolved in the producing process from
+  `$SASE_ARTIFACTS_DIR/agent_meta.json`'s `name`, falling back to `$SASE_AGENT_NAME`, so
+  a commit made outside a SASE agent has no agent name.
 - **Filters.** All configured dimensions are AND-ed. `projects` compares alias-resolved,
   user-facing project names, never ProjectSpec keys. `sidecars` compares sidecar role
   names. A project-local `sase/sase.yml` declaration without `projects` is automatically
@@ -2090,7 +2100,9 @@ The user layer (`~/.config/sase/sase.yml`) replaces the bundled/default `file_ho
 list. Selected machine overlays (`sase_*.yml`) and project-local `sase/sase.yml`
 concatenate entries onto the effective list, matching `mentor_profiles` merge behavior.
 Hook names must remain unique across the effective list; invalid or duplicate entries
-are warned about and skipped.
+are warned about and skipped. Unknown `file_hooks` keys are rejected the same way, so a
+hook carrying one is skipped with a warning rather than silently losing that filter.
+Note that `globs` was renamed to `path_globs`; the old key is not accepted.
 
 Source: `src/sase/config/file_hooks.py`, `src/sase/config/sase.schema.json`
 

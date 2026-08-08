@@ -65,6 +65,26 @@ def require_agent_identity(
     return identity
 
 
+def resolve_local_agent_name(env: Mapping[str, str] | None = None) -> str | None:
+    """Resolve the current locally stored SASE agent name, if available.
+
+    Unlike :func:`discover_agent_identity`, this resolver is metadata-first:
+    family members can replace one another inside a single process, leaving
+    ``SASE_AGENT_NAME`` set to the lane while this run's ``agent_meta.json``
+    carries the concrete member. Only the metadata ``name`` key is consulted,
+    so commit provenance keeps its narrow behavior.
+    """
+    current_env = env if env is not None else os.environ
+    meta = _agent_meta_from_dir(_clean_value(current_env.get("SASE_ARTIFACTS_DIR")))
+    if meta is not None:
+        raw_name = meta.get("name")
+        if isinstance(raw_name, str):
+            meta_name = _clean_value(raw_name)
+            if meta_name is not None:
+                return meta_name
+    return _clean_value(current_env.get("SASE_AGENT_NAME"))
+
+
 def discover_agent_runtime(
     env: Mapping[str, str] | None = None,
     *,
@@ -141,4 +161,5 @@ __all__ = [
     "discover_agent_identity",
     "discover_agent_runtime",
     "require_agent_identity",
+    "resolve_local_agent_name",
 ]

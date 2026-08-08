@@ -287,7 +287,8 @@ def test_config_schema_accepts_file_hooks() -> None:
                     "command": "bob highlights create",
                     "projects": ["sase"],
                     "sidecars": ["research"],
-                    "globs": ["20*/*/*.md", "!20*/*/*__*.md"],
+                    "path_globs": ["20*/**/*.md", "!20*/*/*__*.md"],
+                    "agent_name_globs": ["!research.*.cld", "!research.*.cdx"],
                     "ops": ["ADD"],
                     "timeout": "120s",
                 },
@@ -312,6 +313,7 @@ def test_config_schema_accepts_file_hooks() -> None:
         {"name": "valid", "command": "run", "ops": ["CREATE"]},
         {"name": "valid", "command": "run", "timeout": "2 days"},
         {"name": "valid", "command": "run", "unknown": True},
+        {"name": "valid", "command": "run", "globs": ["*.md"]},
     ],
 )
 def test_config_schema_rejects_invalid_file_hooks(hook: dict[str, Any]) -> None:
