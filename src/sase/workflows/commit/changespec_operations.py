@@ -4,6 +4,7 @@ import os
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
 from sase.ace.changespec.review_field import format_review_url_line
+from sase.ace.patch.storage import DEFAULT_STITCH_SECTION_HEADER
 from sase.output import print_status
 from sase.workflows.utils import get_project_file_path
 
@@ -315,7 +316,7 @@ def add_changespec_to_project_file(
         from sase.ace.timestamps.recording import format_timestamp_entry_line
         from sase.workflows.commit_utils.entries import format_chat_line_with_duration
 
-        commits_lines = ["COMMITS:\n"]
+        commits_lines = [f"{DEFAULT_STITCH_SECTION_HEADER}\n"]
         timestamps_lines = ["TIMESTAMPS:\n"]
         for commit_tuple in initial_commits:
             num, note, chat_path, diff_path = commit_tuple[:4]

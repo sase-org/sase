@@ -6,11 +6,11 @@ from ..changespec import (
     is_running_agent_suffix,
     parse_commit_entry_id,
 )
-from ..changespec.section_order import CHANGESPEC_SECTION_ORDER
+from ..changespec.section_order import PROJECT_SPEC_SECTION_HEADERS
 from .timestamps import format_timestamp_display
 
 
-_CHANGESPEC_FIELD_HEADERS = CHANGESPEC_SECTION_ORDER
+_CHANGESPEC_FIELD_HEADERS = PROJECT_SPEC_SECTION_HEADERS
 
 
 def _is_field_header(line: str) -> bool:

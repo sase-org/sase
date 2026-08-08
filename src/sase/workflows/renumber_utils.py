@@ -3,6 +3,11 @@
 import re
 from typing import Any
 
+from sase.ace.patch.storage import (
+    LEGACY_STITCH_SECTION_HEADER,
+    is_stitch_section_header,
+)
+
 
 def sort_hook_status_lines(lines: list[str], cl_name: str) -> list[str]:
     """Sort hook status lines by entry ID within each hook.
@@ -74,7 +79,11 @@ def sort_hook_status_lines(lines: list[str], cl_name: str) -> list[str]:
     return updated_lines
 
 
-def build_commits_section(entries: list[dict[str, Any]]) -> list[str]:
+def build_commits_section(
+    entries: list[dict[str, Any]],
+    *,
+    header: str = LEGACY_STITCH_SECTION_HEADER,
+) -> list[str]:
     """Build the COMMITS section lines from a list of entry dicts.
 
     Args:
@@ -82,9 +91,10 @@ def build_commits_section(entries: list[dict[str, Any]]) -> list[str]:
             and optionally body.
 
     Returns:
-        List of lines including the "COMMITS:" header.
+        List of lines including the existing stitch-history header.
     """
-    new_commit_lines = ["COMMITS:\n"]
+    header_line = header if header.endswith("\n") else f"{header}\n"
+    new_commit_lines = [header_line]
     for entry in entries:
         num = entry["number"]
         letter = str(entry["letter"]) if entry["letter"] else ""
@@ -190,7 +200,7 @@ def parse_commit_entries(
 
 
 def find_commits_section(lines: list[str], cl_name: str) -> tuple[int, int]:
-    """Find the start and end indices of the COMMITS section for a ChangeSpec.
+    """Find the start and end indices of the STITCHES/COMMITS section.
 
     Args:
         lines: All lines from the project file.
@@ -198,7 +208,7 @@ def find_commits_section(lines: list[str], cl_name: str) -> tuple[int, int]:
 
     Returns:
         Tuple of (commits_start, commits_end) line indices.
-        commits_start is the index of the "COMMITS:" line.
+        commits_start is the index of the section header line.
         commits_end is one past the last commit entry line.
         Returns (-1, -1) if the COMMITS section is not found.
     """
@@ -216,7 +226,7 @@ def find_commits_section(lines: list[str], cl_name: str) -> tuple[int, int]:
                 break
             in_target_changespec = current_name == cl_name
         elif in_target_changespec:
-            if line.startswith("COMMITS:"):
+            if is_stitch_section_header(line):
                 commits_start = i
             elif commits_start >= 0:
                 stripped = line.strip()

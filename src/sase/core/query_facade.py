@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.ace.changespec.models import ChangeSpec
+from sase.ace.patch.models import Patch
 from sase.ace.query.context import (
     QueryEvaluationContext,
     build_query_context_python,
@@ -38,15 +38,15 @@ def parse_query(query: str) -> QueryExpr:
     return query_expr_from_wire(query_expr_wire_from_dict(record))
 
 
-def build_query_context(changespecs: list[ChangeSpec]) -> QueryEvaluationContext:
+def build_query_context(changespecs: list[Patch]) -> QueryEvaluationContext:
     """Build a :class:`QueryEvaluationContext` (Python-owned host logic)."""
     return build_query_context_python(changespecs)
 
 
 def evaluate_query(
     query: QueryExpr,
-    changespec: ChangeSpec,
-    all_changespecs: list[ChangeSpec] | None = None,
+    changespec: Patch,
+    all_changespecs: list[Patch] | None = None,
 ) -> bool:
     """Evaluate ``query`` against ``changespec`` (Python-owned host logic)."""
     return evaluate_query_python(query, changespec, all_changespecs)
@@ -54,7 +54,7 @@ def evaluate_query(
 
 def evaluate_query_with_context(
     query: QueryExpr,
-    changespec: ChangeSpec,
+    changespec: Patch,
     ctx: QueryEvaluationContext,
 ) -> bool:
     """Evaluate ``query`` using a shared context (Python-owned host logic)."""
@@ -63,7 +63,7 @@ def evaluate_query_with_context(
 
 def evaluate_query_many(
     query: str,
-    changespecs: list[ChangeSpec],
+    changespecs: list[Patch],
 ) -> list[bool]:
     """Evaluate ``query`` against every ChangeSpec in one batch call.
 

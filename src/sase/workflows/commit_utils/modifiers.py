@@ -3,7 +3,8 @@
 import re
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
-from sase.ace.changespec.section_order import CHANGESPEC_SECTION_ORDER
+from sase.ace.changespec.section_order import PROJECT_SPEC_SECTION_HEADERS
+from sase.ace.patch.storage import is_stitch_section_header
 
 
 def reject_proposals_and_set_status_atomic(
@@ -46,9 +47,9 @@ def reject_proposals_and_set_status_atomic(
                         status_line_idx = i
                         current_status = line[7:].strip()
                         in_commits = False
-                    elif line.startswith("COMMITS:"):
+                    elif is_stitch_section_header(line):
                         in_commits = True
-                    elif line.startswith(CHANGESPEC_SECTION_ORDER):
+                    elif line.startswith(PROJECT_SPEC_SECTION_HEADERS):
                         in_commits = False
                         if line.startswith("NAME:"):
                             in_target_changespec = False
@@ -126,9 +127,9 @@ def reject_all_new_proposals(
                     in_target_changespec = current_name == cl_name
                     in_commits = False
                 elif in_target_changespec:
-                    if line.startswith("COMMITS:"):
+                    if is_stitch_section_header(line):
                         in_commits = True
-                    elif line.startswith(CHANGESPEC_SECTION_ORDER):
+                    elif line.startswith(PROJECT_SPEC_SECTION_HEADERS):
                         in_commits = False
                         if line.startswith("NAME:"):
                             in_target_changespec = False
@@ -205,9 +206,9 @@ def update_commit_entry_suffix(
                     in_target_changespec = current_name == cl_name
                     in_commits = False
                 elif in_target_changespec:
-                    if line.startswith("COMMITS:"):
+                    if is_stitch_section_header(line):
                         in_commits = True
-                    elif line.startswith(CHANGESPEC_SECTION_ORDER):
+                    elif line.startswith(PROJECT_SPEC_SECTION_HEADERS):
                         in_commits = False
                         if line.startswith("NAME:"):
                             in_target_changespec = False
@@ -291,9 +292,9 @@ def mark_proposal_broken(
                     in_target_changespec = current_name == cl_name
                     in_commits = False
                 elif in_target_changespec:
-                    if line.startswith("COMMITS:"):
+                    if is_stitch_section_header(line):
                         in_commits = True
-                    elif line.startswith(CHANGESPEC_SECTION_ORDER):
+                    elif line.startswith(PROJECT_SPEC_SECTION_HEADERS):
                         in_commits = False
                         if line.startswith("NAME:"):
                             in_target_changespec = False

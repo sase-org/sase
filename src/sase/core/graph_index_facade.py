@@ -9,7 +9,7 @@ import from ``sase.core`` and see a stable signature.
 
 from __future__ import annotations
 
-from sase.ace.changespec.models import ChangeSpec
+from sase.ace.patch.models import Patch
 from sase.ace.tui.models.changespec_graph_index import (
     ChangeSpecGraphIndex,
     build_changespec_graph_index_python,
@@ -17,7 +17,7 @@ from sase.ace.tui.models.changespec_graph_index import (
 
 
 def build_changespec_graph_index(
-    changespecs: list[ChangeSpec],
+    changespecs: list[Patch],
 ) -> ChangeSpecGraphIndex:
     """Build a :class:`ChangeSpecGraphIndex`."""
     return build_changespec_graph_index_python(changespecs)

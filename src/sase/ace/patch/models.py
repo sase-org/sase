@@ -1,0 +1,667 @@
+"""Patch data models and constants."""
+
+from __future__ import annotations
+
+import os
+import re
+from dataclasses import dataclass
+from functools import cached_property
+
+# Error suffix messages that require "!: " prefix when formatting/displaying
+ERROR_SUFFIX_MESSAGES = frozenset(
+    {
+        "ZOMBIE",
+        "Hook Command Failed",
+        "summarize-hook Failed",
+        "fix-hook Failed",
+        "Unresolved Critique Comments",
+    }
+)
+
+
+def is_error_suffix(suffix: str | None) -> bool:
+    """Check if a suffix indicates an error condition requiring '!: ' prefix.
+
+    Args:
+        suffix: The suffix value (message part only, not including "!: " prefix).
+
+    Returns:
+        True if the suffix indicates an error, False otherwise.
+    """
+    return suffix is not None and suffix in ERROR_SUFFIX_MESSAGES
+
+
+def is_running_agent_suffix(suffix: str | None) -> bool:
+    """Check if a suffix indicates a running agent requiring '@: ' prefix.
+
+    Running agent suffixes contain timestamps (YYmmdd_HHMMSS format) that indicate
+    an agent is actively working. Displayed with bold white on orange background.
+
+    Args:
+        suffix: The suffix value (message part only, not including "@: " prefix).
+
+    Returns:
+        True if the suffix is a running agent format, False otherwise.
+    """
+    if suffix is None:
+        return False
+    # Format with PID: <agent>-<PID>-YYmmdd_HHMMSS (e.g., fix_hook-12345-251230_151429)
+    # Split by "-" and check for: agent, PID (digits), timestamp (13 chars with "_" at pos 6)
+    if "-" in suffix:
+        parts = suffix.split("-")
+        if len(parts) >= 3:
+            ts = parts[-1]
+            pid = parts[-2]
+            if pid.isdigit() and len(ts) == 13 and ts[6] == "_":
+                return True
+    return False
+
+
+def is_running_process_suffix(suffix: str | None) -> bool:
+    """Check if a suffix indicates a running hook process requiring '$: ' prefix.
+
+    Running process suffixes are process IDs (PIDs) that indicate a hook
+    subprocess is actively running. Displayed with bold black on yellow background.
+
+    Args:
+        suffix: The suffix value (message part only, not including "$: " prefix).
+
+    Returns:
+        True if the suffix is a PID (all digits), False otherwise.
+    """
+    if suffix is None:
+        return False
+    # PID format: all digits, typically 4-6 chars but could be more
+    # Use >= 4 to distinguish from commit references (1-3 digits like "3", "12")
+    return suffix.isdigit() and len(suffix) >= 4
+
+
+def is_plain_suffix(suffix: str | None) -> bool:
+    """Check if a suffix is a plain suffix (commit reference, not error/running).
+
+    Plain suffixes are commit references like "7d" or "3a" that indicate
+    which commit addressed the comments. These are safe to remove when
+    the comments have been resolved.
+
+    Args:
+        suffix: The suffix value.
+
+    Returns:
+        True if the suffix is plain (not error, not running agent/process).
+    """
+    if suffix is None:
+        return False
+    return (
+        not is_error_suffix(suffix)
+        and not is_running_agent_suffix(suffix)
+        and not is_running_process_suffix(suffix)
+    )
+
+
+# Valid suffix_type values for HookStatusLine, CommitEntry, CommentEntry:
+# - "error": Displayed with "!: " prefix (red color)
+# - "running_agent": Displayed with "@: " prefix (agent is actively working)
+# - "killed_agent": Displayed with "~@: " prefix (agent was killed, faded orange)
+# - "running_process": Displayed with "$: " prefix (hook subprocess running with PID)
+# - "pending_dead_process": Displayed with "?$: " prefix (process dead, waiting for timeout)
+# - "killed_process": Displayed with "~$: " prefix (hook process was killed)
+# - "plain": Displayed without any prefix (explicitly no prefix, bypasses auto-detect)
+# - "summarize_complete": Summary generated, ready for fix-hook (displayed as plain suffix)
+# - None: Falls back to message-based auto-detection of type
+
+
+def extract_pid_from_agent_suffix(suffix: str | None) -> int | None:
+    """Extract PID from an agent suffix format: <agent>-<PID>-<timestamp>.
+
+    Args:
+        suffix: The suffix value (e.g., "fix_hook-12345-251230_151429").
+
+    Returns:
+        The PID as an integer, or None if the suffix doesn't match the expected format.
+    """
+    if suffix is None:
+        return None
+    if "-" not in suffix:
+        return None
+    parts = suffix.split("-")
+    if len(parts) < 3:
+        return None
+    pid_str = parts[-2]
+    if not pid_str.isdigit():
+        return None
+    return int(pid_str)
+
+
+def get_base_status(status: str) -> str:
+    """Get base status without legacy READY TO MAIL suffix.
+
+    Args:
+        status: The STATUS value.
+
+    Returns:
+        The base status value (e.g., "Ready").
+    """
+    # Strip legacy READY TO MAIL suffix for backward compatibility
+    result = status.replace(" - (!: READY TO MAIL)", "").strip()
+    return result if result else status
+
+
+@dataclass
+class Stitch:
+    """Represents a single entry in the STITCHES/COMMITS field.
+
+    Regular entries have format: (N) Note text
+    Proposed entries have format: (Na) Note text (where 'a' is a lowercase letter)
+    Entries can have optional suffix: (Na) Note text - (!: MSG) or - (MSG)
+    """
+
+    number: int
+    note: str
+    chat: str | None = None
+    diff: str | None = None
+    plan: str | None = None
+    proposal_letter: str | None = None  # e.g., 'a', 'b', 'c' for proposed entries
+    suffix: str | None = None  # e.g., "NEW PROPOSAL" (message without prefix)
+    suffix_type: str | None = None  # "error" for !:, None for plain
+    body: list[str] | None = (
+        None  # Multi-line note body (empty strings = paragraph breaks)
+    )
+
+    @property
+    def is_proposed(self) -> bool:
+        """Check if this is a proposed (not yet accepted) commit entry."""
+        return self.proposal_letter is not None
+
+    @property
+    def display_number(self) -> str:
+        """Get the display string for this entry's number (e.g., '2' or '2a')."""
+        if self.proposal_letter:
+            return f"{self.number}{self.proposal_letter}"
+        return str(self.number)
+
+
+CommitEntry = Stitch
+StitchDict = dict[str, str | int | None]
+
+
+def parse_commit_entry_id(entry_id: str) -> tuple[int, str]:
+    """Parse a commit entry ID into (number, letter) for sorting.
+
+    Args:
+        entry_id: The entry ID string (e.g., "1", "1a", "2").
+
+    Returns:
+        Tuple of (number, letter) where letter is "" for regular entries.
+        E.g., "1" -> (1, ""), "1a" -> (1, "a"), "2" -> (2, "").
+    """
+    # Match digit(s) optionally followed by a letter
+    match = re.match(r"^(\d+)([a-z]?)$", entry_id)
+    if match:
+        return int(match.group(1)), match.group(2)
+    # Fallback for unexpected format
+    return 0, entry_id
+
+
+parse_stitch_id = parse_commit_entry_id
+
+
+@dataclass(init=False)
+class HookStatusLine:
+    """Represents a single hook status line.
+
+    Format in file:
+      (N) [YYmmdd_HHMMSS] RUNNING/PASSED/FAILED/KILLED (XmYs) - (SUFFIX)
+      (N) [YYmmdd_HHMMSS] RUNNING/PASSED/FAILED/KILLED (XmYs) - (!: MSG)
+      (N) [YYmmdd_HHMMSS] RUNNING/PASSED/FAILED/KILLED (XmYs) - (SUFFIX | SUMMARY)
+    Where N is the COMMITS entry number (1-based).
+
+    The optional suffix can be:
+    - A timestamp (YYmmdd_HHMMSS) indicating a fix-hook agent is running
+    - "Hook Command Failed" indicating no fix-hook hints should be shown
+    - "ZOMBIE" indicating a stale fix-hook agent (>2h old timestamp)
+
+    Compound suffix format uses " | " delimiter:
+    - (@: fix_hook-<PID>-<timestamp> | <summary>) - fix-hook running with summary
+    - (<proposal_id> | <summary>) - fix-hook succeeded with proposal
+    - (!: fix-hook Failed | <summary>) - fix-hook failed with summary
+    - (%: <summary>) - summarize complete, ready for fix-hook
+
+    Suffix type markers:
+    - "!:" = error
+    - "@:" = running_agent
+    - "~@:" = killed_agent
+    - "$:" = running_process
+    - "?$:" = pending_dead_process
+    - "~$:" = killed_process
+    - "%:" = summarize_complete
+
+    Note: The suffix stores just the message (e.g., "ZOMBIE"), and the
+    prefix is added when formatting for display/storage.
+    """
+
+    commit_entry_num: str  # The STITCHES/COMMITS entry ID (e.g., "1", "1a", "2")
+    timestamp: str  # YYmmdd_HHMMSS format
+    status: str  # RUNNING, PASSED, FAILED, KILLED
+    duration: str | None = None  # e.g., "1m23s"
+    suffix: str | None = None  # e.g., "YYmmdd_HHMMSS", "KILLED", "Hook Command Failed"
+    suffix_type: str | None = None  # See "Suffix type markers" above
+    summary: str | None = None  # Summary from summarize_hook workflow (compound suffix)
+
+    def __init__(
+        self,
+        commit_entry_num: str | None = None,
+        timestamp: str = "",
+        status: str = "",
+        duration: str | None = None,
+        suffix: str | None = None,
+        suffix_type: str | None = None,
+        summary: str | None = None,
+        *,
+        stitch_id: str | None = None,
+    ) -> None:
+        if commit_entry_num is not None and stitch_id is not None:
+            if commit_entry_num != stitch_id:
+                raise ValueError(
+                    "HookStatusLine received conflicting commit_entry_num and stitch_id"
+                )
+        resolved_id = commit_entry_num if commit_entry_num is not None else stitch_id
+        if resolved_id is None:
+            raise TypeError(
+                "HookStatusLine missing required argument: 'stitch_id' "
+                "(legacy: 'commit_entry_num')"
+            )
+        self.commit_entry_num = resolved_id
+        self.timestamp = timestamp
+        self.status = status
+        self.duration = duration
+        self.suffix = suffix
+        self.suffix_type = suffix_type
+        self.summary = summary
+
+    @property
+    def stitch_id(self) -> str:
+        """Canonical alias for :attr:`commit_entry_num`."""
+        return self.commit_entry_num
+
+    @stitch_id.setter
+    def stitch_id(self, value: str) -> None:
+        self.commit_entry_num = value
+
+
+@dataclass
+class HookEntry:
+    """Represents a single hook command entry in the HOOKS field.
+
+    Format in file:
+      some_command
+        (1) [YYmmdd_HHMMSS] PASSED (1m23s)
+        (2) [YYmmdd_HHMMSS] RUNNING
+
+    Each hook can have multiple status lines, one per COMMITS entry.
+
+    Command prefixes:
+    - "!" prefix: FAILED status lines auto-append "- (!: Hook Command Failed)"
+      to skip fix-hook hints. Also excluded from mentor eligibility.
+    - "$" prefix: Hook is NOT run for proposed COMMITS entries (e.g., "1a").
+      Also marks hook as "unlimited" (not subject to --max-runners limit).
+
+    Prefixes can be combined as "!$" (e.g., "!$sase_hg_presubmit").
+    All prefixes are stripped when displaying or running the command.
+    """
+
+    command: str
+    status_lines: list[HookStatusLine] | None = None
+
+    def _get_prefix(self) -> str:
+        """Extract the prefix portion (any combination of '!' and '$')."""
+        prefix = ""
+        for char in self.command:
+            if char in "!$":
+                prefix += char
+            else:
+                break
+        return prefix
+
+    @property
+    def skip_fix_hook(self) -> bool:
+        """Check if '!' prefix is present (skip fix-hook on failure)."""
+        return "!" in self._get_prefix()
+
+    @property
+    def skip_proposal_runs(self) -> bool:
+        """Check if '$' prefix is present (skip for proposal entries)."""
+        return "$" in self._get_prefix()
+
+    @property
+    def is_unlimited(self) -> bool:
+        """Check if '$' prefix is present (not subject to runner limits)."""
+        return "$" in self._get_prefix()
+
+    @property
+    def display_command(self) -> str:
+        """Get the command for display purposes (strips leading '!' and '$')."""
+        return self.command.lstrip("!$")
+
+    @property
+    def run_command(self) -> str:
+        """Get the command to actually run (strips leading '!' and '$')."""
+        return self.command.lstrip("!$")
+
+    @property
+    def latest_status_line(self) -> HookStatusLine | None:
+        """Get the most recent status line (highest commit entry ID)."""
+        if not self.status_lines:
+            return None
+        return max(
+            self.status_lines,
+            key=lambda sl: parse_commit_entry_id(sl.commit_entry_num),
+        )
+
+    def get_status_line_for_commit_entry(
+        self, commit_entry_id: str
+    ) -> HookStatusLine | None:
+        """Get status line for a specific COMMITS entry ID (e.g., '1', '1a')."""
+        if not self.status_lines:
+            return None
+        for sl in self.status_lines:
+            if sl.commit_entry_num == commit_entry_id:
+                return sl
+        return None
+
+
+@dataclass
+class MentorStatusLine:
+    """Represents a single mentor status line.
+
+    Format in file:
+      | [YYmmdd_HHMMSS] <profile>:<mentor> - RUNNING - (@: mentor_<name>-<PID>-YYmmdd_HHMMSS)
+      | [YYmmdd_HHMMSS] <profile>:<mentor> - PASSED - (XhYmZs)
+      | [YYmmdd_HHMMSS] <profile>:<mentor> - COMMENTED - (XhYmZs)
+      | [YYmmdd_HHMMSS] <profile>:<mentor> - FAILED - (XhYmZs)
+
+    The timestamp prefix links to the chat file at ~/.sase/chats/*.md.
+
+    When RUNNING:
+      - suffix format: mentor_<name>-<PID>-YYmmdd_HHMMSS
+      - suffix_type: "running_agent"
+
+    When complete (PASSED/COMMENTED/FAILED):
+      - suffix format: duration (e.g., "0h2m15s")
+      - suffix_type: "plain" or None
+      - COMMENTED = mentor produced one or more review comments
+      - PASSED = mentor found no issues
+
+    Suffix type markers:
+    - "@:" = running_agent
+    - "!:" = error
+    """
+
+    profile_name: str  # The mentor profile name
+    mentor_name: str  # The mentor name within the profile
+    status: str  # RUNNING, PASSED, FAILED, COMMENTED
+    timestamp: str | None  # YYmmdd_HHMMSS format, for linking to chat files
+    duration: str | None = None  # e.g., "0h2m15s" when complete
+    suffix: str | None = (
+        None  # e.g., "mentor_complete-12345-251230_151429" when running
+    )
+    suffix_type: str | None = None  # "running_agent", "plain", "error"
+
+
+@dataclass(init=False)
+class MentorEntry:
+    """Represents a single entry in the MENTORS field.
+
+    Format in file:
+      (<id>) <profile1> [<profile2> ...]
+          | <profile>:<mentor> - RUNNING - (@: mentor_<name>-<PID>-YYmmdd_HHMMSS)
+          | <profile>:<mentor> - PASSED - (XhYmZs)
+
+    Where <id> matches a COMMITS entry ID (e.g., "1", "2").
+    Multiple profiles can be listed if they all matched for this entry.
+    Each profile+mentor combination has its own status line.
+    """
+
+    entry_id: str  # Matches STITCHES/COMMITS entry ID (e.g., "1", "2")
+    profiles: list[str]  # Profile names that were triggered for this entry
+    status_lines: list[MentorStatusLine] | None = None
+    is_draft: bool = False  # True if entry was created during Draft status
+
+    def __init__(
+        self,
+        entry_id: str | None = None,
+        profiles: list[str] | None = None,
+        status_lines: list[MentorStatusLine] | None = None,
+        is_draft: bool = False,
+        *,
+        stitch_id: str | None = None,
+    ) -> None:
+        if entry_id is not None and stitch_id is not None:
+            if entry_id != stitch_id:
+                raise ValueError(
+                    "MentorEntry received conflicting entry_id and stitch_id"
+                )
+        resolved_id = entry_id if entry_id is not None else stitch_id
+        if resolved_id is None:
+            raise TypeError(
+                "MentorEntry missing required argument: 'stitch_id' "
+                "(legacy: 'entry_id')"
+            )
+        self.entry_id = resolved_id
+        self.profiles = profiles if profiles is not None else []
+        self.status_lines = status_lines
+        self.is_draft = is_draft
+
+    @property
+    def stitch_id(self) -> str:
+        """Canonical alias for :attr:`entry_id`."""
+        return self.entry_id
+
+    @stitch_id.setter
+    def stitch_id(self, value: str) -> None:
+        self.entry_id = value
+
+
+@dataclass
+class CommentEntry:
+    """Represents a single entry in the COMMENTS field.
+
+    Format in file:
+      [critique] ~/.sase/comments/<name>-critique-YYmmdd_HHMMSS.json
+      [critique] ~/.sase/comments/<name>-critique-YYmmdd_HHMMSS.json - (SUFFIX)
+
+    The optional suffix can be:
+    - A timestamp (YYmmdd_HHMMSS) indicating a CRS workflow is running
+    - "Unresolved Critique Comments" indicating CRS completed but comments remain
+    - "ZOMBIE" indicating a stale CRS run (>2h old timestamp)
+
+    Note: The suffix stores just the message (e.g., "ZOMBIE"), and the
+    "!: " prefix is added when formatting for display/storage.
+    """
+
+    reviewer: str  # The comment type (e.g., "critique")
+    file_path: str  # Full path to the comments JSON file
+    suffix: str | None = (
+        None  # e.g., "YYmmdd_HHMMSS", "ZOMBIE", "Unresolved Critique Comments"
+    )
+    suffix_type: str | None = None  # "error" for (!:), None for plain
+
+
+@dataclass
+class DeltaLineStats:
+    """Represents line-level stats for a DELTAS entry.
+
+    The counts are semantic counts derived from raw VCS added/deleted totals:
+    paired additions/deletions become ``modified`` lines, and only unpaired
+    totals remain as added/removed.
+    """
+
+    added: int = 0
+    modified: int = 0
+    removed: int = 0
+    binary: bool = False
+
+
+@dataclass
+class DeltaEntry:
+    """Represents a single entry in the DELTAS field.
+
+    Format in file (single-character status glyph + path):
+      + path/to/added_file.py
+          | LINES: +10
+      ~ path/to/modified_file.py
+          | LINES: +2 ~3 -1
+      - path/to/deleted_file.py
+          | LINES: -5
+
+    The on-disk glyphs map to long-form change types stored on the dataclass:
+      "+" -> "A" (added)
+      "~" -> "M" (modified)
+      "-" -> "D" (deleted)
+    """
+
+    path: str
+    change_type: str  # "A" (added), "M" (modified), "D" (deleted)
+    line_stats: DeltaLineStats | None = None
+
+
+@dataclass
+class TimestampEntry:
+    """Represents a single entry in the TIMESTAMPS field.
+
+    Format in file:
+      [YYYY-MM-DD HH:MM:SS] COMMIT  (1)
+      [YYYY-MM-DD HH:MM:SS] STATUS  WIP -> Draft
+      [YYYY-MM-DD HH:MM:SS] SYNC    (2)
+      [YYYY-MM-DD HH:MM:SS] REWORD  description
+      [YYYY-MM-DD HH:MM:SS] REWIND  (3)
+      [YYYY-MM-DD HH:MM:SS] RENAME  old-name -> new-name
+      [YYYY-MM-DD HH:MM:SS] REBASE  old-parent -> new-parent
+    """
+
+    timestamp: str  # "YYYY-MM-DD HH:MM:SS"
+    # "COMMIT", "STATUS", "SYNC", "REWORD", "REWIND", "RENAME", "REBASE"
+    event_type: str
+    detail: str  # Event-specific detail string
+
+
+@dataclass(init=False)
+class Patch:
+    """Represents a single Patch."""
+
+    name: str
+    description: str
+    parent: str | None
+    pr_url: str | None
+    status: str
+    file_path: str
+    line_number: int
+    bug: str | None = None
+    commits: list[Stitch] | None = None
+    hooks: list[HookEntry] | None = None
+    comments: list[CommentEntry] | None = None
+    mentors: list[MentorEntry] | None = None
+    timestamps: list[TimestampEntry] | None = None
+    deltas: list[DeltaEntry] | None = None
+    project_display_name: str | None = None
+    refs: list[str] | None = None
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        parent: str | None,
+        pr_url: str | None = None,
+        status: str | None = None,
+        file_path: str = "",
+        line_number: int = 0,
+        bug: str | None = None,
+        commits: list[Stitch] | None = None,
+        hooks: list[HookEntry] | None = None,
+        comments: list[CommentEntry] | None = None,
+        mentors: list[MentorEntry] | None = None,
+        timestamps: list[TimestampEntry] | None = None,
+        deltas: list[DeltaEntry] | None = None,
+        project_display_name: str | None = None,
+        refs: list[str] | None = None,
+        *,
+        cl: str | None = None,
+        stitches: list[Stitch] | None = None,
+    ) -> None:
+        if pr_url is not None and cl is not None and pr_url != cl:
+            raise ValueError("Patch received conflicting pr_url and legacy cl")
+        if status is None:
+            raise TypeError("Patch missing required argument: 'status'")
+        if commits is not None and stitches is not None and commits != stitches:
+            raise ValueError("Patch received conflicting commits and stitches")
+
+        self.name = name
+        self.description = description
+        self.parent = parent
+        self.pr_url = pr_url if pr_url is not None else cl
+        self.status = status
+        self.file_path = file_path
+        self.line_number = line_number
+        self.bug = bug
+        self.commits = commits if commits is not None else stitches
+        self.hooks = hooks
+        self.comments = comments
+        self.mentors = mentors
+        self.timestamps = timestamps
+        self.deltas = deltas
+        self.project_display_name = project_display_name
+        self.refs = refs
+
+    @property
+    def cl(self) -> str | None:
+        """Legacy compatibility alias for :attr:`pr_url`."""
+        return self.pr_url
+
+    @cl.setter
+    def cl(self, value: str | None) -> None:
+        self.pr_url = value
+
+    @property
+    def stitches(self) -> list[Stitch] | None:
+        """Canonical alias for legacy :attr:`commits` storage."""
+        return self.commits
+
+    @stitches.setter
+    def stitches(self, value: list[Stitch] | None) -> None:
+        self.commits = value
+
+    @property
+    def project_basename(self) -> str:
+        """Extract project basename from file_path.
+
+        Returns:
+            Project name without extension (e.g., "myproject" from "myproject.sase"
+            or "myproject-archive.sase").
+        """
+        basename = os.path.splitext(os.path.basename(self.file_path))[0]
+        if basename.endswith("-archive"):
+            return basename[:-8]
+        return basename
+
+    @cached_property
+    def project_name(self) -> str:
+        """Parent directory name of ``file_path`` (e.g. ``"myproject"`` from
+        ``"~/.sase/projects/myproject/myproject.sase"``).
+
+        Cached because ``Path(...).parent.name`` is surprisingly expensive
+        (pathlib churn) and this is read in hot filter paths for every
+        changespec on every filter pass.
+        """
+        return os.path.basename(os.path.dirname(self.file_path))
+
+    @property
+    def project_query_name(self) -> str:
+        """Effective identity for exact ``project:`` query matching.
+
+        A configured ``PROJECT_NAME`` replaces the canonical directory key as
+        the query identity. Storage and VCS callers continue using
+        :attr:`project_name` and :attr:`project_basename`.
+        """
+        return self.project_display_name or self.project_name
+
+
+ChangeSpec = Patch

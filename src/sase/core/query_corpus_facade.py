@@ -12,10 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sase.ace.changespec.models import ChangeSpec
+from sase.ace.patch.models import Patch
 from sase.core.rust import require_rust_binding
 from sase.core.wire import to_json_dict
-from sase.core.wire_conversion import changespec_to_wire
+from sase.core.wire_conversion import patch_to_wire
 
 
 @dataclass(frozen=True)
@@ -38,10 +38,10 @@ class QueryCorpus:
             )
 
 
-def compile_query_corpus(changespecs: list[ChangeSpec]) -> QueryCorpus:
+def compile_query_corpus(changespecs: list[Patch]) -> QueryCorpus:
     """Compile ``changespecs`` into a persistent Rust query corpus handle."""
     compile_corpus = require_rust_binding("compile_corpus")
-    spec_dicts = [to_json_dict(changespec_to_wire(cs)) for cs in changespecs]
+    spec_dicts = [to_json_dict(patch_to_wire(cs)) for cs in changespecs]
     rust_handle = compile_corpus(spec_dicts)
     corpus = QueryCorpus(
         source_list_id=id(changespecs),

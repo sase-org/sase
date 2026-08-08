@@ -50,7 +50,7 @@ def test_append_commit_result_null_result_succeeds(
     monkeypatch.setenv("SASE_AGENT_CL_NAME", "my_cl")  # type: ignore[union-attr]
     r = append_post_commit_entry(mode="commit")
     assert r.success is True
-    assert "COMMITS:" in proj.read_text()
+    assert "STITCHES:" in proj.read_text()
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +82,7 @@ def test_append_commit_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert r.entry_id == "1"  # commit mode now returns entry_id
 
     content = proj.read_text()
-    assert "COMMITS:" in content
+    assert "STITCHES:" in content
     assert "(1) Fix bug in parser" in content
     assert "| DIFF: ~/.sase/diffs/test.diff" in content
 

@@ -1,4 +1,4 @@
-"""Convert existing Python ``sase.ace.changespec`` dataclasses to wire records.
+"""Convert Python Patch dataclasses to core wire records.
 
 These helpers are the only place the Python models touch the wire shape. Phase
 1D adds the inverse direction — building :class:`ChangeSpecWire` instances
@@ -10,19 +10,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.ace.changespec.models import (
+from sase.ace.patch.models import (
     ChangeSpec,
     CommentEntry,
-    CommitEntry,
     DeltaEntry,
     HookEntry,
     HookStatusLine,
     MentorEntry,
     MentorStatusLine,
+    Patch,
+    Stitch,
     TimestampEntry,
 )
 from sase.core.wire import (
     CHANGESPEC_WIRE_SCHEMA_VERSION,
+    PATCH_WIRE_SCHEMA_VERSION,
     ChangeSpecWire,
     CommentWire,
     CommitWire,
@@ -31,8 +33,14 @@ from sase.core.wire import (
     HookWire,
     MentorStatusLineWire,
     MentorWire,
+    PatchHookStatusLineWire,
+    PatchHookWire,
+    PatchMentorWire,
+    PatchWire,
     SourceSpanWire,
     SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS,
+    SUPPORTED_PATCH_WIRE_SCHEMA_VERSIONS,
+    StitchWire,
     TimestampWire,
 )
 
@@ -45,8 +53,8 @@ _DELTA_GLYPH_TO_CODE = {
 }
 
 
-def _commit_entry_to_wire(entry: CommitEntry) -> CommitWire:
-    return CommitWire(
+def _stitch_to_wire(entry: Stitch) -> StitchWire:
+    return StitchWire(
         number=entry.number,
         note=entry.note,
         chat=entry.chat,
@@ -59,6 +67,23 @@ def _commit_entry_to_wire(entry: CommitEntry) -> CommitWire:
     )
 
 
+_commit_entry_to_wire = _stitch_to_wire
+
+
+def _hook_status_line_to_patch_wire(
+    line: HookStatusLine,
+) -> PatchHookStatusLineWire:
+    return PatchHookStatusLineWire(
+        stitch_id=line.stitch_id,
+        timestamp=line.timestamp,
+        status=line.status,
+        duration=line.duration,
+        suffix=line.suffix,
+        suffix_type=line.suffix_type,
+        summary=line.summary,
+    )
+
+
 def _hook_status_line_to_wire(line: HookStatusLine) -> HookStatusLineWire:
     return HookStatusLineWire(
         commit_entry_num=line.commit_entry_num,
@@ -68,6 +93,14 @@ def _hook_status_line_to_wire(line: HookStatusLine) -> HookStatusLineWire:
         suffix=line.suffix,
         suffix_type=line.suffix_type,
         summary=line.summary,
+    )
+
+
+def _hook_entry_to_patch_wire(entry: HookEntry) -> PatchHookWire:
+    status_lines = entry.status_lines or []
+    return PatchHookWire(
+        command=entry.command,
+        status_lines=[_hook_status_line_to_patch_wire(sl) for sl in status_lines],
     )
 
 
@@ -104,6 +137,16 @@ def mentor_entry_to_wire(entry: MentorEntry) -> MentorWire:
     status_lines = entry.status_lines or []
     return MentorWire(
         entry_id=entry.entry_id,
+        profiles=list(entry.profiles),
+        status_lines=[_mentor_status_line_to_wire(sl) for sl in status_lines],
+        is_draft=entry.is_draft,
+    )
+
+
+def _mentor_entry_to_patch_wire(entry: MentorEntry) -> PatchMentorWire:
+    status_lines = entry.status_lines or []
+    return PatchMentorWire(
+        stitch_id=entry.stitch_id,
         profiles=list(entry.profiles),
         status_lines=[_mentor_status_line_to_wire(sl) for sl in status_lines],
         is_draft=entry.is_draft,
@@ -173,7 +216,10 @@ def changespec_wire_from_dict(record: dict[str, Any]) -> ChangeSpecWire:
         bug=record.get("bug"),
         description=record["description"],
         refs=list(record.get("refs") or []),
-        commits=[_commit_wire_from_dict(c) for c in record.get("commits") or []],
+        commits=[
+            _commit_wire_from_dict(c)
+            for c in _list_field(record, "commits", "stitches")
+        ],
         hooks=[_hook_wire_from_dict(h) for h in record.get("hooks") or []],
         comments=[_comment_wire_from_dict(c) for c in record.get("comments") or []],
         mentors=[_mentor_wire_from_dict(m) for m in record.get("mentors") or []],
@@ -184,8 +230,83 @@ def changespec_wire_from_dict(record: dict[str, Any]) -> ChangeSpecWire:
     )
 
 
-def _commit_wire_from_dict(record: dict[str, Any]) -> CommitWire:
-    return CommitWire(
+def patch_wire_from_dict(record: dict[str, Any]) -> PatchWire:
+    """Rebuild a canonical :class:`PatchWire` from Rust or JSON dict data."""
+    schema_version = record.get("schema_version")
+    if schema_version not in SUPPORTED_PATCH_WIRE_SCHEMA_VERSIONS:
+        raise ValueError(
+            f"Unsupported PatchWire schema_version={schema_version!r}; "
+            f"this build understands {PATCH_WIRE_SCHEMA_VERSION}."
+        )
+
+    span = record["source_span"]
+    source_span = SourceSpanWire(
+        file_path=span["file_path"],
+        start_line=span["start_line"],
+        end_line=span["end_line"],
+    )
+
+    return PatchWire(
+        schema_version=schema_version,
+        name=record["name"],
+        project_basename=record["project_basename"],
+        project_display_name=record.get("project_display_name"),
+        file_path=record["file_path"],
+        source_span=source_span,
+        status=record["status"],
+        parent=record.get("parent"),
+        pr_url=record.get("pr_url", record.get("cl_or_pr")),
+        bug=record.get("bug"),
+        description=record["description"],
+        refs=list(record.get("refs") or []),
+        stitches=[
+            _stitch_wire_from_dict(c)
+            for c in _list_field(record, "stitches", "commits")
+        ],
+        hooks=[_patch_hook_wire_from_dict(h) for h in record.get("hooks") or []],
+        comments=[_comment_wire_from_dict(c) for c in record.get("comments") or []],
+        mentors=[_patch_mentor_wire_from_dict(m) for m in record.get("mentors") or []],
+        timestamps=[
+            _timestamp_wire_from_dict(t) for t in record.get("timestamps") or []
+        ],
+        deltas=[_delta_wire_from_dict(d) for d in record.get("deltas") or []],
+    )
+
+
+def _list_field(
+    record: dict[str, Any],
+    preferred: str,
+    fallback: str,
+) -> list[dict[str, Any]]:
+    if preferred in record and fallback in record:
+        preferred_value = record.get(preferred) or []
+        fallback_value = record.get(fallback) or []
+        if preferred_value != fallback_value:
+            raise ValueError(f"Conflicting wire fields {preferred!r} and {fallback!r}")
+        return list(preferred_value)
+    return list(record.get(preferred, record.get(fallback)) or [])
+
+
+def _string_alias_field(
+    record: dict[str, Any],
+    preferred: str,
+    fallback: str,
+) -> str:
+    if preferred in record and fallback in record:
+        preferred_value = record[preferred]
+        fallback_value = record[fallback]
+        if preferred_value != fallback_value:
+            raise ValueError(f"Conflicting wire fields {preferred!r} and {fallback!r}")
+        return str(preferred_value)
+    if preferred in record:
+        return str(record[preferred])
+    if fallback in record:
+        return str(record[fallback])
+    raise KeyError(preferred)
+
+
+def _stitch_wire_from_dict(record: dict[str, Any]) -> StitchWire:
+    return StitchWire(
         number=record["number"],
         note=record["note"],
         chat=record.get("chat"),
@@ -198,15 +319,43 @@ def _commit_wire_from_dict(record: dict[str, Any]) -> CommitWire:
     )
 
 
-def _hook_status_line_wire_from_dict(record: dict[str, Any]) -> HookStatusLineWire:
-    return HookStatusLineWire(
-        commit_entry_num=record["commit_entry_num"],
+def _commit_wire_from_dict(record: dict[str, Any]) -> CommitWire:
+    return _stitch_wire_from_dict(record)
+
+
+def _patch_hook_status_line_wire_from_dict(
+    record: dict[str, Any],
+) -> PatchHookStatusLineWire:
+    return PatchHookStatusLineWire(
+        stitch_id=_string_alias_field(record, "stitch_id", "commit_entry_num"),
         timestamp=record["timestamp"],
         status=record["status"],
         duration=record.get("duration"),
         suffix=record.get("suffix"),
         suffix_type=record.get("suffix_type"),
         summary=record.get("summary"),
+    )
+
+
+def _hook_status_line_wire_from_dict(record: dict[str, Any]) -> HookStatusLineWire:
+    return HookStatusLineWire(
+        commit_entry_num=_string_alias_field(record, "commit_entry_num", "stitch_id"),
+        timestamp=record["timestamp"],
+        status=record["status"],
+        duration=record.get("duration"),
+        suffix=record.get("suffix"),
+        suffix_type=record.get("suffix_type"),
+        summary=record.get("summary"),
+    )
+
+
+def _patch_hook_wire_from_dict(record: dict[str, Any]) -> PatchHookWire:
+    return PatchHookWire(
+        command=record["command"],
+        status_lines=[
+            _patch_hook_status_line_wire_from_dict(sl)
+            for sl in record.get("status_lines") or []
+        ],
     )
 
 
@@ -245,7 +394,19 @@ def _mentor_status_line_wire_from_dict(
 
 def _mentor_wire_from_dict(record: dict[str, Any]) -> MentorWire:
     return MentorWire(
-        entry_id=record["entry_id"],
+        entry_id=_string_alias_field(record, "entry_id", "stitch_id"),
+        profiles=list(record.get("profiles") or []),
+        status_lines=[
+            _mentor_status_line_wire_from_dict(sl)
+            for sl in record.get("status_lines") or []
+        ],
+        is_draft=bool(record.get("is_draft", False)),
+    )
+
+
+def _patch_mentor_wire_from_dict(record: dict[str, Any]) -> PatchMentorWire:
+    return PatchMentorWire(
+        stitch_id=_string_alias_field(record, "stitch_id", "entry_id"),
         profiles=list(record.get("profiles") or []),
         status_lines=[
             _mentor_status_line_wire_from_dict(sl)
@@ -270,6 +431,7 @@ def _delta_wire_from_dict(record: dict[str, Any]) -> DeltaWire:
     )
 
 
+# symvision: tools/validate_sase_core_rs
 def changespec_to_wire(
     cs: ChangeSpec,
     *,
@@ -305,4 +467,37 @@ def changespec_to_wire(
         mentors=[mentor_entry_to_wire(m) for m in (cs.mentors or [])],
         timestamps=[_timestamp_entry_to_wire(t) for t in (cs.timestamps or [])],
         deltas=[_delta_entry_to_wire(d) for d in (cs.deltas or [])],
+    )
+
+
+def patch_to_wire(
+    patch: Patch,
+    *,
+    end_line: int | None = None,
+) -> PatchWire:
+    """Project a Python ``Patch`` into a canonical :class:`PatchWire`."""
+    span = SourceSpanWire(
+        file_path=patch.file_path,
+        start_line=patch.line_number,
+        end_line=end_line if end_line is not None else patch.line_number,
+    )
+    return PatchWire(
+        schema_version=PATCH_WIRE_SCHEMA_VERSION,
+        name=patch.name,
+        project_basename=patch.project_basename,
+        project_display_name=patch.project_display_name,
+        file_path=patch.file_path,
+        source_span=span,
+        status=patch.status,
+        parent=patch.parent,
+        pr_url=patch.pr_url,
+        bug=patch.bug,
+        description=patch.description,
+        refs=list(getattr(patch, "refs", ()) or ()),
+        stitches=[_stitch_to_wire(c) for c in (patch.stitches or [])],
+        hooks=[_hook_entry_to_patch_wire(h) for h in (patch.hooks or [])],
+        comments=[comment_entry_to_wire(c) for c in (patch.comments or [])],
+        mentors=[_mentor_entry_to_patch_wire(m) for m in (patch.mentors or [])],
+        timestamps=[_timestamp_entry_to_wire(t) for t in (patch.timestamps or [])],
+        deltas=[_delta_entry_to_wire(d) for d in (patch.deltas or [])],
     )

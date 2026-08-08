@@ -31,6 +31,7 @@ DEFAULT_PYPROJECT = REPO_ROOT / "pyproject.toml"
 DISTRIBUTION_NAME = "sase-core-rs"
 
 REQUIRED_BINDINGS = (
+    "parse_patch_project_bytes",
     "parse_project_bytes",
     "parse_query",
     "inline_code_ranges",
@@ -102,6 +103,10 @@ REQUIRED_BINDINGS = (
     "telemetry_prune",
     "telemetry_store_stats",
 )
+
+# Public Python compatibility symbols intentionally retained alongside the
+# canonical Patch API while older callers migrate.
+REQUIRED_PYTHON_COMPAT_SYMBOLS = ("changespec_to_wire",)
 
 
 def _error(message: str) -> None:

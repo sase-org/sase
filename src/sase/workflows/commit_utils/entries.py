@@ -4,7 +4,11 @@ import os
 import re
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
-from sase.ace.changespec.section_order import CHANGESPEC_SECTION_ORDER
+from sase.ace.changespec.section_order import PROJECT_SPEC_SECTION_HEADERS
+from sase.ace.patch.storage import (
+    DEFAULT_STITCH_SECTION_HEADER,
+    is_stitch_section_header,
+)
 from sase.core.time import generate_timestamp
 
 
@@ -114,9 +118,9 @@ def get_next_commit_number(lines: list[str], cl_name: str) -> int:
             in_target_changespec = current_name == cl_name
             in_commits = False
         elif in_target_changespec:
-            if line.startswith("COMMITS:"):
+            if is_stitch_section_header(line):
                 in_commits = True
-            elif line.startswith(CHANGESPEC_SECTION_ORDER):
+            elif line.startswith(PROJECT_SPEC_SECTION_HEADERS):
                 in_commits = False
                 if line.startswith("NAME:"):
                     in_target_changespec = False
@@ -165,9 +169,9 @@ def _get_next_proposal_letter(lines: list[str], cl_name: str, base_number: int) 
             in_target_changespec = current_name == cl_name
             in_commits = False
         elif in_target_changespec:
-            if line.startswith("COMMITS:"):
+            if is_stitch_section_header(line):
                 in_commits = True
-            elif line.startswith(CHANGESPEC_SECTION_ORDER):
+            elif line.startswith(PROJECT_SPEC_SECTION_HEADERS):
                 in_commits = False
                 if line.startswith("NAME:"):
                     in_target_changespec = False
@@ -243,7 +247,7 @@ def add_proposed_commit_entry(
                         break
                     in_target_changespec = current_name == cl_name
                 elif in_target_changespec:
-                    if line.startswith("COMMITS:"):
+                    if is_stitch_section_header(line):
                         commits_field_line = i
                         in_commits_section = True
                     elif in_commits_section:
@@ -310,8 +314,8 @@ def add_proposed_commit_entry(
                         current_name = line[6:].strip()
                         in_target_changespec = current_name == cl_name
 
-                # Add COMMITS: header
-                entry_lines.insert(0, "COMMITS:\n")
+                # Add canonical stitch-history header.
+                entry_lines.insert(0, f"{DEFAULT_STITCH_SECTION_HEADER}\n")
 
             # Insert the entry
             for j, entry_line in enumerate(entry_lines):
@@ -388,7 +392,7 @@ def add_commit_entry_with_id(
                         break
                     in_target_changespec = current_name == cl_name
                 elif in_target_changespec:
-                    if line.startswith("COMMITS:"):
+                    if is_stitch_section_header(line):
                         commits_field_line = i
                         in_commits_section = True
                     elif in_commits_section:
@@ -457,8 +461,8 @@ def add_commit_entry_with_id(
                         current_name = line[6:].strip()
                         in_target_changespec = current_name == cl_name
 
-                # Add COMMITS: header
-                entry_lines.insert(0, "COMMITS:\n")
+                # Add canonical stitch-history header.
+                entry_lines.insert(0, f"{DEFAULT_STITCH_SECTION_HEADER}\n")
 
             # Insert the entry
             for j, entry_line in enumerate(entry_lines):

@@ -53,7 +53,7 @@ def test_commit_number_scanners_stop_at_deltas_boundary() -> None:
 
 # Tests for add_commit_entry
 def test_add_commit_entry_new_history_field(tmp_path: Path) -> None:
-    """Test adding history entry when COMMITS field doesn't exist."""
+    """Test adding history entry when no history field exists."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
     ) as f:
@@ -76,7 +76,7 @@ def test_add_commit_entry_new_history_field(tmp_path: Path) -> None:
         # Verify the file contents
         with open(temp_path) as f:
             content = f.read()
-        assert "COMMITS:" in content
+        assert "STITCHES:" in content
         assert "  (1) Initial Commit" in content
         assert "      | CHAT: ~/.sase/chats/test.md" in content
         assert "      | DIFF: ~/.sase/diffs/test.diff" in content
@@ -155,7 +155,7 @@ def test_add_commit_entry_refreshes_deltas_with_line_counts_after_write(
 
     assert result is True
     content = project_file.read_text()
-    assert "COMMITS:\n  (1) Initial Commit\n" in content
+    assert "STITCHES:\n  (1) Initial Commit\n" in content
     assert "DELTAS:\n  + src/new.py\n      | LINES: +3\n" in content
 
 
@@ -200,7 +200,7 @@ def test_get_next_proposal_letter_fills_gap() -> None:
 
 # Tests for add_proposed_commit_entry
 def test_add_proposed_commit_entry_new_history(tmp_path: Path) -> None:
-    """Test adding proposed entry when no COMMITS exists."""
+    """Test adding proposed entry when no history section exists."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
     ) as f:
@@ -220,7 +220,7 @@ def test_add_proposed_commit_entry_new_history(tmp_path: Path) -> None:
 
         with open(temp_path) as f:
             content = f.read()
-        assert "COMMITS:" in content
+        assert "STITCHES:" in content
         assert "(0a) Proposed change" in content
         assert "| DIFF: ~/.sase/diffs/test.diff" in content
     finally:

@@ -433,7 +433,10 @@ def rewind_commit_entries(
             new_entries = sort_entries_by_id(new_entries)
 
             # Rebuild commits section
-            new_commit_lines = build_commits_section(new_entries)
+            new_commit_lines = build_commits_section(
+                new_entries,
+                header=lines[commits_start],
+            )
 
             # Replace old commits section with new one
             new_lines = lines[:commits_start] + new_commit_lines + lines[commits_end:]

@@ -8,7 +8,8 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.changespec.section_order import CHANGESPEC_SECTION_ORDER
+from sase.ace.changespec.section_order import PROJECT_SPEC_SECTION_HEADERS
+from sase.ace.patch.storage import is_stitch_section_header
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -167,10 +168,10 @@ def _commits_drawer_has_entry_id(
             continue
         if not in_target:
             continue
-        if line.startswith("COMMITS:"):
+        if is_stitch_section_header(line):
             in_commits = True
             continue
-        if line.startswith(CHANGESPEC_SECTION_ORDER):
+        if line.startswith(PROJECT_SPEC_SECTION_HEADERS):
             in_commits = False
             continue
         if in_commits and pattern.match(line):

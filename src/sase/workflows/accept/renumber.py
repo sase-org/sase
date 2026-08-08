@@ -4,7 +4,8 @@ import re
 from typing import Any
 
 from sase.ace.changespec import changespec_lock, get_entry_id, write_changespec_atomic
-from sase.ace.changespec.section_order import CHANGESPEC_SECTION_ORDER
+from sase.ace.changespec.section_order import PROJECT_SPEC_SECTION_HEADERS
+from sase.ace.patch.storage import is_stitch_section_header
 from sase.workflows.renumber_utils import (
     build_commits_section,
     find_commits_section,
@@ -312,10 +313,10 @@ def _reject_remaining_proposals_unlocked(
             in_commits = False
             updated_lines.append(line)
         elif in_target_changespec:
-            if line.startswith("COMMITS:"):
+            if is_stitch_section_header(line):
                 in_commits = True
                 updated_lines.append(line)
-            elif line.startswith(CHANGESPEC_SECTION_ORDER):
+            elif line.startswith(PROJECT_SPEC_SECTION_HEADERS):
                 in_commits = False
                 if line.startswith("NAME:"):
                     in_target_changespec = False
@@ -453,7 +454,10 @@ def renumber_commit_entries(
             new_entries = sort_entries_by_id(new_entries)
 
             # Rebuild commits section
-            new_commit_lines = build_commits_section(new_entries)
+            new_commit_lines = build_commits_section(
+                new_entries,
+                header=lines[commits_start],
+            )
 
             # Replace old commits section with new one
             new_lines = lines[:commits_start] + new_commit_lines + lines[commits_end:]

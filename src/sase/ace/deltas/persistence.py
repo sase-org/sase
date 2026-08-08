@@ -9,12 +9,16 @@ from ..changespec import (
     write_changespec_atomic,
 )
 from ..changespec.deltas_format import format_deltas_field
-from ..changespec.section_order import CHANGESPEC_SECTION_ORDER
+from ..changespec.section_order import (
+    CHANGESPEC_SECTION_ORDER,
+    PATCH_SECTION_ORDER,
+    PROJECT_SPEC_SECTION_HEADERS,
+)
 
 
-_DELTAS_INDEX = CHANGESPEC_SECTION_ORDER.index("DELTAS:")
-_POST_DELTAS_HEADERS: tuple[str, ...] = CHANGESPEC_SECTION_ORDER[_DELTAS_INDEX + 1 :]
-_ALL_HEADERS: tuple[str, ...] = CHANGESPEC_SECTION_ORDER
+_DELTAS_INDEX = PATCH_SECTION_ORDER.index("DELTAS:")
+_POST_DELTAS_HEADERS: tuple[str, ...] = PATCH_SECTION_ORDER[_DELTAS_INDEX + 1 :]
+_ALL_HEADERS: tuple[str, ...] = PROJECT_SPEC_SECTION_HEADERS
 
 
 def _starts_with_any(line: str, headers: tuple[str, ...]) -> bool:

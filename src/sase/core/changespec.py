@@ -4,7 +4,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from sase.ace.changespec import ChangeSpec
+    from sase.ace.patch import Patch
 
 
 def ensure_project_prefix(project_name: str, cl_name: str) -> str:
@@ -122,7 +122,7 @@ def get_next_suffix_number(base_name: str, existing_names: set[str]) -> int:
     return n
 
 
-def get_workspace_directory_for_changespec(changespec: "ChangeSpec") -> str | None:
+def get_workspace_directory_for_changespec(changespec: "Patch") -> str | None:
     """Get the workspace directory for a ChangeSpec.
 
     Args:

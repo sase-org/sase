@@ -17,7 +17,7 @@ from sase.ace.query import evaluator as raw_evaluator
 from sase.ace.query.parser import _parse_query_python as raw_parse_query
 from sase.core import parser_facade, query_corpus_facade, query_facade
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
-from sase.core.wire_conversion import changespec_to_wire
+from sase.core.wire_conversion import patch_to_wire
 
 from tests._rust_extension_module_helpers import (
     evict_rust_extension,
@@ -155,18 +155,16 @@ def test_compile_query_corpus_converts_specs_once(
     converted_names: list[str] = []
     compiled_batches: list[list[dict]] = []
 
-    def tracking_changespec_to_wire(cs):
+    def tracking_patch_to_wire(cs):
         converted_names.append(cs.name)
-        return changespec_to_wire(cs)
+        return patch_to_wire(cs)
 
     def fake_compile_corpus(spec_dicts: list[dict]) -> _FakeRustCorpus:
         compiled_batches.append(spec_dicts)
         return _FakeRustCorpus(len(spec_dicts))
 
     install_fake_query_module(monkeypatch, compile_corpus=fake_compile_corpus)
-    monkeypatch.setattr(
-        query_corpus_facade, "changespec_to_wire", tracking_changespec_to_wire
-    )
+    monkeypatch.setattr(query_corpus_facade, "patch_to_wire", tracking_patch_to_wire)
 
     corpus = query_corpus_facade.compile_query_corpus(specs)
 
