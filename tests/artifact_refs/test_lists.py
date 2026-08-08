@@ -52,7 +52,7 @@ def test_resolve_and_display_reference_list(tmp_path: Path) -> None:
         "→ (unresolved: no plan file found)",
     )
     assert entries[0].to_wire()["resolution"] == {
-        "schema_version": 3,
+        "schema_version": 4,
         "status": "exact",
         "rendered": "plans:resolved.md",
         "locator": None,
@@ -68,5 +68,5 @@ def test_list_schema_mismatch_fails_fast(monkeypatch: pytest.MonkeyPatch) -> Non
         lambda _name: lambda: 99,
     )
 
-    with pytest.raises(RuntimeError, match="expected 1, got 99"):
+    with pytest.raises(RuntimeError, match="expected 2, got 99"):
         normalize_artifact_ref_list(["plans:one.md"])

@@ -87,6 +87,8 @@ REQUIRED_BINDINGS = (
     "artifact_ref_parse",
     "artifact_ref_render",
     "artifact_ref_canonicalize",
+    "artifact_ref_context_wire_schema_version",
+    "artifact_ref_list_resolution_wire_schema_version",
     "artifact_ref_resolve",
     "artifact_ref_scan_prompt",
     "artifact_ref_wire_schema_version",
@@ -129,6 +131,29 @@ def _validate_bindings(module: ModuleType) -> bool:
         _error("missing required binding(s): " + ", ".join(missing))
         return False
     return True
+
+
+def _validate_artifact_ref_schemas(module: ModuleType) -> bool:
+    expected = {
+        "artifact_ref_wire_schema_version": 4,
+        "artifact_ref_context_wire_schema_version": 1,
+        "artifact_ref_list_resolution_wire_schema_version": 2,
+    }
+    valid = True
+    for binding_name, expected_version in expected.items():
+        try:
+            actual_version = int(getattr(module, binding_name)())
+        except Exception as exc:
+            _error(f"{binding_name}() probe failed: {exc}")
+            valid = False
+            continue
+        if actual_version != expected_version:
+            _error(
+                f"{binding_name}() returned stale schema: "
+                f"got {actual_version}, expected {expected_version}"
+            )
+            valid = False
+    return valid
 
 
 def _scan_probe_options() -> dict[str, Any]:
@@ -535,6 +560,8 @@ def main(argv: list[str] | None = None) -> int:
     if module is None:
         return 1
     if not _validate_bindings(module):
+        return 1
+    if not _validate_artifact_ref_schemas(module):
         return 1
     if not _validate_scalar_plan_timestamp(module):
         return 1

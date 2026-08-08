@@ -8,6 +8,7 @@ import pytest
 
 from sase import artifact_ref_context, artifact_ref_entity_context, artifact_refs
 from sase.artifact_refs import (
+    ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION,
     ArtifactRefAgentOwner,
     ArtifactRefAgentRoot,
     ArtifactRefBeadStore,
@@ -18,6 +19,36 @@ from sase.artifact_refs import (
 )
 
 from .helpers import context as make_context
+
+
+def test_context_wire_carries_required_schema_and_preserves_filter_intent(
+    tmp_path: Path,
+) -> None:
+    context = make_context(tmp_path)
+    context = ArtifactRefContext(
+        document_roots=(
+            ArtifactRefDocumentRoot(
+                "plans",
+                tmp_path / "plans",
+                path_globs=(),
+            ),
+        ),
+        chats_root=context.chats_root,
+        artifact_index_path=context.artifact_index_path,
+        repositories=context.repositories,
+        projects=context.projects,
+    )
+
+    wire = context.to_wire()
+
+    assert wire["schema_version"] == ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION == 1
+    assert wire["document_roots"] == [
+        {
+            "kind": "plans",
+            "root": str(tmp_path / "plans"),
+            "path_globs": [],
+        }
+    ]
 
 
 def test_context_assembles_dynamic_document_role_and_namespaces(

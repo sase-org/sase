@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 from pathlib import Path
 
 from sase import artifact_ref_operations, artifact_refs
-from sase.artifact_refs import ArtifactRefContext
+from sase.artifact_refs import ArtifactRefContext, ArtifactRefDocumentRoot
 
 from .helpers import context as make_context
 
@@ -142,3 +143,33 @@ def test_context_without_entity_sidecars_preserves_other_resolution(
         ).status
         == "exact"
     )
+
+
+def test_filtered_document_resolution_preserves_core_diagnostic(
+    tmp_path: Path,
+) -> None:
+    context = make_context(tmp_path)
+    root = context.document_roots[1].root
+    path = root / "private" / "secret.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("secret\n", encoding="utf-8")
+    context = replace(
+        context,
+        document_roots=(
+            ArtifactRefDocumentRoot(
+                "plans",
+                root,
+                path_globs=("public/**",),
+            ),
+        ),
+    )
+
+    resolution = artifact_refs.resolve_artifact_ref(
+        "plans:private/secret.md",
+        context=context,
+    )
+
+    assert resolution.status == "filtered"
+    assert resolution.resolved_path is None
+    assert resolution.diagnostic is not None
+    assert "kind=plans" in resolution.diagnostic

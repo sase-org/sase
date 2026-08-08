@@ -28,6 +28,7 @@ _RESOLUTION_STATUSES = {
     "unknown_kind",
     "unknown_repo",
     "unknown_project",
+    "filtered",
 }
 
 
@@ -165,6 +166,7 @@ def resolve_artifact_ref(
         locator=_optional_str(raw.get("locator")),
         resolved_path=None if resolved is None else Path(str(resolved)),
         candidates=tuple(str(candidate) for candidate in raw["candidates"]),
+        diagnostic=_optional_str(raw.get("diagnostic")),
     )
 
 

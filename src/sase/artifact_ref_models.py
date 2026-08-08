@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 
-ARTIFACT_REF_WIRE_SCHEMA_VERSION = 3
+ARTIFACT_REF_WIRE_SCHEMA_VERSION = 4
+ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION = 1
 BUILTIN_ARTIFACT_REF_KINDS = ("commit", "chat", "bug", "file", "bead", "agent")
 
 ArtifactRefKindType = Literal[
@@ -31,6 +32,7 @@ ArtifactRefResolutionStatus = Literal[
     "unknown_kind",
     "unknown_repo",
     "unknown_project",
+    "filtered",
 ]
 
 
@@ -200,9 +202,13 @@ ParsedArtifactRef = ArtifactRef
 class ArtifactRefDocumentRoot:
     kind: str
     root: Path
+    path_globs: tuple[str, ...] | None = None
 
-    def to_wire(self) -> dict[str, str]:
-        return {"kind": self.kind, "root": str(self.root)}
+    def to_wire(self) -> dict[str, object]:
+        raw: dict[str, object] = {"kind": self.kind, "root": str(self.root)}
+        if self.path_globs is not None:
+            raw["path_globs"] = list(self.path_globs)
+        return raw
 
 
 @dataclass(frozen=True, slots=True)
@@ -299,6 +305,7 @@ class ArtifactRefContext:
 
     def to_wire(self) -> dict[str, object]:
         return {
+            "schema_version": ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION,
             "document_roots": [document.to_wire() for document in self.document_roots],
             "chats_root": str(self.chats_root),
             "artifact_index_path": str(self.artifact_index_path),
@@ -320,6 +327,7 @@ class ArtifactRefResolution:
     locator: str | None
     resolved_path: Path | None
     candidates: tuple[str, ...]
+    diagnostic: str | None = None
 
     @property
     def best_path(self) -> Path | None:

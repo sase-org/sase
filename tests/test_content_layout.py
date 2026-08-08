@@ -23,7 +23,7 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
         project="demo",
     )
 
-    assert layout.schema_version == 4
+    assert layout.schema_version == 5
     assert layout.project is not None
     project = layout.project
     assert project.config.canonical.path == Path("/workspace/demo/sase/sase.yml")

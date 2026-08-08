@@ -20,7 +20,7 @@ from sase.sdd.plan_ref_display import (
 )
 
 
-ARTIFACT_REF_LIST_RESOLUTION_WIRE_SCHEMA_VERSION = 1
+ARTIFACT_REF_LIST_RESOLUTION_WIRE_SCHEMA_VERSION = 2
 
 _RESOLUTION_STATUSES = {
     "exact",
@@ -31,6 +31,7 @@ _RESOLUTION_STATUSES = {
     "unknown_kind",
     "unknown_repo",
     "unknown_project",
+    "filtered",
 }
 
 
@@ -45,20 +46,23 @@ class ArtifactRefListEntry:
         """Return the plain JSON-compatible shape emitted by the Rust codec."""
 
         resolution = self.resolution
+        resolution_wire: dict[str, object] = {
+            "schema_version": resolution.schema_version,
+            "status": resolution.status,
+            "rendered": resolution.rendered,
+            "locator": resolution.locator,
+            "resolved_path": (
+                None
+                if resolution.resolved_path is None
+                else str(resolution.resolved_path)
+            ),
+            "candidates": list(resolution.candidates),
+        }
+        if resolution.diagnostic is not None:
+            resolution_wire["diagnostic"] = resolution.diagnostic
         return {
             "rendered": self.rendered,
-            "resolution": {
-                "schema_version": resolution.schema_version,
-                "status": resolution.status,
-                "rendered": resolution.rendered,
-                "locator": resolution.locator,
-                "resolved_path": (
-                    None
-                    if resolution.resolved_path is None
-                    else str(resolution.resolved_path)
-                ),
-                "candidates": list(resolution.candidates),
-            },
+            "resolution": resolution_wire,
         }
 
 
@@ -143,6 +147,7 @@ def _entry_from_wire(raw: Mapping[str, Any]) -> ArtifactRefListEntry:
         candidates=tuple(
             str(candidate) for candidate in resolution_raw.get("candidates", ())
         ),
+        diagnostic=_optional_str(resolution_raw.get("diagnostic")),
     )
     return ArtifactRefListEntry(
         rendered=str(raw["rendered"]),

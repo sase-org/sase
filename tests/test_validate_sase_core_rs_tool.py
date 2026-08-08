@@ -138,6 +138,33 @@ def test_validate_sase_core_rs_requires_cleanup_wire_version_binding() -> None:
     )
 
 
+def test_validate_sase_core_rs_requires_current_artifact_ref_contract() -> None:
+    validator = _load_validate_sase_core_rs()
+    bindings = {
+        "artifact_ref_wire_schema_version": 4,
+        "artifact_ref_context_wire_schema_version": 1,
+        "artifact_ref_list_resolution_wire_schema_version": 2,
+    }
+
+    assert bindings.keys() <= set(validator.REQUIRED_BINDINGS)
+    assert validator._validate_artifact_ref_schemas(
+        SimpleNamespace(
+            **{name: lambda value=value: value for name, value in bindings.items()}
+        )
+    )
+    for name, version in bindings.items():
+        stale = dict(bindings)
+        stale[name] = version + 1
+        assert not validator._validate_artifact_ref_schemas(
+            SimpleNamespace(
+                **{
+                    binding: lambda value=value: value
+                    for binding, value in stale.items()
+                }
+            )
+        )
+
+
 def test_validate_sase_core_rs_requires_stats_v5_runner_counters() -> None:
     validator = _load_validate_sase_core_rs()
 

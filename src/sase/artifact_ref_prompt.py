@@ -464,6 +464,8 @@ def artifact_ref_resolution_hint(
 
     if resolution.status in {"exact", "drifted"}:
         return None
+    if resolution.diagnostic is not None:
+        return resolution.diagnostic
     if reference.kind_type == "bead":
         bead_id = reference.payload.id
         if not bead_id:

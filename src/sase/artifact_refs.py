@@ -24,6 +24,7 @@ from sase.artifact_ref_lists import (
     resolve_artifact_ref_list,
 )
 from sase.artifact_ref_models import (
+    ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
     BUILTIN_ARTIFACT_REF_KINDS,
     ArtifactRef,
@@ -61,6 +62,7 @@ from sase.artifact_ref_prompt import (
 
 
 __all__ = [
+    "ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_LIST_RESOLUTION_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION",
     "ARTIFACT_REF_WIRE_SCHEMA_VERSION",
