@@ -82,6 +82,7 @@ def _direct_llm_metadata_payload() -> dict[str, Any]:
     model_to_provider: dict[str, str] = {}
     provider_short_names: dict[str, str] = {}
     model_short_aliases: dict[str, str] = {}
+    model_advisories: dict[str, dict[str, str]] = {}
     provider_colors = dict(_PROVIDER_FAMILY_COLORS)
     autodetect_candidates: list[dict[str, Any]] = []
     default_retry_configs: dict[str, dict[str, Any]] = {}
@@ -95,6 +96,7 @@ def _direct_llm_metadata_payload() -> dict[str, Any]:
 
         provider_short_names[name] = provider_metadata["short_name"] or name
         model_short_aliases.update(provider_metadata["model_short_aliases"])
+        model_advisories.update(provider_metadata["model_advisories"])
         color = provider_metadata["cli_status_color"]
         if color:
             provider_colors[name] = color
@@ -123,6 +125,7 @@ def _direct_llm_metadata_payload() -> dict[str, Any]:
         "model_to_provider": model_to_provider,
         "provider_short_names": provider_short_names,
         "model_short_aliases": model_short_aliases,
+        "model_advisories": model_advisories,
         "provider_cli_status_colors": provider_colors,
         "autodetect_candidates": autodetect_candidates,
         "default_retry_configs": default_retry_configs,
@@ -170,6 +173,46 @@ def model_short_alias_map() -> dict[str, str]:
     multi-model agent name suffixes.  Last writer wins on duplicates.
     """
     return normalize_str_dict(_llm_metadata_payload().get("model_short_aliases"))
+
+
+def model_advisory_map() -> dict[str, dict[str, str]]:
+    """Build a ``{model_name → advisory}`` map from plugin metadata.
+
+    Each advisory is ``{"severity", "label", "detail"}``, already normalized by
+    :func:`~sase.llm_provider._registry_metadata.provider_metadata`. Providers
+    that declare no ``llm_model_advisories`` hook contribute nothing, so the
+    map is empty on a stock install with no advisory-flagged models.
+    """
+    advisories = _llm_metadata_payload().get("model_advisories")
+    if not isinstance(advisories, dict):
+        return {}
+    return {
+        str(model): normalize_str_dict(advisory)
+        for model, advisory in advisories.items()
+        if isinstance(advisory, dict)
+    }
+
+
+def model_advisory_for(model: str | None) -> dict[str, str] | None:
+    """Return the advisory for *model*, or ``None`` when it carries none."""
+    if not model:
+        return None
+    return model_advisory_map().get(model)
+
+
+def model_advisory_marker(severity: str | None) -> str:
+    """Return the inline glyph marking an advisory of *severity*.
+
+    Shared by every advisory render site — the model picker, ``%model``
+    completion detail, and the resolved model label — so an advisory reads the
+    same wherever a user meets it.
+    """
+    return "ⓘ" if severity == "info" else "⚠"
+
+
+def model_advisory_color(severity: str | None) -> str:
+    """Return the hex color paired with :func:`model_advisory_marker`."""
+    return "#5FAFD7" if severity == "info" else "#FF8700"
 
 
 def provider_cli_status_color_map() -> dict[str, str]:

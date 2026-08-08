@@ -74,6 +74,9 @@ def provider_metadata(name: str, plugin: object) -> dict[str, Any]:
         "short_name": short_name,
         "known_model_names": [str(model) for model in known_models],
         "model_short_aliases": normalize_str_dict(model_aliases),
+        "model_advisories": _model_advisories(
+            _call_optional(plugin, "llm_model_advisories")
+        ),
         "skill_template_context": skill_template_context,
         "skill_deploy_subpath": _call_optional(plugin, "llm_skill_deploy_subpath"),
         "additional_skill_deploy_subpaths": _str_list(
@@ -162,6 +165,39 @@ def _install_metadata(value: Any) -> dict[str, Any]:
             value.get("version_argv"), default=("--version",)
         )
     return metadata
+
+
+#: Advisory severities the registry recognizes; anything else falls back to
+#: ``info`` so an unknown severity never suppresses the advisory entirely.
+_ADVISORY_SEVERITIES = ("warn", "info")
+
+
+def _model_advisories(value: Any) -> dict[str, dict[str, str]]:
+    """Normalize the ``llm_model_advisories`` hook result.
+
+    Malformed entries are dropped rather than raising: a third-party provider
+    returning junk must not be able to break registry metadata collection for
+    every other provider. An entry survives only when it has a non-empty model
+    id and a non-empty ``label``; ``detail`` defaults to empty and an
+    unrecognized ``severity`` degrades to ``info``.
+    """
+    if not isinstance(value, dict):
+        return {}
+    advisories: dict[str, dict[str, str]] = {}
+    for raw_model, raw_advisory in value.items():
+        model = _optional_str(raw_model)
+        if model is None or not isinstance(raw_advisory, dict):
+            continue
+        label = _optional_str(raw_advisory.get("label"))
+        if label is None:
+            continue
+        severity = _optional_str(raw_advisory.get("severity")) or ""
+        advisories[model] = {
+            "severity": severity if severity in _ADVISORY_SEVERITIES else "info",
+            "label": label,
+            "detail": _optional_str(raw_advisory.get("detail")) or "",
+        }
+    return advisories
 
 
 def _env_metadata(value: Any) -> dict[str, str]:

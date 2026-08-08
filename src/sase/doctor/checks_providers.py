@@ -84,6 +84,12 @@ def provider_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Default LLM provider auth",
             runner=lambda: _check_llm_auth(context),
         ),
+        CheckSpec(
+            id="llm.model_advisory",
+            group="llm",
+            title="Model advisories",
+            runner=_check_llm_model_advisory,
+        ),
     )
 
 
@@ -103,6 +109,12 @@ def _check_llm_auth(context: DoctorContext) -> DiagnosticCheck:
     from sase.doctor.checks_providers_auth import check_llm_auth
 
     return check_llm_auth(context)
+
+
+def _check_llm_model_advisory() -> DiagnosticCheck:
+    from sase.doctor.checks_providers_advisory import check_llm_model_advisory
+
+    return check_llm_model_advisory()
 
 
 def selection_context() -> dict[str, Any]:

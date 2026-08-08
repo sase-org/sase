@@ -140,6 +140,8 @@ def rows_to_options(
                 model_id=row.model_id,
                 alias=row.alias,
                 hint=jump_hints.get(row.option_id) if jump_hints else None,
+                advisory_label=row.advisory_label,
+                advisory_severity=row.advisory_severity,
             )
         elif jump_hints is not None and not row.disabled:
             hint = jump_hints.get(row.option_id)

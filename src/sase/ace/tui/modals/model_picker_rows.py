@@ -57,6 +57,8 @@ class ModelPickerRow:
     description: str | None = None
     disabled_reason: str | None = None
     rendered_label: Text | None = None
+    advisory_label: str | None = None
+    advisory_severity: str | None = None
 
     @property
     def disabled(self) -> bool:
@@ -88,6 +90,7 @@ class ModelPickerRow:
                 self.description,
                 self.rendered_label.plain if self.rendered_label else None,
                 self.disabled_reason,
+                self.advisory_label,
             )
             if part
         )
@@ -217,12 +220,15 @@ def build_model_rows(
 ) -> list[ModelPickerRow]:
     """Build typed model-picker rows grouped by provider."""
     from sase.llm_provider.registry import (
+        model_advisory_map,
+        model_advisory_marker,
         model_picker_hidden_provider_names,
         model_short_alias_map,
         model_to_provider_map,
     )
 
     aliases = model_short_alias_map()
+    advisories = model_advisory_map()
     hidden_providers = model_picker_hidden_provider_names()
     provider_models: dict[str, list[str]] = {}
     for model, provider in model_to_provider_map().items():
@@ -255,6 +261,14 @@ def build_model_rows(
             label = f"    {model}"
             if alias:
                 label = f"{label}  ({alias})"
+            # This is where somebody actually chooses a model, so an advisory
+            # rides on the row itself and its full sentence becomes the row's
+            # secondary text (which also makes it searchable).
+            advisory = advisories.get(model) or {}
+            advisory_label = advisory.get("label") or None
+            if advisory_label:
+                marker = model_advisory_marker(advisory.get("severity"))
+                label = f"{label}  {marker} {advisory_label}"
             rows.append(
                 ModelPickerRow(
                     kind="model",
@@ -263,6 +277,11 @@ def build_model_rows(
                     provider=provider,
                     model_id=model,
                     alias=alias,
+                    description=advisory.get("detail") or None,
+                    advisory_label=advisory_label,
+                    advisory_severity=(
+                        advisory.get("severity") if advisory_label else None
+                    ),
                 )
             )
 

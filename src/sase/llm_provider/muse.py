@@ -172,6 +172,24 @@ class MuseProvider(LLMProvider):
         }
 
     @hookimpl
+    def llm_model_advisories(self) -> dict[str, dict[str, str]]:
+        # The Contributor model is a real feature and a real hazard. It stays
+        # fully reachable by name; this makes the trade visible everywhere the
+        # model is, so nobody agrees to it without seeing it.
+        return {
+            _CONTRIBUTOR_MODEL: {
+                "severity": "warn",
+                "label": "trains on your data",
+                "detail": (
+                    "Meta uses this model's inputs and outputs to train and "
+                    "improve its AI models. Same capabilities as "
+                    "muse-spark-1.2 at roughly 95% lower cost. Rate limited; "
+                    "available in select countries."
+                ),
+            }
+        }
+
+    @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
         return {
             "provider_name": "Muse Code",

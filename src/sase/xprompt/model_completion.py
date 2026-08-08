@@ -36,6 +36,7 @@ from sase.llm_provider.config import (
 )
 from sase.llm_provider.registry import (
     get_llm_metadata_payload,
+    model_advisory_marker,
     model_picker_hidden_provider_names,
 )
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
@@ -94,6 +95,8 @@ class _ModelCompletionEntry:
     pool_total: int = 0
     config_source: str = ""
     bucket: str = ""
+    advisory_label: str = ""
+    advisory_severity: str = ""
 
 
 _CatalogCache = tuple[tuple[object, ...], tuple[_ModelCompletionEntry, ...]]
@@ -157,6 +160,8 @@ def model_completion_catalog_payload() -> dict[str, object]:
                 "pool_total": entry.pool_total,
                 "config_source": entry.config_source,
                 "bucket": entry.bucket,
+                "advisory_label": entry.advisory_label,
+                "advisory_severity": entry.advisory_severity,
             }
             for entry in build_model_completion_catalog(overrides={})
         ],
@@ -258,6 +263,7 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
     providers = _dict(payload.get("providers"))
     model_to_provider = _str_dict(payload.get("model_to_provider"))
     short_aliases = _str_dict(payload.get("model_short_aliases"))
+    advisories = _advisory_labels(payload.get("model_advisories"))
     hidden_providers = model_picker_hidden_provider_names()
     provider_order = [
         provider
@@ -285,6 +291,7 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
                 provider=provider,
                 provider_display=provider_display,
                 short_alias=short_aliases.get(model, ""),
+                advisory=advisories.get(model, ("", "")),
             )
 
     # Include any model_to_provider entries missing from provider metadata so
@@ -301,6 +308,7 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
             provider=provider,
             provider_display=_provider_display(provider, provider_metadata),
             short_alias=short_aliases.get(model, ""),
+            advisory=advisories.get(model, ("", "")),
         )
 
     user_aliases = get_model_aliases()
@@ -378,6 +386,7 @@ def _append_model_entry(
     provider: str,
     provider_display: str,
     short_alias: str,
+    advisory: tuple[str, str] = ("", ""),
 ) -> None:
     if model in seen or not _is_inline_completable(model):
         return
@@ -385,6 +394,12 @@ def _append_model_entry(
     description = provider_display
     if short_alias:
         description = f"{provider_display} ({short_alias})"
+    advisory_label, advisory_severity = advisory
+    if advisory_label:
+        # The completion detail is the only thing a user sees while typing
+        # `%model:...`, so the advisory has to ride along with it.
+        glyph = model_advisory_marker(advisory_severity)
+        description = f"{description} — {glyph} {advisory_label}"
     entries.append(
         _ModelCompletionEntry(
             value=model,
@@ -393,9 +408,21 @@ def _append_model_entry(
             kind="model",
             provider=provider,
             aliases=aliases,
+            advisory_label=advisory_label,
+            advisory_severity=advisory_severity if advisory_label else "",
         )
     )
     seen.add(model)
+
+
+def _advisory_labels(value: object) -> dict[str, tuple[str, str]]:
+    """Return ``{model → (label, severity)}`` from the registry payload."""
+    labels: dict[str, tuple[str, str]] = {}
+    for model, advisory in _dict(value).items():
+        entry = _str_dict(advisory)
+        if label := entry.get("label", ""):
+            labels[model] = (label, entry.get("severity", ""))
+    return labels
 
 
 def _append_alias_entry(

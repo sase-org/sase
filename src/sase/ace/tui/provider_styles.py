@@ -214,6 +214,8 @@ def model_option_text(
     model_id: str,
     alias: str | None = None,
     hint: str | None = None,
+    advisory_label: str | None = None,
+    advisory_severity: str | None = None,
 ) -> Text:
     """Render a dense selectable model row."""
     style = _provider_style_for(provider)
@@ -226,4 +228,16 @@ def model_option_text(
     if alias:
         label.append("  ")
         label.append(alias, style=style.dim_style)
+    if advisory_label:
+        # Deliberately not provider-colored: an advisory has to read as a
+        # warning rather than as more of the provider's own branding.
+        from sase.llm_provider.registry import (
+            model_advisory_color,
+            model_advisory_marker,
+        )
+
+        color = model_advisory_color(advisory_severity)
+        label.append("  ")
+        label.append(model_advisory_marker(advisory_severity), style=f"bold {color}")
+        label.append(f" {advisory_label}", style=color)
     return label

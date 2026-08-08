@@ -347,6 +347,8 @@ def test_model_completion_catalog_payload_round_trips_entries(
         "pool_total": 0,
         "config_source": "",
         "bucket": "",
+        "advisory_label": "",
+        "advisory_severity": "",
     }
 
 

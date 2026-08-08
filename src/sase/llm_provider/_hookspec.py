@@ -126,6 +126,22 @@ class LLMHookSpec:
         ...
 
     @hookspec(firstresult=True)
+    def llm_model_advisories(self) -> dict[str, dict[str, str]] | None:
+        """Per-model advisories surfaced in model-selection UI.
+
+        Maps a model id to ``{"severity": "warn"|"info", "label": <short>,
+        "detail": <sentence>}``. ``label`` is a few words rendered inline next
+        to the model; ``detail`` is the full sentence shown as secondary text.
+        Use this for terms a user should see *at selection time* — discounted
+        tiers that train on their inputs, preview models with no stability
+        guarantee, free tiers with unusual retention.
+
+        Omitting the hook means no advisories, and non-conforming entries are
+        dropped rather than raising, so third-party providers stay compatible.
+        """
+        ...
+
+    @hookspec(firstresult=True)
     def llm_default_retry_config(self) -> ProviderRetryConfig | None: ...
 
     @hookspec(firstresult=True)

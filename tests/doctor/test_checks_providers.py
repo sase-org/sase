@@ -153,7 +153,7 @@ def _patch_codex_selection(monkeypatch, payload: dict[str, object]) -> None:
 def test_provider_check_specs_registers_llm_auth(tmp_path) -> None:
     ids = [spec.id for spec in provider_check_specs(_context(tmp_path))]
 
-    assert ids == ["llm.registry", "llm.default", "llm.auth"]
+    assert ids == ["llm.registry", "llm.default", "llm.auth", "llm.model_advisory"]
 
 
 def test_setup_hint_prefers_enriched_provider_metadata() -> None:
@@ -194,7 +194,7 @@ def test_setup_hint_points_script_installs_at_the_install_subcommand() -> None:
     assert hint == {
         "tool": "Muse Code",
         "install": "run `sase agent-cli install muse`",
-        "auth": "follow the muse authentication flow",
+        "auth": "run `muse login`, or set META_API_KEY",
         "docs_url": "https://example.test/muse",
     }
 

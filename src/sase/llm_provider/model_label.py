@@ -82,6 +82,25 @@ def model_value_text(
 
         value.append(format_provider_model_label(provider, model), style="#AF87D7")
 
+    # An advisory-flagged model is marked for the run's whole life, not just at
+    # selection time, so agent rows and status surfaces keep showing what the
+    # run agreed to. The glyph alone keeps these width-constrained surfaces
+    # stable; the model picker carries the full sentence.
+    from sase.llm_provider.registry import (
+        model_advisory_color,
+        model_advisory_for,
+        model_advisory_marker,
+    )
+
+    advisory = model_advisory_for(model)
+    if advisory is not None:
+        severity = advisory.get("severity")
+        value.append(" ")
+        value.append(
+            model_advisory_marker(severity),
+            style=f"bold {model_advisory_color(severity)}",
+        )
+
     # Uniform reasoning-effort suffix, rendered the same way for every provider
     # so the effective effort reads identically regardless of which CLI ran.
     if reasoning_effort:
