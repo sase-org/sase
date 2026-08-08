@@ -515,7 +515,16 @@ descriptors survive the runner's exec and are released by the kernel even after
 `SIGKILL`. Nested pytest processes inherit the disabled marker so they cannot deadlock
 on the parent's tokens.
 
-For deliberate diagnostics, `SASE_TEST_GATE_DISABLED=1` bypasses accounting.
+For deliberate diagnostics, `SASE_TEST_GATE_DISABLED=1` bypasses accounting: the run
+takes no tokens and never queues. It is still clamped to the host budget and prints one
+line saying so, because the pool cannot see it and every other run's budget assumes it
+is absent — an unaccounted 64-worker controller against a 32-token pool once drove this
+host to a load average of 97.6 with 25 GiB in swap. A benchmark that genuinely needs to
+run wider raises `SASE_TEST_GATE_SLOTS` instead, which enlarges the pool where
+concurrent runs can see it. A run whose exemption is corroborated by a real ancestor
+lease (`SASE_TEST_GATE_GOVERNED=1`, or an xdist worker) is unaffected: its width was
+already paid for, so it is granted untouched.
+
 `SASE_TEST_GATE_SLOTS` overrides host-wide token capacity, `SASE_TEST_GATE_TIMEOUT`
 controls bounded admission waits, and `SASE_TEST_GATE_DIR` selects the shared pool
 directory. `SASE_PYTEST_WORKER_FLOOR` and `SASE_PYTEST_WORKER_CEILING` tune automatic

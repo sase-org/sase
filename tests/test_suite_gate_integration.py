@@ -272,6 +272,56 @@ def test_scoped_run_takes_no_token_while_the_pool_is_exhausted(
     assert "gear" not in manifest
 
 
+def test_ungoverned_bypass_is_bounded_by_the_host_budget(tmp_path: Path) -> None:
+    """The incident, end to end, and the route that replaces it.
+
+    `SASE_TEST_GATE_DISABLED=1` still means "take no tokens and never queue".
+    It no longer means "take the whole machine": the pool cannot see this run,
+    so its width is the one thing that must stay inside the budget.
+    """
+    root = tmp_path / "repo"
+    pool_dir = tmp_path / "tokens"
+    _build_scoped_repo(root)
+    bypass = {
+        "SASE_PYTEST_WORKERS": "4",
+        "SASE_TEST_GATE_DISABLED": "1",
+        # The miniature repo carries the runner's imports, not the full lane's
+        # in-pytest failure recorder.
+        "SASE_TEST_SELECTION_HEALTH_DISABLED": "1",
+    }
+
+    over_budget = _run_miniature_runner(root, pool_dir, "fast", slots=1, extra=bypass)
+
+    assert over_budget.returncode != 0
+    refusal = over_budget.stdout + over_budget.stderr
+    assert "Requested 4 pytest worker tokens" in refusal
+    assert "SASE_TEST_GATE_SLOTS" in refusal
+
+    # The supported route for a genuinely wide run: enlarge the pool where
+    # concurrent runs can see it. The pool is held to its capacity throughout,
+    # which is what proves the bypass still never queues.
+    holder = WorkerTokenLease(
+        directory=pool_dir, budget=4, timeout=0.0, capacity_is_explicit=True
+    )
+    holder.acquire(4, 4, exact=True)
+    try:
+        widened = _run_miniature_runner(root, pool_dir, "fast", slots=4, extra=bypass)
+    finally:
+        holder.release()
+
+    assert widened.returncode == 0, (
+        f"stdout:\n{widened.stdout}\nstderr:\n{widened.stderr}"
+    )
+    assert "suite gate bypassed: running 4 ungoverned workers" in widened.stderr
+    assert "SASE_TEST_GATE_SLOTS" in widened.stderr
+    assert "bringing up nodes" in widened.stdout
+    # Every token in the pool is still the one this process took.
+    assert {
+        int(json.loads(path.read_text(encoding="utf-8"))["pid"])
+        for path in pool_dir.glob("token-*.lock")
+    } == {os.getpid()}
+
+
 def test_over_budget_selection_runs_at_a_leased_width_and_releases_it(
     tmp_path: Path,
 ) -> None:

@@ -52,7 +52,6 @@ class WorkerTokenLease:
         timeout: float,
         *,
         capacity_is_explicit: bool = False,
-        governed: bool = False,
         poll_interval: float = _POLL_INTERVAL_SECONDS,
         status_interval: float = _STATUS_INTERVAL_SECONDS,
     ) -> None:
@@ -62,7 +61,6 @@ class WorkerTokenLease:
         self._budget = budget
         self._timeout = timeout
         self._capacity_is_explicit = capacity_is_explicit
-        self._governed = governed
         self._poll_interval = poll_interval
         self._status_interval = status_interval
         self._token_files: list[IO[str]] = []
@@ -146,7 +144,7 @@ class WorkerTokenLease:
         try:
             fcntl.flock(pool_file.fileno(), fcntl.LOCK_EX)
             effective_budget = self._synchronize_capacity(pool_file)
-            effective_floor, effective_ceiling = _fit_request_to_budget(
+            effective_floor, effective_ceiling = fit_request_to_budget(
                 floor,
                 ceiling,
                 effective_budget,
@@ -226,13 +224,20 @@ class WorkerTokenLease:
         return stored_capacity
 
     def _set_descendant_environment(self) -> None:
-        names = [_DISABLED_ENV]
-        if self._governed:
-            names.append(_GOVERNED_ENV)
-        self._previous_environment = {name: os.environ.get(name) for name in names}
+        """Mark descendants exempt, and say *why* they are exempt.
+
+        Both variables, unconditionally. ``_DISABLED_ENV`` alone keeps a nested
+        pytest from deadlocking on tokens this process already holds, but it is
+        the same string anyone can export at top level; ``_GOVERNED_ENV`` is
+        what distinguishes a demand a real lease already paid for from a claim
+        that it did. A lease that set only the first would make its own children
+        indistinguishable from an unaccounted run.
+        """
+        self._previous_environment = {
+            name: os.environ.get(name) for name in (_DISABLED_ENV, _GOVERNED_ENV)
+        }
         os.environ[_DISABLED_ENV] = "1"
-        if self._governed:
-            os.environ[_GOVERNED_ENV] = "1"
+        os.environ[_GOVERNED_ENV] = "1"
 
     def _restore_descendant_environment(self) -> None:
         for name, previous_value in self._previous_environment.items():
@@ -303,6 +308,20 @@ def gate_directory() -> Path:
 def gate_timeout() -> float:
     """Return the configured bounded acquisition timeout."""
     return _non_negative_float_env("SASE_TEST_GATE_TIMEOUT", _DEFAULT_TIMEOUT_SECONDS)
+
+
+def descendant_exemption() -> bool:
+    """Report whether an ancestor's lease already accounts for this demand.
+
+    The distinction the pool depends on. Every held lease marks its descendants
+    with ``_GOVERNED_ENV``, and xdist marks its own workers, so either signal
+    means the tokens for this width have already been taken by somebody above
+    us — asking again would double-count the same demand. A bare
+    ``_DISABLED_ENV`` is deliberately *not* corroboration: anyone can export it,
+    and one that did is exactly how a ``-n 64`` run took a 64-worker share of a
+    62 GiB host while holding zero tokens.
+    """
+    return os.environ.get(_GOVERNED_ENV) == "1" or "PYTEST_XDIST_WORKER" in os.environ
 
 
 def configure_suite_gate(config: pytest.Config) -> None:
@@ -395,7 +414,7 @@ def _non_negative_float_env(name: str, default: float) -> float:
     return value
 
 
-def _fit_request_to_budget(
+def fit_request_to_budget(
     floor: int,
     ceiling: int,
     budget: int,
@@ -403,6 +422,12 @@ def _fit_request_to_budget(
     exact: bool,
     capacity_is_explicit: bool,
 ) -> tuple[int, int]:
+    """Clamp a floor/ceiling to ``budget``; refuse an over-budget exact ask.
+
+    Public because the bypass path in ``tools/run_pytest`` bounds itself with
+    the same arithmetic and the same error text as a real acquisition, rather
+    than reimplementing either.
+    """
     if exact and ceiling > budget:
         capacity_source = (
             "SASE_TEST_GATE_SLOTS" if capacity_is_explicit else "computed host budget"
@@ -416,11 +441,12 @@ def _fit_request_to_budget(
 
 
 def _is_gate_exempt() -> bool:
-    return (
-        os.environ.get(_DISABLED_ENV) == "1"
-        or os.environ.get(_GOVERNED_ENV) == "1"
-        or "PYTEST_XDIST_WORKER" in os.environ
-    )
+    # The bare disable flag counts here, uncorroborated or not: this is the
+    # in-pytest safety net, and a caller who deliberately disabled the gate must
+    # not have it re-acquire underneath them. Bounding the *width* of such a run
+    # is `tools/run_pytest`'s job, because that is the only place that chooses
+    # one.
+    return descendant_exemption() or os.environ.get(_DISABLED_ENV) == "1"
 
 
 def _xdist_worker_count(config: pytest.Config) -> int | None:

@@ -20,6 +20,7 @@ from tests._suite_gate import (
     automatic_worker_range,
     configure_suite_gate,
     configured_token_budget,
+    descendant_exemption,
     unconfigure_suite_gate,
 )
 
@@ -57,14 +58,12 @@ def _lease(
     budget: int = 1,
     timeout: float = 1,
     status_interval: float = 30,
-    governed: bool = False,
 ) -> WorkerTokenLease:
     return WorkerTokenLease(
         directory,
         budget,
         timeout,
         capacity_is_explicit=True,
-        governed=governed,
         poll_interval=0.01,
         status_interval=status_interval,
     )
@@ -163,7 +162,7 @@ def test_floor_acquisition_grows_greedily_and_records_metadata(
 ) -> None:
     monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
     monkeypatch.delenv("SASE_TEST_GATE_GOVERNED", raising=False)
-    lease = _lease(tmp_path, budget=6, governed=True)
+    lease = _lease(tmp_path, budget=6)
 
     assert lease.acquire(2, 4) == 4
     assert lease.granted == 4
@@ -190,7 +189,7 @@ def test_release_restores_inherited_environment(
 ) -> None:
     monkeypatch.setenv("SASE_TEST_GATE_DISABLED", "parent-disabled")
     monkeypatch.setenv("SASE_TEST_GATE_GOVERNED", "parent-governed")
-    lease = _lease(tmp_path, governed=True)
+    lease = _lease(tmp_path)
 
     lease.acquire(1, 1, exact=True)
     lease.release()
@@ -395,9 +394,15 @@ def test_configure_acquires_exact_numeric_controller_request(
 
     metadata = json.loads((tmp_path / "token-000.lock").read_text(encoding="utf-8"))
     assert metadata["granted"] == 3
+    # Both markers, not just the disable flag. The in-pytest gate's descendants
+    # would otherwise be indistinguishable from a top-level bypass, and would
+    # queue for tokens this process is already holding on their behalf.
     assert os.environ["SASE_TEST_GATE_DISABLED"] == "1"
+    assert os.environ["SASE_TEST_GATE_GOVERNED"] == "1"
+    assert descendant_exemption()
     unconfigure_suite_gate(config)
     assert "SASE_TEST_GATE_DISABLED" not in os.environ
+    assert "SASE_TEST_GATE_GOVERNED" not in os.environ
 
 
 @pytest.mark.parametrize("automatic_form", ["auto", "logical"])
@@ -452,6 +457,35 @@ def test_configure_exemptions(
     configure_suite_gate(_config(numprocesses))
 
     assert not (tmp_path / "pool.lock").exists()
+
+
+@pytest.mark.parametrize(
+    ("environment", "corroborated"),
+    [
+        # The whole point of the split: a bare disable flag is a *claim* of
+        # exemption that anyone can export, so it does not corroborate one.
+        ({"SASE_TEST_GATE_DISABLED": "1"}, False),
+        ({"SASE_TEST_GATE_GOVERNED": "1"}, True),
+        ({"PYTEST_XDIST_WORKER": "gw0"}, True),
+        ({"SASE_TEST_GATE_DISABLED": "1", "SASE_TEST_GATE_GOVERNED": "1"}, True),
+        ({}, False),
+    ],
+)
+def test_descendant_exemption_requires_a_real_ancestor_lease(
+    monkeypatch: pytest.MonkeyPatch,
+    environment: dict[str, str],
+    corroborated: bool,
+) -> None:
+    for name in (
+        "SASE_TEST_GATE_DISABLED",
+        "SASE_TEST_GATE_GOVERNED",
+        "PYTEST_XDIST_WORKER",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+
+    assert descendant_exemption() is corroborated
 
 
 def test_configure_uses_effective_tx_count_and_maxprocesses(

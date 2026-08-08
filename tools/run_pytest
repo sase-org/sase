@@ -26,6 +26,8 @@ from tests._suite_gate import (  # noqa: E402
     WorkerTokenLease,
     automatic_worker_range,
     configured_token_budget,
+    descendant_exemption,
+    fit_request_to_budget,
     gate_directory,
     gate_timeout,
 )
@@ -506,28 +508,77 @@ def _reject_numprocesses_args(
             )
 
 
+BYPASS_REMEDY = (
+    "the pool cannot see an ungoverned run and every other run's budget assumes "
+    "it is absent, so this one is still bounded by the host budget; to run wider, "
+    "raise SASE_TEST_GATE_SLOTS, which enlarges the pool where concurrent runs "
+    "can see it."
+)
+
+
+def _bypass_worker_grant(
+    floor: int,
+    ceiling: int,
+    budget: int,
+    *,
+    exact: bool,
+    capacity_is_explicit: bool,
+) -> int:
+    """The width for a deliberate, uncorroborated `SASE_TEST_GATE_DISABLED=1`.
+
+    The flag buys never waiting for tokens and never taking any. It does not
+    buy the whole host: an unaccounted controller at double the budget is how
+    this machine reached a load average of 97.6 on 64 cores with the pool's own
+    arithmetic still correct — its 64 workers were simply invisible to it. So
+    the width is clamped here, and announced, because nothing downstream can.
+    """
+    _, granted = fit_request_to_budget(
+        floor,
+        ceiling,
+        budget,
+        exact=exact,
+        capacity_is_explicit=capacity_is_explicit,
+    )
+    print(
+        f"suite gate bypassed: running {granted} ungoverned workers against a "
+        f"{budget}-token host pool (SASE_TEST_GATE_DISABLED=1); {BYPASS_REMEDY}",
+        file=sys.stderr,
+    )
+    return granted
+
+
 def _parallel_worker_grant() -> tuple[int, WorkerTokenLease | None]:
     budget, capacity_is_explicit = configured_token_budget()
     exact_worker_count = _configured_worker_count()
-    gate_disabled = os.environ.get("SASE_TEST_GATE_DISABLED") == "1"
+
+    if descendant_exemption():
+        # An ancestor's lease already paid for this width. Grant it untouched
+        # and take no tokens: acquiring here would double-count the demand.
+        if exact_worker_count is not None:
+            return exact_worker_count, None
+        return automatic_worker_range(budget)[1], None
 
     if exact_worker_count is not None:
-        if gate_disabled:
-            return exact_worker_count, None
         floor = ceiling = exact_worker_count
         exact = True
     else:
         floor, ceiling = automatic_worker_range(budget)
-        if gate_disabled:
-            return ceiling, None
         exact = False
+
+    if os.environ.get("SASE_TEST_GATE_DISABLED") == "1":
+        return _bypass_worker_grant(
+            floor,
+            ceiling,
+            budget,
+            exact=exact,
+            capacity_is_explicit=capacity_is_explicit,
+        ), None
 
     lease = WorkerTokenLease(
         directory=gate_directory(),
         budget=budget,
         timeout=gate_timeout(),
         capacity_is_explicit=capacity_is_explicit,
-        governed=True,
     )
     granted = lease.acquire(floor, ceiling, exact=exact)
     lease.make_inheritable()

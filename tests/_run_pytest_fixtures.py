@@ -36,6 +36,15 @@ PINNED_ENV_VARS: tuple[str, ...] = (
     "SASE_PR_STATUS",
 )
 
+# The markers that tell `tools/run_pytest` an ancestor's lease already paid for
+# this run's workers. This suite runs *under* such a lease -- `just test` is a
+# governed xdist run -- so a test that did not clear them would exercise the
+# descendant-exemption shortcut no matter which case it meant to describe.
+GATE_EXEMPTION_ENV_VARS: tuple[str, ...] = (
+    "PYTEST_XDIST_WORKER",
+    "SASE_TEST_GATE_GOVERNED",
+)
+
 
 @pytest.fixture(autouse=True)
 def isolate_run_pytest_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -47,12 +56,17 @@ def isolate_run_pytest_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     without pinning those globals first, so a leak outlives the test's own
     teardown and poisons every later test on the same xdist worker. Every
     module that calls `load_run_pytest()` imports this fixture.
+
+    It also clears the inherited gate-exemption markers, so every test starts
+    from the top-level run it is describing rather than from this suite's own.
     """
     for name in PINNED_ENV_VARS:
         current = os.environ.get(name)
         monkeypatch.setenv(name, "" if current is None else current)
         if current is None:
             monkeypatch.delenv(name, raising=False)
+    for name in GATE_EXEMPTION_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(os.getcwd())
 
 

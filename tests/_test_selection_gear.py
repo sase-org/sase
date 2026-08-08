@@ -159,7 +159,6 @@ def engage_scoped_gear(
         # future reader of this call cannot mistake it for a waiting one.
         timeout=0.0,
         capacity_is_explicit=capacity_is_explicit,
-        governed=True,
     )
     try:
         granted = lease.try_acquire(SCOPED_WORKER_FLOOR, ceiling)
@@ -168,7 +167,7 @@ def engage_scoped_gear(
             attempted=True, ceiling=ceiling, reason=REFUSED_GATE_ERROR
         ), None
     if granted < SCOPED_WORKER_FLOOR:
-        # `_fit_request_to_budget` clamps the floor to a tiny host's budget, so
+        # `fit_request_to_budget` clamps the floor to a tiny host's budget, so
         # a one-token grant is reachable even though it was not asked for.
         lease.release()
         return (
