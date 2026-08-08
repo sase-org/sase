@@ -215,7 +215,7 @@ def test_plan_link_write_and_commit_exclude_recovery_writer(
             )
             assert frontmatter["bead_id"]
             link_ready_to_commit.set()
-            assert finish_link_commit.wait(timeout=5.0)
+            assert finish_link_commit.wait(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
         assert already_locked is not message.startswith("Archive approved plan")
         return real_commit_sdd_store_files(
             commit_store,
@@ -254,15 +254,15 @@ def test_plan_link_write_and_commit_exclude_recovery_writer(
             no_push=False,
             render=False,
         )
-        if not link_ready_to_commit.wait(timeout=5.0):
+        if not link_ready_to_commit.wait(timeout=_CONCURRENCY_TIMEOUT_SECONDS):
             finish_link_commit.set()
-            exception = launch_future.exception(timeout=5.0)
+            exception = launch_future.exception(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
             pytest.fail(f"plan launch did not reach its link commit: {exception}")
         competitor_future = executor.submit(compete_for_store)
         assert competitor_entered.wait(timeout=0.2) is False
         finish_link_commit.set()
-        result = launch_future.result(timeout=10.0)
-        assert competitor_future.result(timeout=5.0) is True
+        result = launch_future.result(timeout=_CONCURRENCY_TIMEOUT_SECONDS)
+        assert competitor_future.result(timeout=_CONCURRENCY_TIMEOUT_SECONDS) is True
 
     assert competitor_entered.is_set()
     assert launched == [result.epic_id]
