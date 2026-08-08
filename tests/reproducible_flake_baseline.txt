@@ -1,7 +1,4 @@
 # Reproducible-flake baseline for `tools/selection_health --fail-on-new-flake`.
 # Entries are debt to remove, not suppressions to grow. Adding a node requires
 # a filed SASE bead that names the flake, evidence, and owner.
-# effective-after: 2026-08-08T14:10:42Z
-tests/test_bead_xprompt_tags.py::test_bead_worker_builtin_xprompts_do_not_author_wait_directives[bd/work_task-Can you complete the work for task bead {{ bead_id }}]
-tests/test_bead_xprompt_tags.py::test_bead_worker_builtin_xprompts_do_not_author_wait_directives[bd/work_task-Can you complete the work for the {{ bead_id }} sase task bead]
-tests/test_bead_xprompt_tags.py::test_builtin_task_prompt_routes_distinct_follow_ups_through_skill
+# effective-after: 2026-08-08T19:56:29Z
