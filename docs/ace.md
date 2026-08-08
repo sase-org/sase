@@ -2163,12 +2163,18 @@ To save a query, prefix with `#`:
 
 ### Saved Queries
 
-On the PRs sub-tab, press `*` to open the saved-query chooser. Press a populated slot
-(`1`–`9`, then `0`), move with `j`/`k` or the arrow keys and press `Enter`, or click a
-row. `q`/`Esc` closes the chooser without changing the query. The chooser shows the
-saved query text and marks the active query; an empty chooser also repeats the save
-syntax. Bare digits no longer load saved queries, and the chooser is unavailable from
-Agents, Axe, Commits, Plans, and Bugs.
+On the Artifacts tab, press `0` followed by a slot digit (`1`-`9`, then `0` again for
+slot 0) to load that saved PR query directly -- e.g. `02` loads slot 2. This works from
+any Artifacts sub-tab, not just PRs, and always lands on the PRs sub-tab. `Esc` or any
+other non-digit key after `0` cancels without changing the query. Bare digits `1`-`5`
+still select the Artifacts sub-tabs; the saved-query slot keys live behind the `0`
+prefix so the two never collide.
+
+Press `*` on the PRs sub-tab to open the saved-query chooser instead. Press a populated
+slot (`1`–`9`, then `0`), move with `j`/`k` or the arrow keys and press `Enter`, or
+click a row. `q`/`Esc` closes the chooser without changing the query. The chooser shows
+the saved query text and marks the active query; an empty chooser also repeats the save
+syntax. The chooser itself is unavailable from Agents, Axe, Commits, Plans, and Bugs.
 
 ### Query History
 

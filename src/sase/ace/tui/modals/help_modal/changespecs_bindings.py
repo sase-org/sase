@@ -235,9 +235,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             [
                 (d(a.edit_query), "Edit search query"),
                 (
-                    f"{d(a.open_saved_query_picker)}1-9 / {d(a.open_saved_query_picker)}0",
-                    "Choose saved PR query",
+                    f"{d(a.start_saved_query_mode)}1-9 / {d(a.start_saved_query_mode)}0",
+                    "Load saved PR query slot",
                 ),
+                (d(a.open_saved_query_picker), "Choose saved PR query"),
                 (d(a.prev_query), "Previous query"),
                 (d(a.next_query), "Next query"),
             ],

@@ -37,6 +37,6 @@ async def test_render_consults_app_cache_not_disk(monkeypatch) -> None:
         # Force a render pass.
         text = panel.render()
         assert "Mailed" in text.plain
-        assert "[*1]" in text.plain
+        assert "[01]" in text.plain
 
     assert calls == 0

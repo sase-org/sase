@@ -378,6 +378,13 @@ def test_saved_query_picker_default_binding() -> None:
     assert reg.app.open_saved_query_picker == "asterisk"
 
 
+def test_saved_query_slot_mode_default_binding() -> None:
+    """The direct saved-query slot prefix defaults to 0 and doesn't disturb *."""
+    reg = load_keymap_registry({})
+    assert reg.app.start_saved_query_mode == "0"
+    assert reg.app.open_saved_query_picker == "asterisk"
+
+
 def test_start_last_vcs_xprompt_editor_default_binding() -> None:
     """Ctrl+G opens the last VCS xprompt directly in the editor."""
     reg = load_keymap_registry({})

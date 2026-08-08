@@ -263,6 +263,9 @@ class StateInitMixin:
         # Checkout mode state (for c key sub-commands)
         self._checkout_mode_active: bool = False
 
+        # Saved query mode state (for 0 key sub-commands)
+        self._saved_query_mode_active: bool = False
+
         # Copy mode state (for % key sub-commands)
         self._copy_mode_active: bool = False
 

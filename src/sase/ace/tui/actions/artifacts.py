@@ -50,6 +50,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "cycle_files_subtab_reverse",
         *{f"show_artifacts_{subtab}" for subtab in ARTIFACTS_SUBTAB_ORDER},
         "pick_artifacts_project",
+        "start_saved_query_mode",
         "scroll_to_top",
         "scroll_to_bottom",
         "scroll_detail_down",

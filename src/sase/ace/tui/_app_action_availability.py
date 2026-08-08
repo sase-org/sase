@@ -135,6 +135,8 @@ def check_app_action(
     if action == "open_saved_query_picker":
         if app.current_tab != ARTIFACTS_TAB or app.current_artifacts_subtab != "prs":
             return False
+    if action == "start_saved_query_mode" and app.current_tab != ARTIFACTS_TAB:
+        return False
     if action in PLANS_ARTIFACT_ACTIONS:
         if (
             app.current_tab != ARTIFACTS_TAB

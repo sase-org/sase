@@ -171,6 +171,7 @@ class AppKeymaps:
     edit_query: str
     search_reverse: str
     open_saved_query_picker: str
+    start_saved_query_mode: str
     prev_query: str
     next_query: str
     # Display / misc

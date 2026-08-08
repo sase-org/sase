@@ -256,24 +256,24 @@ def test_saved_query_commands_cover_all_prefixed_slots() -> None:
     queries = list(iter_digit_commands(_registry()))
     assert {c.id for c in queries} == {f"saved_query.{d}" for d in range(10)}
     assert all(c.executor.kind == "saved_query" for c in queries)
-    assert all(c.key_sequence[0] == "asterisk" for c in queries)
+    assert all(c.key_sequence[0] == "0" for c in queries)
     assert {c.key_display for c in queries} == {
-        "*1",
-        "*2",
-        "*3",
-        "*4",
-        "*5",
-        "*6",
-        "*7",
-        "*8",
-        "*9",
-        "*0",
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+        "08",
+        "09",
+        "00",
     }
 
 
-def test_saved_query_commands_follow_configured_picker_prefix() -> None:
+def test_saved_query_commands_follow_configured_slot_prefix() -> None:
     registry = load_keymap_registry(
-        {"keymaps": {"app": {"open_saved_query_picker": "P"}}}
+        {"keymaps": {"app": {"start_saved_query_mode": "P"}}}
     )
     queries = list(iter_digit_commands(registry))
     assert queries[0].key_sequence == ("P", "1")

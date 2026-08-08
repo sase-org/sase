@@ -55,6 +55,10 @@ class EventKeyboardMixin(EventHandlersBase):
             if self._handle_checkout_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()
+        elif self._saved_query_mode_active:
+            if self._handle_saved_query_key(event.key):  # type: ignore[attr-defined]
+                event.prevent_default()
+                event.stop()
         elif self._copy_mode_active:
             if self._handle_copy_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()

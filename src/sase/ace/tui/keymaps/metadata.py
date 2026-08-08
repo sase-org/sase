@@ -40,6 +40,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("edit_query", "Edit Query", False),
     ("search_reverse", "Reverse Search Order", False),
     ("open_saved_query_picker", "Saved Queries", False),
+    ("start_saved_query_mode", "Saved Query Slots", False),
     ("edit_spec", "Edit Spec", False),
     ("add_axe_item", "Add AXE Item", False),
     ("toggle_axe_description", "Toggle AXE Description", False),

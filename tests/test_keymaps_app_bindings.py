@@ -165,7 +165,7 @@ def test_build_app_bindings_preserves_compound_key() -> None:
 
 
 def test_build_app_bindings_number_artifacts_and_prefix_saved_queries() -> None:
-    """Bare digits jump Artifacts panes; saved queries use the configured star."""
+    """Bare digits jump Artifacts panes; saved query slots live behind 0."""
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {binding.action: binding for binding in bindings}
 
@@ -180,11 +180,12 @@ def test_build_app_bindings_number_artifacts_and_prefix_saved_queries() -> None:
         "5": "files",
     }
     assert by_action["open_saved_query_picker"].key == "asterisk"
+    assert by_action["start_saved_query_mode"].key == "0"
     assert {
         binding.key
         for binding in bindings
         if len(binding.key) == 1 and binding.key.isdigit()
-    } == {"1", "2", "3", "4", "5"}
+    } == {"1", "2", "3", "4", "5", "0"}
     assert not any(
         binding.action.startswith("load_saved_query") for binding in bindings
     )
@@ -205,11 +206,12 @@ def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> 
         ("5", "files"),
     ]
     assert by_action["open_saved_query_picker"].key == "asterisk"
+    assert by_action["start_saved_query_mode"].key == "0"
     assert {
         binding.key
         for binding in DEFAULT_BINDINGS
         if len(binding.key) == 1 and binding.key.isdigit()
-    } == {"1", "2", "3", "4", "5"}
+    } == {"1", "2", "3", "4", "5", "0"}
     assert not any(
         binding.action.startswith("load_saved_query") for binding in DEFAULT_BINDINGS
     )

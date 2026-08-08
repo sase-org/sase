@@ -549,6 +549,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         ("saved query", "query slots", "star query"),
     ),
+    (
+        "start_saved_query_mode",
+        "Load saved PR query by slot",
+        "Saved Queries",
+        CL_ONLY,
+        ("saved query slot", "query slot"),
+    ),
     ("prev_query", "Previous saved query", "Queries", ALL_TABS, ()),
     ("next_query", "Next saved query", "Queries", ALL_TABS, ()),
     # Display / misc

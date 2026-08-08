@@ -4,7 +4,8 @@ Builds a single source-of-truth list of :class:`CommandSpec` entries
 from a :class:`KeymapRegistry`. Coverage:
 
 - Every field in :class:`AppKeymaps` (one ``app.<field>`` command).
-- The 10 saved-query picker sequences (configured prefix + ``0``..``9``).
+- The 10 saved-query slot sequences (configured saved-query slot prefix
+  + a slot digit).
 - Every key in each built-in mode (fold / copy nested per-tab /
   leader / bang).
 - Every valid user-defined custom mode command.
@@ -70,8 +71,8 @@ def iter_app_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
 
 
 def iter_saved_query_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
-    """Yield the 10 saved-query commands behind the configured picker key."""
-    prefix = registry.app.open_saved_query_picker
+    """Yield the 10 saved-query commands behind the configured slot prefix."""
+    prefix = registry.app.start_saved_query_mode
     for d in (1, 2, 3, 4, 5, 6, 7, 8, 9, 0):
         key = str(d)
         sequence = (prefix, key)

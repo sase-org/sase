@@ -288,6 +288,7 @@ class PendingKeyboardHarness(EventKeyboardMixin, MemberJumpNavigationMixin):
         self._entry_jump_mode_active = False
         self._fold_mode_active = False
         self._checkout_mode_active = False
+        self._saved_query_mode_active = False
         self._copy_mode_active = False
         self._ancestor_mode_active = False
         self._child_mode_active = False

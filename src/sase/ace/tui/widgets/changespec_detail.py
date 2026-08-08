@@ -103,13 +103,13 @@ class SearchQueryPanel(Static):
                 break
 
         if matched_slot is not None:
-            # Build indicator matching the configured saved-query picker.
-            prefix = "*"
+            # Build indicator matching the configured saved-query slot key.
+            prefix = "0"
             registry = getattr(getattr(self, "app", None), "_keymap_registry", None)
             if registry is not None:
                 from ..keymaps import key_display_name
 
-                prefix = key_display_name(registry.app.open_saved_query_picker)
+                prefix = key_display_name(registry.app.start_saved_query_mode)
             indicator = Text()
             indicator.append(
                 f"[{prefix}{matched_slot}]",

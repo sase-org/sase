@@ -28,6 +28,7 @@ class EventHandlersBase:
     _countdown_remaining: int
     _fold_mode_active: bool
     _checkout_mode_active: bool
+    _saved_query_mode_active: bool
     _copy_mode_active: bool
     _agents: list[Agent]
     _agents_loading: bool

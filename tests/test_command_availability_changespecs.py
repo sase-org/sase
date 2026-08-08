@@ -108,6 +108,28 @@ def test_saved_query_picker_and_slots_are_pr_only() -> None:
         assert not is_command_available(spec, CommandContext(tab="axe"))
 
 
+def test_saved_query_slot_mode_command_is_pr_only() -> None:
+    """The palette entry mirrors the chooser's PR-only scoping.
+
+    The live keybinding itself is reachable from any Artifacts subtab (see
+    ``_app_action_availability.check_app_action``), but the palette command
+    surfaces it the same way as the chooser for a consistent catalog.
+    """
+    catalog = _catalog_by_id()
+    spec = catalog["app.start_saved_query_mode"]
+
+    assert is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="prs"),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="commits"),
+    )
+    assert not is_command_available(spec, CommandContext(tab="agents"))
+    assert not is_command_available(spec, CommandContext(tab="axe"))
+
+
 def test_show_diff_hidden_when_no_cl_selected() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.show_diff"]

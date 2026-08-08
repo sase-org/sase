@@ -413,6 +413,7 @@ ace:
       edit_query: "slash"
       search_reverse: "ctrl+r"
       open_saved_query_picker: "asterisk"
+      start_saved_query_mode: "0"
       prev_query: "circumflex_accent"
       next_query: "underscore"
       # Display / misc

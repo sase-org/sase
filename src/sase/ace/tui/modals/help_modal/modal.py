@@ -235,7 +235,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
                 text,
                 self._active_query,
                 queries=self._saved_queries,
-                saved_query_prefix=key_display_name(km.app.open_saved_query_picker),
+                saved_query_prefix=key_display_name(km.app.start_saved_query_mode),
                 title_runs=saved_runs or (),
             )
         # Query history is ChangeSpecs-tab only

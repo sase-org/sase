@@ -238,6 +238,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
         "Saved Queries",
         show=False,
     ),
+    Binding("0", "start_saved_query_mode", "Saved Query Slots", show=False),
     # Ancestor/child/sibling navigation
     Binding("<", "start_ancestor_mode", "Ancestor", show=False),
     Binding(">", "start_child_mode", "Child", show=False),

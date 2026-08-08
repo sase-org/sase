@@ -903,6 +903,12 @@ The app-level `edit_query` and Agents-only `search_forward` actions may intentio
 share a key because their tab scopes do not overlap. Other duplicate app bindings
 continue to be rejected by validation.
 
+`ace.keymaps.app.start_saved_query_mode` (default `0`) arms direct saved-PR-query slot
+selection: press it, then a slot digit (`1`-`9`, then `0`) to load that slot. Its digit
+sub-keys are not configurable -- they are the slot identifiers themselves, the same way
+`start_checkout_mode`'s `1`-`9` workspace digits aren't. The prefix is scoped to the
+Artifacts tab (any sub-tab); it does not arm on Agents or Axe.
+
 Custom mode key fields:
 
 | Field    | Type | Required | Description                            |

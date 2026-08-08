@@ -16,7 +16,7 @@ def add_saved_queries_section(
     active_query: str | None,
     *,
     queries: Mapping[str, str] | None = None,
-    saved_query_prefix: str = "*",
+    saved_query_prefix: str = "0",
     content_width: int = CONTENT_WIDTH,
     title_runs: tuple[tuple[int, int], ...] = (),
 ) -> None:
@@ -25,6 +25,9 @@ def add_saved_queries_section(
     Args:
         text: The Text object to append to.
         active_query: The current active query string for highlighting.
+        saved_query_prefix: The configured saved-query slot key
+            (``ace.keymaps.app.start_saved_query_mode``) shown in each
+            slot badge, e.g. ``[03]``.
         content_width: The content width for formatting.
         title_runs: Matched-query runs to highlight in the section title.
     """

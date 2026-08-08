@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ...changespec import ChangeSpec
 from ..keymaps import KeymapRegistry, footer_key_display
@@ -16,6 +16,7 @@ class KeybindingModesMixin:
     """Public ``update_*_bindings`` methods for :class:`KeybindingFooter`."""
 
     if TYPE_CHECKING:
+        app: Any
         _runner_count: int
 
         def _kr(self) -> KeymapRegistry: ...
@@ -381,6 +382,22 @@ class KeybindingModesMixin:
             (k("toggle_axe"), "start/stop axe"),
         ]
         self._update_display(bindings, mode_label="BANG")
+
+    def update_saved_query_bindings(self) -> None:
+        """Update bindings to show saved-query slot mode options."""
+        from ...saved_queries import KEY_ORDER
+
+        saved_queries = getattr(self.app, "_saved_queries", None) or {}
+        bindings: list[tuple[str, str]] = []
+        for slot in KEY_ORDER[1:] + KEY_ORDER[:1]:
+            query = saved_queries.get(slot)
+            if not query:
+                continue
+            label = query if len(query) <= 24 else query[:21] + "..."
+            bindings.append((slot, label))
+        if not bindings:
+            bindings.append(("0-9", "no saved queries"))
+        self._update_display(bindings, mode_label="QUERY")
 
     def update_custom_mode_bindings(self, mode_name: str) -> None:
         """Update bindings to show custom mode options.

@@ -80,6 +80,43 @@ class ChangeSpecQueryMixin:
         except Exception as e:
             self.notify(f"Error loading query: {e}", severity="error")  # type: ignore[attr-defined]
 
+    def action_start_saved_query_mode(self) -> None:
+        """Arm direct saved-query slot selection (0 then a digit)."""
+        if self.current_tab != "changespecs":
+            return
+        self._saved_query_mode_active = True  # type: ignore[attr-defined]
+        self._update_saved_query_footer()
+
+    def _handle_saved_query_key(self, key: str) -> bool:
+        """Handle a key press in saved-query mode. Returns True if handled."""
+        # Always exit saved-query mode (one-shot, like bang/checkout mode).
+        self._saved_query_mode_active = False  # type: ignore[attr-defined]
+
+        if key == "escape":
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
+        if len(key) == 1 and key.isdigit():
+            self._load_saved_query(key)
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
+        # Unknown key - just exit mode and restore footer
+        self._refresh_current_tab()  # type: ignore[attr-defined]
+        return True
+
+    def _update_saved_query_footer(self) -> None:
+        """Update the footer to show saved-query slot mode bindings."""
+        from ...widgets import KeybindingFooter
+
+        try:
+            footer = self.query_one(  # type: ignore[attr-defined]
+                "#keybinding-footer", KeybindingFooter
+            )
+            footer.update_saved_query_bindings()
+        except Exception:
+            pass
+
     def action_open_saved_query_picker(self) -> None:
         """Open the cached saved-query chooser on the Artifacts PRs pane."""
         if (
