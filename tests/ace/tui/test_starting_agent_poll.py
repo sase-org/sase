@@ -47,6 +47,8 @@ class _PollApp(AgentLoadingRefreshMixin):
         self._agents_loading = False
         self._agents_refresh_pending = False
         self._agents_refresh_scheduled = False
+        self._agents_artifact_delta_scheduled = None
+        self._agents_artifact_delta_pending = None
         self._agents_refresh_debounce_armed = False
         self._timer_calls: list[tuple[float, Callable[[], Any]]] = []
         self._scheduled: list[Any] = []
@@ -56,13 +58,13 @@ class _PollApp(AgentLoadingRefreshMixin):
 
     def _spawn_agent_artifact_delta_refresh_task(
         self,
-        artifact_dirs: tuple[Path, ...],
-        source: str = "unknown",
-        *args: Any,
+        request: Any,
     ) -> None:
-        del args
         self._scheduled.append(
-            (self._run_agent_artifact_delta_refresh, (artifact_dirs, source))
+            (
+                self._run_agent_artifact_delta_refresh,
+                (tuple(request.artifact_dirs), request.source),
+            )
         )
 
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
@@ -116,9 +118,10 @@ def test_single_starting_agent_transition_fires_one_refresh(tmp_path: Path) -> N
     scheduled_count_before = len(app._scheduled)
 
     app._poll_starting_agent_transitions()
-    assert len(app._scheduled) == scheduled_count_before + 1, (
-        "mtime change should schedule a fresh delta"
+    assert len(app._scheduled) == scheduled_count_before, (
+        "mtime change before the first task starts should merge into it"
     )
+    assert app._scheduled[0][1] == ((artifacts_dir,), "starting_poll")
 
 
 def test_fan_out_of_five_transitions_coalesces_to_one_refresh(

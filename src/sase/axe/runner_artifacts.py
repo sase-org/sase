@@ -5,7 +5,7 @@ import logging
 import os
 
 from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE
-from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+from sase.axe.agent_meta import write_agent_meta_atomic
 
 logger = logging.getLogger(__name__)
 
@@ -73,16 +73,8 @@ def write_agent_meta(
     if tribe:
         meta["tribe"] = tribe
 
-    canonicalize_agent_tribe_metadata(meta)
-    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
-        from sase.core.agent_artifact_index_lifecycle import (
-            update_agent_artifact_index_for_marker_mutation,
-        )
-
-        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+        write_agent_meta_atomic(artifacts_dir, meta)
     except Exception as e:
         print(f"Warning: Failed to write agent_meta.json: {e}")
 
@@ -110,36 +102,15 @@ def clear_agent_meta_tribe(artifacts_dir: str) -> bool:
 
     data.pop("tribe", None)
     data.pop("tag", None)
-    tmp_path = f"{meta_path}.tmp.{os.getpid()}"
     try:
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-            f.write("\n")
-        os.replace(tmp_path, meta_path)
+        write_agent_meta_atomic(artifacts_dir, data)
     except Exception:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
         logger.debug(
             "clear_agent_meta_tribe: failed to write %s",
             meta_path,
             exc_info=True,
         )
         return False
-
-    try:
-        from sase.core.agent_artifact_index_lifecycle import (
-            update_agent_artifact_index_for_marker_mutation,
-        )
-
-        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-    except Exception:
-        logger.debug(
-            "clear_agent_meta_tribe: failed to update artifact index for %s",
-            artifacts_dir,
-            exc_info=True,
-        )
     return True
 
 

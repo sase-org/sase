@@ -122,6 +122,8 @@ class AgentLoadingStateMixin:
     _agents_refresh_scheduled_full_history_reason: str | None
     _agents_refresh_active_source: str
     _agents_refresh_async_tasks: set[asyncio.Task[None]]
+    _agents_artifact_delta_scheduled: Any | None
+    _agents_artifact_delta_pending: Any | None
     # Loader self-healing cleanup runs independently after row application.
     # A burst keeps only the latest pending request and runs one trailing pass.
     _loader_cleanup_running: bool

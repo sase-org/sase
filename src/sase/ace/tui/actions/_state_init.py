@@ -399,6 +399,8 @@ class StateInitMixin:
         self._agents_refresh_scheduled_full_history_reason: str | None = None
         self._agents_refresh_active_source: str = "unknown"
         self._agents_refresh_async_tasks: set[asyncio.Task[None]] = set()
+        self._agents_artifact_delta_scheduled: Any | None = None
+        self._agents_artifact_delta_pending: Any | None = None
         self._loader_cleanup_running: bool = False
         self._loader_cleanup_pending: bool = False
         self._loader_cleanup_pending_request: Any | None = None

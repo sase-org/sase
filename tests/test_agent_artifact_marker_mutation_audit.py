@@ -158,8 +158,12 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
                 "src/sase/axe/run_agent_directives.py:extract_directives_and_write_meta"
             ),
             helper_call="write_agent_meta",
-            coverage_context="src/sase/axe/run_agent_markers.py:write_agent_meta",
+            coverage_context="src/sase/axe/agent_meta.py:write_agent_meta_atomic",
         ),
+    ),
+    "src/sase/axe/agent_meta.py:write_agent_meta_atomic": Review(
+        mutation_calls=("mkstemp", "dump", "os.replace", "unlink"),
+        lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/run_agent_exec_markers.py:write_done_marker_and_update_index": Review(
         mutation_calls=("open", "dump"),
@@ -177,18 +181,6 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers_artifacts.py:append_meta_list_field": Review(
-        mutation_calls=("open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
-    "src/sase/axe/run_agent_helpers_artifacts.py:update_meta_field": Review(
-        mutation_calls=("open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
-    "src/sase/axe/run_agent_helpers_artifacts.py:update_meta_suffix": Review(
-        mutation_calls=("open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
     "src/sase/axe/run_agent_helpers_handoff.py:normalize_handoff_interruption_state": Review(
         mutation_calls=("open", "dump", "open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
@@ -202,7 +194,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/run_agent_helpers_artifacts.py:create_followup_artifacts": Review(
-        mutation_calls=("open", "dump", "open", "dump"),
+        mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/run_agent_helpers_questions.py:handle_questions_flow": Review(
@@ -215,23 +207,11 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_markers.py:write_agent_meta": Review(
-        mutation_calls=("open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
-    "src/sase/axe/run_agent_retry_spawn.py:mark_parent_retried": Review(
-        mutation_calls=("write_text",),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
     "src/sase/axe/run_agent_runner_finalize.py:write_error_done_marker": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/run_agent_runner_setup.py:setup_artifacts_directory": Review(
-        mutation_calls=("open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
-    "src/sase/axe/run_agent_runner_setup.py:write_agent_meta": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
@@ -261,14 +241,6 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
     ),
     "src/sase/axe/run_workflow_runner.py:_write_workflow_state": Review(
         mutation_calls=("open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
-    "src/sase/axe/runner_artifacts.py:write_agent_meta": Review(
-        mutation_calls=("open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
-    "src/sase/axe/runner_artifacts.py:clear_agent_meta_tribe": Review(
-        mutation_calls=("open", "dump", "os.replace", "unlink"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/runner_artifacts.py:write_done_marker": Review(

@@ -5,10 +5,10 @@ import os
 from datetime import datetime
 from typing import Any
 
+from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
 
 def persist_refreshed_clan_summary(
@@ -184,8 +184,8 @@ def record_stop_time(
 
 
 def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
-    canonicalize_agent_tribe_metadata(agent_meta)
-    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(agent_meta, f, indent=2)
-    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    write_agent_meta_atomic(
+        artifacts_dir,
+        agent_meta,
+        index_updater=update_agent_artifact_index_for_marker_mutation,
+    )

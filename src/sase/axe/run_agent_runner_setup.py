@@ -28,6 +28,7 @@ from sase.axe.runner_workspace import (
     prepare_launch_workspace_repos,
     prepare_workspace,
 )
+from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -491,13 +492,11 @@ def capture_sdd_base_sha(workspace_dir: str, workspace_num: int) -> str | None:
 
 
 def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
-    from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
-
-    canonicalize_agent_tribe_metadata(agent_meta)
-    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(agent_meta, f, indent=2)
-    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    write_agent_meta_atomic(
+        artifacts_dir,
+        agent_meta,
+        index_updater=update_agent_artifact_index_for_marker_mutation,
+    )
 
 
 def bump_spawn_telemetry(

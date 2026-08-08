@@ -127,8 +127,6 @@ def infer_broad_load_fallback_reason(
         return full_history_reason
     if source == "launch":
         return "missing_launch_result"
-    if source == "starting_poll":
-        return "delta_read_failure"
     if source == "auto_refresh":
         return "unknown_watcher_path"
     if source.endswith("_error_recovery"):

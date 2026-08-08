@@ -125,6 +125,21 @@ def test_full_history_refresh_schedule_records_tier2_classification() -> None:
     ]
 
 
+def test_starting_poll_broad_schedule_does_not_infer_delta_failure() -> None:
+    app = _TraceLoadingApp()
+
+    app._schedule_agents_async_refresh(source="starting_poll")
+
+    assert app._agents_refresh_trace_records == [
+        _AgentRefreshTraceRecord(
+            stage="scheduled",
+            source="starting_poll",
+            data_cost="tier1_broad_load",
+            full_history=False,
+        )
+    ]
+
+
 def test_classify_agents_data_cost_uses_load_state_tier() -> None:
     tier1_state = AgentLoadState(
         tier="tier1",

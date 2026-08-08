@@ -8,10 +8,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sase.artifacts import create_artifacts_directory
+from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     AGENT_FAMILY_ROLE_FIELD,
@@ -34,10 +34,11 @@ def append_meta_list_field(artifacts_dir: str, key: str, value: Any) -> None:
             existing.append(value)
         else:
             meta[key] = [value]
-        canonicalize_agent_tribe_metadata(meta)
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
-        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+        write_agent_meta_atomic(
+            artifacts_dir,
+            meta,
+            index_updater=update_agent_artifact_index_for_marker_mutation,
+        )
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
@@ -49,10 +50,11 @@ def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
         meta[key] = value
-        canonicalize_agent_tribe_metadata(meta)
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
-        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+        write_agent_meta_atomic(
+            artifacts_dir,
+            meta,
+            index_updater=update_agent_artifact_index_for_marker_mutation,
+        )
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
@@ -65,10 +67,11 @@ def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
         meta["role_suffix"] = canonical_suffix
-        canonicalize_agent_tribe_metadata(meta)
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
-        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+        write_agent_meta_atomic(
+            artifacts_dir,
+            meta,
+            index_updater=update_agent_artifact_index_for_marker_mutation,
+        )
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
@@ -166,10 +169,7 @@ def create_followup_artifacts(
             if value or (isinstance(value, bool) and value is not None):
                 followup_meta[key] = value
 
-    with open(
-        os.path.join(new_artifacts_dir, "agent_meta.json"), "w", encoding="utf-8"
-    ) as f:
-        json.dump(followup_meta, f, indent=2)
+    write_agent_meta_atomic(new_artifacts_dir, followup_meta, update_index=False)
 
     # Write initial workflow_state.json so the TUI can merge follow-up agents
     # as WORKFLOW entries immediately, before WorkflowExecutor overwrites it.

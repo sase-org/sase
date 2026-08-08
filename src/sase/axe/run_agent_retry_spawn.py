@@ -15,10 +15,10 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -368,10 +368,11 @@ def mark_parent_retried(
     data["retry_error_category"] = error_category
     if agent_name and not data.get("name"):
         data["name"] = agent_name
-    canonicalize_agent_tribe_metadata(data)
-
     try:
-        meta_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+        write_agent_meta_atomic(
+            artifacts_dir,
+            data,
+            index_updater=update_agent_artifact_index_for_marker_mutation,
+        )
     except OSError:
         pass
