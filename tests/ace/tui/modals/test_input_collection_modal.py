@@ -17,8 +17,9 @@ from sase.agent.prompt_placeholder_inputs import (
     PromptInputValues,
     build_prompt_input_plan,
 )
-from sase.ace.tui.modals.input_collection_modal import InputCollectionModal, _PathField
+from sase.ace.tui.modals.input_collection_modal import InputCollectionModal
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.typed_input_form import _PathField
 
 
 class _TestApp(App[None]):
@@ -103,7 +104,7 @@ async def test_word_input_rejects_whitespace() -> None:
         modal.query_one("#field-input-0", SingleLineVimTextArea).text = "two words"
         await pilot.pause()
         assert modal.query_one("#field-error-0", Label).display is True
-        assert modal._field_valid(0) is False
+        assert modal._form.is_valid() is False
 
 
 async def test_optional_inputs_hidden_until_revealed() -> None:

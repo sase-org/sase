@@ -56,11 +56,13 @@ def handle_custom_gate(app: object, notification: Notification) -> bool:
             submit_gate_execution_task(
                 app,
                 notification,
-                # No input is sent: the executor injects the reviewer's note
-                # for every selected option whose schema declares it.
+                # When nothing was collected, option_inputs stays None: the
+                # executor injects the reviewer's note for every selected
+                # option whose schema declares it, same as today.
                 GateSubmission(
                     selected_option_ids=result.selected_option_ids,
                     feedback=result.feedback,
+                    option_inputs=result.option_inputs or None,
                 ),
             )
 

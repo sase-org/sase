@@ -49,6 +49,40 @@ def _option(
     )
 
 
+def _option_with_inputs(option_id: str, label: str, *, icon: str) -> GateOption:
+    return GateOption.from_mapping(
+        {
+            "id": option_id,
+            "label": label,
+            "icon": icon,
+            "default_selected": True,
+            "command": {"argv": [f"commands/{option_id}"]},
+            "inputs": [
+                {
+                    "id": "target_env",
+                    "label": "Target environment",
+                    "type": "line",
+                    "required": True,
+                },
+                {
+                    "id": "mode",
+                    "label": "Mode",
+                    "type": "enum",
+                    "choices": ["fast", "thorough"],
+                },
+                {
+                    "id": "token",
+                    "label": "Access token",
+                    "type": "line",
+                    "secret": True,
+                },
+            ],
+        },
+        0,
+        default_feedback="optional",
+    )
+
+
 _NO_ACTIONS = GateActionsData()
 
 
@@ -402,6 +436,46 @@ async def test_custom_gate_actions_section_png_snapshot(
         ),
         snapshot_name="custom_gate_actions_120x40",
         title="ACE custom gate Actions section",
+    )
+
+
+async def test_custom_gate_inputs_section_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    options = (
+        _option_with_inputs("deploy", "Deploy signed build", icon="🚀"),
+        _option("cancel", "Cancel release", icon="🛑"),
+    )
+    # Two-pane mode (preview_text set) gives the Actions column unbounded
+    # height (no compact-mode 30-row cap); trimmed notes/attachments plus a
+    # taller viewport fit every field -- a required line, an enum, and a
+    # secret -- without scrolling.
+    data = CustomGateModalData(
+        request_id="deploy-production-42",
+        title="Custom Gate",
+        sender="release-guardian",
+        icon="🛡️",
+        notes=("Choose one resolution branch.",),
+        attachments=(),
+        preview_name="release-preview.md",
+        preview_text="# Production deployment\n\nVersion: `0.10.2`\n",
+        gate=GateBranchData(
+            query="visual query",
+            options=options,
+            groups=(),
+            branches=(("deploy",), ("cancel",)),
+            primary_branch=("deploy",),
+        ),
+        gate_title="Approve production deployment",
+    )
+    await _snapshot_modal(
+        ace_png_visual,
+        monkeypatch,
+        data=data,
+        snapshot_name="custom_gate_inputs_120x45",
+        title="ACE custom gate Inputs section",
+        size=(120, 45),
     )
 
 

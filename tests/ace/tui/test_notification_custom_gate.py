@@ -17,6 +17,7 @@ from sase.ace.tui.actions.agents._notification_gate_execution import (
     _execute_gate_submission,
     submit_gate_execution_task,
 )
+from sase.ace.tui.modals import CustomGateModalResult
 from sase.ace.tui.actions.agents._notification_hitl_modal import (
     _load_neutral_hitl_data,
     _neutral_hitl_choice_id,
@@ -388,6 +389,89 @@ def test_custom_gate_submission_uses_tracked_task_toast_and_refresh(
     assert app.notifications == [("Gate answered with approve", "information")]
     assert app.refresh_count == 1
     assert any('"approved": true' in line for _stream, line in app.reporter.lines)
+
+
+async def test_custom_gate_dismissal_forwards_collected_option_inputs(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    create_gate(_spec())
+    notification = load_notifications()[0]
+    captured: dict[str, Any] = {}
+
+    def fake_submit(_app: Any, _notification: Any, submission: GateSubmission) -> bool:
+        captured["submission"] = submission
+        return True
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_gate_execution."
+        "submit_gate_execution_task",
+        fake_submit,
+    )
+
+    class _App:
+        def push_screen(self, _screen: object, callback: Any) -> None:
+            callback(
+                CustomGateModalResult(
+                    selected_option_ids=("approve", "audit"),
+                    feedback=None,
+                    option_inputs={"approve": {"ticket": "OPS-1"}, "audit": {}},
+                )
+            )
+
+        def notify(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+    app = _App()
+    assert handle_custom_gate(app, notification) is True
+    [task] = app._custom_gate_open_tasks
+    await task
+
+    submission = captured["submission"]
+    assert submission.option_inputs == {
+        "approve": {"ticket": "OPS-1"},
+        "audit": {},
+    }
+
+
+async def test_custom_gate_dismissal_sends_no_option_inputs_when_none_collected(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    create_gate(_spec())
+    notification = load_notifications()[0]
+    captured: dict[str, Any] = {}
+
+    def fake_submit(_app: Any, _notification: Any, submission: GateSubmission) -> bool:
+        captured["submission"] = submission
+        return True
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_gate_execution."
+        "submit_gate_execution_task",
+        fake_submit,
+    )
+
+    class _App:
+        def push_screen(self, _screen: object, callback: Any) -> None:
+            callback(
+                CustomGateModalResult(
+                    selected_option_ids=("approve", "audit"),
+                    feedback=None,
+                )
+            )
+
+        def notify(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+    app = _App()
+    assert handle_custom_gate(app, notification) is True
+    [task] = app._custom_gate_open_tasks
+    await task
+
+    assert captured["submission"].option_inputs is None
 
 
 def test_notification_flow_dispatches_custom_gate(

@@ -33,7 +33,6 @@ from tests.gate_conformance._cases import (
 
 #: Why a surface lacks a capability, quoted in the skip message.
 PENDING_CAPABILITY_PHASES = {
-    ("ace", CAP_OPTION_INPUTS): "sase-h7.6 (inputs-ace)",
     ("mobile", CAP_OPTION_INPUTS): "sase-h7.8 (inputs-remote)",
     ("mobile", CAP_SHARED_INPUT): "sase-h7.8 (inputs-remote)",
     ("mobile", CAP_RETRY): "sase-h7.8 (inputs-remote)",
@@ -127,6 +126,7 @@ def _submit_via_ace(target: SurfaceTarget, submission: Submission) -> SurfaceOut
             feedback=submission.feedback,
             input_data=submission.input_data,
             retry=submission.retry,  # type: ignore[arg-type]
+            option_inputs=submission.option_inputs,
         ),
         reporter=_StubReporter(),  # type: ignore[arg-type]
     )
@@ -205,7 +205,9 @@ SURFACES: tuple[Surface, ...] = (
     ),
     Surface(
         name="ace",
-        capabilities=frozenset({CAP_FEEDBACK, CAP_RETRY, CAP_SHARED_INPUT}),
+        capabilities=frozenset(
+            {CAP_FEEDBACK, CAP_OPTION_INPUTS, CAP_RETRY, CAP_SHARED_INPUT}
+        ),
         submit=_submit_via_ace,
     ),
     Surface(

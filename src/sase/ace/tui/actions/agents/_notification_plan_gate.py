@@ -96,6 +96,7 @@ def submit_neutral_plan_response(
                 coder_model=result.coder_model,
                 epic_launch_mode="detached",
                 epic_launch_origin="ace",
+                option_inputs=result.option_inputs or None,
             )
         except Exception as exc:
             return TrackedTaskResult(

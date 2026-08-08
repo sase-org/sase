@@ -20,6 +20,7 @@ from sase.ace.tui.actions.agents._notification_modals import (
 )
 from sase.ace.tui.modals.plan_approval_modal import (
     PlanApprovalModal,
+    PlanApprovalResult,
     _plan_approval_result_for_choice,
 )
 from sase.notification_gates import paths
@@ -139,6 +140,34 @@ async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
         assert not coder_label.startswith("1 ")
 
 
+async def test_tale_plan_modal_renders_no_raw_editor_for_host_collected_properties(
+    gate_home: Path,
+) -> None:
+    """A real plan gate's coder_prompt/coder_model/epic_launch_mode never get a
+    duplicate raw YAML box: the plan modal's own controls already collect them.
+    """
+    plan = gate_home / "tale-no-raw.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    create_plan_approval_gate(plan, "tui-no-raw-tale")
+    [notification] = load_notifications()
+
+    async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
+        assert handle_plan_approval(pilot.app, notification) is True
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(pilot.app.screen, PlanApprovalModal):
+                break
+
+        modal = pilot.app.screen
+        assert isinstance(modal, PlanApprovalModal)
+        raw_ids = [
+            widget.id
+            for widget in modal.query("*")
+            if widget.id and "-raw-" in widget.id
+        ]
+        assert raw_ids == []
+
+
 async def test_epic_plan_modal_renders_canonical_singleton_label(
     gate_home: Path,
 ) -> None:
@@ -201,6 +230,80 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
     assert _plan_approval_status(result) == expected_status
     assert app.notifications == []
     assert app.refresh_count == 1
+
+
+def test_neutral_tale_submission_merges_shared_and_per_option_inputs(
+    gate_home: Path,
+) -> None:
+    """A declared option_inputs mapping merges over the shared input_data.
+
+    No built-in plan option declares ``inputs:`` yet, but the tale schema
+    already accepts ``coder_prompt``/``coder_model`` on ``approve`` and
+    ``commit``, so this exercises the merge path a future declared-input
+    plan option will use without needing one to exist yet.
+    """
+    plan = gate_home / "tale-inputs.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    gate = create_plan_approval_gate(plan, "tui-tale-inputs")
+    [notification] = load_notifications()
+    result = PlanApprovalResult(
+        action="approve",
+        commit_plan=True,
+        run_coder=True,
+        coder_prompt="do the thing",
+        choice="tale",
+        selected_option_ids=("approve", "commit"),
+        option_inputs={"approve": {"coder_model": "opus"}},
+    )
+    app = _TrackedPlanApp()
+
+    submitted = submit_neutral_plan_response(app, notification, None, result)
+
+    assert submitted is True
+    assert getattr(app.completion, "success", False) is True
+    response = json.loads(gate.response_path.read_text(encoding="utf-8"))
+    assert response["option_inputs"]["approve"] == {
+        "coder_prompt": "do the thing",
+        "coder_model": "opus",
+    }
+    assert response["option_inputs"]["commit"] == {"coder_prompt": "do the thing"}
+    # The merge path submits per-option; input_data stays the executor's
+    # legacy shared-value field and is empty here.
+    assert response["input"] == {}
+
+
+def test_copy_actions_never_expose_collected_input_values(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """action_copy_plan/action_copy_plan_path only ever read plan content/path.
+
+    Neither has an input-copy action; this pins that neither one starts
+    reaching into anything option_inputs-shaped.
+    """
+    plan = gate_home / "copy-guard.md"
+    plan.write_text("# Plan\n\nDo the thing.\n", encoding="utf-8")
+    modal = PlanApprovalModal(str(plan), default_choice="tale")
+    captured: dict[str, object] = {}
+
+    def fake_schedule(
+        _owner: object, value: object, *, task_name: str, **_kwargs: object
+    ) -> None:
+        captured[task_name] = value
+        return None
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plan_approval_modal.schedule_copy_delivery",
+        fake_schedule,
+    )
+
+    modal.action_copy_plan()
+    modal.action_copy_plan_path()
+
+    content = captured["sase-copy-plan-contents"]
+    resolved_content = content() if callable(content) else content
+    assert resolved_content == "# Plan\n\nDo the thing.\n"
+    assert captured["sase-copy-plan-path"] == str(plan)
 
 
 def test_neutral_epic_submission_records_ace_origin(

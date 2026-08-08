@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -23,6 +24,7 @@ class GateSubmission:
     feedback: str | None = None
     input_data: object | None = None
     retry: Literal["resume", "restart"] | None = None
+    option_inputs: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -144,6 +146,7 @@ def _execute_gate_submission(
             feedback=submission.feedback,
             source="tui",
             retry=submission.retry,
+            option_inputs=submission.option_inputs,
             on_command_start=command_start,
             on_output_line=output_line,
             on_process_state=process_state,

@@ -110,7 +110,7 @@ async def test_input_collection_modal_error_png_snapshot(
         await wait_for_state(
             page,
             lambda: (
-                modal._optional_revealed
+                modal._form._optional_revealed
                 and error.display
                 and bool(error.render().plain)
             ),

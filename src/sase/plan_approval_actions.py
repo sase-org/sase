@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -77,6 +78,7 @@ def execute_plan_approval_response(
     coder_model: str | None = None,
     epic_launch_mode: EpicLaunchMode = "detached",
     epic_launch_origin: EpicLaunchOrigin = "api",
+    option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> PlanApprovalActionResult:
     """Resolve a neutral plan gate, with legacy in-flight fallback."""
     request_kind = notification.host_action_data.get("request_kind")
@@ -96,6 +98,7 @@ def execute_plan_approval_response(
             coder_model=coder_model,
             epic_launch_mode=epic_launch_mode,
             epic_launch_origin=epic_launch_origin,
+            option_inputs=option_inputs,
         )
     return _execute_legacy_plan_approval_response(
         notification,
@@ -199,6 +202,7 @@ def _execute_neutral_plan_approval_response(
     coder_model: str | None,
     epic_launch_mode: EpicLaunchMode,
     epic_launch_origin: EpicLaunchOrigin,
+    option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> PlanApprovalActionResult:
     """Execute one selected option set through the shared gate executor."""
     if not notification.host_files:
@@ -249,14 +253,27 @@ def _execute_neutral_plan_approval_response(
     from sase.notification_gates.executor import execute_gate_selection
     from sase.notification_gates.paths import RESPONSE_FILENAME
 
+    # `option_inputs` only carries fields a declared-input plan option collects
+    # -- none do today (see the ACE gate-inputs phase's deviation note) -- so
+    # this branch is inert on landing and every existing call keeps taking the
+    # `input_data`-only path below unchanged.
+    per_option_inputs = (
+        {
+            option_id: {**input_data, **dict((option_inputs or {}).get(option_id, {}))}
+            for option_id in selected_option_ids
+        }
+        if option_inputs and any(option_inputs.values())
+        else None
+    )
     try:
         execution = execute_gate_selection(
             bundle_path,
             selected_option_ids,
-            input_data,
+            None if per_option_inputs is not None else input_data,
             feedback=feedback,
             source="plan_response",
             epic_launch_origin=epic_launch_origin,
+            option_inputs=per_option_inputs,
         )
     except GateError as exc:
         code = (

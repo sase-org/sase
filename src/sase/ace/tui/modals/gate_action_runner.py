@@ -22,7 +22,7 @@ from typing import Protocol
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.widgets import Button
+from textual.widget import Widget
 
 from sase.notification_gates.model_operations import GateOperation
 
@@ -205,13 +205,13 @@ class GateActionsMixin:
         if not control_ids:
             return
         focused = self.screen.focused  # type: ignore[attr-defined]
-        focused_id = focused.id if isinstance(focused, Button) else None
+        focused_id = focused.id if isinstance(focused, Widget) else None
         try:
             current = control_ids.index(focused_id or "")
         except ValueError:
             current = -1 if delta > 0 else 0
         target = control_ids[(current + delta) % len(control_ids)]
-        self.query_one(f"#{target}", Button).focus(scroll_visible=False)  # type: ignore[attr-defined]
+        self.query_one(f"#{target}", Widget).focus(scroll_visible=False)  # type: ignore[attr-defined]
 
     # -- action dispatch ---------------------------------------------------
 

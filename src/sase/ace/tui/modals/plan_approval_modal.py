@@ -1,7 +1,9 @@
 """Plan approval modal for the ace TUI."""
 
 import os
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -41,7 +43,11 @@ from .gate_action_runner import (
     GateActionsMixin,
     gate_modal_taken_keys,
 )
-from .gate_branch_controls import GateBranchControls, GateBranchData
+from .gate_branch_controls import (
+    GateBranchControls,
+    GateBranchData,
+    gate_declares_inputs,
+)
 from .gate_primary_footer import primary_action_badge
 
 
@@ -58,6 +64,13 @@ _PLAN_GATE_STATIC_BINDINGS = [
     ("G", "scroll_to_bottom", "Bottom"),
 ]
 _DEFAULT_GATE_KEYMAPS = GateModalKeymaps(**load_builtin_gate_defaults())
+#: Coder-option fields are already collected by the "c" ApproveOptionsModal
+#: (`coder_prompt`/`coder_model`) and by the host's own epic launch choice
+#: (`epic_launch_mode`), so the raw-schema escape hatch must not duplicate
+#: them with a YAML box on every plan and epic gate.
+_HOST_COLLECTED_PROPERTIES = frozenset(
+    {"feedback", "coder_prompt", "coder_model", "epic_launch_mode"}
+)
 
 
 def _default_plan_gate_data(default_choice: PlanApprovalChoice) -> GateBranchData:
@@ -191,6 +204,7 @@ class PlanApprovalResult:
     coder_model: str | None = None
     choice: PlanApprovalChoice | None = None
     selected_option_ids: tuple[str, ...] = ()
+    option_inputs: Mapping[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
@@ -306,6 +320,7 @@ class PlanApprovalModal(
                     yield Static("Decision", classes="gate-review-section-title")
                     yield GateBranchControls(
                         self._gate,
+                        host_collected_properties=_HOST_COLLECTED_PROPERTIES,
                         id="plan-approval-branches",
                         classes="gate-branch-controls--stacked",
                     )
@@ -356,6 +371,12 @@ class PlanApprovalModal(
         hints.append("  ")
         hints.append(key_display_name(keys.submit_branch), style="green")
         hints.append("=Submit  ")
+        _has_inputs, has_path = gate_declares_inputs(
+            self._gate.options, _HOST_COLLECTED_PROPERTIES
+        )
+        if has_path:
+            hints.append("^t", style="green")
+            hints.append("=Complete path  ")
         hints.append("c", style="green")
         hints.append("=Coder options  ")
         hints.append_text(self.gate_action_hints(separator="="))
@@ -439,6 +460,7 @@ class PlanApprovalModal(
             self._result_for_selection(
                 event.selected_option_ids,
                 feedback=event.feedback,
+                option_inputs=event.option_inputs,
             )
         )
 
@@ -625,18 +647,22 @@ class PlanApprovalModal(
         feedback: str | None = None,
         coder_prompt: str | None = None,
         coder_model: str | None = None,
+        option_inputs: Mapping[str, dict[str, Any]] | None = None,
     ) -> PlanApprovalResult:
         selected = set(selected_option_ids)
+        resolved_inputs = option_inputs or {}
         if selected_option_ids == ("reject",):
             return PlanApprovalResult(
                 action="reject",
                 selected_option_ids=selected_option_ids,
+                option_inputs=resolved_inputs,
             )
         if selected_option_ids == ("feedback",):
             return PlanApprovalResult(
                 action="reject",
                 feedback=feedback,
                 selected_option_ids=selected_option_ids,
+                option_inputs=resolved_inputs,
             )
         epic = self._default_choice == "epic"
         return PlanApprovalResult(
@@ -655,6 +681,7 @@ class PlanApprovalModal(
                 else None
             ),
             selected_option_ids=selected_option_ids,
+            option_inputs=resolved_inputs,
         )
 
     def action_copy_plan(self) -> None:

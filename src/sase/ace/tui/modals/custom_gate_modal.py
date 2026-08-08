@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
 
 from rich.markup import escape
 from rich.text import Text
@@ -29,7 +31,12 @@ from .gate_action_runner import (
     GateActionsMixin,
     gate_modal_taken_keys,
 )
-from .gate_branch_controls import GateBranchControls, GateBranchData
+from .gate_branch_controls import (
+    DEFAULT_HOST_COLLECTED_PROPERTIES,
+    GateBranchControls,
+    GateBranchData,
+    gate_declares_inputs,
+)
 from .gate_primary_footer import primary_action_badge
 
 
@@ -69,6 +76,7 @@ class CustomGateModalResult:
 
     selected_option_ids: tuple[str, ...]
     feedback: str | None
+    option_inputs: Mapping[str, dict[str, Any]] = field(default_factory=dict)
 
 
 class CustomGateModal(
@@ -206,6 +214,7 @@ class CustomGateModal(
             CustomGateModalResult(
                 selected_option_ids=event.selected_option_ids,
                 feedback=event.feedback,
+                option_inputs=event.option_inputs,
             )
         )
 
@@ -303,6 +312,11 @@ class CustomGateModal(
         text.append_text(primary_action_badge(self._data.gate, keys.submit_primary))
         text.append("  ")
         text.append(f"{key_display_name(keys.submit_branch)} submit  ")
+        _has_inputs, has_path = gate_declares_inputs(
+            self._data.gate.options, DEFAULT_HOST_COLLECTED_PROPERTIES
+        )
+        if has_path:
+            text.append("^t complete path  ")
         text.append_text(self.gate_action_hints())
         text.append("d debug  q cancel")
         return text

@@ -21,6 +21,7 @@ from sase.ace.tui.modals.gate_branch_controls import (
     GateBranchControls,
     GateBranchData,
 )
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.notification_gates.models import GateGroup, GateOption
 
 
@@ -138,6 +139,80 @@ async def test_group_renders_defaults_toggles_and_configured_submit() -> None:
         await pilot.pause()
 
     assert results == [CustomGateModalResult(("approve", "audit"), None)]
+
+
+async def test_declared_input_value_reaches_resolved_option_inputs() -> None:
+    results: list[CustomGateModalResult | None] = []
+    option = GateOption.from_mapping(
+        {
+            "id": "deploy",
+            "label": "Deploy",
+            "icon": "🚀",
+            "default_selected": True,
+            "feedback": "disabled",
+            "command": {"argv": ["commands/deploy"]},
+            "inputs": [
+                {
+                    "id": "target_env",
+                    "label": "Target environment",
+                    "type": "line",
+                    "required": True,
+                }
+            ],
+        },
+        0,
+    )
+    modal = CustomGateModal(_data(options=(option,), branches=(("deploy",),)))
+
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        field = modal.query_one("#gate-branch-0-field-input-0", SingleLineVimTextArea)
+        field.text = "staging"
+        await pilot.pause()
+        await pilot.press("1")
+        await pilot.pause()
+
+    assert results == [
+        CustomGateModalResult(
+            ("deploy",),
+            None,
+            option_inputs={"deploy": {"target_env": "staging"}},
+        )
+    ]
+
+
+async def test_empty_required_input_blocks_numbered_shortcut_submission() -> None:
+    results: list[CustomGateModalResult | None] = []
+    option = GateOption.from_mapping(
+        {
+            "id": "deploy",
+            "label": "Deploy",
+            "icon": "🚀",
+            "default_selected": True,
+            "feedback": "disabled",
+            "command": {"argv": ["commands/deploy"]},
+            "inputs": [
+                {
+                    "id": "target_env",
+                    "label": "Target environment",
+                    "type": "line",
+                    "required": True,
+                }
+            ],
+        },
+        0,
+    )
+    modal = CustomGateModal(_data(options=(option,), branches=(("deploy",),)))
+
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        assert modal.query_one("#gate-singleton-0", Button).disabled is True
+        await pilot.press("1")
+        await pilot.pause()
+
+    assert results == []
 
 
 @pytest.mark.parametrize(

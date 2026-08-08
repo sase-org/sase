@@ -1681,6 +1681,30 @@ GateBranchControls #gate-feedback-input {
     margin-bottom: 1;
 }
 
+GateBranchControls .gate-branch-inputs {
+    height: auto;
+    margin-top: 1;
+}
+
+GateBranchControls .gate-input-conflict {
+    color: $error;
+}
+
+GateBranchControls TypedInputForm {
+    height: auto;
+}
+
+GateBranchControls TypedInputForm Button {
+    width: 100%;
+    text-align: left;
+    color: $text-muted;
+    border: round $secondary;
+}
+
+GateBranchControls .gate-branch-inputs TextArea {
+    height: 6;
+}
+
 GateBranchControls.gate-branch-controls--stacked {
     width: 100%;
     height: auto;
@@ -2800,7 +2824,9 @@ InputCollectionModal .input-section-header {
     margin: 1 0 0 0;
 }
 
-InputCollectionModal .input-field-block {
+/* Shared by every TypedInputForm host (InputCollectionModal and the ACE gate
+   modals), not just InputCollectionModal. */
+.input-field-block {
     height: auto;
     margin-bottom: 1;
 }
@@ -2834,16 +2860,17 @@ InputCollectionModal .placeholder-field-block.literal .placeholder-context {
     opacity: 55%;
 }
 
-InputCollectionModal .field-header {
+/* Shared by every TypedInputForm host, same reason as .input-field-block. */
+.field-header {
     color: $secondary;
     text-style: bold;
 }
 
-InputCollectionModal .field-desc {
+.field-desc {
     color: $text-muted;
 }
 
-InputCollectionModal .field-error {
+.field-error {
     color: $error;
 }
 
@@ -3458,6 +3485,13 @@ SingleLineVimTextArea {
     scrollbar-size: 0 0;
     /* Border carries the vim mode title ([INSERT] / [NORMAL] / ...). */
     border: solid $secondary;
+}
+
+TypedInputForm {
+    height: auto;
+    border: none;
+    padding: 0;
+    margin: 0;
 }
 
 /* Single-pane (solo) mode is visually identical to the pre-stack bar: the
