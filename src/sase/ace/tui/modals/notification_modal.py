@@ -37,6 +37,7 @@ from .notification_modal_options import NotificationOptionMixin
 from .notification_modal_question import NotificationQuestionMixin
 from .notification_modal_report import NotificationReportMixin
 from .notification_modal_sent_at import NotificationSentAtMixin
+from .notification_modal_snooze_status import NotificationSnoozeStatusMixin
 from .notification_modal_tags import (
     NotificationTagStrip,
     NotificationTagTab,
@@ -53,6 +54,7 @@ class NotificationModal(
     NotificationOptionMixin,
     NotificationStateActionsMixin,
     NotificationSentAtMixin,
+    NotificationSnoozeStatusMixin,
     OptionListNavigationMixin,
     ModalScreen[Notification | None],
 ):
@@ -106,6 +108,7 @@ class NotificationModal(
         self._marked_notification_ids: set[str] = set()
         self._gate_summary_cache: dict[str, tuple[tuple[int, ...], GateSummary]] = {}
         self._gate_summary_debouncer: DetailPanelDebouncer | None = None
+        self._snooze_status_timer: Any | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -133,6 +136,7 @@ class NotificationModal(
                 with Vertical(id="notification-right"):
                     yield Label("No files attached", id="notification-file-title")
                     yield Label("", id="notification-sent-at", classes="hidden")
+                    yield Label("", id="notification-snooze-status", classes="hidden")
                     with VerticalScroll(id="notification-file-scroll"):
                         yield Static(id="notification-file-content")
             yield Label(
@@ -289,6 +293,7 @@ class NotificationModal(
             self._gate_summary_debouncer = DetailPanelDebouncer(self.app, delay_s=0.15)
         except Exception:
             self._gate_summary_debouncer = None
+        self._start_snooze_status_timer()
         display_index: int | None = None
         try:
             option_list = self.query_one("#notification-list", OptionList)
@@ -550,5 +555,6 @@ class NotificationModal(
         self._display_file(notification)
 
     def on_unmount(self) -> None:
-        """Cancel any in-flight gate summary enrichment when the modal closes."""
+        """Cancel modal-owned timers and in-flight detail enrichment."""
+        self._stop_snooze_status_timer()
         cancel_pump_free_tasks(self)

@@ -5099,6 +5099,13 @@ NotificationModal #notification-sent-at {
     text-overflow: ellipsis;
 }
 
+NotificationModal #notification-snooze-status {
+    height: 1;
+    color: $text-muted;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
 NotificationModal #notification-file-scroll {
     height: 1fr;
     scrollbar-gutter: stable;

@@ -36,6 +36,7 @@ class NotificationAttachmentMixin:
     def _display_file(self: Any, notification: Notification | None) -> None:
         """Render the header card, plus an optional attachment body, in the right pane."""
         self._update_sent_at(notification)
+        self._update_snooze_status(notification)
         title = self.query_one("#notification-file-title", Label)
         content_widget = self.query_one("#notification-file-content", Static)
 
