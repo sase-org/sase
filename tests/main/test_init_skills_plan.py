@@ -162,6 +162,9 @@ def test_non_check_plan_still_reports_actionable_chezmoi_drift(
 ) -> None:
     """Outside ``--check``, onboarding still sees real drift to offer applying."""
     stub_skill_source(tmp_path, monkeypatch)
+    # Pin prettier as absent (as the other stubs here do) so the warning
+    # assertion below is host-independent rather than tracking $PATH.
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
     monkeypatch.setattr(
         init_skills_handler, "CHEZMOI_HOME", tmp_path / "chezmoi" / "home"
@@ -175,7 +178,8 @@ def test_non_check_plan_still_reports_actionable_chezmoi_drift(
     plan = plan_init_skills(make_args(provider="claude"))
 
     assert [action.operation for action in plan.actions] == ["create"]
-    assert plan.warnings == ()
+    # No deferred-deploy warning: outside --check the drift stays actionable.
+    assert plan.warnings == (init_skills_handler._PRETTIER_WARNING,)
 
 
 def test_plan_honors_provider_filter(
