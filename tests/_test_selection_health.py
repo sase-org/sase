@@ -77,6 +77,7 @@ FULL_LANE_WALL_SECONDS = 232.0
 
 
 AncestorOracle = Callable[[str, str], bool]
+CommitOrderOracle = Callable[[str], int | None]
 
 
 def git_ancestor_oracle(root: Path) -> AncestorOracle:
@@ -100,6 +101,32 @@ def git_ancestor_oracle(root: Path) -> AncestorOracle:
         return cache[key]
 
     return _is_ancestor
+
+
+def git_commit_order_oracle(root: Path) -> CommitOrderOracle:
+    """A commit timestamp lookup, memoised per commit.
+
+    Full runs from parallel workspaces can finish out of commit order: an old
+    broken workspace may write its record after another workspace has already
+    tested a fixed descendant. Sorting by commit time keeps that fixed run from
+    looking like an interleaved pass for the older broken tree.
+    """
+    cache: dict[str, int | None] = {}
+
+    def _commit_order(commit: str) -> int | None:
+        if commit not in cache:
+            try:
+                value = run_git(root, "show", "-s", "--format=%ct", commit)
+            except SelectionError:
+                cache[commit] = None
+            else:
+                try:
+                    cache[commit] = int(value.strip())
+                except ValueError:
+                    cache[commit] = None
+        return cache[commit]
+
+    return _commit_order
 
 
 def nodeid_test_file(nodeid: str) -> str:
@@ -157,18 +184,18 @@ def reproducible_flake_nodeids(
     full_runs: Sequence[FullRunRecord],
     *,
     max_failures_per_run: int | None = None,
+    commit_order: CommitOrderOracle | None = None,
 ) -> frozenset[str]:
-    """Node IDs whose full-run failures share no change-set file in common.
+    """Node IDs with unrelated failures and an interleaved independent pass.
 
     A genuine miss recurs only across the ancestors of the one diff that broke
-    it, so every full run charging it shares that diff's files. A test whose
-    failures instead span two or more full runs with **no** file in common
-    cannot be attributed to any of those diffs — the common thread is the run
-    itself (host load, xdist worker assignment, environment staleness), not
-    the change. That is exactly the shape this project has already diagnosed
-    by hand for the ACE-TUI test-isolation family (``sase-ct``) and the
-    bead-mutation lock timeout (``sase-e2``): a different, unrelated diff each
-    time, passing immediately in isolation.
+    it, so every full run charging it shares that diff's files. A deterministic
+    break on master has the opposite shape: unrelated workspaces all keep
+    failing the same node until the fix lands, after which they pass. A
+    reproducible flake needs stronger evidence than unrelated failing change
+    sets: the same node must also pass in an eligible full run between those
+    failures, and that passing run must not be changing the node's own test
+    file.
 
     A hand-maintained node-ID list was considered and rejected for this rule:
     the real store already shows failures reproducing across unrelated diffs
@@ -186,9 +213,42 @@ def reproducible_flake_nodeids(
     this metric was built for: one-node or low-cardinality failures. A broken
     suite run with hundreds of failures should not promote every node it names
     into flake debt.
+
+    ``commit_order`` keeps parallel workspace records in commit order when the
+    caller can resolve the commits. Without it, the sequence order is used.
     """
-    change_sets_by_node: dict[str, list[frozenset[str]]] = {}
-    for full_run in full_runs:
+    eligible_runs = _ordered_flake_candidate_runs(
+        full_runs,
+        max_failures_per_run=max_failures_per_run,
+        commit_order=commit_order,
+    )
+    failures_by_node: dict[str, list[tuple[int, frozenset[str]]]] = {}
+    for index, full_run in enumerate(eligible_runs):
+        changed_files = full_run.changed_files
+        assert changed_files is not None
+        for nodeid in full_run.failures:
+            failures_by_node.setdefault(nodeid, []).append((index, changed_files))
+
+    flakes: set[str] = set()
+    for nodeid, failures in failures_by_node.items():
+        unique = {changed for _index, changed in failures}
+        if len(unique) < 2:
+            continue
+        if frozenset.intersection(*unique):
+            continue
+        if _has_interleaved_independent_pass(eligible_runs, nodeid, failures):
+            flakes.add(nodeid)
+    return frozenset(flakes)
+
+
+def _ordered_flake_candidate_runs(
+    full_runs: Sequence[FullRunRecord],
+    *,
+    max_failures_per_run: int | None,
+    commit_order: CommitOrderOracle | None,
+) -> tuple[FullRunRecord, ...]:
+    eligible: list[tuple[int, int, int, FullRunRecord]] = []
+    for index, full_run in enumerate(full_runs):
         if (
             max_failures_per_run is not None
             and len(full_run.failures) > max_failures_per_run
@@ -196,17 +256,39 @@ def reproducible_flake_nodeids(
             continue
         if full_run.changed_files is None:
             continue
-        for nodeid in full_run.failures:
-            change_sets_by_node.setdefault(nodeid, []).append(full_run.changed_files)
+        missing_order = 1
+        sort_key = index
+        if commit_order is not None and full_run.head:
+            resolved = commit_order(full_run.head)
+            if resolved is not None:
+                missing_order = 0
+                sort_key = resolved
+        eligible.append((missing_order, sort_key, index, full_run))
+    return tuple(
+        full_run
+        for _missing_order, _sort_key, _index, full_run in sorted(
+            eligible, key=lambda item: item[:3]
+        )
+    )
 
-    flakes: set[str] = set()
-    for nodeid, change_sets in change_sets_by_node.items():
-        unique = {frozenset(changed) for changed in change_sets}
-        if len(unique) < 2:
+
+def _has_interleaved_independent_pass(
+    full_runs: Sequence[FullRunRecord],
+    nodeid: str,
+    failures: Sequence[tuple[int, frozenset[str]]],
+) -> bool:
+    first = failures[0][0]
+    last = failures[-1][0]
+    if last - first < 2:
+        return False
+    test_file = nodeid_test_file(nodeid)
+    for full_run in full_runs[first + 1 : last]:
+        if nodeid in full_run.failures:
             continue
-        if not frozenset.intersection(*unique):
-            flakes.add(nodeid)
-    return frozenset(flakes)
+        if full_run.changed_files is not None and test_file in full_run.changed_files:
+            continue
+        return True
+    return False
 
 
 def _correlate_full_run_failures(
@@ -277,7 +359,10 @@ def _correlate_full_run_failures(
 
 
 def find_false_negatives(
-    records: HealthRecords, *, is_ancestor: AncestorOracle
+    records: HealthRecords,
+    *,
+    is_ancestor: AncestorOracle,
+    commit_order: CommitOrderOracle | None = None,
 ) -> list[FalseNegative]:
     """Match full-run failures against scoped runs that excluded them.
 
@@ -286,7 +371,7 @@ def find_false_negatives(
     and reported instead by :func:`find_flake_suppressed`: it is evidence the
     lane cannot act on, not a selection miss.
     """
-    flaky = reproducible_flake_nodeids(records.full_runs)
+    flaky = reproducible_flake_nodeids(records.full_runs, commit_order=commit_order)
     return [
         match
         for match in _correlate_full_run_failures(records, is_ancestor=is_ancestor)
@@ -295,7 +380,10 @@ def find_false_negatives(
 
 
 def find_flake_suppressed(
-    records: HealthRecords, *, is_ancestor: AncestorOracle
+    records: HealthRecords,
+    *,
+    is_ancestor: AncestorOracle,
+    commit_order: CommitOrderOracle | None = None,
 ) -> list[FalseNegative]:
     """The other half of :func:`find_false_negatives`'s split: known flakes.
 
@@ -304,7 +392,7 @@ def find_flake_suppressed(
     false-negative count, but never silently dropped: the health report counts
     and lists these too.
     """
-    flaky = reproducible_flake_nodeids(records.full_runs)
+    flaky = reproducible_flake_nodeids(records.full_runs, commit_order=commit_order)
     return [
         match
         for match in _correlate_full_run_failures(records, is_ancestor=is_ancestor)
@@ -420,7 +508,10 @@ class SelectionHealth:
 
 
 def summarize(
-    records: HealthRecords, *, is_ancestor: AncestorOracle
+    records: HealthRecords,
+    *,
+    is_ancestor: AncestorOracle,
+    commit_order: CommitOrderOracle | None = None,
 ) -> SelectionHealth:
     """Reduce the store to the numbers the project owner reads."""
     scoped = records.selections
@@ -518,7 +609,15 @@ def summarize(
         context_selected_total=sum(
             int(contexts.get("selected_count") or 0) for contexts in with_baseline
         ),
-        false_negatives=tuple(find_false_negatives(records, is_ancestor=is_ancestor)),
-        flake_suppressed=tuple(find_flake_suppressed(records, is_ancestor=is_ancestor)),
+        false_negatives=tuple(
+            find_false_negatives(
+                records, is_ancestor=is_ancestor, commit_order=commit_order
+            )
+        ),
+        flake_suppressed=tuple(
+            find_flake_suppressed(
+                records, is_ancestor=is_ancestor, commit_order=commit_order
+            )
+        ),
         pre_schema=count_pre_schema_records(records),
     )

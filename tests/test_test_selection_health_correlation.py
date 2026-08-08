@@ -188,9 +188,9 @@ def test_nodeid_test_file_strips_the_node_part() -> None:
 # Known-flake suppression
 # --------------------------------------------------------------------------
 #
-# A full-run failure that recurs across full runs whose change sets share no
-# file cannot be explained by any one of those diffs, so it is a known flake
-# rather than a selection miss. See `reproducible_flake_nodeids`.
+# A full-run failure that recurs across unrelated change sets and has an
+# independent passing full run between those failures is a known flake rather
+# than a selection miss. See `reproducible_flake_nodeids`.
 
 
 def test_reproducible_flake_nodeids_needs_at_least_two_full_runs() -> None:
@@ -212,13 +212,49 @@ def test_reproducible_flake_nodeids_needs_at_least_two_full_runs() -> None:
 def test_reproducible_flake_nodeids_flags_failures_with_no_change_set_in_common() -> (
     None
 ):
+    nodeid = "tests/test_x.py::test_flaky"
     runs = (
         FullRunRecord(
             name="a",
             recorded_at=None,
             head="aaa",
             mode="fast",
-            failures=("tests/test_x.py::test_flaky",),
+            failures=(nodeid,),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/a.py"}),
+        ),
+        FullRunRecord(
+            name="pass",
+            recorded_at=None,
+            head="pass",
+            mode="fast",
+            failures=(),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/pass.py"}),
+        ),
+        FullRunRecord(
+            name="b",
+            recorded_at=None,
+            head="bbb",
+            mode="fast",
+            failures=(nodeid,),
+            workspace="/workspaces/sase_3",
+            changed_files=frozenset({"src/b.py"}),
+        ),
+    )
+
+    assert reproducible_flake_nodeids(runs) == frozenset({nodeid})
+
+
+def test_reproducible_flake_nodeids_spares_fixed_deterministic_breaks() -> None:
+    nodeid = "tests/test_x.py::test_fixed_break"
+    runs = (
+        FullRunRecord(
+            name="a",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=(nodeid,),
             workspace=WORKSPACE,
             changed_files=frozenset({"src/a.py"}),
         ),
@@ -227,14 +263,94 @@ def test_reproducible_flake_nodeids_flags_failures_with_no_change_set_in_common(
             recorded_at=None,
             head="bbb",
             mode="fast",
-            failures=("tests/test_x.py::test_flaky",),
+            failures=(nodeid,),
+            workspace="/workspaces/sase_3",
+            changed_files=frozenset({"src/b.py"}),
+        ),
+        FullRunRecord(
+            name="fixed",
+            recorded_at=None,
+            head="fixed",
+            mode="fast",
+            failures=(),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/fix.py"}),
+        ),
+    )
+
+    assert reproducible_flake_nodeids(runs) == frozenset()
+
+
+def test_reproducible_flake_nodeids_ignores_passes_that_change_the_test_file() -> None:
+    nodeid = "tests/test_x.py::test_fixed_in_place"
+    runs = (
+        FullRunRecord(
+            name="a",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=(nodeid,),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/a.py"}),
+        ),
+        FullRunRecord(
+            name="fix",
+            recorded_at=None,
+            head="fix",
+            mode="fast",
+            failures=(),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"tests/test_x.py"}),
+        ),
+        FullRunRecord(
+            name="b",
+            recorded_at=None,
+            head="bbb",
+            mode="fast",
+            failures=(nodeid,),
             workspace="/workspaces/sase_3",
             changed_files=frozenset({"src/b.py"}),
         ),
     )
 
-    assert reproducible_flake_nodeids(runs) == frozenset(
-        {"tests/test_x.py::test_flaky"}
+    assert reproducible_flake_nodeids(runs) == frozenset()
+
+
+def test_reproducible_flake_nodeids_orders_records_by_commit_when_available() -> None:
+    nodeid = "tests/test_x.py::test_old_break"
+    runs = (
+        FullRunRecord(
+            name="old-a",
+            recorded_at=None,
+            head="old",
+            mode="fast",
+            failures=(nodeid,),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/a.py"}),
+        ),
+        FullRunRecord(
+            name="new-pass",
+            recorded_at=None,
+            head="new",
+            mode="fast",
+            failures=(),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/unrelated.py"}),
+        ),
+        FullRunRecord(
+            name="old-b",
+            recorded_at=None,
+            head="old",
+            mode="fast",
+            failures=(nodeid,),
+            workspace="/workspaces/sase_3",
+            changed_files=frozenset({"src/b.py"}),
+        ),
+    )
+
+    assert (
+        reproducible_flake_nodeids(runs, commit_order={"old": 1, "new": 2}.__getitem__)
+        == frozenset()
     )
 
 
@@ -248,6 +364,15 @@ def test_reproducible_flake_nodeids_can_ignore_broken_cluster_runs() -> None:
             failures=("tests/test_x.py::test_flaky",),
             workspace=WORKSPACE,
             changed_files=frozenset({"src/a.py"}),
+        ),
+        FullRunRecord(
+            name="pass",
+            recorded_at=None,
+            head="pass",
+            mode="fast",
+            failures=(),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/pass.py"}),
         ),
         FullRunRecord(
             name="b",
@@ -333,16 +458,23 @@ def test_a_reproducible_flake_is_excluded_from_false_negatives_and_counted_separ
         changed_files=("src/a.py", "src/other1.py"),
         minute=1,
     )
-    write_selection(store, manifest(head="s2", changed_files=("src/b.py",)), minute=2)
+    write_full_run(
+        store,
+        head="pass",
+        failures=(),
+        changed_files=("src/pass.py",),
+        minute=2,
+    )
+    write_selection(store, manifest(head="s2", changed_files=("src/b.py",)), minute=3)
     write_full_run(
         store,
         head="f2",
         failures=("tests/test_x.py::test_flaky",),
         changed_files=("src/b.py", "src/other2.py"),
-        minute=3,
+        minute=4,
     )
     records = load_records(store)
-    is_ancestor = linear_ancestry("s1", "f1", "s2", "f2")
+    is_ancestor = linear_ancestry("s1", "f1", "pass", "s2", "f2")
 
     assert not find_false_negatives(records, is_ancestor=is_ancestor)
     suppressed = find_flake_suppressed(records, is_ancestor=is_ancestor)

@@ -228,6 +228,12 @@ def test_fail_on_new_flake_reports_nodes_that_exceed_the_baseline(
     _write_full_run(
         store,
         minute=2,
+        changed_files=["src/sase/pass.py"],
+        failures=[],
+    )
+    _write_full_run(
+        store,
+        minute=3,
         changed_files=["src/sase/b.py"],
         failures=[FLAKE_NODE],
     )
@@ -265,6 +271,12 @@ def test_fail_on_new_flake_allows_committed_baseline_debt(
     _write_full_run(
         store,
         minute=2,
+        changed_files=["src/sase/pass.py"],
+        failures=[],
+    )
+    _write_full_run(
+        store,
+        minute=3,
         changed_files=["src/sase/b.py"],
         failures=[FLAKE_NODE],
     )
@@ -300,12 +312,18 @@ def test_fail_on_new_flake_ignores_records_before_the_baseline_effective_time(
     _write_full_run(
         store,
         minute=2,
+        changed_files=["src/sase/pass.py"],
+        failures=[],
+    )
+    _write_full_run(
+        store,
+        minute=3,
         changed_files=["src/sase/b.py"],
         failures=[FLAKE_NODE],
     )
     baseline = _baseline(
         tmp_path / "baseline.txt",
-        effective_after=(NOW + timedelta(minutes=3)).isoformat(),
+        effective_after=(NOW + timedelta(minutes=4)).isoformat(),
     )
     tool = _load_tool()
 
@@ -323,3 +341,44 @@ def test_fail_on_new_flake_ignores_records_before_the_baseline_effective_time(
     )
 
     assert "not enough full-lane records to judge" in capsys.readouterr().out
+
+
+def test_fail_on_new_flake_ignores_fixed_deterministic_breaks(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store = tmp_path / "store"
+    _write_full_run(
+        store,
+        minute=1,
+        changed_files=["src/sase/a.py"],
+        failures=[FLAKE_NODE],
+    )
+    _write_full_run(
+        store,
+        minute=2,
+        changed_files=["src/sase/b.py"],
+        failures=[FLAKE_NODE],
+    )
+    _write_full_run(
+        store,
+        minute=3,
+        changed_files=["src/sase/fix.py"],
+        failures=[],
+    )
+    baseline = _baseline(tmp_path / "baseline.txt")
+    tool = _load_tool()
+
+    assert (
+        tool.main(
+            [
+                "--store",
+                str(store),
+                "--flake-baseline",
+                str(baseline),
+                "--fail-on-new-flake",
+            ]
+        )
+        == 0
+    )
+
+    assert "no new reproducible flakes" in capsys.readouterr().out

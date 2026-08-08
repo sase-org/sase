@@ -342,8 +342,9 @@ def test_health_payload_includes_duration_percentiles_and_slow_runs(
 def test_report_suppresses_a_reproducible_flake_and_states_it_separately(
     tmp_path: Path,
 ) -> None:
-    # The same node fails in two full runs whose change sets share no file:
-    # no single diff explains it, so it is a known flake, not a false negative.
+    # The same node fails in two unrelated full runs, with a passing full run
+    # between them: no single deterministic break explains it, so it is a
+    # known flake rather than a false negative.
     store = tmp_path / "store"
     write_selection(store, manifest(head="s1", changed_files=("src/a.py",)), minute=0)
     write_full_run(
@@ -353,17 +354,25 @@ def test_report_suppresses_a_reproducible_flake_and_states_it_separately(
         changed_files=("src/a.py",),
         minute=1,
     )
-    write_selection(store, manifest(head="s2", changed_files=("src/b.py",)), minute=2)
+    write_full_run(
+        store,
+        head="pass",
+        failures=(),
+        changed_files=("src/pass.py",),
+        minute=2,
+    )
+    write_selection(store, manifest(head="s2", changed_files=("src/b.py",)), minute=3)
     write_full_run(
         store,
         head="f2",
         failures=("tests/test_flaky.py::test_x",),
         changed_files=("src/b.py",),
-        minute=3,
+        minute=4,
     )
 
     health = summarize(
-        load_records(store), is_ancestor=linear_ancestry("s1", "f1", "s2", "f2")
+        load_records(store),
+        is_ancestor=linear_ancestry("s1", "f1", "pass", "s2", "f2"),
     )
     report = "\n".join(render_report(health))
 
@@ -401,18 +410,26 @@ def test_health_payload_reports_flake_suppressed_matches(tmp_path: Path) -> None
         changed_files=("src/a.py",),
         minute=1,
     )
-    write_selection(store, manifest(head="s2", changed_files=("src/b.py",)), minute=2)
+    write_full_run(
+        store,
+        head="pass",
+        failures=(),
+        changed_files=("src/pass.py",),
+        minute=2,
+    )
+    write_selection(store, manifest(head="s2", changed_files=("src/b.py",)), minute=3)
     write_full_run(
         store,
         head="f2",
         failures=("tests/test_flaky.py::test_x",),
         changed_files=("src/b.py",),
-        minute=3,
+        minute=4,
     )
 
     payload = health_payload(
         summarize(
-            load_records(store), is_ancestor=linear_ancestry("s1", "f1", "s2", "f2")
+            load_records(store),
+            is_ancestor=linear_ancestry("s1", "f1", "pass", "s2", "f2"),
         )
     )
 

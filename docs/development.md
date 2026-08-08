@@ -650,9 +650,11 @@ zero-of-a-known-sample rather than mistaken for a clean one.
 
 A failure that clears all of the above can still be a **known flake**:
 `reproducible_flake_nodeids` (`tests/_test_selection_health.py`) looks at every full run
-that saw the same node fail, and calls it reproducible when those runs' change sets
-share no file — no single diff can explain a failure that recurs across
-otherwise-unrelated work. Matches on a reproducible node are moved out of the
+that saw the same node fail, and calls it reproducible when those failures span
+unrelated change sets **and** an independent full run between them passed the node. That
+second requirement keeps a deterministic master break, which fails everywhere until its
+fix lands, from being counted as host-load flakiness just because multiple workspaces
+hit the same bad commit range. Matches on a reproducible node are moved out of the
 false-negative count and into a separate `flake-suppressed` line, counted and listed
 exactly like the false negatives are, never silently dropped. A single occurrence is
 never enough evidence on its own and stays a false negative until it recurs. This needs

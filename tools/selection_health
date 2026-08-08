@@ -15,7 +15,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tests._test_selection_health import (  # noqa: E402
+    CommitOrderOracle,
     git_ancestor_oracle,
+    git_commit_order_oracle,
     reproducible_flake_nodeids,
     summarize,
 )
@@ -135,7 +137,10 @@ def _baseline_label(baseline: FlakeBaseline) -> str:
 
 
 def _flake_gate_result(
-    full_runs: tuple[FullRunRecord, ...], baseline: FlakeBaseline
+    full_runs: tuple[FullRunRecord, ...],
+    baseline: FlakeBaseline,
+    *,
+    commit_order: CommitOrderOracle | None = None,
 ) -> tuple[int, list[str]]:
     eligible = _eligible_full_runs(full_runs, baseline)
     window = _format_effective_after(baseline)
@@ -148,7 +153,9 @@ def _flake_gate_result(
         ]
 
     current = reproducible_flake_nodeids(
-        eligible, max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN
+        eligible,
+        max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN,
+        commit_order=commit_order,
     )
     new_flakes = sorted(current - baseline.nodeids)
     if not new_flakes:
@@ -216,7 +223,12 @@ def main(argv: list[str] | None = None) -> int:
     namespace = _parse_args(argv)
     store = namespace.store or store_directory(REPO_ROOT)
     records = load_records(store)
-    health = summarize(records, is_ancestor=git_ancestor_oracle(REPO_ROOT))
+    commit_order = git_commit_order_oracle(REPO_ROOT)
+    health = summarize(
+        records,
+        is_ancestor=git_ancestor_oracle(REPO_ROOT),
+        commit_order=commit_order,
+    )
 
     if namespace.json:
         print(json.dumps(health_payload(health), indent=2))
@@ -236,7 +248,9 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError) as error:
             print(f"flake baseline gate: {error}", file=sys.stderr)
             return 2
-        gate_status, gate_lines = _flake_gate_result(records.full_runs, baseline)
+        gate_status, gate_lines = _flake_gate_result(
+            records.full_runs, baseline, commit_order=commit_order
+        )
         _print_gate_lines(gate_lines, json_mode=namespace.json)
         exit_status = max(exit_status, gate_status)
     return exit_status

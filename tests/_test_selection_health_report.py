@@ -274,8 +274,8 @@ def _render_flake_suppressed(health: SelectionHealth) -> list[str]:
         "",
         f"flake-suppressed: {len(grouped)}"
         f" ({len(health.flake_suppressed)} scoped run/failure matches)",
-        "  Excluded from false negatives above: each failed in full runs whose",
-        "  change sets share no file, so no one diff explains the failure.",
+        "  Excluded from false negatives above: each failed across unrelated",
+        "  change sets and had an independent full-run pass between failures.",
         "  See reproducible_flake_nodeids in tests/_test_selection_health.py.",
     ]
     for nodeid in sorted(grouped):
