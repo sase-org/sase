@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.ace.testing import wait_for
 import sase.ace.tui.widgets._local_xprompt_conversion as conversion_module
 from sase.ace.tui.modals import UnifiedSaveLocation, UnifiedXPromptSaveModal
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
@@ -207,10 +208,9 @@ async def test_ctrl_g_ctrl_x_ctrl_x_opens_panel_in_snippet_mode(
             text_area = bar.active_text_area()
 
             await pilot.press("ctrl+g", "ctrl+x")
-            for _ in range(20):
-                await pilot.pause()
-                if isinstance(app.screen, UnifiedXPromptSaveModal):
-                    break
+            await wait_for(
+                pilot, lambda: isinstance(app.screen, UnifiedXPromptSaveModal)
+            )
 
             modal = app.screen
             assert isinstance(modal, UnifiedXPromptSaveModal)

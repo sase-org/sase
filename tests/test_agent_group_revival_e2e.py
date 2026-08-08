@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import shutil
-from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,7 +12,7 @@ import pytest
 from textual.widgets import Static
 
 from sase.ace import dismissed_agents
-from sase.ace.testing import AcePage, make_changespec
+from sase.ace.testing import AcePage, make_changespec, wait_for
 from sase.ace.tui import AceApp
 from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
 from sase.ace.tui.modals.save_agent_group_modal import SaveAgentGroupModal
@@ -85,8 +83,8 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
         await page.press("enter")
         await page.expect_no_modal()
         await page.expect_state("agent_count", 0)
-        await _wait_until(
-            lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
+        await wait_for(
+            page, lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
         )
 
         group = dismissed_agents.list_dismissed_agent_groups().groups[0]
@@ -104,7 +102,7 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
 
         await page.press("enter")
         await page.expect_no_modal()
-        await _wait_until(lambda: bool(restored))
+        await wait_for(page, lambda: bool(restored))
 
     assert restored == [("20260527120000", None)]
     revived_group = dismissed_agents.load_dismissed_agent_group(group.group_id)
@@ -145,8 +143,8 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tribe_real_load
         await page.press("enter")
         await page.expect_no_modal()
         await page.expect_state("agent_count", 0)
-        await _wait_until(
-            lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
+        await wait_for(
+            page, lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
         )
 
         group = dismissed_agents.list_dismissed_agent_groups().groups[0]
@@ -164,11 +162,12 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tribe_real_load
         await page.expect_modal("SavedAgentGroupRevivalModal")
         await page.press("enter")
         await page.expect_no_modal()
-        await _wait_until(
+        await wait_for(
+            page,
             lambda: any(
                 agent.raw_suffix == "20260527123000" and agent.tribe == "backend"
                 for agent in page.app._agents
-            )
+            ),
         )
 
         revived = next(
@@ -404,20 +403,6 @@ def _patch_non_agent_startup(monkeypatch: pytest.MonkeyPatch) -> None:
         "get_active_temporary_override",
         lambda *_args, **_kwargs: None,
     )
-
-
-async def _wait_until(
-    predicate: Callable[[], bool],
-    *,
-    timeout: float = 5.0,
-) -> None:
-    deadline = asyncio.get_event_loop().time() + timeout
-    while True:
-        if predicate():
-            return
-        if asyncio.get_event_loop().time() >= deadline:
-            raise AssertionError("condition did not become true before timeout")
-        await asyncio.sleep(0.02)
 
 
 def _static_plain(static: Static) -> str:

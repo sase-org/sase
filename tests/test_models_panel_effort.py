@@ -9,6 +9,7 @@ import pytest
 from textual.containers import Container
 from textual.widgets import OptionList, Static
 
+from sase.ace.testing import wait_for
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.tui.modals.models_panel import ModelsPanel
 from sase.ace.tui.modals.models_panel_duration import DurationPickerModal
@@ -240,10 +241,7 @@ async def test_override_flow_reuses_duration_picker_and_updates_snapshot(
         await pilot.press("ctrl+e", "o", "4")
         assert isinstance(pilot.app.screen, DurationPickerModal)
         await pilot.press("1")
-        for _ in range(20):
-            await pilot.pause()
-            if panel._effort_override_worker is None:
-                break
+        await wait_for(pilot, lambda: panel._effort_override_worker is None)
         assert panel._effort_snapshot.effective_effort(_NOW) == "medium"
         assert panel._highlighted_row_id() == "default"
 
@@ -273,10 +271,7 @@ async def test_clear_flow_preserves_alias_cursor(
         pilot.app.push_screen(panel)
         await pilot.pause()
         await pilot.press("j", "ctrl+e", "x")
-        for _ in range(20):
-            await pilot.pause()
-            if panel._effort_clear_worker is None:
-                break
+        await wait_for(pilot, lambda: panel._effort_clear_worker is None)
         assert panel._effort_snapshot.temporary_override is None
         assert panel._highlighted_row_id() == "plain"
 

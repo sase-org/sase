@@ -12,6 +12,7 @@ from textual.app import App
 from textual.screen import ModalScreen
 from textual.widgets import Input
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
@@ -175,10 +176,7 @@ async def test_notification_row_opens_debug_even_without_gate_bundle() -> None:
 
         debug = pilot.app.screen
         assert isinstance(debug, GateDebugModal)
-        for _ in range(10):
-            if debug._snapshot is not None:
-                break
-            await pilot.pause()
+        await wait_for(pilot, lambda: debug._snapshot is not None)
         assert debug._snapshot is not None
         assert "No gate bundle attached" in debug._snapshot.overview.body
 
@@ -189,10 +187,7 @@ async def test_tabs_and_copy_actions_use_prebuilt_snapshot(tmp_path: Path) -> No
 
     async with _TestApp().run_test(size=(110, 36)) as pilot:
         pilot.app.push_screen(modal)
-        for _ in range(10):
-            await pilot.pause()
-            if modal._snapshot is not None:
-                break
+        await wait_for(pilot, lambda: modal._snapshot is not None)
         assert modal._snapshot is not None
 
         modal.action_next_tab()
@@ -267,10 +262,7 @@ async def test_dismissed_modal_never_applies_late_snapshot(
 
     async with _TestApp().run_test(size=(110, 36)) as pilot:
         pilot.app.push_screen(modal)
-        for _ in range(20):
-            await pilot.pause()
-            if started.is_set():
-                break
+        await wait_for(pilot, started.is_set)
         assert started.is_set()
         await pilot.press("d")
         release.set()

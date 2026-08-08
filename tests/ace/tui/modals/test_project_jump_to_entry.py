@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from textual.widgets import OptionList
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals.project_inventory_panes import (
     RepoInventoryPane,
     WorkspaceInventoryPane,
@@ -264,12 +265,10 @@ async def test_projects_reload_after_delete_clears_jump_mode(
 async def _goto_subtab(pilot, pane: ProjectsPane, subtab: str) -> None:
     repo_pane = pane.query_one(RepoInventoryPane)
     workspace_pane = pane.query_one(WorkspaceInventoryPane)
-    for _ in range(20):
-        if not repo_pane._loading and not workspace_pane._loading:
-            break
-        await pilot.pause()
-    else:  # pragma: no cover - defensive
-        raise AssertionError("inventory workers did not finish")
+    await wait_for(
+        pilot,
+        lambda: not repo_pane._loading and not workspace_pane._loading,
+    )
     while pane._active_subtab != subtab:
         await pilot.press("right_square_bracket")
         await pilot.pause()

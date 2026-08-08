@@ -11,6 +11,7 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Input
 
+from sase.ace.testing import wait_for
 import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
 import sase.history.prompt_metadata as prompt_metadata
 import sase.xprompt._parsing as xprompt_parsing
@@ -75,10 +76,7 @@ async def test_prompt_history_opens_while_initial_disk_load_is_blocked(
             assert not modal._history_loaded_once
         finally:
             release.set()
-            for _ in range(100):
-                if modal._history_loaded_once:
-                    break
-                await pilot.pause()
+            await wait_for(pilot, lambda: modal._history_loaded_once)
             assert modal._history_loaded_once
 
 
@@ -419,10 +417,9 @@ async def test_ctrl_k_loads_more_without_deleting_filter_text(
     modal = PromptHistoryModal(initial_filter="alpha")
     async with _PromptHistoryTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        for _ in range(20):
-            await pilot.pause(0.01)
-            if len(modal._all_items) == 1 and not modal._history_loading:
-                break
+        await wait_for(
+            pilot, lambda: len(modal._all_items) == 1 and not modal._history_loading
+        )
 
         filter_input = modal.query_one("#prompt-history-filter-input", Input)
         assert filter_input.has_focus
@@ -430,10 +427,9 @@ async def test_ctrl_k_loads_more_without_deleting_filter_text(
 
         filter_input.cursor_position = 0
         await pilot.press("ctrl+k")
-        for _ in range(20):
-            await pilot.pause(0.01)
-            if len(modal._all_items) == 2 and not modal._history_loading:
-                break
+        await wait_for(
+            pilot, lambda: len(modal._all_items) == 2 and not modal._history_loading
+        )
 
         assert filter_input.value == "alpha"
         assert [item.entry.text for item in modal._all_items] == [
@@ -482,10 +478,9 @@ async def test_ctrl_d_no_longer_loads_more(
     modal = PromptHistoryModal(initial_filter="alpha")
     async with _PromptHistoryTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        for _ in range(20):
-            await pilot.pause(0.01)
-            if len(modal._all_items) == 1 and not modal._history_loading:
-                break
+        await wait_for(
+            pilot, lambda: len(modal._all_items) == 1 and not modal._history_loading
+        )
 
         await pilot.press("ctrl+d")
         for _ in range(20):

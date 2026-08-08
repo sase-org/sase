@@ -13,6 +13,7 @@ from textual.app import App
 from textual.containers import VerticalScroll
 from textual.widgets import Button, Label
 
+from sase.ace.testing import wait_for
 from sase.agent.prompt_placeholder_inputs import (
     PromptInputValues,
     build_prompt_input_plan,
@@ -372,12 +373,15 @@ async def test_growing_last_field_keeps_cursor_visible_in_fields_scroll() -> Non
             maintain_selection_offset=False,
         )
         fields = modal.query_one("#input-fields", VerticalScroll)
-        for _ in range(10):
-            await pilot.pause()
-            window = fields.content_region
-            cursor_y = editor.cursor_screen_offset.y
-            if fields.scroll_offset.y > 0 and window.y <= cursor_y < window.bottom:
-                break
+        await wait_for(
+            pilot,
+            lambda: (
+                fields.scroll_offset.y > 0
+                and fields.content_region.y
+                <= editor.cursor_screen_offset.y
+                < fields.content_region.bottom
+            ),
+        )
 
         assert fields.max_scroll_y > 0
         assert fields.scroll_offset.y > 0

@@ -11,6 +11,7 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Input, OptionList
 
+from sase.ace.testing import wait_for
 import sase.ace.tui.modals.revive_agent_modal as revive_agent_modal
 import sase.ace.tui.modals.revive_agent_rendering as revive_agent_rendering
 from sase.ace.tui.models.agent import AgentType
@@ -81,10 +82,7 @@ async def test_revive_modal_opens_while_initial_archive_load_is_blocked() -> Non
             )
         finally:
             release.set()
-            for _ in range(100):
-                if not modal._initial_loading:
-                    break
-                await pilot.pause()
+            await wait_for(pilot, lambda: not modal._initial_loading)
             assert not modal._initial_loading
 
 

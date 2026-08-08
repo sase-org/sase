@@ -10,7 +10,9 @@ import pytest
 from sase.llm_provider._subprocess import start_interrupt_monitor
 
 
-def _wait_until(pred, timeout: float = 1.0, interval: float = 0.01) -> bool:
+def _wait_for_interrupt_monitor(
+    pred, timeout: float = 1.0, interval: float = 0.01
+) -> bool:
     """Busy-wait for a predicate, returning True if it became truthy in time."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -36,10 +38,10 @@ def test_start_interrupt_monitor_fires_callback_and_terminates(
     received: list[str | None] = []
     start_interrupt_monitor(process, on_interrupt=received.append)
 
-    assert _wait_until(lambda: bool(received))
+    assert _wait_for_interrupt_monitor(lambda: bool(received))
     assert received == ["stop work"]
-    assert _wait_until(lambda: not interrupt_path.exists())
-    assert _wait_until(lambda: process.terminate.called)
+    assert _wait_for_interrupt_monitor(lambda: not interrupt_path.exists())
+    assert _wait_for_interrupt_monitor(lambda: process.terminate.called)
     process.terminate.assert_called_once()
 
 
@@ -78,7 +80,7 @@ def test_start_interrupt_monitor_handles_invalid_json(
     start_interrupt_monitor(process, on_interrupt=received.append)
 
     # Wait for the monitor to attempt the read and return.
-    assert _wait_until(lambda: process.poll.call_count >= 1)
+    assert _wait_for_interrupt_monitor(lambda: process.poll.call_count >= 1)
     # Give the thread a beat to finish its post-try `return`.
     time.sleep(0.05)
 
@@ -101,8 +103,8 @@ def test_start_interrupt_monitor_missing_message_field(
     received: list[str | None] = []
     start_interrupt_monitor(process, on_interrupt=received.append)
 
-    assert _wait_until(lambda: bool(received))
+    assert _wait_for_interrupt_monitor(lambda: bool(received))
     assert received == [None]
-    assert _wait_until(lambda: not interrupt_path.exists())
-    assert _wait_until(lambda: process.terminate.called)
+    assert _wait_for_interrupt_monitor(lambda: not interrupt_path.exists())
+    assert _wait_for_interrupt_monitor(lambda: process.terminate.called)
     process.terminate.assert_called_once()

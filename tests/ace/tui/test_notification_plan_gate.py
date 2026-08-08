@@ -12,6 +12,7 @@ import pytest
 from textual.app import App
 from textual.widgets import Button
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.actions.agents._notification_modals import (
     _load_neutral_plan_modal_data,
     _plan_approval_status,
@@ -114,10 +115,7 @@ async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
 
     async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
         assert handle_plan_approval(pilot.app, notification) is True
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(pilot.app.screen, PlanApprovalModal):
-                break
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, PlanApprovalModal))
 
         modal = pilot.app.screen
         assert isinstance(modal, PlanApprovalModal)
@@ -153,10 +151,7 @@ async def test_tale_plan_modal_renders_no_raw_editor_for_host_collected_properti
 
     async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
         assert handle_plan_approval(pilot.app, notification) is True
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(pilot.app.screen, PlanApprovalModal):
-                break
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, PlanApprovalModal))
 
         modal = pilot.app.screen
         assert isinstance(modal, PlanApprovalModal)
@@ -178,10 +173,7 @@ async def test_epic_plan_modal_renders_canonical_singleton_label(
 
     async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
         assert handle_plan_approval(pilot.app, notification) is True
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(pilot.app.screen, PlanApprovalModal):
-                break
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, PlanApprovalModal))
 
         modal = pilot.app.screen
         assert isinstance(modal, PlanApprovalModal)

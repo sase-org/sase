@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from textual.widgets import Static
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.vcs_repo_completion import (
@@ -245,10 +246,9 @@ async def test_cache_miss_shows_loading_then_worker_result() -> None:
             assert ta._file_completion_active is True
             assert ta._file_completion_candidates[0].display.startswith("fetching ")
             release.set()
-            for _ in range(50):
-                await pilot.pause(0.01)
-                if ta._file_completion_candidates[0].name == "sase":
-                    break
+            await wait_for(
+                pilot, lambda: ta._file_completion_candidates[0].name == "sase"
+            )
 
         assert [candidate.name for candidate in ta._file_completion_candidates][:2] == [
             "sase",

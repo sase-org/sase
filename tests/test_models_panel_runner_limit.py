@@ -9,6 +9,7 @@ import pytest
 from textual.containers import Container
 from textual.widgets import Input, Static
 
+from sase.ace.testing import wait_for
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.tui.modals.models_panel import ModelsPanel
 from sase.ace.tui.modals.models_panel_duration import DurationPickerModal
@@ -236,10 +237,7 @@ async def test_override_flow_reuses_duration_and_requests_agents_refresh(
         await pilot.press("4", "enter")
         assert isinstance(pilot.app.screen, DurationPickerModal)
         await pilot.press("1")
-        for _ in range(20):
-            await pilot.pause()
-            if panel._runner_limit_override_worker is None:
-                break
+        await wait_for(pilot, lambda: panel._runner_limit_override_worker is None)
         assert panel._runner_limit_snapshot.effective_limit(_NOW) == 4
         assert panel._highlighted_row_id() == "plain"
         assert app.refresh_sources == ["models-runner-limit-override"]
@@ -266,10 +264,7 @@ async def test_clear_preserves_cursor_and_requests_agents_refresh(
         pilot.app.push_screen(panel)
         await pilot.pause()
         await pilot.press("j", "ctrl+r", "x")
-        for _ in range(20):
-            await pilot.pause()
-            if panel._runner_limit_clear_worker is None:
-                break
+        await wait_for(pilot, lambda: panel._runner_limit_clear_worker is None)
         assert panel._runner_limit_snapshot.temporary_override is None
         assert panel._highlighted_row_id() == "plain"
         assert app.refresh_sources == ["models-runner-limit-clear"]

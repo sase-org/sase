@@ -8,6 +8,7 @@ import threading
 import pytest
 from rich.color import Color
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.widgets import _artifact_ref_highlight
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefCompletionCatalog,
@@ -300,10 +301,10 @@ async def test_artifact_ref_kind_cache_warms_off_thread(monkeypatch) -> None:
     app = _WarmCompletionTestApp()
     async with app.run_test() as pilot:
         text_area = app.query_one(PromptTextArea)
-        for _ in range(20):
-            if text_area._get_warm_artifact_ref_known_kinds() is not None:
-                break
-            await pilot.pause(0.01)
+        await wait_for(
+            pilot,
+            lambda: text_area._get_warm_artifact_ref_known_kinds() is not None,
+        )
 
         assert text_area._get_warm_artifact_ref_known_kinds() == _KNOWN_KINDS
         assert loader_threads

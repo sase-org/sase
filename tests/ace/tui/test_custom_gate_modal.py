@@ -11,6 +11,7 @@ from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.widgets import Button, Input, Static
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.keymaps import (
     GateModalKeymaps,
     build_gate_numbered_branch_bindings,
@@ -256,10 +257,10 @@ async def test_numbered_shortcut_focuses_required_enum_then_submits() -> None:
         await pilot.press("3")
         await pilot.pause()
         wake_after = modal.query_one("#gate-branch-2-field-input-0", Button)
-        for _ in range(10):
-            if wake_after.has_focus and scroll.scroll_offset.y > initial_scroll_y:
-                break
-            await pilot.pause()
+        await wait_for(
+            pilot,
+            lambda: wake_after.has_focus and scroll.scroll_offset.y > initial_scroll_y,
+        )
 
         assert results == []
         assert wake_after.has_focus

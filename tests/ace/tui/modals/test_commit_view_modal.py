@@ -14,6 +14,7 @@ from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.ace.tui.util.lazy_syntax import PLAIN_RENDER_MAX_BYTES
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
@@ -449,10 +450,7 @@ async def test_commit_view_modal_ignores_stale_diff_worker_result(
         await pilot.pause()
         modal = app.screen_stack[-1]
         assert isinstance(modal, CommitViewModal)
-        for _ in range(50):
-            if first_started.is_set():
-                break
-            await pilot.pause()
+        await wait_for(pilot, first_started.is_set)
         assert first_started.is_set()
 
         await pilot.press("ctrl+n")
@@ -567,10 +565,7 @@ async def test_commit_view_modal_plan_failure_notifies_and_keeps_commit(
         await _wait_for_diff(pilot, modal, "+new")
 
         await pilot.press("p")
-        for _ in range(50):
-            if notices:
-                break
-            await pilot.pause()
+        await wait_for(pilot, lambda: bool(notices))
 
         assert notices == [("abcdef123456: no SASE_PLAN tag is attached", "warning")]
         assert modal._display_mode == "commit"
@@ -604,10 +599,7 @@ async def test_commit_view_modal_toggle_back_ignores_stale_plan_result(
         modal = app.screen_stack[-1]
         assert isinstance(modal, CommitViewModal)
         await pilot.press("p")
-        for _ in range(50):
-            if started.is_set():
-                break
-            await pilot.pause()
+        await wait_for(pilot, started.is_set)
         assert started.is_set()
 
         await pilot.press("p")
