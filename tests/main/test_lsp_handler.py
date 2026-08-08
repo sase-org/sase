@@ -15,6 +15,7 @@ from sase.integrations.xprompt_lsp import (
     SASE_REF_PLUGIN_DIRS_JSON_ENV,
     SASE_DEFAULT_CONFIG_PATH_ENV,
     SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV,
+    SASE_XPROMPT_GLOSSARY_CATALOG_ENV,
     SASE_XPROMPT_LSP_CMD_ENV,
     SASE_XPROMPT_BUILTIN_DIR_ENV,
     SASE_XPROMPT_DEFAULT_DIR_ENV,
@@ -49,6 +50,10 @@ def stub_lsp_catalog_defaults(
         lambda: tmp_path / "xprompt_lsp" / "artifact_ref_catalog.json",
     )
     monkeypatch.setattr(
+        "sase.integrations.xprompt_lsp._default_glossary_catalog_path",
+        lambda: tmp_path / "xprompt_lsp" / "glossary_catalog.json",
+    )
+    monkeypatch.setattr(
         "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",
         lambda: {"schema_version": 2, "workflow_names": [], "entries": []},
     )
@@ -58,6 +63,10 @@ def stub_lsp_catalog_defaults(
     )
     monkeypatch.setattr(
         "sase.artifact_refs.artifact_ref_lsp_catalog_payload",
+        lambda: {"schema_version": 1, "default_project": None, "projects": []},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.glossary_catalog.editor_glossary_lsp_catalog_payload",
         lambda: {"schema_version": 1, "default_project": None, "projects": []},
     )
 
@@ -356,6 +365,46 @@ def test_prepare_lsp_environment_materializes_artifact_ref_catalog(
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
 
+def test_prepare_lsp_environment_materializes_glossary_catalog(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / "glossary_catalog.json"
+    env: dict[str, str] = {
+        SASE_XPROMPT_GLOSSARY_CATALOG_ENV: str(catalog_path),
+    }
+    payload = {
+        "schema_version": 1,
+        "default_project": "sase",
+        "projects": [
+            {
+                "schema_version": 1,
+                "project": {
+                    "key": "sase",
+                    "name": "sase",
+                    "aliases": [],
+                    "workspace_dir": "/tmp/sase",
+                },
+                "config_path": "/tmp/sase/sase/sase.yml",
+                "config_signature": {
+                    "path": "/tmp/sase/sase/sase.yml",
+                    "mtime_ns": 1,
+                    "size": 42,
+                },
+                "entries": [],
+            }
+        ],
+    }
+
+    with patch(
+        "sase.xprompt.glossary_catalog.editor_glossary_lsp_catalog_payload",
+        return_value=payload,
+    ):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    assert env[SASE_XPROMPT_GLOSSARY_CATALOG_ENV] == str(catalog_path)
+    assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
+
+
 def test_prepare_lsp_environment_defaults_vcs_catalog_path(tmp_path: Path) -> None:
     env: dict[str, str] = {}
     payload = {"schema_version": 2, "workflow_names": [], "entries": []}
@@ -402,6 +451,22 @@ def test_prepare_lsp_environment_defaults_artifact_ref_catalog_path(
 
     catalog_path = Path(env[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV])
     assert catalog_path.name == "artifact_ref_catalog.json"
+    assert catalog_path.parent.name == "xprompt_lsp"
+    assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
+
+
+def test_prepare_lsp_environment_defaults_glossary_catalog_path(tmp_path: Path) -> None:
+    env: dict[str, str] = {}
+    payload = {"schema_version": 1, "default_project": None, "projects": []}
+
+    with patch(
+        "sase.xprompt.glossary_catalog.editor_glossary_lsp_catalog_payload",
+        return_value=payload,
+    ):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    catalog_path = Path(env[SASE_XPROMPT_GLOSSARY_CATALOG_ENV])
+    assert catalog_path.name == "glossary_catalog.json"
     assert catalog_path.parent.name == "xprompt_lsp"
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
@@ -460,6 +525,24 @@ def test_prepare_lsp_environment_swallows_artifact_ref_catalog_failure(
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV] == str(catalog_path)
+    assert not catalog_path.exists()
+
+
+def test_prepare_lsp_environment_swallows_glossary_catalog_failure(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / "glossary_catalog.json"
+    env: dict[str, str] = {
+        SASE_XPROMPT_GLOSSARY_CATALOG_ENV: str(catalog_path),
+    }
+
+    with patch(
+        "sase.xprompt.glossary_catalog.editor_glossary_lsp_catalog_payload",
+        side_effect=RuntimeError("boom"),
+    ):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    assert env[SASE_XPROMPT_GLOSSARY_CATALOG_ENV] == str(catalog_path)
     assert not catalog_path.exists()
 
 

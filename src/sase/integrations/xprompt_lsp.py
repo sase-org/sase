@@ -32,6 +32,7 @@ SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JS
 SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV = "SASE_XPROMPT_VCS_PROJECT_CATALOG"
 SASE_XPROMPT_MODEL_CATALOG_ENV = "SASE_XPROMPT_MODEL_CATALOG"
 SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV = "SASE_XPROMPT_ARTIFACT_REF_CATALOG"
+SASE_XPROMPT_GLOSSARY_CATALOG_ENV = "SASE_XPROMPT_GLOSSARY_CATALOG"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -256,6 +257,7 @@ def _prepare_xprompt_lsp_environment(
     _materialize_vcs_project_catalog(environ)
     _materialize_model_catalog(environ)
     _materialize_artifact_ref_catalog(environ)
+    _materialize_glossary_catalog(environ)
 
 
 def _default_vcs_project_catalog_path() -> Path:
@@ -345,6 +347,32 @@ def _materialize_artifact_ref_catalog(
     except Exception as exc:  # noqa: BLE001 - never block LSP startup on catalog errors.
         print(
             f"Warning: failed to materialize artifact-reference catalog: {exc}",
+            file=sys.stderr,
+        )
+
+
+def _default_glossary_catalog_path() -> Path:
+    """Return the default on-disk location for the glossary catalog."""
+    return sase_subdir("xprompt_lsp") / "glossary_catalog.json"
+
+
+def _materialize_glossary_catalog(
+    environ: MutableMapping[str, str],
+) -> None:
+    """Write the project glossary catalog and expose its path to the LSP."""
+
+    existing = environ.get(SASE_XPROMPT_GLOSSARY_CATALOG_ENV)
+    path = Path(existing) if existing else _default_glossary_catalog_path()
+    environ[SASE_XPROMPT_GLOSSARY_CATALOG_ENV] = str(path)
+    try:
+        from sase.xprompt.glossary_catalog import editor_glossary_lsp_catalog_payload
+
+        payload = editor_glossary_lsp_catalog_payload()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001 - never block LSP startup on catalog errors.
+        print(
+            f"Warning: failed to materialize glossary catalog: {exc}",
             file=sys.stderr,
         )
 
