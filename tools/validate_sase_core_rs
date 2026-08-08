@@ -68,6 +68,8 @@ REQUIRED_BINDINGS = (
     "apply_project_lifecycle_update",
     "apply_project_aliases_update",
     "list_project_records",
+    "sase_content_layout",
+    "skill_reference_name",
     "is_agent_name_template",
     "parse_agent_name_template",
     "render_agent_name_template",
@@ -153,6 +155,83 @@ def _validate_artifact_ref_schemas(module: ModuleType) -> bool:
                 f"got {actual_version}, expected {expected_version}"
             )
             valid = False
+    return valid
+
+
+def _validate_skill_reference_contract(module: ModuleType) -> bool:
+    valid = True
+    expected_refs = {
+        ("foo", None): "skill/foo",
+        ("foo", "app"): "app/skill/foo",
+    }
+    for (name, project), expected in expected_refs.items():
+        try:
+            actual = module.skill_reference_name(name, project)
+        except Exception as exc:
+            _error(f"skill_reference_name({name!r}, {project!r}) probe failed: {exc}")
+            valid = False
+            continue
+        if actual != expected:
+            _error(
+                "skill_reference_name returned stale skill namespace: "
+                f"got {actual!r}, expected {expected!r}"
+            )
+            valid = False
+
+    try:
+        layout = module.sase_content_layout(
+            "/home/alice",
+            "/workspace/demo",
+            "/dotfiles/home",
+            "demo",
+        )
+    except Exception as exc:
+        _error(f"sase_content_layout probe failed: {exc}")
+        return False
+    if not isinstance(layout, dict):
+        _error("sase_content_layout probe returned a non-dict payload")
+        return False
+    if layout.get("schema_version") != 5:
+        _error(
+            "sase_content_layout probe returned stale schema: "
+            f"got {layout.get('schema_version')!r}, expected 5"
+        )
+        valid = False
+
+    skill_sources = layout.get("skill_sources")
+    if not isinstance(skill_sources, list):
+        _error("sase_content_layout probe payload has no skill_sources list")
+        return False
+    source_by_id = {
+        source.get("id"): source
+        for source in skill_sources
+        if isinstance(source, dict) and isinstance(source.get("id"), str)
+    }
+    expected_locators = {
+        "project_skills": "/workspace/demo/sase/skills",
+        "home_skills": "/home/alice/sase/skills",
+        "home_project_skills": "/home/alice/sase/skills/demo",
+        "package_skills": "package:xprompts/skills",
+    }
+    for source_id, expected_locator in expected_locators.items():
+        source = source_by_id.get(source_id)
+        if source is None:
+            _error(f"sase_content_layout probe omitted {source_id!r} skill source")
+            valid = False
+            continue
+        if source.get("locator") != expected_locator:
+            _error(
+                f"{source_id} locator is stale: "
+                f"got {source.get('locator')!r}, expected {expected_locator!r}"
+            )
+            valid = False
+
+    if any(
+        isinstance(source, dict) and source.get("locator") == "package:skills"
+        for source in skill_sources
+    ):
+        _error("sase_content_layout still exposes stale package:skills locator")
+        valid = False
     return valid
 
 
@@ -562,6 +641,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_bindings(module):
         return 1
     if not _validate_artifact_ref_schemas(module):
+        return 1
+    if not _validate_skill_reference_contract(module):
         return 1
     if not _validate_scalar_plan_timestamp(module):
         return 1

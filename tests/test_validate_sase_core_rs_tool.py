@@ -165,6 +165,66 @@ def test_validate_sase_core_rs_requires_current_artifact_ref_contract() -> None:
         )
 
 
+def _skill_layout_payload(
+    *,
+    schema_version: int = 5,
+    package_locator: str = "package:xprompts/skills",
+) -> dict[str, object]:
+    return {
+        "schema_version": schema_version,
+        "skill_sources": [
+            {
+                "id": "project_skills",
+                "locator": "/workspace/demo/sase/skills",
+            },
+            {"id": "home_skills", "locator": "/home/alice/sase/skills"},
+            {
+                "id": "home_project_skills",
+                "locator": "/home/alice/sase/skills/demo",
+            },
+            {"id": "package_skills", "locator": package_locator},
+        ],
+    }
+
+
+def test_validate_sase_core_rs_requires_singular_skill_contract() -> None:
+    validator = _load_validate_sase_core_rs()
+    bindings = {"skill_reference_name", "sase_content_layout"}
+
+    def module(
+        *,
+        references: dict[tuple[str, str | None], str] | None = None,
+        layout: object | None = None,
+    ) -> SimpleNamespace:
+        references = references or {
+            ("foo", None): "skill/foo",
+            ("foo", "app"): "app/skill/foo",
+        }
+        if layout is None:
+            layout = _skill_layout_payload()
+        return SimpleNamespace(
+            skill_reference_name=lambda name, project=None: references[(name, project)],
+            sase_content_layout=lambda *_args: layout,
+        )
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    assert validator._validate_skill_reference_contract(module())
+    assert not validator._validate_skill_reference_contract(
+        module(
+            references={
+                ("foo", None): "skills/foo",
+                ("foo", "app"): "app/skills/foo",
+            }
+        )
+    )
+    assert not validator._validate_skill_reference_contract(
+        module(layout=_skill_layout_payload(schema_version=3))
+    )
+    assert not validator._validate_skill_reference_contract(
+        module(layout=_skill_layout_payload(package_locator="package:skills"))
+    )
+
+
 def test_validate_sase_core_rs_requires_stats_v5_runner_counters() -> None:
     validator = _load_validate_sase_core_rs()
 
