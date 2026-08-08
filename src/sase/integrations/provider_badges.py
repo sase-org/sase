@@ -13,6 +13,8 @@ _PROVIDER_EMOJI_BADGES: dict[str, str] = {
     "qwen": "🐼",
     "opencode": "🐙",
     "agy": "🪐",
+    "muse": "♾️",
+    "meta": "♾️",
 }
 
 

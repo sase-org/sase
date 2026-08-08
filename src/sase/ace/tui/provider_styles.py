@@ -87,6 +87,20 @@ _PROVIDER_FALLBACK_STYLES: dict[str, _ProviderStyle] = {
         secondary_style="#5B4FD0",
         dim_style="dim #B7ACF0",
     ),
+    "muse": _ProviderStyle(
+        name_style="bold #0064E0",
+        delimiter_style="#0064E0",
+        model_style="#4A9DFF",
+        secondary_style="#1877F2",
+        dim_style="dim #4A9DFF",
+    ),
+    "meta": _ProviderStyle(
+        name_style="bold #0064E0",
+        delimiter_style="#0064E0",
+        model_style="#4A9DFF",
+        secondary_style="#1877F2",
+        dim_style="dim #4A9DFF",
+    ),
 }
 
 

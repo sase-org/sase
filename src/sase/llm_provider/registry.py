@@ -43,6 +43,7 @@ _PROVIDER_FAMILY_COLORS: dict[str, str] = {
     "anthropic": "#D97757",
     "codex": "#10A37F",
     "openai": "#10A37F",
+    "meta": "#0064E0",
 }
 
 LLM_EXEC_PROVIDER_ENV = "SASE_LLM_EXEC_PROVIDER"
