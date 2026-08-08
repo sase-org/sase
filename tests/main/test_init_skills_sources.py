@@ -448,7 +448,7 @@ def test_agy_skill_generation_writes_antigravity_target(
 ) -> None:
     """A provider-scoped skill is written to that provider's deployment profile."""
     xprompt = XPrompt(
-        name="skills/agy_only",
+        name="skill/agy_only",
         content="Antigravity profile body.\n",
         description="Antigravity profile test skill.",
         skill=["agy"],
@@ -458,7 +458,7 @@ def test_agy_skill_generation_writes_antigravity_target(
     monkeypatch.setattr(
         init_skills_handler,
         "get_all_xprompts",
-        lambda project="": {"skills/agy_only": xprompt},
+        lambda project="": {"skill/agy_only": xprompt},
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -519,7 +519,7 @@ def test_skill_provider_list_respects_requested_provider(
 ) -> None:
     """``skill: [codex]`` only renders for codex, including with --provider."""
     xprompt = XPrompt(
-        name="skills/codex_only",
+        name="skill/codex_only",
         content="Only for Codex.\n",
         description="Codex-only skill.",
         skill=["codex"],
@@ -529,7 +529,7 @@ def test_skill_provider_list_respects_requested_provider(
     monkeypatch.setattr(
         init_skills_handler,
         "get_all_xprompts",
-        lambda project="": {"skills/codex_only": xprompt},
+        lambda project="": {"skill/codex_only": xprompt},
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")

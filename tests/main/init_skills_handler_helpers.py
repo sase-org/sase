@@ -164,7 +164,7 @@ def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         encoding="utf-8",
     )
     xprompt = XPrompt(
-        name="skills/foo",
+        name="skill/foo",
         skill_name="foo",
         content="body\n",
         source_path=str(src),
@@ -178,7 +178,7 @@ def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(
         init_skills_handler,
         "get_all_xprompts",
-        lambda project="": {"skills/foo": xprompt},
+        lambda project="": {"skill/foo": xprompt},
     )
     return skills_dir
 
@@ -206,7 +206,7 @@ def stub_under_wrapped_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
         encoding="utf-8",
     )
     xprompt = XPrompt(
-        name="skills/foo",
+        name="skill/foo",
         skill_name="foo",
         content=body,
         source_path=str(src),
@@ -217,6 +217,6 @@ def stub_under_wrapped_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(
         init_skills_handler,
         "get_all_xprompts",
-        lambda project="": {"skills/foo": xprompt},
+        lambda project="": {"skill/foo": xprompt},
     )
     return skills_dir

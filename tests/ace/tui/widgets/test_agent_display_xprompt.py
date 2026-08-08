@@ -141,7 +141,7 @@ class TestAgentXPromptRendering:
             calls.append((project, schedule))
             return [
                 SimpleNamespace(
-                    name="skills/sase_plan",
+                    name="skill/sase_plan",
                     skill_name="sase_plan",
                     is_skill=True,
                 )

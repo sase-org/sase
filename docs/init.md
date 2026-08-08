@@ -429,8 +429,8 @@ missing. It also reports misplaced sources in a "Misplaced Sources" panel. Bare
 
 `sase skill init` renders those sources into provider-specific `SKILL.md` files, and
 exits non-zero without writing anything while any placement violation remains. Sources
-include the bundled `src/sase/skills/` templates plus project, home, and plugin skill
-directories. By default, generated skill files include a first-step
+include the bundled `src/sase/xprompts/skills/` templates plus project, home, and plugin
+skill directories. By default, generated skill files include a first-step
 `sase skill use <name> --reason ...` directive so agent skill usage is attributable in
 the same project audit surface as memory reads; `sase skill log` summarizes and inspects
 those recorded skill-use rows. A source can set `log_skill_use: false` to omit that

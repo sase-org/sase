@@ -173,9 +173,9 @@ TODO_HIGHLIGHT_STACK = (
 
 _VISUAL_SKILL_ENTRIES = [
     XPromptAssistEntry(
-        name="skills/sase_plan",
+        name="skill/sase_plan",
         skill_name="sase_plan",
-        insertion="#skills/sase_plan",
+        insertion="#skill/sase_plan",
         reference_prefix="#",
         kind="xprompt",
         input_signature=None,

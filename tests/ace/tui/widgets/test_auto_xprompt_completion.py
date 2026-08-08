@@ -37,9 +37,9 @@ def _entry(
     kind: str = "xprompt",
     is_skill: bool = False,
 ) -> XPromptAssistEntry:
-    # Skills take the namespaced ``skills/foo`` xprompt reference name and keep
+    # Skills take the namespaced ``skill/foo`` xprompt reference name and keep
     # ``foo`` as the provider skill name matched by ``/`` completion.
-    reference_name = f"skills/{name}" if is_skill else name
+    reference_name = f"skill/{name}" if is_skill else name
     return XPromptAssistEntry(
         name=reference_name,
         insertion=f"{prefix}{reference_name}",

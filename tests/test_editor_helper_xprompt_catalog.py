@@ -89,9 +89,9 @@ def test_editor_helper_bridge_carries_the_provider_skill_name(
         lambda **_kwargs: StructuredCatalogProjection(
             entries=[
                 StructuredCatalogEntry(
-                    name="skills/sase_plan",
-                    display_label="skills/sase_plan",
-                    insertion="#skills/sase_plan",
+                    name="skill/sase_plan",
+                    display_label="skill/sase_plan",
+                    insertion="#skill/sase_plan",
                     reference_prefix="#",
                     kind="xprompt",
                     memory_type=None,
@@ -103,7 +103,7 @@ def test_editor_helper_bridge_carries_the_provider_skill_name(
                     inputs=[],
                     is_skill=True,
                     content_preview="Plan preview",
-                    source_path_display="skills/sase_plan.md",
+                    source_path_display="xprompts/skills/sase_plan.md",
                     skill_name="sase_plan",
                 )
             ],
@@ -131,9 +131,9 @@ def test_editor_helper_bridge_carries_the_provider_skill_name(
 
     entry = json.loads(stdout.getvalue())["entries"][0]
     assert code == 0
-    # The two names never collapse: ``#skills/sase_plan`` expands the source
+    # The two names never collapse: ``#skill/sase_plan`` expands the source
     # that ``/sase_plan`` invokes.
-    assert entry["name"] == "skills/sase_plan"
+    assert entry["name"] == "skill/sase_plan"
     assert entry["is_skill"] is True
     assert entry["skill_name"] == "sase_plan"
     assert entry["memory_type"] is None

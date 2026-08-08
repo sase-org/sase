@@ -34,9 +34,9 @@ def _entry(
     is_skill: bool = False,
     description: str | None = None,
 ) -> XPromptAssistEntry:
-    # Skills carry the namespaced ``skills/foo`` xprompt reference name while
+    # Skills carry the namespaced ``skill/foo`` xprompt reference name while
     # keeping ``foo`` as the provider skill name matched by ``/`` completion.
-    reference_name = f"skills/{name}" if is_skill else name
+    reference_name = f"skill/{name}" if is_skill else name
     return XPromptAssistEntry(
         name=reference_name,
         insertion=f"{prefix}{reference_name}",
@@ -218,7 +218,7 @@ def test_both_reference_forms_resolve_the_same_source_definition() -> None:
     entries = [entry]
 
     hash_candidates, _ = build_xprompt_completion_candidates(
-        "#skills/sase_pl",
+        "#skill/sase_pl",
         entries=entries,
     )
     slash_candidates, _ = build_xprompt_completion_candidates(
@@ -226,7 +226,7 @@ def test_both_reference_forms_resolve_the_same_source_definition() -> None:
         entries=entries,
     )
 
-    assert [c.insertion for c in hash_candidates] == ["#skills/sase_plan"]
+    assert [c.insertion for c in hash_candidates] == ["#skill/sase_plan"]
     assert [c.insertion for c in slash_candidates] == ["/sase_plan"]
     # Argument hints come from the metadata entry, so both forms must hand the
     # panel the very same definition.
@@ -234,10 +234,52 @@ def test_both_reference_forms_resolve_the_same_source_definition() -> None:
     assert slash_candidates[0].metadata is entry
 
 
+def test_project_qualified_skill_reference_and_slash_share_the_same_source() -> None:
+    entry = _entry("sase_plan", inputs=(_input("topic", "line"),), is_skill=True)
+    entry = XPromptAssistEntry(
+        name="app/skill/sase_plan",
+        insertion="#app/skill/sase_plan",
+        reference_prefix=entry.reference_prefix,
+        kind=entry.kind,
+        input_signature=entry.input_signature,
+        inputs=entry.inputs,
+        content_preview=entry.content_preview,
+        description=entry.description,
+        is_skill=entry.is_skill,
+        skill_name=entry.skill_name,
+    )
+
+    hash_candidates, _ = build_xprompt_completion_candidates(
+        "#app/skill/sase_pl",
+        entries=[entry],
+    )
+    slash_candidates, _ = build_xprompt_completion_candidates(
+        "/sase_pl",
+        entries=[entry],
+    )
+
+    assert [c.insertion for c in hash_candidates] == ["#app/skill/sase_plan"]
+    assert [c.insertion for c in slash_candidates] == ["/sase_plan"]
+    assert hash_candidates[0].metadata is entry
+    assert slash_candidates[0].metadata is entry
+
+
+def test_plural_skill_namespace_does_not_produce_a_compatibility_candidate() -> None:
+    entry = _entry("sase_plan", is_skill=True)
+
+    candidates, shared = build_xprompt_completion_candidates(
+        "#skills/sase_pl",
+        entries=[entry],
+    )
+
+    assert candidates == []
+    assert shared == ""
+
+
 def test_reference_row_advertises_the_slash_name_and_the_slash_row_does_not() -> None:
     entry = _entry("sase_plan", is_skill=True)
     hash_candidate = build_xprompt_completion_candidates(
-        "#skills/sase_plan",
+        "#skill/sase_plan",
         entries=[entry],
     )[0][0]
     slash_candidate = build_xprompt_completion_candidates(
@@ -250,7 +292,7 @@ def test_reference_row_advertises_the_slash_name_and_the_slash_row_does_not() ->
     slash_row = Text()
     append_xprompt_completion_row(slash_row, slash_candidate, False)
 
-    assert "#skills/sase_plan" in hash_row.plain
+    assert "#skill/sase_plan" in hash_row.plain
     assert "skill" in hash_row.plain
     assert "/sase_plan" in hash_row.plain
     assert slash_row.plain.count("/sase_plan") == 1

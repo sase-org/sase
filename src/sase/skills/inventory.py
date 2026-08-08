@@ -29,7 +29,7 @@ class SkillSourceEntry:
     """One installable xprompt skill source.
 
     ``name`` is the provider-visible skill name (``foo``); ``reference_name``
-    is the canonical xprompt reference that expands it (``skills/foo``).
+    is the canonical xprompt reference that expands it (``skill/foo``).
     """
 
     name: str

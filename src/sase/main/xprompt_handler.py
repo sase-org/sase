@@ -147,7 +147,7 @@ def _handle_list() -> None:
                 "memory_type": wf.memory_type,
                 "is_skill": bool(skill_xprompt and skill_xprompt.skill),
                 # The provider-visible ``/`` name; ``name`` above stays the
-                # ``#skills/<name>`` xprompt reference.
+                # ``#skill/<name>`` xprompt reference.
                 "skill_name": skill_xprompt.skill_name if skill_xprompt else None,
                 "description": wf.description,
                 "source": wf.source_path,

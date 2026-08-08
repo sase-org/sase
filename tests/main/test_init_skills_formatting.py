@@ -82,15 +82,15 @@ def test_handler_warns_once_when_prettier_missing(
 ) -> None:
     """When prettier is absent, emit one warning per invocation, not per skill."""
     xprompts = {
-        "skills/foo": XPrompt(
-            name="skills/foo",
+        "skill/foo": XPrompt(
+            name="skill/foo",
             content="body\n",
             description="x",
             skill=["claude"],
             skill_name="foo",
         ),
-        "skills/bar": XPrompt(
-            name="skills/bar",
+        "skill/bar": XPrompt(
+            name="skill/bar",
             content="body\n",
             description="y",
             skill=["claude"],
@@ -146,7 +146,7 @@ def test_duplicate_raw_outputs_are_formatted_once_and_reused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     xprompt = init_skills_handler.XPrompt(
-        name="skills/foo",
+        name="skill/foo",
         content="body\n",
         description="a test skill",
         skill=["claude"],

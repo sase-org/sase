@@ -106,7 +106,7 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         if entries is self._xprompt_highlight_skill_entries:
             return self._xprompt_highlight_skill_names
         # Highlight ``/foo`` by the provider skill name; ``entry.name`` is the
-        # namespaced ``skills/foo`` xprompt reference.
+        # namespaced ``skill/foo`` xprompt reference.
         names = frozenset(
             entry.skill_name for entry in entries if entry.is_skill and entry.skill_name
         )

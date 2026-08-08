@@ -127,7 +127,7 @@ def _properties(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
     table = _detail_table(styles_enabled=styles_enabled)
     _add_detail_row(table, "reference", Text(record.reference))
     if record.skill_name:
-        # The two names are separate: ``#skills/foo`` expands the source that
+        # The two names are separate: ``#skill/foo`` expands the source that
         # ``/foo`` invokes as an installed agent skill.
         _add_detail_row(
             table,

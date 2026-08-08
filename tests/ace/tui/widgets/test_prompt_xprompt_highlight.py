@@ -22,9 +22,9 @@ def _highlight_names(ta: PromptTextArea) -> list[str]:
 
 def _skill_entry(name: str = "sase_plan") -> XPromptAssistEntry:
     return XPromptAssistEntry(
-        name=f"skills/{name}",
+        name=f"skill/{name}",
         skill_name=name,
-        insertion=f"#skills/{name}",
+        insertion=f"#skill/{name}",
         reference_prefix="#",
         kind="xprompt",
         input_signature=None,

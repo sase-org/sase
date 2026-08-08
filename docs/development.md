@@ -948,7 +948,8 @@ boundaries, and docs/tests:
 | `src/sase/axe/`                | Axe orchestrator, lumberjacks, chop execution, scheduled jobs, maintenance mode, and automation state. |
 | `src/sase/xprompt/`            | XPrompt expansion, directives, workflow loading, execution, tracing, explaining, and graphing.         |
 | `src/sase/xprompts/`           | Bundled xprompt templates, workflows, and schemas shipped with the package.                            |
-| `src/sase/skills/`             | Bundled agent skill sources and the generated `SKILL.md` frame, plus the `sase skill` CLI helpers.     |
+| `src/sase/xprompts/skills/`    | Bundled agent skill sources and the generated `SKILL.md` frame.                                        |
+| `src/sase/skills/`             | `sase skill` CLI helpers, inventory, and use-log implementation.                                       |
 | `src/sase/workflows/`          | Change lifecycle workflows for commit, mentor, CRS, accept, and rewind operations.                     |
 | `src/sase/memory/`             | Memory inventory, audited read logs, and proposal write/review flows.                                  |
 | `src/sase/core/`               | Python facade and stable wire records for operations served by `sase_core_rs`.                         |

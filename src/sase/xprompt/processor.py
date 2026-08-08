@@ -201,15 +201,16 @@ def expand_single_xprompt(
         xprompt, positional_args, named_args
     )
 
+    render_scope = _skill_render_scope(xprompt, scope)
     rendered = substitute_placeholders(
-        xprompt.content, conv_positional, conv_named, xprompt.name, scope=scope
+        xprompt.content, conv_positional, conv_named, xprompt.name, scope=render_scope
     )
     rendered = _expand_local_xprompt_references(
         xprompt,
         rendered,
         conv_positional,
         conv_named,
-        scope,
+        render_scope,
         preserve_segment_separators=preserve_segment_separators,
         defer_xprompt_names=defer_xprompt_names,
     )
@@ -224,6 +225,28 @@ def expand_single_xprompt(
 
     segments = split_segments_protecting_fences(rendered)
     return segments[0] if segments else ""
+
+
+def _skill_render_scope(
+    xprompt: XPrompt,
+    scope: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Add provider template variables when expanding provider-backed skills."""
+    if not xprompt.skill_name:
+        return scope
+
+    from sase.llm_provider.registry import get_default_provider_name
+    from sase.main._init_skills_sources import provider_context
+
+    try:
+        provider = get_default_provider_name()
+    except RuntimeError:
+        return scope
+
+    context: dict[str, Any] = provider_context(provider)
+    if scope:
+        context.update(scope)
+    return context
 
 
 def _resolve_command_substitution_in_args(

@@ -27,7 +27,9 @@ The namespace migration is intentionally narrow:
   `~/.config/sase/sase_*.yml`.
 - Runtime state remains under `~/.sase/` and the platform workspace state root.
 - Package resources remain under `src/sase/xprompts/`, `src/sase/default_xprompts/`,
-  `src/sase/skills/`, and `src/sase/memory/`.
+  `src/sase/xprompts/skills/`, `src/sase/skills/`, and `src/sase/memory/`. The
+  `src/sase/skills/` package contains Python helpers for `sase skill`; bundled skill
+  Markdown lives under `src/sase/xprompts/skills/`.
 - Plugin xprompt resources remain in each plugin's package-level `xprompts/` directory,
   with skills in a sibling `skills/` resource directory.
 - SDD storage remains provider-owned; split sidecars are checked out under
@@ -125,10 +127,10 @@ canonical `skills/` directory is rejected rather than read:
 2. `~/sase/skills/`
 3. `~/sase/skills/<project>/`
 4. Plugin `skills/` resources
-5. Package `src/sase/skills/`
+5. Package `src/sase/xprompts/skills/`
 
 Scopes 1 and 3 namespace the xprompt reference with the project, so a source named `foo`
-is expanded as `#<project>/skills/foo` there and `#skills/foo` elsewhere. The provider
+is expanded as `#<project>/skill/foo` there and `#skill/foo` elsewhere. The provider
 skill name stays `foo` in every scope. See [Skill Field](xprompt.md#skill-field) for the
 full contract.
 

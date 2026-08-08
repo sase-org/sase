@@ -1018,32 +1018,33 @@ Commit instructions here...
 
 Skill sources are discovered from these directories, first source wins:
 
-| Scope          | Directory                                            | `#` reference              |
-| -------------- | ---------------------------------------------------- | -------------------------- |
-| Project        | `<project>/sase/skills/`                             | `#<project>/skills/<name>` |
-| Home           | `~/sase/skills/` (`home/sase/skills/` under chezmoi) | `#skills/<name>`           |
-| Project (home) | `~/sase/skills/<project>/`                           | `#<project>/skills/<name>` |
-| Plugin         | the plugin's `skills/` resource directory            | `#skills/<name>`           |
-| Package        | `src/sase/skills/`                                   | `#skills/<name>`           |
+| Scope          | Directory                                            | `#` reference             |
+| -------------- | ---------------------------------------------------- | ------------------------- |
+| Project        | `<project>/sase/skills/`                             | `#<project>/skill/<name>` |
+| Home           | `~/sase/skills/` (`home/sase/skills/` under chezmoi) | `#skill/<name>`           |
+| Project (home) | `~/sase/skills/<project>/`                           | `#<project>/skill/<name>` |
+| Plugin         | the plugin's `skills/` resource directory            | `#skill/<name>`           |
+| Package        | `src/sase/xprompts/skills/`                          | `#skill/<name>`           |
 
-Ordinary xprompts, workflows, and shared `steps/` stay under `sase/xprompts/`; that tree
-never holds a skill.
+Ordinary project and home xprompts, workflows, and shared `steps/` stay under
+`sase/xprompts/`; that tree never holds a skill. Bundled SASE skill Markdown is the
+package-source exception and lives in the nested `src/sase/xprompts/skills/` resource.
 
 ### Source, Reference, and Provider Names
 
 One skill source carries three distinct names, and they are not interchangeable:
 
 - The **source name** is the file stem (or the front matter `name`), e.g. `sase_plan`.
-- The **xprompt reference name** is namespaced with a `skills/` segment, so
-  `#skills/sase_plan` expands the source inline. A project-scoped source is qualified
-  further: `#app/skills/foo`.
+- The **xprompt reference name** is namespaced with a `skill/` segment, so
+  `#skill/sase_plan` expands the source inline. A project-scoped source is qualified
+  further: `#app/skill/foo`.
 - The **provider skill name** is the bare source name, so the installed agent skill is
   invoked as `/sase_plan` and generated files keep their existing
   `.../skills/sase_plan/SKILL.md` paths.
 
 This split was a hard cutover: there is no `#sase_plan` compatibility alias, no fallback
-from `#foo` to `#skills/foo`, and no read compatibility for the old
-`src/sase/xprompts/skills/` layout. `sase doctor`, `sase validate`, `sase xprompt show`,
+from `#foo` to `#skill/foo`, and no read compatibility for the old bundled Markdown
+`src/sase/skills/` layout. `sase doctor`, `sase validate`, `sase xprompt show`,
 `sase skill list`, and `sase skill init` all name the offending source and the exact
 move required.
 
@@ -1063,7 +1064,7 @@ The `description` field provides a human-readable summary shown in `sase xprompt
 and `sase skill list` output. The structured catalog also marks these entries with
 `is_skill: true`; ACE and editor clients use that flag together with `skill_name` to
 offer slash-skill completions such as `/sase_plan` while keeping ordinary xprompts out
-of slash completion results. `#` completion inserts `#skills/sase_plan`, `/` completion
+of slash completion results. `#` completion inserts `#skill/sase_plan`, `/` completion
 inserts `/sase_plan`, and both resolve the same source definition for argument hints,
 hover, and definition navigation.
 
@@ -1074,17 +1075,17 @@ suppress that directive for skills that should not record their own use (the bun
 `/sase_plan` and `/sase_memory_read` skills set this). The field only affects sources
 that are also marked as skills.
 
-**Workflow:** Edit packaged skill sources in `src/sase/skills/`, or add a source to a
-project's `sase/skills/` or your `~/sase/skills/` directory. Saving a draft that
-declares `skill:` from ACE only offers those canonical directories, and the ordinary
-xprompt and config writers refuse a request that would smuggle a skill definition into
-`sase/xprompts/`. Do not include the `sase skill use` directive yourself; the generator
-injects it unless `log_skill_use: false` is set. Then run `sase skill list` and
-`sase skill init --dry-run` (or `--diff`) to preview. Commit the source change and land
-it on the canonical branch before deploying, then run `sase skill init --force`: a
-chezmoi deploy is refused when `src/sase/skills/` is dirty, when `HEAD` is not an
-ancestor of the canonical branch, or when it would move the destination off the source
-commit recorded in the provenance manifest — see
+**Workflow:** Edit packaged skill sources in `src/sase/xprompts/skills/`, or add a
+source to a project's `sase/skills/` or your `~/sase/skills/` directory. Saving a draft
+that declares `skill:` from ACE only offers those canonical directories, and the
+ordinary xprompt and config writers refuse a request that would smuggle a skill
+definition into `sase/xprompts/`. Do not include the `sase skill use` directive
+yourself; the generator injects it unless `log_skill_use: false` is set. Then run
+`sase skill list` and `sase skill init --dry-run` (or `--diff`) to preview. Commit the
+source change and land it on the canonical branch before deploying, then run
+`sase skill init --force`: a chezmoi deploy is refused when `src/sase/xprompts/skills/`
+is dirty, when `HEAD` is not an ancestor of the canonical branch, or when it would move
+the destination off the source commit recorded in the provenance manifest — see
 [Commit Before Deploying](init.md#commit-before-deploying). When `use_chezmoi` is
 enabled, `sase skill init` commits, pushes, and applies the generated files unless
 passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed `SKILL.md`
@@ -1105,12 +1106,12 @@ targets are:
 
 ### Bundled Skills
 
-The following skills ship in `src/sase/skills/` and are deployed by `sase skill init`.
-They are packaged with sase, included in `sase xprompt list` as `skills/<name>`, and
-available to prompt completion clients even when a checkout does not have local skill
-files. Coding agents invoke them by their provider names, such as `/sase_plan` or
-`/sase_repo`; expand one inline as `#skills/sase_plan`. Other scopes can add more skill
-sources, so `sase skill list` may show entries that are not bundled here:
+The following skills ship in `src/sase/xprompts/skills/` and are deployed by
+`sase skill init`. They are packaged with sase, included in `sase xprompt list` as
+`skill/<name>`, and available to prompt completion clients even when a checkout does not
+have local skill files. Coding agents invoke them by their provider names, such as
+`/sase_plan` or `/sase_repo`; expand one inline as `#skill/sase_plan`. Other scopes can
+add more skill sources, so `sase skill list` may show entries that are not bundled here:
 
 | Skill                | Purpose                                                                                       |
 | -------------------- | --------------------------------------------------------------------------------------------- |
@@ -1167,10 +1168,11 @@ Source: `src/sase/xprompt/loader_memory.py`, `src/sase/content_layout.py`.
 ## Built-in XPrompts
 
 Core xprompts ship in `src/sase/default_config.yml`, `src/sase/default_xprompts/*.md`,
-and `src/sase/xprompts/` (skills ship in `src/sase/skills/`). They are always available
-without needing a project- or user-level definition. They're at the built-in end of the
-[discovery order](#discovery-order), so any project, user, or config xprompt with the
-same name overrides the packaged defaults. Common entries include:
+and `src/sase/xprompts/` (bundled skills ship in the nested `src/sase/xprompts/skills/`
+resource). They are always available without needing a project- or user-level
+definition. They're at the built-in end of the [discovery order](#discovery-order), so
+any project, user, or config xprompt with the same name overrides the packaged defaults.
+Common entries include:
 
 | Reference             | Body summary                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------- |

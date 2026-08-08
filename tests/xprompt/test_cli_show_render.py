@@ -139,8 +139,8 @@ def test_color_output_uses_shared_role_styles() -> None:
 
 def test_skill_shows_both_the_reference_and_the_slash_name() -> None:
     record = _record(
-        name="skills/sase_plan",
-        reference="#skills/sase_plan",
+        name="skill/sase_plan",
+        reference="#skill/sase_plan",
         is_skill=True,
         skill_name="sase_plan",
         skill=True,
@@ -149,7 +149,7 @@ def test_skill_shows_both_the_reference_and_the_slash_name() -> None:
     rendered = _render(record, color=False)
 
     assert "skill · /sase_plan" in rendered
-    assert "#skills/sase_plan" in rendered
+    assert "#skill/sase_plan" in rendered
     assert "slash" in rendered
 
 

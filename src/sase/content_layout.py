@@ -282,10 +282,10 @@ def resolve_memory_file_sources(
 
 
 def skill_reference_name(skill_name: str, project: str | None = None) -> str:
-    """Return the canonical ``skills/<name>`` xprompt reference for a skill.
+    """Return the canonical ``skill/<name>`` xprompt reference for a skill.
 
     The provider-visible skill name is unchanged; only the xprompt reference
-    is namespaced, so ``#skills/foo`` expands what ``/foo`` invokes.
+    is namespaced, so ``#skill/foo`` expands what ``/foo`` invokes.
     """
     binding = require_rust_binding("skill_reference_name")
     return str(binding(skill_name, project))

@@ -206,7 +206,7 @@ class XPrompt:
 
     Attributes:
         name: The xprompt name (used in #name syntax).  Skills carry their
-            namespaced reference name here (``skills/foo``, ``app/skills/foo``).
+            namespaced reference name here (``skill/foo``, ``app/skill/foo``).
         content: The template content (may contain Jinja2 or legacy placeholders).
         inputs: List of input argument definitions from YAML front matter.
         source_path: File path or "config" indicating where this xprompt was loaded from.

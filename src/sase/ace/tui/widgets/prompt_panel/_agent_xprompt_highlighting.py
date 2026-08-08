@@ -35,7 +35,7 @@ def known_xprompt_skill_names(
         if entries is None:
             return frozenset()
         # ``/foo`` tokens are highlighted by the provider skill name, not the
-        # namespaced ``skills/foo`` xprompt reference.
+        # namespaced ``skill/foo`` xprompt reference.
         return frozenset(
             entry.skill_name
             for entry in entries

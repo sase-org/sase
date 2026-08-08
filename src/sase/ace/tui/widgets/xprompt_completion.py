@@ -99,7 +99,7 @@ def build_xprompt_completion_candidates(
     for entry in source_entries:
         if inline_reference_only and not is_inline_reference_name(entry.name):
             continue
-        # ``#`` completion matches the xprompt reference name (``skills/foo``);
+        # ``#`` completion matches the xprompt reference name (``skill/foo``);
         # ``/`` completion matches the provider skill name (``foo``).
         match_name = entry.name
         if slash_skill:

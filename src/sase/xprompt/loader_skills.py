@@ -11,8 +11,8 @@ way.
 
 Accepted skills keep their declared name as the provider-visible
 :attr:`~sase.xprompt.models.XPrompt.skill_name` and take the namespaced
-``skills/<name>`` (or ``<project>/skills/<name>``) xprompt reference name, so
-``#skills/foo`` expands what ``/foo`` invokes.
+``skill/<name>`` (or ``<project>/skill/<name>``) xprompt reference name, so
+``#skill/foo`` expands what ``/foo`` invokes.
 """
 
 from __future__ import annotations

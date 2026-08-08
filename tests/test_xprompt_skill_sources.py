@@ -24,6 +24,7 @@ from sase.xprompt.loader_skills import (
 )
 from sase.xprompt.loader_sources import load_xprompts_from_files
 from sase.xprompt.models import XPrompt
+from sase.xprompt.processor import expand_single_xprompt
 
 
 def _write(path: Path, content: str) -> None:
@@ -50,6 +51,44 @@ def home_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_reference_name_splits_provider_name_from_xprompt_reference() -> None:
     assert skill_reference_name("foo") == "skill/foo"
     assert skill_reference_name("foo", "app") == "app/skill/foo"
+
+
+def test_skill_expansion_uses_default_provider_template_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    skill = XPrompt(
+        name="skill/provider_demo",
+        content="{{ provider_name }} runs /{{ skill }}",
+        skill=True,
+        skill_name="provider_demo",
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_default_provider_name",
+        lambda: "codex",
+    )
+    monkeypatch.setattr(
+        "sase.main._init_skills_sources.provider_context",
+        lambda _provider: {"provider_name": "Codex", "skill": "provider_demo"},
+    )
+
+    assert expand_single_xprompt(skill, [], {}) == "Codex runs /provider_demo"
+
+
+def test_plain_skill_expansion_does_not_require_a_default_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    skill = XPrompt(
+        name="skill/plain_demo",
+        content="plain skill body",
+        skill=True,
+        skill_name="plain_demo",
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_default_provider_name",
+        lambda: (_ for _ in ()).throw(RuntimeError("no provider")),
+    )
+
+    assert expand_single_xprompt(skill, [], {}) == "plain skill body"
 
 
 def test_layout_orders_project_before_home_and_omits_legacy_paths(

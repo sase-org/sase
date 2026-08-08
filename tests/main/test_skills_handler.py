@@ -50,8 +50,8 @@ def _stub_skill_sources(
         )
 
     xprompts = {
-        f"skills/{name}": XPrompt(
-            name=f"skills/{name}",
+        f"skill/{name}": XPrompt(
+            name=f"skill/{name}",
             content=f"{name} body\n",
             source_path=str(path),
             description=f"{name} description",
@@ -369,7 +369,7 @@ def test_applied_skills_inventory_compares_chezmoi_source_to_home_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     xprompt = XPrompt(
-        name="skills/foo",
+        name="skill/foo",
         content="body\n",
         source_path=str(tmp_path / "skills" / "foo.md"),
         description="foo description",
@@ -380,7 +380,7 @@ def test_applied_skills_inventory_compares_chezmoi_source_to_home_target(
     monkeypatch.setattr(
         init_skills_handler,
         "get_all_xprompts",
-        lambda project="": {"skills/foo": xprompt},
+        lambda project="": {"skill/foo": xprompt},
     )
     monkeypatch.setattr(init_skills_handler, "_all_providers", lambda: ["claude"])
     monkeypatch.setattr(init_skills_handler, "_provider_context", lambda _provider: {})
@@ -480,7 +480,7 @@ def test_skills_list_dashboard_does_not_truncate_long_name_or_description() -> N
     for word in long_description.split():
         assert word in text
     assert "…" not in text
-    # The packaged skills/<name>.md path is redundant with the skill name
+    # The packaged skill/<name>.md reference is redundant with the skill name
     # and intentionally omitted from the description footer.
 
 
@@ -496,7 +496,7 @@ def test_skills_list_table_shows_full_provider_set_and_status_tokens() -> None:
     )
     multi = SkillSourceEntry(
         name="multi",
-        reference_name="skills/multi",
+        reference_name="skill/multi",
         description="multi-provider skill",
         source_path=str(get_sase_package_skills_dir() / "multi.md"),
         providers=("claude", "gemini", "codex", "amp", "cursor"),
@@ -504,7 +504,7 @@ def test_skills_list_table_shows_full_provider_set_and_status_tokens() -> None:
     )
     single = SkillSourceEntry(
         name="single",
-        reference_name="skills/single",
+        reference_name="skill/single",
         description="single-provider skill",
         source_path=str(get_sase_package_skills_dir() / "single.md"),
         providers=("gemini",),

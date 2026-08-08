@@ -178,7 +178,7 @@ def _resolve_xprompt_jump(
     reference = _xprompt_reference(token)
     slash_skill = reference.startswith("/")
     # ``/foo`` is the provider skill name; its definition lives under the
-    # canonical ``skills/foo`` xprompt reference.
+    # canonical ``skill/foo`` xprompt reference.
     lookup = skill_reference_name(token.target) if slash_skill else token.target
     obj = get_xprompt_or_workflow(lookup, project=project)
     if obj is None:

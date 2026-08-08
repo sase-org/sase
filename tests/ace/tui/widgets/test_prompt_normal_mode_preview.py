@@ -37,9 +37,9 @@ def _top_is_preview(page: PromptPage) -> bool:
 
 def _skill_entry(name: str = "sase_plan") -> XPromptAssistEntry:
     return XPromptAssistEntry(
-        name=f"skills/{name}",
+        name=f"skill/{name}",
         skill_name=name,
-        insertion=f"#skills/{name}",
+        insertion=f"#skill/{name}",
         reference_prefix="#",
         kind="xprompt",
         input_signature=None,
@@ -91,7 +91,7 @@ async def test_k_on_warm_slash_skill_uses_skill_and_prompt_context(
         kind_label="skill",
         icon="/",
         title="/sase_plan",
-        source_path="/workspace/skills/sase_plan.md",
+        source_path="/workspace/sase/sase/skills/sase_plan.md",
         content="Plan body\n",
         lexer="markdown",
     )

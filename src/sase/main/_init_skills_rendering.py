@@ -232,7 +232,7 @@ def render_skill_targets(
 
     for xprompt in skill_xprompts:
         # Generation is provider-facing, so it uses the provider skill name
-        # (``foo``), never the namespaced xprompt reference (``skills/foo``).
+        # (``foo``), never the namespaced xprompt reference (``skill/foo``).
         name = xprompt.skill_name
         description = xprompt.description or ""
         skill_field = xprompt.skill

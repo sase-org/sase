@@ -231,7 +231,7 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     )
     all_xprompts.update(memory_xprompts)
 
-    # Skills occupy their own ``skills/`` reference namespace, so they can
+    # Skills occupy their own ``skill/`` reference namespace, so they can
     # never shadow (or be shadowed by) an ordinary xprompt of the same bare
     # name. Lowest priority first, so canonical directory sources win.
     all_xprompts.update(load_skills_from_package())
