@@ -10,10 +10,10 @@ if TYPE_CHECKING:
 from .storage import is_patch_heading
 
 
-def get_raw_patch_text(cs: Patch) -> str | None:
+def get_raw_patch_text(patch: Patch) -> str | None:
     """Extract the raw text of a Patch from its source file.
 
-    Reads the file at cs.file_path starting from cs.line_number and extracts
+    Reads the file at patch.file_path starting from patch.line_number and extracts
     the exact raw text until one of these end conditions:
     - A `## Patch`/`## ChangeSpec` header line (start of another Patch)
     - Two consecutive blank lines
@@ -21,20 +21,20 @@ def get_raw_patch_text(cs: Patch) -> str | None:
     - End of file
 
     Args:
-        cs: The Patch to extract raw text for.
+        patch: The Patch to extract raw text for.
 
     Returns:
-        The raw text of the ChangeSpec, or None if the file cannot be read.
+        The raw text of the Patch, or None if the file cannot be read.
         Trailing blank lines are stripped, but internal formatting is preserved.
     """
     try:
-        with open(cs.file_path) as f:
+        with open(patch.file_path) as f:
             lines = f.readlines()
     except OSError:
         return None
 
     # Convert to 0-based index (line_number is 1-based)
-    start_idx = cs.line_number - 1
+    start_idx = patch.line_number - 1
 
     if start_idx < 0 or start_idx >= len(lines):
         return None
@@ -60,7 +60,7 @@ def get_raw_patch_text(cs: Patch) -> str | None:
         # Track consecutive blank lines
         if stripped == "":
             consecutive_blank_lines += 1
-            # Two consecutive blank lines end the ChangeSpec
+            # Two consecutive blank lines end the Patch
             if consecutive_blank_lines >= 2:
                 # Include one blank line for cleaner output
                 result_lines.append(line)

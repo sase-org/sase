@@ -74,12 +74,14 @@ from .project_spec_path import (
 from .raw_text import get_raw_changespec_text, get_raw_patch_text
 from .validation import (
     all_hooks_passed_for_entries,
+    all_hooks_passed_for_stitches,
     count_agent_runners_global,
     count_all_runners_global,
     count_hook_runners_global,
     count_running_agents_global,
     count_running_hooks_global,
     get_current_and_proposal_entry_ids,
+    get_current_and_proposal_stitch_ids,
     has_any_error_suffix,
     has_any_running_agent,
     has_any_running_process,
@@ -134,7 +136,9 @@ __all__ = [
     "has_any_status_suffix",
     "is_parent_ready_for_mail",
     "get_current_and_proposal_entry_ids",
+    "get_current_and_proposal_stitch_ids",
     "all_hooks_passed_for_entries",
+    "all_hooks_passed_for_stitches",
     "parse_project_file",
     "parse_patch_project_file",
     "ChangeSpecSnapshotCache",
@@ -168,26 +172,30 @@ __all__ = [
 ]
 
 
-def find_all_changespecs(
+def find_all_patches(
     include_states: Sequence[str] | str = ("enabled",),
-) -> list[ChangeSpec]:
-    """Find ChangeSpecs in lifecycle-selected project files.
+) -> list[Patch]:
+    """Find Patches in lifecycle-selected project files.
 
     Returns:
-        ChangeSpecs from enabled and archive ProjectSpec files for projects whose
+        Patches from enabled and archive ProjectSpec files for projects whose
         lifecycle state matches ``include_states``. Normal callers default to
         enabled projects; history/agent views can pass ``"all"`` explicitly.
     """
-    all_changespecs: list[ChangeSpec] = []
-    for item in iter_changespec_project_file_records(include_states=include_states):
-        specs = parse_project_file(str(item.path))
-        for spec in specs:
-            spec.project_display_name = item.project_display_name
-        all_changespecs.extend(specs)
-    return all_changespecs
+    patches: list[Patch] = []
+    for item in iter_patch_project_file_records(include_states=include_states):
+        file_patches = parse_patch_project_file(str(item.path))
+        for patch in file_patches:
+            patch.project_display_name = item.project_display_name
+        patches.extend(file_patches)
+    return patches
 
 
-find_all_patches = find_all_changespecs
+def find_all_changespecs(
+    include_states: Sequence[str] | str = ("enabled",),
+) -> list[ChangeSpec]:
+    """Legacy alias for :func:`find_all_patches`."""
+    return find_all_patches(include_states=include_states)
 
 
 # Eligible statuses for rebase parent selection
@@ -197,27 +205,26 @@ _ELIGIBLE_REBASE_STATUSES = ("WIP", "Draft", "Ready", "Mailed")
 def get_eligible_parents_in_project(
     project_file: str, exclude_name: str
 ) -> list[tuple[str, str]]:
-    """Get all ChangeSpecs in the same project file eligible to be parents for rebase.
+    """Get all Patches in the same project file eligible to be parents for rebase.
 
     Args:
         project_file: Path to the project file
         exclude_name: Name to exclude (the PR being rebased)
 
     Returns:
-        List of (name, status) tuples for ChangeSpecs with status WIP/Draft/Ready/Mailed
+        List of (name, status) tuples for Patches with status WIP/Draft/Ready/Mailed
     """
-    changespecs = parse_project_file(project_file)
+    patches = parse_patch_project_file(project_file)
     eligible: list[tuple[str, str]] = []
 
-    for cs in changespecs:
-        # Skip the PR being rebased
-        if cs.name == exclude_name:
+    for patch in patches:
+        if patch.name == exclude_name:
             continue
 
         # Check if status is eligible (use base status to handle suffixes)
-        base_status = get_base_status(cs.status)
+        base_status = get_base_status(patch.status)
         if base_status in _ELIGIBLE_REBASE_STATUSES:
-            eligible.append((cs.name, base_status))
+            eligible.append((patch.name, base_status))
 
     return eligible
 

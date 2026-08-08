@@ -1,9 +1,9 @@
-"""Suffix parsing utilities for ChangeSpec entries."""
+"""Suffix parsing utilities for Patch entries."""
 
 from typing import NamedTuple
 
 
-class _ParsedSuffix(NamedTuple):
+class ParsedSuffix(NamedTuple):
     """Result of parsing a suffix value."""
 
     value: str | None
@@ -25,7 +25,7 @@ _PREFIX_MAP: list[tuple[str, str | None]] = [
 ]
 
 
-def parse_suffix_prefix(suffix_val: str | None) -> _ParsedSuffix:
+def parse_suffix_prefix(suffix_val: str | None) -> ParsedSuffix:
     """Parse suffix prefix markers and return (value, suffix_type).
 
     Handles all suffix type markers:
@@ -47,10 +47,10 @@ def parse_suffix_prefix(suffix_val: str | None) -> _ParsedSuffix:
         suffix_val: The raw suffix string to parse
 
     Returns:
-        _ParsedSuffix with value (message without prefix) and suffix_type.
+        ParsedSuffix with value (message without prefix) and suffix_type.
     """
     if suffix_val is None:
-        return _ParsedSuffix(None, None)
+        return ParsedSuffix(None, None)
 
     for prefix, suffix_type in _PREFIX_MAP:
         if suffix_val.startswith(prefix):
@@ -63,16 +63,16 @@ def parse_suffix_prefix(suffix_val: str | None) -> _ParsedSuffix:
                         value = remainder[len("metahook |") :].strip()
                     else:
                         value = ""
-                    return _ParsedSuffix(value, "metahook_complete")
-            return _ParsedSuffix(suffix_val[len(prefix) :].strip(), suffix_type)
+                    return ParsedSuffix(value, "metahook_complete")
+            return ParsedSuffix(suffix_val[len(prefix) :].strip(), suffix_type)
 
     # Handle standalone markers
     if suffix_val == "@":
-        return _ParsedSuffix("", "running_agent")
+        return ParsedSuffix("", "running_agent")
     if suffix_val == "%":
-        return _ParsedSuffix("", "summarize_complete")
+        return ParsedSuffix("", "summarize_complete")
     if suffix_val == "^":
-        return _ParsedSuffix("", "metahook_complete")
+        return ParsedSuffix("", "metahook_complete")
 
     # No prefix - return as-is with no suffix_type
-    return _ParsedSuffix(suffix_val, None)
+    return ParsedSuffix(suffix_val, None)

@@ -2,7 +2,7 @@
 
 Scans ``~/.sase/projects/<project>/`` for legacy active and archive project
 spec files. For each legacy file the rename is performed atomically under the
-existing project-file lock so concurrent ChangeSpec writers cannot observe a
+existing project-file lock so concurrent Patch writers cannot observe a
 half-renamed state.
 
 The migration is conservative by design:
@@ -28,7 +28,7 @@ from pathlib import Path
 
 from sase.core.paths import sase_projects_dir
 
-from .locking import changespec_lock
+from .locking import patch_lock
 from .project_spec_path import (
     active_project_spec_filename,
     archive_project_spec_filename,
@@ -64,7 +64,7 @@ def _migrate_one(
 ) -> None:
     """Atomically migrate a single legacy file to the canonical path.
 
-    Hold both path-derived ChangeSpec locks while comparing/removing/replacing
+    Hold both path-derived ProjectSpec locks while comparing/removing/replacing
     files so legacy ``.gp`` writers and canonical ``.sase`` writers cannot race
     the migration.
     """
@@ -73,8 +73,8 @@ def _migrate_one(
         return
 
     with ExitStack() as stack:
-        stack.enter_context(changespec_lock(str(legacy_path)))
-        stack.enter_context(changespec_lock(str(canonical_path)))
+        stack.enter_context(patch_lock(str(legacy_path)))
+        stack.enter_context(patch_lock(str(canonical_path)))
 
         if not legacy_path.exists():
             report.missing_legacy.append(str(legacy_path))

@@ -1,4 +1,4 @@
-"""Section-specific parsers for ChangeSpec fields."""
+"""Section-specific parsers for Patch fields."""
 
 import re
 from typing import TypedDict
@@ -6,13 +6,13 @@ from typing import TypedDict
 from ..display_helpers import is_entry_ref_suffix
 from .models import (
     CommentEntry,
-    CommitEntry,
     DeltaEntry,
     DeltaLineStats,
     HookEntry,
     HookStatusLine,
     MentorEntry,
     MentorStatusLine,
+    Stitch,
     TimestampEntry,
 )
 from .suffix_utils import parse_suffix_prefix
@@ -50,8 +50,8 @@ def _parse_delta_line_stats(value: str) -> DeltaLineStats | None:
     return stats if seen else None
 
 
-class CommitEntryDict(TypedDict, total=False):
-    """Type for in-progress commit entry during parsing."""
+class StitchEntryDict(TypedDict, total=False):
+    """Type for an in-progress stitch during parsing."""
 
     number: int
     note: str
@@ -64,12 +64,17 @@ class CommitEntryDict(TypedDict, total=False):
     body: list[str] | None
 
 
-def build_commit_entry(
-    entry_dict: CommitEntryDict | dict[str, str | int | None],
-) -> CommitEntry:
-    """Build a CommitEntry from a dict with proper type handling."""
+CommitEntryDict = StitchEntryDict
+
+
+def build_stitch(
+    entry_dict: StitchEntryDict | dict[str, str | int | list[str] | None],
+) -> Stitch:
+    """Build a Stitch from a dict with proper type handling."""
     number_val = entry_dict.get("number", 0)
-    number = int(number_val) if number_val is not None else 0
+    number = (
+        0 if number_val is None or isinstance(number_val, list) else int(number_val)
+    )
 
     note_val = entry_dict.get("note", "")
     note = str(note_val) if note_val is not None else ""
@@ -99,7 +104,7 @@ def build_commit_entry(
         list(body_val) if isinstance(body_val, list) and body_val else None
     )
 
-    return CommitEntry(
+    return Stitch(
         number=number,
         note=note,
         chat=chat,
@@ -110,6 +115,9 @@ def build_commit_entry(
         suffix_type=suffix_type,
         body=body,
     )
+
+
+build_commit_entry = build_stitch
 
 
 def parse_hooks_line(
@@ -156,8 +164,8 @@ def parse_hooks_line(
             status_content,
         )
         if new_status_match and current_hook_entry is not None:
-            # New format with commit entry ID (e.g., "1", "1a", "2")
-            commit_num = new_status_match.group(1)
+            # New format with stitch ID (e.g., "1", "1a", "2")
+            stitch_id = new_status_match.group(1)
             timestamp = new_status_match.group(2) + "_" + new_status_match.group(3)
             status_val = new_status_match.group(4)
             duration_val = new_status_match.group(5)
@@ -177,7 +185,7 @@ def parse_hooks_line(
             suffix_type_val = parsed.suffix_type
 
             status_line = HookStatusLine(
-                commit_entry_num=commit_num,
+                stitch_id=stitch_id,
                 timestamp=timestamp,
                 status=status_val,
                 duration=duration_val,
@@ -263,7 +271,7 @@ def parse_mentors_line(
             if current_mentor_entry is not None:
                 mentor_entries.append(current_mentor_entry)
             # Start new mentor entry
-            entry_id = entry_match.group(1)
+            stitch_id = entry_match.group(1)
             profiles_raw = entry_match.group(2)
             # Detect and strip #Draft marker
             is_draft = profiles_raw.rstrip().endswith("#Draft")
@@ -275,7 +283,7 @@ def parse_mentors_line(
                 # Fallback: old format without counts
                 profiles = profiles_raw.split()
             current_mentor_entry = MentorEntry(
-                entry_id=entry_id,
+                stitch_id=stitch_id,
                 profiles=profiles,
                 status_lines=[],
                 is_draft=is_draft,
@@ -333,32 +341,32 @@ def parse_mentors_line(
     return current_mentor_entry, mentor_entries
 
 
-def parse_commits_line(
+def parse_stitches_line(
     line: str,
     stripped: str,
-    current_commit_entry: CommitEntryDict | None,
-    commit_entries: list[CommitEntry],
-) -> tuple[CommitEntryDict | None, list[CommitEntry]]:
-    """Parse a single line in COMMITS section.
+    current_stitch: StitchEntryDict | None,
+    stitches: list[Stitch],
+) -> tuple[StitchEntryDict | None, list[Stitch]]:
+    """Parse a single line in a STITCHES/COMMITS section.
 
     Args:
         line: The original line (with leading whitespace)
         stripped: The stripped line content
-        current_commit_entry: The current commit entry being built (or None)
-        commit_entries: List of completed commit entries
+        current_stitch: The current stitch being built (or None)
+        stitches: List of completed stitches
 
     Returns:
-        Updated (current_commit_entry, commit_entries) tuple.
+        Updated (current_stitch, stitches) tuple.
     """
-    # Check for new commit entry: (N) or (Na) Note text
+    # Check for new stitch: (N) or (Na) Note text
     # Supports both regular entries (N) and proposed entries (Na)
-    commit_match = re.match(r"^\((\d+)([a-z])?\)\s+(.+)$", stripped)
-    if commit_match:
+    stitch_match = re.match(r"^\((\d+)([a-z])?\)\s+(.+)$", stripped)
+    if stitch_match:
         # Save previous entry if exists
-        if current_commit_entry is not None:
-            commit_entries.append(build_commit_entry(current_commit_entry))
+        if current_stitch is not None:
+            stitches.append(build_stitch(current_stitch))
 
-        raw_note = commit_match.group(3)
+        raw_note = stitch_match.group(3)
 
         # Check for suffix pattern at end of note:
         # - (!: MSG), - (~!: MSG), - (~: MSG), - (@: MSG), or - (MSG)
@@ -389,9 +397,9 @@ def parse_commits_line(
             suffix_type_val = None
 
         # Start new entry
-        current_commit_entry = CommitEntryDict(
-            number=int(commit_match.group(1)),
-            proposal_letter=commit_match.group(2),  # None for regular entries
+        current_stitch = StitchEntryDict(
+            number=int(stitch_match.group(1)),
+            proposal_letter=stitch_match.group(2),  # None for regular entries
             note=note_without_suffix,
             chat=None,
             diff=None,
@@ -401,33 +409,36 @@ def parse_commits_line(
             body=None,
         )
     elif stripped.startswith("| CHAT:"):
-        if current_commit_entry is not None:
-            current_commit_entry["chat"] = stripped[7:].strip()
+        if current_stitch is not None:
+            current_stitch["chat"] = stripped[7:].strip()
     elif stripped.startswith("| DIFF:"):
-        if current_commit_entry is not None:
-            current_commit_entry["diff"] = stripped[7:].strip()
+        if current_stitch is not None:
+            current_stitch["diff"] = stripped[7:].strip()
     elif stripped.startswith("| PLAN:"):
-        if current_commit_entry is not None:
-            current_commit_entry["plan"] = stripped[7:].strip()
+        if current_stitch is not None:
+            current_stitch["plan"] = stripped[7:].strip()
     elif (
-        current_commit_entry is not None
+        current_stitch is not None
         and line.startswith("      ")
         and not stripped.startswith("| ")
     ):
         # Body continuation line: 6-space indent, not a drawer line
-        body = current_commit_entry.get("body")
+        body = current_stitch.get("body")
         if body is None:
             body = []
-            current_commit_entry["body"] = body
+            current_stitch["body"] = body
         if stripped == ".":
             # Blank line marker -> empty string in body list
             body.append("")
         else:
             body.append(stripped)
-    # If line doesn't match commit format, stay in commits mode
+    # If line doesn't match stitch format, stay in stitch-history mode
     # (blank lines or other content will be ignored)
 
-    return current_commit_entry, commit_entries
+    return current_stitch, stitches
+
+
+parse_commits_line = parse_stitches_line
 
 
 def parse_deltas_line(

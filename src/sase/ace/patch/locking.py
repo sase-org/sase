@@ -1,4 +1,4 @@
-"""File locking for ChangeSpec files to prevent race conditions."""
+"""File locking for ProjectSpec Patch files."""
 
 import fcntl
 import logging
@@ -126,13 +126,13 @@ def wait_for_edit_lock_release(
 
 
 @contextmanager
-def changespec_lock(
+def patch_lock(
     project_file: str,
     exclusive: bool = True,
     timeout: float = 30.0,
     poll_interval: float = 0.1,
 ) -> Iterator[None]:
-    """Context manager for locking a ChangeSpec file.
+    """Context manager for locking a ProjectSpec file.
 
     Uses fcntl.flock() for advisory locking. All processes must cooperate
     by using this lock for exclusive access to be effective.
@@ -148,10 +148,10 @@ def changespec_lock(
         LockTimeoutError: If lock cannot be acquired within timeout.
 
     Example:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             content = Path(project_file).read_text()
             # ... modify content ...
-            write_changespec_atomic(project_file, content, "Update XYZ")
+            write_patch_atomic(project_file, content, "Update XYZ")
     """
     if exclusive:
         wait_for_edit_lock_release(project_file)
@@ -184,12 +184,12 @@ def changespec_lock(
         os.close(fd)
 
 
-def write_changespec_atomic(
+def write_patch_atomic(
     project_file: str,
     content: str,
     _commit_message: str = "",
 ) -> None:
-    """Write content to a ChangeSpec file atomically.
+    """Write content to a ProjectSpec file atomically.
 
     This function should be called WHILE holding a lock on the file.
     It handles the temp file + os.replace() pattern.
@@ -226,5 +226,5 @@ def write_changespec_atomic(
         raise
 
 
-patch_lock = changespec_lock
-write_patch_atomic = write_changespec_atomic
+changespec_lock = patch_lock
+write_changespec_atomic = write_patch_atomic

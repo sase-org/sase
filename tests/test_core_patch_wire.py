@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import types
 
+import pytest
+
 from sase.ace.patch import Patch, Stitch
 from sase.ace.patch.models import HookEntry, HookStatusLine, MentorEntry
 from sase.core import parser_facade
@@ -135,6 +137,34 @@ def test_patch_wire_from_dict_accepts_legacy_spellings() -> None:
     assert wire.stitches[0].number == 2
     assert wire.hooks[0].status_lines[0].stitch_id == "2"
     assert wire.mentors[0].stitch_id == "2"
+
+
+def test_patch_wire_from_dict_rejects_conflicting_history_aliases() -> None:
+    record = _base_record(commits=[{"number": 2, "note": "Legacy"}])
+
+    with pytest.raises(ValueError, match="stitches.*commits|commits.*stitches"):
+        patch_wire_from_dict(record)
+
+
+def test_patch_wire_from_dict_rejects_conflicting_stitch_id_aliases() -> None:
+    record = _base_record(
+        hooks=[
+            {
+                "command": "just test",
+                "status_lines": [
+                    {
+                        "stitch_id": "1",
+                        "commit_entry_num": "2",
+                        "timestamp": "260808_120000",
+                        "status": "PASSED",
+                    }
+                ],
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="stitch_id.*commit_entry_num"):
+        patch_wire_from_dict(record)
 
 
 def test_changespec_wire_from_dict_accepts_canonical_spellings() -> None:

@@ -1,4 +1,4 @@
-"""ChangeSpec review URL field labels and compatibility helpers."""
+"""Patch review URL field labels and compatibility helpers."""
 
 PRIMARY_REVIEW_URL_LABEL = "PR"
 LEGACY_REVIEW_URL_LABEL = "CL"

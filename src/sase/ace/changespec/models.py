@@ -1,3 +1,51 @@
-"""Compatibility shim for :mod:`sase.ace.patch.models`."""
+"""Legacy model names backed by :mod:`sase.ace.patch.models`."""
 
-from sase.ace.patch.models import *  # noqa: F403
+from sase.ace.patch.models import (
+    ERROR_SUFFIX_MESSAGES,
+    ChangeSpec,
+    CommentEntry,
+    CommitEntry,
+    DeltaEntry,
+    DeltaLineStats,
+    HookEntry,
+    HookStatusLine,
+    MentorEntry,
+    MentorStatusLine,
+    Patch,
+    Stitch,
+    StitchDict,
+    TimestampEntry,
+    extract_pid_from_agent_suffix,
+    get_base_status,
+    is_error_suffix,
+    is_plain_suffix,
+    is_running_agent_suffix,
+    is_running_process_suffix,
+    parse_commit_entry_id,
+    parse_stitch_id,
+)
+
+__all__ = [
+    "ERROR_SUFFIX_MESSAGES",
+    "ChangeSpec",
+    "CommentEntry",
+    "CommitEntry",
+    "DeltaEntry",
+    "DeltaLineStats",
+    "HookEntry",
+    "HookStatusLine",
+    "MentorEntry",
+    "MentorStatusLine",
+    "Patch",
+    "Stitch",
+    "StitchDict",
+    "TimestampEntry",
+    "extract_pid_from_agent_suffix",
+    "get_base_status",
+    "is_error_suffix",
+    "is_plain_suffix",
+    "is_running_agent_suffix",
+    "is_running_process_suffix",
+    "parse_commit_entry_id",
+    "parse_stitch_id",
+]

@@ -47,7 +47,7 @@ def project_spec_basename(file_path: str) -> str:
     """Project basename for an active or archive project spec path.
 
     Strips the directory, the canonical/legacy extension, and a trailing
-    ``-archive`` suffix. Mirrors ``ChangeSpec.project_basename`` and the
+    ``-archive`` suffix. Mirrors ``Patch.project_basename`` and the
     Rust ``project_spec_basename`` helper so both sides agree.
     """
     base = os.path.basename(file_path)

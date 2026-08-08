@@ -1,4 +1,4 @@
-"""DELTAS field formatting for ChangeSpec project files."""
+"""DELTAS field formatting for ProjectSpec Patch records."""
 
 from .models import DeltaEntry, DeltaLineStats
 

@@ -1,8 +1,7 @@
-"""Compatibility shim for :mod:`sase.ace.patch.suffix_utils`."""
+"""Legacy suffix parsing names backed by :mod:`sase.ace.patch.suffix_utils`."""
 
-import sys as _sys
+from sase.ace.patch.suffix_utils import ParsedSuffix, parse_suffix_prefix
 
-from sase.ace.patch import suffix_utils as _suffix_utils_module
-from sase.ace.patch.suffix_utils import *  # noqa: F403
+_ParsedSuffix = ParsedSuffix
 
-_sys.modules[__name__] = _suffix_utils_module
+__all__ = ["ParsedSuffix", "_ParsedSuffix", "parse_suffix_prefix"]

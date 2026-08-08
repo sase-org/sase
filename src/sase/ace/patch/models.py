@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 import os
 import re
 from dataclasses import dataclass
 from functools import cached_property
+from typing import Any, cast
 
 # Error suffix messages that require "!: " prefix when formatting/displaying
 ERROR_SUFFIX_MESSAGES = frozenset(
@@ -98,7 +100,7 @@ def is_plain_suffix(suffix: str | None) -> bool:
     )
 
 
-# Valid suffix_type values for HookStatusLine, CommitEntry, CommentEntry:
+# Valid suffix_type values for HookStatusLine, Stitch, CommentEntry:
 # - "error": Displayed with "!: " prefix (red color)
 # - "running_agent": Displayed with "@: " prefix (agent is actively working)
 # - "killed_agent": Displayed with "~@: " prefix (agent was killed, faded orange)
@@ -169,7 +171,7 @@ class Stitch:
 
     @property
     def is_proposed(self) -> bool:
-        """Check if this is a proposed (not yet accepted) commit entry."""
+        """Check if this is a proposed (not yet accepted) stitch."""
         return self.proposal_letter is not None
 
     @property
@@ -184,25 +186,42 @@ CommitEntry = Stitch
 StitchDict = dict[str, str | int | None]
 
 
-def parse_commit_entry_id(entry_id: str) -> tuple[int, str]:
-    """Parse a commit entry ID into (number, letter) for sorting.
+def _coerce_stitch_list(
+    stitches: Sequence[Stitch | Mapping[str, object]] | None,
+) -> list[Stitch] | None:
+    if stitches is None:
+        return None
+    if isinstance(stitches, list) and all(
+        isinstance(stitch, Stitch) for stitch in stitches
+    ):
+        return cast(list[Stitch], stitches)
+    return [
+        stitch
+        if isinstance(stitch, Stitch)
+        else Stitch(**cast(dict[str, Any], dict(stitch)))
+        for stitch in stitches
+    ]
+
+
+def parse_stitch_id(stitch_id: str) -> tuple[int, str]:
+    """Parse a stitch ID into (number, letter) for sorting.
 
     Args:
-        entry_id: The entry ID string (e.g., "1", "1a", "2").
+        stitch_id: The stitch ID string (e.g., "1", "1a", "2").
 
     Returns:
         Tuple of (number, letter) where letter is "" for regular entries.
         E.g., "1" -> (1, ""), "1a" -> (1, "a"), "2" -> (2, "").
     """
     # Match digit(s) optionally followed by a letter
-    match = re.match(r"^(\d+)([a-z]?)$", entry_id)
+    match = re.match(r"^(\d+)([a-z]?)$", stitch_id)
     if match:
         return int(match.group(1)), match.group(2)
     # Fallback for unexpected format
-    return 0, entry_id
+    return 0, stitch_id
 
 
-parse_stitch_id = parse_commit_entry_id
+parse_commit_entry_id = parse_stitch_id
 
 
 @dataclass(init=False)
@@ -213,7 +232,7 @@ class HookStatusLine:
       (N) [YYmmdd_HHMMSS] RUNNING/PASSED/FAILED/KILLED (XmYs) - (SUFFIX)
       (N) [YYmmdd_HHMMSS] RUNNING/PASSED/FAILED/KILLED (XmYs) - (!: MSG)
       (N) [YYmmdd_HHMMSS] RUNNING/PASSED/FAILED/KILLED (XmYs) - (SUFFIX | SUMMARY)
-    Where N is the COMMITS entry number (1-based).
+    Where N is the stitch-history entry ID.
 
     The optional suffix can be:
     - A timestamp (YYmmdd_HHMMSS) indicating a fix-hook agent is running
@@ -239,7 +258,7 @@ class HookStatusLine:
     prefix is added when formatting for display/storage.
     """
 
-    commit_entry_num: str  # The STITCHES/COMMITS entry ID (e.g., "1", "1a", "2")
+    stitch_id: str  # The STITCHES/COMMITS entry ID (e.g., "1", "1a", "2")
     timestamp: str  # YYmmdd_HHMMSS format
     status: str  # RUNNING, PASSED, FAILED, KILLED
     duration: str | None = None  # e.g., "1m23s"
@@ -270,7 +289,7 @@ class HookStatusLine:
                 "HookStatusLine missing required argument: 'stitch_id' "
                 "(legacy: 'commit_entry_num')"
             )
-        self.commit_entry_num = resolved_id
+        self.stitch_id = resolved_id
         self.timestamp = timestamp
         self.status = status
         self.duration = duration
@@ -279,13 +298,13 @@ class HookStatusLine:
         self.summary = summary
 
     @property
-    def stitch_id(self) -> str:
-        """Canonical alias for :attr:`commit_entry_num`."""
-        return self.commit_entry_num
+    def commit_entry_num(self) -> str:
+        """Legacy compatibility alias for :attr:`stitch_id`."""
+        return self.stitch_id
 
-    @stitch_id.setter
-    def stitch_id(self, value: str) -> None:
-        self.commit_entry_num = value
+    @commit_entry_num.setter
+    def commit_entry_num(self, value: str) -> None:
+        self.stitch_id = value
 
 
 @dataclass
@@ -297,12 +316,12 @@ class HookEntry:
         (1) [YYmmdd_HHMMSS] PASSED (1m23s)
         (2) [YYmmdd_HHMMSS] RUNNING
 
-    Each hook can have multiple status lines, one per COMMITS entry.
+    Each hook can have multiple status lines, one per stitch-history entry.
 
     Command prefixes:
     - "!" prefix: FAILED status lines auto-append "- (!: Hook Command Failed)"
       to skip fix-hook hints. Also excluded from mentor eligibility.
-    - "$" prefix: Hook is NOT run for proposed COMMITS entries (e.g., "1a").
+    - "$" prefix: Hook is NOT run for proposed stitch entries (e.g., "1a").
       Also marks hook as "unlimited" (not subject to --max-runners limit).
 
     Prefixes can be combined as "!$" (e.g., "!$sase_hg_presubmit").
@@ -349,24 +368,28 @@ class HookEntry:
 
     @property
     def latest_status_line(self) -> HookStatusLine | None:
-        """Get the most recent status line (highest commit entry ID)."""
+        """Get the most recent status line (highest stitch ID)."""
         if not self.status_lines:
             return None
         return max(
             self.status_lines,
-            key=lambda sl: parse_commit_entry_id(sl.commit_entry_num),
+            key=lambda sl: parse_stitch_id(sl.stitch_id),
         )
+
+    def get_status_line_for_stitch(self, stitch_id: str) -> HookStatusLine | None:
+        """Get status line for a specific stitch ID (e.g., '1', '1a')."""
+        if not self.status_lines:
+            return None
+        for sl in self.status_lines:
+            if sl.stitch_id == stitch_id:
+                return sl
+        return None
 
     def get_status_line_for_commit_entry(
         self, commit_entry_id: str
     ) -> HookStatusLine | None:
-        """Get status line for a specific COMMITS entry ID (e.g., '1', '1a')."""
-        if not self.status_lines:
-            return None
-        for sl in self.status_lines:
-            if sl.commit_entry_num == commit_entry_id:
-                return sl
-        return None
+        """Legacy alias for :meth:`get_status_line_for_stitch`."""
+        return self.get_status_line_for_stitch(commit_entry_id)
 
 
 @dataclass
@@ -416,12 +439,12 @@ class MentorEntry:
           | <profile>:<mentor> - RUNNING - (@: mentor_<name>-<PID>-YYmmdd_HHMMSS)
           | <profile>:<mentor> - PASSED - (XhYmZs)
 
-    Where <id> matches a COMMITS entry ID (e.g., "1", "2").
+    Where <id> matches a stitch-history entry ID (e.g., "1", "2").
     Multiple profiles can be listed if they all matched for this entry.
     Each profile+mentor combination has its own status line.
     """
 
-    entry_id: str  # Matches STITCHES/COMMITS entry ID (e.g., "1", "2")
+    stitch_id: str  # Matches STITCHES/COMMITS entry ID (e.g., "1", "2")
     profiles: list[str]  # Profile names that were triggered for this entry
     status_lines: list[MentorStatusLine] | None = None
     is_draft: bool = False  # True if entry was created during Draft status
@@ -446,19 +469,19 @@ class MentorEntry:
                 "MentorEntry missing required argument: 'stitch_id' "
                 "(legacy: 'entry_id')"
             )
-        self.entry_id = resolved_id
+        self.stitch_id = resolved_id
         self.profiles = profiles if profiles is not None else []
         self.status_lines = status_lines
         self.is_draft = is_draft
 
     @property
-    def stitch_id(self) -> str:
-        """Canonical alias for :attr:`entry_id`."""
-        return self.entry_id
+    def entry_id(self) -> str:
+        """Legacy compatibility alias for :attr:`stitch_id`."""
+        return self.stitch_id
 
-    @stitch_id.setter
-    def stitch_id(self, value: str) -> None:
-        self.entry_id = value
+    @entry_id.setter
+    def entry_id(self, value: str) -> None:
+        self.stitch_id = value
 
 
 @dataclass
@@ -556,7 +579,7 @@ class Patch:
     file_path: str
     line_number: int
     bug: str | None = None
-    commits: list[Stitch] | None = None
+    stitches: list[Stitch] | None = None
     hooks: list[HookEntry] | None = None
     comments: list[CommentEntry] | None = None
     mentors: list[MentorEntry] | None = None
@@ -564,6 +587,7 @@ class Patch:
     deltas: list[DeltaEntry] | None = None
     project_display_name: str | None = None
     refs: list[str] | None = None
+    stitch_section_header: str | None = None
 
     def __init__(
         self,
@@ -575,7 +599,7 @@ class Patch:
         file_path: str = "",
         line_number: int = 0,
         bug: str | None = None,
-        commits: list[Stitch] | None = None,
+        commits: Sequence[Stitch | Mapping[str, object]] | None = None,
         hooks: list[HookEntry] | None = None,
         comments: list[CommentEntry] | None = None,
         mentors: list[MentorEntry] | None = None,
@@ -583,15 +607,22 @@ class Patch:
         deltas: list[DeltaEntry] | None = None,
         project_display_name: str | None = None,
         refs: list[str] | None = None,
+        stitch_section_header: str | None = None,
         *,
         cl: str | None = None,
-        stitches: list[Stitch] | None = None,
+        stitches: Sequence[Stitch | Mapping[str, object]] | None = None,
     ) -> None:
         if pr_url is not None and cl is not None and pr_url != cl:
             raise ValueError("Patch received conflicting pr_url and legacy cl")
         if status is None:
             raise TypeError("Patch missing required argument: 'status'")
-        if commits is not None and stitches is not None and commits != stitches:
+        legacy_stitches = _coerce_stitch_list(commits)
+        canonical_stitches = _coerce_stitch_list(stitches)
+        if (
+            legacy_stitches is not None
+            and canonical_stitches is not None
+            and legacy_stitches != canonical_stitches
+        ):
             raise ValueError("Patch received conflicting commits and stitches")
 
         self.name = name
@@ -602,7 +633,9 @@ class Patch:
         self.file_path = file_path
         self.line_number = line_number
         self.bug = bug
-        self.commits = commits if commits is not None else stitches
+        self.stitches = (
+            canonical_stitches if canonical_stitches is not None else legacy_stitches
+        )
         self.hooks = hooks
         self.comments = comments
         self.mentors = mentors
@@ -610,6 +643,7 @@ class Patch:
         self.deltas = deltas
         self.project_display_name = project_display_name
         self.refs = refs
+        self.stitch_section_header = stitch_section_header
 
     @property
     def cl(self) -> str | None:
@@ -621,13 +655,13 @@ class Patch:
         self.pr_url = value
 
     @property
-    def stitches(self) -> list[Stitch] | None:
-        """Canonical alias for legacy :attr:`commits` storage."""
-        return self.commits
+    def commits(self) -> list[Stitch] | None:
+        """Legacy compatibility alias for :attr:`stitches`."""
+        return self.stitches
 
-    @stitches.setter
-    def stitches(self, value: list[Stitch] | None) -> None:
-        self.commits = value
+    @commits.setter
+    def commits(self, value: list[Stitch] | None) -> None:
+        self.stitches = value
 
     @property
     def project_basename(self) -> str:
@@ -649,7 +683,7 @@ class Patch:
 
         Cached because ``Path(...).parent.name`` is surprisingly expensive
         (pathlib churn) and this is read in hot filter paths for every
-        changespec on every filter pass.
+        patch on every filter pass.
         """
         return os.path.basename(os.path.dirname(self.file_path))
 

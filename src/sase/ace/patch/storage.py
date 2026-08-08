@@ -26,6 +26,14 @@ def is_stitch_section_header(line: str) -> bool:
     return line.startswith(STITCH_SECTION_HEADERS)
 
 
+def stitch_section_header_for(line: str) -> str | None:
+    """Return the normalized stitch-history header from *line*, if present."""
+    stripped = line.strip()
+    if stripped in STITCH_SECTION_HEADERS:
+        return stripped
+    return None
+
+
 __all__ = [
     "CANONICAL_PATCH_HEADING",
     "DEFAULT_STITCH_SECTION_HEADER",
@@ -34,4 +42,5 @@ __all__ = [
     "STITCH_SECTION_HEADERS",
     "is_patch_heading",
     "is_stitch_section_header",
+    "stitch_section_header_for",
 ]

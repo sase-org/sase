@@ -11,16 +11,16 @@ from .models import (
 )
 from .review_field import parse_review_url_line
 from .section_parsers import (
-    CommitEntryDict,
-    build_commit_entry,
+    StitchEntryDict,
+    build_stitch,
     parse_comments_line,
-    parse_commits_line,
     parse_deltas_line,
     parse_hooks_line,
     parse_mentors_line,
+    parse_stitches_line,
     parse_timestamps_line,
 )
-from .storage import is_patch_heading, is_stitch_section_header
+from .storage import is_patch_heading, stitch_section_header_for
 
 
 class _ParserState:
@@ -37,8 +37,8 @@ class _ParserState:
         self.refs: list[str] = []
 
         # Entry collections
-        self.commit_entries: list[Stitch] = []
-        self.current_commit_entry: CommitEntryDict | None = None
+        self.stitches: list[Stitch] = []
+        self.current_stitch: StitchEntryDict | None = None
         self.hook_entries: list[HookEntry] = []
         self.current_hook_entry: HookEntry | None = None
         self.comment_entries: list[CommentEntry] = []
@@ -50,11 +50,12 @@ class _ParserState:
         # Metadata
         self.line_number = start_idx + 1  # Convert to 1-based line numbering
         self.file_path = file_path
+        self.stitch_section_header: str | None = None
 
         # Section flags
         self.in_description = False
         self.in_refs = False
-        self.in_commits = False
+        self.in_stitches = False
         self.in_hooks = False
         self.in_comments = False
         self.in_mentors = False
@@ -65,7 +66,7 @@ class _ParserState:
         """Reset all section flags to False."""
         self.in_description = False
         self.in_refs = False
-        self.in_commits = False
+        self.in_stitches = False
         self.in_hooks = False
         self.in_comments = False
         self.in_mentors = False
@@ -74,9 +75,9 @@ class _ParserState:
 
     def save_pending_entries(self) -> None:
         """Save any pending entries before switching sections or finalizing."""
-        if self.current_commit_entry is not None:
-            self.commit_entries.append(build_commit_entry(self.current_commit_entry))
-            self.current_commit_entry = None
+        if self.current_stitch is not None:
+            self.stitches.append(build_stitch(self.current_stitch))
+            self.current_stitch = None
         if self.current_hook_entry is not None:
             self.hook_entries.append(self.current_hook_entry)
             self.current_hook_entry = None
@@ -100,12 +101,13 @@ class _ParserState:
                 line_number=self.line_number,
                 bug=self.bug,
                 refs=self.refs if self.refs else None,
-                stitches=self.commit_entries if self.commit_entries else None,
+                stitches=self.stitches if self.stitches else None,
                 hooks=self.hook_entries if self.hook_entries else None,
                 comments=self.comment_entries if self.comment_entries else None,
                 mentors=self.mentor_entries if self.mentor_entries else None,
                 timestamps=self.timestamp_entries if self.timestamp_entries else None,
                 deltas=self.delta_entries if self.delta_entries else None,
+                stitch_section_header=self.stitch_section_header,
             )
         return None
 
@@ -172,10 +174,12 @@ def _parse_section_header(state: _ParserState, line: str) -> bool:
         state.in_refs = True
         return True
 
-    if is_stitch_section_header(line):
+    stitch_header = stitch_section_header_for(line)
+    if stitch_header is not None:
         state.save_pending_entries()
         state.reset_section_flags()
-        state.in_commits = True
+        state.in_stitches = True
+        state.stitch_section_header = stitch_header
         return True
 
     if line.startswith("HOOKS:"):
@@ -236,9 +240,9 @@ def _parse_section_content(state: _ParserState, line: str) -> None:
         state.current_mentor_entry, state.mentor_entries = parse_mentors_line(
             line, stripped, state.current_mentor_entry, state.mentor_entries
         )
-    elif state.in_commits:
-        state.current_commit_entry, state.commit_entries = parse_commits_line(
-            line, stripped, state.current_commit_entry, state.commit_entries
+    elif state.in_stitches:
+        state.current_stitch, state.stitches = parse_stitches_line(
+            line, stripped, state.current_stitch, state.stitches
         )
     elif state.in_description and line.startswith("  "):
         # Description continuation (2-space indented)
@@ -272,7 +276,7 @@ def parse_patch_from_lines(
             break
         if line.strip() == "":
             consecutive_blank_lines += 1
-            # 2 blank lines indicate end of ChangeSpec
+            # 2 blank lines indicate end of Patch
             if consecutive_blank_lines >= 2:
                 break
         else:
@@ -290,7 +294,7 @@ def parse_patch_from_lines(
             idx -= 1
             break
 
-        # Try to parse section headers (COMMITS:, HOOKS:, etc.)
+        # Try to parse section headers (STITCHES:/COMMITS:, HOOKS:, etc.)
         if _parse_section_header(state, line):
             idx += 1
             continue

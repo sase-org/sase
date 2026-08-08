@@ -1,4 +1,4 @@
-"""REFS persistence — locked read-modify-write helpers for ChangeSpec files."""
+"""REFS persistence: locked read-modify-write helpers for ProjectSpec files."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from sase.artifact_ref_lists import normalize_artifact_ref_list
 
 from .locking import (
     LockTimeoutError,
-    changespec_lock,
-    write_changespec_atomic,
+    patch_lock,
+    write_patch_atomic,
 )
 from .refs_format import format_refs_field
 from .section_order import PATCH_SECTION_ORDER, PROJECT_SPEC_SECTION_HEADERS
@@ -25,10 +25,10 @@ def _starts_with_any(line: str, headers: tuple[str, ...]) -> bool:
 
 def apply_refs_update(
     lines: list[str],
-    changespec_name: str,
+    patch_name: str,
     refs: list[str] | tuple[str, ...],
 ) -> list[str]:
-    """Replace, insert, or remove one ChangeSpec's normalized REFS section."""
+    """Replace, insert, or remove one Patch's normalized REFS section."""
 
     normalized = normalize_artifact_ref_list(refs)
     formatted = format_refs_field(normalized)
@@ -44,7 +44,7 @@ def apply_refs_update(
         if line.startswith("NAME:"):
             current = line.split(":", 1)[1].strip()
             was_in_target = in_target
-            in_target = current == changespec_name
+            in_target = current == patch_name
             if was_in_target and not found_refs and formatted and not inserted:
                 updated.extend(formatted)
                 inserted = True
@@ -102,39 +102,39 @@ def apply_refs_update(
     return updated
 
 
-def update_changespec_refs_field(
+def update_patch_refs_field(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     refs: list[str] | tuple[str, ...],
 ) -> bool:
-    """Atomically normalize and persist one ChangeSpec's references."""
+    """Atomically normalize and persist one Patch's references."""
 
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as stream:
                 lines = stream.readlines()
-            updated = apply_refs_update(lines, changespec_name, refs)
+            updated = apply_refs_update(lines, patch_name, refs)
             if updated == lines:
                 return True
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "".join(updated),
-                f"Update REFS for {changespec_name}",
+                f"Update REFS for {patch_name}",
             )
             return True
     except LockTimeoutError:
         logging.warning(
             "Lock timeout updating refs for %s in %s",
-            changespec_name,
+            patch_name,
             project_file,
         )
         return False
     except Exception:
-        logging.exception("Failed to update refs for %s", changespec_name)
+        logging.exception("Failed to update refs for %s", patch_name)
         return False
 
 
-update_patch_refs_field = update_changespec_refs_field
+update_changespec_refs_field = update_patch_refs_field
 _apply_refs_update = apply_refs_update
 
 
