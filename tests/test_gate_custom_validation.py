@@ -63,7 +63,7 @@ def _results(execution: GateExecutionResult) -> dict[str, Any]:
 # -- answerability -----------------------------------------------------------
 
 
-def test_required_property_without_a_declared_input_is_rejected_at_creation(
+def test_required_property_with_no_control_behind_it_is_rejected_at_creation(
     gate_home: Path,
 ) -> None:
     spec = _single_option_spec(
@@ -72,7 +72,7 @@ def test_required_property_without_a_declared_input_is_rejected_at_creation(
             input_schema={
                 "type": "object",
                 "required": ["target_env"],
-                "properties": {"target_env": {"type": "string"}},
+                "properties": {"note": {"type": "string"}},
                 "additionalProperties": False,
             }
         ),
@@ -85,6 +85,66 @@ def test_required_property_without_a_declared_input_is_rejected_at_creation(
     assert excinfo.value.target == "options[0].input_schema"
     assert "'target_env'" in str(excinfo.value)
     assert "'inputs'" in str(excinfo.value)
+
+
+def test_a_raw_required_property_the_schema_declares_is_creatable_and_answerable(
+    gate_home: Path,
+) -> None:
+    """The raw-schema escape hatch every surface gained is credited here.
+
+    The reviewer types this value into ACE's YAML editor, ``sase gate answer
+    --option-input``, or the mobile bridge, so a required name the schema
+    declares under ``properties`` has a control behind it.
+    """
+    result = create_gate(
+        _single_option_spec(
+            request_id="raw-required",
+            option=_proceed_option(
+                input_schema={
+                    "type": "object",
+                    "required": ["reason"],
+                    "properties": {"reason": {"type": "string", "minLength": 3}},
+                    "additionalProperties": False,
+                }
+            ),
+        )
+    )
+
+    execution = execute_gate_selection(
+        result.bundle_path,
+        ["proceed"],
+        option_inputs={"proceed": {"reason": "rotating the key"}},
+    )
+
+    assert _results(execution) == {
+        "proceed": {"status": "ok", "input": {"reason": "rotating the key"}}
+    }
+
+
+def test_a_raw_property_constraint_the_probe_would_fail_is_still_creatable(
+    gate_home: Path,
+) -> None:
+    """A pattern is the reviewer's to satisfy, not a creation-time rejection."""
+    result = create_gate(
+        _single_option_spec(
+            request_id="raw-pattern",
+            option=_proceed_option(
+                input_schema={
+                    "type": "object",
+                    "required": ["ticket"],
+                    "properties": {
+                        "ticket": {"type": "string", "pattern": r"^OPS-\d+$"}
+                    },
+                }
+            ),
+        )
+    )
+
+    execution = execute_gate_selection(
+        result.bundle_path, ["proceed"], option_inputs={"proceed": {"ticket": "OPS-1"}}
+    )
+
+    assert _results(execution)["proceed"]["input"] == {"ticket": "OPS-1"}
 
 
 def test_the_same_gate_declaring_the_field_under_inputs_is_answerable(
@@ -145,25 +205,30 @@ def test_a_required_feedback_property_is_answerable_only_when_feedback_is_enable
     assert _results(execution)["proceed"]["input"] == {"feedback": "looks fine"}
 
 
-def test_a_required_property_declaring_a_format_says_format_is_annotation_only(
+def test_a_declared_format_is_annotation_only_at_creation_and_at_submission(
     gate_home: Path,
 ) -> None:
-    spec = _single_option_spec(
-        request_id="format-required",
-        option=_proceed_option(
-            input_schema={
-                "type": "object",
-                "required": ["contact"],
-                "properties": {"contact": {"type": "string", "format": "email"}},
-            }
-        ),
+    """``format`` is documentation, so it neither blocks nor constrains."""
+    result = create_gate(
+        _single_option_spec(
+            request_id="format-required",
+            option=_proceed_option(
+                input_schema={
+                    "type": "object",
+                    "required": ["contact"],
+                    "properties": {"contact": {"type": "string", "format": "email"}},
+                }
+            ),
+        )
     )
 
-    with pytest.raises(GateError) as excinfo:
-        create_gate(spec)
+    execution = execute_gate_selection(
+        result.bundle_path,
+        ["proceed"],
+        option_inputs={"proceed": {"contact": "not-an-email"}},
+    )
 
-    assert excinfo.value.code == "unanswerable_option"
-    assert "annotation-only" in str(excinfo.value)
+    assert _results(execution)["proceed"]["input"] == {"contact": "not-an-email"}
 
 
 def test_a_declared_default_makes_an_otherwise_unanswerable_option_answerable(

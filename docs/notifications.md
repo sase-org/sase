@@ -1017,14 +1017,21 @@ so it is documentation, never a constraint. Every stored schema is pinned to the
 2020-12 dialect.
 
 At creation, every option's effective schema is checked for **answerability**: SASE
-builds the richest value a client could actually submit — `{}` plus every declared
-`inputs` default plus `feedback` when the option's feedback mode allows it — and
-validates it against the schema. An option that could never be answered by any surface
-fails `sase gate create` with `unanswerable_option`, naming the offending required
-property, instead of being accepted and dying silently on first submission. Every input
-value is also bounded, both at creation and at submission: canonical JSON at most 64
-KiB, nesting depth at most 16, at most 128 properties in one object, and at most 512
-items in one array.
+builds the richest value a client could actually submit and checks that the schema can
+accept it. For an option declaring `inputs`, that value is `{}` plus every declared
+field's default plus `feedback` when the option's feedback mode allows it, validated
+against the compiled schema. For an option declaring a raw `input_schema` and no
+`inputs`, the reviewer types the value into a raw-schema editor — ACE's YAML editor,
+`sase gate answer --option-input`, or the mobile bridge's `option_inputs` — so every
+property declared under `properties` is producible and the schema's own constraints on
+those properties (patterns, bounds, types) are the reviewer's to satisfy. What still
+fails closed is a `required` name that nothing renders a control for: a name absent from
+`properties`, or `feedback` on an option whose feedback mode is `disabled`. An option
+that could never be answered by any surface fails `sase gate create` with
+`unanswerable_option`, naming the offending required property, instead of being accepted
+and dying silently on first submission. Every input value is also bounded, both at
+creation and at submission: canonical JSON at most 64 KiB, nesting depth at most 16, at
+most 128 properties in one object, and at most 512 items in one array.
 
 **Feedback is one rule everywhere.** The reviewer's free-text note is injected as
 `input.feedback` for a selected option **iff that option's effective `input_schema`
