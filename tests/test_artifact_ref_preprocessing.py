@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import hashlib
 import json
 from pathlib import Path
@@ -329,6 +330,41 @@ def test_ref_renderer_receives_primitive_context(
     assert (
         process_artifact_references("#ref/plans:report.md", context=context)
         == "plans|report.md|#ref/plans:report.md|@plans:report.md|document"
+    )
+
+
+def test_ref_renderer_context_uses_selected_project_with_multi_project_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = replace(
+        _context(tmp_path),
+        projects=(
+            ArtifactRefProject(name="alpha", key="gh_example__alpha"),
+            ArtifactRefProject(name="sase", key="gh_sase-org__sase"),
+        ),
+        selected_project="sase",
+    )
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    renderer = XPrompt(
+        name="ref/plans",
+        content="{{ ref.project }}|{{ sidecar }}|{{ file_path }}",
+        inputs=[InputArg("file_path", InputType.PATH)],
+        ref=True,
+        ref_kind="plans",
+        ref_sidecar_role="plans",
+    )
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "ref_renderer_registry",
+        lambda _context: {"ref/plans": renderer},
+    )
+
+    assert (
+        process_artifact_references("#ref/plans:report.md", context=context)
+        == "sase|plans|report.md"
     )
 
 

@@ -185,6 +185,10 @@ Artifact references cover more than indexed files:
 | `@commit:<repo>@<sha>`    | One repository revision                                                   |
 | `@bug:<project>#<number>` | One issue in the project's configured tracker                             |
 
+Document sidecars also have an explicit xprompt spelling: `#ref/research:path.md`
+resolves and renders the same artifact as `@research:path.md`. Use whichever spelling is
+clearer in the prompt you are composing; completion and filtering are shared.
+
 ACE can supply these without memorizing the grammar. Type `@` in the prompt bar for the
 grouped reference menu, or press `%` on an Artifacts entry to open **Copy as…**. The
 prompt bar and editor LSP both complete `@commit:` from local git checkouts, excluding
@@ -201,6 +205,8 @@ context. Inline-code and fenced-code examples stay literal.
 
 See the [`sase artifact` command reference](configuration.md#sase-artifact) for
 inspection, path, viewer, and repair commands. The
+[Artifact Reference XPrompts](xprompt.md#artifact-reference-xprompts) section documents
+custom renderers, `sase/refs/`, and sidecar filters. The
 [prompt preprocessing reference](llms.md#prompt-preprocessing-pipeline) explains
 expansion order and literal regions.
 

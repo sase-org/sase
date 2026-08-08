@@ -8,10 +8,13 @@ repository checkouts together without moving global configuration or runtime sta
 | ------------------------------ | -------------------------- |
 | Project configuration          | `<project>/sase/sase.yml`  |
 | Project xprompts and workflows | `<project>/sase/xprompts/` |
+| Project ref renderers          | `<project>/sase/refs/`     |
 | Project skills                 | `<project>/sase/skills/`   |
 | Project memory                 | `<project>/sase/memory/`   |
 | Workspace repository checkouts | `<project>/sase/repos/`    |
 | Home xprompts and workflows    | `~/sase/xprompts/`         |
+| Home ref renderers             | `~/sase/refs/`             |
+| Project-specific home refs     | `~/sase/refs/<project>/`   |
 | Home skills                    | `~/sase/skills/`           |
 | Home memory                    | `~/sase/memory/`           |
 
@@ -27,11 +30,12 @@ The namespace migration is intentionally narrow:
   `~/.config/sase/sase_*.yml`.
 - Runtime state remains under `~/.sase/` and the platform workspace state root.
 - Package resources remain under `src/sase/xprompts/`, `src/sase/default_xprompts/`,
-  `src/sase/xprompts/skills/`, `src/sase/skills/`, and `src/sase/memory/`. The
-  `src/sase/skills/` package contains Python helpers for `sase skill`; bundled skill
-  Markdown lives under `src/sase/xprompts/skills/`.
+  `src/sase/xprompts/refs/`, `src/sase/xprompts/skills/`, `src/sase/skills/`, and
+  `src/sase/memory/`. The `src/sase/skills/` package contains Python helpers for
+  `sase skill`; bundled skill Markdown lives under `src/sase/xprompts/skills/`.
 - Plugin xprompt resources remain in each plugin's package-level `xprompts/` directory,
-  with skills in a sibling `skills/` resource directory.
+  contextual ref renderers in a sibling `refs/` resource directory, and skills in a
+  sibling `skills/` resource directory.
 - SDD storage remains provider-owned; split sidecars are checked out under
   `sase/repos/`.
 
@@ -47,6 +51,7 @@ Move source files without changing their contents:
 Before                         After
 ./sase.yml                  -> ./sase/sase.yml
 ./.xprompts/ or ./xprompts/ -> ./sase/xprompts/
+./refs/                    -> ./sase/refs/
 ./memory/                   -> ./sase/memory/
 ```
 
@@ -94,6 +99,11 @@ The compatibility window is active for the 0.10 release line. No removal release
 assigned. Legacy reads will not be removed without a separately announced deprecation
 and updated migration guidance; new content should nevertheless be moved now because
 every writer already targets the canonical layout.
+
+`sase/refs/` is the canonical source for contextual `#ref/<kind>` renderer files, which
+must declare `ref: true`. The superseded `sase/artifact_refs/` directory is unsupported;
+it is not a compatibility location. See
+[Artifact Reference XPrompts](xprompt.md#artifact-reference-xprompts).
 
 ## XPrompt Compatibility Order
 

@@ -292,6 +292,7 @@ class ArtifactRefContext:
     bead_stores: tuple[ArtifactRefBeadStore, ...] = ()
     agent_roots: tuple[ArtifactRefAgentRoot, ...] = ()
     agent_owner: ArtifactRefAgentOwner | None = None
+    selected_project: str | None = None
 
     @property
     def known_kinds(self) -> tuple[str, ...]:

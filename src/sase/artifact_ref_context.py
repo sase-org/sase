@@ -127,6 +127,7 @@ def artifact_ref_context(
         bead_stores=bead_stores,
         agent_roots=agent_roots,
         agent_owner=agent_owner,
+        selected_project=_selected_project_name(project_filter, projects),
     )
 
 
@@ -253,6 +254,31 @@ def _workspace_project_ref(workspace: Path) -> str | None:
         return None
     marker = found[1]
     return marker.project_name or marker.project_key or None
+
+
+def _selected_project_name(
+    project_ref: str | None,
+    projects: tuple[ArtifactRefProject, ...],
+) -> str | None:
+    if project_ref is None:
+        return projects[0].name if len(projects) == 1 else None
+    folded = project_ref.casefold()
+    for project in projects:
+        if folded in {
+            project.name.casefold(),
+            project.key.casefold(),
+            _project_provider_slug(project.key).casefold(),
+            *(alias.casefold() for alias in project.aliases),
+        }:
+            return project.name
+    return None
+
+
+def _project_provider_slug(project_key: str) -> str:
+    if not project_key.startswith("gh_") or "__" not in project_key:
+        return project_key
+    owner, repository = project_key.removeprefix("gh_").split("__", 1)
+    return f"{owner}/{repository}"
 
 
 __all__ = [

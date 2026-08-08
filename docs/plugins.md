@@ -4,7 +4,8 @@ Sase uses Python
 [entry points](https://packaging.python.org/en/latest/specifications/entry-points/) to
 discover optional functionality installed in the same Python environment as `sase`.
 Runtime providers use [pluggy](https://pluggy.readthedocs.io/) hooks; resource plugins
-expose package data such as xprompt files and `default_config.yml`.
+expose package data such as xprompt files, contextual ref renderers, and
+`default_config.yml`.
 
 The core `sase` package provides the plugin infrastructure, the built-in LLM providers,
 and local git/directory workspace support. Extra packages add hosted VCS workflows,
@@ -19,13 +20,19 @@ Sase defines six entry point groups:
 | `sase_vcs`             | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                   |
 | `sase_workspace`       | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                   |
 | `sase_llm`             | Provider class    | LLM provider plugins                                | built-in or third-party         |
-| `sase_xprompts`        | Package module    | XPrompt templates and workflows                     | `my_sase_plugin`                |
+| `sase_xprompts`        | Package module    | XPrompt templates, workflows, and `refs/` renderers | `my_sase_plugin`                |
 | `sase_config`          | Package module    | Default configuration (`default_config.yml`)        | `sase-github`, `my_sase_plugin` |
 | `sase_plugin_manifest` | Package module    | Plugin metadata resource used by diagnostics        | third-party plugin packages     |
 
 Provider-class entry points resolve to a class that is instantiated and registered with
 pluggy. Package-module entry points resolve to a module whose package resources are read
 by Sase.
+
+An `sase_xprompts` package may provide ordinary templates in `xprompts/` and contextual
+artifact-reference renderer overrides in `refs/<kind>.md`. Ref renderer files must
+declare `ref: true` and can customize only artifact kinds already known to the selected
+project. See [Artifact Reference XPrompts](xprompt.md#artifact-reference-xprompts) for
+precedence and template context.
 
 ## Available Plugin Packages
 

@@ -50,6 +50,7 @@ resolver order.
 - [Discovery Order](#discovery-order)
 - [File Format](#file-format)
 - [Reference Syntax](#reference-syntax)
+  - [Artifact Reference XPrompts](#artifact-reference-xprompts)
 - [Arguments](#arguments)
 - [Shorthand Syntax](#shorthand-syntax)
 - [Typed Inputs](#typed-inputs)
@@ -502,6 +503,118 @@ contexts (e.g., shell completion or certain prompt editors).
 
 Markdown headings like `# Heading` are not matched because a space after `#` prevents
 the pattern from firing.
+
+### Artifact Reference XPrompts
+
+Every known artifact-reference kind has a contextual renderer named `ref/<kind>`. The
+compact artifact syntax and the explicit xprompt syntax are equivalent:
+
+```text
+@research:202608/artifact_reference_rendering/artifact_reference_rendering.md
+#ref/research:202608/artifact_reference_rendering/artifact_reference_rendering.md
+```
+
+Both forms resolve the same artifact, apply the same sidecar filters, stage and record
+the same canonical consumption entry, and render through the same template. A default
+path-backed sidecar renderer expands to:
+
+```text
+the 202608/artifact_reference_rendering/artifact_reference_rendering.md file in the research sidecar repo
+```
+
+`#ref/` is singular and contextual; names are not project-prefixed. The directory
+`sase/artifact_refs/` and namespace `#artifact_ref/` are unsupported.
+
+Renderer files are Markdown files in `refs` source directories and must declare
+`ref: true` in YAML front matter:
+
+```markdown
+---
+description: Render research references.
+ref: true
+---
+
+the {{ file_path }} research note
+```
+
+Definitions customize known artifact kinds only. They do not register new resolvers,
+change payload parsing, change sidecar availability, or weaken filters. A file named
+`research.md` can customize `research` only when `research` is already a known
+path-backed sidecar kind.
+
+Ref renderer precedence is first-wins:
+
+| Priority | Source                                                      |
+| -------- | ----------------------------------------------------------- |
+| 1        | Project `<project>/sase/refs/<kind>.md`                     |
+| 2        | Project sidecar config `repos.sidecar.*.<role>.ref.xprompt` |
+| 3        | Home `~/sase/refs/<kind>.md`                                |
+| 4        | Project-specific home `~/sase/refs/<project>/<kind>.md`     |
+| 5        | Plugin `refs/<kind>.md` resources                           |
+| 6        | Packaged built-in `src/sase/xprompts/refs/<kind>.md`        |
+| 7        | Generated default for a path-backed sidecar                 |
+
+The artifact registry owns the single canonical input for each kind:
+
+| Kind                                                | Input         | Type    | Completion source             |
+| --------------------------------------------------- | ------------- | ------- | ----------------------------- |
+| path-backed sidecars such as `plans` and `research` | `file_path`   | `path`  | filtered sidecar files        |
+| `commit`                                            | `commit`      | `line`  | commit artifact inventory     |
+| `chat`                                              | `file_path`   | `path`  | chat artifact inventory       |
+| `bug`                                               | `bug`         | `line`  | bug inventory                 |
+| `file`                                              | `artifact_id` | `line`  | artifact-file index           |
+| `bead`                                              | `bead_id`     | `word`  | current project's bead pages  |
+| `agent`                                             | `agent_name`  | `agent` | current project's agent pages |
+
+Renderer templates receive the canonical input variable plus `sidecar`, `fragment`,
+`fragment_annotation`, `legacy`, and a primitive `ref` mapping with `raw`, `canonical`,
+`kind`, `kind_type`, `payload`, `fragment`, `occurrence_index`, `resolved_path`,
+`checkout`, `url`, `project`, and `sidecar`. Undefined variables fail the launch with
+the renderer source named. Literal Jinja delimiters emitted by a renderer are protected
+from the later top-level Jinja pass, and renderer output is not recursively scanned for
+another artifact reference.
+
+Path-backed sidecars are configured under `repos.sidecar.*.<role>.ref`:
+
+```yaml
+repos:
+  sidecar:
+    custom:
+      research:
+        repo: sase--research
+        ref:
+          xprompt: "the {{ file_path }} research note"
+          filters:
+            path_globs:
+              - "**/*.md"
+              - "!drafts/**"
+```
+
+When `xprompt` is absent, document sidecars use the default sentence shown above. When
+`filters.path_globs` is absent, document sidecars accept `**/*.md`. An explicitly empty
+list accepts no files. Replace the list to opt into other extensions such as `**/*.png`.
+
+Filter semantics are shared by exact resolution, drift repair, canonicalization, `@`
+completion, and `#ref/` argument completion:
+
+- Paths are normalized, repo-relative POSIX paths.
+- Matching is case-sensitive.
+- `**/` matches zero or more directories, so `**/*.md` includes root-level and nested
+  Markdown files.
+- Positive patterns are OR-ed.
+- `!pattern` vetoes a positive match.
+- A negative-only list starts from allow-all, then applies vetoes.
+- Absolute paths and parent-traversing payloads are rejected before glob matching.
+- Filtered payloads are invalid artifacts with a `filtered` status and are absent from
+  both completion surfaces.
+
+The built-in `beads` and `agents` sidecars customize the singular `bead` and `agent`
+kinds. They may provide `ref.xprompt`; `ref.filters` is rejected because those kinds are
+not path-backed document sidecars.
+
+`sase xprompt list`, `sase xprompt show`, ACE, and the xprompt LSP expose ref entries
+with `kind: ref`, `ref_kind`, their canonical input, source provenance, and sidecar
+filter metadata.
 
 ## Arguments
 

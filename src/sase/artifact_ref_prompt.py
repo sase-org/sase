@@ -788,6 +788,8 @@ def _reference_project(
 ) -> str | None:
     if reference.kind_type == "bug" and resolution.locator is not None:
         return resolution.locator.rsplit("#", 1)[0]
+    if context.selected_project is not None:
+        return context.selected_project
     if context.projects:
         return context.projects[0].name
     return None

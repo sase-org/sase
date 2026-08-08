@@ -32,6 +32,9 @@ class XPromptWriteTarget:
     via_chezmoi: bool
 
 
+XPromptWriteTarget = _XPromptWriteTarget
+
+
 class WrittenFileKind(StrEnum):
     """Kind of source file written by an xprompt save surface."""
 

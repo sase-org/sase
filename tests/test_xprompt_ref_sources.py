@@ -107,6 +107,81 @@ def test_ref_registry_uses_sidecar_config_before_generated_defaults(
     assert designs.ref_path_globs == DEFAULT_DOCUMENT_REF_PATH_GLOBS
 
 
+def test_ref_registry_project_renderer_shadows_config_home_plugin_and_generated(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "workspace"
+    home_root = tmp_path / "home"
+    project_file = project_root / "sase" / "refs" / "research.md"
+    home_file = home_root / "sase" / "refs" / "research.md"
+    project_home_file = home_root / "sase" / "refs" / "demo" / "research.md"
+    _write_ref(project_file, body="Project {{ file_path }}")
+    _write_ref(home_file, body="Home {{ file_path }}")
+    _write_ref(project_home_file, body="Project-home {{ file_path }}")
+    policies = (
+        SidecarRefPolicy(
+            role="research",
+            ref_kind="research",
+            is_document=True,
+            xprompt="Configured {{ file_path }}",
+            path_globs=("reports/**/*.md",),
+        ),
+    )
+    monkeypatch.setattr(loader_refs, "_sidecar_policies", lambda _root: policies)
+    monkeypatch.setattr(
+        loader_refs,
+        "_plugin_ref_candidates",
+        lambda: iter(
+            (
+                loader_refs._RefCandidate(
+                    ref_kind="research",
+                    content="Plugin {{ file_path }}",
+                    source_path="plugin:demo/refs/research.md",
+                ),
+            )
+        ),
+    )
+
+    refs = loader_refs.load_ref_xprompts(
+        project_root=project_root,
+        home_root=home_root,
+        project="demo",
+    )
+
+    research = refs["ref/research"]
+    assert research.content.strip() == "Project {{ file_path }}"
+    assert research.source_path == str(project_file)
+    assert research.inputs[0].name == "file_path"
+    assert research.inputs[0].type == InputType.PATH
+    assert research.ref_shadowed_sources == (
+        "sidecar_ref_config:research",
+        str(home_file),
+        str(project_home_file),
+        "plugin:demo/refs/research.md",
+        "generated_sidecar_ref:research",
+    )
+
+
+def test_unknown_ref_file_records_source_aware_load_issue(tmp_path: Path) -> None:
+    project_root = tmp_path / "workspace"
+    source = project_root / "sase" / "refs" / "mystery.md"
+    _write_ref(source, body="Unknown {{ file_path }}")
+
+    with collect_xprompt_load_issues() as issues:
+        refs = loader_refs.load_ref_xprompts(
+            project_root=project_root,
+            home_root=tmp_path / "home",
+            project="demo",
+        )
+
+    assert "ref/mystery" not in refs
+    assert [(issue.kind, issue.source) for issue in issues] == [
+        ("ref", str(source)),
+    ]
+    assert "unknown ref kind 'mystery'" in issues[0].error
+
+
 def test_ref_metadata_is_rejected_outside_ref_sources(tmp_path: Path) -> None:
     source = tmp_path / "sase" / "xprompts" / "ordinary.md"
 

@@ -68,7 +68,7 @@ The xprompt language server is focused on prompt and xprompt editing:
 | VCS repositories        | Completes repository names after namespace slashes such as `#gh:owner/` through the owning workspace provider.                                                                                                                                                                                          |
 | Argument assistance     | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.                                                                                                                                                                              |
 | Directive completion    | Completes SASE prompt directives and fixed directive values, including `%model:` values from the live model catalog.                                                                                                                                                                                    |
-| Artifact references     | Fuzzy-completes bare `@` and `@query` tokens as artifact kinds, adding local paths on a kind-prefix miss or manual completion request, then completes local payloads after `@kind:`, including local commit references.                                                                                 |
+| Artifact references     | Fuzzy-completes bare `@` and `@query` tokens as artifact kinds, adding local paths on a kind-prefix miss or manual completion request, then completes local payloads after `@kind:` and `#ref/kind:`, including local commit references.                                                                |
 | File completion         | Completes path-like tokens and recent file-history entries; `@`-prefixed local paths appear automatically when no artifact kind prefix-matches, or on manual invocation.                                                                                                                                |
 | Snippets                | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                                                                                                                                                           |
 | Hover                   | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints. Memory entries also show their kind and tier (`short`/`long`).                                                                                                                                      |
@@ -94,7 +94,9 @@ enumerated from local git checkouts, excluding SDD sidecar repositories (`plans`
 `beads`, `agents`, `research`) since their commits are machine-written bookkeeping
 rather than a human's recent work. A sidecar commit reference still resolves when
 written out in full, such as `@commit:plans@<sha>` — the exclusion only curates what
-completion offers. `bug` references still receive shape validation only because issue
+completion offers. The same filtered payload inventory is used for `#ref/<kind>`
+argument completion, so a sidecar path excluded from `@research:` is also absent from
+`#ref/research:`. `bug` references still receive shape validation only because issue
 enumeration would require a network tracker. The LSP never contacts git hosts, issue
 trackers, or other network providers. Unknown `@kind:` text remains ordinary prose.
 

@@ -70,6 +70,8 @@ def _ref_input_type(name: str) -> InputType:
 
 
 def _context_project(context: ArtifactRefContext) -> str | None:
+    if context.selected_project is not None:
+        return context.selected_project
     if len(context.projects) == 1:
         return context.projects[0].name
     return None

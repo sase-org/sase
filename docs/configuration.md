@@ -1544,23 +1544,38 @@ repos:
       research:
         description: Durable SASE research reports and generated media.
         visibility: public
+        ref:
+          xprompt: "the {{ file_path }} research note"
+          filters:
+            path_globs: ["**/*.md", "!drafts/**"]
 ```
 
-| Field                                | Type           | Default  | Description                                                                         |
-| ------------------------------------ | -------------- | -------- | ----------------------------------------------------------------------------------- |
-| `github_orgs`                        | string or list | -        | GitHub user/org namespaces available to provider completion and PR workflows.       |
-| `default_linked_repos`               | boolean        | `true`   | Inject managed-project `--plans` and hidden `--agents` sidecars.                    |
-| `repos.linked[].auto_clone`          | boolean        | `false`  | Materialize and prepare the repository automatically before each agent launch.      |
-| `repos.linked[].name`                | string         | required | Stable alias used in generated environment variable names and memory summaries.     |
-| `repos.linked[].path`                | string         | required | Primary checkout path. Relative paths resolve from the project's primary workspace. |
-| `repos.linked[].description`         | string         | required | Human-readable purpose used when generating agent memory for the linked repository. |
-| `repos.sidecar.builtin.<role>`       | object         | -        | Override for a reserved role; the key must be `plans`, `beads`, or `agents`.        |
-| `repos.sidecar.custom.<role>`        | object         | -        | User-declared document sidecar; the key is the role and must not be a reserved one. |
-| `repos.sidecar.*.<role>.repo`        | string         | derived  | Optional bare slug or `owner/repo` pin.                                             |
-| `repos.sidecar.*.<role>.description` | string         | -        | Purpose shown in inventory; required in generated instructions for lazy entries.    |
-| `repos.sidecar.*.<role>.auto_clone`  | boolean        | `false`  | Materialize before agent launch; intrinsically ignored for `agents`.                |
-| `repos.sidecar.*.<role>.visibility`  | public/private | `public` | Remote visibility; project-local `private` overrides the `agents` default.          |
-| `repos.sidecar.*.<role>.disabled`    | boolean        | `false`  | Disable the entry and suppress matching implicit sidecars, including `agents`.      |
+| Field                                           | Type           | Default                             | Description                                                                         |
+| ----------------------------------------------- | -------------- | ----------------------------------- | ----------------------------------------------------------------------------------- |
+| `github_orgs`                                   | string or list | -                                   | GitHub user/org namespaces available to provider completion and PR workflows.       |
+| `default_linked_repos`                          | boolean        | `true`                              | Inject managed-project `--plans` and hidden `--agents` sidecars.                    |
+| `repos.linked[].auto_clone`                     | boolean        | `false`                             | Materialize and prepare the repository automatically before each agent launch.      |
+| `repos.linked[].name`                           | string         | required                            | Stable alias used in generated environment variable names and memory summaries.     |
+| `repos.linked[].path`                           | string         | required                            | Primary checkout path. Relative paths resolve from the project's primary workspace. |
+| `repos.linked[].description`                    | string         | required                            | Human-readable purpose used when generating agent memory for the linked repository. |
+| `repos.sidecar.builtin.<role>`                  | object         | -                                   | Override for a reserved role; the key must be `plans`, `beads`, or `agents`.        |
+| `repos.sidecar.custom.<role>`                   | object         | -                                   | User-declared document sidecar; the key is the role and must not be a reserved one. |
+| `repos.sidecar.*.<role>.repo`                   | string         | derived                             | Optional bare slug or `owner/repo` pin.                                             |
+| `repos.sidecar.*.<role>.description`            | string         | -                                   | Purpose shown in inventory; required in generated instructions for lazy entries.    |
+| `repos.sidecar.*.<role>.auto_clone`             | boolean        | `false`                             | Materialize before agent launch; intrinsically ignored for `agents`.                |
+| `repos.sidecar.*.<role>.visibility`             | public/private | `public`                            | Remote visibility; project-local `private` overrides the `agents` default.          |
+| `repos.sidecar.*.<role>.disabled`               | boolean        | `false`                             | Disable the entry and suppress matching implicit sidecars, including `agents`.      |
+| `repos.sidecar.*.<role>.ref.xprompt`            | string         | generated                           | Markdown/Jinja renderer body for the known artifact-reference kind.                 |
+| `repos.sidecar.*.<role>.ref.filters.path_globs` | list[string]   | `["**/*.md"]` for document sidecars | Repo-relative POSIX path filters for document artifact references.                  |
+
+Every enabled document sidecar exposes both compact `@<role>:<path>` references and the
+contextual `#ref/<role>:<path>` xprompt form. The `ref.xprompt` body customizes only the
+rendered prose; artifact availability and completion are still controlled by the
+artifact registry and `ref.filters.path_globs`. The built-in `beads` and `agents`
+sidecars map to the singular `bead` and `agent` kinds and may customize `ref.xprompt`,
+but `ref.filters` is invalid for them. See
+[Artifact Reference XPrompts](xprompt.md#artifact-reference-xprompts) for source
+precedence, canonical inputs, template context, and exact glob semantics.
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace
 numbers use `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by

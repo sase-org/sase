@@ -162,6 +162,7 @@ def test_workspace_context_resolves_entities_with_multiple_projects(
 
     context = artifact_refs.artifact_ref_context(workspace, 16)
 
+    assert context.selected_project == "sase"
     bead = artifact_refs.resolve_artifact_ref("bead:sase-b2", context=context)
     agent = artifact_refs.resolve_artifact_ref("agent:sase-b2.9", context=context)
     assert bead.status == "exact"
