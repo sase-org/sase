@@ -31,10 +31,12 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
 
     init_parser = skills_subparsers.add_parser(
         "init",
-        help="Generate and deploy agent skill files from xprompt sources",
+        help="Generate and deploy agent skill files from canonical skill sources",
         description=(
-            "Generate and deploy agent skill files from xprompt sources. "
-            "Commit xprompt template changes and land them on the canonical "
+            "Generate and deploy agent skill files from canonical skill "
+            "sources (Markdown files in a skills/ directory that declare a "
+            "truthy `skill:` value). Commit source changes and land them on "
+            "the canonical "
             "branch before deploying: a chezmoi deploy is refused when the "
             "sources are uncommitted, when HEAD is not an ancestor of the "
             "canonical branch, or when it would move the destination off the "
@@ -50,7 +52,8 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Show generated skill source and target status",
         description=(
             "Show generated SASE skill sources, provider targets, and target "
-            "drift without writing files."
+            "drift without writing files, plus any source that declares "
+            "`skill:` outside a canonical skills/ directory."
         ),
     )
 

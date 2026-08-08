@@ -75,6 +75,62 @@ def test_editor_helper_bridge_aliases_xprompt_catalog(
     assert stderr.getvalue() == ""
     assert data["context"] == {"project": "sase", "scope": "explicit"}
     assert data["entries"][0]["name"] == "edit"
+    assert data["entries"][0]["skill_name"] is None
+
+
+def test_editor_helper_bridge_carries_the_provider_skill_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.integrations.mobile_helpers.build_structured_xprompts_catalog",
+        lambda **_kwargs: StructuredCatalogProjection(
+            entries=[
+                StructuredCatalogEntry(
+                    name="skills/sase_plan",
+                    display_label="skills/sase_plan",
+                    insertion="#skills/sase_plan",
+                    reference_prefix="#",
+                    kind="xprompt",
+                    description="Create an implementation plan",
+                    source_bucket="package",
+                    project=None,
+                    tags=[],
+                    input_signature=None,
+                    inputs=[],
+                    is_skill=True,
+                    content_preview="Plan preview",
+                    source_path_display="skills/sase_plan.md",
+                    skill_name="sase_plan",
+                )
+            ],
+            stats=StructuredCatalogStats(
+                total_count=1,
+                project_count=0,
+                skill_count=1,
+                pdf_requested=False,
+            ),
+            warnings=[],
+            skipped=[],
+            catalog_attachment=None,
+        ),
+    )
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+
+    code = handle_editor_helper_bridge(
+        argparse.Namespace(editor_helper_bridge_subcommand="xprompt-catalog"),
+        stdin=io.StringIO(json.dumps({"schema_version": 1})),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    entry = json.loads(stdout.getvalue())["entries"][0]
+    assert code == 0
+    # The two names never collapse: ``#skills/sase_plan`` expands the source
+    # that ``/sase_plan`` invokes.
+    assert entry["name"] == "skills/sase_plan"
+    assert entry["is_skill"] is True
+    assert entry["skill_name"] == "sase_plan"
 
 
 def test_editor_helper_bridge_outputs_definition_path_for_real_catalog_file(

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.widgets import Static
 
+from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
+    append_xprompt_completion_row,
+)
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import (
@@ -207,6 +211,49 @@ def test_slash_skill_completion_finds_packaged_sase_skills() -> None:
     assert by_name["sase_plan"].display == "/sase_plan"
     assert by_name["sase_plan"].insertion == "/sase_plan"
     assert by_name["sase_plan"].metadata.is_skill is True
+
+
+def test_both_reference_forms_resolve_the_same_source_definition() -> None:
+    entry = _entry("sase_plan", inputs=(_input("topic", "line"),), is_skill=True)
+    entries = [entry]
+
+    hash_candidates, _ = build_xprompt_completion_candidates(
+        "#skills/sase_pl",
+        entries=entries,
+    )
+    slash_candidates, _ = build_xprompt_completion_candidates(
+        "/sase_pl",
+        entries=entries,
+    )
+
+    assert [c.insertion for c in hash_candidates] == ["#skills/sase_plan"]
+    assert [c.insertion for c in slash_candidates] == ["/sase_plan"]
+    # Argument hints come from the metadata entry, so both forms must hand the
+    # panel the very same definition.
+    assert hash_candidates[0].metadata is entry
+    assert slash_candidates[0].metadata is entry
+
+
+def test_reference_row_advertises_the_slash_name_and_the_slash_row_does_not() -> None:
+    entry = _entry("sase_plan", is_skill=True)
+    hash_candidate = build_xprompt_completion_candidates(
+        "#skills/sase_plan",
+        entries=[entry],
+    )[0][0]
+    slash_candidate = build_xprompt_completion_candidates(
+        "/sase_plan",
+        entries=[entry],
+    )[0][0]
+
+    hash_row = Text()
+    append_xprompt_completion_row(hash_row, hash_candidate, False)
+    slash_row = Text()
+    append_xprompt_completion_row(slash_row, slash_candidate, False)
+
+    assert "#skills/sase_plan" in hash_row.plain
+    assert "skill" in hash_row.plain
+    assert "/sase_plan" in hash_row.plain
+    assert slash_row.plain.count("/sase_plan") == 1
 
 
 def test_slash_skill_completion_extends_shared_prefix() -> None:

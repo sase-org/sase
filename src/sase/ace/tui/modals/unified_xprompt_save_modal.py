@@ -22,6 +22,7 @@ from sase.xprompt.naming import (
     validate_snippet_trigger,
     validate_xprompt_name,
 )
+from sase.content_layout import skill_reference_name
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat
 from sase.xprompt.save_index import (
@@ -225,8 +226,9 @@ class UnifiedXPromptSaveModal(
             title = f"Save pane as snippet — {suffix}"
         else:
             marker = "✓" if not self._frontmatter.is_empty else "—"
+            noun = "skill" if self._frontmatter.skill else "xprompt"
             title = (
-                f"Save draft as xprompt — {self._pane_count} {pane_word} · "
+                f"Save draft as {noun} — {self._pane_count} {pane_word} · "
                 f"frontmatter {marker}"
             )
         self.query_one("#unified-save-title", Label).update(title)
@@ -335,12 +337,13 @@ class UnifiedXPromptSaveModal(
         collision = self._collides(row, name)
         resolution = self._resolution(row, name)
         identity = self._identity()
+        reference = self._reference_label(row, name)
         if collision:
             verdict.set_classes("unified-save-verdict-warning")
             if self._armed_identity == identity:
-                message = f"⚠ Press Enter again to overwrite #{name} at {display}"
+                message = f"⚠ Press Enter again to overwrite {reference} at {display}"
             else:
-                message = f"⚠ #{name} exists here — press Enter to review overwrite"
+                message = f"⚠ {reference} exists here — press Enter to review overwrite"
             if resolution.shadowed_by:
                 message += f" · shadowed by {self._short_path(resolution.shadowed_by)}"
             verdict.update(message)
@@ -352,10 +355,22 @@ class UnifiedXPromptSaveModal(
             )
             return
         verdict.set_classes("unified-save-verdict-success")
-        message = f"✓ Create #{name} at {display}"
+        message = f"✓ Create {reference} at {display}"
         if resolution.shadows:
             message += f" · shadows {self._short_path(resolution.shadows)}"
         verdict.update(message)
+
+    @staticmethod
+    def _reference_label(row: UnifiedSaveLocation, name: str) -> str:
+        """Return how the saved definition will be referenced.
+
+        A skill has two names: the namespaced ``#`` reference that expands it
+        and the ``/`` name it installs as. Both are shown so the panel never
+        implies a skill answers to ``#<name>``.
+        """
+        if not row.is_skill_destination:
+            return f"#{name}"
+        return f"#{skill_reference_name(name, row.skill_project)} · /{name}"
 
     @staticmethod
     def _short_path(path: str) -> str:

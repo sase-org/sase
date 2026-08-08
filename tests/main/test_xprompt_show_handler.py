@@ -20,6 +20,7 @@ def _record(**overrides: object) -> XPromptShowRecord:
         prefix="#",
         kind="xprompt",
         is_skill=False,
+        skill_name=None,
         is_swarm=False,
         segment_count=1,
         description="Demo prompt.",

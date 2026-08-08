@@ -8,9 +8,11 @@ repository checkouts together without moving global configuration or runtime sta
 | ------------------------------ | -------------------------- |
 | Project configuration          | `<project>/sase/sase.yml`  |
 | Project xprompts and workflows | `<project>/sase/xprompts/` |
+| Project skills                 | `<project>/sase/skills/`   |
 | Project memory                 | `<project>/sase/memory/`   |
 | Workspace repository checkouts | `<project>/sase/repos/`    |
 | Home xprompts and workflows    | `~/sase/xprompts/`         |
+| Home skills                    | `~/sase/skills/`           |
 | Home memory                    | `~/sase/memory/`           |
 
 The root `AGENTS.md` and provider instruction files remain at the project or home root
@@ -24,15 +26,16 @@ The namespace migration is intentionally narrow:
 - Global configuration remains `~/.config/sase/sase.yml`, with overlays at
   `~/.config/sase/sase_*.yml`.
 - Runtime state remains under `~/.sase/` and the platform workspace state root.
-- Package resources remain under `src/sase/xprompts/`, `src/sase/default_xprompts/`, and
-  `src/sase/memory/`.
-- Plugin xprompt resources remain in each plugin's package-level `xprompts/` directory.
+- Package resources remain under `src/sase/xprompts/`, `src/sase/default_xprompts/`,
+  `src/sase/skills/`, and `src/sase/memory/`.
+- Plugin xprompt resources remain in each plugin's package-level `xprompts/` directory,
+  with skills in a sibling `skills/` resource directory.
 - SDD storage remains provider-owned; split sidecars are checked out under
   `sase/repos/`.
 
-When `use_chezmoi: true`, the managed sources for home xprompts and memory are
-`home/sase/xprompts/` and `home/sase/memory/`. The global config source remains
-`home/dot_config/sase/sase.yml`.
+When `use_chezmoi: true`, the managed sources for home xprompts, skills, and memory are
+`home/sase/xprompts/`, `home/sase/skills/`, and `home/sase/memory/`. The global config
+source remains `home/dot_config/sase/sase.yml`.
 
 ## Migrating A Project
 
@@ -112,3 +115,19 @@ The complete first-wins order is:
 Markdown xprompts, YAML workflows, and shared `steps/` follow the same filesystem order
 where the source supports that format. See [XPrompts](xprompt.md#discovery-order) and
 the [workflow specification](workflow_spec.md#search-paths) for format-specific details.
+
+## Skill Order
+
+Skills have their own first-wins order and no legacy paths — a skill source outside a
+canonical `skills/` directory is rejected rather than read:
+
+1. `<project>/sase/skills/`
+2. `~/sase/skills/`
+3. `~/sase/skills/<project>/`
+4. Plugin `skills/` resources
+5. Package `src/sase/skills/`
+
+Scopes 1 and 3 namespace the xprompt reference with the project, so a source named `foo`
+is expanded as `#<project>/skills/foo` there and `#skills/foo` elsewhere. The provider
+skill name stays `foo` in every scope. See [Skill Field](xprompt.md#skill-field) for the
+full contract.

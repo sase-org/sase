@@ -26,6 +26,7 @@ def _record(**overrides: object) -> XPromptShowRecord:
         prefix="#",
         kind="xprompt",
         is_skill=False,
+        skill_name=None,
         is_swarm=False,
         segment_count=1,
         description=None,
@@ -134,6 +135,28 @@ def test_color_output_uses_shared_role_styles() -> None:
     assert styles["xprompt.invocation"].ansi_sgr in rendered
     assert styles["xprompt.directive"].ansi_sgr in rendered
     assert styles["xprompt.separator"].ansi_sgr in rendered
+
+
+def test_skill_shows_both_the_reference_and_the_slash_name() -> None:
+    record = _record(
+        name="skills/sase_plan",
+        reference="#skills/sase_plan",
+        is_skill=True,
+        skill_name="sase_plan",
+        skill=True,
+    )
+
+    rendered = _render(record, color=False)
+
+    assert "skill · /sase_plan" in rendered
+    assert "#skills/sase_plan" in rendered
+    assert "slash" in rendered
+
+
+def test_non_skill_omits_the_slash_row() -> None:
+    rendered = _render(_record(), color=False)
+
+    assert "slash" not in rendered
 
 
 def test_empty_sections_are_omitted() -> None:

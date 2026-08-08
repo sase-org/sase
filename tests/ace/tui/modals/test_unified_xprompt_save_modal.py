@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, OptionList, Static
+from textual.widgets import Input, Label, OptionList, Static
 
 from sase.ace.tui.modals.unified_xprompt_save_modal import (
     UnifiedSaveLocation,
@@ -33,6 +33,8 @@ def _row(
     precedence: int = 0,
     disabled_reason: str | None = None,
     namespace: str | None = None,
+    is_skill_destination: bool = False,
+    skill_project: str | None = None,
 ) -> UnifiedSaveLocation:
     return UnifiedSaveLocation(
         location=XPromptLocation(label, str(path), location_type),  # type: ignore[arg-type]
@@ -42,6 +44,8 @@ def _row(
         precedence=precedence,
         disabled_reason=disabled_reason,
         namespace=namespace,
+        is_skill_destination=is_skill_destination,
+        skill_project=skill_project,
     )
 
 
@@ -316,6 +320,53 @@ async def test_project_local_target_rejects_missing_namespace(tmp_path: Path) ->
             "must start with project/"
             in modal.query_one("#unified-save-verdict", Static).render().plain
         )
+
+
+async def test_skill_destination_verdict_shows_both_names(tmp_path: Path) -> None:
+    directory = tmp_path / "skills"
+    directory.mkdir()
+    app = _ModalApp()
+    async with app.run_test(size=(110, 35)) as pilot:
+        app.push_screen(
+            UnifiedXPromptSaveModal(
+                [_row(directory, is_skill_destination=True)],
+                initial_name="foo",
+                frontmatter=PromptFrontmatter(skill=True),
+                body="body",
+            )
+        )
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, UnifiedXPromptSaveModal)
+        verdict = modal.query_one("#unified-save-verdict", Static).render().plain
+        title = modal.query_one("#unified-save-title", Label).render().plain
+
+    # The panel never implies a skill answers to ``#foo``.
+    assert "#skills/foo · /foo" in verdict
+    assert "Save draft as skill" in title
+
+
+async def test_project_skill_destination_verdict_is_project_qualified(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "skills"
+    directory.mkdir()
+    app = _ModalApp()
+    async with app.run_test(size=(110, 35)) as pilot:
+        app.push_screen(
+            UnifiedXPromptSaveModal(
+                [_row(directory, is_skill_destination=True, skill_project="app")],
+                initial_name="foo",
+                frontmatter=PromptFrontmatter(skill=True),
+                body="body",
+            )
+        )
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, UnifiedXPromptSaveModal)
+        verdict = modal.query_one("#unified-save-verdict", Static).render().plain
+
+    assert "#app/skills/foo · /foo" in verdict
 
 
 async def test_shadowed_destination_has_truthful_warning(tmp_path: Path) -> None:

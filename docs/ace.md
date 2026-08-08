@@ -4114,10 +4114,12 @@ token under the cursor:
   parenthesized form. Failed or empty lookups show a placeholder row in ACE; stale
   cached results are reused when a refresh fails.
 - **Slash-skill completion**: When the cursor is on a slash-skill token such as `/` or
-  `/sase_`, completion filters the same catalog to xprompts marked as `skill: true` and
-  inserts `/skill_name`. Packaged built-in skills are included, so `/sase_plan`,
-  `/sase_questions`, and other bundled SASE skills are available without a project-local
-  xprompt file.
+  `/sase_`, completion filters the same catalog to skill sources and inserts
+  `/<skill_name>` — the provider name, not the `#` reference. The same source completes
+  as `#skills/sase_plan` after a `#`, and both forms resolve one definition, so argument
+  hints, previews, and jumps agree. Packaged built-in skills are included, so
+  `/sase_plan`, `/sase_questions`, and other bundled SASE skills are available without a
+  project-local skill file.
 - **XPrompt argument completion**: When the cursor is inside a known xprompt argument
   position, `Ctrl+T` completes the active argument instead of the xprompt name. For
   `path` inputs it delegates to file path completion, for `bool` inputs it offers `true`

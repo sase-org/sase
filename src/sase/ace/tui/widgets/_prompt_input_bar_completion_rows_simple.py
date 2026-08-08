@@ -38,6 +38,10 @@ def append_xprompt_completion_row(
 
     kind = "skill" if entry.is_skill else entry.kind
     content.append(f"  {kind}", style="dim")
+    # A ``#skills/foo`` row also advertises the ``/foo`` name the same source
+    # installs as; the slash row already shows that name as its display.
+    if entry.is_skill and entry.skill_name and not candidate.display.startswith("/"):
+        content.append(f"  /{entry.skill_name}", style="dim")
     if entry.description:
         content.append(f"  {entry.description}", style="dim")
     append_input_hints(content, entry.inputs)

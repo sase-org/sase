@@ -10,6 +10,7 @@ import tempfile
 import yaml  # type: ignore[import-untyped]
 
 from sase.xprompt.config_yaml import insert_xprompt_into_config
+from sase.xprompt.loader_skills import config_skill_destination
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 
@@ -18,6 +19,10 @@ class SaveTargetFormat(StrEnum):
 
     MARKDOWN = "markdown"
     CONFIG = "config"
+
+
+class SkillPlacementError(ValueError):
+    """Raised when a write would place a skill outside a skill source."""
 
 
 def build_markdown_xprompt(frontmatter: PromptFrontmatter, body: str) -> str:
@@ -38,12 +43,38 @@ def save_markdown_xprompt(
 ) -> None:
     """Write a markdown xprompt file."""
     file_path = Path(path)
+    _reject_misplaced_skill_write(file_path, declares_skill=bool(frontmatter.skill))
     _atomic_write_text(file_path, build_markdown_xprompt(frontmatter, body))
 
 
 def save_markdown_document(path: str | Path, markdown: str) -> None:
     """Atomically write already-assembled xprompt Markdown."""
-    _atomic_write_text(Path(path), markdown)
+    file_path = Path(path)
+    _reject_misplaced_skill_write(
+        file_path,
+        declares_skill=bool(PromptFrontmatter.parse(markdown).skill),
+    )
+    _atomic_write_text(file_path, markdown)
+
+
+def _reject_misplaced_skill_write(path: Path, *, declares_skill: bool) -> None:
+    """Refuse to write a skill definition outside a canonical skill source.
+
+    Ordinary prompt destinations keep working unchanged; this only stops a
+    ``skill:`` declaration from being smuggled into ``sase/xprompts/`` or any
+    other directory discovery would never read a skill from.
+    """
+    if not declares_skill:
+        return
+    from sase.content_layout import skill_placement_issue
+    from sase.xprompt.skill_locations import is_canonical_skill_directory
+
+    if is_canonical_skill_directory(path.parent):
+        return
+    issue = skill_placement_issue(path, in_skill_source=False, declares_skill=True)
+    raise SkillPlacementError(
+        issue.message if issue is not None else f"{path} cannot declare `skill:`"
+    )
 
 
 def save_config_xprompt(
@@ -53,6 +84,13 @@ def save_config_xprompt(
     body: str,
 ) -> bool:
     """Insert or replace a config-backed xprompt entry."""
+    if frontmatter.skill:
+        # Config entries can never be skills: generation needs a Markdown
+        # source in a canonical skill directory to render from.
+        raise SkillPlacementError(
+            f"{config_path} cannot define the skill {name!r}; "
+            f"move it to {config_skill_destination()}"
+        )
     return insert_xprompt_into_config(
         str(config_path),
         name,
@@ -104,6 +142,7 @@ def _atomic_write_text(path: Path, text: str) -> None:
 
 __all__ = [
     "SaveTargetFormat",
+    "SkillPlacementError",
     "build_markdown_xprompt",
     "load_config_xprompt_markdown",
     "save_config_xprompt",

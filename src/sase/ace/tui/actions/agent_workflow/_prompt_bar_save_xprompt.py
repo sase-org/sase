@@ -10,7 +10,7 @@ from sase.ace.tui.widgets._local_xprompt_conversion import (
 )
 from sase.xprompt.jinja_inspect import inspect_template
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import SaveTargetFormat
+from sase.xprompt.save import SaveTargetFormat, SkillPlacementError
 
 from ._prompt_bar_save_xprompt_git import (
     process_error_text,
@@ -106,8 +106,12 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             if self._prompt_context is not None
             else None
         )
+        # A draft declaring ``skill:`` may only be written to a canonical
+        # ``skills/`` directory, so it gets a different destination index.
         locations, snippet_locations, last_used = await asyncio.gather(
-            asyncio.to_thread(load_unified_save_locations, project),
+            asyncio.to_thread(
+                load_unified_save_locations, project, skill=bool(frontmatter.skill)
+            ),
             asyncio.to_thread(load_unified_snippet_locations, project),
             asyncio.to_thread(load_last_used_locations),
         )
@@ -235,6 +239,9 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
                 await asyncio.to_thread(save_markdown_document, binding.path, preserved)
             else:
                 await asyncio.to_thread(write_binding_sync, binding, frontmatter, body)
+        except SkillPlacementError as exc:
+            self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
+            return
         except Exception as exc:
             self.notify(f"Failed to write xprompt: {exc}", severity="error")  # type: ignore[attr-defined]
             return
@@ -312,6 +319,10 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             await asyncio.to_thread(
                 save_last_used_location, "xprompt", target.location_path
             )
+        except SkillPlacementError as exc:
+            # The message already names the source and the required move.
+            self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
+            return
         except Exception as exc:
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to save xprompt: {exc}",

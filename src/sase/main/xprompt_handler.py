@@ -95,6 +95,9 @@ def _handle_list() -> None:
     items = []
     for name, wf in sorted(prompts.items()):
         is_simple = wf.is_simple_xprompt()
+        skill_xprompt = (
+            xprompts[name] if name in xprompts and name not in workflow_names else None
+        )
         user_inputs = [inp for inp in wf.inputs if not inp.is_step_input]
         inputs_json = []
         for inp in user_inputs:
@@ -141,11 +144,10 @@ def _handle_list() -> None:
                 "kind": workflow_kind_value(wf),
                 "prefix": workflow_reference_prefix(wf),
                 "insertion": workflow_reference_insertion(name, wf),
-                "is_skill": (
-                    bool(xprompts[name].skill)
-                    if name in xprompts and name not in workflow_names
-                    else False
-                ),
+                "is_skill": bool(skill_xprompt and skill_xprompt.skill),
+                # The provider-visible ``/`` name; ``name`` above stays the
+                # ``#skills/<name>`` xprompt reference.
+                "skill_name": skill_xprompt.skill_name if skill_xprompt else None,
                 "description": wf.description,
                 "source": wf.source_path,
                 "inputs": inputs_json,

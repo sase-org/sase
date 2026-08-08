@@ -158,6 +158,7 @@ def resolve_show_record(
         prefix=workflow_reference_prefix(selected_workflow),
         kind=workflow_kind_value(selected_workflow),
         is_skill=bool(selected_xprompt and selected_xprompt.skill),
+        skill_name=selected_xprompt.skill_name if selected_xprompt else None,
         is_swarm=segment_count > 1,
         segment_count=segment_count,
         description=selected_workflow.description,

@@ -23,6 +23,7 @@ from sase.xprompt.loader import detect_project
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat
 from sase.xprompt.save_index import IndexKind, names_for_location
+from sase.xprompt.skill_locations import SkillDestination, skill_destinations
 
 from .snippet_config_location_modal import load_snippet_config_locations
 from .xprompt_location_modal import (
@@ -47,6 +48,14 @@ class UnifiedSaveLocation:
     builtin: bool = False
     precedence: int = 0
     namespace: str | None = None
+    is_skill_destination: bool = False
+    """Whether this row is a canonical ``skills/`` directory.
+
+    Skill rows leave :attr:`namespace` unset: the typed name is both the file
+    name and the ``/`` skill name, and only the ``#`` reference is namespaced.
+    :attr:`skill_project` carries that namespace instead.
+    """
+    skill_project: str | None = None
 
     @property
     def is_selectable(self) -> bool:
@@ -68,9 +77,19 @@ class UnifiedXPromptSaveResult:
     frontmatter: PromptFrontmatter
 
 
-def load_unified_save_locations(project: str | None) -> list[UnifiedSaveLocation]:
-    """Build a names-only xprompt destination index off the event loop."""
+def load_unified_save_locations(
+    project: str | None,
+    *,
+    skill: bool = False,
+) -> list[UnifiedSaveLocation]:
+    """Build a names-only xprompt destination index off the event loop.
+
+    A draft declaring ``skill:`` is only offered canonical ``skills/``
+    directories, because that is the only placement discovery accepts.
+    """
     effective_project = project if project is not None else detect_project()
+    if skill:
+        return _skill_save_locations(effective_project)
     grouped = get_all_xprompt_locations(project)
     locations: list[tuple[str, XPromptLocation]] = [
         (group, location)
@@ -113,6 +132,37 @@ def load_unified_save_locations(project: str | None) -> list[UnifiedSaveLocation
         "Built-in (dev)": 5,
     }
     return sorted(rows, key=lambda row: (group_order[row.group], row.precedence))
+
+
+def _skill_save_locations(project: str | None) -> list[UnifiedSaveLocation]:
+    """Build destination rows for the canonical skill directories."""
+    return [
+        _skill_save_location(destination, precedence, project)
+        for precedence, destination in enumerate(skill_destinations(project))
+    ]
+
+
+def _skill_save_location(
+    destination: SkillDestination,
+    precedence: int,
+    project: str | None,
+) -> UnifiedSaveLocation:
+    """Turn one canonical skill directory into a destination row."""
+    path = destination.path
+    return UnifiedSaveLocation(
+        location=XPromptLocation(destination.label, str(path), "directory"),
+        group="Built-in (dev)" if destination.builtin else "Skill directories",
+        display_path=shorten_xprompt_location_path(
+            str(path), str(Path.cwd()), str(Path.home())
+        ),
+        names=names_for_location("directory", str(path)),
+        disabled_reason=_writability_reason(path, "directory"),
+        will_create=not path.exists(),
+        builtin=destination.builtin,
+        precedence=precedence,
+        is_skill_destination=True,
+        skill_project=project if destination.project_namespaced else None,
+    )
 
 
 def load_unified_snippet_locations(

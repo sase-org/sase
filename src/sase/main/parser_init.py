@@ -23,7 +23,7 @@ def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
         "--allow-dirty",
         action="store_true",
         help=(
-            "Allow a chezmoi deploy from dirty or unmerged xprompt sources "
+            "Allow a chezmoi deploy from dirty or unmerged skill sources "
             "(dangerous: can revert other agents' deployments)"
         ),
     )
@@ -226,7 +226,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Alias for `sase skill init`",
         description=(
             "Compatibility alias for `sase skill init`, which generates and "
-            "deploys agent skill files from xprompt sources."
+            "deploys agent skill files from canonical skill sources."
         ),
     )
     add_skills_init_arguments(skills_parser)

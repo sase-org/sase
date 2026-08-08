@@ -127,6 +127,7 @@ def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
                     for inp in entry.inputs
                 ],
                 "is_skill": entry.is_skill,
+                "skill_name": entry.skill_name,
                 "content_preview": entry.content_preview,
                 "source_path_display": entry.source_path_display,
                 "definition_path": entry.definition_path,

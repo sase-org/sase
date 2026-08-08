@@ -313,6 +313,7 @@ def test_record_json_projection_is_complete_and_serializable(
         "prefix",
         "kind",
         "is_skill",
+        "skill_name",
         "is_swarm",
         "segment_count",
         "description",

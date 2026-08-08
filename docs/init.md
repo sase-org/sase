@@ -415,24 +415,28 @@ SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in
 
 ## Skill Initialization
 
-Generated skills start as xprompt sources marked with a `skill` frontmatter field.
+Generated skills start as Markdown sources in a canonical `skills/` directory that set a
+truthy `skill` frontmatter field — see [Skill Field](xprompt.md#skill-field).
 `sase skill list` is the read-only inventory: it shows loaded skill sources, the
 providers they target, and whether generated `SKILL.md` files are current, stale, or
-missing. Bare `sase skill` shows the same dashboard.
+missing. It also reports misplaced sources in a "Misplaced Sources" panel. Bare
+`sase skill` shows the same dashboard.
 
-`sase skill init` renders those sources into provider-specific `SKILL.md` files. Sources
-include bundled skill xprompts and user/runtime xprompt catalog entries. By default,
-generated skill files include a first-step `sase skill use <name> --reason ...`
-directive so agent skill usage is attributable in the same project audit surface as
-memory reads; `sase skill log` summarizes and inspects those recorded skill-use rows. A
-source can set `log_skill_use: false` to omit that directive. The usual workflow is to
-inspect first, preview writes, commit the source change, and only then deploy:
+`sase skill init` renders those sources into provider-specific `SKILL.md` files, and
+exits non-zero without writing anything while any placement violation remains. Sources
+include the bundled `src/sase/skills/` templates plus project, home, and plugin skill
+directories. By default, generated skill files include a first-step
+`sase skill use <name> --reason ...` directive so agent skill usage is attributable in
+the same project audit surface as memory reads; `sase skill log` summarizes and inspects
+those recorded skill-use rows. A source can set `log_skill_use: false` to omit that
+directive. The usual workflow is to inspect first, preview writes, commit the source
+change, and only then deploy:
 
 ```bash
 sase skill list
 sase skill init --dry-run
 sase skill init --diff
-# commit the xprompt template change and land it on the canonical branch first
+# commit the skill source change and land it on the canonical branch first
 sase skill init --force
 ```
 

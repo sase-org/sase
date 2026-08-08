@@ -67,6 +67,8 @@ class XPromptShowRecord:
     prefix: str
     kind: str
     is_skill: bool
+    skill_name: str | None
+    """Provider-visible ``/`` name; :attr:`reference` stays the ``#`` form."""
     is_swarm: bool
     segment_count: int
     description: str | None

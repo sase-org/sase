@@ -138,10 +138,15 @@ def test_xprompt_expand_warns_on_unresolved_reference_on_stderr(
 def test_xprompt_list_marks_only_skill_xprompts(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    skill = XPrompt(name="sase_plan", content="Plan", skill=True)
+    skill = XPrompt(
+        name="skills/sase_plan",
+        content="Plan",
+        skill=True,
+        skill_name="sase_plan",
+    )
     regular = XPrompt(name="review", content="Review")
     prompts = {
-        "sase_plan": _simple_workflow("sase_plan"),
+        "skills/sase_plan": _simple_workflow("skills/sase_plan"),
         "review": _simple_workflow("review"),
         "ship": _standalone_workflow("ship"),
     }
@@ -150,7 +155,7 @@ def test_xprompt_list_marks_only_skill_xprompts(
         patch("sase.xprompt.loader.get_all_prompts", return_value=prompts),
         patch(
             "sase.xprompt.loader.get_all_xprompts",
-            return_value={"sase_plan": skill, "review": regular},
+            return_value={"skills/sase_plan": skill, "review": regular},
         ),
         patch(
             "sase.xprompt.loader.get_all_workflows",
@@ -163,9 +168,13 @@ def test_xprompt_list_marks_only_skill_xprompts(
     assert exc_info.value.code == 0
     rows = {row["name"]: row for row in json.loads(capsys.readouterr().out)}
 
-    assert rows["sase_plan"]["is_skill"] is True
+    # The row name is the ``#`` reference; ``skill_name`` is the ``/`` name.
+    assert rows["skills/sase_plan"]["is_skill"] is True
+    assert rows["skills/sase_plan"]["skill_name"] == "sase_plan"
     assert rows["review"]["is_skill"] is False
+    assert rows["review"]["skill_name"] is None
     assert rows["ship"]["is_skill"] is False
+    assert rows["ship"]["skill_name"] is None
 
 
 def test_xprompt_list_prints_load_issues_to_stderr(

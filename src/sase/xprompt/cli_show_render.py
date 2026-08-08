@@ -108,7 +108,7 @@ def _header(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
     )
     chips = [record.kind.replace("_", " ")]
     if record.is_skill:
-        chips.append("skill")
+        chips.append(f"skill · /{record.skill_name}" if record.skill_name else "skill")
     if record.is_swarm:
         chips.append(f"swarm · {record.segment_count} segments")
     if record.steps:
@@ -123,6 +123,17 @@ def _header(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
 def _properties(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
     table = _detail_table(styles_enabled=styles_enabled)
     _add_detail_row(table, "reference", Text(record.reference))
+    if record.skill_name:
+        # The two names are separate: ``#skills/foo`` expands the source that
+        # ``/foo`` invokes as an installed agent skill.
+        _add_detail_row(
+            table,
+            "slash",
+            Text(
+                f"/{record.skill_name}",
+                style=_role_style("xprompt.invocation", styles_enabled=styles_enabled),
+            ),
+        )
     if record.project:
         _add_detail_row(table, "project", Text(record.project))
 

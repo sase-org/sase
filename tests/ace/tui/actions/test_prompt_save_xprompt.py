@@ -273,3 +273,39 @@ async def test_save_request_returns_while_location_reads_are_stuck() -> None:
     finally:
         release.set()
         await _wait_save_tasks(harness)
+
+
+async def test_skill_draft_requests_canonical_skill_destinations() -> None:
+    harness = _SaveHarness()
+    requested: list[bool] = []
+
+    def _locations(_project: object, *, skill: bool = False) -> list[object]:
+        requested.append(skill)
+        return []
+
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_save_locations",
+            side_effect=_locations,
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
+            return_value=[],
+        ),
+        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+    ):
+        await harness.on_prompt_input_bar_save_as_xprompt_requested(
+            PromptInputBar.SaveAsXpromptRequested(
+                [
+                    StashedPromptPane(
+                        text="draft",
+                        frontmatter="---\nname: foo\nskill: true\n---",
+                    )
+                ]
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    # A ``skill:`` draft may only be written to a canonical ``skills/``
+    # directory, so the picker never offers ``sase/xprompts/``.
+    assert requested == [True]

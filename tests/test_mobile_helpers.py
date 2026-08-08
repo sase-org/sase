@@ -123,6 +123,7 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
                 }
             ],
             "is_skill": False,
+            "skill_name": None,
             "content_preview": "Repair this failure",
             "source_path_display": ".sase/xprompts/fix_hook.md",
             "definition_path": "/workspace/.sase/xprompts/fix_hook.md",
