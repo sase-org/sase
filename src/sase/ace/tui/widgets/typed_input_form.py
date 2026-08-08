@@ -375,6 +375,22 @@ class TypedInputForm(Vertical):
                 return True
         return False
 
+    def focus_first_invalid(self) -> bool:
+        """Focus the first visible invalid field that can be corrected."""
+        for index, field in enumerate(self._fields):
+            if self._visible[index] and field.required and not self._field_ok(index):
+                self.focus_field(index)
+                return True
+        for index, field in enumerate(self._fields):
+            if (
+                self._visible[index]
+                and not field.required
+                and not self._field_ok(index)
+            ):
+                self.focus_field(index)
+                return True
+        return False
+
     def focus_field(self, index: int) -> None:
         widget = self.query_one(f"#{self._input_id(index)}")
         widget.focus()

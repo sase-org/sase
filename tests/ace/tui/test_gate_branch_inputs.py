@@ -8,6 +8,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Button, Static, TextArea
 
 from sase.ace.tui.modals.gate_branch_controls import GateBranchControls, GateBranchData
+from sase.ace.tui.modals.gate_branch_input_section import GateBranchInputSection
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.notification_gates.models import GateGroup, GateOption
 
@@ -113,6 +114,45 @@ async def test_toggling_and_member_reveals_and_hides_exactly_its_fields() -> Non
         await pilot.pause()
         assert profile_block.display is False
         assert channel_block.display is True
+
+
+async def test_focus_first_invalid_skips_deselected_and_member_fields() -> None:
+    build = _option(
+        "build",
+        inputs=[
+            {"id": "profile", "label": "Profile", "type": "word", "required": True}
+        ],
+        default_selected=False,
+    )
+    publish = _option(
+        "publish",
+        inputs=[
+            {"id": "channel", "label": "Channel", "type": "word", "required": True}
+        ],
+    )
+    controls = _controls(
+        options=(build, publish),
+        branches=(("build", "publish"),),
+        groups=(GateGroup(("build", "publish")),),
+    )
+    app = _ControlsApp(controls)
+
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        section = controls.query_one(GateBranchInputSection)
+        hidden_build_editor = controls.query_one(
+            "#gate-branch-0-field-input-0", SingleLineVimTextArea
+        )
+        visible_publish_editor = controls.query_one(
+            "#gate-branch-0-field-input-1", SingleLineVimTextArea
+        )
+
+        assert controls.query_one("#gate-branch-0-field-block-0").display is False
+        assert controls.query_one("#gate-branch-0-field-block-1").display is True
+        assert section.focus_first_invalid() is True
+        await pilot.pause()
+        assert visible_publish_editor.has_focus
+        assert not hidden_build_editor.has_focus
 
 
 async def test_required_field_blocks_singleton_and_group_submit_until_filled() -> None:
@@ -254,6 +294,9 @@ async def test_raw_input_schema_renders_yaml_editor_validates_and_delivers() -> 
         editor.text = "reason: 5\n"  # schema requires a string
         await pilot.pause()
         assert controls._branch_inputs_valid(0) is False
+        assert controls.query_one(GateBranchInputSection).focus_first_invalid() is True
+        await pilot.pause()
+        assert editor.has_focus
         error = controls.query_one("#gate-branch-0-raw-rotate-error", Static)
         assert error.display is True
 

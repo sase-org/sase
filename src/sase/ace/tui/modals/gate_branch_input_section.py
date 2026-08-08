@@ -202,6 +202,21 @@ class GateBranchInputSection(Vertical):
             if option.id in self._visible_option_ids
         )
 
+    def focus_first_invalid(self) -> bool:
+        """Focus the first visible invalid input/editor in render order."""
+        if self.conflict is not None:
+            return False
+        if self._form is not None and self._form.focus_first_invalid():
+            return True
+        for option in self._raw_options:
+            if option.id not in self._visible_option_ids:
+                continue
+            if self._raw_valid.get(option.id, True):
+                continue
+            self.query_one(f"#{self._raw_editor_id(option.id)}", TextArea).focus()
+            return True
+        return False
+
     def control_ids(self) -> list[str]:
         """This section's focusable control ids, in render order."""
         ids: list[str] = []

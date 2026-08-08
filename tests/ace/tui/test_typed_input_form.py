@@ -266,3 +266,93 @@ async def test_optional_reveal_toggles_block_display_without_affecting_validity(
         await pilot.pause()
         assert optional_block.display is True
         assert form.is_valid() is True  # revealed-but-empty optional still valid
+
+
+# -- invalid focus ------------------------------------------------------------
+
+
+async def test_focus_first_invalid_prefers_required_visible_field() -> None:
+    app = _FormApp(
+        [
+            _field("retries", InputType.INT, default=0),
+            _field("service", InputType.WORD),
+        ],
+        optional_toggle=False,
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(TypedInputForm)
+        optional_editor = app.query_one("#field-input-0", SingleLineVimTextArea)
+        required_editor = app.query_one("#field-input-1", SingleLineVimTextArea)
+        optional_editor.text = "many"
+        await pilot.pause()
+
+        assert form.focus_first_invalid() is True
+        await pilot.pause()
+        assert required_editor.has_focus
+
+
+async def test_focus_first_invalid_falls_back_to_optional_field() -> None:
+    app = _FormApp(
+        [
+            _field("retries", InputType.INT, default=0),
+            _field("service", InputType.WORD),
+        ],
+        optional_toggle=False,
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(TypedInputForm)
+        optional_editor = app.query_one("#field-input-0", SingleLineVimTextArea)
+        required_editor = app.query_one("#field-input-1", SingleLineVimTextArea)
+        optional_editor.text = "many"
+        required_editor.text = "billing"
+        await pilot.pause()
+
+        assert form.focus_first_invalid() is True
+        await pilot.pause()
+        assert optional_editor.has_focus
+
+
+async def test_focus_first_invalid_returns_false_without_disturbing_valid_focus() -> (
+    None
+):
+    app = _FormApp(
+        [
+            _field("service", InputType.WORD),
+            _field("dry_run", InputType.BOOL, default="false"),
+        ],
+        optional_toggle=False,
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(TypedInputForm)
+        required_editor = app.query_one("#field-input-0", SingleLineVimTextArea)
+        required_editor.text = "billing"
+        required_editor.focus()
+        await pilot.pause()
+
+        assert form.focus_first_invalid() is False
+        await pilot.pause()
+        assert required_editor.has_focus
+
+
+async def test_focus_first_invalid_skips_hidden_fields() -> None:
+    app = _FormApp(
+        [_field("hidden", InputType.WORD), _field("visible", InputType.WORD)],
+        optional_toggle=False,
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(TypedInputForm)
+        visible_editor = app.query_one("#field-input-1", SingleLineVimTextArea)
+        form.set_field_visible("hidden", False)
+        await pilot.pause()
+
+        assert form.focus_first_invalid() is True
+        await pilot.pause()
+        assert visible_editor.has_focus

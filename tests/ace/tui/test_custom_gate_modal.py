@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import pytest
 from textual.app import App
 from textual.binding import Binding
@@ -28,6 +31,26 @@ from sase.notification_gates.models import GateGroup, GateOption
 class _TestApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.recorded_notifications: list[tuple[str, str]] = []
+
+    def notify(
+        self,
+        message: str,
+        *_args: object,
+        severity: str = "information",
+        **_kwargs: object,
+    ) -> None:
+        self.recorded_notifications.append((message, severity))
+
+
+_ROOT = Path(__file__).resolve().parents[3]
+
+
+class _StyledTestApp(_TestApp):
+    CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
+
 
 def _option(
     option_id: str,
@@ -36,18 +59,19 @@ def _option(
     icon: str | None = None,
     selected: bool = True,
     feedback: str = "disabled",
+    inputs: list[dict[str, Any]] | None = None,
 ) -> GateOption:
-    return GateOption.from_mapping(
-        {
-            "id": option_id,
-            "label": label or option_id.title(),
-            "icon": icon,
-            "default_selected": selected,
-            "feedback": feedback,
-            "command": {"argv": [f"commands/{option_id}"]},
-        },
-        0,
-    )
+    payload: dict[str, Any] = {
+        "id": option_id,
+        "label": label or option_id.title(),
+        "icon": icon,
+        "default_selected": selected,
+        "feedback": feedback,
+        "command": {"argv": [f"commands/{option_id}"]},
+    }
+    if inputs is not None:
+        payload["inputs"] = inputs
+    return GateOption.from_mapping(payload, 0)
 
 
 def _data(
@@ -60,13 +84,14 @@ def _data(
     preview_text: str | None = None,
     title: str = "Custom Gate",
     origin_agent: str | None = None,
+    notes: tuple[str, ...] | None = None,
 ) -> CustomGateModalData:
     return CustomGateModalData(
         request_id="custom-ace",
         title=title,
         sender="review-agent",
         icon="🛡️",
-        notes=("Review guarded work.",),
+        notes=notes or ("Review guarded work.",),
         attachments=(),
         preview_name=preview_name,
         preview_text=preview_text,
@@ -182,37 +207,80 @@ async def test_declared_input_value_reaches_resolved_option_inputs() -> None:
     ]
 
 
-async def test_empty_required_input_blocks_numbered_shortcut_submission() -> None:
+async def test_numbered_shortcut_focuses_required_enum_then_submits() -> None:
     results: list[CustomGateModalResult | None] = []
-    option = GateOption.from_mapping(
-        {
-            "id": "deploy",
-            "label": "Deploy",
-            "icon": "🚀",
-            "default_selected": True,
-            "feedback": "disabled",
-            "command": {"argv": ["commands/deploy"]},
-            "inputs": [
-                {
-                    "id": "target_env",
-                    "label": "Target environment",
-                    "type": "line",
-                    "required": True,
-                }
-            ],
-        },
-        0,
+    modal = CustomGateModal(
+        _data(
+            options=(
+                _option("approve", icon="✅"),
+                _option("close", icon="✅"),
+                _option(
+                    "snooze",
+                    icon="💤",
+                    inputs=[
+                        {
+                            "id": "wake_after",
+                            "label": "Wake after",
+                            "type": "enum",
+                            "required": True,
+                            "choices": [
+                                {"value": "tomorrow", "label": "Tomorrow"},
+                                {"value": "next_week", "label": "Next week"},
+                            ],
+                        },
+                        {
+                            "id": "note",
+                            "label": "Note",
+                            "type": "line",
+                            "required": False,
+                        },
+                    ],
+                ),
+            ),
+            branches=(("approve",), ("close",), ("snooze",)),
+            preview_name="triage.md",
+            preview_text="# Task triage\n",
+            notes=tuple(f"Context line {index}" for index in range(16)),
+        )
     )
-    modal = CustomGateModal(_data(options=(option,), branches=(("deploy",),)))
+    app = _StyledTestApp()
 
-    async with _TestApp().run_test(size=(100, 40)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         pilot.app.push_screen(modal, results.append)
         await pilot.pause()
-        assert modal.query_one("#gate-singleton-0", Button).disabled is True
-        await pilot.press("1")
+        await pilot.press("j")
+        assert modal.query_one("#gate-singleton-1", Button).has_focus
+        scroll = modal.query_one(".gate-review-actions", VerticalScroll)
+        initial_scroll_y = scroll.scroll_offset.y
+
+        await pilot.press("3")
+        await pilot.pause()
+        wake_after = modal.query_one("#gate-branch-2-field-input-0", Button)
+        for _ in range(10):
+            if wake_after.has_focus and scroll.scroll_offset.y > initial_scroll_y:
+                break
+            await pilot.pause()
+
+        assert results == []
+        assert wake_after.has_focus
+        assert scroll.scroll_offset.y > initial_scroll_y
+        assert (
+            "Fix the highlighted inputs before submitting",
+            "warning",
+        ) not in app.recorded_notifications
+
+        wake_after.press()
+        await pilot.pause()
+        await pilot.press("3")
         await pilot.pause()
 
-    assert results == []
+    assert results == [
+        CustomGateModalResult(
+            ("snooze",),
+            None,
+            option_inputs={"snooze": {"wake_after": "tomorrow"}},
+        )
+    ]
 
 
 @pytest.mark.parametrize(

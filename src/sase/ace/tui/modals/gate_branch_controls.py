@@ -355,6 +355,9 @@ class GateBranchControls(VerticalScroll):
         if not self._branch_inputs_valid(branch_index):
             # The submit control is already disabled for this, but a numbered
             # or primary-key shortcut reaches here without going through it.
+            active_section = self._sections.get(branch_index)
+            if active_section is not None and active_section.focus_first_invalid():
+                return
             self.notify(
                 "Fix the highlighted inputs before submitting", severity="warning"
             )
