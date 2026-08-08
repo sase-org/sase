@@ -55,6 +55,7 @@ class _TestApp(App[object | None]):
         display_name: str,
         binding: object | None,
         read_only: bool = False,
+        read_only_path: str | None = None,
         has_comments: bool = False,
     ) -> None:
         self.definition_loads.append(
@@ -63,6 +64,7 @@ class _TestApp(App[object | None]):
                 "display_name": display_name,
                 "binding": binding,
                 "read_only": read_only,
+                "read_only_path": read_only_path,
                 "has_comments": has_comments,
             }
         )
@@ -338,6 +340,7 @@ async def test_xprompt_select_ctrl_o_loads_selected_definition_for_editing(
     assert loaded["markdown"] == "---\ndescription: keep\n---\nMemory body.\n"
     assert loaded["display_name"] == "#memory/glossary"
     assert loaded["read_only"] is False
+    assert loaded["read_only_path"] is None
     assert loaded["has_comments"] is False
     assert binding.path == str(source_path)
     assert binding.reference == "#memory/glossary"
@@ -376,6 +379,7 @@ async def test_xprompt_select_ctrl_o_loads_read_only_definition_without_target(
     assert loaded["display_name"] == "#builtin"
     assert loaded["binding"] is None
     assert loaded["read_only"] is True
+    assert loaded["read_only_path"] == str(source_path)
 
 
 async def test_xprompt_select_ctrl_o_warns_for_workflow_graph() -> None:
