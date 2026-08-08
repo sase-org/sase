@@ -12,6 +12,8 @@ from sase.artifact_ref_models import (
     ArtifactRefProject,
     ArtifactRefRepository,
 )
+from sase._linked_repo_config import resolution_config
+from sase.content_layout import resolve_project_config_read_path
 from sase.core.artifact_file_facade import default_artifact_files_index_path
 from sase.core.paths import sase_projects_dir, sase_subdir
 from sase.core.project_lifecycle_facade import list_project_records
@@ -19,6 +21,7 @@ from sase.core.project_lifecycle_wire import effective_project_name
 from sase.repo_inventory import collect_repo_inventory
 from sase.sdd.plan_refs import workspace_context_for_plan_resolution
 from sase.sdd.store import document_sidecar_roles, resolve_sdd_store
+from sase.sidecar_ref_config import SidecarRefPolicy, effective_sidecar_ref_policies
 
 
 ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION = 1
@@ -34,24 +37,35 @@ def artifact_ref_context(
 
     workspace = Path(workspace_dir).expanduser().resolve(strict=False)
     store = resolve_sdd_store(workspace, workspace_num)
-    roles = document_sidecar_roles(
+    store_roles = document_sidecar_roles(
         store.split_sidecar_roles(),
         include_plans=True,
     )
+    policies = _sidecar_ref_policies(workspace, store_roles)
     document_roots: list[ArtifactRefDocumentRoot] = []
     seen_roots: set[tuple[str, Path]] = set()
-    for role in roles:
+    for role in store_roles:
+        policy = policies.get(role)
+        if policy is None or not policy.is_document:
+            continue
         try:
             root = store.kind_root(role)
         except (KeyError, OSError, ValueError):
             continue
-        _append_document_root(document_roots, seen_roots, role, root)
+        _append_document_root(
+            document_roots,
+            seen_roots,
+            role,
+            root,
+            path_globs=policy.path_globs,
+        )
         if role == "plans":
             _append_document_root(
                 document_roots,
                 seen_roots,
                 role,
                 sase_subdir("plans"),
+                path_globs=policy.path_globs,
             )
 
     project_filter = project or _workspace_project_ref(workspace)
@@ -197,13 +211,35 @@ def _append_document_root(
     seen: set[tuple[str, Path]],
     kind: str,
     root: str | Path,
+    *,
+    path_globs: tuple[str, ...] | None = None,
 ) -> None:
     normalized = Path(root).expanduser().resolve(strict=False)
     key = (kind, normalized)
     if key in seen:
         return
     seen.add(key)
-    roots.append(ArtifactRefDocumentRoot(kind, normalized))
+    roots.append(ArtifactRefDocumentRoot(kind, normalized, path_globs=path_globs))
+
+
+def _sidecar_ref_policies(
+    workspace: Path,
+    roles: tuple[str, ...],
+) -> dict[str, SidecarRefPolicy]:
+    try:
+        config = resolution_config(str(workspace), None)
+    except Exception:
+        config = {}
+    try:
+        source_path = resolve_project_config_read_path(workspace)
+    except Exception:
+        source_path = None
+    return effective_sidecar_ref_policies(
+        config,
+        primary_workspace_dir=workspace,
+        roles=roles,
+        source_path=source_path,
+    )
 
 
 def _workspace_project_ref(workspace: Path) -> str | None:

@@ -79,6 +79,22 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
     monkeypatch.setattr(artifact_ref_context, "resolve_sdd_store", lambda *_: _Store())
     monkeypatch.setattr(
         artifact_ref_context,
+        "resolution_config",
+        lambda *_: {
+            "repos": {
+                "sidecar": {
+                    "custom": {
+                        "designs": {
+                            "description": "Durable designs.",
+                            "ref": {"filters": {"path_globs": ["docs/**/*.md"]}},
+                        }
+                    }
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        artifact_ref_context,
         "collect_repo_inventory",
         lambda **_: inventory,
     )
@@ -118,6 +134,11 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         ("plans", (tmp_path / "repo-plans").resolve()),
         ("plans", (tmp_path / "state" / "plans").resolve()),
         ("designs", (tmp_path / "missing-designs-clone").resolve()),
+    ]
+    assert [entry.path_globs for entry in context.document_roots] == [
+        ("**/*.md",),
+        ("**/*.md",),
+        ("docs/**/*.md",),
     ]
     assert context.known_kinds == (
         "commit",

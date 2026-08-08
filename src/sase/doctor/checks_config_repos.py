@@ -12,6 +12,12 @@ from sase._linked_repo_config import (
 from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.doctor.checks_config_common import MAX_DETAIL_ROWS
 from sase.sdd._store_types import RESERVED_SIDECAR_ROLES
+from sase.sidecar_ref_config import (
+    REF_CONFIG_KEY,
+    REF_FILTERS_CONFIG_KEY,
+    REF_PATH_GLOBS_CONFIG_KEY,
+    REF_XPROMPT_CONFIG_KEY,
+)
 
 _SIDECAR_KEY = "repos.sidecar"
 
@@ -216,6 +222,7 @@ def _mapping_problems(raw: Mapping[str, Any]) -> list[dict[str, str]]:
                 )
             if bucket == SIDECAR_CUSTOM_CONFIG_KEY:
                 problems.extend(_missing_description_problems(key, entry))
+            problems.extend(_ref_policy_problems(key, role, entry))
         roles_by_bucket[bucket] = entries
 
     both = sorted(
@@ -233,6 +240,73 @@ def _mapping_problems(raw: Mapping[str, Any]) -> list[dict[str, str]]:
                 ),
             }
         )
+    return problems
+
+
+def _ref_policy_problems(
+    key: str,
+    role: str,
+    entry: Mapping[str, Any],
+) -> list[dict[str, str]]:
+    problems: list[dict[str, str]] = []
+    raw_ref = entry.get(REF_CONFIG_KEY)
+    if raw_ref is None:
+        return problems
+    ref_key = f"{key}.{REF_CONFIG_KEY}"
+    if not isinstance(raw_ref, Mapping):
+        return [
+            {
+                "key": ref_key,
+                "message": f"{ref_key} must be a mapping",
+            }
+        ]
+
+    xprompt = raw_ref.get(REF_XPROMPT_CONFIG_KEY)
+    if xprompt is not None and (not isinstance(xprompt, str) or not xprompt.strip()):
+        problems.append(
+            {
+                "key": f"{ref_key}.{REF_XPROMPT_CONFIG_KEY}",
+                "message": f"{ref_key}.{REF_XPROMPT_CONFIG_KEY} must be a nonempty string",
+            }
+        )
+
+    filters = raw_ref.get(REF_FILTERS_CONFIG_KEY)
+    if filters is None:
+        return problems
+    filters_key = f"{ref_key}.{REF_FILTERS_CONFIG_KEY}"
+    if not isinstance(filters, Mapping):
+        problems.append(
+            {
+                "key": filters_key,
+                "message": f"{filters_key} must be a mapping",
+            }
+        )
+        return problems
+    if role in {"beads", "agents"}:
+        problems.append(
+            {
+                "key": filters_key,
+                "message": (
+                    f"{filters_key} is not supported for {role!r}; bead and "
+                    "agent refs are entity-backed, not document-filtered"
+                ),
+            }
+        )
+    if REF_PATH_GLOBS_CONFIG_KEY in filters:
+        globs = filters.get(REF_PATH_GLOBS_CONFIG_KEY)
+        globs_key = f"{filters_key}.{REF_PATH_GLOBS_CONFIG_KEY}"
+        if not isinstance(globs, list) or any(
+            not isinstance(item, str) or not item for item in globs
+        ):
+            problems.append(
+                {
+                    "key": globs_key,
+                    "message": (
+                        f"{globs_key} must be a list of nonempty strings; use "
+                        "an empty list only to allow no document paths"
+                    ),
+                }
+            )
     return problems
 
 

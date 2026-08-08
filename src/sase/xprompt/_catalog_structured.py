@@ -96,6 +96,9 @@ def build_structured_xprompts_catalog(
             memory_count=sum(
                 1 for entry in filtered_entries if entry.memory_type is not None
             ),
+            ref_count=sum(
+                1 for entry in filtered_entries if entry.ref_kind is not None
+            ),
             pdf_requested=include_pdf,
         ),
         warnings=warnings,
@@ -173,6 +176,10 @@ def structured_entry(entry: StructuredCatalogSource) -> StructuredCatalogEntry:
         is_skill=entry.is_skill,
         skill_name=entry.skill_name,
         memory_type=entry.memory_type,
+        ref_kind=entry.ref_kind,
+        ref_sidecar_role=entry.ref_sidecar_role,
+        ref_path_globs=entry.ref_path_globs,
+        ref_shadowed_sources=entry.ref_shadowed_sources,
         content_preview=content_preview(entry.content),
         source_path_display=source_path_display(entry),
         definition_path=definition_path(entry),

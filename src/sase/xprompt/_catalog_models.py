@@ -30,6 +30,7 @@ class CatalogStats:
     with_inputs: int
     skills: int
     memory: int
+    refs: int
     generated_at: datetime
 
 
@@ -76,6 +77,10 @@ class StructuredCatalogEntry:
     skill_name: str | None = None
     """Provider-visible ``/`` name; ``name`` stays the ``#`` reference."""
     memory_type: MemoryType | None = None
+    ref_kind: str | None = None
+    ref_sidecar_role: str | None = None
+    ref_path_globs: tuple[str, ...] | None = None
+    ref_shadowed_sources: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -87,6 +92,7 @@ class StructuredCatalogStats:
     skill_count: int
     pdf_requested: bool
     memory_count: int = 0
+    ref_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -141,6 +147,10 @@ class StructuredCatalogSource:
     content: str = ""
     skill_name: str | None = None
     memory_type: MemoryType | None = None
+    ref_kind: str | None = None
+    ref_sidecar_role: str | None = None
+    ref_path_globs: tuple[str, ...] | None = None
+    ref_shadowed_sources: tuple[str, ...] = ()
 
 
 @dataclass

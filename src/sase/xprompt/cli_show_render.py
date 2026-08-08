@@ -108,6 +108,8 @@ def _header(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
     )
     if record.kind == "memory" and record.memory_type is not None:
         chips = [f"memory · {record.memory_type}"]
+    elif record.kind == "ref" and record.ref_kind is not None:
+        chips = [f"ref · {record.ref_kind}"]
     else:
         chips = [record.kind.replace("_", " ")]
     if record.is_skill:
@@ -139,6 +141,18 @@ def _properties(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
         )
     if record.memory_type:
         _add_detail_row(table, "memory type", Text(record.memory_type))
+    if record.ref_kind:
+        _add_detail_row(table, "ref kind", Text(record.ref_kind))
+    if record.ref_sidecar_role:
+        _add_detail_row(table, "sidecar", Text(record.ref_sidecar_role))
+    if record.ref_path_globs is not None:
+        _add_detail_row(table, "filters", Text(", ".join(record.ref_path_globs)))
+    if record.ref_shadowed_sources:
+        _add_detail_row(
+            table,
+            "shadowed",
+            Text(", ".join(record.ref_shadowed_sources)),
+        )
     if record.project:
         _add_detail_row(table, "project", Text(record.project))
 

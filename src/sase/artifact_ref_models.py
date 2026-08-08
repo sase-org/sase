@@ -10,6 +10,7 @@ from typing import Any, Literal, cast
 
 ARTIFACT_REF_WIRE_SCHEMA_VERSION = 4
 ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION = 1
+ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION = 1
 BUILTIN_ARTIFACT_REF_KINDS = ("commit", "chat", "bug", "file", "bead", "agent")
 
 ArtifactRefKindType = Literal[
@@ -336,6 +337,35 @@ class ArtifactRefResolution:
         if not self.candidates or self.status not in {"ambiguous", "missing"}:
             return None
         return Path(self.candidates[0])
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRefPathFilterResult:
+    """Result from the Rust-owned artifact-reference path filter."""
+
+    schema_version: int
+    kind: str
+    allowed: tuple[str, ...]
+    filtered: tuple[str, ...]
+
+    @classmethod
+    def from_wire(
+        cls,
+        raw: Mapping[str, Any],
+        *,
+        record: str = "artifact-reference path filter",
+    ) -> ArtifactRefPathFilterResult:
+        version = int(raw["schema_version"])
+        if version != ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION:
+            raise RuntimeError(
+                f"sase_core_rs returned an unsupported {record} wire: {version}"
+            )
+        return cls(
+            schema_version=version,
+            kind=str(raw["kind"]),
+            allowed=tuple(str(item) for item in raw.get("allowed", ())),
+            filtered=tuple(str(item) for item in raw.get("filtered", ())),
+        )
 
 
 @dataclass(frozen=True, slots=True)

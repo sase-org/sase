@@ -89,6 +89,10 @@ class XPromptShowRecord:
     warnings: list[str]
     references: list[ShowReference]
     memory_type: MemoryType | None = None
+    ref_kind: str | None = None
+    ref_sidecar_role: str | None = None
+    ref_path_globs: tuple[str, ...] | None = None
+    ref_shadowed_sources: tuple[str, ...] = ()
 
     @property
     def raw_available(self) -> bool:

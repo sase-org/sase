@@ -52,6 +52,10 @@
           "description": "Disable this sidecar entry and suppress matching implicit sidecar defaults, including the managed-project agents sidecar.",
           "default": false
         },
+        "ref": {
+          "$ref": "#/definitions/sidecarRef",
+          "description": "Optional contextual ref renderer and document filter policy for this sidecar role."
+        },
         "repo": {
           "type": "string",
           "description": "Optional owner/repo or bare repository slug. Omit to derive <project>--<role> in the project's organization.",
@@ -62,6 +66,33 @@
           "description": "Visibility used when creating a missing sidecar repository. Set the managed-project agents role to private to override its public default.",
           "enum": ["public", "private"],
           "default": "public"
+        }
+      }
+    },
+    "sidecarRef": {
+      "type": "object",
+      "description": "Contextual ref renderer and document filter policy for one sidecar role.",
+      "additionalProperties": false,
+      "properties": {
+        "xprompt": {
+          "type": "string",
+          "description": "Markdown renderer body inserted at sidecar-config precedence for ref/<kind>.",
+          "minLength": 1
+        },
+        "filters": {
+          "$ref": "#/definitions/sidecarRefFilters",
+          "description": "Document-root filters transported to the artifact-reference resolver."
+        }
+      }
+    },
+    "sidecarRefFilters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path_globs": {
+          "type": "array",
+          "description": "Repo-relative document path globs, including !-prefixed exclusions. Omit for the Markdown default; an empty list allows no paths.",
+          "items": { "type": "string", "minLength": 1 }
         }
       }
     },

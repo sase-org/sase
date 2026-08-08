@@ -91,7 +91,9 @@ REQUIRED_BINDINGS = (
     "artifact_ref_canonicalize",
     "artifact_ref_context_wire_schema_version",
     "artifact_ref_list_resolution_wire_schema_version",
+    "artifact_ref_path_filter_wire_schema_version",
     "artifact_ref_resolve",
+    "artifact_ref_filter_path_payloads",
     "artifact_ref_scan_prompt",
     "artifact_ref_wire_schema_version",
     "sdd_artifact_link_parse",
@@ -140,6 +142,7 @@ def _validate_artifact_ref_schemas(module: ModuleType) -> bool:
         "artifact_ref_wire_schema_version": 4,
         "artifact_ref_context_wire_schema_version": 1,
         "artifact_ref_list_resolution_wire_schema_version": 2,
+        "artifact_ref_path_filter_wire_schema_version": 1,
     }
     valid = True
     for binding_name, expected_version in expected.items():

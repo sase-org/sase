@@ -93,7 +93,7 @@ def resolve_show_record(
     name, arguments_were_stripped = normalize_show_name(raw_name)
     with collect_xprompt_load_issues() as load_issues:
         workflows = get_all_workflows(project=project)
-        xprompts = get_all_xprompts(project=project)
+        xprompts = _get_all_xprompts_include_refs(project=project)
 
     warnings = [f"skipped: {issue.source}: {issue.error}" for issue in load_issues]
     if arguments_were_stripped:
@@ -160,6 +160,10 @@ def resolve_show_record(
         memory_type=selected_workflow.memory_type,
         is_skill=bool(selected_xprompt and selected_xprompt.skill),
         skill_name=selected_xprompt.skill_name if selected_xprompt else None,
+        ref_kind=selected_workflow.ref_kind,
+        ref_sidecar_role=selected_workflow.ref_sidecar_role,
+        ref_path_globs=selected_workflow.ref_path_globs,
+        ref_shadowed_sources=selected_workflow.ref_shadowed_sources,
         is_swarm=segment_count > 1,
         segment_count=segment_count,
         description=selected_workflow.description,
@@ -181,6 +185,18 @@ def resolve_show_record(
         warnings=warnings,
         references=_show_references(body, local_xprompts, project=project),
     )
+
+
+def _get_all_xprompts_include_refs(
+    *,
+    project: str | None,
+) -> dict[str, XPrompt]:
+    try:
+        return get_all_xprompts(project=project, include_refs=True)
+    except TypeError as exc:
+        if "include_refs" not in str(exc):
+            raise
+        return get_all_xprompts(project=project)
 
 
 def _suggestions(
@@ -209,6 +225,11 @@ def _workflow_descriptor(workflow: Workflow) -> XPrompt:
         description=workflow.description,
         local_xprompts=workflow.xprompts,
         memory_type=workflow.memory_type,
+        ref=workflow.ref,
+        ref_kind=workflow.ref_kind,
+        ref_sidecar_role=workflow.ref_sidecar_role,
+        ref_path_globs=workflow.ref_path_globs,
+        ref_shadowed_sources=workflow.ref_shadowed_sources,
     )
 
 
@@ -444,6 +465,10 @@ def _show_reference_kind(
         return "memory"
     if isinstance(item, XPrompt) and item.skill:
         return "skill"
+    if isinstance(item, XPrompt) and item.ref_kind is not None:
+        return "ref"
+    if isinstance(item, Workflow) and item.ref_kind is not None:
+        return "ref"
     if kind == "part":
         return "xprompt"
     return kind

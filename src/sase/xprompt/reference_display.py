@@ -12,6 +12,8 @@ def _workflow_uses_standalone_reference_marker(workflow: Workflow) -> bool:
 
 def workflow_kind_value(workflow: Workflow) -> str:
     """Return the stable catalog kind for a workflow-like xprompt entry."""
+    if workflow.ref_kind is not None:
+        return "ref"
     if workflow.memory_type is not None:
         return "memory"
     kind = workflow.prompt_kind()

@@ -99,6 +99,7 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
         "project_count": 1,
         "skill_count": 0,
         "memory_count": 0,
+        "ref_count": 0,
         "pdf_requested": True,
     }
     assert data["catalog_attachment"] is None
@@ -110,6 +111,10 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
             "reference_prefix": "#",
             "kind": "xprompt",
             "memory_type": None,
+            "ref_kind": None,
+            "ref_sidecar_role": None,
+            "ref_path_globs": None,
+            "ref_shadowed_sources": [],
             "description": "Repair a hook failure",
             "source_bucket": "project",
             "project": "sase",

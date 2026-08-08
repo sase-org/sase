@@ -12,10 +12,12 @@ from sase.content_layout import (
     resolve_project_config_read_path,
 )
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.sidecar_ref_config import SIDECAR_REF_CONFIG_SOURCE_PREFIX
 from sase.xprompt.loader import (
     get_all_workflows,
     get_all_xprompts,
     get_sase_package_default_xprompts_dir,
+    get_sase_package_refs_dir,
     get_sase_package_skills_dir,
     get_sase_package_xprompts_dir,
     load_project_file_xprompts,
@@ -29,6 +31,7 @@ from sase.xprompt.project_identity import (
 from sase.xprompt.workflow_models import Workflow
 
 from ._catalog_models import CatalogEntry, StructuredCatalogSource
+from .loader_refs import GENERATED_REF_SOURCE_PREFIX
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +40,7 @@ def gather_entries() -> list[CatalogEntry]:
     """Collect all xprompts from every source, classified and de-duplicated."""
     seen: dict[tuple[str, str], CatalogEntry] = {}
 
-    for xp in get_all_xprompts().values():
+    for xp in _all_xprompts(include_refs=True).values():
         entry = classify(xp, project=None)
         seen[(xp.source_path or "", xp.name)] = entry
 
@@ -75,7 +78,7 @@ def gather_structured_entries() -> list[StructuredCatalogSource]:
         seen[(workflow.source_path or "", name)] = entry
 
     workflow_names = set(workflows)
-    for name, xp in get_all_xprompts().items():
+    for name, xp in _all_xprompts(include_refs=True).items():
         if name in workflow_names:
             continue
         key = (xp.source_path or "", name)
@@ -120,6 +123,10 @@ def classify_xprompt_for_structured(
         content=xp.content,
         skill_name=xp.skill_name,
         memory_type=xp.memory_type,
+        ref_kind=xp.ref_kind,
+        ref_sidecar_role=xp.ref_sidecar_role,
+        ref_path_globs=xp.ref_path_globs,
+        ref_shadowed_sources=xp.ref_shadowed_sources,
     )
 
 
@@ -136,6 +143,11 @@ def classify_workflow(
             tags=workflow.tags,
             description=workflow.description,
             memory_type=workflow.memory_type,
+            ref=workflow.ref,
+            ref_kind=workflow.ref_kind,
+            ref_sidecar_role=workflow.ref_sidecar_role,
+            ref_path_globs=workflow.ref_path_globs,
+            ref_shadowed_sources=workflow.ref_shadowed_sources,
         ),
         project=project,
     )
@@ -147,6 +159,10 @@ def classify_workflow(
         description=workflow.description,
         content=workflow.get_prompt_part_content(),
         memory_type=workflow.memory_type,
+        ref_kind=workflow.ref_kind,
+        ref_sidecar_role=workflow.ref_sidecar_role,
+        ref_path_globs=workflow.ref_path_globs,
+        ref_shadowed_sources=workflow.ref_shadowed_sources,
     )
 
 
@@ -159,6 +175,12 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
 
     if source.startswith(("plugin:", "plugin_config:")):
         return CatalogEntry(xp, bucket="plugin", project=None)
+
+    if source.startswith(SIDECAR_REF_CONFIG_SOURCE_PREFIX):
+        return CatalogEntry(xp, bucket="config", project=None)
+
+    if source.startswith(GENERATED_REF_SOURCE_PREFIX):
+        return CatalogEntry(xp, bucket="built-in", project=None)
 
     if source == "default_config":
         return CatalogEntry(xp, bucket="config", project=None)
@@ -221,6 +243,12 @@ def source_path_display(
         return f"~/.config/sase/{source.removeprefix('config_overlay:')}"
     if source == "local_config" or source.startswith("project_local_config:"):
         return "sase/sase.yml"
+    if source.startswith(SIDECAR_REF_CONFIG_SOURCE_PREFIX):
+        role = source.removeprefix(SIDECAR_REF_CONFIG_SOURCE_PREFIX)
+        return f"sase/sase.yml ref renderer for {role}"
+    if source.startswith(GENERATED_REF_SOURCE_PREFIX):
+        role = source.removeprefix(GENERATED_REF_SOURCE_PREFIX)
+        return f"generated ref renderer for {role}"
     if source.startswith(("config:", "plugin:", "plugin_config:")):
         return source
 
@@ -281,6 +309,13 @@ def definition_path(entry: CatalogEntry | StructuredCatalogSource) -> str | None
 def _source_definition_path(source: str, project: str | None) -> Path | None:
     if source.startswith("plugin:"):
         return _plugin_xprompt_definition_path(source)
+
+    if source.startswith(SIDECAR_REF_CONFIG_SOURCE_PREFIX):
+        root = discover_project_root() or Path.cwd()
+        return resolve_project_config_read_path(root)
+
+    if source.startswith(GENERATED_REF_SOURCE_PREFIX):
+        return None
 
     if source.startswith("plugin_config:"):
         return _plugin_config_definition_path(source)
@@ -347,7 +382,10 @@ def _plugin_xprompt_definition_path(source: str) -> Path | None:
         if getattr(module, "__name__", None) != module_name:
             continue
         try:
-            ref = importlib.resources.files(module).joinpath("xprompts", filename)
+            if filename.startswith("refs/"):
+                ref = importlib.resources.files(module).joinpath(filename)
+            else:
+                ref = importlib.resources.files(module).joinpath("xprompts", filename)
         except (TypeError, AttributeError):
             return None
         return Path(str(ref))
@@ -399,12 +437,20 @@ def package_xprompt_dirs() -> list[Path]:
         get_sase_package_xprompts_dir,
         get_sase_package_default_xprompts_dir,
         get_sase_package_skills_dir,
+        get_sase_package_refs_dir,
     ):
         try:
             package_dirs.append(get_package_dir())
         except Exception:
             pass
     return package_dirs
+
+
+def _all_xprompts(*, include_refs: bool) -> dict[str, XPrompt]:
+    try:
+        return get_all_xprompts(include_refs=include_refs)
+    except TypeError:
+        return get_all_xprompts()
 
 
 _gather_entries = gather_entries

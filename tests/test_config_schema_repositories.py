@@ -74,6 +74,10 @@ def test_config_schema_accepts_canonical_linked_and_sidecar_repos() -> None:
                         "auto_clone": False,
                         "visibility": "private",
                         "disabled": False,
+                        "ref": {
+                            "xprompt": "Research {{ file_path }}",
+                            "filters": {"path_globs": ["**/*.md"]},
+                        },
                     }
                 }
             },
@@ -107,6 +111,7 @@ def test_config_schema_documents_intrinsic_agents_sidecar_contract() -> None:
     assert "never exposed" in sidecar["auto_clone"]["description"]
     assert "agents sidecar" in sidecar["disabled"]["description"]
     assert "private" in sidecar["visibility"]["description"]
+    assert sidecar["ref"]["$ref"] == "#/definitions/sidecarRef"
 
 
 @pytest.mark.parametrize(
@@ -127,6 +132,43 @@ def test_config_schema_rejects_invalid_sidecar_controls(
     assert [list(error.absolute_path) for error in errors] == [
         ["repos", "sidecar", "custom", "research", field]
     ]
+
+
+@pytest.mark.parametrize(
+    ("entry", "expected_path"),
+    [
+        ({"ref": "no"}, ["repos", "sidecar", "custom", "research", "ref"]),
+        (
+            {"ref": {"xprompt": ""}},
+            ["repos", "sidecar", "custom", "research", "ref", "xprompt"],
+        ),
+        (
+            {"ref": {"filters": "no"}},
+            ["repos", "sidecar", "custom", "research", "ref", "filters"],
+        ),
+        (
+            {"ref": {"filters": {"path_globs": [""]}}},
+            [
+                "repos",
+                "sidecar",
+                "custom",
+                "research",
+                "ref",
+                "filters",
+                "path_globs",
+                0,
+            ],
+        ),
+    ],
+)
+def test_config_schema_rejects_invalid_sidecar_ref_controls(
+    entry: dict[str, object], expected_path: list[object]
+) -> None:
+    config = {"repos": {"sidecar": {"custom": {"research": entry}}}}
+
+    errors = list(Draft7Validator(schema()).iter_errors(config))
+
+    assert [list(error.absolute_path) for error in errors] == [expected_path]
 
 
 @pytest.mark.parametrize(

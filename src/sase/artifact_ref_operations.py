@@ -7,9 +7,11 @@ from pathlib import Path
 from typing import Any, cast
 
 from sase.artifact_ref_models import (
+    ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
     ArtifactRef,
     ArtifactRefContext,
+    ArtifactRefPathFilterResult,
     ArtifactRefPromptCandidate,
     ArtifactRefResolution,
     ArtifactRefResolutionStatus,
@@ -178,6 +180,26 @@ def render_artifact_ref(reference: ArtifactRef) -> str:
     return str(binding(reference.to_wire()))
 
 
+def filter_artifact_ref_paths(
+    kind: str,
+    candidates: Iterable[str],
+    *,
+    path_globs: Iterable[str] | None = None,
+) -> ArtifactRefPathFilterResult:
+    """Filter repo-relative document paths through the shared Rust matcher."""
+    _require_artifact_ref_path_filter_schema()
+    binding = require_rust_binding("artifact_ref_filter_path_payloads")
+    raw = cast(
+        Mapping[str, Any],
+        binding(
+            kind,
+            list(candidates),
+            None if path_globs is None else list(path_globs),
+        ),
+    )
+    return ArtifactRefPathFilterResult.from_wire(raw)
+
+
 def scan_artifact_refs(text: str) -> tuple[ArtifactRefPromptCandidate, ...]:
     _require_artifact_ref_schema()
     binding = require_rust_binding("artifact_ref_scan_prompt")
@@ -198,11 +220,22 @@ def _require_artifact_ref_schema() -> None:
         )
 
 
+def _require_artifact_ref_path_filter_schema() -> None:
+    binding = require_rust_binding("artifact_ref_path_filter_wire_schema_version")
+    version = int(binding())
+    if version != ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs artifact-reference path-filter wire is stale: "
+            f"expected {ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION}, got {version}"
+        )
+
+
 __all__ = [
     "at_reference_context",
     "at_reference_inventory",
     "at_reference_menu",
     "canonicalize_artifact_ref",
+    "filter_artifact_ref_paths",
     "parse_artifact_ref",
     "render_artifact_ref",
     "resolve_artifact_ref",

@@ -29,6 +29,7 @@ from .loader_parsing import (
     parse_yaml_front_matter_with_error,
 )
 from .load_issues import record_load_issue
+from .loader_refs import reject_misplaced_ref
 from .loader_skills import (
     plugin_skill_destination,
     reject_misplaced_skill,
@@ -62,6 +63,11 @@ def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         log_skill_use=xp.log_skill_use,
         local_xprompts=xp.local_xprompts,
         memory_type=xp.memory_type,
+        ref=xp.ref,
+        ref_kind=xp.ref_kind,
+        ref_sidecar_role=xp.ref_sidecar_role,
+        ref_path_globs=xp.ref_path_globs,
+        ref_shadowed_sources=xp.ref_shadowed_sources,
     )
 
 
@@ -80,6 +86,8 @@ def _load_ordinary_xprompts_from_dir(directory: Path) -> Iterator[XPrompt]:
         if xprompt is None:
             continue
         if reject_reserved_memory_namespace(xprompt.name, source=md_file):
+            continue
+        if reject_misplaced_ref(xprompt, source=md_file):
             continue
         if reject_misplaced_skill(xprompt, source=md_file, migrate_to=destination):
             continue
@@ -140,6 +148,7 @@ def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
     # Parse description and skill fields if present
     description = front_matter.get("description") if front_matter else None
     skill = front_matter.get("skill") if front_matter else None
+    ref = bool(front_matter.get("ref")) if front_matter else None
     log_skill_use = front_matter.get("log_skill_use", True) if front_matter else True
 
     local_xprompts = _parse_markdown_local_xprompts(front_matter, str(file_path))
@@ -156,6 +165,7 @@ def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
         snippet=snippet,
         description=description,
         skill=skill,
+        ref=ref,
         log_skill_use=log_skill_use,
         local_xprompts=local_xprompts,
     )
@@ -392,6 +402,7 @@ def load_plugin_markdown_xprompts(
                 snippet=front_matter.get("snippet") if front_matter else None,
                 description=(front_matter.get("description") if front_matter else None),
                 skill=front_matter.get("skill") if front_matter else None,
+                ref=bool(front_matter.get("ref")) if front_matter else None,
                 log_skill_use=(
                     front_matter.get("log_skill_use", True) if front_matter else True
                 ),
@@ -418,6 +429,8 @@ def load_xprompts_from_plugins() -> dict[str, XPrompt]:
     for module in discover_plugin_resources("sase_xprompts"):
         for source, xprompt in load_plugin_markdown_xprompts(module, "xprompts"):
             if reject_reserved_memory_namespace(xprompt.name, source=source):
+                continue
+            if reject_misplaced_ref(xprompt, source=source):
                 continue
             if reject_misplaced_skill(
                 xprompt,

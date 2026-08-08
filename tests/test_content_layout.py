@@ -10,6 +10,7 @@ from sase.content_layout import (
     display_path,
     resolve_memory_file_sources,
     resolve_project_layout,
+    resolve_ref_file_sources,
     resolve_xprompt_file_sources,
 )
 from sase.core.paths import shorten_path
@@ -35,11 +36,13 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
         Path("/workspace/demo/xprompts"),
     )
     assert project.skills.path == Path("/workspace/demo/sase/skills")
+    assert project.refs.path == Path("/workspace/demo/sase/refs")
     assert project.memory.canonical.path == Path("/workspace/demo/sase/memory")
     assert project.repos.path == Path("/workspace/demo/sase/repos")
 
     assert layout.home.xprompts.canonical.path == Path("/home/alice/sase/xprompts")
     assert layout.home.skills.path == Path("/home/alice/sase/skills")
+    assert layout.home.refs.path == Path("/home/alice/sase/refs")
     assert layout.home.memory.canonical.path == Path("/home/alice/sase/memory")
     assert layout.home.global_config.path == Path("/home/alice/.config/sase/sase.yml")
     assert layout.chezmoi is not None
@@ -47,6 +50,7 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
         "/dotfiles/home/sase/xprompts"
     )
     assert layout.chezmoi.skills.path == Path("/dotfiles/home/sase/skills")
+    assert layout.chezmoi.refs.path == Path("/dotfiles/home/sase/refs")
     assert layout.chezmoi.memory.canonical.path == Path("/dotfiles/home/sase/memory")
     assert layout.chezmoi.global_config.path == Path(
         "/dotfiles/home/dot_config/sase/sase.yml"
@@ -167,6 +171,63 @@ def test_xprompt_priority_contract_covers_every_source_and_shared_steps() -> Non
     assert layout.xprompt_sources[8].collision_policy == "error"
     assert layout.xprompt_sources[10].ordering == "reverse_lexical_first_wins"
     assert layout.xprompt_sources[-1].steps_locator == "package:xprompts/steps"
+
+
+def test_ref_source_contract_orders_contextual_renderer_sources(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "workspace"
+    home_root = tmp_path / "home"
+    project_root.mkdir()
+    home_root.mkdir()
+
+    layout = _resolve_content_layout(
+        project_root=project_root,
+        home_root=home_root,
+        project="demo",
+    )
+
+    assert [source.id for source in layout.ref_sources] == [
+        "project_refs",
+        "home_refs",
+        "home_project_refs",
+        "plugin_refs",
+        "package_refs",
+    ]
+    assert [source.priority for source in layout.ref_sources] == list(range(1, 6))
+    assert [source.formats for source in layout.ref_sources] == [("md",)] * 5
+    assert [source.path for source in layout.ref_sources[:3]] == [
+        project_root / "sase" / "refs",
+        home_root / "sase" / "refs",
+        home_root / "sase" / "refs" / "demo",
+    ]
+    assert layout.ref_sources[-2].locator == "entrypoint:sase_xprompts/refs"
+    assert layout.ref_sources[-1].locator == "package:xprompts/refs"
+
+    filesystem_sources = resolve_ref_file_sources(
+        project_root=project_root,
+        home_root=home_root,
+        project="demo",
+    )
+    all_sources = resolve_ref_file_sources(
+        project_root=project_root,
+        home_root=home_root,
+        project="demo",
+        include_resource_sources=True,
+    )
+
+    assert [source.id for source in filesystem_sources] == [
+        "project_refs",
+        "home_refs",
+        "home_project_refs",
+    ]
+    assert [source.id for source in all_sources] == [
+        "project_refs",
+        "home_refs",
+        "home_project_refs",
+        "plugin_refs",
+        "package_refs",
+    ]
 
 
 def test_memory_source_contract_orders_project_before_home(

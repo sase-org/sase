@@ -1,6 +1,7 @@
 """Handler for the 'sase xprompt' command."""
 
 import argparse
+from collections.abc import Callable
 import sys
 
 from sase.xprompt.models import UNSET, InputArg
@@ -89,8 +90,8 @@ def _handle_list() -> None:
     from sase.xprompt.workflow_step_display import workflow_step_type_label
 
     with collect_xprompt_load_issues() as load_issues:
-        prompts = get_all_prompts()
-        xprompts = get_all_xprompts()
+        prompts = _include_refs_or_legacy(get_all_prompts)
+        xprompts = _include_refs_or_legacy(get_all_xprompts)
         workflow_names = set(get_all_workflows())
     items = []
     for name, wf in sorted(prompts.items()):
@@ -145,6 +146,12 @@ def _handle_list() -> None:
                 "prefix": workflow_reference_prefix(wf),
                 "insertion": workflow_reference_insertion(name, wf),
                 "memory_type": wf.memory_type,
+                "ref_kind": wf.ref_kind,
+                "ref_sidecar_role": wf.ref_sidecar_role,
+                "ref_path_globs": (
+                    list(wf.ref_path_globs) if wf.ref_path_globs is not None else None
+                ),
+                "ref_shadowed_sources": list(wf.ref_shadowed_sources),
                 "is_skill": bool(skill_xprompt and skill_xprompt.skill),
                 # The provider-visible ``/`` name; ``name`` above stays the
                 # ``#skill/<name>`` xprompt reference.
@@ -160,6 +167,15 @@ def _handle_list() -> None:
     for issue in load_issues:
         print(f"skipped: {issue.source}: {issue.error}", file=sys.stderr)
     sys.exit(0)
+
+
+def _include_refs_or_legacy[T](loader: Callable[..., T]) -> T:
+    try:
+        return loader(include_refs=True)
+    except TypeError as exc:
+        if "include_refs" not in str(exc):
+            raise
+        return loader()
 
 
 def _xprompt_list_default_suffix(inp: InputArg) -> str:

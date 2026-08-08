@@ -177,7 +177,7 @@
             <p class="card-description">{{ xp.description }}</p>
           {% endif %}
 
-          {% if xp.tags or signature or xp.skill or xp.memory_type %}
+          {% if xp.tags or signature or xp.skill or xp.memory_type or xp.ref_kind %}
             <div class="card-meta">
               {% for tag in xp.tags | sort(attribute='value') %}
                 <span class="pill {{ tag.value | tag_color_class }}">#{{ tag.value }}</span>
@@ -192,6 +192,9 @@
               {% endif %}
               {% if xp.memory_type %}
                 <span class="badge-skill">memory · {{ xp.memory_type }}</span>
+              {% endif %}
+              {% if xp.ref_kind %}
+                <span class="badge-skill">ref · {{ xp.ref_kind }}</span>
               {% endif %}
             </div>
           {% endif %}

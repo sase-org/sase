@@ -6,7 +6,10 @@ import pytest
 
 from sase import artifact_ref_operations, artifact_refs
 from sase.artifact_ref_models import check_record_schema
-from sase.artifact_refs import ARTIFACT_REF_WIRE_SCHEMA_VERSION
+from sase.artifact_refs import (
+    ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION,
+    ARTIFACT_REF_WIRE_SCHEMA_VERSION,
+)
 
 
 def test_parse_render_and_scan_wrappers_round_trip() -> None:
@@ -64,6 +67,27 @@ def test_entity_references_round_trip_through_python_facade(
 def test_entity_references_reject_fragments(reference: str) -> None:
     with pytest.raises(ValueError, match="references do not support fragments"):
         artifact_refs.parse_artifact_ref(reference)
+
+
+def test_path_filter_wrapper_preserves_allow_and_filtered_sets() -> None:
+    result = artifact_refs.filter_artifact_ref_paths(
+        "plans",
+        ["202608/plan.md", "202608/render.png"],
+        path_globs=["**/*.md"],
+    )
+
+    assert result.schema_version == ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION == 1
+    assert result.kind == "plans"
+    assert result.allowed == ("202608/plan.md",)
+    assert result.filtered == ("202608/render.png",)
+    assert (
+        artifact_refs.filter_artifact_ref_paths(
+            "plans",
+            ["202608/plan.md"],
+            path_globs=[],
+        ).allowed
+        == ()
+    )
 
 
 def test_schema_gate_fails_before_operation(

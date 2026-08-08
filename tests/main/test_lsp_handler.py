@@ -11,6 +11,8 @@ from unittest.mock import patch
 import pytest
 
 from sase.integrations.xprompt_lsp import (
+    SASE_REF_BUILTIN_DIR_ENV,
+    SASE_REF_PLUGIN_DIRS_JSON_ENV,
     SASE_DEFAULT_CONFIG_PATH_ENV,
     SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV,
     SASE_XPROMPT_LSP_CMD_ENV,
@@ -247,6 +249,7 @@ def test_prepare_lsp_environment_sets_package_catalog_paths(tmp_path: Path) -> N
 
     assert env[SASE_XPROMPT_PACKAGE_DIR_ENV] == str(package_dir)
     assert env[SASE_XPROMPT_BUILTIN_DIR_ENV] == "/custom/xprompts"
+    assert env[SASE_REF_BUILTIN_DIR_ENV] == str(package_dir / "xprompts" / "refs")
     assert env[SASE_XPROMPT_DEFAULT_DIR_ENV] == str(package_dir / "default_xprompts")
     assert env[SASE_DEFAULT_CONFIG_PATH_ENV] == str(package_dir / "default_config.yml")
 
@@ -464,8 +467,10 @@ def test_prepare_lsp_environment_emits_plugin_metadata(tmp_path: Path) -> None:
     xprompt_module = ModuleType("fake_plugin.prompts")
     config_module = ModuleType("fake_plugin.config")
     xprompts_dir = tmp_path / "plugin" / "xprompts"
+    refs_dir = tmp_path / "plugin" / "refs"
     config_dir = tmp_path / "plugin_config"
     xprompts_dir.mkdir(parents=True)
+    refs_dir.mkdir()
     config_dir.mkdir()
     config_path = config_dir / "default_config.yml"
     config_path.write_text("xprompts: {}\n", encoding="utf-8")
@@ -500,6 +505,9 @@ def test_prepare_lsp_environment_emits_plugin_metadata(tmp_path: Path) -> None:
     assert json.loads(env[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV]) == [
         {"module": "fake_plugin.prompts", "path": str(xprompts_dir)}
     ]
+    assert json.loads(env[SASE_REF_PLUGIN_DIRS_JSON_ENV]) == [
+        {"module": "fake_plugin.prompts", "path": str(refs_dir)}
+    ]
     assert json.loads(env[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV]) == [
         {"module": "fake_plugin.config", "path": str(config_path)}
     ]
@@ -510,6 +518,7 @@ def test_prepare_lsp_environment_preserves_plugin_metadata_overrides(
 ) -> None:
     env = {
         SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV: '[{"module":"custom","path":"/x"}]',
+        SASE_REF_PLUGIN_DIRS_JSON_ENV: '[{"module":"custom","path":"/r"}]',
         SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV: '[{"module":"custom","path":"/c"}]',
     }
 
@@ -518,6 +527,7 @@ def test_prepare_lsp_environment_preserves_plugin_metadata_overrides(
     assert env[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV] == (
         '[{"module":"custom","path":"/x"}]'
     )
+    assert env[SASE_REF_PLUGIN_DIRS_JSON_ENV] == '[{"module":"custom","path":"/r"}]'
     assert env[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV] == (
         '[{"module":"custom","path":"/c"}]'
     )
@@ -552,6 +562,7 @@ def test_prepare_lsp_environment_respects_plugin_disable_env(
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert json.loads(env[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV]) == []
+    assert json.loads(env[SASE_REF_PLUGIN_DIRS_JSON_ENV]) == []
     assert json.loads(env[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV]) == []
 
 

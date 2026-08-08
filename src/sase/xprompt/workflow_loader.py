@@ -197,6 +197,11 @@ def _namespace_workflow(project: str, wf: Workflow) -> Workflow:
         description=wf.description,
         skill_name=wf.skill_name,
         memory_type=wf.memory_type,
+        ref=wf.ref,
+        ref_kind=wf.ref_kind,
+        ref_sidecar_role=wf.ref_sidecar_role,
+        ref_path_globs=wf.ref_path_globs,
+        ref_shadowed_sources=wf.ref_shadowed_sources,
     )
 
 
@@ -516,6 +521,11 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
                         description=workflow.description,
                         skill_name=workflow.skill_name,
                         memory_type=workflow.memory_type,
+                        ref=workflow.ref,
+                        ref_kind=workflow.ref_kind,
+                        ref_sidecar_role=workflow.ref_sidecar_role,
+                        ref_path_globs=workflow.ref_path_globs,
+                        ref_shadowed_sources=workflow.ref_shadowed_sources,
                     )
             finally:
                 tmp_path.unlink(missing_ok=True)

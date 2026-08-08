@@ -197,6 +197,45 @@ def test_repos_reports_undescribed_enabled_lazy_custom_entry(
     assert keys == {"repos.sidecar.custom.research.description"}
 
 
+def test_repos_reports_invalid_sidecar_ref_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_config(
+        monkeypatch,
+        {
+            "repos": {
+                "sidecar": {
+                    "builtin": {
+                        "beads": {
+                            "ref": {
+                                "filters": {"path_globs": ["**/*.md"]},
+                            }
+                        },
+                    },
+                    "custom": {
+                        "research": {
+                            "description": "Durable research.",
+                            "ref": {
+                                "xprompt": "",
+                                "filters": {"path_globs": ["", 42]},
+                            },
+                        },
+                    },
+                },
+            }
+        },
+    )
+
+    check = check_config_repos()
+
+    keys = {row["key"] for row in check.data["problems"]}
+    assert keys == {
+        "repos.sidecar.builtin.beads.ref.filters",
+        "repos.sidecar.custom.research.ref.xprompt",
+        "repos.sidecar.custom.research.ref.filters.path_globs",
+    }
+
+
 def test_repos_reports_ok_when_sidecar_is_unset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

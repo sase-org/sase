@@ -107,6 +107,7 @@ class ProjectContentLayout:
     config: CompatibleLayoutPath
     xprompts: CompatibleLayoutPath
     skills: LayoutPath
+    refs: LayoutPath
     memory: CompatibleLayoutPath
     repos: LayoutPath
     memory_readme: LayoutPath
@@ -119,6 +120,7 @@ class HomeContentLayout:
     namespace_root: LayoutPath
     xprompts: CompatibleLayoutPath
     skills: LayoutPath
+    refs: LayoutPath
     memory: CompatibleLayoutPath
     global_config: LayoutPath
     state_root: LayoutPath
@@ -132,6 +134,7 @@ class ChezmoiContentLayout:
     namespace_root: LayoutPath
     xprompts: CompatibleLayoutPath
     skills: LayoutPath
+    refs: LayoutPath
     memory: CompatibleLayoutPath
     global_config: LayoutPath
     memory_readme: LayoutPath
@@ -184,6 +187,22 @@ class SkillSource:
 
 
 @dataclass(frozen=True)
+class RefSource:
+    """One ordered, first-wins source of contextual ref renderers."""
+
+    id: str
+    priority: int
+    scope: str
+    locator: str
+    path: Path | None
+    formats: tuple[str, ...]
+    tracking: PathTracking
+    project_namespaced: bool
+    writable: bool
+    ordering: str | None
+
+
+@dataclass(frozen=True)
 class MemorySource:
     """One ordered source of flat SASE memory notes exposed as xprompts."""
 
@@ -215,14 +234,21 @@ class SaseContentLayout:
     chezmoi: ChezmoiContentLayout | None
     xprompt_sources: tuple[XpromptSource, ...]
     skill_sources: tuple[SkillSource, ...]
+    ref_sources: tuple[RefSource, ...]
     memory_sources: tuple[MemorySource, ...]
 
 
 def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
+    schema_version = int(raw["schema_version"])
+    if schema_version < 5:
+        raise RuntimeError(
+            "sase_core_rs content-layout wire is stale: "
+            f"expected schema >= 5 for ref sources, got {schema_version}"
+        )
     project_raw = raw.get("project")
     chezmoi_raw = raw.get("chezmoi")
     return SaseContentLayout(
-        schema_version=int(raw["schema_version"]),
+        schema_version=schema_version,
         project=(
             _project_layout(_mapping(project_raw)) if project_raw is not None else None
         ),
@@ -237,6 +263,10 @@ def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
         skill_sources=tuple(
             _skill_source(_mapping(item))
             for item in cast(list[Any], raw.get("skill_sources", []))
+        ),
+        ref_sources=tuple(
+            _ref_source(_mapping(item))
+            for item in cast(list[Any], raw.get("ref_sources", []))
         ),
         memory_sources=tuple(
             _memory_source(_mapping(item))
@@ -272,6 +302,7 @@ def _project_layout(raw: Mapping[str, Any]) -> ProjectContentLayout:
         config=_compatible_path(_mapping(raw["config"])),
         xprompts=_compatible_path(_mapping(raw["xprompts"])),
         skills=_layout_path(_mapping(raw["skills"])),
+        refs=_layout_path(_mapping(raw["refs"])),
         memory=_compatible_path(_mapping(raw["memory"])),
         repos=_layout_path(_mapping(raw["repos"])),
         memory_readme=_layout_path(_mapping(raw["memory_readme"])),
@@ -285,6 +316,7 @@ def _home_layout(raw: Mapping[str, Any]) -> HomeContentLayout:
         namespace_root=_layout_path(_mapping(raw["namespace_root"])),
         xprompts=_compatible_path(_mapping(raw["xprompts"])),
         skills=_layout_path(_mapping(raw["skills"])),
+        refs=_layout_path(_mapping(raw["refs"])),
         memory=_compatible_path(_mapping(raw["memory"])),
         global_config=_layout_path(_mapping(raw["global_config"])),
         state_root=_layout_path(_mapping(raw["state_root"])),
@@ -299,6 +331,7 @@ def _chezmoi_layout(raw: Mapping[str, Any]) -> ChezmoiContentLayout:
         namespace_root=_layout_path(_mapping(raw["namespace_root"])),
         xprompts=_compatible_path(_mapping(raw["xprompts"])),
         skills=_layout_path(_mapping(raw["skills"])),
+        refs=_layout_path(_mapping(raw["refs"])),
         memory=_compatible_path(_mapping(raw["memory"])),
         global_config=_layout_path(_mapping(raw["global_config"])),
         memory_readme=_layout_path(_mapping(raw["memory_readme"])),
@@ -334,6 +367,22 @@ def _xprompt_source(raw: Mapping[str, Any]) -> XpromptSource:
 def _skill_source(raw: Mapping[str, Any]) -> SkillSource:
     path = raw.get("path")
     return SkillSource(
+        id=str(raw["id"]),
+        priority=int(raw["priority"]),
+        scope=str(raw["scope"]),
+        locator=str(raw["locator"]),
+        path=Path(str(path)) if path is not None else None,
+        formats=tuple(str(item) for item in raw.get("formats", [])),
+        tracking=cast(PathTracking, raw["tracking"]),
+        project_namespaced=bool(raw.get("project_namespaced", False)),
+        writable=bool(raw.get("writable", False)),
+        ordering=(str(raw["ordering"]) if raw.get("ordering") is not None else None),
+    )
+
+
+def _ref_source(raw: Mapping[str, Any]) -> RefSource:
+    path = raw.get("path")
+    return RefSource(
         id=str(raw["id"]),
         priority=int(raw["priority"]),
         scope=str(raw["scope"]),

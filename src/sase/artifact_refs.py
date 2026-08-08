@@ -25,6 +25,7 @@ from sase.artifact_ref_lists import (
 )
 from sase.artifact_ref_models import (
     ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION,
+    ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
     BUILTIN_ARTIFACT_REF_KINDS,
     ArtifactRef,
@@ -35,6 +36,7 @@ from sase.artifact_ref_models import (
     ArtifactRefDocumentRoot,
     ArtifactRefFragment,
     ArtifactRefPayload,
+    ArtifactRefPathFilterResult,
     ArtifactRefProject,
     ArtifactRefPromptCandidate,
     ArtifactRefRepository,
@@ -48,6 +50,7 @@ from sase.artifact_ref_operations import (
     at_reference_inventory,
     at_reference_menu,
     canonicalize_artifact_ref,
+    filter_artifact_ref_paths,
     parse_artifact_ref,
     render_artifact_ref,
     resolve_artifact_ref,
@@ -63,6 +66,7 @@ from sase.artifact_ref_prompt import (
 
 __all__ = [
     "ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION",
+    "ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_LIST_RESOLUTION_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION",
     "ARTIFACT_REF_WIRE_SCHEMA_VERSION",
@@ -76,6 +80,7 @@ __all__ = [
     "ArtifactRefFragment",
     "ArtifactRefListEntry",
     "ArtifactRefPayload",
+    "ArtifactRefPathFilterResult",
     "ArtifactRefProject",
     "ArtifactRefPromptCandidate",
     "ArtifactRefRepository",
@@ -91,6 +96,7 @@ __all__ = [
     "at_reference_inventory",
     "at_reference_menu",
     "canonicalize_artifact_ref",
+    "filter_artifact_ref_paths",
     "design_reference_for_plan_row",
     "launch_artifact_ref_context",
     "normalize_artifact_ref_list",
