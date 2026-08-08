@@ -7,10 +7,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
+    submit_post_write_action_sequence,
+)
 from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt import (
     _run_git_commit_push_sync,
 )
-from sase.ace.tui.modals import ConfirmActionModal
+from sase.ace.tui.modals.post_write_actions_modal import PostWriteActionsModal
+from sase.xprompt.write_targets import PostWriteActionKind, PostWriteActionOffer
 
 from ._prompt_save_xprompt_helpers import _CommitHarness
 
@@ -22,19 +26,19 @@ def test_commit_push_confirmation_submits_tracked_task(tmp_path: Path) -> None:
     harness = _CommitHarness()
     with (
         patch(
-            "sase.ace.tui.modals.xprompt_browser_helpers.get_git_root",
+            "sase.xprompt.write_targets.get_git_root",
             return_value=str(tmp_path),
         ),
         patch(
-            "sase.ace.tui.modals.xprompt_browser_helpers.has_git_changes",
+            "sase.xprompt.write_targets.has_git_changes",
             return_value=True,
         ),
     ):
         harness._offer_git_commit(str(path), is_new=True, xprompt_name="review")
-        confirm, callback = harness.pushed[0]
-        assert isinstance(confirm, ConfirmActionModal)
+        modal, callback = harness.pushed[0]
+        assert isinstance(modal, PostWriteActionsModal)
         assert callable(callback)
-        callback(True)
+        callback((PostWriteActionKind.COMMIT_PUSH,))
     assert len(harness.submitted) == 1
     args, kwargs = harness.submitted[0]
     assert args[:3] == ("xprompt-commit", "xprompts/review.md", str(tmp_path))
@@ -47,11 +51,11 @@ def test_successful_snippet_commit_refreshes_config_catalog(tmp_path: Path) -> N
     harness = _CommitHarness()
     with (
         patch(
-            "sase.ace.tui.modals.xprompt_browser_helpers.get_git_root",
+            "sase.xprompt.write_targets.get_git_root",
             return_value=str(tmp_path),
         ),
         patch(
-            "sase.ace.tui.modals.xprompt_browser_helpers.has_git_changes",
+            "sase.xprompt.write_targets.has_git_changes",
             return_value=True,
         ),
     ):
@@ -62,16 +66,16 @@ def test_successful_snippet_commit_refreshes_config_catalog(tmp_path: Path) -> N
             noun="snippet",
             commit_type="snippet",
         )
-        _confirm, callback = harness.pushed[0]
+        _modal, callback = harness.pushed[0]
         assert callable(callback)
-        callback(True)
+        callback((PostWriteActionKind.COMMIT_PUSH,))
 
     on_complete = harness.submitted[0][1]["on_complete"]
     assert callable(on_complete)
     on_complete(
         SimpleNamespace(
             success=True,
-            message="Committed and pushed; applied chezmoi changes",
+            message="Committed and pushed to remote",
             payload=False,
         )
     )
@@ -87,11 +91,11 @@ def test_failed_or_skipped_snippet_commit_does_not_refresh_catalog(
     harness = _CommitHarness()
     with (
         patch(
-            "sase.ace.tui.modals.xprompt_browser_helpers.get_git_root",
+            "sase.xprompt.write_targets.get_git_root",
             return_value=str(tmp_path),
         ),
         patch(
-            "sase.ace.tui.modals.xprompt_browser_helpers.has_git_changes",
+            "sase.xprompt.write_targets.has_git_changes",
             return_value=True,
         ),
     ):
@@ -102,12 +106,12 @@ def test_failed_or_skipped_snippet_commit_does_not_refresh_catalog(
             noun="snippet",
             commit_type="snippet",
         )
-        _confirm, callback = harness.pushed[0]
+        _modal, callback = harness.pushed[0]
         assert callable(callback)
-        callback(False)
+        callback(())
         assert harness.submitted == []
 
-        callback(True)
+        callback((PostWriteActionKind.COMMIT_PUSH,))
 
     on_complete = harness.submitted[0][1]["on_complete"]
     assert callable(on_complete)
@@ -131,7 +135,7 @@ def test_git_commit_push_worker_runs_git_sequence(tmp_path: Path) -> None:
             "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt.subprocess.run",
             side_effect=run,
         ),
-        patch("sase.config.get_use_chezmoi", return_value=False),
+        patch("sase.config.apply_chezmoi") as apply_chezmoi,
     ):
         result = _run_git_commit_push_sync(
             git_root=str(tmp_path),
@@ -140,6 +144,7 @@ def test_git_commit_push_worker_runs_git_sequence(tmp_path: Path) -> None:
         )
 
     assert result.success is True
+    apply_chezmoi.assert_not_called()
     assert calls[-3:] == [
         ["git", "-C", str(tmp_path), "commit", "-m", "chore: Add xprompt review"],
         ["git", "-C", str(tmp_path), "pull", "--rebase"],
@@ -189,7 +194,6 @@ def test_git_commit_push_worker_backs_off_then_removes_stale_index_lock(
             side_effect=run,
         ),
         patch("sase.git_lock_retry.git_lock_retry_delays", return_value=(0.001, 0.001)),
-        patch("sase.config.get_use_chezmoi", return_value=False),
     ):
         result = _run_git_commit_push_sync(
             git_root=str(tmp_path),
@@ -200,3 +204,76 @@ def test_git_commit_push_worker_backs_off_then_removes_stale_index_lock(
     assert result.index_lock_removed
     assert commit_attempts == 4
     assert not lock.exists()
+
+
+def test_post_write_sequence_waits_for_success_before_next_task() -> None:
+    harness = _CommitHarness()
+    offers = (
+        PostWriteActionOffer(
+            kind=PostWriteActionKind.COMMIT_PUSH,
+            key="c",
+            label="Commit & push",
+            subtitle="Commit.",
+            default_on=True,
+            file_path="/repo/review.md",
+            rel_path="review.md",
+            git_root="/repo",
+            commit_message="chore: update xprompt review",
+        ),
+        PostWriteActionOffer(
+            kind=PostWriteActionKind.APPLY_CHEZMOI,
+            key="a",
+            label="Apply chezmoi",
+            subtitle="Apply.",
+            default_on=True,
+            file_path="/repo/review.md",
+            rel_path="review.md",
+            apply_target="/home/u/sase/xprompts/review.md",
+        ),
+    )
+
+    submit_post_write_action_sequence(harness, harness, offers)
+
+    assert len(harness.submitted) == 1
+    on_complete = harness.submitted[0][1]["on_complete"]
+    assert callable(on_complete)
+    on_complete(SimpleNamespace(success=True, message="committed", payload=False))
+
+    assert len(harness.submitted) == 2
+    assert harness.submitted[1][0][0] == "xprompt-chezmoi-apply"
+
+
+def test_post_write_sequence_stops_after_failed_task() -> None:
+    harness = _CommitHarness()
+    offers = (
+        PostWriteActionOffer(
+            kind=PostWriteActionKind.COMMIT_PUSH,
+            key="c",
+            label="Commit & push",
+            subtitle="Commit.",
+            default_on=True,
+            file_path="/repo/review.md",
+            rel_path="review.md",
+            git_root="/repo",
+            commit_message="chore: update xprompt review",
+        ),
+        PostWriteActionOffer(
+            kind=PostWriteActionKind.APPLY_CHEZMOI,
+            key="a",
+            label="Apply chezmoi",
+            subtitle="Apply.",
+            default_on=True,
+            file_path="/repo/review.md",
+            rel_path="review.md",
+            apply_target="/home/u/sase/xprompts/review.md",
+        ),
+    )
+
+    submit_post_write_action_sequence(harness, harness, offers)
+
+    assert len(harness.submitted) == 1
+    on_complete = harness.submitted[0][1]["on_complete"]
+    assert callable(on_complete)
+    on_complete(SimpleNamespace(success=False, message="failed", payload=False))
+
+    assert len(harness.submitted) == 1

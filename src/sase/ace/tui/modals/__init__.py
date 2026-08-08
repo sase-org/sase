@@ -121,6 +121,7 @@ from .prompt_history_modal import (
     PromptHistoryResult,
 )
 from .prompt_submit_choice_modal import PromptSubmitChoice, PromptSubmitChoiceModal
+from .post_write_actions_modal import PostWriteActionsModal
 from .query_edit_modal import QueryEditModal
 from .saved_query_picker import SavedQueryPickerModal
 from .quit_confirm_modal import QuitConfirmModal
@@ -357,6 +358,7 @@ __all__ = [
     "PromptHistoryResult",
     "PromptSubmitChoice",
     "PromptSubmitChoiceModal",
+    "PostWriteActionsModal",
     "QueryEditModal",
     "SavedQueryPickerModal",
     "QuitConfirmModal",

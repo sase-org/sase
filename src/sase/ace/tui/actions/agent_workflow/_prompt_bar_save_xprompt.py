@@ -266,8 +266,27 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             )
             bar._refresh_title()
         self.notify(f"Wrote xprompt '{binding.name}'")  # type: ignore[attr-defined]
-        self._offer_git_commit(
-            binding.write_path,
+        from pathlib import Path
+
+        from sase.xprompt.write_targets import (
+            XPromptWriteTarget,
+            classify_written_file,
+        )
+
+        target = XPromptWriteTarget(
+            read_path=Path(binding.path).expanduser(),
+            write_path=Path(binding.write_path).expanduser(),
+            apply_target=(
+                Path(binding.apply_target).expanduser()
+                if binding.apply_target is not None
+                else None
+            ),
+            via_chezmoi=binding.via_chezmoi,
+        )
+        kind = classify_written_file(target.write_path, read_path=target.read_path)
+        await self._offer_post_write_actions(
+            target,
+            kind=kind,
             is_new=False,
             xprompt_name=binding.name,
         )
@@ -361,8 +380,21 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         verb = "Created" if not target.exists else "Saved draft as"
         self.notify(f"{verb} xprompt '{target.name}'")  # type: ignore[attr-defined]
         self._bind_saved_stack(origin_bar, target, source_markdown=source_markdown)
-        self._offer_git_commit(
-            target.path, is_new=not target.exists, xprompt_name=target.name
+        from sase.xprompt.write_targets import (
+            classify_written_file,
+            write_target_for_written_path,
+        )
+
+        post_write_target = write_target_for_written_path(target.path)
+        kind = classify_written_file(
+            post_write_target.write_path,
+            read_path=post_write_target.read_path,
+        )
+        await self._offer_post_write_actions(
+            post_write_target,
+            kind=kind,
+            is_new=not target.exists,
+            xprompt_name=target.name,
         )
 
     @staticmethod

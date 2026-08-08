@@ -1114,6 +1114,12 @@ StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Conta
     min-width: 14;
 }
 
+.post-write-actions-list {
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+}
+
 AgentCleanupModal > #agent-cleanup-container {
     width: 92;
     max-width: 95%;

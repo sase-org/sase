@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from textual.app import App, ComposeResult
 
@@ -38,6 +39,21 @@ class _SaveHarness(PromptBarSaveXpromptMixin):
         commit_type: str = "xprompt",
     ) -> None:
         del commit_type
+        self.git_offers.append((file_path, is_new, xprompt_name, noun))
+
+    async def _offer_post_write_actions(
+        self,
+        target: Any,
+        *,
+        kind: object,
+        is_new: bool,
+        xprompt_name: str,
+        noun: str = "xprompt",
+        commit_type: str = "xprompt",
+        refresh_config_on_success: bool = False,
+    ) -> None:
+        del kind, commit_type, refresh_config_on_success
+        file_path = str(target.write_path)
         self.git_offers.append((file_path, is_new, xprompt_name, noun))
 
 
@@ -87,6 +103,11 @@ class _SaveFlowApp(PromptBarSaveXpromptMixin, App[None]):
         await super().on_prompt_input_bar_save_as_xprompt_requested(event)
 
     def _offer_git_commit(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
+    async def _offer_post_write_actions(
+        self, *_args: object, **_kwargs: object
+    ) -> None:
         pass
 
     def get_snippets(self) -> dict[str, str]:

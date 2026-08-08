@@ -62,12 +62,24 @@ class PromptBarSaveSnippetMixin(
         self.notify(  # type: ignore[attr-defined]
             f"{verb} snippet '{target.name}' in {target.display_path}"
         )
-        self._offer_git_commit(
-            target.path,
+        from sase.xprompt.write_targets import (
+            classify_written_file,
+            write_target_for_written_path,
+        )
+
+        post_write_target = write_target_for_written_path(target.path)
+        kind = classify_written_file(
+            post_write_target.write_path,
+            read_path=post_write_target.read_path,
+        )
+        await self._offer_post_write_actions(
+            post_write_target,
+            kind=kind,
             is_new=not target.exists,
             xprompt_name=target.name,
             noun="snippet",
             commit_type="snippet",
+            refresh_config_on_success=True,
         )
 
     async def _publish_saved_snippet(self, trigger: str, template: str) -> None:

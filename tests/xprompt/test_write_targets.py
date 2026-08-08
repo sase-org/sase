@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from sase.xprompt import write_targets
 
@@ -137,3 +138,147 @@ def test_canonical_reference_uses_user_facing_memory_and_skill_forms(
         )
         == "#app/review"
     )
+
+
+def test_written_path_reverse_maps_chezmoi_source_to_apply_target(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    home = tmp_path / "home"
+    source_root = home / ".local" / "share" / "chezmoi" / "home"
+    source_path = source_root / "dot_config" / "sase" / "sase.yml"
+    _set_home_and_chezmoi(monkeypatch, home, source_root, use_chezmoi=True)
+
+    target = write_targets.write_target_for_written_path(source_path)
+
+    assert target.read_path == home / ".config" / "sase" / "sase.yml"
+    assert target.write_path == source_path
+    assert target.apply_target == home / ".config" / "sase" / "sase.yml"
+    assert target.via_chezmoi is True
+
+
+def test_classifier_covers_skill_memory_config_and_plain_xprompt(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    memory_root = tmp_path / "home" / "sase" / "memory"
+    skill_root = tmp_path / "home" / "sase" / "skills"
+    monkeypatch.setattr(
+        write_targets,
+        "resolve_memory_file_sources",
+        lambda: (SimpleNamespace(paths=SimpleNamespace(write_path=memory_root)),),
+    )
+    monkeypatch.setattr(
+        write_targets,
+        "is_canonical_skill_directory",
+        lambda directory: Path(directory) == skill_root,
+    )
+
+    assert (
+        write_targets.classify_written_file(memory_root / "obsidian.md")
+        is write_targets.WrittenFileKind.MEMORY_NOTE
+    )
+    assert (
+        write_targets.classify_written_file(skill_root / "review.md")
+        is write_targets.WrittenFileKind.SKILL_SOURCE
+    )
+    assert (
+        write_targets.classify_written_file(tmp_path / "sase.yml")
+        is write_targets.WrittenFileKind.CONFIG_ENTRY
+    )
+    assert (
+        write_targets.classify_written_file(tmp_path / "xprompts" / "review.md")
+        is write_targets.WrittenFileKind.XPROMPT
+    )
+
+
+def test_classifier_prefers_read_path_for_chezmoi_memory_note(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    home = tmp_path / "home"
+    memory_root = home / "sase" / "memory"
+    source_path = (
+        home
+        / ".local"
+        / "share"
+        / "chezmoi"
+        / "home"
+        / "sase"
+        / "memory"
+        / "obsidian.md"
+    )
+    monkeypatch.setattr(
+        write_targets,
+        "resolve_memory_file_sources",
+        lambda: (SimpleNamespace(paths=SimpleNamespace(write_path=memory_root)),),
+    )
+
+    kind = write_targets.classify_written_file(
+        source_path,
+        read_path=memory_root / "obsidian.md",
+    )
+
+    assert kind is write_targets.WrittenFileKind.MEMORY_NOTE
+
+
+def test_followup_offers_commit_and_scoped_apply_for_plain_chezmoi_target(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    write_path = tmp_path / "repo" / "home" / "sase" / "xprompts" / "review.md"
+    target = write_targets.XPromptWriteTarget(
+        read_path=tmp_path / "home" / "sase" / "xprompts" / "review.md",
+        write_path=write_path,
+        apply_target=tmp_path / "home" / "sase" / "xprompts" / "review.md",
+        via_chezmoi=True,
+    )
+    monkeypatch.setattr(write_targets, "get_git_root", lambda _path: str(tmp_path))
+    monkeypatch.setattr(
+        write_targets,
+        "has_git_changes",
+        lambda _root, _path: True,
+    )
+
+    offers = write_targets.build_post_write_action_offers(
+        target,
+        kind=write_targets.WrittenFileKind.XPROMPT,
+        is_new=False,
+        xprompt_name="review",
+    )
+
+    assert [offer.kind for offer in offers] == [
+        write_targets.PostWriteActionKind.COMMIT_PUSH,
+        write_targets.PostWriteActionKind.APPLY_CHEZMOI,
+    ]
+    assert offers[1].apply_target == str(target.apply_target)
+
+
+def test_followup_memory_init_suppresses_commit_and_apply(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = write_targets.XPromptWriteTarget(
+        read_path=tmp_path / "home" / "sase" / "memory" / "obsidian.md",
+        write_path=tmp_path / "repo" / "home" / "sase" / "memory" / "obsidian.md",
+        apply_target=tmp_path / "home" / "sase" / "memory" / "obsidian.md",
+        via_chezmoi=True,
+    )
+    monkeypatch.setattr(write_targets, "get_git_root", lambda _path: str(tmp_path))
+    monkeypatch.setattr(
+        write_targets,
+        "has_git_changes",
+        lambda _root, _path: True,
+    )
+
+    offers = write_targets.build_post_write_action_offers(
+        target,
+        kind=write_targets.WrittenFileKind.MEMORY_NOTE,
+        is_new=False,
+        xprompt_name="obsidian",
+    )
+
+    assert [offer.kind for offer in offers] == [
+        write_targets.PostWriteActionKind.MEMORY_INIT
+    ]
+    assert offers[0].command == ("sase", "memory", "init")

@@ -9,20 +9,21 @@ from pathlib import Path
 
 from sase.ace.hints import build_editor_args
 from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
-    git_index_lock_retry_message,
-    run_git_commit_push_sync,
-)
-from sase.ace.tui.actions.task_actions import (
-    TrackedTaskCompletion,
-    TrackedTaskResult,
+    submit_post_write_action_sequence,
 )
 from sase.xprompt.config_yaml import insert_xprompt_into_config
 from sase.xprompt.loader import get_sase_package_xprompts_dir
+from sase.xprompt.write_targets import (
+    PostWriteActionKind,
+    PostWriteActionOffer,
+    XPromptWriteTarget,
+    build_post_write_action_offers,
+    classify_written_file,
+    write_target_for_written_path,
+)
 
-from .confirm_action_modal import ConfirmActionModal
+from .post_write_actions_modal import PostWriteActionsModal
 from .xprompt_browser_helpers import (
-    get_git_root,
-    has_git_changes,
     resolve_source_to_file_path,
 )
 
@@ -257,77 +258,75 @@ class XPromptBrowserActionsMixin:
     def _offer_git_commit(
         self, file_path: str, *, is_new: bool, xprompt_name: str
     ) -> None:
-        """If the file is in a git repo and has changes, offer to commit and push."""
-        git_root = get_git_root(file_path)
-        if git_root is None:
+        """Schedule post-write follow-up probing for *file_path*."""
+        self.run_worker(  # type: ignore[attr-defined]
+            self._offer_post_write_actions_for_file(
+                file_path,
+                is_new=is_new,
+                xprompt_name=xprompt_name,
+            ),
+            exclusive=True,
+            group="xprompt-post-write-actions",
+        )
+
+    async def _offer_post_write_actions_for_file(
+        self,
+        file_path: str,
+        *,
+        is_new: bool,
+        xprompt_name: str,
+    ) -> None:
+        """Build and push post-write actions without blocking the TUI pump."""
+        import asyncio
+
+        target, offers = await asyncio.to_thread(
+            _build_post_write_actions_for_file,
+            file_path,
+            is_new=is_new,
+            xprompt_name=xprompt_name,
+        )
+        if not getattr(self, "is_mounted", False):
             return
-        if not has_git_changes(git_root, file_path):
+        if not offers:
             return
+        by_kind = {offer.kind: offer for offer in offers}
 
-        rel_path = os.path.relpath(file_path, git_root)
-        verb = "Add" if is_new else "Update"
-
-        def _on_commit_push_answer(confirmed: bool | None) -> None:
-            if not confirmed:
+        def _on_actions_selected(
+            selected: tuple[PostWriteActionKind, ...] | None,
+        ) -> None:
+            if not selected:
                 return
-            subject = f"chore: {verb} xprompt {xprompt_name}"
-            from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
-
-            message = apply_auto_commit_type_tag(subject, "xprompt")
-
-            def _task() -> TrackedTaskResult[bool]:
-                result = run_git_commit_push_sync(
-                    git_root=git_root,
-                    file_path=file_path,
-                    commit_message=message,
-                )
-                return TrackedTaskResult(
-                    success=result.success,
-                    message=result.message,
-                    payload=result.index_lock_removed,
-                    error=None if result.success else result.message,
-                )
-
-            def _on_complete(completion: TrackedTaskCompletion[bool]) -> None:
-                severity = "information" if completion.success else "error"
-                self.notify(completion.message, severity=severity)  # type: ignore[attr-defined]
-                if completion.payload:
-                    self.notify(  # type: ignore[attr-defined]
-                        git_index_lock_retry_message(git_root),
-                        severity="warning",
-                    )
-
-            submit = getattr(self.app, "_submit_tracked_task", None)  # type: ignore[attr-defined]
-            if not callable(submit):
-                self.notify(  # type: ignore[attr-defined]
-                    "Could not commit xprompt: background task queue unavailable.",
-                    severity="error",
-                )
-                return
-            submit(
-                "xprompt-commit",
-                rel_path,
-                git_root,
-                _task,
-                display_name=f"commit xprompt {rel_path}",
-                dedup_key=f"xprompt-commit:{git_root}:{rel_path}",
-                duplicate_message=(
-                    f"Another xprompt commit is already running for {rel_path}."
-                ),
-                on_complete=_on_complete,
-                reload_on_complete=False,
-                notify_on_complete=False,
+            selected_offers = tuple(
+                by_kind[kind] for kind in selected if kind in by_kind
+            )
+            submit_post_write_action_sequence(
+                self,
+                self.app,  # type: ignore[attr-defined]
+                selected_offers,
+                noun="xprompt",
             )
 
+        subject = offers[0].rel_path
+        if target.via_chezmoi and target.apply_target is not None:
+            subject = f"{subject}\nchezmoi source for {target.apply_target}"
         self.app.push_screen(  # type: ignore[attr-defined]
-            ConfirmActionModal(
-                "Commit & Push",
-                "Commit and push your xprompt changes?",
-                subject=rel_path,
-                icon="↑",
-                confirm_label="Commit & push",
-                cancel_label="Skip",
-                default="confirm",
-            ),
-            _on_commit_push_answer,
+            PostWriteActionsModal(offers, subject=subject),
+            _on_actions_selected,
         )
+
+
+def _build_post_write_actions_for_file(
+    file_path: str,
+    *,
+    is_new: bool,
+    xprompt_name: str,
+) -> tuple[XPromptWriteTarget, tuple[PostWriteActionOffer, ...]]:
+    target = write_target_for_written_path(file_path)
+    kind = classify_written_file(target.write_path, read_path=target.read_path)
+    offers = build_post_write_action_offers(
+        target,
+        kind=kind,
+        is_new=is_new,
+        xprompt_name=xprompt_name,
+    )
+    return target, offers
