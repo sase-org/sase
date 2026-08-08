@@ -517,6 +517,22 @@ class TestHandleSasePlan:
         assert payload["_plan_path"] == str(dest)
 
 
+_SYNC_RESULT = subprocess.CompletedProcess(
+    ["sase", "bead", "sync"], 0, stdout=b"", stderr=b""
+)
+
+
+def _show_result(status: str) -> "subprocess.CompletedProcess[bytes]":
+    """Return a fake ``sase bead show --format json`` result with *status*."""
+    detail = json.dumps({"issue": {"id": "B-123", "status": status}}).encode()
+    return subprocess.CompletedProcess(
+        ["sase", "bead", "show", "B-123", "--format", "json"],
+        0,
+        stdout=detail,
+        stderr=b"",
+    )
+
+
 class TestHandleBeads:
     """Verify bead hook remains best-effort in test/CI environments."""
 
@@ -532,40 +548,87 @@ class TestHandleBeads:
 
         assert payload["message"] == "Fix bug"
 
-    def test_bare_reclose_reports_actual_already_closed_outcome(
+    def test_in_progress_bead_is_not_closed_and_earns_a_reminder(
         self, tmp_path: Path
     ) -> None:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
-        close = subprocess.CompletedProcess(
-            ["sase", "bead", "close", "B-123"],
-            0,
-            stdout=b"\xc2\xb7 Already closed  B-123 \xe2\x80\x94 Finished\n",
-            stderr=b"",
-        )
-        sync = subprocess.CompletedProcess(
-            ["sase", "bead", "sync"],
-            0,
-            stdout=b"",
-            stderr=b"",
-        )
         with (
             patch(
                 "sase.workflows.commit.commit_hooks.subprocess.run",
-                side_effect=[close, sync],
+                side_effect=[_show_result("in_progress"), _SYNC_RESULT],
             ) as run,
             patch("sase.workflows.commit.commit_hooks.print_status") as print_status,
         ):
             handle_beads(payload, str(tmp_path))
 
-        assert run.call_args_list[0].args[0] == [
-            "sase",
-            "bead",
-            "close",
-            "B-123",
+        assert [call.args[0] for call in run.call_args_list] == [
+            ["sase", "bead", "show", "B-123", "--format", "json"],
+            ["sase", "bead", "sync"],
         ]
-        print_status.assert_called_once_with(
-            "· Already closed  B-123 — Finished", "success"
+        message, level = print_status.call_args.args
+        assert level == "warning"
+        assert "B-123 is still in_progress" in message
+        assert 'sase bead close B-123 --note "<what you verified>"' in message
+
+    def test_sidecar_commit_does_not_close_the_workspace_bead(
+        self, tmp_path: Path
+    ) -> None:
+        """A plans/linked-repo commit cannot signal the deliverable is done."""
+        sidecar = tmp_path / "sase--plans"
+        sidecar.mkdir()
+        payload = {"message": "docs: mark plan done", "bead_id": "B-123"}
+        with (
+            patch(
+                "sase.workflows.commit.commit_hooks.subprocess.run",
+                side_effect=[_show_result("in_progress"), _SYNC_RESULT],
+            ) as run,
+            patch("sase.workflows.commit.commit_hooks.print_status"),
+        ):
+            handle_beads(payload, str(sidecar))
+
+        assert not any(
+            call.args[0][:3] == ["sase", "bead", "close"] for call in run.call_args_list
         )
+
+    def test_already_closed_bead_is_left_alone_without_a_reminder(
+        self, tmp_path: Path
+    ) -> None:
+        payload = {"message": "Fix bug", "bead_id": "B-123"}
+        with (
+            patch(
+                "sase.workflows.commit.commit_hooks.subprocess.run",
+                side_effect=[_show_result("closed"), _SYNC_RESULT],
+            ),
+            patch("sase.workflows.commit.commit_hooks.print_status") as print_status,
+        ):
+            handle_beads(payload, str(tmp_path))
+
+        print_status.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "show",
+        [
+            subprocess.CompletedProcess(["sase"], 1, stdout=b"", stderr=b"boom"),
+            subprocess.CompletedProcess(["sase"], 0, stdout=b"not json", stderr=b""),
+            subprocess.CompletedProcess(["sase"], 0, stdout=b"{}", stderr=b""),
+        ],
+        ids=["failed", "unparseable", "no-issue"],
+    )
+    def test_unresolvable_bead_status_stays_quiet_but_still_syncs(
+        self, tmp_path: Path, show: "subprocess.CompletedProcess[bytes]"
+    ) -> None:
+        payload = {"message": "Fix bug", "bead_id": "B-123"}
+        with (
+            patch(
+                "sase.workflows.commit.commit_hooks.subprocess.run",
+                side_effect=[show, _SYNC_RESULT],
+            ) as run,
+            patch("sase.workflows.commit.commit_hooks.print_status") as print_status,
+        ):
+            handle_beads(payload, str(tmp_path))
+
+        print_status.assert_not_called()
+        assert run.call_args_list[-1].args[0] == ["sase", "bead", "sync"]
 
     def test_bead_sync_runs_when_bead_dir_exists(self, tmp_path: Path) -> None:
         (tmp_path / "sdd/beads").mkdir(parents=True)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -136,7 +137,16 @@ def apply_bead_commit_tag(
 
 
 def handle_beads(payload: dict, cwd: str) -> None:
-    """Close and sync beads best-effort."""
+    """Sync beads best-effort and report an assigned bead that is still open.
+
+    A commit is not a completion signal. One workspace commits to its primary
+    repo, to linked repos, and to SDD sidecars, and none of those say the
+    agent's own deliverable is finished -- closing on the first commit closes
+    the bead mid-flight and leaves its close timestamp and note describing
+    work that had not happened yet. So the commit path never closes a bead in
+    any repo; the agent's own ``sase bead close`` is the completion trigger,
+    and this hook only reminds the agent when that close has not landed.
+    """
     bead_id = payload.get("bead_id")
     has_bead_dir = (
         os.path.isdir(os.path.join(cwd, BEADS_DIRNAME))
@@ -145,9 +155,7 @@ def handle_beads(payload: dict, cwd: str) -> None:
     )
 
     if bead_id:
-        # Close bead (best effort)
-        result = _run_bead_command(["sase", "bead", "close", bead_id], cwd)
-        _report_bead_close_result(str(bead_id), result)
+        _report_unclosed_bead(str(bead_id), cwd)
 
     if bead_id or has_bead_dir:
         # Sync beads (best effort)
@@ -170,21 +178,37 @@ def _run_bead_command(
         return None
 
 
-def _report_bead_close_result(
-    bead_id: str,
-    result: subprocess.CompletedProcess[bytes] | None,
-) -> None:
-    """Report the close command's actual outcome without pre-claiming success."""
-    if result is None or not isinstance(result.returncode, int):
+def _report_unclosed_bead(bead_id: str, cwd: str) -> None:
+    """Warn when *bead_id* is still open, since the commit will not close it."""
+    status = _resolve_bead_status(bead_id, cwd)
+    if status is None or status == "closed":
         return
-    stdout = _decoded_command_output(result.stdout)
-    stderr = _decoded_command_output(result.stderr)
-    if result.returncode == 0:
-        message = stdout or f"Bead {bead_id} close checked."
-        print_status(message, "success")
-        return
-    detail = stderr or stdout or f"exit {result.returncode}"
-    print_status(f"Bead {bead_id} close failed: {detail}", "warning")
+    print_status(
+        f"Bead {bead_id} is still {status}; committing does not close it. Run "
+        f'`sase bead close {bead_id} --note "<what you verified>"` once the '
+        "work is actually done.",
+        "warning",
+    )
+
+
+def _resolve_bead_status(bead_id: str, cwd: str) -> str | None:
+    """Return *bead_id*'s status, or ``None`` when it cannot be determined."""
+    result = _run_bead_command(
+        ["sase", "bead", "show", bead_id, "--format", "json"], cwd
+    )
+    if result is None or result.returncode != 0:
+        return None
+    try:
+        detail = json.loads(_decoded_command_output(result.stdout))
+    except ValueError:
+        return None
+    issue = detail.get("issue") if isinstance(detail, dict) else None
+    if not isinstance(issue, dict):
+        return None
+    status = issue.get("status")
+    if not isinstance(status, str) or not status.strip():
+        return None
+    return status.strip()
 
 
 def _decoded_command_output(output: bytes | str | object) -> str:
