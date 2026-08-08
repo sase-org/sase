@@ -17,6 +17,14 @@ from .loader_skills import (
     load_skills_from_package,
     load_skills_from_plugins,
 )
+from .discovery_order import (
+    RANK_PACKAGE_DEFAULT_XPROMPTS,
+    RANK_PACKAGE_SKILLS,
+    RANK_PACKAGE_XPROMPTS,
+    RANK_PLUGIN,
+    RANK_PLUGIN_SKILLS,
+    merge_by_discovery_order,
+)
 from .loader_memory import (
     load_memory_xprompts,
     load_project_memory_xprompts,
@@ -208,48 +216,74 @@ def get_all_xprompts(
     all_xprompts: dict[str, XPrompt] = {}
 
     # 9. Internal xprompts (lowest priority)
-    all_xprompts.update(load_xprompts_from_internal())
+    merge_by_discovery_order(
+        all_xprompts,
+        load_xprompts_from_internal(),
+        fallback_rank=RANK_PACKAGE_XPROMPTS,
+    )
 
     # 8. Default markdown xprompts
-    all_xprompts.update(load_xprompts_from_default_files())
+    merge_by_discovery_order(
+        all_xprompts,
+        load_xprompts_from_default_files(),
+        fallback_rank=RANK_PACKAGE_DEFAULT_XPROMPTS,
+    )
 
     # 7. Plugin xprompts
-    all_xprompts.update(load_xprompts_from_plugins())
+    merge_by_discovery_order(
+        all_xprompts,
+        load_xprompts_from_plugins(),
+        fallback_rank=RANK_PLUGIN,
+    )
 
     # 6. Config-based xprompts
     config_xprompts = load_xprompts_from_config(project=effective_project)
-    all_xprompts.update(config_xprompts)
+    merge_by_discovery_order(all_xprompts, config_xprompts)
 
     # 5. Project-specific xprompts (if project provided)
     if effective_project:
         project_xprompts = load_xprompts_from_project(effective_project)
-        all_xprompts.update(project_xprompts)
+        merge_by_discovery_order(all_xprompts, project_xprompts)
 
         registry_xprompts = _load_registered_project_xprompts(
             effective_project,
             detected_project=detected_project,
         )
-        all_xprompts.update(registry_xprompts)
+        merge_by_discovery_order(all_xprompts, registry_xprompts)
 
     # 1-4. File-based xprompts (highest priority) - already sorted
     file_xprompts = load_xprompts_from_files(project=effective_project)
-    all_xprompts.update(file_xprompts)
+    merge_by_discovery_order(all_xprompts, file_xprompts)
 
     memory_xprompts = _load_contextual_memory_xprompts(
         effective_project,
         detected_project=detected_project,
     )
-    all_xprompts.update(memory_xprompts)
+    merge_by_discovery_order(all_xprompts, memory_xprompts)
 
     # Skills occupy their own ``skill/`` reference namespace, so they can
     # never shadow (or be shadowed by) an ordinary xprompt of the same bare
     # name. Lowest priority first, so canonical directory sources win.
-    all_xprompts.update(load_skills_from_package())
-    all_xprompts.update(load_skills_from_plugins())
-    all_xprompts.update(load_skills_from_files(project=effective_project))
+    merge_by_discovery_order(
+        all_xprompts,
+        load_skills_from_package(),
+        fallback_rank=RANK_PACKAGE_SKILLS,
+    )
+    merge_by_discovery_order(
+        all_xprompts,
+        load_skills_from_plugins(),
+        fallback_rank=RANK_PLUGIN_SKILLS,
+    )
+    merge_by_discovery_order(
+        all_xprompts,
+        load_skills_from_files(project=effective_project),
+    )
 
     if include_refs:
-        all_xprompts.update(load_ref_xprompts(project=effective_project))
+        merge_by_discovery_order(
+            all_xprompts,
+            load_ref_xprompts(project=effective_project),
+        )
 
     return all_xprompts
 
@@ -280,7 +314,9 @@ def get_all_prompts(
 
     XPrompts are converted to single-step workflows with prompt_part.
     Actual workflows are returned as-is.
-    Workflows take precedence on name collision.
+    Discovery precedence decides xprompt/workflow name collisions across
+    different sources. YAML workflows take precedence only when they come from
+    the same effective source rank as a markdown/config xprompt.
 
     This enables uniform handling - all prompts can be treated as workflows:
     - Simple xprompt #foo → workflow with single prompt_part step
@@ -297,13 +333,30 @@ def get_all_prompts(
     workflows = get_all_workflows(project=project)
     xprompts = get_all_xprompts(project=project, include_refs=include_refs)
 
-    # Convert xprompts to workflows (workflows take precedence on collision)
-    converted = {
-        name: xprompt_to_workflow(xp)
-        for name, xp in xprompts.items()
-        if name not in workflows
-    }
-    return {**converted, **workflows}
+    # Convert xprompts to workflows. Discovery rank decides cross-source
+    # collisions; YAML workflows win only when the source rank ties.
+    converted = {name: xprompt_to_workflow(xp) for name, xp in xprompts.items()}
+    return _merge_prompt_kinds(converted, workflows)
+
+
+def _merge_prompt_kinds(
+    xprompts: dict[str, "Workflow"],
+    workflows: dict[str, "Workflow"],
+) -> dict[str, "Workflow"]:
+    """Merge converted xprompts and workflows in discovery-precedence order."""
+    from .discovery_order import discovery_rank
+
+    entries = []
+    for kind_rank, source in enumerate((xprompts, workflows)):
+        for index, (name, workflow) in enumerate(source.items()):
+            entries.append((discovery_rank(workflow), kind_rank, name, workflow))
+
+    merged: dict[str, Workflow] = {}
+    for _, _, name, workflow in sorted(entries, key=lambda item: (item[0], item[1])):
+        if name in merged:
+            del merged[name]
+        merged[name] = workflow
+    return merged
 
 
 def get_xprompt_or_workflow(

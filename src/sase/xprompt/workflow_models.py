@@ -168,6 +168,7 @@ class Workflow:
     ref_sidecar_role: str | None = None
     ref_path_globs: tuple[str, ...] | None = None
     ref_shadowed_sources: tuple[str, ...] = ()
+    discovery_rank: int | None = None
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this workflow has the given tag."""

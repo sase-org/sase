@@ -232,6 +232,7 @@ class XPrompt:
     ref_sidecar_role: str | None = None
     ref_path_globs: tuple[str, ...] | None = None
     ref_shadowed_sources: tuple[str, ...] = ()
+    discovery_rank: int | None = None
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this xprompt has the given tag."""
@@ -299,6 +300,7 @@ def xprompt_to_workflow(xprompt: XPrompt) -> Workflow:
         ref_sidecar_role=xprompt.ref_sidecar_role,
         ref_path_globs=xprompt.ref_path_globs,
         ref_shadowed_sources=xprompt.ref_shadowed_sources,
+        discovery_rank=xprompt.discovery_rank,
     )
 
 

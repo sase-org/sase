@@ -9,6 +9,14 @@ import yaml  # type: ignore[import-untyped]
 
 from sase.content_layout import discover_project_root, resolve_xprompt_file_sources
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.xprompt.discovery_order import (
+    RANK_FILESYSTEM_BASE,
+    RANK_PACKAGE_XPROMPTS,
+    RANK_PLUGIN,
+    RANK_REGISTERED_PROJECT_BASE,
+    merge_by_discovery_order,
+    source_rank,
+)
 from sase.xprompt.loader import (
     detect_project,
     get_sase_package_xprompts_dir,
@@ -202,6 +210,7 @@ def _namespace_workflow(project: str, wf: Workflow) -> Workflow:
         ref_sidecar_role=wf.ref_sidecar_role,
         ref_path_globs=wf.ref_path_globs,
         ref_shadowed_sources=wf.ref_shadowed_sources,
+        discovery_rank=wf.discovery_rank,
     )
 
 
@@ -417,18 +426,24 @@ def _load_workflows_from_files(project: str | None = None) -> dict[str, Workflow
     """
     discovered = _discover_workflow_files(project)
 
-    # Sort by priority (lower is higher priority)
-    discovered.sort(key=lambda x: x[1])
+    # Process lower-priority directories first so higher-priority definitions
+    # move to the end of the ordered map.
+    discovered.sort(key=lambda x: x[1], reverse=True)
+    source_count = max((priority for _, priority, _ in discovered), default=-1) + 1
 
     workflows: dict[str, Workflow] = {}
-    for file_path, _, is_local in discovered:
+    for file_path, priority, is_local in discovered:
         workflow = _load_workflow_from_file(file_path)
         if workflow:
             if project and is_local:
                 workflow = _namespace_workflow(project, workflow)
-            if workflow.name not in workflows:
-                # First occurrence wins
-                workflows[workflow.name] = workflow
+            rank = source_rank(RANK_FILESYSTEM_BASE, priority, source_count)
+            workflow.discovery_rank = rank
+            if workflow.name in workflows:
+                if workflows[workflow.name].discovery_rank == rank:
+                    continue
+                del workflows[workflow.name]
+            workflows[workflow.name] = workflow
 
     return workflows
 
@@ -449,12 +464,14 @@ def _load_workflows_from_internal() -> dict[str, Workflow]:
         if yml_file.is_file():
             workflow = _load_workflow_from_file(yml_file)
             if workflow:
+                workflow.discovery_rank = RANK_PACKAGE_XPROMPTS
                 workflows[workflow.name] = workflow
 
     for yaml_file in internal_dir.glob("*.yaml"):
         if yaml_file.is_file():
             workflow = _load_workflow_from_file(yaml_file)
             if workflow:
+                workflow.discovery_rank = RANK_PACKAGE_XPROMPTS
                 workflows[workflow.name] = workflow
 
     return workflows
@@ -526,6 +543,7 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
                         ref_sidecar_role=workflow.ref_sidecar_role,
                         ref_path_globs=workflow.ref_path_globs,
                         ref_shadowed_sources=workflow.ref_shadowed_sources,
+                        discovery_rank=RANK_PLUGIN,
                     )
             finally:
                 tmp_path.unlink(missing_ok=True)
@@ -554,6 +572,10 @@ def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
         for source in resolve_xprompt_file_sources(project=project)
         if source.path is not None and source.scope == "home_project"
     ]
+    rank_by_path = {
+        project_dir: source_rank(RANK_FILESYSTEM_BASE, index, len(project_dirs))
+        for index, project_dir in enumerate(project_dirs)
+    }
     for project_dir in reversed(project_dirs):
         if not project_dir.is_dir():
             continue
@@ -564,6 +586,9 @@ def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
                 workflow = _load_workflow_from_file(workflow_file)
                 if workflow:
                     ns = _namespace_workflow(project, workflow)
+                    ns.discovery_rank = rank_by_path[project_dir]
+                    if ns.name in workflows:
+                        del workflows[ns.name]
                     workflows[ns.name] = ns
     return workflows
 
@@ -594,7 +619,11 @@ def _load_workflows_from_project_workspace(
         )
         if source.path is not None and source.scope == "project"
     ]
-    for xprompt_dir in project_dirs:
+    rank_by_path = {
+        project_dir: source_rank(RANK_REGISTERED_PROJECT_BASE, index, len(project_dirs))
+        for index, project_dir in enumerate(project_dirs)
+    }
+    for xprompt_dir in reversed(project_dirs):
         if not xprompt_dir.is_dir():
             continue
 
@@ -606,7 +635,15 @@ def _load_workflows_from_project_workspace(
                 if not workflow:
                     continue
                 ns = _namespace_workflow(project, workflow)
-                workflows.setdefault(ns.name, ns)
+                ns.discovery_rank = rank_by_path[xprompt_dir]
+                if (
+                    ns.name in workflows
+                    and workflows[ns.name].discovery_rank == ns.discovery_rank
+                ):
+                    continue
+                if ns.name in workflows:
+                    del workflows[ns.name]
+                workflows[ns.name] = ns
 
     return workflows
 
@@ -640,24 +677,32 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     all_workflows: dict[str, Workflow] = {}
 
     # Internal workflows (lowest priority)
-    all_workflows.update(_load_workflows_from_internal())
+    merge_by_discovery_order(
+        all_workflows,
+        _load_workflows_from_internal(),
+        fallback_rank=RANK_PACKAGE_XPROMPTS,
+    )
 
     # Plugin workflows
-    all_workflows.update(_load_workflows_from_plugins())
+    merge_by_discovery_order(
+        all_workflows,
+        _load_workflows_from_plugins(),
+        fallback_rank=RANK_PLUGIN,
+    )
 
     # Project-specific workflows (if project provided)
     if effective_project:
         project_workflows = _load_workflows_from_project(effective_project)
-        all_workflows.update(project_workflows)
+        merge_by_discovery_order(all_workflows, project_workflows)
 
         project_workspace_workflows = _load_workflows_from_project_workspace(
             effective_project,
             detected_project=detected_project,
         )
-        all_workflows.update(project_workspace_workflows)
+        merge_by_discovery_order(all_workflows, project_workspace_workflows)
 
     # File-based workflows (highest priority) - already sorted
     file_workflows = _load_workflows_from_files(project=effective_project)
-    all_workflows.update(file_workflows)
+    merge_by_discovery_order(all_workflows, file_workflows)
 
     return all_workflows

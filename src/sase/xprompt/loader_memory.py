@@ -13,6 +13,7 @@ from sase.content_layout import (
     resolve_memory_file_sources,
 )
 
+from .discovery_order import RANK_MEMORY_BASE, merge_by_discovery_order, source_rank
 from .load_issues import record_load_issue
 from .models import MemoryType, XPrompt
 
@@ -40,9 +41,19 @@ def load_memory_xprompts(
 
     # Sources are first-wins in the shared contract. Load lower-priority
     # sources first, then let project memory replace same-stem home memory.
+    rank_by_id = {
+        source.id: source_rank(RANK_MEMORY_BASE, index, len(sources))
+        for index, source in enumerate(sources)
+    }
     for source in reversed(sources):
-        for xprompt in _load_memory_xprompts_from_source(source):
-            xprompts[xprompt.name] = xprompt
+        merge_by_discovery_order(
+            xprompts,
+            {
+                xprompt.name: xprompt
+                for xprompt in _load_memory_xprompts_from_source(source)
+            },
+            fallback_rank=rank_by_id[source.id],
+        )
     return xprompts
 
 

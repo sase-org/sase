@@ -21,6 +21,18 @@ from sase.core.project_lifecycle_wire import (
 )
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
+from .discovery_order import (
+    RANK_CONFIG_BASE,
+    RANK_FILESYSTEM_BASE,
+    RANK_PACKAGE_DEFAULT_XPROMPTS,
+    RANK_PACKAGE_XPROMPTS,
+    RANK_PLUGIN,
+    RANK_PROJECT_CONFIG,
+    RANK_REGISTERED_PROJECT_BASE,
+    assign_discovery_rank,
+    merge_by_discovery_order,
+    source_rank,
+)
 from .loader_parsing import (
     parse_inputs_from_front_matter,
     parse_local_xprompt_entries,
@@ -68,6 +80,7 @@ def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         ref_sidecar_role=xp.ref_sidecar_role,
         ref_path_globs=xp.ref_path_globs,
         ref_shadowed_sources=xp.ref_shadowed_sources,
+        discovery_rank=xp.discovery_rank,
     )
 
 
@@ -265,6 +278,10 @@ def load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
             cwd / ".xprompts",
             cwd / "xprompts",
         }
+    rank_by_path = {
+        search_dir: source_rank(RANK_FILESYSTEM_BASE, index, len(search_paths))
+        for index, search_dir in enumerate(search_paths)
+    }
     xprompts: dict[str, XPrompt] = {}
 
     # Process directories in reverse priority order (lowest first),
@@ -277,6 +294,9 @@ def load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
         for xprompt in _load_ordinary_xprompts_from_dir(search_dir):
             if project and is_local:
                 xprompt = namespace_xprompt(project, xprompt)
+            xprompt.discovery_rank = rank_by_path[search_dir]
+            if xprompt.name in xprompts:
+                del xprompts[xprompt.name]
             xprompts[xprompt.name] = xprompt
 
     return xprompts
@@ -305,14 +325,19 @@ def load_xprompts_from_config(project: str | None = None) -> dict[str, XPrompt]:
     """
     all_xprompts: dict[str, XPrompt] = {}
 
-    for source_label, xprompts_data in load_xprompts_by_source():
+    sources = load_xprompts_by_source()
+    for index, (source_label, xprompts_data) in enumerate(sources):
         parsed = parse_xprompt_entries(xprompts_data, source_label)
         if project and source_label == "local_config":
             parsed = {
                 f"{project}/{name}": namespace_xprompt(project, xp)
                 for name, xp in parsed.items()
             }
-        all_xprompts.update(parsed)
+        merge_by_discovery_order(
+            all_xprompts,
+            parsed,
+            fallback_rank=source_rank(RANK_CONFIG_BASE, index, len(sources)),
+        )
 
     return all_xprompts
 
@@ -330,6 +355,7 @@ def load_xprompts_from_internal() -> dict[str, XPrompt]:
 
     xprompts: dict[str, XPrompt] = {}
     for xprompt in _load_ordinary_xprompts_from_dir(internal_dir):
+        xprompt.discovery_rank = RANK_PACKAGE_XPROMPTS
         if xprompt.name not in xprompts:
             xprompts[xprompt.name] = xprompt
 
@@ -347,10 +373,13 @@ def load_xprompts_from_default_files() -> dict[str, XPrompt]:
     if not default_dir.is_dir():
         return {}
 
-    return {
-        xprompt.name: xprompt
-        for xprompt in _load_ordinary_xprompts_from_dir(default_dir)
-    }
+    return assign_discovery_rank(
+        {
+            xprompt.name: xprompt
+            for xprompt in _load_ordinary_xprompts_from_dir(default_dir)
+        },
+        RANK_PACKAGE_DEFAULT_XPROMPTS,
+    )
 
 
 def load_plugin_markdown_xprompts(
@@ -438,6 +467,7 @@ def load_xprompts_from_plugins() -> dict[str, XPrompt]:
                 migrate_to=plugin_skill_destination(),
             ):
                 continue
+            xprompt.discovery_rank = RANK_PLUGIN
             xprompts[xprompt.name] = xprompt
 
     return xprompts
@@ -463,11 +493,18 @@ def load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
         for source in resolve_xprompt_file_sources(project=project)
         if source.path is not None and source.scope == "home_project"
     ]
+    rank_by_path = {
+        project_dir: source_rank(RANK_FILESYSTEM_BASE, index, len(project_dirs))
+        for index, project_dir in enumerate(project_dirs)
+    }
     for project_dir in reversed(project_dirs):
         if not project_dir.is_dir():
             continue
         for xprompt in _load_ordinary_xprompts_from_dir(project_dir):
             ns = namespace_xprompt(project, xprompt)
+            ns.discovery_rank = rank_by_path[project_dir]
+            if ns.name in xprompts:
+                del xprompts[ns.name]
             xprompts[ns.name] = ns
 
     return xprompts
@@ -568,10 +605,11 @@ def load_project_local_xprompts(
 
     source_label = f"project_local_config:{project}"
     parsed = parse_xprompt_entries(xprompts_data, source_label)
-    return {
+    namespaced = {
         f"{project}/{name}": namespace_xprompt(project, xp)
         for name, xp in parsed.items()
     }
+    return assign_discovery_rank(namespaced, RANK_PROJECT_CONFIG)
 
 
 def load_project_file_xprompts(
@@ -587,11 +625,18 @@ def load_project_file_xprompts(
         )
         if source.path is not None and source.scope == "project"
     ]
+    rank_by_path = {
+        project_dir: source_rank(RANK_REGISTERED_PROJECT_BASE, index, len(project_dirs))
+        for index, project_dir in enumerate(project_dirs)
+    }
     xprompts: dict[str, XPrompt] = {}
     for project_dir in reversed(project_dirs):
         if not project_dir.is_dir():
             continue
         for xprompt in _load_ordinary_xprompts_from_dir(project_dir):
             namespaced = namespace_xprompt(project, xprompt)
+            namespaced.discovery_rank = rank_by_path[project_dir]
+            if namespaced.name in xprompts:
+                del xprompts[namespaced.name]
             xprompts[namespaced.name] = namespaced
     return xprompts

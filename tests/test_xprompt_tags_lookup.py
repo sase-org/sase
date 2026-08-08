@@ -1,9 +1,12 @@
 """Tests for get_by_tag, get_by_tag_strict, _extract_plugin_module, and VCS hint."""
 
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
+from sase.xprompt.models import XPrompt
 from sase.xprompt.tags import (
     XPromptTag,
     _extract_plugin_module,
@@ -11,6 +14,96 @@ from sase.xprompt.tags import (
     get_by_tag_strict,
 )
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
+
+
+def _workflow(
+    name: str,
+    body: str,
+    tag: XPromptTag,
+    *,
+    source_path: str | None = None,
+) -> Workflow:
+    return Workflow(
+        name=name,
+        steps=[WorkflowStep(name="main", prompt_part=body)],
+        tags=frozenset({tag}),
+        source_path=source_path,
+    )
+
+
+def _xprompt(
+    name: str,
+    body: str,
+    tag: XPromptTag,
+    *,
+    source_path: str | None = None,
+) -> XPrompt:
+    return XPrompt(
+        name=name,
+        content=body,
+        tags=frozenset({tag}),
+        source_path=source_path,
+    )
+
+
+def _patch_loader_scaffolding(
+    monkeypatch: pytest.MonkeyPatch,
+    project_xprompt_dir: Path,
+    *,
+    plugin_workflows: dict[str, Workflow] | None = None,
+) -> None:
+    source = SimpleNamespace(
+        path=project_xprompt_dir,
+        project_namespaced=False,
+        scope="project",
+    )
+    monkeypatch.setattr("sase.xprompt.loader.detect_project", lambda: None)
+    monkeypatch.setattr("sase.xprompt.workflow_loader.detect_project", lambda: None)
+    monkeypatch.setattr(
+        "sase.xprompt.loader_sources.resolve_xprompt_file_sources",
+        lambda **_: (source,),
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.load_xprompts_from_default_files", lambda: {}
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.load_xprompts_from_config", lambda project=None: {}
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.load_xprompts_from_project", lambda project: {}
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader._load_registered_project_xprompts",
+        lambda project, *, detected_project: {},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.load_memory_xprompts", lambda project=None: {}
+    )
+    monkeypatch.setattr("sase.xprompt.loader.load_skills_from_package", lambda: {})
+    monkeypatch.setattr("sase.xprompt.loader.load_skills_from_plugins", lambda: {})
+    monkeypatch.setattr(
+        "sase.xprompt.loader.load_skills_from_files",
+        lambda project=None: {},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.workflow_loader._load_workflows_from_internal", lambda: {}
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.workflow_loader._load_workflows_from_plugins",
+        lambda: plugin_workflows or {},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.workflow_loader._load_workflows_from_project",
+        lambda project: {},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.workflow_loader._load_workflows_from_project_workspace",
+        lambda project, *, detected_project: {},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.workflow_loader._load_workflows_from_files",
+        lambda project=None: {},
+    )
 
 
 # ── get_by_tag ──────────────────────────────────────────────────────────
@@ -67,6 +160,65 @@ def test_get_by_tag_precedence() -> None:
     assert result is wf_plugin
 
 
+def test_get_by_tag_same_name_override_moves_to_project_precedence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_dir = tmp_path / "sase" / "xprompts"
+    project_dir.mkdir(parents=True)
+    (project_dir / "crs.md").write_text(
+        "---\ntags: crs\n---\nproject crs\n",
+        encoding="utf-8",
+    )
+    _patch_loader_scaffolding(monkeypatch, project_dir)
+    monkeypatch.setattr(
+        "sase.xprompt.loader.load_xprompts_from_internal",
+        lambda: {"crs": _xprompt("crs", "builtin crs", XPromptTag.crs)},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.load_xprompts_from_plugins",
+        lambda: {"plugin_crs": _xprompt("plugin_crs", "plugin crs", XPromptTag.crs)},
+    )
+
+    result = get_by_tag(XPromptTag.crs)
+
+    assert result is not None
+    assert result.name == "crs"
+    assert result.steps[0].prompt_part == "project crs\n"
+
+
+def test_get_by_tag_prefers_project_xprompt_over_lower_workflow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_dir = tmp_path / "sase" / "xprompts"
+    project_dir.mkdir(parents=True)
+    (project_dir / "fix_hook.md").write_text(
+        "---\ntags: fix_hook\n---\nproject fix hook\n",
+        encoding="utf-8",
+    )
+    _patch_loader_scaffolding(
+        monkeypatch,
+        project_dir,
+        plugin_workflows={
+            "plugin_fix_hook": _workflow(
+                "plugin_fix_hook",
+                "plugin fix hook",
+                XPromptTag.fix_hook,
+                source_path="plugin:sase_example/fix_hook.yml",
+            )
+        },
+    )
+    monkeypatch.setattr("sase.xprompt.loader.load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr("sase.xprompt.loader.load_xprompts_from_plugins", lambda: {})
+
+    result = get_by_tag(XPromptTag.fix_hook)
+
+    assert result is not None
+    assert result.name == "fix_hook"
+    assert result.steps[0].prompt_part == "project fix hook\n"
+
+
 # ── get_by_tag_strict ────────────────────────────────────────────────────
 
 
@@ -105,6 +257,30 @@ def test_get_by_tag_strict_multiple_raises() -> None:
     with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
         with pytest.raises(ValueError, match="Multiple xprompts found with tag"):
             get_by_tag_strict(XPromptTag.mentor)
+
+
+def test_get_by_tag_strict_allows_higher_precedence_different_name_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_dir = tmp_path / "sase" / "xprompts"
+    project_dir.mkdir(parents=True)
+    (project_dir / "custom_mentor.md").write_text(
+        "---\ntags: mentor\n---\nproject mentor\n",
+        encoding="utf-8",
+    )
+    _patch_loader_scaffolding(monkeypatch, project_dir)
+    monkeypatch.setattr(
+        "sase.xprompt.loader.load_xprompts_from_internal",
+        lambda: {"mentor": _xprompt("mentor", "builtin mentor", XPromptTag.mentor)},
+    )
+    monkeypatch.setattr("sase.xprompt.loader.load_xprompts_from_plugins", lambda: {})
+
+    result = get_by_tag_strict(XPromptTag.mentor)
+
+    assert result is not None
+    assert result.name == "custom_mentor"
+    assert result.steps[0].prompt_part == "project mentor\n"
 
 
 # ── _extract_plugin_module ────────────────────────────────────────────

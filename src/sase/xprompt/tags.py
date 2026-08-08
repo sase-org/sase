@@ -77,10 +77,10 @@ def get_by_tag(
 ) -> Workflow | None:
     """Find the highest-priority xprompt/workflow with the given tag.
 
-    Uses ``get_all_prompts()`` so the loader's existing precedence
-    (local > user > plugin > builtin) naturally handles override order.
-    The dict is built from lowest to highest priority, so we return the
-    **last** match to respect the override chain.
+    Uses ``get_all_prompts()`` so the loader's explicit discovery rank
+    (local > user > plugin > builtin) handles override order. The dict is
+    built from lowest to highest priority, so we return the **last** match to
+    respect the override chain.
 
     When *vcs_hint* is provided and multiple workflows match the tag,
     the result is disambiguated by preferring the match whose plugin
@@ -119,10 +119,11 @@ def get_by_tag(
 
 
 def get_by_tag_strict(tag: XPromptTag, project: str | None = None) -> Workflow | None:
-    """Find the xprompt/workflow with the given tag, enforcing uniqueness.
+    """Find the highest-priority xprompt/workflow with the given tag.
 
-    Like :func:`get_by_tag`, but raises :class:`ValueError` if multiple
-    xprompts share the same tag. When only one match exists, returns it.
+    Like :func:`get_by_tag`, but raises :class:`ValueError` if the highest
+    discovery rank has multiple matches. Lower-priority matches do not make a
+    higher-priority override ambiguous.
 
     Returns:
         The matching Workflow, or ``None`` if no match.
@@ -131,16 +132,22 @@ def get_by_tag_strict(tag: XPromptTag, project: str | None = None) -> Workflow |
         ValueError: If more than one xprompt/workflow has the tag.
     """
     from sase.xprompt.loader import get_all_prompts
+    from sase.xprompt.discovery_order import discovery_rank
 
     matches: list[Workflow] = []
     for wf in get_all_prompts(project=project).values():
         if tag in wf.tags:
             matches.append(wf)
 
-    if len(matches) > 1:
-        names = [m.name for m in matches]
+    if not matches:
+        return None
+
+    winning_rank = max(discovery_rank(match) for match in matches)
+    winners = [match for match in matches if discovery_rank(match) == winning_rank]
+    if len(winners) > 1:
+        names = [m.name for m in winners]
         raise ValueError(
             f"Multiple xprompts found with tag {tag.value!r}: {names}. "
-            f"Only one is allowed."
+            "Only one highest-priority match is allowed."
         )
-    return matches[0] if matches else None
+    return winners[0]

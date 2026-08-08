@@ -29,6 +29,14 @@ from sase.content_layout import (
 )
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
+from .discovery_order import (
+    RANK_PACKAGE_SKILLS,
+    RANK_PLUGIN_SKILLS,
+    RANK_SKILL_FILES_BASE,
+    assign_discovery_rank,
+    merge_by_discovery_order,
+    source_rank,
+)
 from .load_issues import record_load_issue
 from .models import XPrompt
 
@@ -208,7 +216,10 @@ def _load_skills_from_dir(
 
 def load_skills_from_package() -> dict[str, XPrompt]:
     """Load the skills bundled inside the ``sase`` package."""
-    return _load_skills_from_dir(get_sase_package_skills_dir())
+    return assign_discovery_rank(
+        _load_skills_from_dir(get_sase_package_skills_dir()),
+        RANK_PACKAGE_SKILLS,
+    )
 
 
 def load_skills_from_plugins() -> dict[str, XPrompt]:
@@ -227,6 +238,7 @@ def load_skills_from_plugins() -> dict[str, XPrompt]:
                 migrate_to=_PLUGIN_XPROMPT_DESTINATION,
             )
             if skill is not None:
+                skill.discovery_rank = RANK_PLUGIN_SKILLS
                 skills[skill.name] = skill
     return skills
 
@@ -253,15 +265,22 @@ def load_skills_from_files(
     """Load skills from the canonical filesystem scopes, first source wins."""
     skills: dict[str, XPrompt] = {}
     sources = resolve_skill_file_sources(project_root=project_root, project=project)
+    rank_by_path = {
+        source.path: source_rank(RANK_SKILL_FILES_BASE, index, len(sources))
+        for index, source in enumerate(sources)
+        if source.path is not None
+    }
     for source in reversed(sources):
         if source.path is None:
             continue
-        skills.update(
+        merge_by_discovery_order(
+            skills,
             _load_skills_from_dir(
                 source.path,
                 project=project,
                 namespaced=source.project_namespaced,
-            )
+            ),
+            fallback_rank=rank_by_path[source.path],
         )
     return skills
 
@@ -270,15 +289,22 @@ def load_project_skills(workspace_dir: Path, project: str) -> dict[str, XPrompt]
     """Load one registered project workspace's canonical skill sources."""
     skills: dict[str, XPrompt] = {}
     sources = resolve_skill_file_sources(project_root=workspace_dir, project=project)
+    rank_by_path = {
+        source.path: source_rank(RANK_SKILL_FILES_BASE, index, len(sources))
+        for index, source in enumerate(sources)
+        if source.path is not None
+    }
     for source in reversed(sources):
         if source.path is None or source.scope != "project":
             continue
-        skills.update(
+        merge_by_discovery_order(
+            skills,
             _load_skills_from_dir(
                 source.path,
                 project=project,
                 namespaced=source.project_namespaced,
-            )
+            ),
+            fallback_rank=rank_by_path[source.path],
         )
     return skills
 

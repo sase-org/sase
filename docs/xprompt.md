@@ -234,8 +234,9 @@ usage, and troubleshooting.
 
 ## Discovery Order
 
-Markdown xprompts are loaded from multiple locations. When two locations define an
-xprompt with the same name, the higher-priority source wins (first-wins).
+Markdown xprompts and YAML workflows are loaded from multiple locations. When two
+locations define an xprompt or workflow with the same name, the higher-priority source
+wins (first-wins).
 
 | Priority | Location                               | Role                                                        |
 | -------- | -------------------------------------- | ----------------------------------------------------------- |
@@ -831,15 +832,16 @@ Jinja variables still become required `gX` inputs.
 ## Tags
 
 XPrompts and workflows can be annotated with semantic role tags. Tags enable
-lookup-by-role instead of lookup-by-name, making the system extensible — a plugin or
-user can override the CRS workflow simply by defining a new xprompt with `tags: crs`.
+lookup-by-role instead of lookup-by-name, making the system extensible: a plugin or user
+can override the CRS workflow by defining a higher-priority xprompt or workflow with
+`tags: crs`.
 
 ### Available Tags
 
 | Tag                            | Description                                                                                                                               |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `vcs`                          | Workspace workflow xprompt (`#git`, `#gh`, or a plugin-provided ref) — wraps other embedded workflows, running setup/teardown around them |
-| `crs`                          | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)                                                      |
+| `crs`                          | Code Review Summary workflow (singleton role)                                                                                             |
 | `fix_hook`                     | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                                                                    |
 | `rollover`                     | Marks workflows whose embedded references carry forward to follow-up agent steps                                                          |
 | `mentor`                       | Mentor review prompt workflow                                                                                                             |
@@ -888,9 +890,11 @@ xprompts:
 
 ### Tag-Based Lookup
 
-The `get_by_tag()` function returns the first xprompt/workflow matching a tag,
-respecting the standard [discovery order](#discovery-order). This means higher-priority
-sources (e.g., project-local) can override built-in tagged xprompts.
+The `get_by_tag()` function returns the highest-priority xprompt/workflow matching a
+tag, respecting the standard [discovery order](#discovery-order). This means
+higher-priority sources (e.g., project-local) can override built-in tagged xprompts,
+even when the override uses a different name. `get_by_tag_strict()` applies the same
+ranking and raises only when multiple matches remain at the highest discovery rank.
 
 ```python
 from sase.xprompt.tags import XPromptTag, get_by_tag
