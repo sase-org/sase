@@ -23,14 +23,16 @@ REF_FILTERS_CONFIG_KEY = "filters"
 REF_PATH_GLOBS_CONFIG_KEY = "path_globs"
 
 DEFAULT_DOCUMENT_REF_PATH_GLOBS: tuple[str, ...] = ("**/*.md",)
-DEFAULT_DOCUMENT_REF_RENDERER = "{{ file_path }}"
+DEFAULT_DOCUMENT_REF_RENDERER = (
+    "the {{ file_path }} file in the {{ sidecar }} sidecar repo"
+)
 SIDECAR_REF_CONFIG_SOURCE_PREFIX = "sidecar_ref_config:"
 
 BUILTIN_REF_INPUTS: dict[str, str] = {
     "commit": "commit",
-    "chat": "artifact_id",
+    "chat": "file_path",
     "bug": "bug",
-    "file": "file_path",
+    "file": "artifact_id",
     "bead": "bead_id",
     "agent": "agent_name",
 }

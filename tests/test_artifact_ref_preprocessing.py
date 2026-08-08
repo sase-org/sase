@@ -11,6 +11,7 @@ import sase_core_rs
 
 from sase import artifact_ref_prompt
 from sase.artifact_refs import (
+    ArtifactRendererJinjaProtection,
     ArtifactRefAgentOwner,
     ArtifactRefAgentRoot,
     ArtifactRefBeadStore,
@@ -23,6 +24,7 @@ from sase.artifact_refs import (
 )
 from sase.llm_provider.preprocessing import preprocess_prompt_late
 from sase.file_references import process_file_references
+from sase.xprompt.models import InputArg, InputType, XPrompt
 
 
 @pytest.fixture(autouse=True)
@@ -77,6 +79,10 @@ def _context(tmp_path: Path) -> ArtifactRefContext:
     )
 
 
+def _sidecar_sentence(kind: str, path: str) -> str:
+    return f"the {path} file in the {kind} sidecar repo"
+
+
 def test_expands_document_chat_file_and_fragments(tmp_path: Path) -> None:
     context = _context(tmp_path)
     plan = tmp_path / "plans" / "202607" / "plan.md"
@@ -107,7 +113,10 @@ def test_expands_document_chat_file_and_fragments(tmp_path: Path) -> None:
     )
 
     assert process_artifact_references(prompt, context=context) == (
-        f"Read @{plan} (lines 2-4), @{chat} (time 30s), and @{artifact} (page 2)."
+        "Read "
+        f"{_sidecar_sentence('plans', '202607/plan.md')}, "
+        f"@{chat} (time 30s), and "
+        f"@{artifact} (page 2)."
     )
 
 
@@ -245,16 +254,189 @@ def test_unicode_before_reference_preserves_replacement_boundaries(
             "é @plans:plan.md done",
             context=context,
         )
-        == f"é @{plan} done"
+        == f"é {_sidecar_sentence('plans', 'plan.md')} done"
     )
+
+
+def test_ref_xprompt_colon_and_named_forms_match_artifact_reference(
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+
+    expected = _sidecar_sentence("plans", "report.md")
+
+    assert process_artifact_references("@plans:report.md", context=context) == expected
+    assert (
+        process_artifact_references("#ref/plans:report.md", context=context) == expected
+    )
+    assert (
+        process_artifact_references(
+            "#ref/plans(file_path=report.md)",
+            context=context,
+        )
+        == expected
+    )
+
+
+def test_ref_xprompt_raw_spelling_is_preserved_in_staging(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    staged: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "sase.core.prompt_artifact_staging.stage_prompt_artifact",
+        lambda **kwargs: staged.append(kwargs),
+    )
+
+    process_artifact_references("#ref/plans:report.md", context=context)
+
+    assert staged[0]["raw_ref"] == "#ref/plans:report.md"
+    assert staged[0]["expanded_ref"] == _sidecar_sentence("plans", "report.md")
+
+
+def test_ref_renderer_receives_primitive_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    renderer = XPrompt(
+        name="ref/plans",
+        content=(
+            "{{ sidecar }}|{{ file_path }}|{{ ref.raw }}|"
+            "{{ ref.canonical }}|{{ ref.kind_type }}"
+        ),
+        inputs=[InputArg("file_path", InputType.PATH)],
+        ref=True,
+        ref_kind="plans",
+        ref_sidecar_role="plans",
+    )
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "ref_renderer_registry",
+        lambda _context: {"ref/plans": renderer},
+    )
+
+    assert (
+        process_artifact_references("#ref/plans:report.md", context=context)
+        == "plans|report.md|#ref/plans:report.md|@plans:report.md|document"
+    )
+
+
+def test_renderer_output_is_not_recursively_scanned_for_artifact_refs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _context(tmp_path)
+    for name in ("report.md", "other.md"):
+        path = tmp_path / "plans" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# Report\n", encoding="utf-8")
+    renderer = XPrompt(
+        name="ref/plans",
+        content="@plans:other.md",
+        inputs=[InputArg("file_path", InputType.PATH)],
+        ref=True,
+        ref_kind="plans",
+    )
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "ref_renderer_registry",
+        lambda _context: {"ref/plans": renderer},
+    )
+
+    assert (
+        process_artifact_references("@plans:report.md", context=context)
+        == "@plans:other.md"
+    )
+
+
+def test_renderer_jinja_output_is_protected_from_top_level_jinja(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.xprompt import render_toplevel_jinja2
+
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    renderer = XPrompt(
+        name="ref/plans",
+        content="literal {% raw %}{{ missing }}{% endraw %} for {{ file_path }}",
+        inputs=[InputArg("file_path", InputType.PATH)],
+        ref=True,
+        ref_kind="plans",
+    )
+    protection = ArtifactRendererJinjaProtection()
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "ref_renderer_registry",
+        lambda _context: {"ref/plans": renderer},
+    )
+
+    expanded = process_artifact_references(
+        "Before {{ 1 + 1 }} @plans:report.md.",
+        context=context,
+        jinja_protection=protection,
+    )
+    rendered = render_toplevel_jinja2(expanded)
+
+    assert protection.unprotect(rendered) == (
+        "Before 2 literal {{ missing }} for report.md."
+    )
+
+
+def test_renderer_undefined_variable_failure_names_kind_and_source(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context = _context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    renderer = XPrompt(
+        name="ref/plans",
+        content="{{ missing }}",
+        inputs=[InputArg("file_path", InputType.PATH)],
+        source_path="test-renderer.md",
+        ref=True,
+        ref_kind="plans",
+    )
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "ref_renderer_registry",
+        lambda _context: {"ref/plans": renderer},
+    )
+
+    with pytest.raises(SystemExit, match="1"):
+        process_artifact_references("@plans:report.md", context=context)
+
+    output = capsys.readouterr().out
+    assert "@plans:report.md" in output
+    assert "renderer" in output
+    assert "ref/plans renderer error in test-renderer.md" in output
 
 
 @pytest.mark.parametrize(
     ("reference", "status"),
     (
         ("@plans:missing.md", "missing"),
+        ("#ref/plans:missing.md", "missing"),
         ("@commit:unknown@abcdef0", "unknown_repo"),
         ("@plans:../escape.md", "malformed"),
+        ("#ref/plans:../escape.md", "malformed"),
+        ("#ref/unknown:thing.md", "unknown_kind"),
     ),
 )
 def test_known_reference_failure_exits_clearly(
@@ -397,7 +579,7 @@ def test_rewrite_stages_the_same_resolved_reference_list(
     assert staged == [
         {
             "raw_ref": "@plans:report.md",
-            "expanded_ref": f"@{plan}",
+            "expanded_ref": _sidecar_sentence("plans", "report.md"),
             "resolved_path": plan,
             "ref_kind": "plans",
             "label": "report.md",
@@ -593,7 +775,7 @@ def test_recorder_failure_does_not_change_expansion(
             "Read @plans:report.md.",
             context=context,
         )
-        == f"Read @{plan}."
+        == f"Read {_sidecar_sentence('plans', 'report.md')}."
     )
 
 
@@ -607,7 +789,9 @@ def test_late_preprocessing_expands_artifacts_before_file_refs(
         *,
         is_home_mode: bool,
         staged_file_paths: set[str],
+        jinja_protection: object,
     ) -> str:
+        assert jinja_protection is not None
         assert staged_file_paths == set()
         seen.append(("artifact", is_home_mode))
         return prompt.replace("@plans:x.md", "@/resolved/x.md")

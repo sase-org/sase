@@ -55,8 +55,8 @@ def test_ref_registry_loads_packaged_refs_and_project_shadowing(
     assert file_ref.ref_kind == "file"
     assert file_ref.content.strip() == "Project {{ file_path }}"
     assert file_ref.source_path == str(project_file)
-    assert file_ref.inputs[0].name == "file_path"
-    assert file_ref.inputs[0].type == InputType.PATH
+    assert file_ref.inputs[0].name == "artifact_id"
+    assert file_ref.inputs[0].type == InputType.LINE
     assert str(home_file) in file_ref.ref_shadowed_sources
     assert any(
         source.endswith("/xprompts/refs/file.md")
@@ -99,7 +99,10 @@ def test_ref_registry_uses_sidecar_config_before_generated_defaults(
     assert "generated_sidecar_ref:research" in research.ref_shadowed_sources
 
     designs = refs["ref/designs"]
-    assert designs.content.strip() == "{{ file_path }}"
+    assert (
+        designs.content.strip()
+        == "the {{ file_path }} file in the {{ sidecar }} sidecar repo"
+    )
     assert designs.source_path == "generated_sidecar_ref:designs"
     assert designs.ref_path_globs == DEFAULT_DOCUMENT_REF_PATH_GLOBS
 

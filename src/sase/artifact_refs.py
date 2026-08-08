@@ -62,6 +62,9 @@ from sase.artifact_ref_prompt import (
     process_artifact_references,
     validate_artifact_references,
 )
+from sase.artifact_ref_renderers import (
+    ArtifactRendererJinjaProtection,
+)
 
 
 __all__ = [
@@ -70,6 +73,7 @@ __all__ = [
     "ARTIFACT_REF_LIST_RESOLUTION_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION",
     "ARTIFACT_REF_WIRE_SCHEMA_VERSION",
+    "ArtifactRendererJinjaProtection",
     "BUILTIN_ARTIFACT_REF_KINDS",
     "ArtifactRef",
     "ArtifactRefAgentOwner",

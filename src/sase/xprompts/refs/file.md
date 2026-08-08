@@ -3,4 +3,4 @@ description: Render a file artifact reference.
 ref: true
 ---
 
-{{ file_path }}
+@{{ resolved_file_path }}{{ fragment_annotation }}

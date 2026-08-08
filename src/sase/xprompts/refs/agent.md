@@ -3,4 +3,4 @@ description: Render an agent artifact reference.
 ref: true
 ---
 
-{{ agent_name }}
+@{{ resolved_file_path }}{{ fragment_annotation }}

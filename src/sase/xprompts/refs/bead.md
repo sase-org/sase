@@ -3,4 +3,4 @@ description: Render a bead artifact reference.
 ref: true
 ---
 
-{{ bead_id }}
+@{{ resolved_file_path }}{{ fragment_annotation }}

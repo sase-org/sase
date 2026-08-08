@@ -350,6 +350,8 @@ def _input_type(name: str) -> InputType:
         return InputType.PATH
     if name == "agent_name":
         return InputType.AGENT
+    if name in {"artifact_id", "bug", "commit"}:
+        return InputType.LINE
     return InputType.WORD
 
 

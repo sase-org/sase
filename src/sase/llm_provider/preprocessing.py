@@ -145,6 +145,7 @@ def preprocess_prompt_late(
         validate_file_references,
     )
     from sase.artifact_refs import (
+        ArtifactRendererJinjaProtection,
         process_artifact_references,
         validate_artifact_references,
     )
@@ -163,11 +164,13 @@ def preprocess_prompt_late(
 
     # 3. Artifact references, before file refs consume their resolved paths.
     staged_artifact_paths: set[str] = set()
+    artifact_jinja_protection = ArtifactRendererJinjaProtection()
     if file_ref_mode == "process":
         prompt = process_artifact_references(
             prompt,
             is_home_mode=is_home_mode,
             staged_file_paths=staged_artifact_paths,
+            jinja_protection=artifact_jinja_protection,
         )
     elif file_ref_mode == "validate":
         validate_artifact_references(prompt, is_home_mode=is_home_mode)
@@ -185,6 +188,7 @@ def preprocess_prompt_late(
     # 5. Top-level Jinja2
     if is_jinja2_template(prompt):
         prompt = render_toplevel_jinja2(prompt)
+    prompt = artifact_jinja_protection.unprotect(prompt)
 
     # 6. Prettier formatting (shared agent-prompt Markdown policy)
     prompt = format_agent_prompt_markdown(prompt)
