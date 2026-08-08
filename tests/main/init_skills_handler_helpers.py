@@ -180,6 +180,9 @@ def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "get_all_xprompts",
         lambda project="": {"skills/foo": xprompt},
     )
+    # Pin prettier as absent so the plan's warning set is the same on a dev box
+    # (prettier installed) and on CI (prettier missing).
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
     return skills_dir
 
 
@@ -188,7 +191,6 @@ def stub_claude_skill_target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     stub_skill_source(tmp_path, monkeypatch)
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
-    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
     return _get_target_path("claude", "foo", use_chezmoi=False)
 
 

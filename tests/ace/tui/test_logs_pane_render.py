@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -71,9 +71,20 @@ def test_format_size_compact_stays_within_four_cells(
 
 
 _AGE_NOW_EPOCH = 1782000000.0
-_AGE_NOW_PARSED = parse_local(_AGE_NOW_EPOCH)
-assert _AGE_NOW_PARSED is not None
-_AGE_NOW = to_local(_AGE_NOW_PARSED)
+
+
+def _age_now() -> datetime:
+    """Naive configured-tz "now" reference for :data:`_AGE_NOW_EPOCH`.
+
+    Resolved per test rather than at import: the autouse
+    ``_pin_configured_timezone`` fixture has not run at collection time, so an
+    import-time reference would be built in the *host* timezone and drift from
+    the pinned one by the offset between them (Eastern on a dev machine, UTC on
+    CI).
+    """
+    parsed = parse_local(_AGE_NOW_EPOCH)
+    assert parsed is not None
+    return to_local(parsed)
 
 
 @pytest.mark.parametrize(
@@ -96,7 +107,7 @@ _AGE_NOW = to_local(_AGE_NOW_PARSED)
 def test_format_relative_age_relative_bands(delta_seconds: int, expected: str) -> None:
     epoch = _AGE_NOW_EPOCH - delta_seconds
 
-    assert lp_render._format_relative_age(epoch, now=_AGE_NOW) == expected
+    assert lp_render._format_relative_age(epoch, now=_age_now()) == expected
 
 
 @pytest.mark.parametrize(
@@ -106,7 +117,7 @@ def test_format_relative_age_relative_bands(delta_seconds: int, expected: str) -
 def test_format_relative_age_recent_absolute_band(delta_seconds: int) -> None:
     epoch = _AGE_NOW_EPOCH - delta_seconds
 
-    result = lp_render._format_relative_age(epoch, now=_AGE_NOW)
+    result = lp_render._format_relative_age(epoch, now=_age_now())
 
     assert result == lp_render.format_local(epoch, "%b %d")
 
@@ -114,7 +125,7 @@ def test_format_relative_age_recent_absolute_band(delta_seconds: int) -> None:
 def test_format_relative_age_old_absolute_band() -> None:
     epoch = _AGE_NOW_EPOCH - 365 * 86400
 
-    result = lp_render._format_relative_age(epoch, now=_AGE_NOW)
+    result = lp_render._format_relative_age(epoch, now=_age_now())
 
     assert result == lp_render.format_local(epoch, "%b %Y")
 

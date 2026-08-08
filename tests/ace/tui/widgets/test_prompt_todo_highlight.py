@@ -480,6 +480,10 @@ async def test_todo_background_yields_to_selection_search_yank_and_cursor() -> N
     async with app.run_test(size=(50, 10)) as pilot:
         text_area = app.query_one(PromptTextArea)
         text_area.focus()
+        # Cursor-style rendering otherwise depends on the 0.5s blink timer's
+        # `_cursor_visible` phase, which is a real-time race under host
+        # contention (see sase-ct).
+        text_area.cursor_blink = False
         text_area.cursor_location = (0, len(text_area.text))
         text_area._build_highlight_map()
         await pilot.pause()

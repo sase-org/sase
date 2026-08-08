@@ -175,7 +175,9 @@ def test_non_check_plan_still_reports_actionable_chezmoi_drift(
     plan = plan_init_skills(make_args(provider="claude"))
 
     assert [action.operation for action in plan.actions] == ["create"]
-    assert plan.warnings == ()
+    # Only the unrelated prettier notice: real drift is offered as an action
+    # here, never deferred to a warning the way ``--check`` does.
+    assert plan.warnings == (init_skills_handler._PRETTIER_WARNING,)
 
 
 def test_plan_honors_provider_filter(
