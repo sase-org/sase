@@ -21,19 +21,8 @@ import yaml  # type: ignore[import-untyped]
 from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_exec_types import AgentExecResult
 from sase.llm_provider.retry_config import RetryState
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
-
-# Every bounded wait in this harness is a deadlock detector, not a speed
-# assertion. What they wait on is a background thread and the real subprocess
-# it drives, and under the contention reproducer (26 xdist workers pinned to
-# two CPUs) that pair legitimately needs tens of seconds to do what an idle
-# machine does in milliseconds. The previous five-second ceiling was tight
-# enough to be a speed assertion, which made
-# `test_retryable_failure_then_success_records_lifecycle_and_nudge` the
-# parallel-suite flake class's second-strongest reproducer at 5/8 repeats
-# (sase-h8.3). Sized so an unstarved run never reaches it while a genuine hang
-# still fails its own test instead of stalling the suite.
-LOAD_TOLERANT_TIMEOUT = 60.0
 
 _CONTROL_ENV = (
     "FAKEY_DELAY",

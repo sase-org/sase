@@ -61,7 +61,15 @@ async def test_apostrophe_enters_jump_mode_with_hints_skipping_headers(
         option_list = pane.query_one("#browser-list", OptionList)
 
         await page.press("apostrophe")
-        await page.pause()
+        await page.wait_for(
+            lambda _state: (
+                pane.jump_mode_active
+                and _option_plain(option_list, 1).startswith("[0] ")
+                and _option_plain(option_list, 3).startswith("[1] ")
+                and _option_plain(option_list, 4).startswith("[2] ")
+                and "JUMP ' first" in _hint_text(pane)
+            )
+        )
 
         assert pane.jump_mode_active is True
         # Row order: header(User sase.yml), cfg[0], header(Other), note[1], zzz[2].

@@ -23,10 +23,10 @@ from sase.ace.tui.modals.prompt_history_modal import PromptHistoryModal
 from sase.ace.tui.modals.revive_agent_modal import DismissedAgentSelectModal
 from sase.history.prompt_catalog import PromptHistoryPage
 from tests._agent_revive_helpers import make_agent
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 _HITCH_THRESHOLD_SECONDS = 0.5
 _BACKGROUND_HOLD_SECONDS = 0.65
-_INPUT_DEADLINE_SECONDS = 3.0
 _FREEZE_EVENTS = frozenset(
     {
         "tui_hitch",
@@ -94,7 +94,11 @@ def _configure_lowered_watchdog(
     monkeypatch.setenv("SASE_TUI_PUMP_STALL_POLL_INTERVAL", "0.02")
 
 
-async def _wait_for_thread_event(event: Event, *, timeout: float = 5.0) -> None:
+async def _wait_for_thread_event(
+    event: Event,
+    *,
+    timeout: float = LOAD_TOLERANT_TIMEOUT,
+) -> None:
     observed = await asyncio.wait_for(
         asyncio.to_thread(event.wait, timeout),
         timeout=timeout + 1.0,
@@ -110,7 +114,7 @@ async def _hold_past_hitch_threshold() -> None:
 async def _press_within_deadline(page: AcePage, key: str) -> None:
     await asyncio.wait_for(
         page.press(key),
-        timeout=_INPUT_DEADLINE_SECONDS,
+        timeout=LOAD_TOLERANT_TIMEOUT,
     )
 
 
@@ -284,7 +288,7 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
             stack_markers=("_read_notifications_for_startup", "slow_startup_read"),
         ):
             startup_started.set()
-            startup_release.wait(timeout=5.0)
+            startup_release.wait(timeout=LOAD_TOLERANT_TIMEOUT)
         return set(), set(), []
 
     monkeypatch.setattr(
@@ -300,7 +304,7 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         try:
             await _wait_for_thread_event(startup_started)
             await _press_within_deadline(page, "tab")
-            await page.expect_state("tab", "axe", timeout=1.0)
+            await page.expect_state("tab", "axe", timeout=LOAD_TOLERANT_TIMEOUT)
             await _hold_past_hitch_threshold()
         finally:
             startup_release.set()
@@ -318,7 +322,7 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
                 stack_markers=("load_prompt_record_page", "slow_history_page"),
             ):
                 history_started.set()
-                history_release.wait(timeout=5.0)
+                history_release.wait(timeout=LOAD_TOLERANT_TIMEOUT)
             return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
 
         monkeypatch.setattr(
@@ -338,13 +342,12 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
             await _hold_past_hitch_threshold()
         finally:
             history_release.set()
-        for _ in range(100):
-            if history_modal._history_loaded_once:
-                break
-            await page.pause()
-        assert history_modal._history_loaded_once
+        await page.wait_for(
+            lambda _state: history_modal._history_loaded_once,
+            timeout=LOAD_TOLERANT_TIMEOUT,
+        )
         history_modal.dismiss(None)
-        await page.expect_no_modal(timeout=1.0)
+        await page.expect_no_modal(timeout=LOAD_TOLERANT_TIMEOUT)
 
         archive_started = Event()
         archive_release = Event()
@@ -359,7 +362,7 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
                 stack_markers=("_page_loader", "slow_archive_page"),
             ):
                 archive_started.set()
-                archive_release.wait(timeout=5.0)
+                archive_release.wait(timeout=LOAD_TOLERANT_TIMEOUT)
             return [dismissed_agent], [dismissed_agent], True
 
         archive_modal = DismissedAgentSelectModal(
@@ -376,13 +379,12 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
             await _hold_past_hitch_threshold()
         finally:
             archive_release.set()
-        for _ in range(100):
-            if not archive_modal._initial_loading:
-                break
-            await page.pause()
-        assert not archive_modal._initial_loading
+        await page.wait_for(
+            lambda _state: not archive_modal._initial_loading,
+            timeout=LOAD_TOLERANT_TIMEOUT,
+        )
         archive_modal.dismiss(None)
-        await page.expect_no_modal(timeout=1.0)
+        await page.expect_no_modal(timeout=LOAD_TOLERANT_TIMEOUT)
 
         cleanup_started = Event()
         cleanup_release = Event()
@@ -395,7 +397,7 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
                 stack_markers=("compute_loader_cleanup", "slow_loader_cleanup"),
             ):
                 cleanup_started.set()
-                cleanup_release.wait(timeout=5.0)
+                cleanup_release.wait(timeout=LOAD_TOLERANT_TIMEOUT)
             return set(), set()
 
         monkeypatch.setattr(
@@ -417,14 +419,13 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
             await _hold_past_hitch_threshold()
         finally:
             cleanup_release.set()
-        for _ in range(100):
-            if (
+        await page.wait_for(
+            lambda _state: (
                 not page.app._loader_cleanup_running
                 and not page.app._loader_cleanup_async_tasks
-            ):
-                break
-            await page.pause()
-        assert not page.app._loader_cleanup_running
+            ),
+            timeout=LOAD_TOLERANT_TIMEOUT,
+        )
 
     records = _read_events(stall_log)
     _assert_no_fixed_path_freezes(records, watchdog_windows.snapshot())

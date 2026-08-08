@@ -12,6 +12,7 @@ from sase.ace.tui.widgets.artifacts import files_data, files_pane
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
 from tests.ace.tui._artifacts_files_helpers import artifact_file, snapshot
 from tests.ace.tui._artifacts_plans_helpers import _choices
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 
 def test_data_loader_uses_only_project_scope_and_limit(
@@ -66,7 +67,7 @@ async def test_first_page_paints_before_full_extension(
         requested_limits.append(limit)
         if limit is None:
             full_started.set()
-            assert release_full.wait(timeout=5)
+            assert release_full.wait(timeout=LOAD_TOLERANT_TIMEOUT)
             return snapshot(full_rows, project=project)
         return snapshot(first_rows, project=project, complete=False)
 
@@ -86,7 +87,8 @@ async def test_first_page_paints_before_full_extension(
             await page.wait_for(
                 lambda _state: (
                     pane.snapshot is not None and len(pane.snapshot.rows) == 2
-                )
+                ),
+                timeout=LOAD_TOLERANT_TIMEOUT,
             )
 
             assert pane.selected_entry is first_rows[0]
@@ -94,7 +96,7 @@ async def test_first_page_paints_before_full_extension(
                 ("file", first_rows[0].id),
                 ("file", first_rows[1].id),
             )
-            assert full_started.wait(timeout=2)
+            assert full_started.wait(timeout=LOAD_TOLERANT_TIMEOUT)
             assert requested_limits[:2] == [500, None]
 
             release_full.set()
@@ -103,7 +105,8 @@ async def test_first_page_paints_before_full_extension(
                     pane.snapshot is not None
                     and pane.snapshot.complete
                     and len(pane.snapshot.rows) == 3
-                )
+                ),
+                timeout=LOAD_TOLERANT_TIMEOUT,
             )
             assert pane.selected_entry is first_rows[0]
     finally:

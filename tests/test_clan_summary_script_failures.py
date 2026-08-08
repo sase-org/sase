@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
+from typing import BinaryIO, cast
 
 import pytest
 
@@ -100,10 +102,24 @@ def test_timed_out_summary_script_never_blocks_launch(
         "import sys\nimport time\nsys.stderr.write('timeout detail\\n')\n"
         "sys.stderr.flush()\ntime.sleep(60)",
     )
+
+    class TimeoutProcess:
+        pid = 1
+
+        def __init__(self, *_args: object, **kwargs: object) -> None:
+            stderr = cast(BinaryIO, kwargs["stderr"])
+            stderr.write(b"timeout detail\n")
+            stderr.flush()
+
+        def wait(self, timeout: float | None = None) -> int:
+            raise subprocess.TimeoutExpired(cmd=["make_summary"], timeout=timeout)
+
     monkeypatch.setattr(
         "sase.axe.clan_summary_script.CLAN_SUMMARY_TIMEOUT_SECONDS",
         0.3,
     )
+    monkeypatch.setattr("sase.axe.clan_summary_script.subprocess.Popen", TimeoutProcess)
+    monkeypatch.setattr("sase.axe.clan_summary_script._kill_process", lambda _p: None)
 
     with caplog.at_level("WARNING", logger="sase.axe.clan_summary_script"):
         meta = extract_clan_meta(
