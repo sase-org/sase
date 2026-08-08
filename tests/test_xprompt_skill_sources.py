@@ -17,8 +17,10 @@ from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.loader_skills import (
     SKILL_FRAME_TEMPLATE_FILENAME,
     SKILL_PLACEMENT_ISSUE_KIND,
+    get_sase_package_skills_dir,
     load_project_skills,
     load_skills_from_files,
+    skill_destination_for_xprompt_dir,
 )
 from sase.xprompt.loader_sources import load_xprompts_from_files
 from sase.xprompt.models import XPrompt
@@ -46,8 +48,8 @@ def home_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def test_reference_name_splits_provider_name_from_xprompt_reference() -> None:
-    assert skill_reference_name("foo") == "skills/foo"
-    assert skill_reference_name("foo", "app") == "app/skills/foo"
+    assert skill_reference_name("foo") == "skill/foo"
+    assert skill_reference_name("foo", "app") == "app/skill/foo"
 
 
 def test_layout_orders_project_before_home_and_omits_legacy_paths(
@@ -72,13 +74,13 @@ def test_layout_orders_project_before_home_and_omits_legacy_paths(
     assert sources[1].project_namespaced is False
 
 
-def test_home_skill_takes_the_skills_namespace(home_root: Path) -> None:
+def test_home_skill_takes_the_singular_skill_namespace(home_root: Path) -> None:
     _skill_file(home_root / "sase" / "skills" / "bob_query.md", "bob_query")
 
     skills = load_skills_from_files()
 
-    assert set(skills) == {"skills/bob_query"}
-    loaded = skills["skills/bob_query"]
+    assert set(skills) == {"skill/bob_query"}
+    loaded = skills["skill/bob_query"]
     assert loaded.skill_name == "bob_query"
     assert loaded.skill is True
 
@@ -91,8 +93,8 @@ def test_project_skill_is_qualified_but_keeps_its_slash_name(
 
     skills = load_project_skills(project_root, "app")
 
-    assert set(skills) == {"app/skills/scoped"}
-    assert skills["app/skills/scoped"].skill_name == "scoped"
+    assert set(skills) == {"app/skill/scoped"}
+    assert skills["app/skill/scoped"].skill_name == "scoped"
 
 
 def test_project_skill_shadows_the_home_skill_of_the_same_name(
@@ -106,8 +108,8 @@ def test_project_skill_shadows_the_home_skill_of_the_same_name(
 
     # No project name, so both sources resolve to the same reference and the
     # higher-priority project source wins.
-    assert set(skills) == {"skills/dup"}
-    assert skills["skills/dup"].source_path == str(
+    assert set(skills) == {"skill/dup"}
+    assert skills["skill/dup"].source_path == str(
         project_root / "sase" / "skills" / "dup.md"
     )
 
@@ -163,7 +165,7 @@ def test_provider_list_is_a_truthy_skill_value(home_root: Path) -> None:
 
     skills = load_skills_from_files()
 
-    assert skills["skills/codex_only"].skill == ["codex"]
+    assert skills["skill/codex_only"].skill == ["codex"]
 
 
 def test_config_defined_skill_is_rejected_with_a_migration_destination() -> None:
@@ -196,13 +198,41 @@ def test_frame_template_is_not_loaded_as_a_skill(home_root: Path) -> None:
     assert issues == []
 
 
+def test_builtin_skill_source_directory_is_nested_under_xprompts() -> None:
+    skills_dir = get_sase_package_skills_dir()
+
+    assert skills_dir.name == "skills"
+    assert skills_dir.parent.name == "xprompts"
+    assert (skills_dir / SKILL_FRAME_TEMPLATE_FILENAME).is_file()
+    assert (skills_dir / "sase_plan.md").is_file()
+
+
+def test_builtin_xprompt_skill_migration_points_to_nested_skill_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.xprompt import loader_skills
+
+    package_root = tmp_path / "package" / "sase"
+    xprompts_dir = package_root / "xprompts"
+    skills_dir = xprompts_dir / "skills"
+    skills_dir.mkdir(parents=True)
+
+    def resource_dir(*parts: str) -> Path:
+        return package_root.joinpath(*parts)
+
+    monkeypatch.setattr(loader_skills, "_sase_package_resource_dir", resource_dir)
+
+    assert skill_destination_for_xprompt_dir(xprompts_dir) == skills_dir
+
+
 def test_selection_uses_the_provider_skill_name_for_ordering() -> None:
     entries = {
-        "skills/zulu": XPrompt(
-            name="skills/zulu", content="", skill=True, skill_name="zulu"
+        "skill/zulu": XPrompt(
+            name="skill/zulu", content="", skill=True, skill_name="zulu"
         ),
-        "app/skills/alpha": XPrompt(
-            name="app/skills/alpha", content="", skill=True, skill_name="alpha"
+        "app/skill/alpha": XPrompt(
+            name="app/skill/alpha", content="", skill=True, skill_name="alpha"
         ),
         "plain": XPrompt(name="plain", content=""),
     }

@@ -127,7 +127,7 @@ def stub_manifest_git(
 ) -> None:
     """Stub git provenance checks used by the skill deploy manifest."""
     source_root = tmp_path / "source"
-    skills_dir = source_root / "src" / "sase" / "skills"
+    skills_dir = source_root / "src" / "sase" / "xprompts" / "skills"
     skills_dir.mkdir(parents=True)
 
     def fake_run_git(root: Path, *args: str) -> str:

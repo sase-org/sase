@@ -70,7 +70,7 @@ def test_rendered_skill_targets_include_audit_directive_for_each_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     xprompt = init_skills_handler.XPrompt(
-        name="skills/foo",
+        name="skill/foo",
         content="body\n",
         description="a test skill",
         skill=["claude", "codex"],
@@ -107,7 +107,7 @@ def test_rendered_skill_targets_omit_audit_directive_when_disabled(
 ) -> None:
     """A skill with ``log_skill_use=False`` renders without the audit directive."""
     xprompt = init_skills_handler.XPrompt(
-        name="skills/foo",
+        name="skill/foo",
         content="body\n",
         description="a test skill",
         skill=["claude"],
@@ -136,11 +136,11 @@ def test_packaged_skills_respect_log_skill_use_flag() -> None:
     from sase.xprompt.loader import load_skills_from_package
 
     packaged = load_skills_from_package()
-    plan_xp = packaged.get("skills/sase_plan")
-    memory_xp = packaged.get("skills/sase_memory_read")
-    repo_xp = packaged.get("skills/sase_repo")
-    project_xp = packaged.get("skills/sase_project")
-    artifact_file_xp = packaged.get("skills/sase_artifact_file")
+    plan_xp = packaged.get("skill/sase_plan")
+    memory_xp = packaged.get("skill/sase_memory_read")
+    repo_xp = packaged.get("skill/sase_repo")
+    project_xp = packaged.get("skill/sase_project")
+    artifact_file_xp = packaged.get("skill/sase_artifact_file")
     assert plan_xp is not None
     assert memory_xp is not None
     assert repo_xp is not None
@@ -168,13 +168,13 @@ def test_packaged_skills_respect_log_skill_use_flag() -> None:
             assert "sase skill use" not in target.content
 
 
-def test_generated_names_and_paths_ignore_the_skills_reference_namespace(
+def test_generated_names_and_paths_ignore_the_skill_reference_namespace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The ``skills/`` rename is xprompt-side only; ``/foo`` output is unchanged."""
+    """The ``skill/`` rename is xprompt-side only; ``/foo`` output is unchanged."""
     xprompt = init_skills_handler.XPrompt(
-        name="app/skills/foo",
+        name="app/skill/foo",
         content="body\n",
         description="a test skill",
         skill=["claude"],
@@ -195,4 +195,4 @@ def test_generated_names_and_paths_ignore_the_skills_reference_namespace(
     for target in targets:
         assert target.path == tmp_path / "home/.claude/skills/foo/SKILL.md"
         assert target.content.startswith("---\nname: foo\n")
-        assert "skills/foo" not in target.content.splitlines()[1]
+        assert "skill/foo" not in target.content.splitlines()[1]

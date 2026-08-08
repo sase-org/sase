@@ -113,7 +113,7 @@ def test_check_defers_dirty_chezmoi_source_drift_as_warning(
     )
     integrity_error = (
         "refusing chezmoi skill deploy because xprompt sources have "
-        "uncommitted changes:\n  M src/sase/skills/foo.md"
+        "uncommitted changes:\n  M src/sase/xprompts/skills/foo.md"
     )
     monkeypatch.setattr(
         init_skills_handler, "skill_source_integrity_error", lambda: integrity_error

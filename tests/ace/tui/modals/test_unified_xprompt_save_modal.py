@@ -342,7 +342,7 @@ async def test_skill_destination_verdict_shows_both_names(tmp_path: Path) -> Non
         title = modal.query_one("#unified-save-title", Label).render().plain
 
     # The panel never implies a skill answers to ``#foo``.
-    assert "#skills/foo · /foo" in verdict
+    assert "#skill/foo · /foo" in verdict
     assert "Save draft as skill" in title
 
 
@@ -366,7 +366,7 @@ async def test_project_skill_destination_verdict_is_project_qualified(
         assert isinstance(modal, UnifiedXPromptSaveModal)
         verdict = modal.query_one("#unified-save-verdict", Static).render().plain
 
-    assert "#app/skills/foo · /foo" in verdict
+    assert "#app/skill/foo · /foo" in verdict
 
 
 async def test_shadowed_destination_has_truthful_warning(tmp_path: Path) -> None:

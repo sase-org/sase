@@ -213,10 +213,10 @@ def test_resolves_slash_skill_with_slash_presentation(
     assert payload.title == "/sase_plan"
 
 
-def test_slash_skill_resolution_looks_up_the_skills_reference_name(
+def test_slash_skill_resolution_looks_up_the_skill_reference_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``/foo`` resolves through the canonical ``skills/foo`` reference."""
+    """``/foo`` resolves through the canonical ``skill/foo`` reference."""
     looked_up: list[str] = []
 
     def _lookup(name: str, project: str | None = None) -> XPrompt:
@@ -240,7 +240,7 @@ def test_slash_skill_resolution_looks_up_the_skills_reference_name(
         base_dir=".",
     )
 
-    assert looked_up == ["skills/sase_plan"]
+    assert looked_up == ["skill/sase_plan"]
 
 
 def test_slash_skill_resolution_rejects_stale_non_skill(

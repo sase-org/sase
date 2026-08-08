@@ -50,7 +50,9 @@ def test_the_package_directory_is_offered_as_a_dev_destination() -> None:
     ]
 
     assert any(
-        destination.path.name == "skills" and destination.path.parent.name == "sase"
+        destination.path.name == "skills"
+        and destination.path.parent.name == "xprompts"
+        and destination.path.parent.parent.name == "sase"
         for destination in builtin
     )
 

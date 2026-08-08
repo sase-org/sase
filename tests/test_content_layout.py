@@ -23,7 +23,7 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
         project="demo",
     )
 
-    assert layout.schema_version == 3
+    assert layout.schema_version == 4
     assert layout.project is not None
     project = layout.project
     assert project.config.canonical.path == Path("/workspace/demo/sase/sase.yml")
@@ -51,6 +51,8 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
     assert layout.chezmoi.global_config.path == Path(
         "/dotfiles/home/dot_config/sase/sase.yml"
     )
+    assert layout.skill_sources[-1].id == "package_skills"
+    assert layout.skill_sources[-1].locator == "package:xprompts/skills"
 
 
 def test_path_classes_separate_tracked_generated_and_runtime_content() -> None:

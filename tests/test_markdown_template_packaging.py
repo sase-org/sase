@@ -38,6 +38,9 @@ def test_wheel_contains_generated_markdown_templates(tmp_path: Path) -> None:
         "sase/sdd/templates/sidecar-research-README.md",
         "sase/sdd/assets/agents-directory-map.png",
         "sase/sdd/assets/agents-directory-map.png.prompt.md",
-        "sase/skills/SKILL.frame.template.md",
-        "sase/skills/sase_plan.md",
+        "sase/xprompts/skills/SKILL.frame.template.md",
+        "sase/xprompts/skills/sase_artifact_file.md",
+        "sase/xprompts/skills/sase_plan.md",
     } <= names
+    assert "sase/skills/SKILL.frame.template.md" not in names
+    assert "sase/skills/sase_plan.md" not in names

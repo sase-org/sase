@@ -1063,10 +1063,13 @@ xprompts:
     input:
       bead_id: word
     content: |
-      Can you complete the work for the {{ bead_id }} sase task bead by running the
-      `sase bead show {{ bead_id }}` command, reviewing the command's output, doing the work, and
-      then closing the bead by running the
+      Can you complete the work for task bead {{ bead_id }} by running the `sase bead show {{ bead_id }}` command,
+      reviewing the command's output, doing the work, and then closing the bead by running the
       `sase bead close {{ bead_id }} --note "<what you verified>"` command?
+
+      If you discover genuinely distinct follow-up work that is outside this task, use `/sase_new_task` with details
+      identifying the current bead; it will corroborate a duplicate, attach a causally related active-epic issue, or
+      create a sized task as appropriate.
 
       IMPORTANT: Do not commit your changes unless/until the finalizer asks you to.
   epic: |

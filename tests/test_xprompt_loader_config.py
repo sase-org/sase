@@ -353,20 +353,20 @@ def testload_xprompts_from_internal_excludes_packaged_skills() -> None:
 
 
 def test_load_skills_from_package_namespaces_the_xprompt_reference() -> None:
-    """Packaged skills keep ``foo`` as the skill name under ``skills/foo``."""
+    """Packaged skills keep ``foo`` as the skill name under ``skill/foo``."""
     result = load_skills_from_package()
 
-    assert "skills/sase_plan" in result
-    assert "skills/sase_questions" in result
+    assert "skill/sase_plan" in result
+    assert "skill/sase_questions" in result
     # The Jinja frame ships beside the sources but is a template, not a skill.
-    assert "skills/SKILL.frame.template" not in result
+    assert "skill/SKILL.frame.template" not in result
 
-    plan = result["skills/sase_plan"]
-    assert plan.name == "skills/sase_plan"
+    plan = result["skill/sase_plan"]
+    assert plan.name == "skill/sase_plan"
     assert plan.skill_name == "sase_plan"
     assert plan.skill is True
     assert plan.description is not None
-    assert plan.source_path.endswith("sase/skills/sase_plan.md")
+    assert plan.source_path.endswith("sase/xprompts/skills/sase_plan.md")
 
 
 def testload_xprompts_from_internal_includes_split_file() -> None:

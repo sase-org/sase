@@ -14,7 +14,10 @@ import yaml  # type: ignore[import-untyped]
 from sase.main.init_plan import InitOperation
 from sase.markdown_width import markdown_print_width, prettier_markdown_argv
 from sase.mdtemplates import render_markdown_template
-from sase.xprompt.loader_skills import SKILL_FRAME_TEMPLATE_FILENAME
+from sase.xprompt.loader_skills import (
+    SKILL_FRAME_TEMPLATE_FILENAME,
+    get_sase_package_skill_resource,
+)
 from sase.xprompt.models import XPrompt
 
 
@@ -113,8 +116,8 @@ def _build_output(
     else:
         header = f"---\nname: {name}\ndescription: {description}\n---"
     content, render_error = render_markdown_template(
-        package="sase.skills",
-        filename=_SKILL_FRAME_TEMPLATE_FILENAME,
+        package="sase",
+        filename=get_sase_package_skill_resource(_SKILL_FRAME_TEMPLATE_FILENAME),
         required_variables=_SKILL_FRAME_TEMPLATE_VARS,
         context={
             "frontmatter": header,

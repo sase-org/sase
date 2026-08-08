@@ -114,7 +114,7 @@ def test_handler_dirty_chezmoi_source_is_refused_before_write(
         "skill_source_integrity_error",
         lambda: (
             "refusing chezmoi skill deploy because xprompt sources have "
-            "uncommitted changes:\n  M src/sase/skills/foo.md"
+            "uncommitted changes:\n  M src/sase/xprompts/skills/foo.md"
         ),
     )
     chezmoi_home = tmp_path / "chezmoi" / "home"
@@ -130,7 +130,7 @@ def test_handler_dirty_chezmoi_source_is_refused_before_write(
     assert not chezmoi_home.exists()
     deploy_mock.assert_not_called()
     err = capsys.readouterr().err
-    assert "src/sase/skills/foo.md" in err
+    assert "src/sase/xprompts/skills/foo.md" in err
 
 
 def test_handler_backwards_manifest_refuses_and_leaves_newer_deployment_intact(

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import importlib.resources
 import logging
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from sase.content_layout import (
     SkillPlacementIssue,
@@ -37,6 +37,10 @@ log = logging.getLogger(__name__)
 SKILL_FRAME_TEMPLATE_FILENAME = "SKILL.frame.template.md"
 """Packaged Jinja frame for generated ``SKILL.md`` files, not a skill source."""
 
+_SASE_PACKAGE = "sase"
+_SASE_PACKAGE_XPROMPTS_RESOURCE = ("xprompts",)
+_SASE_PACKAGE_SKILLS_RESOURCE = ("xprompts", "skills")
+
 SKILL_PLACEMENT_ISSUE_KIND = "skill_placement"
 """``XPromptLoadIssue.kind`` for definitions the placement rules rejected."""
 
@@ -45,21 +49,48 @@ _PLUGIN_SKILL_DESTINATION = "the plugin's skills/ resource directory"
 _CONFIG_SKILL_DESTINATION = "a Markdown file in the scope's sase/skills/ directory"
 
 
-def get_sase_package_skills_dir() -> Path:
+def get_sase_package_skills_dir(package_root: Path | None = None) -> Path:
     """Return the packaged skill source directory.
 
-    Bundled skills live at ``src/sase/skills/`` inside the package, so
+    Bundled skills live at ``src/sase/xprompts/skills/`` inside the package, so
     ``importlib.resources`` resolves them for both wheel and editable
     installs.
     """
-    candidate = Path(str(importlib.resources.files("sase").joinpath("skills")))
+    candidate = (
+        Path(package_root).joinpath(*_SASE_PACKAGE_SKILLS_RESOURCE)
+        if package_root is not None
+        else _sase_package_resource_dir(*_SASE_PACKAGE_SKILLS_RESOURCE)
+    )
     if candidate.is_dir():
         return candidate
 
     log.warning(
-        "Packaged skills directory not found via importlib.resources('sase/skills')",
+        "Packaged skills directory not found via "
+        "importlib.resources('sase/xprompts/skills')",
     )
     return candidate
+
+
+def get_sase_package_skill_resource(filename: str) -> str:
+    """Return a package-relative resource path for one bundled skill asset."""
+    return PurePosixPath(*_SASE_PACKAGE_SKILLS_RESOURCE, filename).as_posix()
+
+
+def _get_sase_package_xprompts_dir() -> Path:
+    return _sase_package_resource_dir(*_SASE_PACKAGE_XPROMPTS_RESOURCE)
+
+
+def _sase_package_resource_dir(*parts: str) -> Path:
+    return Path(str(importlib.resources.files(_SASE_PACKAGE).joinpath(*parts)))
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    try:
+        return left.expanduser().resolve(strict=False) == right.expanduser().resolve(
+            strict=False
+        )
+    except (OSError, RuntimeError, ValueError):
+        return left == right
 
 
 def _record_skill_placement_issue(issue: SkillPlacementIssue | None) -> bool:
@@ -94,6 +125,9 @@ def reject_misplaced_skill(
 
 def skill_destination_for_xprompt_dir(directory: Path) -> Path | None:
     """Return the canonical skill directory for the scope owning *directory*."""
+    if _same_path(directory, _get_sase_package_xprompts_dir()):
+        return get_sase_package_skills_dir()
+
     parent = directory.parent
     if parent == directory:
         return None
@@ -101,9 +135,14 @@ def skill_destination_for_xprompt_dir(directory: Path) -> Path | None:
 
 
 def _xprompt_destination_for_skill_dir(directory: Path) -> Path | None:
+    if _same_path(directory, get_sase_package_skills_dir()):
+        return _get_sase_package_xprompts_dir()
+
     parent = directory.parent
     if parent == directory:
         return None
+    if directory.name != "skills" and parent.name == "skills":
+        return parent.parent / "xprompts" / directory.name
     return parent / "xprompts"
 
 
@@ -248,6 +287,7 @@ __all__ = [
     "SKILL_FRAME_TEMPLATE_FILENAME",
     "SKILL_PLACEMENT_ISSUE_KIND",
     "config_skill_destination",
+    "get_sase_package_skill_resource",
     "get_sase_package_skills_dir",
     "load_project_skills",
     "load_skills_from_files",

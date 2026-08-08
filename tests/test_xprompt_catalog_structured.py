@@ -290,10 +290,12 @@ def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
     by_name = {entry.name: entry for entry in projection.entries}
     # The catalog is keyed by the xprompt reference name; the provider skill
     # name rides alongside it.
-    assert "skills/sase_plan" in by_name
-    assert by_name["skills/sase_plan"].is_skill is True
-    assert by_name["skills/sase_plan"].skill_name == "sase_plan"
-    assert by_name["skills/sase_plan"].source_path_display == "skills/sase_plan.md"
+    assert "skill/sase_plan" in by_name
+    assert by_name["skill/sase_plan"].is_skill is True
+    assert by_name["skill/sase_plan"].skill_name == "sase_plan"
+    assert by_name["skill/sase_plan"].source_path_display == (
+        "xprompts/skills/sase_plan.md"
+    )
     assert projection.stats.skill_count >= 1
 
 
