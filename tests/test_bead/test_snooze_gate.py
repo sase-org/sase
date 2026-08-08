@@ -103,7 +103,22 @@ def test_bead_snooze_gate_builds_canonical_spec_and_snoozed_notification(
     assert [(option["id"], option["feedback"]) for option in request["options"]] == [
         ("close", "optional"),
         ("ready", "optional"),
-        ("snooze", "required"),
+        ("snooze", "optional"),
+    ]
+    # The wake time is a declared input rather than a convention the reviewer
+    # has to know about the free-text note.
+    snooze_option = request["options"][2]
+    assert [field["id"] for field in snooze_option["inputs"]] == [
+        "duration",
+        "custom_duration",
+    ]
+    assert snooze_option["input_schema"]["required"] == ["duration"]
+    assert snooze_option["input_schema"]["properties"]["duration"]["enum"] == [
+        "4h",
+        "1d",
+        "3d",
+        "7d",
+        "custom",
     ]
     assert request["presentation"]["panel"] == "beads"
     assert request["presentation"]["panel_icon"] == "◈"
@@ -256,7 +271,20 @@ def test_bead_snooze_gate_rejects_automatic_resolution(gate_home: Path) -> None:
             "invalid_bead_snooze_payload",
         ),
         (
-            lambda spec: spec["options"][2].update(feedback="optional"),
+            lambda spec: spec["options"][2].update(feedback="required"),
+            "invalid_bead_snooze_options",
+        ),
+        (
+            lambda spec: spec["options"][2]["inputs"][0].update(
+                choices=[
+                    {"value": "3d", "label": "3 days"},
+                    {"value": "99d", "label": "99 days"},
+                ]
+            ),
+            "invalid_bead_snooze_options",
+        ),
+        (
+            lambda spec: spec["options"][2].pop("inputs"),
             "invalid_bead_snooze_options",
         ),
         (
@@ -480,7 +508,23 @@ def test_bead_snooze_ready_cancels_the_snooze_and_notes_the_wake(
     mutation.commit.assert_called_once_with("chore(beads): wake sase-task.1")
 
 
-def test_bead_snooze_resnooze_defers_again_with_the_typed_duration(
+def _resnooze(
+    gate: Any,
+    duration_input: dict[str, Any],
+    *,
+    feedback: str | None = None,
+) -> Any:
+    """Answer one wake gate's Snooze branch with a declared duration."""
+    return execute_gate_selection(
+        gate.bundle_path,
+        ["snooze"],
+        feedback=feedback,
+        option_inputs={"snooze": duration_input},
+        source="tui",
+    )
+
+
+def test_bead_snooze_resnooze_defers_again_with_the_custom_duration(
     gate_home: Path,
 ) -> None:
     del gate_home
@@ -495,14 +539,14 @@ def test_bead_snooze_resnooze_defers_again_with_the_typed_duration(
         patch("sase.bead.cli_common.bead_store_mutation", side_effect=mutation_scope),
         patch("sase.agent.identity.discover_agent_identity", return_value=None),
     ):
-        execute_gate_selection(
-            gate.bundle_path,
-            ["snooze"],
-            {},
-            feedback="3d +2",
-            source="tui",
-        )
+        execution = _resnooze(gate, {"duration": "custom", "custom_duration": "3d +2"})
 
+    # The duration reaches the command on stdin and comes back as its result,
+    # rather than being re-parsed out of the free-text note host-side.
+    assert execution.response["option_inputs"]["snooze"]["custom_duration"] == "3d +2"
+    assert execution.response["option_results"] == [
+        {"id": "snooze", "result": {"action": "snooze", "duration": "3d +2"}}
+    ]
     [call] = project.snooze.call_args_list
     assert call.args == ("sase-task.1",)
     assert call.kwargs["plus_ones"] == 2
@@ -514,26 +558,63 @@ def test_bead_snooze_resnooze_defers_again_with_the_typed_duration(
     mutation.commit.assert_called_once_with("chore(beads): snooze sase-task.1")
 
 
+def test_bead_snooze_resnooze_accepts_a_preset_and_records_the_note_as_the_reason(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    gate = create_gate(_spec(request_id="bead-snooze-preset"))
+    project, _mutation, mutation_scope = _mutation_double()
+
+    with (
+        patch(
+            "sase.bead.snooze_gate._resolve_bead_snooze_project_cwd",
+            return_value=Path("/canonical/sase"),
+        ),
+        patch("sase.bead.cli_common.bead_store_mutation", side_effect=mutation_scope),
+        patch("sase.agent.identity.discover_agent_identity", return_value=None),
+    ):
+        _resnooze(gate, {"duration": "4h"}, feedback="Still blocked upstream.")
+
+    [call] = project.snooze.call_args_list
+    assert call.kwargs["plus_ones"] is None
+    assert call.kwargs["reason"] == "Still blocked upstream."
+    resolved = datetime.fromisoformat(call.kwargs["until"])
+    reference = FIXED_BEAD_NOW.replace(tzinfo=resolved.tzinfo)
+    assert resolved == (reference + timedelta(hours=4)).replace(microsecond=0)
+
+
 def test_bead_snooze_rejects_an_unparsable_duration_and_leaves_the_gate_pending(
     gate_home: Path,
 ) -> None:
+    """The property the deleted host-side feedback check existed to provide."""
     del gate_home
     gate = create_gate(_spec(request_id="bead-snooze-typo"))
 
     with pytest.raises(GateError) as exc_info:
-        execute_gate_selection(
-            gate.bundle_path,
-            ["snooze"],
-            {},
-            feedback="threeish days",
-            source="tui",
-        )
+        _resnooze(gate, {"duration": "custom", "custom_duration": "threeish days"})
 
-    assert exc_info.value.code == "invalid_snooze_duration"
-    assert "accepted forms" in str(exc_info.value)
+    assert exc_info.value.code == "command_failed"
     assert not gate.response_path.exists()
+    [error] = sorted((gate.bundle_path / "errors").glob("*.json"))
+    recorded = json.loads(error.read_text(encoding="utf-8"))
+    assert recorded["option_id"] == "snooze"
+    assert "accepted forms" in recorded["stderr"]
     [notification] = load_notifications()
     assert notification.snooze_until == WAKE_TIME
+
+
+def test_bead_snooze_rejects_a_duration_outside_the_declared_choices(
+    gate_home: Path,
+) -> None:
+    """A forged preset never reaches the command: the compiled schema stops it."""
+    del gate_home
+    gate = create_gate(_spec(request_id="bead-snooze-forged-choice"))
+
+    with pytest.raises(GateError) as exc_info:
+        _resnooze(gate, {"duration": "99d"})
+
+    assert exc_info.value.code == "schema_validation_failed"
+    assert not gate.response_path.exists()
 
 
 def test_bead_snooze_translation_requires_a_matching_result(gate_home: Path) -> None:
@@ -550,23 +631,40 @@ def test_bead_snooze_translation_requires_a_matching_result(gate_home: Path) -> 
     assert exc_info.value.code == "invalid_response"
 
 
-def test_bead_snooze_commands_reject_nonempty_input(gate_home: Path) -> None:
+@pytest.mark.parametrize(
+    ("option_id", "command_input", "expected_stderr"),
+    [
+        ("close", b'{"unexpected": true}\n', b"must be empty"),
+        ("snooze", b"{}\n", b"a snooze needs a wake time"),
+        (
+            "snooze",
+            b'{"duration": "custom"}\n',
+            b"a custom snooze needs a wake time",
+        ),
+    ],
+)
+def test_bead_snooze_commands_reject_unusable_input(
+    gate_home: Path,
+    option_id: str,
+    command_input: bytes,
+    expected_stderr: bytes,
+) -> None:
     del gate_home
-    gate = create_gate(_spec(request_id="bead-snooze-command-input"))
-    command_path = gate.bundle_path / BEAD_SNOOZE_COMMAND_PATHS["snooze"]
+    gate = create_gate(_spec(request_id=f"bead-snooze-command-{option_id}"))
+    command_path = gate.bundle_path / BEAD_SNOOZE_COMMAND_PATHS[option_id]
 
     import subprocess
 
     completed = subprocess.run(
         [str(command_path)],
         cwd=gate.bundle_path,
-        input=b'{"unexpected": true}\n',
+        input=command_input,
         capture_output=True,
         check=False,
     )
 
     assert completed.returncode == 2
-    assert b"must be empty" in completed.stderr
+    assert expected_stderr in completed.stderr
 
 
 def test_bead_snooze_gate_carries_plus_one_evidence_like_task_triage(

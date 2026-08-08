@@ -35,11 +35,15 @@ def test_task_triage_rejects_automatic_resolution(gate_home: Path) -> None:
             "invalid_task_triage_query",
         ),
         (
-            lambda spec: spec["options"][2].update(label="Snooze"),
+            lambda spec: spec["options"][2].update(label="Snooze (3d)"),
             "invalid_task_triage_options",
         ),
         (
-            lambda spec: spec["options"][2].update(feedback="optional"),
+            lambda spec: spec["options"][2].update(feedback="required"),
+            "invalid_task_triage_options",
+        ),
+        (
+            lambda spec: spec["options"][2].pop("inputs"),
             "invalid_task_triage_options",
         ),
         (

@@ -141,12 +141,6 @@ def execute_gate_selection(
                 validate_json_instance(
                     resolved_inputs[option.id], option.input_schema, target
                 )
-        with recorded_rejection(bundle_path, selected[0].id, source):
-            adapter.validate_selection(
-                selected_option_ids=tuple(option.id for option in selected),
-                feedback=normalized_feedback,
-            )
-
         request_hash = str(envelope["hashes"]["request"])
         input_digests = {
             option.id: value_digest(resolved_inputs[option.id]) for option in selected

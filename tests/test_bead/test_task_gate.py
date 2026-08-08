@@ -49,8 +49,17 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
     assert [(option["id"], option["feedback"]) for option in request["options"]] == [
         ("launch", "optional"),
         ("close", "required"),
-        ("snooze", "required"),
+        ("snooze", "optional"),
     ]
+    # The wake time is a declared input rather than a convention the reviewer
+    # has to know about the free-text note.
+    snooze_option = request["options"][2]
+    assert snooze_option["label"] == "Snooze"
+    assert [field["id"] for field in snooze_option["inputs"]] == [
+        "duration",
+        "custom_duration",
+    ]
+    assert snooze_option["input_schema"]["required"] == ["duration"]
     assert request["presentation"]["sender"] == "bead"
     assert request["presentation"]["notes"] == [
         "sase-task.1 — Follow up on the cache · ⧖ 2025-12-31"

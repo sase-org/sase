@@ -217,28 +217,6 @@ class GateAdapter:
                     response["epic_launch_task_id"] = task.task_id
                     atomic_write_json(bundle_path / "response.json", response)
 
-    def validate_selection(
-        self,
-        *,
-        selected_option_ids: Sequence[str],
-        feedback: str | None,
-    ) -> None:
-        """Reject a selection this kind cannot act on, before it is persisted.
-
-        The generic gate form carries structured input for some kinds in their
-        one free-text feedback field, which no option command can see. Kinds
-        that parse that text check it here so a typo leaves the gate pending
-        instead of answering it with an instruction the host cannot follow.
-        """
-        if self.kind == "bead_snooze":
-            from sase.bead.snooze_gate import validate_bead_snooze_feedback
-
-            validate_bead_snooze_feedback(selected_option_ids, feedback)
-        elif self.kind == "task_triage":
-            from sase.bead.task_gate import validate_task_triage_feedback
-
-            validate_task_triage_feedback(selected_option_ids, feedback)
-
     def validate_edited_resource(self, *, path: Path) -> None:
         """Validate an editable target before advancing its review revision."""
         if self.kind not in {"plan", "epic_plan"}:

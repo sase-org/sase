@@ -219,9 +219,13 @@ def _launch_outcome_from_response(
                 "approved launch response has no dispatch status",
             )
     elif option_id == "reject":
-        status = "rejected"
-        message = "Launch rejected"
+        # A rejection carrying a note stays its own reported status, so the
+        # waiting agent can tell "no" apart from "no, and here is why".
+        status = "feedback" if feedback else "rejected"
+        message = "Launch rejected with feedback" if feedback else "Launch rejected"
     elif option_id == "feedback":
+        # Legacy only: a launch gate created before feedback became a
+        # declared input on `reject` answered through a third option id.
         status = "feedback"
         message = "Launch rejected with feedback"
     else:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -55,13 +56,16 @@ def test_task_triage_snooze_defers_the_bead_with_the_typed_duration_and_target(
         execution = execute_gate_selection(
             gate.bundle_path,
             ["snooze"],
-            {},
-            feedback="3d +2",
+            option_inputs={
+                "snooze": {"duration": "custom", "custom_duration": "3d +2"}
+            },
             source="tui",
         )
 
+    # The duration reaches the command on stdin and comes back as its result,
+    # rather than being re-parsed out of the free-text note host-side.
     assert execution.response["option_results"] == [
-        {"id": "snooze", "result": {"action": "snooze"}}
+        {"id": "snooze", "result": {"action": "snooze", "duration": "3d +2"}}
     ]
     [call] = project.snooze.call_args_list
     assert call.args == ("sase-task.1",)
@@ -95,11 +99,17 @@ def test_task_triage_snooze_accepts_a_bare_duration_without_a_plus_one_target(
         patch("sase.agent.identity.discover_agent_identity", return_value=None),
     ):
         execute_gate_selection(
-            gate.bundle_path, ["snooze"], {}, feedback="2h", source="tui"
+            gate.bundle_path,
+            ["snooze"],
+            option_inputs={"snooze": {"duration": "4h"}},
+            feedback="Waiting on the upstream fix.",
+            source="tui",
         )
 
     [call] = project.snooze.call_args_list
     assert call.kwargs["plus_ones"] is None
+    # An optional note is now the deferral's reason rather than its duration.
+    assert call.kwargs["reason"] == "Waiting on the upstream fix."
 
 
 def test_task_triage_snooze_rejects_an_unparsable_duration_and_stays_pending(
@@ -113,14 +123,18 @@ def test_task_triage_snooze_rejects_an_unparsable_duration_and_stays_pending(
         execute_gate_selection(
             gate.bundle_path,
             ["snooze"],
-            {},
-            feedback="threeish days",
+            option_inputs={
+                "snooze": {"duration": "custom", "custom_duration": "threeish days"}
+            },
             source="tui",
         )
 
-    assert exc_info.value.code == "invalid_snooze_duration"
-    assert "accepted forms" in str(exc_info.value)
+    assert exc_info.value.code == "command_failed"
     assert not gate.response_path.exists()
+    [error] = sorted((gate.bundle_path / "errors").glob("*.json"))
+    recorded = json.loads(error.read_text(encoding="utf-8"))
+    assert recorded["option_id"] == "snooze"
+    assert "accepted forms" in recorded["stderr"]
 
 
 def test_task_triage_snooze_translation_requires_a_wake_time(
@@ -146,8 +160,9 @@ def test_task_triage_snooze_helper_refuses_a_mismatched_decision() -> None:
         project="sase",
         title="Follow up on the cache",
         action="launch",
-        feedback="3d",
+        feedback=None,
         source="tui",
+        duration="3d",
     )
 
     with pytest.raises(GateError) as exc_info:

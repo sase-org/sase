@@ -20,6 +20,12 @@ from sase.bead._task_gate_preview import (
     task_triage_presentation_note,
 )
 from sase.bead.model import CloseRecord, TaskPlusOneEvidence
+from sase.bead.snooze_gate_input import (
+    resolve_snooze_duration,
+    snooze_duration_inputs,
+    snooze_duration_result_property,
+)
+from sase.bead.snooze_time import SnoozeTimeError
 from sase.notification_gates.entrypoints import gate_command_entrypoint
 
 TaskTriageAction = Literal["launch", "close", "snooze"]
@@ -43,12 +49,16 @@ TASK_TRIAGE_COMMAND_PATHS: dict[TaskTriageAction, str] = {
 TASK_TRIAGE_OPTION_FEEDBACK: dict[TaskTriageAction, str] = {
     TASK_TRIAGE_LAUNCH_OPTION_ID: "optional",
     TASK_TRIAGE_CLOSE_OPTION_ID: "required",
-    TASK_TRIAGE_SNOOZE_OPTION_ID: "required",
+    # Optional rather than required since the wake time became a declared
+    # input: the note is now a reason for the deferral, not the deferral.
+    TASK_TRIAGE_SNOOZE_OPTION_ID: "optional",
 }
 TASK_TRIAGE_OPTION_LABELS: dict[TaskTriageAction, str] = {
     TASK_TRIAGE_LAUNCH_OPTION_ID: "Launch",
     TASK_TRIAGE_CLOSE_OPTION_ID: "Close",
-    TASK_TRIAGE_SNOOZE_OPTION_ID: "Snooze (3d, 3d +2)",
+    # No longer "(3d, 3d +2)": the label used to teach the free-text
+    # convention the duration rode in, which the declared input replaced.
+    TASK_TRIAGE_SNOOZE_OPTION_ID: "Snooze",
 }
 TASK_TRIAGE_OPTION_ICONS: dict[TaskTriageAction, str] = {
     TASK_TRIAGE_LAUNCH_OPTION_ID: "🚀",
@@ -75,10 +85,6 @@ def build_task_triage_gate_spec(
     producer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the TaskTriage adapter."""
-    empty_input_schema = {
-        "type": "object",
-        "additionalProperties": False,
-    }
     origin_agent = created_by.strip()
     evidence = tuple(plus_one_evidence)
     count = len(evidence)
@@ -133,16 +139,7 @@ def build_task_triage_gate_spec(
         "query": TASK_TRIAGE_QUERY,
         "primary_branch": list(TASK_TRIAGE_PRIMARY_BRANCH),
         "options": [
-            {
-                "id": option_id,
-                "label": TASK_TRIAGE_OPTION_LABELS[option_id],
-                "icon": TASK_TRIAGE_OPTION_ICONS[option_id],
-                "command": {"argv": [TASK_TRIAGE_COMMAND_PATHS[option_id]]},
-                "input_schema": empty_input_schema,
-                "result_schema": task_triage_result_schema(option_id),
-                "feedback": TASK_TRIAGE_OPTION_FEEDBACK[option_id],
-            }
-            for option_id in TASK_TRIAGE_OPTION_IDS
+            task_triage_option_spec(option_id) for option_id in TASK_TRIAGE_OPTION_IDS
         ],
         "resources": [
             *[
@@ -174,6 +171,26 @@ def build_task_triage_gate_spec(
     }
 
 
+def task_triage_option_spec(option_id: TaskTriageAction) -> dict[str, Any]:
+    """Return the only spec one TaskTriage option is accepted with.
+
+    Shared with kind validation, which rebuilds each option from this helper
+    rather than restating its shape, so the declared duration input cannot
+    drift between what the gate is created with and what is accepted.
+    """
+    spec: dict[str, Any] = {
+        "id": option_id,
+        "label": TASK_TRIAGE_OPTION_LABELS[option_id],
+        "icon": TASK_TRIAGE_OPTION_ICONS[option_id],
+        "command": {"argv": [TASK_TRIAGE_COMMAND_PATHS[option_id]]},
+        "result_schema": task_triage_result_schema(option_id),
+        "feedback": TASK_TRIAGE_OPTION_FEEDBACK[option_id],
+    }
+    if option_id == TASK_TRIAGE_SNOOZE_OPTION_ID:
+        spec["inputs"] = snooze_duration_inputs()
+    return spec
+
+
 def close_record_payload(record: CloseRecord) -> dict[str, Any]:
     """Return the gate-payload projection of one close record.
 
@@ -191,6 +208,19 @@ def close_record_payload(record: CloseRecord) -> dict[str, Any]:
 
 
 def task_triage_result_schema(action: TaskTriageAction) -> dict[str, Any]:
+    if action == TASK_TRIAGE_SNOOZE_OPTION_ID:
+        # The snooze command echoes back the wake-time expression it
+        # validated, so the host effect resolves the instant a reviewer
+        # actually chose rather than re-reading a free-text note.
+        return {
+            "type": "object",
+            "required": ["action", "duration"],
+            "properties": {
+                "action": {"const": action},
+                "duration": snooze_duration_result_property(),
+            },
+            "additionalProperties": False,
+        }
     return {
         "type": "object",
         "required": ["action"],
@@ -224,11 +254,21 @@ def execute_task_triage_gate_command(option_id: str) -> int:
     if not isinstance(raw_input, dict):
         print("task triage command input must be an object", file=sys.stderr)
         return 2
-    if raw_input:
-        print("task triage command input must be empty", file=sys.stderr)
-        return 2
     if option_id not in TASK_TRIAGE_OPTION_IDS:
         print(f"unsupported task triage option: {option_id}", file=sys.stderr)
+        return 2
+    if option_id == TASK_TRIAGE_SNOOZE_OPTION_ID:
+        try:
+            duration = resolve_snooze_duration(raw_input)
+        except SnoozeTimeError as exc:
+            # Failing here leaves the gate pending, so a mistyped duration
+            # costs a retry rather than the task's triage gate.
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(json.dumps({"action": option_id, "duration": duration}, sort_keys=True))
+        return 0
+    if raw_input:
+        print("task triage command input must be empty", file=sys.stderr)
         return 2
     print(json.dumps({"action": option_id}, sort_keys=True))
     return 0

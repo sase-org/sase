@@ -138,19 +138,14 @@ def _execute_neutral_launch_approval_response(
     from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import RESPONSE_FILENAME
 
-    option_id = "feedback" if choice == "reject" and feedback else choice
-    input_data: dict[str, Any] = {}
-    if option_id == "feedback":
-        if not feedback:
-            raise LaunchApprovalActionError(
-                "invalid_request", "feedback", "feedback text is required"
-            )
-        input_data["feedback"] = feedback
+    # Rejecting with a note no longer selects a different option: `feedback`
+    # is a declared input on `reject`, and the executor injects the note into
+    # every selected option whose schema declares it.
+    option_id = choice
     try:
         execution = execute_gate_selection(
             bundle_path,
             [option_id],
-            input_data,
             feedback=feedback,
             source="launch_response",
         )
@@ -202,9 +197,7 @@ def _execute_neutral_launch_approval_response(
             f"{'s' if launched_count != 1 else ''}"
         )
     elif option_id == "reject":
-        message = "Launch rejected"
-    elif option_id == "feedback":
-        message = "Feedback received"
+        message = "Feedback received" if feedback else "Launch rejected"
     else:  # The registered executor normally rejects this first.
         raise LaunchApprovalActionError(
             "unsupported_action", option_id, "unsupported launch action option"
@@ -264,13 +257,7 @@ def _launch_response_json(
         response: dict[str, Any] = {"action": "reject"}
         if feedback is not None:
             response["feedback"] = feedback
-        return response, "Launch rejected"
-    if choice == "feedback":
-        if not feedback:
-            raise LaunchApprovalActionError(
-                "invalid_request", "feedback", "feedback text is required"
-            )
-        return {"action": "reject", "feedback": feedback}, "Feedback received"
+        return response, "Feedback received" if feedback else "Launch rejected"
     raise LaunchApprovalActionError(
         "unsupported_action", choice, "unsupported launch action choice"
     )

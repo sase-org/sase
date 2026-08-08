@@ -12,12 +12,7 @@ from sase.notification_gates.kind_validation.preview_recovery import (
     preview_matches_renderer,
 )
 from sase.notification_gates.kind_validation.resources import read_gate_resource
-from sase.notification_gates.models import (
-    NO_INPUT_SCHEMA,
-    GateError,
-    GateSpec,
-    stamp_schema_dialect,
-)
+from sase.notification_gates.models import GateError, GateOption, GateSpec
 
 
 def validate_bead_snooze_spec(spec: GateSpec) -> None:
@@ -61,12 +56,17 @@ def _validate_bead_snooze_structure(spec: GateSpec) -> None:
 
 
 def _validate_bead_snooze_options(spec: GateSpec) -> None:
+    """Rebuild every option from the adapter and compare it whole.
+
+    Comparing the parsed option rather than a hand-listed set of its fields
+    is what keeps the declared re-snooze duration input from drifting: a
+    forged ``inputs`` declaration compiles to a different ``input_schema``
+    and both differences are caught by the same check.
+    """
     from sase.bead.snooze_gate import (
-        BEAD_SNOOZE_COMMAND_PATHS,
-        BEAD_SNOOZE_OPTION_FEEDBACK,
         BEAD_SNOOZE_OPTION_IDS,
         BeadSnoozeAction,
-        bead_snooze_result_schema,
+        bead_snooze_option_spec,
     )
 
     if tuple(option.id for option in spec.options) != BEAD_SNOOZE_OPTION_IDS:
@@ -75,16 +75,12 @@ def _validate_bead_snooze_options(spec: GateSpec) -> None:
             "options",
             "bead snooze gates require close, ready, and snooze options",
         )
-    for option in spec.options:
+    for index, option in enumerate(spec.options):
         typed_option_id = cast(BeadSnoozeAction, option.id)
-        expected_command = BEAD_SNOOZE_COMMAND_PATHS[typed_option_id]
-        if (
-            option.command.argv != (expected_command,)
-            or option.input_schema != NO_INPUT_SCHEMA
-            or option.result_schema
-            != stamp_schema_dialect(bead_snooze_result_schema(typed_option_id))
-            or option.feedback != BEAD_SNOOZE_OPTION_FEEDBACK[typed_option_id]
-        ):
+        expected = GateOption.from_mapping(
+            bead_snooze_option_spec(typed_option_id), index
+        )
+        if option != expected:
             raise GateError(
                 "invalid_bead_snooze_options",
                 f"options.{option.id}",

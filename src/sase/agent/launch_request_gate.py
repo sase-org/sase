@@ -49,7 +49,13 @@ def execute_launch_gate_command(
             }
     elif option_id == "reject":
         result = {"action": "reject"}
+        feedback = raw_input.get("feedback")
+        if isinstance(feedback, str) and feedback.strip():
+            result["feedback"] = feedback
     elif option_id == "feedback":
+        # Legacy only. A launch gate created before feedback became an
+        # ordinary declared input on `reject` still carries this third
+        # option, and its hashed command script names this entry point.
         feedback = raw_input.get("feedback")
         if not isinstance(feedback, str) or not feedback.strip():
             print("feedback text is required", file=sys.stderr)
@@ -103,18 +109,6 @@ def launch_gate_spec(
     reject_result_schema = {
         "type": "object",
         "required": ["action"],
-        "properties": {"action": {"const": "reject"}},
-        "additionalProperties": False,
-    }
-    feedback_input_schema = {
-        "type": "object",
-        "required": ["feedback"],
-        "properties": {"feedback": {"type": "string", "minLength": 1}},
-        "additionalProperties": False,
-    }
-    feedback_result_schema = {
-        "type": "object",
-        "required": ["action", "feedback"],
         "properties": {
             "action": {"const": "reject"},
             "feedback": {"type": "string", "minLength": 1},
@@ -131,21 +125,23 @@ def launch_gate_spec(
             "result_schema": approve_result_schema,
         },
         {
+            # Rejecting with a note is one decision, not two: `feedback` is a
+            # declared input here rather than the third option id it used to
+            # need, and the executor injects the reviewer's note into it.
             "id": "reject",
             "label": "Reject",
             "icon": "❌",
             "command": {"argv": ["commands/reject"]},
-            "input_schema": empty_input_schema,
+            "inputs": [
+                {
+                    "id": "feedback",
+                    "label": "Feedback",
+                    "type": "text",
+                    "placeholder": "Why is this launch not right?",
+                }
+            ],
             "result_schema": reject_result_schema,
-        },
-        {
-            "id": "feedback",
-            "label": "Send Feedback",
-            "icon": "💬",
-            "command": {"argv": ["commands/feedback"]},
-            "input_schema": feedback_input_schema,
-            "result_schema": feedback_result_schema,
-            "feedback": "required",
+            "feedback": "optional",
         },
     ]
     resources = [
@@ -154,7 +150,7 @@ def launch_gate_spec(
             "role": "command",
             "content": launch_gate_command_script(option_id),
         }
-        for option_id in ("approve", "reject", "feedback")
+        for option_id in ("approve", "reject")
     ]
     resources.append(
         {
@@ -184,7 +180,7 @@ def launch_gate_spec(
                 "slot_count": str(slot_count),
             },
         },
-        "query": "approve OR reject OR feedback",
+        "query": "approve OR reject",
         "primary_branch": ["approve"],
         "options": options,
         "resources": resources,

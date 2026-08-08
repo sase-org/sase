@@ -33,7 +33,7 @@ def handle_launch_command(args: argparse.Namespace) -> None:
             _print_result(
                 _resolve_launch_from_cli(
                     args.selector,
-                    "reject" if not getattr(args, "feedback", None) else "feedback",
+                    "reject",
                     feedback=getattr(args, "feedback", None),
                 )
             )

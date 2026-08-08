@@ -22,6 +22,11 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from sase.bead.model import CloseRecord, SnoozeRecord, TaskPlusOneEvidence
+from sase.bead.snooze_gate_input import (
+    resolve_snooze_duration,
+    snooze_duration_inputs,
+    snooze_duration_result_property,
+)
 from sase.bead.snooze_time import SnoozeTimeError, parse_snooze_request
 from sase.bead.task_gate import (
     bead_gate_actor,
@@ -54,7 +59,9 @@ BEAD_SNOOZE_COMMAND_PATHS: dict[BeadSnoozeAction, str] = {
 BEAD_SNOOZE_OPTION_FEEDBACK: dict[BeadSnoozeAction, str] = {
     BEAD_SNOOZE_CLOSE_OPTION_ID: "optional",
     BEAD_SNOOZE_READY_OPTION_ID: "optional",
-    BEAD_SNOOZE_SNOOZE_OPTION_ID: "required",
+    # Optional rather than required since the wake time became a declared
+    # input: the note is now a reason for the new deferral, not the deferral.
+    BEAD_SNOOZE_SNOOZE_OPTION_ID: "optional",
 }
 BEAD_SNOOZE_READY_NOTE = "Woken from snooze and returned to triage."
 
@@ -78,6 +85,7 @@ class _BeadSnoozeResponse:
     feedback: str | None
     source: str
     snooze: SnoozeRecord
+    duration: str | None = None
 
 
 def create_bead_snooze_gate(
@@ -140,10 +148,6 @@ def _build_bead_snooze_gate_spec(
     """Build the only request shape accepted by the BeadSnooze adapter."""
     from sase.bead.task_gate import close_record_payload
 
-    empty_input_schema = {
-        "type": "object",
-        "additionalProperties": False,
-    }
     origin_agent = created_by.strip()
     evidence = tuple(plus_one_evidence)
     count = len(evidence)
@@ -200,16 +204,7 @@ def _build_bead_snooze_gate_spec(
         "query": BEAD_SNOOZE_QUERY,
         "primary_branch": list(BEAD_SNOOZE_PRIMARY_BRANCH),
         "options": [
-            {
-                "id": option_id,
-                "label": _BEAD_SNOOZE_OPTION_LABELS[option_id],
-                "icon": _BEAD_SNOOZE_OPTION_ICONS[option_id],
-                "command": {"argv": [BEAD_SNOOZE_COMMAND_PATHS[option_id]]},
-                "input_schema": empty_input_schema,
-                "result_schema": bead_snooze_result_schema(option_id),
-                "feedback": BEAD_SNOOZE_OPTION_FEEDBACK[option_id],
-            }
-            for option_id in BEAD_SNOOZE_OPTION_IDS
+            bead_snooze_option_spec(option_id) for option_id in BEAD_SNOOZE_OPTION_IDS
         ],
         "resources": [
             *[
@@ -252,6 +247,26 @@ _BEAD_SNOOZE_OPTION_ICONS: dict[BeadSnoozeAction, str] = {
     BEAD_SNOOZE_READY_OPTION_ID: "◇",
     BEAD_SNOOZE_SNOOZE_OPTION_ID: "◈",
 }
+
+
+def bead_snooze_option_spec(option_id: BeadSnoozeAction) -> dict[str, Any]:
+    """Return the only spec one BeadSnooze option is accepted with.
+
+    Shared with kind validation, which rebuilds each option from this helper
+    rather than restating its shape, so the declared duration input cannot
+    drift between what the gate is created with and what is accepted.
+    """
+    spec: dict[str, Any] = {
+        "id": option_id,
+        "label": _BEAD_SNOOZE_OPTION_LABELS[option_id],
+        "icon": _BEAD_SNOOZE_OPTION_ICONS[option_id],
+        "command": {"argv": [BEAD_SNOOZE_COMMAND_PATHS[option_id]]},
+        "result_schema": _bead_snooze_result_schema(option_id),
+        "feedback": BEAD_SNOOZE_OPTION_FEEDBACK[option_id],
+    }
+    if option_id == BEAD_SNOOZE_SNOOZE_OPTION_ID:
+        spec["inputs"] = snooze_duration_inputs()
+    return spec
 
 
 def _bead_snooze_payload_record(snooze: SnoozeRecord) -> dict[str, Any]:
@@ -360,32 +375,24 @@ def execute_bead_snooze_gate_command(option_id: str) -> int:
     if not isinstance(raw_input, dict):
         print("bead snooze command input must be an object", file=sys.stderr)
         return 2
-    if raw_input:
-        print("bead snooze command input must be empty", file=sys.stderr)
-        return 2
     if option_id not in BEAD_SNOOZE_OPTION_IDS:
         print(f"unsupported bead snooze option: {option_id}", file=sys.stderr)
         return 2
+    if option_id == BEAD_SNOOZE_SNOOZE_OPTION_ID:
+        try:
+            duration = resolve_snooze_duration(raw_input)
+        except SnoozeTimeError as exc:
+            # Failing here leaves the gate pending, so a mistyped duration
+            # costs a retry rather than the bead's wake gate.
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(json.dumps({"action": option_id, "duration": duration}, sort_keys=True))
+        return 0
+    if raw_input:
+        print("bead snooze command input must be empty", file=sys.stderr)
+        return 2
     print(json.dumps({"action": option_id}, sort_keys=True))
     return 0
-
-
-def validate_bead_snooze_feedback(
-    selected_option_ids: Sequence[str], feedback: str | None
-) -> None:
-    """Reject an unparsable re-snooze before the gate becomes terminal.
-
-    The duration rides in the free-text feedback field, so a typo is the one
-    input error the command wrapper cannot catch. Checking it here — before
-    the response is persisted — leaves the gate pending, so a mistyped
-    duration costs a retry rather than the bead's wake gate.
-    """
-    if BEAD_SNOOZE_SNOOZE_OPTION_ID not in selected_option_ids:
-        return
-    try:
-        parse_snooze_request(feedback or "")
-    except SnoozeTimeError as exc:
-        raise GateError("invalid_snooze_duration", "feedback", str(exc)) from exc
 
 
 def translate_bead_snooze_response(
@@ -452,10 +459,11 @@ def translate_bead_snooze_response(
         if isinstance(raw_feedback, str) and raw_feedback.strip()
         else None
     )
-    if action == BEAD_SNOOZE_SNOOZE_OPTION_ID and feedback is None:
+    duration = result.get("duration")
+    if action == BEAD_SNOOZE_SNOOZE_OPTION_ID and not isinstance(duration, str):
         raise GateError(
             "invalid_response",
-            "feedback",
+            str(bundle_path / "response.json"),
             "re-snoozing a bead snooze gate requires a new wake time",
         )
     source = response.get("source")
@@ -467,6 +475,7 @@ def translate_bead_snooze_response(
         feedback=feedback,
         source=source if isinstance(source, str) and source else "host",
         snooze=snooze,
+        duration=duration if isinstance(duration, str) else None,
     )
 
 
@@ -519,15 +528,20 @@ def ready_bead_snooze(decision: _BeadSnoozeResponse) -> None:
 
 
 def resnooze_bead_snooze(decision: _BeadSnoozeResponse) -> None:
-    """Defer the woken task again, using the duration the human typed."""
+    """Defer the woken task again, using the duration the reviewer declared.
+
+    The wake time arrives as the command's own validated result, so the only
+    way this parse fails is a forged response; the note, when there is one,
+    replaces the reason the original deferral recorded.
+    """
     _require_action(decision, BEAD_SNOOZE_SNOOZE_OPTION_ID)
     from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
     from sase.bead.mutation_commit import require_mutation_commit_message
 
     try:
-        request = parse_snooze_request(decision.feedback or "")
+        request = parse_snooze_request(decision.duration or "")
     except SnoozeTimeError as exc:
-        raise GateError("invalid_snooze_duration", "feedback", str(exc)) from exc
+        raise GateError("invalid_snooze_duration", "duration", str(exc)) from exc
     cwd = _resolve_bead_snooze_project_cwd(decision.project)
     with bead_store_mutation(auto_commit_bead_store, cwd=cwd) as mutation:
         mutation.project.snooze(
@@ -535,12 +549,25 @@ def resnooze_bead_snooze(decision: _BeadSnoozeResponse) -> None:
             until=request.until,
             actor=bead_gate_actor(mutation.project),
             plus_ones=request.plus_ones,
-            reason=decision.snooze.reason,
+            reason=decision.feedback or decision.snooze.reason,
         )
         mutation.commit(require_mutation_commit_message("snooze", [decision.bead_id]))
 
 
-def bead_snooze_result_schema(action: BeadSnoozeAction) -> dict[str, Any]:
+def _bead_snooze_result_schema(action: BeadSnoozeAction) -> dict[str, Any]:
+    if action == BEAD_SNOOZE_SNOOZE_OPTION_ID:
+        # The re-snooze command echoes back the wake-time expression it
+        # validated, so the host effect resolves the instant a reviewer
+        # actually chose rather than re-reading a free-text note.
+        return {
+            "type": "object",
+            "required": ["action", "duration"],
+            "properties": {
+                "action": {"const": action},
+                "duration": snooze_duration_result_property(),
+            },
+            "additionalProperties": False,
+        }
     return {
         "type": "object",
         "required": ["action"],
@@ -623,8 +650,8 @@ __all__ = [
     "BEAD_SNOOZE_SNOOZE_OPTION_ID",
     "BeadSnoozeAction",
     "bead_snooze_gate_command_script",
+    "bead_snooze_option_spec",
     "bead_snooze_presentation_note",
-    "bead_snooze_result_schema",
     "close_bead_snooze",
     "create_bead_snooze_gate",
     "execute_bead_snooze_gate_command",
@@ -632,5 +659,4 @@ __all__ = [
     "render_bead_snooze_preview",
     "resnooze_bead_snooze",
     "translate_bead_snooze_response",
-    "validate_bead_snooze_feedback",
 ]

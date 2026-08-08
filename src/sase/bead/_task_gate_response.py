@@ -7,7 +7,7 @@ from the response.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -32,6 +32,7 @@ class TaskTriageResponse:
     action: TaskTriageAction
     feedback: str | None
     source: str
+    duration: str | None = None
 
 
 def translate_task_triage_response(
@@ -103,10 +104,11 @@ def translate_task_triage_response(
             "feedback",
             "closing a task triage gate requires a reason",
         )
-    if action == TASK_TRIAGE_SNOOZE_OPTION_ID and feedback is None:
+    duration = result.get("duration")
+    if action == TASK_TRIAGE_SNOOZE_OPTION_ID and not isinstance(duration, str):
         raise GateError(
             "invalid_response",
-            "feedback",
+            str(bundle_path / "response.json"),
             "snoozing a task triage gate requires a wake time",
         )
     source = response.get("source")
@@ -117,27 +119,8 @@ def translate_task_triage_response(
         action=cast(TaskTriageAction, action),
         feedback=feedback,
         source=source if isinstance(source, str) and source else "host",
+        duration=duration if isinstance(duration, str) else None,
     )
-
-
-def validate_task_triage_feedback(
-    selected_option_ids: Sequence[str], feedback: str | None
-) -> None:
-    """Reject an unparsable triage-time snooze before the gate becomes terminal.
-
-    The duration rides in the free-text feedback field, so a typo is the one
-    input error the option command cannot catch. Checking it here — before the
-    response is persisted — leaves the gate pending, so a mistyped duration
-    costs a retry rather than the task's triage gate.
-    """
-    if TASK_TRIAGE_SNOOZE_OPTION_ID not in selected_option_ids:
-        return
-    from sase.bead.snooze_time import SnoozeTimeError, parse_snooze_request
-
-    try:
-        parse_snooze_request(feedback or "")
-    except SnoozeTimeError as exc:
-        raise GateError("invalid_snooze_duration", "feedback", str(exc)) from exc
 
 
 def _task_identity_from_payload(

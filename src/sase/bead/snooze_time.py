@@ -2,10 +2,10 @@
 
 The bead store stores one absolute RFC-3339 instant with an offset, but the
 useful thing to type is a relative duration. Every surface that accepts a
-snooze time -- the CLI's ``-u/--until``, the gate options that carry a
-duration in their feedback field, and the ACE modal's custom field -- parses
-it here, so ``3d`` cannot mean one thing in one place and something else in
-another.
+snooze time -- the CLI's ``-u/--until``, the declared duration input the bead
+gates collect (:mod:`sase.bead.snooze_gate_input`), and the ACE modal's
+custom field -- parses it here, so ``3d`` cannot mean one thing in one place
+and something else in another.
 
 The relative vocabulary is :func:`sase.xprompt._directive_time.parse_duration`
 (``30m``, ``2h``, ``1h30m``) widened with a leading day component (``3d``,
@@ -17,12 +17,12 @@ attached rather than being rejected: that is what someone typing
 ``2026-08-09T09:00`` means, and the store rejects a wake time that names no
 instant regardless.
 
-The gate options and the ACE modal's custom field additionally accept a
-compact ``"<duration> [+<N>]"`` request that sets a +1 wake target; the CLI
-takes that target as its own ``-p/--plus-ones`` flag instead. Both forms
-share :func:`parse_snooze_until`, one error type, and one accepted-forms
-string, so a wake time cannot be read one way from the CLI and another way
-from the gate or the ACE modal.
+The gates' custom duration field and the ACE modal's custom field
+additionally accept a compact ``"<duration> [+<N>]"`` request that sets a +1
+wake target; the CLI takes that target as its own ``-p/--plus-ones`` flag
+instead. Both forms share :func:`parse_snooze_until`, one error type, and one
+accepted-forms string, so a wake time cannot be read one way from the CLI and
+another way from the gate or the ACE modal.
 """
 
 from __future__ import annotations

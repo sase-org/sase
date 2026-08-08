@@ -113,13 +113,17 @@ def close_task_triage(decision: TaskTriageResponse) -> None:
 
 
 def snooze_task_triage(decision: TaskTriageResponse) -> None:
-    """Defer the triaged task, using the duration and +1 target a human typed.
+    """Defer the triaged task, using the duration and +1 target a human chose.
+
+    The wake time arrives as the command's own validated result, so the only
+    way this parse fails is a forged response; the note, when there is one,
+    records why the task was deferred.
 
     The ``BeadSnooze`` gate is deliberately not raised here: the bead task-gate
     reconciliation owns which gate a task bead has, and raising one directly
     would give the bead two.
     """
-    if decision.action != TASK_TRIAGE_SNOOZE_OPTION_ID or decision.feedback is None:
+    if decision.action != TASK_TRIAGE_SNOOZE_OPTION_ID or decision.duration is None:
         raise GateError(
             "invalid_task_action",
             decision.action,
@@ -130,9 +134,9 @@ def snooze_task_triage(decision: TaskTriageResponse) -> None:
     from sase.bead.snooze_time import SnoozeTimeError, parse_snooze_request
 
     try:
-        request = parse_snooze_request(decision.feedback)
+        request = parse_snooze_request(decision.duration)
     except SnoozeTimeError as exc:
-        raise GateError("invalid_snooze_duration", "feedback", str(exc)) from exc
+        raise GateError("invalid_snooze_duration", "duration", str(exc)) from exc
     cwd = _resolve_task_triage_project_cwd(decision.project)
     with bead_store_mutation(auto_commit_bead_store, cwd=cwd) as mutation:
         mutation.project.snooze(
@@ -140,7 +144,7 @@ def snooze_task_triage(decision: TaskTriageResponse) -> None:
             until=request.until,
             actor=bead_gate_actor(mutation.project),
             plus_ones=request.plus_ones,
-            reason=TASK_TRIAGE_SNOOZE_REASON,
+            reason=decision.feedback or TASK_TRIAGE_SNOOZE_REASON,
         )
         mutation.commit(require_mutation_commit_message("snooze", [decision.bead_id]))
 

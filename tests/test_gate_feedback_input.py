@@ -235,8 +235,12 @@ def test_hitl_feedback_option_keeps_its_closed_empty_input(
     assert execution.response["feedback"] == "Please rework the summary"
 
 
-def test_launch_gate_feedback_option_declares_the_property() -> None:
-    """The audited built-in the rule must keep working for."""
+def test_launch_gate_reject_option_declares_the_property() -> None:
+    """The audited built-in the rule must keep working for.
+
+    The launch gate used to buy its note with a third option id; the note now
+    reaches ``reject``'s command because that option declares the property.
+    """
     from sase.agent.launch_request_gate import launch_gate_spec
 
     spec = launch_gate_spec(
@@ -245,11 +249,16 @@ def test_launch_gate_feedback_option_declares_the_property() -> None:
         source_surface="ace",
         slot_count=1,
     )
-    assert _declaring_option_ids(spec["options"]) == {"feedback"}
+    assert _declaring_option_ids(spec["options"]) == {"reject"}
 
 
-def test_task_triage_options_declare_no_feedback_property() -> None:
-    """The audited built-ins whose commands assert an empty input."""
+def test_task_triage_options_declare_the_property_only_where_collected() -> None:
+    """The audited built-ins whose commands assert an empty input.
+
+    Only ``snooze`` declares inputs, so only its compiled schema carries the
+    optional ``feedback`` property; ``launch`` and ``close`` keep the closed
+    empty input their commands assert.
+    """
     from sase.bead._task_gate_spec import build_task_triage_gate_spec
 
     spec = build_task_triage_gate_spec(
@@ -258,7 +267,7 @@ def test_task_triage_options_declare_no_feedback_property() -> None:
         project="sase",
         title="Do the thing",
     )
-    assert _declaring_option_ids(spec["options"]) == set()
+    assert _declaring_option_ids(spec["options"]) == {"snooze"}
 
 
 def test_apply_feedback_input_passes_non_object_values_through() -> None:

@@ -12,12 +12,7 @@ from sase.notification_gates.kind_validation.task_triage_payload import (
     TaskTriagePayload,
     parse_task_triage_payload,
 )
-from sase.notification_gates.models import (
-    NO_INPUT_SCHEMA,
-    GateError,
-    GateSpec,
-    stamp_schema_dialect,
-)
+from sase.notification_gates.models import GateError, GateOption, GateSpec
 
 
 def validate_task_triage_spec(spec: GateSpec) -> None:
@@ -61,14 +56,17 @@ def _validate_task_triage_structure(spec: GateSpec) -> None:
 
 
 def _validate_task_triage_options(spec: GateSpec) -> None:
+    """Rebuild every option from the adapter and compare it whole.
+
+    Comparing the parsed option rather than a hand-listed set of its fields
+    is what keeps the declared snooze duration input from drifting: a forged
+    ``inputs`` declaration compiles to a different ``input_schema`` and both
+    differences are caught by the same check.
+    """
     from sase.bead.task_gate import (
-        TASK_TRIAGE_COMMAND_PATHS,
-        TASK_TRIAGE_OPTION_FEEDBACK,
-        TASK_TRIAGE_OPTION_ICONS,
         TASK_TRIAGE_OPTION_IDS,
-        TASK_TRIAGE_OPTION_LABELS,
         TaskTriageAction,
-        task_triage_result_schema,
+        task_triage_option_spec,
     )
 
     if tuple(option.id for option in spec.options) != TASK_TRIAGE_OPTION_IDS:
@@ -77,18 +75,12 @@ def _validate_task_triage_options(spec: GateSpec) -> None:
             "options",
             "task triage gates require launch, close, and snooze options",
         )
-    for option in spec.options:
+    for index, option in enumerate(spec.options):
         typed_option_id = cast(TaskTriageAction, option.id)
-        expected_command = TASK_TRIAGE_COMMAND_PATHS[typed_option_id]
-        if (
-            option.command.argv != (expected_command,)
-            or option.input_schema != NO_INPUT_SCHEMA
-            or option.result_schema
-            != stamp_schema_dialect(task_triage_result_schema(typed_option_id))
-            or option.feedback != TASK_TRIAGE_OPTION_FEEDBACK[typed_option_id]
-            or option.label != TASK_TRIAGE_OPTION_LABELS[typed_option_id]
-            or option.icon != TASK_TRIAGE_OPTION_ICONS[typed_option_id]
-        ):
+        expected = GateOption.from_mapping(
+            task_triage_option_spec(typed_option_id), index
+        )
+        if option != expected:
             raise GateError(
                 "invalid_task_triage_options",
                 f"options.{option.id}",

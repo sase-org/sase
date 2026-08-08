@@ -139,6 +139,7 @@ def _select(
     *,
     request_id: str,
     feedback: str | None = None,
+    option_inputs: dict[str, dict[str, object]] | None = None,
 ) -> None:
     """Run one BeadSnooze gate option against the real store."""
     gate = create_gate(_gate_spec(bead, request_id=request_id))
@@ -149,8 +150,8 @@ def _select(
         execute_gate_selection(
             gate.bundle_path,
             [option],
-            {},
             feedback=feedback,
+            option_inputs=option_inputs,
             source="tui",
         )
 
@@ -209,7 +210,7 @@ def test_gate_resnooze_defers_a_woken_bead_and_leaves_the_store_readable(
         snooze_store,
         "snooze",
         request_id="snooze-again-real",
-        feedback="3d +2",
+        option_inputs={"snooze": {"duration": "custom", "custom_duration": "3d +2"}},
     )
 
     reloaded = _reload(snooze_store)

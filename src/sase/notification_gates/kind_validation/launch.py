@@ -10,7 +10,6 @@ from sase.notification_gates.models import GateError, GateSpec
 _LAUNCH_COMMAND_PATHS = {
     "approve": "commands/approve",
     "reject": "commands/reject",
-    "feedback": "commands/feedback",
 }
 
 
@@ -22,8 +21,8 @@ def validate_launch_spec(spec: GateSpec) -> None:
 
 
 def _validate_launch_structure(spec: GateSpec) -> None:
-    expected_query = "approve OR reject OR feedback"
-    expected_branches = (("approve",), ("reject",), ("feedback",))
+    expected_query = "approve OR reject"
+    expected_branches = (("approve",), ("reject",))
     if spec.query != expected_query or spec.branches != expected_branches:
         raise GateError(
             "invalid_launch_query",
@@ -35,7 +34,7 @@ def _validate_launch_structure(spec: GateSpec) -> None:
         raise GateError(
             "invalid_launch_options",
             "options",
-            "launch gates require approve, reject, and feedback options",
+            "launch gates require exactly the approve and reject options",
         )
 
 

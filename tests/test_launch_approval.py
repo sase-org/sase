@@ -32,7 +32,7 @@ def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:
         host_action_data={"response_dir": str(response_dir)},
     )
 
-    result = execute_launch_approval_response(context, "feedback", feedback="Too broad")
+    result = execute_launch_approval_response(context, "reject", feedback="Too broad")
 
     assert result.response_file == "launch_response.json"
     assert result.response_json == {"action": "reject", "feedback": "Too broad"}
@@ -74,13 +74,17 @@ def test_create_launch_request_writes_preview_and_notification(
         "cwd": str(tmp_path),
         "prompt": "%i(reviewer, family=foo)\nDo work",
     }
-    assert envelope["query"] == "approve OR reject OR feedback"
+    assert envelope["query"] == "approve OR reject"
     assert envelope["primary_branch"] == ["approve"]
-    assert {option["id"] for option in envelope["options"]} == {
-        "approve",
-        "reject",
-        "feedback",
-    }
+    # Rejecting with a note is one decision: the third option id that existed
+    # only to carry a string is gone, and `feedback` is a declared input.
+    assert [option["id"] for option in envelope["options"]] == ["approve", "reject"]
+    reject_option = next(
+        option for option in envelope["options"] if option["id"] == "reject"
+    )
+    assert [field["id"] for field in reject_option["inputs"]] == ["feedback"]
+    assert reject_option["input_schema"]["properties"]["feedback"] == {"type": "string"}
+    assert reject_option["input_schema"]["required"] == []
     assert all(
         (result.response_dir / option["command"]["argv"][0]).is_file()
         for option in envelope["options"]
@@ -126,15 +130,18 @@ def test_neutral_launch_feedback_wait_and_cancellation_are_deterministic(
     )
 
     action = execute_launch_approval_response(
-        context, "feedback", feedback="Use a smaller fanout"
+        context, "reject", feedback="Use a smaller fanout"
     )
     outcome = wait_for_launch_approval(feedback_request, poll_interval=0.001)
 
     assert action.response_file == "response.json"
-    assert action.response_json["selected_option_ids"] == ["feedback"]
+    assert action.response_json["selected_option_ids"] == ["reject"]
+    assert action.response_json["option_inputs"] == {
+        "reject": {"feedback": "Use a smaller fanout"}
+    }
     assert action.response_json["option_results"] == [
         {
-            "id": "feedback",
+            "id": "reject",
             "result": {
                 "action": "reject",
                 "feedback": "Use a smaller fanout",
@@ -142,12 +149,14 @@ def test_neutral_launch_feedback_wait_and_cancellation_are_deterministic(
         }
     ]
     assert action.response_json["feedback"] == "Use a smaller fanout"
+    # A rejection carrying a note keeps its own reported status even though it
+    # no longer answers through an option id of its own.
     assert outcome.status == "feedback"
-    assert outcome.selected_option_ids == ("feedback",)
+    assert outcome.selected_option_ids == ("reject",)
     assert outcome.response == action.response_json
     with pytest.raises(LaunchApprovalActionError) as duplicate:
         execute_launch_approval_response(
-            context, "feedback", feedback="Use a smaller fanout"
+            context, "reject", feedback="Use a smaller fanout"
         )
     assert duplicate.value.code == "conflict_already_handled"
 

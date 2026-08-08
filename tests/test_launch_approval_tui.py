@@ -185,12 +185,12 @@ def test_mobile_and_tui_resolve_neutral_launch_bundles(
 
     mobile = execute_mobile_gate_action(
         mobile_request.notification_id[:8],
-        ["feedback"],
+        ["reject"],
         feedback="Narrow the mobile launch",
     )
 
     assert mobile.response_file == "response.json"
-    assert mobile.response_json["selected_option_ids"] == ["feedback"]
+    assert mobile.response_json["selected_option_ids"] == ["reject"]
     assert mobile.response_json["option_results"][0]["result"]["feedback"] == (
         "Narrow the mobile launch"
     )
@@ -378,7 +378,7 @@ def test_tui_launch_approval_reject_does_not_dispatch(
     }
     assert app.notifications == [
         ("Rejecting launch...", None),
-        ("Launch rejected", None),
+        ("Feedback received", None),
     ]
     assert app.refresh_count == 1
     assert app.agent_refresh_sources == []

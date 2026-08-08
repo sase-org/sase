@@ -31,7 +31,6 @@ from sase.bead._task_gate_preview import (
 from sase.bead._task_gate_response import (
     TaskTriageResponse,
     translate_task_triage_response,
-    validate_task_triage_feedback,
 )
 from sase.bead._task_gate_spec import (
     TASK_TRIAGE_CLOSE_OPTION_ID,
@@ -53,6 +52,7 @@ from sase.bead._task_gate_spec import (
     close_record_payload,
     execute_task_triage_gate_command,
     task_triage_gate_command_script,
+    task_triage_option_spec,
     task_triage_result_schema,
 )
 from sase.bead.model import CloseRecord, TaskPlusOneEvidence
@@ -124,8 +124,8 @@ __all__ = [
     "render_task_triage_preview",
     "snooze_task_triage",
     "task_triage_gate_command_script",
+    "task_triage_option_spec",
     "task_triage_presentation_note",
     "task_triage_result_schema",
     "translate_task_triage_response",
-    "validate_task_triage_feedback",
 ]

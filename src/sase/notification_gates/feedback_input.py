@@ -8,11 +8,15 @@ was selected, and Telegram copied it only when an option's schema listed
 differently depending on where it was tapped. The rule now lives in the
 executor so every caller -- including headless ones -- gets it for free.
 
-Deletion trigger: once per-option declarative ``inputs`` land and the
-built-ins that smuggle structured data through the note are retired,
-``feedback`` becomes an ordinary declared input field that a surface
-collects like any other, and this module goes away with the surfaces'
-special casing.
+Deletion trigger, revised now that the smuggling built-ins are retired:
+retiring them removed the *structured* data from the note, but not the
+note itself. Every surface still carries the reviewer's free-text remark
+as its own field, distinct from an option's declared inputs -- the plan
+gate's ``feedback`` option, the launch gate's ``reject``, the bead gates'
+deferral reason, and every custom gate with a feedback mode all reach
+their command through this injection. This module goes away only when a
+surface collects the note as an ordinary declared input rather than as a
+transport-level field of its own, which is a separate change.
 """
 
 from __future__ import annotations

@@ -289,7 +289,14 @@ def test_task_triage_loader_uses_generic_branch_modal_data(
     assert [option.feedback for option in data.gate.options] == [
         "optional",
         "required",
-        "required",
+        "optional",
+    ]
+    # Snooze collects its wake time as a declared input, which the generic
+    # branch controls render with no per-kind code.
+    assert [[field.id for field in option.inputs] for option in data.gate.options] == [
+        [],
+        [],
+        ["duration", "custom_duration"],
     ]
     assert ACTION_BADGES["TaskTriage"] == "[task]"
     assert notification_icon("TaskTriage", None) == "✦"

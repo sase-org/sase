@@ -309,11 +309,15 @@ gate offers three branches:
   prompt.
 - **Close** requires feedback and closes the bead with that reason and
   `resolution=canceled`.
-- **Snooze** requires feedback carrying a wake time in the compact `"<duration> [+<N>]"`
-  form (for example `3d` or `3d +2`), the same vocabulary as
-  [`sase bead snooze`](beads.md#snoozing-a-task-bead). It defers the bead — the triage
-  gate settles and a `BeadSnooze` wake gate takes its place once the reconciler's next
-  tick runs; see [Snoozed Task Notification](#snoozed-task-notification) below.
+- **Snooze** collects the wake time as declared input: a `duration` enum of the common
+  deferrals (`4h`, `1d`, `3d`, `7d`, `custom`) plus an optional `custom_duration` line
+  taking the full `"<duration> [+<N>]"` form (for example `3d +2`), the same vocabulary
+  as [`sase bead snooze`](beads.md#snoozing-a-task-bead). Feedback is optional here and
+  records **why** the task was deferred. An unparsable custom value fails the option and
+  leaves the gate pending rather than losing the bead's only triage gate. It defers the
+  bead — the triage gate settles and a `BeadSnooze` wake gate takes its place once the
+  reconciler's next tick runs; see
+  [Snoozed Task Notification](#snoozed-task-notification) below.
 
 The gate cannot be resolved automatically. While one of `TaskTriage`/`BeadSnooze`
 remains pending for a bead, the chop that owns both kinds (`bead_task_triage`)
@@ -342,10 +346,11 @@ The gate offers three branches:
   replaces that reason verbatim. Resolution is `canceled`.
 - **Ready** returns the bead to `ready` with a preset note, and the ordinary
   `TaskTriage` gate takes over on the reconciler's next tick.
-- **Snooze** requires feedback in the same `"<duration> [+<N>]"` form as the triage
-  gate's snooze option and re-snoozes the bead with a new wake time (and optional new
-  `+1` target); an unparsable value fails the option and leaves the gate pending rather
-  than losing the bead.
+- **Snooze** collects the same declared `duration` / `custom_duration` input as the
+  triage gate's snooze option and re-snoozes the bead with a new wake time (and optional
+  new `+1` target); an unparsable value fails the option and leaves the gate pending
+  rather than losing the bead. Feedback is optional and replaces the recorded deferral
+  reason.
 
 Reaching a configured `+1` target wakes the bead independently of the wake-time gate:
 the bead promotes straight to `ready` with a preset note, and the pending `BeadSnooze`
