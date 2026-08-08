@@ -63,8 +63,10 @@ def test_missing_custom_private_sidecar_requires_fresh_confirmation(
         _specs: tuple[SidecarInitSpec, ...],
         *,
         creation_authorized: dict[str, bool] | None = None,
+        publish_sidecar_changes: bool = True,
     ) -> _SidecarInitOutcome:
         calls.append(creation_authorized)
+        assert publish_sidecar_changes is False
         return _outcome(tmp_path, specs)
 
     monkeypatch.setattr("sase.sdd._sidecar_init.initialize_sidecars", initialize)
@@ -118,9 +120,11 @@ def test_missing_agents_sidecar_requires_loud_role_specific_confirmation(
         selected: tuple[SidecarInitSpec, ...],
         *,
         creation_authorized: dict[str, bool] | None = None,
+        publish_sidecar_changes: bool = True,
     ) -> _SidecarInitOutcome:
         assert selected == specs
         calls.append(creation_authorized)
+        assert publish_sidecar_changes is False
         return _outcome(tmp_path, selected)
 
     monkeypatch.setattr("sase.sdd._sidecar_init.initialize_sidecars", initialize)
@@ -182,8 +186,10 @@ def test_declined_agents_sidecar_continues_other_sidecars(
         selected: tuple[SidecarInitSpec, ...],
         *,
         creation_authorized: dict[str, bool] | None = None,
+        publish_sidecar_changes: bool = True,
     ) -> _SidecarInitOutcome:
         calls.append((tuple(spec.role for spec in selected), creation_authorized))
+        assert publish_sidecar_changes is False
         return _outcome(tmp_path, selected)
 
     def answer(_prompt: str) -> str:
@@ -231,9 +237,12 @@ def test_non_tty_refuses_only_agents_creation_and_explains_rerun(
         _root: Path,
         _workspace: int,
         selected: tuple[SidecarInitSpec, ...],
+        *,
+        publish_sidecar_changes: bool = True,
         **_kwargs: object,
     ) -> _SidecarInitOutcome:
         calls.append(tuple(spec.role for spec in selected))
+        assert publish_sidecar_changes is False
         return _outcome(tmp_path, selected)
 
     monkeypatch.setattr(
@@ -390,8 +399,10 @@ def test_existing_sidecar_initializes_without_creation_prompt(
         _specs: tuple[SidecarInitSpec, ...],
         *,
         creation_authorized: dict[str, bool] | None = None,
+        publish_sidecar_changes: bool = True,
     ) -> _SidecarInitOutcome:
         calls.append(creation_authorized)
+        assert publish_sidecar_changes is False
         return _outcome(tmp_path, specs)
 
     monkeypatch.setattr("sase.sdd._sidecar_init.initialize_sidecars", initialize)

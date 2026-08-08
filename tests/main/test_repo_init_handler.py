@@ -302,7 +302,7 @@ def test_materialized_store_refreshes_present_sidecars_and_preserves_lazy_ones(
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.initialize_materialized_sidecars",
-        lambda _root, selected: (
+        lambda _root, selected, **_kwargs: (
             seen.append(tuple(spec.role for spec in selected)) or {"plans": plans_root}
         ),
     )

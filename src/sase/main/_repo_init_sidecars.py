@@ -83,6 +83,7 @@ def run_configured_sidecars(
         1,
         selected_specs,
         creation_authorized=authorizations,
+        publish_sidecar_changes=not getattr(args, "no_commit", False),
     )
     for spec in selected_specs:
         print(outcome.roots[spec.role] / "README.md")
@@ -93,6 +94,8 @@ def run_materialized_sidecars(
     project_root: Path,
     specs: tuple[SidecarInitSpec, ...],
     recorded_roles: frozenset[str],
+    *,
+    publish_sidecar_changes: bool = True,
 ) -> int:
     """Initialize sidecars already materialized in the compatibility layout."""
 
@@ -112,7 +115,11 @@ def run_materialized_sidecars(
                 f"configured {spec.role} sidecar is not materialized at {root}; "
                 "rerun `sase repo init` with the repository's workspace provider"
             )
-    roots = initialize_materialized_sidecars(project_root, materialized)
+    roots = initialize_materialized_sidecars(
+        project_root,
+        materialized,
+        publish_sidecar_changes=publish_sidecar_changes,
+    )
     for spec in materialized:
         print(roots[spec.role] / "README.md")
     return 0

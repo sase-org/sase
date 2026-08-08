@@ -258,8 +258,10 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
         _sidecars: tuple[SidecarInitSpec, ...],
         *,
         creation_authorized: dict[str, bool] | None = None,
+        publish_sidecar_changes: bool = True,
     ) -> _SidecarInitOutcome:
         authorizations.append(creation_authorized)
+        assert publish_sidecar_changes is True
         plans = tmp_path / "sase" / "repos" / "plans"
         research = tmp_path / "sase" / "repos" / "research"
         return _SidecarInitOutcome(

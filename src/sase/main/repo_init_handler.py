@@ -114,7 +114,10 @@ def run_repo_init(args: argparse.Namespace) -> int:
         if policy == "separate_repo":
             exit_code = _run_configured_sidecars(args, project_root)
         elif _has_materialized_sidecar_store(project_root):
-            exit_code = _run_materialized_sidecars(project_root)
+            exit_code = _run_materialized_sidecars(
+                project_root,
+                no_commit=getattr(args, "no_commit", False),
+            )
         else:
             exit_code = _run_legacy_store_init(project_root)
     except Exception as exc:  # noqa: BLE001 - provider and store failures are user-facing.
@@ -236,13 +239,14 @@ def _run_configured_sidecars(args: argparse.Namespace, project_root: Path) -> in
     return _run_configured_sidecars_impl(args, project_root, specs)
 
 
-def _run_materialized_sidecars(project_root: Path) -> int:
+def _run_materialized_sidecars(project_root: Path, *, no_commit: bool = False) -> int:
     specs = _configured_sidecar_specs(project_root)
     recorded_roles = _materialized_compatibility_roles(project_root)
     return _run_materialized_sidecars_impl(
         project_root,
         specs,
         recorded_roles,
+        publish_sidecar_changes=not no_commit,
     )
 
 

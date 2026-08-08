@@ -175,6 +175,53 @@ def test_migration_imports_pushes_cleans_and_reruns_without_new_commits(
     } == heads
 
 
+def test_migration_no_publish_copies_and_cleans_without_commits_or_pushes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, remotes, clones, specs = _configure_transaction(
+        tmp_path,
+        monkeypatch,
+        legacy_state=True,
+    )
+    from sase.sdd import _bead_adoption
+
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.push_sidecar",
+        lambda _root: pytest.fail("--no-commit must not push seeded sidecars"),
+    )
+    monkeypatch.setattr(
+        _bead_adoption,
+        "push_sidecar",
+        lambda _root: pytest.fail("--no-commit must not push bead adoption"),
+    )
+    plans_head = _git_output(clones["plans"], "rev-parse", "HEAD")
+
+    initialize_sidecars(
+        project,
+        1,
+        specs,
+        publish_sidecar_changes=False,
+    )
+
+    _assert_schema_three(project)
+    assert (clones["beads"] / "config.json").is_file()
+    assert (clones["beads"] / "issues.jsonl").is_file()
+    assert not (clones["plans"] / "beads").exists()
+    assert _git_output(clones["plans"], "rev-parse", "HEAD") == plans_head
+    assert (
+        subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD"],
+            cwd=clones["beads"],
+            capture_output=True,
+            text=True,
+        ).returncode
+        != 0
+    )
+    stale_remote = _fresh_remote_clone(tmp_path, remotes["plans"], "stale-plans")
+    assert (stale_remote / "beads").is_dir()
+
+
 def test_migration_accepts_minimal_config_and_projection_store(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -15,6 +16,16 @@ from sase.sdd._sidecar_init import (
 from sase.sdd._store_records import read_sdd_store_record
 
 from ._sidecar_init_helpers import bare_remote, configure_git_environment
+
+
+def _has_head(repo: Path) -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
 
 
 def test_custom_sidecar_init_uses_pinned_private_provider_options(
@@ -129,6 +140,66 @@ def test_split_init_creates_both_repos_before_writing_record(
         "beads/.bead-mutation-lock.holder",
     ]
     assert (clones["research"] / "README.md").is_file()
+
+
+def test_split_init_no_publish_writes_plans_and_beads_without_commits_or_pushes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_git_environment(monkeypatch)
+    project = tmp_path / "widget"
+    project.mkdir()
+    (project / ".git").mkdir()
+    roles = ("plans", "beads")
+    remotes = {role: bare_remote(tmp_path, role) for role in roles}
+    clones = {role: tmp_path / f"widget--{role}" for role in roles}
+
+    def create_remote(
+        _primary: str, _workspace: str, options: dict[str, object]
+    ) -> dict[str, object]:
+        role = str(options["sdd_sidecar_suffix"])
+        return {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "host": "github.com",
+            "repo": f"acme/widget--{role}",
+            "remote_url": str(remotes[role]),
+            "discovery": "found",
+            "created": True,
+        }
+
+    monkeypatch.setattr("sase.workspace_provider.create_sdd_remote", create_remote)
+    monkeypatch.setattr(
+        "sase.linked_repos.sidecar_repo_clone_dir",
+        lambda _workspace, role: str(clones[role]),
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.push_sidecar",
+        lambda _root: pytest.fail("--no-commit must not push sidecars"),
+    )
+
+    initialize_sidecars(
+        project,
+        1,
+        tuple(SidecarInitSpec(role=role) for role in roles),
+        creation_authorized=dict.fromkeys(roles, True),
+        publish_sidecar_changes=False,
+    )
+
+    assert (clones["plans"] / "README.md").is_file()
+    assert not (clones["plans"] / ".gitignore").exists()
+    assert (clones["beads"] / "README.md").is_file()
+    assert (clones["beads"] / ".gitignore").is_file()
+    assert not _has_head(clones["plans"])
+    assert not _has_head(clones["beads"])
+    for remote in remotes.values():
+        result = subprocess.run(
+            ["git", "--git-dir", str(remote), "show-ref"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 1
 
 
 def test_split_init_materializes_plans_and_custom_role_without_research(

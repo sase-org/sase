@@ -156,6 +156,7 @@ def initialize_sidecars(
     sidecar_specs: Sequence[SidecarInitSpec],
     *,
     creation_authorized: dict[str, bool] | None = None,
+    publish_sidecar_changes: bool = True,
 ) -> _SidecarInitOutcome:
     """Create/adopt, initialize, push, then record configured sidecars."""
 
@@ -203,6 +204,7 @@ def initialize_sidecars(
             roots,
             repo_names={role: sidecar.repo for role, sidecar in sidecars.items()},
             split_beads=bool(existing and existing.has_split_beads),
+            publish_changes=publish_sidecar_changes,
         )
 
         combined_sidecars = (
@@ -223,6 +225,7 @@ def initialize_sidecars(
                 plans_root,
                 beads_root,
                 plans_repo=plans.repo,
+                publish_changes=publish_sidecar_changes,
             )
 
         record, store = _write_compatibility_store(
@@ -235,7 +238,10 @@ def initialize_sidecars(
             host=host,
         )
         if adoption is not None and record is not None and record.has_split_beads:
-            cleanup_plans_bead_state(plans_root)
+            cleanup_plans_bead_state(
+                plans_root,
+                publish_changes=publish_sidecar_changes,
+            )
         return _SidecarInitOutcome(
             store=store,
             record=record,
@@ -247,6 +253,8 @@ def initialize_sidecars(
 def initialize_materialized_sidecars(
     workspace_dir: str | Path,
     sidecar_specs: Sequence[SidecarInitSpec],
+    *,
+    publish_sidecar_changes: bool = True,
 ) -> dict[str, Path]:
     """Refresh configured sidecars already materialized in this workspace.
 
@@ -272,6 +280,7 @@ def initialize_materialized_sidecars(
         split_beads=bool(
             (existing := read_sdd_store_record(workspace)) and existing.has_split_beads
         ),
+        publish_changes=publish_sidecar_changes,
     )
     return roots
 
@@ -282,6 +291,7 @@ def _seed_sidecars(
     *,
     repo_names: dict[str, str],
     split_beads: bool = False,
+    publish_changes: bool = True,
 ) -> None:
     for spec in sidecar_specs:
         root = roots[spec.role]
@@ -300,13 +310,17 @@ def _seed_sidecars(
             gitignore = ensure_bead_store_gitignore(root, prefix="")
             if gitignore is not None:
                 generated.append(gitignore)
-        committed = bool(generated) and commit_sdd_files(
-            root,
-            f"Initialize SASE {spec.role} sidecar",
-            auto_commit_type="init",
-            paths=generated,
-            repo_name=repo_names[spec.role],
-            record_commit_marker=False,
+        committed = (
+            publish_changes
+            and bool(generated)
+            and commit_sdd_files(
+                root,
+                f"Initialize SASE {spec.role} sidecar",
+                auto_commit_type="init",
+                paths=generated,
+                repo_name=repo_names[spec.role],
+                record_commit_marker=False,
+            )
         )
         if committed:
             push_sidecar(root)

@@ -40,6 +40,7 @@ def adopt_bead_state(
     beads_root: Path,
     *,
     plans_repo: str | None = None,
+    publish_changes: bool = True,
 ) -> AdoptionOutcome:
     """Import a plans-embedded bead store into the beads sidecar and push it.
 
@@ -60,28 +61,36 @@ def adopt_bead_state(
             for entry in source.iterdir()
             if entry.name not in _BEAD_CACHE_FILENAMES
         )
+        committed = False
+        if publish_changes:
+            committed = _commit_imported_bead_state(
+                plans_root,
+                beads_root,
+                plans_repo=plans_repo,
+                paths=source_paths,
+            )
+            push_sidecar(beads_root)
+        return AdoptionOutcome(adopted=committed, source_present=True)
+
+    copied = _copy_bead_state(source, beads_root)
+    committed = False
+    if publish_changes:
         committed = _commit_imported_bead_state(
             plans_root,
             beads_root,
             plans_repo=plans_repo,
-            paths=source_paths,
+            paths=copied,
         )
-        push_sidecar(beads_root)
-        return AdoptionOutcome(adopted=committed, source_present=True)
-
-    copied = _copy_bead_state(source, beads_root)
-    committed = _commit_imported_bead_state(
-        plans_root,
-        beads_root,
-        plans_repo=plans_repo,
-        paths=copied,
-    )
-    if committed:
-        push_sidecar(beads_root)
+        if committed:
+            push_sidecar(beads_root)
     return AdoptionOutcome(adopted=committed, source_present=True)
 
 
-def cleanup_plans_bead_state(plans_root: Path) -> None:
+def cleanup_plans_bead_state(
+    plans_root: Path,
+    *,
+    publish_changes: bool = True,
+) -> None:
     """Best-effort removal after the schema-3 record becomes authoritative."""
 
     try:
@@ -95,16 +104,17 @@ def cleanup_plans_bead_state(plans_root: Path) -> None:
         paths: list[Path] = [source]
         if gitignore is not None:
             paths.append(gitignore)
-        commit_sdd_files(
-            plans_root,
-            "Move bead state to the beads sidecar",
-            auto_commit_type="beads",
-            paths=paths,
-            record_commit_marker=False,
-        )
-        # Push even when there was no new commit: a previous run may have
-        # committed cleanup locally and failed during its best-effort push.
-        push_sidecar(plans_root)
+        if publish_changes:
+            commit_sdd_files(
+                plans_root,
+                "Move bead state to the beads sidecar",
+                auto_commit_type="beads",
+                paths=paths,
+                record_commit_marker=False,
+            )
+            # Push even when there was no new commit: a previous run may have
+            # committed cleanup locally and failed during its best-effort push.
+            push_sidecar(plans_root)
     except Exception as exc:  # noqa: BLE001 - post-switch cleanup is best effort.
         _logger.warning(
             "bead state now resolves to the beads sidecar, but plans-side "
