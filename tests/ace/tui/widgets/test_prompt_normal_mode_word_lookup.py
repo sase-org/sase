@@ -475,7 +475,7 @@ async def test_k_on_non_word_shows_reworded_warning(
         assert notifications == [
             (
                 "Move the cursor onto an xprompt, skill, file path, "
-                "or word to look it up",
+                "glossary term, or word to look it up",
                 "warning",
             )
         ]

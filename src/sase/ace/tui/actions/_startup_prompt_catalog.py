@@ -7,12 +7,14 @@ import time
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
+    from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
     from ..widgets.prompt_completion import (
         PromptCompletionSettings,
         PromptSpellcheckSettings,
     )
     from ..widgets.xprompt_arg_assist import XPromptAssistEntry
+    from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +36,16 @@ class StartupPromptCatalogMixin:
         str | None,
         list[XPromptAssistEntry],
     ]
+    _prompt_glossary_generation: int
+    _prompt_glossary_catalogs_by_context: dict[
+        PromptGlossaryContext,
+        EditorGlossaryCatalog | None,
+    ]
+    _prompt_glossary_diagnostics_by_context: dict[
+        PromptGlossaryContext,
+        tuple[str, ...],
+    ]
+    _prompt_glossary_warming_contexts: set[PromptGlossaryContext]
 
     def get_snippets(self: Any) -> dict[str, str]:
         """Return the memory-only xprompt + user snippet registry."""
@@ -117,6 +129,111 @@ class StartupPromptCatalogMixin:
         ):
             return
         self._schedule_prompt_catalog_rebuild(reason="assist_warm")
+
+    def get_prompt_glossary_catalog(
+        self: Any,
+        context: PromptGlossaryContext,
+        *,
+        schedule: bool = True,
+    ) -> EditorGlossaryCatalog | None:
+        """Return the memory-only glossary catalog selected by *context*."""
+        if context in self._prompt_glossary_catalogs_by_context:
+            return self._prompt_glossary_catalogs_by_context[context]
+        if schedule:
+            self.warm_prompt_glossary_catalog(context)
+        return None
+
+    def is_prompt_glossary_catalog_warm(
+        self: Any,
+        context: PromptGlossaryContext,
+    ) -> bool:
+        """Return whether *context* has a completed glossary lookup."""
+        return context in self._prompt_glossary_catalogs_by_context
+
+    def warm_prompt_glossary_catalog(
+        self: Any,
+        context: PromptGlossaryContext,
+    ) -> None:
+        """Schedule an off-thread glossary warm for *context*."""
+        if context in self._prompt_glossary_catalogs_by_context:
+            return
+        if context in self._prompt_glossary_warming_contexts:
+            return
+        self._prompt_glossary_warming_contexts.add(context)
+        generation = self._prompt_glossary_generation
+
+        async def run_warm() -> None:
+            await self._run_prompt_glossary_warm(context, generation)
+
+        try:
+            self.run_worker(
+                cast(Any, run_warm),
+                name=f"prompt-glossary:{generation}:{hash(context)}",
+                group="prompt-glossary",
+                exclusive=False,
+            )
+        except Exception:
+            self._prompt_glossary_warming_contexts.discard(context)
+            log.exception("Failed to schedule prompt glossary warm")
+
+    async def _run_prompt_glossary_warm(
+        self: Any,
+        context: PromptGlossaryContext,
+        generation: int,
+    ) -> None:
+        """Load one glossary context off-thread and publish it if current."""
+        import asyncio
+
+        from ..glossary_catalog import load_prompt_glossary_context
+
+        try:
+            result = await asyncio.to_thread(
+                load_prompt_glossary_context,
+                context,
+                generation=generation,
+            )
+        except Exception:
+            log.exception("Prompt glossary warm failed")
+            if generation == self._prompt_glossary_generation:
+                self._prompt_glossary_catalogs_by_context[context] = None
+                self._prompt_glossary_diagnostics_by_context[context] = (
+                    "prompt glossary warm failed",
+                )
+            return
+        finally:
+            self._prompt_glossary_warming_contexts.discard(context)
+
+        if result.generation != self._prompt_glossary_generation:
+            return
+        self._prompt_glossary_catalogs_by_context[context] = result.catalog
+        self._prompt_glossary_diagnostics_by_context[context] = result.diagnostics
+        self._refresh_visible_prompt_glossary_surfaces()
+
+    def _invalidate_prompt_glossary_catalogs(self: Any, *, reason: str) -> None:
+        """Drop warm glossary catalogs after config/project source changes."""
+        del reason
+        self._prompt_glossary_generation += 1
+        self._prompt_glossary_catalogs_by_context = {}
+        self._prompt_glossary_diagnostics_by_context = {}
+        self._prompt_glossary_warming_contexts = set()
+        self._refresh_visible_prompt_glossary_surfaces()
+
+    def _refresh_visible_prompt_glossary_surfaces(self: Any) -> None:
+        """Refresh mounted prompt panes that may show glossary spans."""
+        try:
+            from ..widgets.prompt_text_area import PromptTextArea
+
+            text_areas = list(self.query(PromptTextArea))
+        except Exception:
+            return
+        for text_area in text_areas:
+            if not getattr(text_area, "is_mounted", False):
+                continue
+            try:
+                text_area._build_highlight_map()
+                text_area.refresh()
+            except Exception:
+                log.debug("Failed to refresh prompt glossary surface", exc_info=True)
 
     def _ensure_prompt_catalog_project(self: Any, project: str | None) -> None:
         """Track requested project catalogs and expand watches when needed."""
@@ -247,6 +364,7 @@ class StartupPromptCatalogMixin:
     ) -> None:
         """Invalidate in-flight work and request a fresh config-backed build."""
         self._prompt_catalog_generation += 1
+        self._invalidate_prompt_glossary_catalogs(reason=reason)
         self._schedule_prompt_catalog_rebuild(
             reason=reason,
             force=True,

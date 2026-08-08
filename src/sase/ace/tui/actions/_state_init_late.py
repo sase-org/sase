@@ -222,6 +222,10 @@ def init_late_startup_state(
     self._prompt_catalog_projects = {None}
     self._prompt_catalog_token_check_last_mono = 0.0
     self._prompt_catalog_assist_entries_cache = {}
+    self._prompt_glossary_generation = 0
+    self._prompt_glossary_catalogs_by_context = {}
+    self._prompt_glossary_diagnostics_by_context = {}
+    self._prompt_glossary_warming_contexts = set()
     self._prompt_source_watcher = None
     self._prompt_source_watcher_active = False
     self._prompt_source_watched_projects = set()

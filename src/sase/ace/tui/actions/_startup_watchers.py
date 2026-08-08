@@ -161,6 +161,14 @@ class StartupWatchersMixin:
         config_dirty = self._prompt_source_debounce_config_dirty
         self._prompt_source_debounce_config_dirty = False
         self._prompt_catalog_generation += 1
+        if config_dirty:
+            invalidate_glossary = getattr(
+                self,
+                "_invalidate_prompt_glossary_catalogs",
+                None,
+            )
+            if callable(invalidate_glossary):
+                invalidate_glossary(reason="prompt_source_change")
         self._schedule_prompt_catalog_rebuild(
             reason="prompt_source_change",
             config_dirty=config_dirty,

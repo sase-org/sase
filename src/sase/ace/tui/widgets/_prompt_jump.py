@@ -42,6 +42,7 @@ class PromptJumpMixin(_MixinBase):
             self, cursor_offset: int
         ) -> frozenset[str] | None: ...
         def _preview_context(self) -> tuple[str | None, str]: ...
+        def _jump_to_glossary_definition_under_cursor(self) -> bool: ...
         def _refocus_if_needed(self) -> None: ...
 
     def _jump_to_definition_under_cursor(self, *, prefer_load: bool = False) -> None:
@@ -56,8 +57,15 @@ class PromptJumpMixin(_MixinBase):
             known_skills=known_skills,
         )
         if token is None:
+            jump_glossary = getattr(
+                self,
+                "_jump_to_glossary_definition_under_cursor",
+                None,
+            )
+            if callable(jump_glossary) and jump_glossary():
+                return
             self.notify(
-                "Move the cursor onto an xprompt, skill, or file path to jump to its definition",
+                "Move the cursor onto an xprompt, skill, file path, or glossary term to jump to its definition",
                 severity="warning",
             )
             return

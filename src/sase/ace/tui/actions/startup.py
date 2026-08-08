@@ -25,12 +25,14 @@ from ._state_init import StateInitMixin
 
 if TYPE_CHECKING:
     from .navigation._types import JumpAllResult
+    from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
     from ..widgets.prompt_completion import (
         PromptCompletionSettings,
         PromptSpellcheckSettings,
     )
     from ..widgets.xprompt_arg_assist import XPromptAssistEntry
+    from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
     from sase.history.prompt_placeholders import CommonPlaceholderSourceToken
     from sase.history.prompt_misspellings import MisspellingsSourceToken
     from sase.history.prompt_words import HistoryWordsSourceToken
@@ -123,6 +125,16 @@ class StartupMixin(
         str | None,
         list[XPromptAssistEntry],
     ]
+    _prompt_glossary_generation: int
+    _prompt_glossary_catalogs_by_context: dict[
+        PromptGlossaryContext,
+        EditorGlossaryCatalog | None,
+    ]
+    _prompt_glossary_diagnostics_by_context: dict[
+        PromptGlossaryContext,
+        tuple[str, ...],
+    ]
+    _prompt_glossary_warming_contexts: set[PromptGlossaryContext]
     _prompt_source_watcher: ArtifactWatcher | None
     _prompt_source_watcher_active: bool
     _prompt_source_watched_projects: set[str | None]

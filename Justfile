@@ -284,11 +284,8 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-hq(EditorGlossaryCatalog)' \
-        --epic-symbol 'sase-hq(EditorGlossaryCatalogResult)' \
         --epic-symbol 'sase-hq(EditorGlossaryProject)' \
         --epic-symbol 'sase-hq(GlossaryConfigSignature)' \
-        --epic-symbol 'sase-hq(editor_glossary_catalog_for_project)' \
         --epic-symbol 'sase-hq(editor_glossary_catalog_for_prompt)' \
         --epic-symbol 'sase-hq(leading_vcs_project_ref)' \
         --epic-symbol 'sase-hq(load_editor_glossary_catalog)' \

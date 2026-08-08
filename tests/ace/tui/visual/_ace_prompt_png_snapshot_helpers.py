@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
+from sase.ace.tui.glossary_catalog import PromptGlossaryContext
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
+from sase.xprompt.glossary_catalog import (
+    EditorGlossaryCatalog,
+    EditorGlossaryProject,
+    GlossaryConfigSignature,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_state,
     wait_for_visual_idle,
@@ -86,6 +96,10 @@ XPROMPT_HIGHLIGHT_STACK = (
 ARTIFACT_REF_HIGHLIGHT = (
     "Compare @plans:202607/design.md @commit:sase@abcdef1 @user:handle\n"
     "Known references stay vivid while unknown-kind prose stays subdued."
+)
+GLOSSARY_HIGHLIGHT_PROMPT = (
+    "Ask the Agent Clan to review the ChangeSpec glossary wiring\n"
+    "Keep xprompt references, `Agent Clan`, and @plans:notes.md distinct."
 )
 
 CODEBLOCK_HIGHLIGHT_SOLO = (
@@ -229,6 +243,177 @@ def patch_visual_artifact_ref_kinds(monkeypatch: pytest.MonkeyPatch) -> None:
         "_load_known_artifact_ref_kinds",
         _known,
     )
+
+
+def patch_visual_glossary_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    catalog = _visual_glossary_catalog()
+
+    def _catalog(
+        _app: AceApp,
+        _context: PromptGlossaryContext,
+        *,
+        schedule: bool = True,
+    ) -> EditorGlossaryCatalog:
+        del schedule
+        return catalog
+
+    def _warm(
+        _app: AceApp,
+        _context: PromptGlossaryContext,
+    ) -> None:
+        return None
+
+    monkeypatch.setattr(AceApp, "get_prompt_glossary_catalog", _catalog)
+    monkeypatch.setattr(
+        AceApp,
+        "is_prompt_glossary_catalog_warm",
+        lambda _app, _context: True,
+    )
+    monkeypatch.setattr(AceApp, "warm_prompt_glossary_catalog", _warm)
+
+
+class _VisualCompiledGlossary:
+    def __init__(self, entries: tuple[GlossaryEntry, ...]) -> None:
+        self._entries = entries
+
+    def scan(self, text: str) -> list[dict[str, Any]]:
+        spans: list[dict[str, Any]] = []
+        for entry in self._entries:
+            start = 0
+            while True:
+                found = text.find(entry.term, start)
+                if found == -1:
+                    break
+                spans.append(
+                    _visual_glossary_span_wire(
+                        text,
+                        entry,
+                        found,
+                        found + len(entry.term),
+                    )
+                )
+                start = found + len(entry.term)
+        return spans
+
+    def lookup(
+        self,
+        text: str,
+        line: int,
+        character: int,
+    ) -> dict[str, Any] | None:
+        for span in self.scan(text):
+            editor_range = span["range"]
+            start = editor_range["start"]
+            end = editor_range["end"]
+            if (
+                start["line"] <= line <= end["line"]
+                and (line > start["line"] or character >= start["character"])
+                and (line < end["line"] or character < end["character"])
+            ):
+                return span
+        return None
+
+
+def _visual_glossary_catalog() -> EditorGlossaryCatalog:
+    config_path = Path("/workspace/sase/sase.yml")
+    entries = (
+        _visual_glossary_entry(
+            index=0,
+            term="Agent Clan",
+            definition="Named group of collaborating agents.",
+            config_path=config_path,
+            line=8,
+        ),
+        _visual_glossary_entry(
+            index=1,
+            term="ChangeSpec",
+            definition="SASE record for one CL or PR.",
+            config_path=config_path,
+            line=16,
+        ),
+        _visual_glossary_entry(
+            index=2,
+            term="xprompt",
+            definition="Prompt shortcut expanded by SASE.",
+            config_path=config_path,
+            line=24,
+        ),
+    )
+    return EditorGlossaryCatalog(
+        schema_version=1,
+        project=EditorGlossaryProject(
+            key="sase",
+            name="sase",
+            aliases=("sase-org",),
+            workspace_dir=Path("/workspace/sase"),
+        ),
+        config_path=config_path,
+        config_signature=GlossaryConfigSignature(
+            path=str(config_path),
+            mtime_ns=1,
+            size=2048,
+        ),
+        catalog=GlossaryCatalog(schema_version=1, entries=entries),
+        compiled=_VisualCompiledGlossary(entries),
+    )
+
+
+def _visual_glossary_entry(
+    *,
+    index: int,
+    term: str,
+    definition: str,
+    config_path: Path,
+    line: int,
+) -> GlossaryEntry:
+    return GlossaryEntry(
+        index=index,
+        term=term,
+        normalized_term=term.casefold(),
+        definition=definition,
+        configured_aliases=(),
+        effective_aliases=(term.casefold(),),
+        source={
+            "config_path": str(config_path),
+            "definition_range": {
+                "start": {"line": line, "character": 4},
+                "end": {"line": line, "character": 40},
+            },
+        },
+    )
+
+
+def _visual_glossary_span_wire(
+    text: str,
+    entry: GlossaryEntry,
+    start: int,
+    end: int,
+) -> dict[str, Any]:
+    return {
+        "term": entry.term,
+        "entry_index": entry.index,
+        "alias_index": 0,
+        "alias": entry.term,
+        "matched_text": text[start:end],
+        "byte_start": len(text[:start].encode("utf-8")),
+        "byte_end": len(text[:end].encode("utf-8")),
+        "range": {
+            "start": _visual_editor_position(text, start),
+            "end": _visual_editor_position(text, end),
+        },
+    }
+
+
+def _visual_editor_position(text: str, offset: int) -> dict[str, int]:
+    prefix = text[:offset]
+    line = prefix.count("\n")
+    line_start = prefix.rfind("\n") + 1
+    return {
+        "line": line,
+        "character": sum(
+            2 if ord(char) > 0xFFFF else 1 for char in text[line_start:offset]
+        ),
+    }
 
 
 async def mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:
