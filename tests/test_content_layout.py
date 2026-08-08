@@ -22,7 +22,7 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
         project="demo",
     )
 
-    assert layout.schema_version == 1
+    assert layout.schema_version == 2
     assert layout.project is not None
     project = layout.project
     assert project.config.canonical.path == Path("/workspace/demo/sase/sase.yml")
@@ -33,16 +33,19 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
         Path("/workspace/demo/.xprompts"),
         Path("/workspace/demo/xprompts"),
     )
+    assert project.skills.path == Path("/workspace/demo/sase/skills")
     assert project.memory.canonical.path == Path("/workspace/demo/sase/memory")
     assert project.repos.path == Path("/workspace/demo/sase/repos")
 
     assert layout.home.xprompts.canonical.path == Path("/home/alice/sase/xprompts")
+    assert layout.home.skills.path == Path("/home/alice/sase/skills")
     assert layout.home.memory.canonical.path == Path("/home/alice/sase/memory")
     assert layout.home.global_config.path == Path("/home/alice/.config/sase/sase.yml")
     assert layout.chezmoi is not None
     assert layout.chezmoi.xprompts.canonical.path == Path(
         "/dotfiles/home/sase/xprompts"
     )
+    assert layout.chezmoi.skills.path == Path("/dotfiles/home/sase/skills")
     assert layout.chezmoi.memory.canonical.path == Path("/dotfiles/home/sase/memory")
     assert layout.chezmoi.global_config.path == Path(
         "/dotfiles/home/dot_config/sase/sase.yml"

@@ -37,7 +37,9 @@ from sase.main._init_skills_source_integrity import skill_source_integrity_error
 from sase.main.init_plan import InitAction, InitOperation, InitPlan
 from sase.memory.locks import LockTimeoutError
 from sase.workflows.commit.runtime_tags import resolve_runtime_workspace_tag
-from sase.xprompt.loader import get_all_xprompts, load_xprompts_from_internal
+from sase.xprompt.load_issues import collect_xprompt_load_issues
+from sase.xprompt.loader import get_all_xprompts, load_skills_from_package
+from sase.xprompt.loader_skills import SKILL_PLACEMENT_ISSUE_KIND
 from sase.xprompt.models import XPrompt
 
 _COMMAND_LABEL = "skill init"
@@ -129,14 +131,26 @@ def _get_target_paths(provider: str, skill_name: str, use_chezmoi: bool) -> list
     return [primary, *extras]
 
 
-def _load_skill_xprompts() -> list[XPrompt]:
-    """Return loaded xprompts that are installable as provider skills."""
+def _load_skill_sources() -> tuple[list[XPrompt], tuple[str, ...]]:
+    """Return installable skill sources and any placement rule violations.
+
+    A misplaced source is a hard problem for generation: the definition was
+    excluded, so rendering from what remains would silently drop or revert a
+    provider skill. Callers surface the diagnostics instead of generating.
+    """
     # Passing an empty project disables project auto-detection while still
     # loading the global runtime catalog, including user config overlays.
-    return _select_skill_xprompts(
-        dict(load_xprompts_from_internal()),
-        get_all_xprompts(project=""),
+    with collect_xprompt_load_issues() as issues:
+        selected = _select_skill_xprompts(
+            dict(load_skills_from_package()),
+            get_all_xprompts(project=""),
+        )
+    placement_errors = tuple(
+        dict.fromkeys(
+            issue.error for issue in issues if issue.kind == SKILL_PLACEMENT_ISSUE_KIND
+        )
     )
+    return selected, placement_errors
 
 
 def prettier_available() -> bool:
@@ -144,9 +158,9 @@ def prettier_available() -> bool:
     return _prettier_available()
 
 
-def load_skill_xprompts() -> list[XPrompt]:
-    """Return loaded xprompts that are installable as provider skills."""
-    return _load_skill_xprompts()
+def load_skill_sources() -> tuple[list[XPrompt], tuple[str, ...]]:
+    """Return installable skill sources plus placement rule violations."""
+    return _load_skill_sources()
 
 
 def get_skill_target_providers(skill_field: bool | list[str]) -> list[str]:
@@ -362,7 +376,16 @@ def plan_init_skills(args: argparse.Namespace) -> InitPlan:
             blockers=(provider_error,),
         )
 
-    skill_xprompts = _load_skill_xprompts()
+    skill_xprompts, placement_errors = _load_skill_sources()
+    if placement_errors:
+        return InitPlan(
+            command="skills",
+            label="Skills",
+            summary="cannot plan generated skill files from a misplaced source set",
+            actions=(),
+            blockers=placement_errors,
+        )
+
     use_prettier = _prettier_available()
     try:
         targets = _render_skill_targets(
@@ -442,7 +465,12 @@ def run_init_skills(args: argparse.Namespace) -> int:
         print(f"{_COMMAND_LABEL}: {provider_error}", file=sys.stderr)
         return 2
 
-    skill_xprompts = _load_skill_xprompts()
+    skill_xprompts, placement_errors = _load_skill_sources()
+    if placement_errors:
+        for error in placement_errors:
+            print(f"{_COMMAND_LABEL}: {error}", file=sys.stderr)
+        return 1
+
     if not skill_xprompts:
         print("No skill source entries found.")
         return 0

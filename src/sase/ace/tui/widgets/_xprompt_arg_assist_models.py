@@ -32,6 +32,8 @@ class XPromptAssistEntry:
     content_preview: str | None
     description: str | None = None
     is_skill: bool = False
+    skill_name: str | None = None
+    """Provider-visible ``/`` name; ``name`` stays the ``#`` reference."""
 
 
 @dataclass(frozen=True, slots=True)

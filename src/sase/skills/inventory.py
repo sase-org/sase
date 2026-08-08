@@ -26,9 +26,14 @@ class SkillTargetEntry:
 
 @dataclass(frozen=True)
 class SkillSourceEntry:
-    """One installable xprompt skill source."""
+    """One installable xprompt skill source.
+
+    ``name`` is the provider-visible skill name (``foo``); ``reference_name``
+    is the canonical xprompt reference that expands it (``skills/foo``).
+    """
 
     name: str
+    reference_name: str
     description: str
     source_path: str
     providers: tuple[str, ...]
@@ -55,6 +60,7 @@ class SkillsInventory:
     deploy_mode: SkillDeployMode
     provider_filter: str | None = None
     prettier_available: bool = True
+    placement_errors: tuple[str, ...] = ()
 
     @property
     def use_chezmoi(self) -> bool:
@@ -159,7 +165,7 @@ def build_skills_inventory(
     if use_prettier is None:
         use_prettier = init_skills_handler.prettier_available()
 
-    xprompts = init_skills_handler.load_skill_xprompts()
+    xprompts, placement_errors = init_skills_handler.load_skill_sources()
     rendered_targets = init_skills_handler.render_skill_targets(
         xprompts,
         provider_filter=provider_filter,
@@ -182,7 +188,7 @@ def build_skills_inventory(
         _source_entry(
             xprompt,
             provider_filter=provider_filter,
-            targets=tuple(targets_by_skill.get(xprompt.name, ())),
+            targets=tuple(targets_by_skill.get(xprompt.skill_name or xprompt.name, ())),
         )
         for xprompt in xprompts
     )
@@ -191,6 +197,7 @@ def build_skills_inventory(
         deploy_mode="chezmoi" if use_chezmoi else "home",
         provider_filter=provider_filter,
         prettier_available=use_prettier,
+        placement_errors=placement_errors,
     )
 
 
@@ -203,7 +210,7 @@ def build_applied_skills_inventory(
     if use_prettier is None:
         use_prettier = init_skills_handler.prettier_available()
 
-    xprompts = init_skills_handler.load_skill_xprompts()
+    xprompts, _placement_errors = init_skills_handler.load_skill_sources()
     source_targets = init_skills_handler.render_skill_targets(
         xprompts,
         provider_filter=provider_filter,
@@ -243,7 +250,8 @@ def _source_entry(
 ) -> SkillSourceEntry:
     providers = _providers_for_source(xprompt, provider_filter=provider_filter)
     return SkillSourceEntry(
-        name=xprompt.name,
+        name=xprompt.skill_name or xprompt.name,
+        reference_name=xprompt.name,
         description=xprompt.description or "",
         source_path=xprompt.source_path or "-",
         providers=providers,

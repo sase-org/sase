@@ -14,6 +14,7 @@ import yaml  # type: ignore[import-untyped]
 from sase.main.init_plan import InitOperation
 from sase.markdown_width import markdown_print_width, prettier_markdown_argv
 from sase.mdtemplates import render_markdown_template
+from sase.xprompt.loader_skills import SKILL_FRAME_TEMPLATE_FILENAME
 from sase.xprompt.models import XPrompt
 
 
@@ -22,7 +23,7 @@ from sase.xprompt.models import XPrompt
 _PRETTIER_TIMEOUT_SECONDS = 10.0
 _PRETTIER_COMMENT_RE = re.compile(r"^<!-- prettier-ignore[^\n]*-->\n?", re.MULTILINE)
 _YAML_BLOCK_INDENT = "  "
-_SKILL_FRAME_TEMPLATE_FILENAME = "SKILL.frame.template.md"
+_SKILL_FRAME_TEMPLATE_FILENAME = SKILL_FRAME_TEMPLATE_FILENAME
 _SKILL_FRAME_TEMPLATE_VARS = frozenset(
     {"frontmatter", "log_skill_use", "skill_name", "body"}
 )
@@ -112,8 +113,8 @@ def _build_output(
     else:
         header = f"---\nname: {name}\ndescription: {description}\n---"
     content, render_error = render_markdown_template(
-        package="sase.xprompts",
-        filename=f"skills/{_SKILL_FRAME_TEMPLATE_FILENAME}",
+        package="sase.skills",
+        filename=_SKILL_FRAME_TEMPLATE_FILENAME,
         required_variables=_SKILL_FRAME_TEMPLATE_VARS,
         context={
             "frontmatter": header,
@@ -227,10 +228,12 @@ def render_skill_targets(
     raw_targets: list[_RawRenderedSkillTarget] = []
 
     for xprompt in skill_xprompts:
-        name = xprompt.name
+        # Generation is provider-facing, so it uses the provider skill name
+        # (``foo``), never the namespaced xprompt reference (``skills/foo``).
+        name = xprompt.skill_name
         description = xprompt.description or ""
         skill_field = xprompt.skill
-        if not skill_field:
+        if not skill_field or not name:
             continue
 
         target_providers = get_target_providers(skill_field)

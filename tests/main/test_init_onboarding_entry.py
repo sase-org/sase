@@ -148,7 +148,7 @@ def test_init_check_skills_alias_does_not_apply(
             summary="create skill files",
         ),
     )
-    monkeypatch.setattr(init_skills_handler, "_load_skill_xprompts", _fail_apply)
+    monkeypatch.setattr(init_skills_handler, "_load_skill_sources", _fail_apply)
 
     with pytest.raises(SystemExit) as exc:
         entry.main()

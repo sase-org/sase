@@ -106,6 +106,7 @@ class ProjectContentLayout:
     namespace_root: LayoutPath
     config: CompatibleLayoutPath
     xprompts: CompatibleLayoutPath
+    skills: LayoutPath
     memory: CompatibleLayoutPath
     repos: LayoutPath
     memory_readme: LayoutPath
@@ -117,6 +118,7 @@ class HomeContentLayout:
     root: Path
     namespace_root: LayoutPath
     xprompts: CompatibleLayoutPath
+    skills: LayoutPath
     memory: CompatibleLayoutPath
     global_config: LayoutPath
     state_root: LayoutPath
@@ -129,6 +131,7 @@ class ChezmoiContentLayout:
     source_root: Path
     namespace_root: LayoutPath
     xprompts: CompatibleLayoutPath
+    skills: LayoutPath
     memory: CompatibleLayoutPath
     global_config: LayoutPath
     memory_readme: LayoutPath
@@ -159,12 +162,45 @@ class XpromptSource:
 
 
 @dataclass(frozen=True)
+class SkillSource:
+    """One ordered, first-wins source of canonical skill definitions.
+
+    Skill sources are a separate, narrower contract than
+    :class:`XpromptSource`: they carry no legacy candidates and no shared
+    ``steps/`` directory, and package/plugin entries are resource locators
+    rather than filesystem paths.
+    """
+
+    id: str
+    priority: int
+    scope: str
+    locator: str
+    path: Path | None
+    formats: tuple[str, ...]
+    tracking: PathTracking
+    project_namespaced: bool
+    writable: bool
+    ordering: str | None
+
+
+@dataclass(frozen=True)
+class SkillPlacementIssue:
+    """One definition rejected by the shared skill placement rules."""
+
+    source: str
+    rule: str
+    message: str
+    migrate_to: str | None
+
+
+@dataclass(frozen=True)
 class SaseContentLayout:
     schema_version: int
     project: ProjectContentLayout | None
     home: HomeContentLayout
     chezmoi: ChezmoiContentLayout | None
     xprompt_sources: tuple[XpromptSource, ...]
+    skill_sources: tuple[SkillSource, ...]
 
 
 def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
@@ -182,6 +218,10 @@ def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
         xprompt_sources=tuple(
             _xprompt_source(_mapping(item))
             for item in cast(list[Any], raw.get("xprompt_sources", []))
+        ),
+        skill_sources=tuple(
+            _skill_source(_mapping(item))
+            for item in cast(list[Any], raw.get("skill_sources", []))
         ),
     )
 
@@ -212,6 +252,7 @@ def _project_layout(raw: Mapping[str, Any]) -> ProjectContentLayout:
         namespace_root=_layout_path(_mapping(raw["namespace_root"])),
         config=_compatible_path(_mapping(raw["config"])),
         xprompts=_compatible_path(_mapping(raw["xprompts"])),
+        skills=_layout_path(_mapping(raw["skills"])),
         memory=_compatible_path(_mapping(raw["memory"])),
         repos=_layout_path(_mapping(raw["repos"])),
         memory_readme=_layout_path(_mapping(raw["memory_readme"])),
@@ -224,6 +265,7 @@ def _home_layout(raw: Mapping[str, Any]) -> HomeContentLayout:
         root=Path(str(raw["root"])),
         namespace_root=_layout_path(_mapping(raw["namespace_root"])),
         xprompts=_compatible_path(_mapping(raw["xprompts"])),
+        skills=_layout_path(_mapping(raw["skills"])),
         memory=_compatible_path(_mapping(raw["memory"])),
         global_config=_layout_path(_mapping(raw["global_config"])),
         state_root=_layout_path(_mapping(raw["state_root"])),
@@ -237,6 +279,7 @@ def _chezmoi_layout(raw: Mapping[str, Any]) -> ChezmoiContentLayout:
         source_root=Path(str(raw["source_root"])),
         namespace_root=_layout_path(_mapping(raw["namespace_root"])),
         xprompts=_compatible_path(_mapping(raw["xprompts"])),
+        skills=_layout_path(_mapping(raw["skills"])),
         memory=_compatible_path(_mapping(raw["memory"])),
         global_config=_layout_path(_mapping(raw["global_config"])),
         memory_readme=_layout_path(_mapping(raw["memory_readme"])),
@@ -269,6 +312,35 @@ def _xprompt_source(raw: Mapping[str, Any]) -> XpromptSource:
     )
 
 
+def _skill_source(raw: Mapping[str, Any]) -> SkillSource:
+    path = raw.get("path")
+    return SkillSource(
+        id=str(raw["id"]),
+        priority=int(raw["priority"]),
+        scope=str(raw["scope"]),
+        locator=str(raw["locator"]),
+        path=Path(str(path)) if path is not None else None,
+        formats=tuple(str(item) for item in raw.get("formats", [])),
+        tracking=cast(PathTracking, raw["tracking"]),
+        project_namespaced=bool(raw.get("project_namespaced", False)),
+        writable=bool(raw.get("writable", False)),
+        ordering=(str(raw["ordering"]) if raw.get("ordering") is not None else None),
+    )
+
+
+def skill_placement_issue_from_mapping(
+    raw: Mapping[str, Any],
+) -> SkillPlacementIssue:
+    """Build the typed placement issue returned by the Rust rule."""
+    migrate_to = raw.get("migrate_to")
+    return SkillPlacementIssue(
+        source=str(raw["source"]),
+        rule=str(raw["rule"]),
+        message=str(raw["message"]),
+        migrate_to=str(migrate_to) if migrate_to is not None else None,
+    )
+
+
 def _layout_paths(raw: Any) -> tuple[LayoutPath, ...]:
     return tuple(_layout_path(_mapping(item)) for item in cast(list[Any], raw))
 
@@ -288,6 +360,9 @@ __all__ = [
     "LayoutReadResolution",
     "ProjectContentLayout",
     "SaseContentLayout",
+    "SkillPlacementIssue",
+    "SkillSource",
     "XpromptSource",
     "content_layout_from_mapping",
+    "skill_placement_issue_from_mapping",
 ]

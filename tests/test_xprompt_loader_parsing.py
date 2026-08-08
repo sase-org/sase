@@ -265,35 +265,40 @@ Skill content"""
 # Tests for skill and description in parse_xprompt_entries
 
 
-def test_parse_xprompt_entries_skill_and_description() -> None:
-    """Test parsing skill and description from structured dict format."""
+def test_parse_xprompt_entries_keeps_description_without_a_skill_field() -> None:
+    """Test parsing description from structured dict format."""
     entries = {
-        "my_skill": {
+        "my_prompt": {
             "content": "Do the thing",
-            "description": "A helpful skill",
-            "skill": True,
+            "description": "A helpful prompt",
         }
     }
     result = parse_xprompt_entries(entries, "test")
 
-    xp = result["my_skill"]
-    assert xp.description == "A helpful skill"
-    assert xp.skill is True
+    xp = result["my_prompt"]
+    assert xp.description == "A helpful prompt"
+    assert xp.skill is None
 
 
-def test_parse_xprompt_entries_skill_provider_list() -> None:
-    """Test parsing skill with provider list from structured dict format."""
+@pytest.mark.parametrize("skill", [True, ["gemini"]])
+def test_parse_xprompt_entries_rejects_config_defined_skills(
+    skill: bool | list[str],
+) -> None:
+    """A skill needs a Markdown file in a canonical skill directory."""
+    from sase.xprompt.load_issues import collect_xprompt_load_issues
+
     entries = {
         "hg_commit": {
             "content": "Commit with a VCS provider",
-            "skill": ["gemini"],
+            "skill": skill,
         }
     }
-    result = parse_xprompt_entries(entries, "test")
+    with collect_xprompt_load_issues() as issues:
+        result = parse_xprompt_entries(entries, "test")
 
-    xp = result["hg_commit"]
-    assert xp.skill == ["gemini"]
-    assert xp.description is None
+    assert result == {}
+    assert [issue.kind for issue in issues] == ["skill_placement"]
+    assert "test:hg_commit" in issues[0].error
 
 
 def test_parse_xprompt_entries_simple_string_has_no_skill() -> None:
@@ -310,30 +315,28 @@ def test_parse_xprompt_entries_simple_string_has_no_skill() -> None:
 
 
 def test_parse_xprompt_entries_log_skill_use_false() -> None:
-    """Structured config entries can disable the generated audit directive."""
+    """Structured entries can disable the generated audit directive."""
     entries = {
-        "quiet_skill": {
+        "quiet": {
             "content": "Do the thing",
-            "skill": True,
             "log_skill_use": False,
         }
     }
     result = parse_xprompt_entries(entries, "test")
 
-    assert result["quiet_skill"].log_skill_use is False
+    assert result["quiet"].log_skill_use is False
 
 
 def test_parse_xprompt_entries_log_skill_use_defaults_true() -> None:
-    """Structured config entries default log_skill_use to True when absent."""
+    """Structured entries default log_skill_use to True when absent."""
     entries = {
-        "loud_skill": {
+        "loud": {
             "content": "Do the thing",
-            "skill": True,
         }
     }
     result = parse_xprompt_entries(entries, "test")
 
-    assert result["loud_skill"].log_skill_use is True
+    assert result["loud"].log_skill_use is True
 
 
 def test_parse_xprompt_entries_simple_string_log_skill_use_true() -> None:

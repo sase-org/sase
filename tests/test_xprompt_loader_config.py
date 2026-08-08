@@ -9,6 +9,7 @@ from sase.xprompt.loader import (
     load_xprompt_from_file,
     load_xprompts_from_plugins,
     load_xprompts_from_default_files,
+    load_skills_from_package,
     load_xprompts_from_internal,
     get_all_prompts,
     get_all_workflows,
@@ -342,19 +343,30 @@ def testload_xprompts_from_default_files_loads_fixture(tmp_path: Path) -> None:
     assert xprompt.inputs[0].type is InputType.TEXT
 
 
-def testload_xprompts_from_internal_includes_packaged_skills() -> None:
-    """Package xprompts include shipped skill markdown under skills/."""
+def testload_xprompts_from_internal_excludes_packaged_skills() -> None:
+    """Packaged skills are their own source, not part of the xprompt scan."""
     result = load_xprompts_from_internal()
 
-    assert "sase_plan" in result
-    assert "sase_questions" in result
-    assert "SKILL.frame.template" not in result
+    assert "sase_plan" not in result
+    assert "skills/sase_plan" not in result
+    assert "split_file" in result
 
-    plan = result["sase_plan"]
-    assert plan.name == "sase_plan"
+
+def test_load_skills_from_package_namespaces_the_xprompt_reference() -> None:
+    """Packaged skills keep ``foo`` as the skill name under ``skills/foo``."""
+    result = load_skills_from_package()
+
+    assert "skills/sase_plan" in result
+    assert "skills/sase_questions" in result
+    # The Jinja frame ships beside the sources but is a template, not a skill.
+    assert "skills/SKILL.frame.template" not in result
+
+    plan = result["skills/sase_plan"]
+    assert plan.name == "skills/sase_plan"
+    assert plan.skill_name == "sase_plan"
     assert plan.skill is True
     assert plan.description is not None
-    assert "xprompts/skills/sase_plan.md" in plan.source_path
+    assert plan.source_path.endswith("sase/skills/sase_plan.md")
 
 
 def testload_xprompts_from_internal_includes_split_file() -> None:

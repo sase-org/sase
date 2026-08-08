@@ -35,7 +35,7 @@ def _write_newer_skill_deployment(
     monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
 
     rendered = init_skills_handler.render_skill_targets(
-        init_skills_handler.load_skill_xprompts(),
+        init_skills_handler.load_skill_sources()[0],
         provider_filter="claude",
         use_chezmoi=True,
         use_prettier=False,
@@ -114,7 +114,7 @@ def test_handler_dirty_chezmoi_source_is_refused_before_write(
         "skill_source_integrity_error",
         lambda: (
             "refusing chezmoi skill deploy because xprompt sources have "
-            "uncommitted changes:\n  M src/sase/xprompts/skills/foo.md"
+            "uncommitted changes:\n  M src/sase/skills/foo.md"
         ),
     )
     chezmoi_home = tmp_path / "chezmoi" / "home"
@@ -130,7 +130,7 @@ def test_handler_dirty_chezmoi_source_is_refused_before_write(
     assert not chezmoi_home.exists()
     deploy_mock.assert_not_called()
     err = capsys.readouterr().err
-    assert "src/sase/xprompts/skills/foo.md" in err
+    assert "src/sase/skills/foo.md" in err
 
 
 def test_handler_backwards_manifest_refuses_and_leaves_newer_deployment_intact(
@@ -169,7 +169,7 @@ def test_handler_force_overrides_backwards_manifest_and_records_incoming(
         tmp_path, monkeypatch
     )
     rendered_content = init_skills_handler.render_skill_targets(
-        init_skills_handler.load_skill_xprompts(),
+        init_skills_handler.load_skill_sources()[0],
         provider_filter="claude",
         use_chezmoi=True,
         use_prettier=False,
@@ -275,7 +275,7 @@ def test_handler_zero_written_does_not_deploy(
         "get_all_xprompts",
         lambda project="": {"foo": XPrompt(name="foo", content="body\n")},
     )
-    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
 
     deploy_mock = MagicMock()
@@ -301,7 +301,7 @@ def test_handler_missing_manifest_bootstraps_then_unchanged_rerun_does_not_deplo
     monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
 
     rendered = init_skills_handler.render_skill_targets(
-        init_skills_handler.load_skill_xprompts(),
+        init_skills_handler.load_skill_sources()[0],
         provider_filter="claude",
         use_chezmoi=True,
         use_prettier=False,

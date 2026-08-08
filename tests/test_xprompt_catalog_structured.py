@@ -13,7 +13,7 @@ from sase.xprompt.catalog import (
     _gather_entries,
     build_structured_xprompts_catalog,
 )
-from sase.xprompt.loader import load_xprompts_from_internal
+from sase.xprompt.loader import load_skills_from_package
 from sase.xprompt.models import UNSET, InputArg, InputType, OutputSpec
 from sase.xprompt.tags import XPromptTag
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -272,12 +272,12 @@ def test_structured_catalog_preserves_workflow_description() -> None:
 
 
 def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
-    internal_xprompts = load_xprompts_from_internal()
+    packaged_skills = load_skills_from_package()
 
     with (
         patch(
             "sase.xprompt.catalog.get_all_xprompts",
-            return_value=internal_xprompts,
+            return_value=packaged_skills,
         ),
         patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
         patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
@@ -288,9 +288,12 @@ def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
         )
 
     by_name = {entry.name: entry for entry in projection.entries}
-    assert "sase_plan" in by_name
-    assert by_name["sase_plan"].is_skill is True
-    assert by_name["sase_plan"].source_path_display == "xprompts/skills/sase_plan.md"
+    # The catalog is keyed by the xprompt reference name; the provider skill
+    # name rides alongside it.
+    assert "skills/sase_plan" in by_name
+    assert by_name["skills/sase_plan"].is_skill is True
+    assert by_name["skills/sase_plan"].skill_name == "sase_plan"
+    assert by_name["skills/sase_plan"].source_path_display == "skills/sase_plan.md"
     assert projection.stats.skill_count >= 1
 
 

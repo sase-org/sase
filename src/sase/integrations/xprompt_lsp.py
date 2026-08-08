@@ -19,9 +19,11 @@ from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disa
 SASE_XPROMPT_LSP_CMD_ENV = "SASE_XPROMPT_LSP_CMD"
 SASE_XPROMPT_PACKAGE_DIR_ENV = "SASE_XPROMPT_PACKAGE_DIR"
 SASE_XPROMPT_BUILTIN_DIR_ENV = "SASE_XPROMPT_BUILTIN_DIR"
+SASE_SKILL_BUILTIN_DIR_ENV = "SASE_SKILL_BUILTIN_DIR"
 SASE_XPROMPT_DEFAULT_DIR_ENV = "SASE_XPROMPT_DEFAULT_DIR"
 SASE_DEFAULT_CONFIG_PATH_ENV = "SASE_DEFAULT_CONFIG_PATH"
 SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV = "SASE_XPROMPT_PLUGIN_DIRS_JSON"
+SASE_SKILL_PLUGIN_DIRS_JSON_ENV = "SASE_SKILL_PLUGIN_DIRS_JSON"
 SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON"
 SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV = "SASE_XPROMPT_VCS_PROJECT_CATALOG"
 SASE_XPROMPT_MODEL_CATALOG_ENV = "SASE_XPROMPT_MODEL_CATALOG"
@@ -224,6 +226,7 @@ def _prepare_xprompt_lsp_environment(
     defaults = {
         SASE_XPROMPT_PACKAGE_DIR_ENV: str(root),
         SASE_XPROMPT_BUILTIN_DIR_ENV: str(root / "xprompts"),
+        SASE_SKILL_BUILTIN_DIR_ENV: str(root / "skills"),
         SASE_XPROMPT_DEFAULT_DIR_ENV: str(root / "default_xprompts"),
         SASE_DEFAULT_CONFIG_PATH_ENV: str(root / "default_config.yml"),
     }
@@ -232,6 +235,10 @@ def _prepare_xprompt_lsp_environment(
     if SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV not in environ:
         environ[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV] = json.dumps(
             _discover_plugin_xprompt_dirs()
+        )
+    if SASE_SKILL_PLUGIN_DIRS_JSON_ENV not in environ:
+        environ[SASE_SKILL_PLUGIN_DIRS_JSON_ENV] = json.dumps(
+            _discover_plugin_resource_dirs("skills")
         )
     if SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV not in environ:
         environ[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV] = json.dumps(
@@ -335,13 +342,18 @@ def _materialize_artifact_ref_catalog(
 
 def _discover_plugin_xprompt_dirs() -> list[dict[str, str]]:
     """Return concrete plugin xprompt directories for the Rust LSP loader."""
+    return _discover_plugin_resource_dirs("xprompts")
+
+
+def _discover_plugin_resource_dirs(resource_dir: str) -> list[dict[str, str]]:
+    """Return concrete plugin ``xprompts/`` or ``skills/`` resource directories."""
     if is_plugin_disabled("XPROMPTS"):
         return []
 
     entries: list[dict[str, str]] = []
     for module in discover_plugin_resources("sase_xprompts"):
         try:
-            ref = importlib.resources.files(module).joinpath("xprompts")
+            ref = importlib.resources.files(module).joinpath(resource_dir)
         except (TypeError, AttributeError):
             continue
         path = Path(str(ref))

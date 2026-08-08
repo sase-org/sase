@@ -10,6 +10,13 @@ import functools
 import logging
 from typing import TYPE_CHECKING
 
+from .loader_skills import (
+    get_sase_package_skills_dir,
+    load_project_skills,
+    load_skills_from_files,
+    load_skills_from_package,
+    load_skills_from_plugins,
+)
 from .loader_sources import (
     load_xprompt_from_file,
     load_xprompts_from_config,
@@ -50,11 +57,16 @@ __all__ = [
     "get_project_lifecycle_record",
     "inactive_project_message_for_ref",
     "get_sase_package_default_xprompts_dir",
+    "get_sase_package_skills_dir",
     "get_sase_package_xprompts_dir",
     "get_xprompt_or_workflow",
     "get_xprompt_search_paths",
     "load_project_local_xprompts",
     "load_project_file_xprompts",
+    "load_project_skills",
+    "load_skills_from_files",
+    "load_skills_from_package",
+    "load_skills_from_plugins",
     "load_xprompt_from_file",
     "load_xprompts_from_config",
     "load_xprompts_from_default_files",
@@ -98,6 +110,7 @@ def get_all_project_local_prompts() -> dict[str, "Workflow"]:
         xprompts = {
             **load_project_local_xprompts(ws_dir, project_name),
             **load_project_file_xprompts(ws_dir, project_name),
+            **load_project_skills(ws_dir, project_name),
         }
         for name, xp in xprompts.items():
             all_workflows[name] = xprompt_to_workflow(xp)
@@ -125,6 +138,7 @@ def _load_registered_project_xprompts(
     return {
         **load_project_local_xprompts(workspace, project),
         **load_project_file_xprompts(workspace, project),
+        **load_project_skills(workspace, project),
     }
 
 
@@ -187,6 +201,13 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     # 1-4. File-based xprompts (highest priority) - already sorted
     file_xprompts = load_xprompts_from_files(project=effective_project)
     all_xprompts.update(file_xprompts)
+
+    # Skills occupy their own ``skills/`` reference namespace, so they can
+    # never shadow (or be shadowed by) an ordinary xprompt of the same bare
+    # name. Lowest priority first, so canonical directory sources win.
+    all_xprompts.update(load_skills_from_package())
+    all_xprompts.update(load_skills_from_plugins())
+    all_xprompts.update(load_skills_from_files(project=effective_project))
 
     return all_xprompts
 

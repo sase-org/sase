@@ -531,7 +531,7 @@ def parse_xprompt_entries(
             )
             continue
 
-        xprompts[name] = XPrompt(
+        xprompt = XPrompt(
             name=name,
             content=content,
             inputs=inputs,
@@ -543,8 +543,27 @@ def parse_xprompt_entries(
             log_skill_use=log_skill_use,
             local_xprompts=local_xprompts,
         )
+        # A skill needs a Markdown file in a canonical skill directory for
+        # generation to render from, so a config entry can never be one.
+        if _reject_config_skill(xprompt, source_path):
+            continue
+        xprompts[name] = xprompt
 
     return xprompts
+
+
+def _reject_config_skill(xprompt: XPrompt, source_path: str) -> bool:
+    """Drop a config-defined entry that declares ``skill:``."""
+    if not xprompt.skill:
+        return False
+
+    from .loader_skills import config_skill_destination, reject_misplaced_skill
+
+    return reject_misplaced_skill(
+        xprompt,
+        source=f"{source_path}:{xprompt.name}",
+        migrate_to=config_skill_destination(),
+    )
 
 
 def _validate_local_xprompt_names(xprompts: dict[str, XPrompt]) -> None:

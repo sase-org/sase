@@ -213,6 +213,36 @@ def test_resolves_slash_skill_with_slash_presentation(
     assert payload.title == "/sase_plan"
 
 
+def test_slash_skill_resolution_looks_up_the_skills_reference_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``/foo`` resolves through the canonical ``skills/foo`` reference."""
+    looked_up: list[str] = []
+
+    def _lookup(name: str, project: str | None = None) -> XPrompt:
+        looked_up.append(name)
+        return XPrompt(
+            name=name,
+            content="Skill body",
+            source_path="config",
+            skill=True,
+            skill_name="sase_plan",
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
+        _lookup,
+    )
+
+    resolve_preview_target(
+        PreviewToken("xprompt", "/sase_plan", "sase_plan", 0, 10, "/"),
+        project=None,
+        base_dir=".",
+    )
+
+    assert looked_up == ["skills/sase_plan"]
+
+
 def test_slash_skill_resolution_rejects_stale_non_skill(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

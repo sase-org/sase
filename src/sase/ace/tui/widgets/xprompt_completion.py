@@ -99,21 +99,25 @@ def build_xprompt_completion_candidates(
     for entry in source_entries:
         if inline_reference_only and not is_inline_reference_name(entry.name):
             continue
+        # ``#`` completion matches the xprompt reference name (``skills/foo``);
+        # ``/`` completion matches the provider skill name (``foo``).
+        match_name = entry.name
         if slash_skill:
-            if not entry.is_skill:
+            if not entry.is_skill or not entry.skill_name:
                 continue
+            match_name = entry.skill_name
         elif standalone_only:
             if entry.reference_prefix != "#!":
                 continue
-        insertion = f"/{entry.name}" if slash_skill else entry.insertion
-        if not entry.name.lower().startswith(partial_lower):
+        insertion = f"/{match_name}" if slash_skill else entry.insertion
+        if not match_name.lower().startswith(partial_lower):
             continue
         candidates.append(
             CompletionCandidate(
                 display=insertion,
                 insertion=insertion,
                 is_dir=False,
-                name=entry.name,
+                name=match_name,
                 metadata=entry,
             )
         )

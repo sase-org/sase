@@ -43,15 +43,16 @@ def _stub_claude_skill_targets(
     names: tuple[str, ...],
 ) -> dict[str, Path]:
     xprompts = {
-        name: init_skills_handler.XPrompt(
-            name=name,
+        f"skills/{name}": init_skills_handler.XPrompt(
+            name=f"skills/{name}",
             content=f"{name} body\n",
             description=f"{name} description",
             skill=["claude"],
+            skill_name=name,
         )
         for name in names
     }
-    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler, "get_all_xprompts", lambda project="": xprompts
     )

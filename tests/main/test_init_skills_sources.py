@@ -15,7 +15,7 @@ from sase.main.init_skills_handler import (
     get_skill_target_providers,
     handle_init_skills_command,
 )
-from sase.xprompt.loader import get_sase_package_xprompts_dir
+from sase.xprompt.loader import get_sase_package_skills_dir
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
 from sase.xprompt.models import XPrompt
 from tests.main.init_skills_handler_helpers import make_args
@@ -35,8 +35,8 @@ def test_skill_source_integrity_allows_clean_merged_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo_root = tmp_path / "repo"
-    xprompts_dir = repo_root / "src" / "sase" / "xprompts"
-    xprompts_dir.mkdir(parents=True)
+    skills_dir = repo_root / "src" / "sase" / "skills"
+    skills_dir.mkdir(parents=True)
     calls: list[tuple[str, ...]] = []
 
     def fake_run_git(root: Path, *args: str) -> str:
@@ -50,7 +50,7 @@ def test_skill_source_integrity_allows_clean_merged_source(
         raise AssertionError(args)
 
     monkeypatch.setattr(
-        source_integrity, "get_sase_package_xprompts_dir", lambda: xprompts_dir
+        source_integrity, "get_sase_package_skills_dir", lambda: skills_dir
     )
     monkeypatch.setattr(
         source_integrity, "get_default_branch", lambda _root: "origin/main"
@@ -62,7 +62,7 @@ def test_skill_source_integrity_allows_clean_merged_source(
         "status",
         "--porcelain=v1",
         "--",
-        "src/sase/xprompts",
+        "src/sase/skills",
     ) in calls
     assert (
         "merge-base",
@@ -72,23 +72,23 @@ def test_skill_source_integrity_allows_clean_merged_source(
     ) in calls
 
 
-def test_skill_source_integrity_reports_dirty_xprompt_paths(
+def test_skill_source_integrity_reports_dirty_skill_paths(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo_root = tmp_path / "repo"
-    xprompts_dir = repo_root / "src" / "sase" / "xprompts"
-    xprompts_dir.mkdir(parents=True)
+    skills_dir = repo_root / "src" / "sase" / "skills"
+    skills_dir.mkdir(parents=True)
 
     def fake_run_git(root: Path, *args: str) -> str:
         if args == ("rev-parse", "--show-toplevel"):
             return str(repo_root)
         if args[:2] == ("status", "--porcelain=v1"):
-            return " M src/sase/xprompts/skills/foo.md"
+            return " M src/sase/skills/foo.md"
         raise AssertionError(args)
 
     monkeypatch.setattr(
-        source_integrity, "get_sase_package_xprompts_dir", lambda: xprompts_dir
+        source_integrity, "get_sase_package_skills_dir", lambda: skills_dir
     )
     monkeypatch.setattr(source_integrity, "run_git", fake_run_git)
 
@@ -96,8 +96,8 @@ def test_skill_source_integrity_reports_dirty_xprompt_paths(
 
     assert error is not None
     assert "uncommitted changes" in error
-    assert "src/sase/xprompts/skills/foo.md" in error
-    assert "Land the xprompt template change" in error
+    assert "src/sase/skills/foo.md" in error
+    assert "Land the skill source change" in error
     assert "--allow-dirty" in error
 
 
@@ -106,8 +106,8 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo_root = tmp_path / "repo"
-    xprompts_dir = repo_root / "src" / "sase" / "xprompts"
-    xprompts_dir.mkdir(parents=True)
+    skills_dir = repo_root / "src" / "sase" / "skills"
+    skills_dir.mkdir(parents=True)
 
     def fake_run_git(root: Path, *args: str) -> str:
         if args == ("rev-parse", "--show-toplevel"):
@@ -121,7 +121,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
         raise AssertionError(args)
 
     monkeypatch.setattr(
-        source_integrity, "get_sase_package_xprompts_dir", lambda: xprompts_dir
+        source_integrity, "get_sase_package_skills_dir", lambda: skills_dir
     )
     monkeypatch.setattr(
         source_integrity, "get_default_branch", lambda _root: "origin/master"
@@ -330,7 +330,7 @@ def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Shipped ``skill: true`` sources render to every deployable provider."""
-    src = get_sase_package_xprompts_dir() / "skills" / f"{skill_name}.md"
+    src = get_sase_package_skills_dir() / f"{skill_name}.md"
     assert src.is_file(), f"missing skill source: {src}"
 
     front_matter, body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
@@ -365,7 +365,7 @@ def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
 
 def test_gate_skill_sources_do_not_reference_v1_contract() -> None:
     """Generated gate guidance must use the query-driven v2 interface."""
-    skills_dir = get_sase_package_xprompts_dir() / "skills"
+    skills_dir = get_sase_package_skills_dir()
 
     for skill_name in ("sase_gate", "sase_notify", "sase_run"):
         body = (skills_dir / f"{skill_name}.md").read_text(encoding="utf-8")
@@ -380,7 +380,7 @@ def test_gate_skill_sources_do_not_reference_v1_contract() -> None:
 
 def test_sase_plan_skill_does_not_expose_internal_model_aliases() -> None:
     """Planning guidance describes behavior without exposing routing internals."""
-    src = get_sase_package_xprompts_dir() / "skills" / "sase_plan.md"
+    src = get_sase_package_skills_dir() / "sase_plan.md"
     body = src.read_text(encoding="utf-8")
 
     for internal_name in (
@@ -401,7 +401,7 @@ def test_sase_plan_skill_does_not_expose_internal_model_aliases() -> None:
 
 def test_sase_repo_skill_description_covers_web_fetches() -> None:
     """The always-visible skill trigger closes the repository web-fetch loophole."""
-    src = get_sase_package_xprompts_dir() / "skills" / "sase_repo.md"
+    src = get_sase_package_skills_dir() / "sase_repo.md"
     front_matter, _body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
 
     assert front_matter is not None
@@ -416,7 +416,7 @@ def test_commit_skill_sources_do_not_reference_legacy_bead_flag(
     skill_name: str,
 ) -> None:
     """Commit skills should rely on SASE_BEAD_ID rather than a commit flag."""
-    src = get_sase_package_xprompts_dir() / "skills" / f"{skill_name}.md"
+    src = get_sase_package_skills_dir() / f"{skill_name}.md"
     body = src.read_text(encoding="utf-8")
     assert "--bead-id" not in body
     assert "sase bead list --status=in_progress" not in body
@@ -424,7 +424,7 @@ def test_commit_skill_sources_do_not_reference_legacy_bead_flag(
 
 def test_git_commit_skill_invokes_observable_wrapper() -> None:
     """The git commit skill should call the wrapper, not raw ``sase commit``."""
-    src = get_sase_package_xprompts_dir() / "skills" / "sase_git_commit.md"
+    src = get_sase_package_skills_dir() / "sase_git_commit.md"
     body = src.read_text(encoding="utf-8")
     flat = _collapse_whitespace(body)
     assert "Commit changes via the `sase_git_commit` wrapper" in flat
@@ -448,16 +448,17 @@ def test_agy_skill_generation_writes_antigravity_target(
 ) -> None:
     """A provider-scoped skill is written to that provider's deployment profile."""
     xprompt = XPrompt(
-        name="agy_only",
+        name="skills/agy_only",
         content="Antigravity profile body.\n",
         description="Antigravity profile test skill.",
         skill=["agy"],
+        skill_name="agy_only",
     )
-    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler,
         "get_all_xprompts",
-        lambda project="": {"agy_only": xprompt},
+        lambda project="": {"skills/agy_only": xprompt},
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -472,24 +473,28 @@ def test_agy_skill_generation_writes_antigravity_target(
         assert "Antigravity profile body." in target.read_text(encoding="utf-8")
 
 
-def test_config_defined_skill_is_generated_from_loaded_xprompts(
+def test_config_defined_skill_is_rejected_with_a_migration_diagnostic(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Config-overlay xprompts with ``skill`` participate in init skills."""
-    xprompt = XPrompt(
-        name="sase_gmail",
-        content="Use gog for Gmail.\n",
-        source_path="config_overlay:sase_athena.yml",
-        description="Read-only personal Gmail access through gog.",
-        skill=True,
-    )
-    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    """A config entry can never be a skill: it has no file to generate from."""
+    from sase.xprompt.loader_parsing import parse_xprompt_entries
+
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler,
         "get_all_xprompts",
-        lambda project="": {"sase_gmail": xprompt},
+        lambda project="": parse_xprompt_entries(
+            {
+                "sase_gmail": {
+                    "content": "Use gog for Gmail.\n",
+                    "description": "Read-only personal Gmail access through gog.",
+                    "skill": True,
+                }
+            },
+            "config_overlay:sase_athena.yml",
+        ),
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -498,10 +503,13 @@ def test_config_defined_skill_is_generated_from_loaded_xprompts(
     with pytest.raises(SystemExit) as exc:
         handle_init_skills_command(make_args(dry_run=True, provider="codex"))
 
-    assert exc.value.code == 0
-    out = capsys.readouterr().out
-    assert str(_get_target_path("codex", "sase_gmail", use_chezmoi=False)) in out
-    assert "Dry run: 1 source entries, no files written" in out
+    assert exc.value.code == 1
+    captured = capsys.readouterr()
+    assert str(_get_target_path("codex", "sase_gmail", use_chezmoi=False)) not in (
+        captured.out
+    )
+    assert "declares `skill:` outside a canonical skill source" in captured.err
+    assert "sase/skills/" in captured.err
 
 
 def test_skill_provider_list_respects_requested_provider(
@@ -511,16 +519,17 @@ def test_skill_provider_list_respects_requested_provider(
 ) -> None:
     """``skill: [codex]`` only renders for codex, including with --provider."""
     xprompt = XPrompt(
-        name="codex_only",
+        name="skills/codex_only",
         content="Only for Codex.\n",
         description="Codex-only skill.",
         skill=["codex"],
+        skill_name="codex_only",
     )
-    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler,
         "get_all_xprompts",
-        lambda project="": {"codex_only": xprompt},
+        lambda project="": {"skills/codex_only": xprompt},
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")

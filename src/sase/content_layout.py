@@ -22,8 +22,11 @@ from sase.core.content_layout_wire import (
     LayoutReadResolution,
     ProjectContentLayout,
     SaseContentLayout,
+    SkillPlacementIssue,
+    SkillSource,
     XpromptSource,
     content_layout_from_mapping,
+    skill_placement_issue_from_mapping,
 )
 from sase.core.rust import require_rust_binding
 
@@ -170,6 +173,73 @@ def resolve_xprompt_file_sources(
     )
 
 
+def resolve_skill_file_sources(
+    *,
+    project_root: Path | str | None = None,
+    home_root: Path | str | None = None,
+    project: str | None = None,
+) -> tuple[SkillSource, ...]:
+    """Return ordered filesystem-backed canonical skill sources.
+
+    The Rust contract owns the first-wins order (project, home, project-
+    specific home).  Package and plugin sources are resource locators without
+    a filesystem path, so they are excluded here and loaded by their own
+    ``importlib.resources`` loaders.  As with
+    :func:`resolve_xprompt_file_sources`, omitting *project_root* falls back
+    to the project containing the current directory.
+    """
+    if project_root is None:
+        root = discover_project_root()
+        if root is None:
+            try:
+                root = Path.cwd()
+            except OSError:
+                root = None
+    else:
+        root = Path(project_root)
+    layout = _resolve_content_layout(
+        project_root=root,
+        home_root=home_root,
+        project=project,
+    )
+    return tuple(source for source in layout.skill_sources if source.path is not None)
+
+
+def skill_reference_name(skill_name: str, project: str | None = None) -> str:
+    """Return the canonical ``skills/<name>`` xprompt reference for a skill.
+
+    The provider-visible skill name is unchanged; only the xprompt reference
+    is namespaced, so ``#skills/foo`` expands what ``/foo`` invokes.
+    """
+    binding = require_rust_binding("skill_reference_name")
+    return str(binding(skill_name, project))
+
+
+def skill_placement_issue(
+    source: Path | str,
+    *,
+    in_skill_source: bool,
+    declares_skill: bool,
+    migrate_to: Path | str | None = None,
+) -> SkillPlacementIssue | None:
+    """Apply the shared two-way skill placement rule to one definition.
+
+    Returns ``None`` when placement is valid: a canonical skill source that
+    declares a truthy ``skill`` value, or an ordinary source that declares
+    none.
+    """
+    binding = require_rust_binding("skill_placement_issue")
+    payload: Mapping[str, Any] | None = binding(
+        str(source),
+        in_skill_source,
+        declares_skill,
+        None if migrate_to is None else str(migrate_to),
+    )
+    if payload is None:
+        return None
+    return skill_placement_issue_from_mapping(payload)
+
+
 def chezmoi_source_path(
     target: Path | str,
     *,
@@ -250,6 +320,8 @@ __all__ = [
     "LayoutReadResolution",
     "ProjectContentLayout",
     "SaseContentLayout",
+    "SkillPlacementIssue",
+    "SkillSource",
     "XpromptSource",
     "chezmoi_source_path",
     "discover_project_root",
@@ -259,5 +331,8 @@ __all__ = [
     "resolve_project_config_write_path",
     "resolve_home_layout",
     "resolve_project_layout",
+    "resolve_skill_file_sources",
     "resolve_xprompt_file_sources",
+    "skill_placement_issue",
+    "skill_reference_name",
 ]

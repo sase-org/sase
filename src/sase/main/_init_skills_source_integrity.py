@@ -7,22 +7,20 @@ from pathlib import Path
 
 from sase.version._git import run_git
 from sase.workspace_provider.utils import get_default_branch
-from sase.xprompt.loader import get_sase_package_xprompts_dir
+from sase.xprompt.loader import get_sase_package_skills_dir
 
 _LAND_FIRST_INSTRUCTION = (
-    "Land the xprompt template change on the canonical branch first, then rerun. "
+    "Land the skill source change on the canonical branch first, then rerun. "
     "Use --allow-dirty only as a deliberate escape hatch; it can revert other "
     "agents' skill deployments."
 )
 
 
 def skill_source_integrity_error() -> str | None:
-    """Return why the package xprompt source is unsafe to deploy, if any."""
-    xprompts_dir = get_sase_package_xprompts_dir().resolve()
+    """Return why the packaged skill sources are unsafe to deploy, if any."""
+    skills_dir = get_sase_package_skills_dir().resolve()
     try:
-        repo_root = Path(
-            run_git(xprompts_dir, "rev-parse", "--show-toplevel")
-        ).resolve()
+        repo_root = Path(run_git(skills_dir, "rev-parse", "--show-toplevel")).resolve()
     except (
         FileNotFoundError,
         OSError,
@@ -30,14 +28,14 @@ def skill_source_integrity_error() -> str | None:
         subprocess.TimeoutExpired,
     ) as exc:
         return _verification_error(
-            f"could not resolve the git repository backing {xprompts_dir}", exc
+            f"could not resolve the git repository backing {skills_dir}", exc
         )
 
     try:
-        xprompts_pathspec = xprompts_dir.relative_to(repo_root).as_posix()
+        skills_pathspec = skills_dir.relative_to(repo_root).as_posix()
     except ValueError:
         return _verification_error(
-            f"resolved xprompts directory {xprompts_dir} is outside git root "
+            f"resolved packaged skills directory {skills_dir} is outside git root "
             f"{repo_root}"
         )
 
@@ -47,7 +45,7 @@ def skill_source_integrity_error() -> str | None:
             "status",
             "--porcelain=v1",
             "--",
-            xprompts_pathspec,
+            skills_pathspec,
         )
     except (
         FileNotFoundError,
@@ -55,12 +53,12 @@ def skill_source_integrity_error() -> str | None:
         subprocess.CalledProcessError,
         subprocess.TimeoutExpired,
     ) as exc:
-        return _verification_error("could not inspect xprompt source changes", exc)
+        return _verification_error("could not inspect skill source changes", exc)
 
     if dirty:
         details = "\n".join(f"  {line}" for line in dirty.splitlines())
         return (
-            "refusing chezmoi skill deploy because xprompt sources have "
+            "refusing chezmoi skill deploy because packaged skill sources have "
             f"uncommitted changes:\n{details}\n{_LAND_FIRST_INSTRUCTION}"
         )
 

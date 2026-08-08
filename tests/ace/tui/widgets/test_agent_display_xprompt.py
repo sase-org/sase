@@ -139,7 +139,13 @@ class TestAgentXPromptRendering:
             schedule: bool,
         ) -> list[SimpleNamespace]:
             calls.append((project, schedule))
-            return [SimpleNamespace(name="sase_plan", is_skill=True)]
+            return [
+                SimpleNamespace(
+                    name="skills/sase_plan",
+                    skill_name="sase_plan",
+                    is_skill=True,
+                )
+            ]
 
         panel = FakePromptPanel()
         panel.app = SimpleNamespace(get_prompt_catalog_assist_entries=_entries)

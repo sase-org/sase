@@ -14,6 +14,7 @@ from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
 )
 from sase.xprompt import xprompt_inspect
 from sase.xprompt._parsing_references import iter_xprompt_references
+from sase.content_layout import skill_reference_name
 from sase.xprompt.loader import get_xprompt_or_workflow
 from sase.xprompt.models import UNSET, InputArg, XPrompt
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -176,7 +177,10 @@ def _resolve_xprompt_preview(
 ) -> PreviewPayload:
     reference = _xprompt_reference(token)
     slash_skill = reference.startswith("/")
-    obj = get_xprompt_or_workflow(token.target, project=project)
+    # ``/foo`` is the provider skill name; its definition lives under the
+    # canonical ``skills/foo`` xprompt reference.
+    lookup = skill_reference_name(token.target) if slash_skill else token.target
+    obj = get_xprompt_or_workflow(lookup, project=project)
     if obj is None:
         if slash_skill:
             raise PreviewError(f"No skill named '{reference}' found")

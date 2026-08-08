@@ -42,6 +42,7 @@ def build_xprompt_assist_entries(
             ),
             content_preview=entry.content_preview,
             is_skill=entry.is_skill,
+            skill_name=entry.skill_name,
         )
         for entry in projection.entries
     ]

@@ -77,8 +77,17 @@ def target_path_for_subpath(
 
 
 def select_skill_xprompts(*catalogs: dict[str, XPrompt]) -> list[XPrompt]:
-    """Merge catalogs and return xprompts installable as provider skills."""
+    """Merge catalogs and return xprompts installable as provider skills.
+
+    Only definitions loaded from a canonical skill source carry a
+    ``skill_name``, so that is the selector: a truthy ``skill`` value anywhere
+    else was already rejected at load time. Ordering follows the provider
+    skill name, which is what every generated target is keyed by.
+    """
     xprompts: dict[str, XPrompt] = {}
     for catalog in catalogs:
         xprompts.update(catalog)
-    return sorted((xp for xp in xprompts.values() if xp.skill), key=lambda xp: xp.name)
+    return sorted(
+        (xp for xp in xprompts.values() if xp.skill and xp.skill_name),
+        key=lambda xp: (xp.skill_name or "", xp.name),
+    )

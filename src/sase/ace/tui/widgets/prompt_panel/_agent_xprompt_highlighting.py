@@ -34,11 +34,13 @@ def known_xprompt_skill_names(
         entries = getter(project, schedule=True)
         if entries is None:
             return frozenset()
+        # ``/foo`` tokens are highlighted by the provider skill name, not the
+        # namespaced ``skills/foo`` xprompt reference.
         return frozenset(
-            entry.name
+            entry.skill_name
             for entry in entries
             if getattr(entry, "is_skill", False)
-            and isinstance(getattr(entry, "name", None), str)
+            and isinstance(getattr(entry, "skill_name", None), str)
         )
     except Exception:
         return frozenset()

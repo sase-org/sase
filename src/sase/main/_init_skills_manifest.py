@@ -11,7 +11,7 @@ from pathlib import Path
 import subprocess
 
 from sase.version._git import run_git
-from sase.xprompt.loader import get_sase_package_xprompts_dir
+from sase.xprompt.loader import get_sase_package_skills_dir
 from sase.xprompt.models import XPrompt
 
 SKILLS_MANIFEST_FILENAME = ".sase-skills-manifest.json"
@@ -62,16 +62,22 @@ class _SkillManifestWrite:
 
 
 def _skill_xprompt_set_sha256(skill_xprompts: Sequence[XPrompt]) -> str:
-    """Hash the selected xprompt fields that determine generated skill content."""
+    """Hash the selected fields that determine generated skill content.
+
+    ``name`` is the provider skill name, not the ``skills/`` xprompt
+    reference, so the recorded hash tracks what was actually deployed.
+    """
     entries = [
         {
             "content": xprompt.content,
             "description": xprompt.description or "",
             "log_skill_use": xprompt.log_skill_use,
-            "name": xprompt.name,
+            "name": xprompt.skill_name or xprompt.name,
             "skill": xprompt.skill,
         }
-        for xprompt in sorted(skill_xprompts, key=lambda item: item.name)
+        for xprompt in sorted(
+            skill_xprompts, key=lambda item: item.skill_name or item.name
+        )
     ]
     encoded = json.dumps(
         entries,
@@ -93,7 +99,7 @@ def prepare_skill_manifest(
     try:
         source_root = Path(
             run_git(
-                get_sase_package_xprompts_dir().resolve(),
+                get_sase_package_skills_dir().resolve(),
                 "rev-parse",
                 "--show-toplevel",
             )

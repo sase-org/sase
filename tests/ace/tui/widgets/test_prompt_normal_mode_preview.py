@@ -37,8 +37,9 @@ def _top_is_preview(page: PromptPage) -> bool:
 
 def _skill_entry(name: str = "sase_plan") -> XPromptAssistEntry:
     return XPromptAssistEntry(
-        name=name,
-        insertion=f"#{name}",
+        name=f"skills/{name}",
+        skill_name=name,
+        insertion=f"#skills/{name}",
         reference_prefix="#",
         kind="xprompt",
         input_signature=None,

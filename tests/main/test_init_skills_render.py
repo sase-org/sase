@@ -70,10 +70,11 @@ def test_rendered_skill_targets_include_audit_directive_for_each_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     xprompt = init_skills_handler.XPrompt(
-        name="foo",
+        name="skills/foo",
         content="body\n",
         description="a test skill",
         skill=["claude", "codex"],
+        skill_name="foo",
     )
     monkeypatch.setattr(
         init_skills_handler,
@@ -106,11 +107,12 @@ def test_rendered_skill_targets_omit_audit_directive_when_disabled(
 ) -> None:
     """A skill with ``log_skill_use=False`` renders without the audit directive."""
     xprompt = init_skills_handler.XPrompt(
-        name="foo",
+        name="skills/foo",
         content="body\n",
         description="a test skill",
         skill=["claude"],
         log_skill_use=False,
+        skill_name="foo",
     )
     monkeypatch.setattr(init_skills_handler, "_all_providers", lambda: ["claude"])
     monkeypatch.setattr(init_skills_handler, "_provider_context", lambda _provider: {})
@@ -131,17 +133,14 @@ def test_rendered_skill_targets_omit_audit_directive_when_disabled(
 
 def test_packaged_skills_respect_log_skill_use_flag() -> None:
     """Packaged unaudited skills omit the directive; other skills keep it."""
-    from sase.xprompt.loader import (
-        get_sase_package_xprompts_dir,
-        load_xprompt_from_file,
-    )
+    from sase.xprompt.loader import load_skills_from_package
 
-    skills_dir = get_sase_package_xprompts_dir() / "skills"
-    plan_xp = load_xprompt_from_file(skills_dir / "sase_plan.md")
-    memory_xp = load_xprompt_from_file(skills_dir / "sase_memory_read.md")
-    repo_xp = load_xprompt_from_file(skills_dir / "sase_repo.md")
-    project_xp = load_xprompt_from_file(skills_dir / "sase_project.md")
-    artifact_file_xp = load_xprompt_from_file(skills_dir / "sase_artifact_file.md")
+    packaged = load_skills_from_package()
+    plan_xp = packaged.get("skills/sase_plan")
+    memory_xp = packaged.get("skills/sase_memory_read")
+    repo_xp = packaged.get("skills/sase_repo")
+    project_xp = packaged.get("skills/sase_project")
+    artifact_file_xp = packaged.get("skills/sase_artifact_file")
     assert plan_xp is not None
     assert memory_xp is not None
     assert repo_xp is not None
@@ -167,3 +166,33 @@ def test_packaged_skills_respect_log_skill_use_flag() -> None:
             assert f"sase skill use {target.skill_name}" in target.content
         else:
             assert "sase skill use" not in target.content
+
+
+def test_generated_names_and_paths_ignore_the_skills_reference_namespace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ``skills/`` rename is xprompt-side only; ``/foo`` output is unchanged."""
+    xprompt = init_skills_handler.XPrompt(
+        name="app/skills/foo",
+        content="body\n",
+        description="a test skill",
+        skill=["claude"],
+        skill_name="foo",
+    )
+    monkeypatch.setattr(init_skills_handler, "_all_providers", lambda: ["claude"])
+    monkeypatch.setattr(init_skills_handler, "_provider_context", lambda _provider: {})
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    targets = init_skills_handler.render_skill_targets(
+        [xprompt],
+        provider_filter=None,
+        use_chezmoi=False,
+        use_prettier=False,
+    )
+
+    assert [target.skill_name for target in targets] == ["foo"]
+    for target in targets:
+        assert target.path == tmp_path / "home/.claude/skills/foo/SKILL.md"
+        assert target.content.startswith("---\nname: foo\n")
+        assert "skills/foo" not in target.content.splitlines()[1]

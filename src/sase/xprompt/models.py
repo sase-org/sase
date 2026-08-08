@@ -203,10 +203,14 @@ class XPrompt:
     """An XPrompt template with optional typed input arguments.
 
     Attributes:
-        name: The xprompt name (used in #name syntax).
+        name: The xprompt name (used in #name syntax).  Skills carry their
+            namespaced reference name here (``skills/foo``, ``app/skills/foo``).
         content: The template content (may contain Jinja2 or legacy placeholders).
         inputs: List of input argument definitions from YAML front matter.
         source_path: File path or "config" indicating where this xprompt was loaded from.
+        skill_name: The provider-visible skill name (``foo``) for definitions
+            loaded from a canonical skill source, and ``None`` for every
+            ordinary xprompt.  Never derive this by splitting :attr:`name`.
     """
 
     name: str
@@ -217,6 +221,7 @@ class XPrompt:
     snippet: str | bool | None = None
     description: str | None = None
     skill: bool | list[str] | None = None
+    skill_name: str | None = None
     log_skill_use: bool = True
     local_xprompts: dict[str, XPrompt] = field(default_factory=dict)
 
@@ -279,6 +284,7 @@ def xprompt_to_workflow(xprompt: XPrompt) -> Workflow:
         tags=xprompt.tags,
         description=xprompt.description,
         xprompts=xprompt.local_xprompts,
+        skill_name=xprompt.skill_name,
     )
 
 

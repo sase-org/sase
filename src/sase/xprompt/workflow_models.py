@@ -146,6 +146,9 @@ class Workflow:
             rendered against input args). Set once before any steps run and
             persist for the entire agent session.
         description: Optional human-readable description of the workflow.
+        skill_name: Provider-visible skill name when this workflow was
+            converted from a canonical skill source, else ``None``.  Workflow
+            files themselves are never skills.
     """
 
     name: str
@@ -158,6 +161,7 @@ class Workflow:
     tags: frozenset[XPromptTag] = field(default_factory=frozenset)
     environment: dict[str, str] = field(default_factory=dict)
     description: str | None = None
+    skill_name: str | None = None
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this workflow has the given tag."""

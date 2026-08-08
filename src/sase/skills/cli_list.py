@@ -69,6 +69,9 @@ def _build_skills_inventory_dashboard(inventory: SkillsInventory) -> Group:
         _summary_panel(inventory),
         _sources_table(inventory),
     ]
+    misplaced = _placement_panel(inventory)
+    if misplaced is not None:
+        renderables.append(misplaced)
     drift = _drift_panel(inventory)
     if drift is not None:
         renderables.append(drift)
@@ -139,6 +142,23 @@ def _details_cell(source: SkillSourceEntry) -> RenderableType:
     if footer is None:
         return description_text
     return Group(description_text, footer)
+
+
+def _placement_panel(inventory: SkillsInventory) -> Panel | None:
+    """Report sources the canonical placement rules excluded, if any.
+
+    ``sase skill list`` is read-only, so it warns here while ``sase skill
+    init`` refuses outright.
+    """
+    if not inventory.placement_errors:
+        return None
+
+    body = Text()
+    for index, message in enumerate(inventory.placement_errors):
+        if index:
+            body.append("\n")
+        body.append(message, style="yellow")
+    return Panel(body, title="Misplaced Sources", border_style="yellow")
 
 
 def _drift_panel(inventory: SkillsInventory) -> Panel | None:
@@ -240,8 +260,9 @@ def _compact_source_path(source_path: str, skill_name: str) -> Text | None:
     if _is_special_prefix_path(source_path):
         return Text(source_path, style="dim")
 
-    canonical_suffix = f"/xprompts/skills/{skill_name}.md"
-    if source_path.endswith(canonical_suffix) or source_path == canonical_suffix[1:]:
+    # Bundled skills are the uninteresting default, so only user, project, and
+    # plugin sources are worth a path footer.
+    if _is_packaged_source(source_path, skill_name):
         return None
 
     compact = source_path
@@ -249,12 +270,19 @@ def _compact_source_path(source_path: str, skill_name: str) -> Text | None:
     if home and compact.startswith(home):
         compact = "~" + compact[len(home) :]
 
-    marker = "/xprompts/skills/"
+    marker = "/skills/"
     if marker in compact:
         basename = compact.rsplit("/", 1)[-1]
         compact = f"…/skills/{basename}"
 
     return Text(compact, style="dim")
+
+
+def _is_packaged_source(source_path: str, skill_name: str) -> bool:
+    from sase.xprompt.loader_skills import get_sase_package_skills_dir
+
+    packaged = get_sase_package_skills_dir() / f"{skill_name}.md"
+    return source_path == str(packaged)
 
 
 def _is_special_prefix_path(source_path: str) -> bool:

@@ -22,6 +22,7 @@ from sase.skills.inventory import (
     build_skills_inventory,
 )
 from sase.skills.use_log import read_skill_use_events
+from sase.xprompt.loader_skills import get_sase_package_skills_dir
 from sase.xprompt.models import XPrompt
 from tests.main.init_skills_handler_helpers import make_args
 
@@ -49,16 +50,17 @@ def _stub_skill_sources(
         )
 
     xprompts = {
-        name: XPrompt(
-            name=name,
+        f"skills/{name}": XPrompt(
+            name=f"skills/{name}",
             content=f"{name} body\n",
             source_path=str(path),
             description=f"{name} description",
             skill=["claude"],
+            skill_name=name,
         )
         for name, path in source_paths.items()
     }
-    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler, "get_all_xprompts", lambda project="": xprompts
     )
@@ -367,15 +369,18 @@ def test_applied_skills_inventory_compares_chezmoi_source_to_home_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     xprompt = XPrompt(
-        name="foo",
+        name="skills/foo",
         content="body\n",
         source_path=str(tmp_path / "skills" / "foo.md"),
         description="foo description",
         skill=["claude"],
+        skill_name="foo",
     )
-    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
-        init_skills_handler, "get_all_xprompts", lambda project="": {"foo": xprompt}
+        init_skills_handler,
+        "get_all_xprompts",
+        lambda project="": {"skills/foo": xprompt},
     )
     monkeypatch.setattr(init_skills_handler, "_all_providers", lambda: ["claude"])
     monkeypatch.setattr(init_skills_handler, "_provider_context", lambda _provider: {})
@@ -458,8 +463,9 @@ def test_skills_list_dashboard_does_not_truncate_long_name_or_description() -> N
 
     source = SkillSourceEntry(
         name=long_name,
+        reference_name=f"skills/{long_name}",
         description=long_description,
-        source_path="src/sase/xprompts/skills/a_very_long_skill_name_for_testing.md",
+        source_path=str(get_sase_package_skills_dir() / f"{long_name}.md"),
         providers=("claude",),
         targets=(),
     )
@@ -474,8 +480,8 @@ def test_skills_list_dashboard_does_not_truncate_long_name_or_description() -> N
     for word in long_description.split():
         assert word in text
     assert "…" not in text
-    # The canonical xprompts/skills/<name>.md path is redundant with the skill
-    # name and intentionally omitted from the description footer.
+    # The packaged skills/<name>.md path is redundant with the skill name
+    # and intentionally omitted from the description footer.
 
 
 def test_skills_list_table_shows_full_provider_set_and_status_tokens() -> None:
@@ -490,15 +496,17 @@ def test_skills_list_table_shows_full_provider_set_and_status_tokens() -> None:
     )
     multi = SkillSourceEntry(
         name="multi",
+        reference_name="skills/multi",
         description="multi-provider skill",
-        source_path="src/sase/xprompts/skills/multi.md",
+        source_path=str(get_sase_package_skills_dir() / "multi.md"),
         providers=("claude", "gemini", "codex", "amp", "cursor"),
         targets=multi_targets,
     )
     single = SkillSourceEntry(
         name="single",
+        reference_name="skills/single",
         description="single-provider skill",
-        source_path="src/sase/xprompts/skills/single.md",
+        source_path=str(get_sase_package_skills_dir() / "single.md"),
         providers=("gemini",),
         targets=(),
     )

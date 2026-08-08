@@ -82,10 +82,22 @@ def test_handler_warns_once_when_prettier_missing(
 ) -> None:
     """When prettier is absent, emit one warning per invocation, not per skill."""
     xprompts = {
-        "foo": XPrompt(name="foo", content="body\n", description="x", skill=["claude"]),
-        "bar": XPrompt(name="bar", content="body\n", description="y", skill=["claude"]),
+        "skills/foo": XPrompt(
+            name="skills/foo",
+            content="body\n",
+            description="x",
+            skill=["claude"],
+            skill_name="foo",
+        ),
+        "skills/bar": XPrompt(
+            name="skills/bar",
+            content="body\n",
+            description="y",
+            skill=["claude"],
+            skill_name="bar",
+        ),
     }
-    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler, "get_all_xprompts", lambda project="": xprompts
     )
@@ -134,10 +146,11 @@ def test_duplicate_raw_outputs_are_formatted_once_and_reused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     xprompt = init_skills_handler.XPrompt(
-        name="foo",
+        name="skills/foo",
         content="body\n",
         description="a test skill",
         skill=["claude"],
+        skill_name="foo",
     )
     target_paths = [
         tmp_path / "one" / "SKILL.md",

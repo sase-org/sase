@@ -2,7 +2,7 @@
 
 import importlib.resources
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -29,15 +29,24 @@ from .loader_parsing import (
     parse_yaml_front_matter_with_error,
 )
 from .load_issues import record_load_issue
+from .loader_skills import (
+    plugin_skill_destination,
+    reject_misplaced_skill,
+    skill_destination_for_xprompt_dir,
+)
 from .models import InputArg, XPrompt
 from .tags import parse_tags
 
 log = logging.getLogger(__name__)
-_SKILL_FRAME_TEMPLATE_FILENAME = "SKILL.frame.template.md"
 
 
 def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
-    """Return a copy of *xp* with its name prefixed by ``{project}/``."""
+    """Return a copy of *xp* with its name prefixed by ``{project}/``.
+
+    Skills are namespaced by :func:`sase.content_layout.skill_reference_name`
+    instead, but ``skill_name`` is carried through so a copy never loses the
+    provider-visible name.
+    """
     namespaced_name = f"{project}/{xp.name}"
     return XPrompt(
         name=namespaced_name,
@@ -48,9 +57,29 @@ def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         snippet=xp.snippet,
         description=xp.description,
         skill=xp.skill,
+        skill_name=xp.skill_name,
         log_skill_use=xp.log_skill_use,
         local_xprompts=xp.local_xprompts,
     )
+
+
+def _load_ordinary_xprompts_from_dir(directory: Path) -> Iterator[XPrompt]:
+    """Yield loadable non-skill definitions from an ordinary xprompt dir.
+
+    A ``skill:`` declaration here is rejected with a migration diagnostic
+    naming the scope's canonical ``sase/skills/`` directory, so a misplaced
+    skill is reported rather than loaded under its bare name.
+    """
+    destination = skill_destination_for_xprompt_dir(directory)
+    for md_file in sorted(directory.glob("*.md")):
+        if not md_file.is_file():
+            continue
+        xprompt = load_xprompt_from_file(md_file)
+        if xprompt is None:
+            continue
+        if reject_misplaced_skill(xprompt, source=md_file, migrate_to=destination):
+            continue
+        yield xprompt
 
 
 def _parse_markdown_local_xprompts(
@@ -228,13 +257,10 @@ def load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
             continue
 
         is_local = search_dir in namespaced_dirs
-        for md_file in search_dir.glob("*.md"):
-            if md_file.is_file():
-                xprompt = load_xprompt_from_file(md_file)
-                if xprompt:
-                    if project and is_local:
-                        xprompt = namespace_xprompt(project, xprompt)
-                    xprompts[xprompt.name] = xprompt
+        for xprompt in _load_ordinary_xprompts_from_dir(search_dir):
+            if project and is_local:
+                xprompt = namespace_xprompt(project, xprompt)
+            xprompts[xprompt.name] = xprompt
 
     return xprompts
 
@@ -285,21 +311,10 @@ def load_xprompts_from_internal() -> dict[str, XPrompt]:
     if not internal_dir.is_dir():
         return {}
 
-    skill_dir = internal_dir / "skills"
-    md_files = [*sorted(internal_dir.glob("*.md"))]
-    if skill_dir.is_dir():
-        md_files.extend(
-            path
-            for path in sorted(skill_dir.glob("*.md"))
-            if path.name != _SKILL_FRAME_TEMPLATE_FILENAME
-        )
-
     xprompts: dict[str, XPrompt] = {}
-    for md_file in md_files:
-        if md_file.is_file():
-            xprompt = load_xprompt_from_file(md_file)
-            if xprompt and xprompt.name not in xprompts:
-                xprompts[xprompt.name] = xprompt
+    for xprompt in _load_ordinary_xprompts_from_dir(internal_dir):
+        if xprompt.name not in xprompts:
+            xprompts[xprompt.name] = xprompt
 
     return xprompts
 
@@ -315,21 +330,76 @@ def load_xprompts_from_default_files() -> dict[str, XPrompt]:
     if not default_dir.is_dir():
         return {}
 
-    xprompts: dict[str, XPrompt] = {}
-    for md_file in default_dir.glob("*.md"):
-        if md_file.is_file():
-            xprompt = load_xprompt_from_file(md_file)
-            if xprompt:
-                xprompts[xprompt.name] = xprompt
+    return {
+        xprompt.name: xprompt
+        for xprompt in _load_ordinary_xprompts_from_dir(default_dir)
+    }
 
-    return xprompts
+
+def load_plugin_markdown_xprompts(
+    module: Any, resource_dir: str
+) -> Iterator[tuple[str, XPrompt]]:
+    """Yield ``(source, xprompt)`` for one plugin resource directory.
+
+    Skill placement is *not* applied here: ``xprompts/`` and ``skills/`` are
+    sibling resource directories parsed identically, and each caller applies
+    the rule for the directory it asked for.
+    """
+    try:
+        resource = importlib.resources.files(module).joinpath(resource_dir)
+    except (TypeError, AttributeError):
+        return
+
+    try:
+        entries = list(resource.iterdir())  # type: ignore[union-attr]
+    except (FileNotFoundError, OSError, TypeError, NotADirectoryError):
+        return
+
+    for entry in sorted(entries, key=lambda item: item.name):  # type: ignore[union-attr]
+        if not entry.name.endswith(".md"):  # type: ignore[union-attr]
+            continue
+        try:
+            text = entry.read_text(encoding="utf-8")  # type: ignore[union-attr]
+        except (OSError, UnicodeDecodeError):
+            continue
+
+        front_matter, body = parse_yaml_front_matter(text)
+        name = entry.name.removesuffix(".md")  # type: ignore[union-attr]
+        if front_matter and "name" in front_matter:
+            name = str(front_matter["name"])
+
+        inputs: list[InputArg] = []
+        if front_matter and "input" in front_matter:
+            inputs = parse_inputs_from_front_matter(front_matter["input"])
+
+        tags = parse_tags(front_matter.get("tags")) if front_matter else frozenset()
+        source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
+        yield (
+            source,
+            XPrompt(
+                name=name,
+                content=body,
+                inputs=inputs,
+                source_path=source,
+                tags=tags,
+                snippet=front_matter.get("snippet") if front_matter else None,
+                description=(front_matter.get("description") if front_matter else None),
+                skill=front_matter.get("skill") if front_matter else None,
+                log_skill_use=(
+                    front_matter.get("log_skill_use", True) if front_matter else True
+                ),
+                local_xprompts=_parse_markdown_local_xprompts(front_matter, source),
+            ),
+        )
 
 
 def load_xprompts_from_plugins() -> dict[str, XPrompt]:
     """Load xprompts from plugin packages via ``sase_xprompts`` entry points.
 
     Each entry point should reference a module whose package contains an
-    ``xprompts/`` resource directory with ``.md`` files.
+    ``xprompts/`` resource directory with ``.md`` files. Plugin skills live in
+    a sibling ``skills/`` resource directory instead, so a ``skill:``
+    declaration here is rejected with that migration destination.
 
     Returns:
         Dictionary mapping xprompt name to XPrompt object.
@@ -339,55 +409,14 @@ def load_xprompts_from_plugins() -> dict[str, XPrompt]:
 
     xprompts: dict[str, XPrompt] = {}
     for module in discover_plugin_resources("sase_xprompts"):
-        try:
-            xprompts_dir = importlib.resources.files(module).joinpath("xprompts")
-        except (TypeError, AttributeError):
-            continue
-
-        try:
-            entries = list(xprompts_dir.iterdir())  # type: ignore[union-attr]
-        except (FileNotFoundError, OSError, TypeError):
-            continue
-
-        for entry in entries:
-            if not entry.name.endswith(".md"):  # type: ignore[union-attr]
+        for source, xprompt in load_plugin_markdown_xprompts(module, "xprompts"):
+            if reject_misplaced_skill(
+                xprompt,
+                source=source,
+                migrate_to=plugin_skill_destination(),
+            ):
                 continue
-            try:
-                text = entry.read_text(encoding="utf-8")  # type: ignore[union-attr]
-            except (OSError, UnicodeDecodeError):
-                continue
-
-            front_matter, body = parse_yaml_front_matter(text)
-            name = entry.name.removesuffix(".md")  # type: ignore[union-attr]
-            if front_matter and "name" in front_matter:
-                name = str(front_matter["name"])
-
-            inputs: list[InputArg] = []
-            if front_matter and "input" in front_matter:
-                inputs = parse_inputs_from_front_matter(front_matter["input"])
-
-            tags = parse_tags(front_matter.get("tags")) if front_matter else frozenset()
-
-            snippet = front_matter.get("snippet") if front_matter else None
-            description = front_matter.get("description") if front_matter else None
-            skill = front_matter.get("skill") if front_matter else None
-            log_skill_use = (
-                front_matter.get("log_skill_use", True) if front_matter else True
-            )
-            source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
-            local_xprompts = _parse_markdown_local_xprompts(front_matter, source)
-            xprompts[name] = XPrompt(
-                name=name,
-                content=body,
-                inputs=inputs,
-                source_path=source,
-                tags=tags,
-                snippet=snippet,
-                description=description,
-                skill=skill,
-                log_skill_use=log_skill_use,
-                local_xprompts=local_xprompts,
-            )
+            xprompts[xprompt.name] = xprompt
 
     return xprompts
 
@@ -415,12 +444,9 @@ def load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
     for project_dir in reversed(project_dirs):
         if not project_dir.is_dir():
             continue
-        for md_file in project_dir.glob("*.md"):
-            if md_file.is_file():
-                xprompt = load_xprompt_from_file(md_file)
-                if xprompt:
-                    ns = namespace_xprompt(project, xprompt)
-                    xprompts[ns.name] = ns
+        for xprompt in _load_ordinary_xprompts_from_dir(project_dir):
+            ns = namespace_xprompt(project, xprompt)
+            xprompts[ns.name] = ns
 
     return xprompts
 
@@ -543,12 +569,7 @@ def load_project_file_xprompts(
     for project_dir in reversed(project_dirs):
         if not project_dir.is_dir():
             continue
-        for md_file in project_dir.glob("*.md"):
-            if not md_file.is_file():
-                continue
-            xprompt = load_xprompt_from_file(md_file)
-            if xprompt is None:
-                continue
+        for xprompt in _load_ordinary_xprompts_from_dir(project_dir):
             namespaced = namespace_xprompt(project, xprompt)
             xprompts[namespaced.name] = namespaced
     return xprompts

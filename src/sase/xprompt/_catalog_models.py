@@ -72,6 +72,8 @@ class StructuredCatalogEntry:
     content_preview: str | None
     source_path_display: str | None
     definition_path: str | None = None
+    skill_name: str | None = None
+    """Provider-visible ``/`` name; ``name`` stays the ``#`` reference."""
 
 
 @dataclass(frozen=True)
@@ -134,6 +136,7 @@ class StructuredCatalogSource:
     description: str | None = None
     is_skill: bool = False
     content: str = ""
+    skill_name: str | None = None
 
 
 @dataclass

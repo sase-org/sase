@@ -15,6 +15,7 @@ from sase.xprompt.loader import (
     get_all_workflows,
     get_all_xprompts,
     get_sase_package_default_xprompts_dir,
+    get_sase_package_skills_dir,
     get_sase_package_xprompts_dir,
     load_project_file_xprompts,
     load_project_local_xprompts,
@@ -116,6 +117,7 @@ def classify_xprompt_for_structured(
         description=xp.description,
         is_skill=bool(xp.skill),
         content=xp.content,
+        skill_name=xp.skill_name,
     )
 
 
@@ -380,6 +382,7 @@ def package_xprompt_dirs() -> list[Path]:
     for get_package_dir in (
         get_sase_package_xprompts_dir,
         get_sase_package_default_xprompts_dir,
+        get_sase_package_skills_dir,
     ):
         try:
             package_dirs.append(get_package_dir())

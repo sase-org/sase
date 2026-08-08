@@ -127,8 +127,8 @@ def stub_manifest_git(
 ) -> None:
     """Stub git provenance checks used by the skill deploy manifest."""
     source_root = tmp_path / "source"
-    xprompts_dir = source_root / "src" / "sase" / "xprompts"
-    xprompts_dir.mkdir(parents=True)
+    skills_dir = source_root / "src" / "sase" / "skills"
+    skills_dir.mkdir(parents=True)
 
     def fake_run_git(root: Path, *args: str) -> str:
         if args == ("rev-parse", "--show-toplevel"):
@@ -148,7 +148,7 @@ def stub_manifest_git(
         raise AssertionError(args)
 
     monkeypatch.setattr(
-        manifest_module, "get_sase_package_xprompts_dir", lambda: xprompts_dir
+        manifest_module, "get_sase_package_skills_dir", lambda: skills_dir
     )
     monkeypatch.setattr(manifest_module, "run_git", fake_run_git)
     monkeypatch.setattr(manifest_module, "_utc_now", lambda: "2026-07-28T13:00:00Z")
@@ -164,18 +164,21 @@ def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         encoding="utf-8",
     )
     xprompt = XPrompt(
-        name="foo",
+        name="skills/foo",
+        skill_name="foo",
         content="body\n",
         source_path=str(src),
         description="a test skill",
         skill=["claude"],
     )
-    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler, "skill_source_integrity_error", lambda: None
     )
     monkeypatch.setattr(
-        init_skills_handler, "get_all_xprompts", lambda project="": {"foo": xprompt}
+        init_skills_handler,
+        "get_all_xprompts",
+        lambda project="": {"skills/foo": xprompt},
     )
     return skills_dir
 
@@ -203,14 +206,17 @@ def stub_under_wrapped_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
         encoding="utf-8",
     )
     xprompt = XPrompt(
-        name="foo",
+        name="skills/foo",
+        skill_name="foo",
         content=body,
         source_path=str(src),
         description="a test skill",
         skill=["claude"],
     )
-    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
-        init_skills_handler, "get_all_xprompts", lambda project="": {"foo": xprompt}
+        init_skills_handler,
+        "get_all_xprompts",
+        lambda project="": {"skills/foo": xprompt},
     )
     return skills_dir

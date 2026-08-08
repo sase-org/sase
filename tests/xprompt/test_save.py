@@ -73,7 +73,14 @@ def test_config_save_round_trips_full_frontmatter_and_orders_entries(
     assert "      ---" in text
 
     data = yaml.safe_load(text)
-    parsed = parse_xprompt_entries(data["xprompts"], "config")
+    # A config entry can never be a skill, so the ``skill`` key that survives
+    # the YAML round trip is rejected on load rather than silently honored.
+    entries = data["xprompts"]
+    assert entries["bravo"]["skill"] == ["codex"]
+    assert parse_xprompt_entries(entries, "config").get("bravo") is None
+
+    del entries["bravo"]["skill"]
+    parsed = parse_xprompt_entries(entries, "config")
     loaded = parsed["bravo"]
     # ``|-`` strips the trailing newline, so the submitted body round-trips
     # exactly without needing ``rstrip("\n")``.
@@ -82,7 +89,6 @@ def test_config_save_round_trips_full_frontmatter_and_orders_entries(
     assert loaded.tags == frozenset({XPromptTag.vcs, XPromptTag.mentor})
     assert loaded.inputs[0].name == "topic"
     assert loaded.local_xprompts["_rules"].content == "Be precise."
-    assert loaded.skill == ["codex"]
     assert loaded.snippet == "review"
 
 

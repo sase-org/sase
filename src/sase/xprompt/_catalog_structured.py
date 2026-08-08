@@ -168,6 +168,7 @@ def structured_entry(entry: StructuredCatalogSource) -> StructuredCatalogEntry:
         input_signature=input_signature,
         inputs=structured_inputs(entry.workflow.inputs),
         is_skill=entry.is_skill,
+        skill_name=entry.skill_name,
         content_preview=content_preview(entry.content),
         source_path_display=source_path_display(entry),
         definition_path=definition_path(entry),

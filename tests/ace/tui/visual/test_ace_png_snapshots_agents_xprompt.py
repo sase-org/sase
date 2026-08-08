@@ -26,8 +26,9 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 _SKILL_ENTRY = XPromptAssistEntry(
-    name="sase_plan",
-    insertion="#sase_plan",
+    name="skills/sase_plan",
+    skill_name="sase_plan",
+    insertion="#skills/sase_plan",
     reference_prefix="#",
     kind="xprompt",
     input_signature=None,
