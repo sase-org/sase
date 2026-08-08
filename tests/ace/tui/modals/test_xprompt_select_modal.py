@@ -8,6 +8,7 @@ from unittest.mock import patch
 from textual.app import App
 from textual.widgets import Input, OptionList
 
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui.modals.xprompt_select_modal import XPromptSelectModal
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -33,6 +34,7 @@ class _TestApp(App[object | None]):
         super().__init__()
         self.suspend_recorder = _SuspendRecorder()
         self.notifications: list[tuple[str, str]] = []
+        self.definition_loads: list[dict[str, object]] = []
 
     def suspend(self) -> _SuspendRecorder:
         return self.suspend_recorder
@@ -45,6 +47,26 @@ class _TestApp(App[object | None]):
         **_: object,
     ) -> None:
         self.notifications.append((message, severity))
+
+    def load_xprompt_definition_into_home_prompt_bar(
+        self,
+        markdown: str,
+        *,
+        display_name: str,
+        binding: object | None,
+        read_only: bool = False,
+        has_comments: bool = False,
+    ) -> None:
+        self.definition_loads.append(
+            {
+                "markdown": markdown,
+                "display_name": display_name,
+                "binding": binding,
+                "read_only": read_only,
+                "has_comments": has_comments,
+            }
+        )
+        self.pop_screen()
 
 
 def _simple_workflow(name: str) -> Workflow:
@@ -275,6 +297,106 @@ async def test_xprompt_select_ctrl_e_warns_for_missing_source_path() -> None:
             ]
 
     mock_run.assert_not_called()
+
+
+async def test_xprompt_select_ctrl_o_loads_selected_definition_for_editing(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "memory.md"
+    source_path.write_text(
+        "---\ndescription: keep\n---\nMemory body.\n", encoding="utf-8"
+    )
+    prompts = {
+        "build": _source_workflow("build", str(tmp_path / "build.md")),
+        "memory/glossary": Workflow(
+            name="memory/glossary",
+            memory_type="long",
+            source_path=str(source_path),
+            steps=[WorkflowStep(name="prompt", prompt_part="Memory body.")],
+        ),
+    }
+
+    with patch(
+        "sase.ace.tui.modals.xprompt_select_modal.get_all_prompts",
+        return_value=prompts,
+    ):
+        modal = XPromptSelectModal()
+        async with _TestApp().run_test() as pilot:
+            pilot.app.push_screen(modal)
+            await pilot.pause()
+            option_list = modal.query_one("#xprompt-list", OptionList)
+            option_list.highlighted = 1
+
+            await pilot.press("ctrl+o")
+            await wait_for(pilot, lambda: bool(pilot.app.definition_loads))
+
+            assert pilot.app.screen is not modal
+
+        loaded = pilot.app.definition_loads[0]
+
+    binding = loaded["binding"]
+    assert loaded["markdown"] == "---\ndescription: keep\n---\nMemory body.\n"
+    assert loaded["display_name"] == "#memory/glossary"
+    assert loaded["read_only"] is False
+    assert loaded["has_comments"] is False
+    assert binding.path == str(source_path)
+    assert binding.reference == "#memory/glossary"
+
+
+async def test_xprompt_select_ctrl_o_loads_read_only_definition_without_target(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "builtin.md"
+    source_path.write_text("Built-in body.\n", encoding="utf-8")
+    prompts = {"builtin": _source_workflow("builtin", str(source_path))}
+
+    with (
+        patch(
+            "sase.ace.tui.modals.xprompt_select_modal.get_all_prompts",
+            return_value=prompts,
+        ),
+        patch(
+            "sase.ace.tui.modals.xprompt_select_modal.classify_source",
+            return_value=("Built-in", "builtin.md", False),
+        ),
+    ):
+        modal = XPromptSelectModal()
+        async with _TestApp().run_test() as pilot:
+            pilot.app.push_screen(modal)
+            await pilot.pause()
+
+            await pilot.press("ctrl+o")
+            await wait_for(pilot, lambda: bool(pilot.app.definition_loads))
+
+            assert pilot.app.screen is not modal
+
+        loaded = pilot.app.definition_loads[0]
+
+    assert loaded["markdown"] == "Built-in body.\n"
+    assert loaded["display_name"] == "#builtin"
+    assert loaded["binding"] is None
+    assert loaded["read_only"] is True
+
+
+async def test_xprompt_select_ctrl_o_warns_for_workflow_graph() -> None:
+    prompts = {"ship": _standalone_workflow("ship")}
+    with patch(
+        "sase.ace.tui.modals.xprompt_select_modal.get_all_prompts",
+        return_value=prompts,
+    ):
+        modal = XPromptSelectModal()
+        async with _TestApp().run_test() as pilot:
+            pilot.app.push_screen(modal)
+            await pilot.pause()
+
+            await pilot.press("ctrl+o")
+            await pilot.pause()
+
+            assert pilot.app.screen is modal
+            assert pilot.app.definition_loads == []
+            assert pilot.app.notifications == [
+                ("Workflow graphs use ^e / $EDITOR", "warning")
+            ]
 
 
 def _modal_with_expand(

@@ -18,6 +18,7 @@ from typing import Any
 from sase.ace.tui.actions.agent_workflow._prompt_bar_requests import (
     PromptBarRequestsMixin,
 )
+from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
@@ -54,6 +55,7 @@ class _FakeBar:
         self._markdown = markdown
         self.updated_panes: list[str] = []
         self.loaded_markdown: list[str] = []
+        self.loaded_preserve_target: list[bool] = []
         self._text_area = _FakeTextArea()
 
     def is_stacked(self) -> bool:
@@ -65,8 +67,11 @@ class _FakeBar:
     def xprompt_markdown_for_editor(self) -> str:
         return self._markdown
 
-    def load_stack_from_xprompt_markdown(self, text: str) -> None:
+    def load_stack_from_xprompt_markdown(
+        self, text: str, *, preserve_target: bool = False
+    ) -> None:
         self.loaded_markdown.append(text)
+        self.loaded_preserve_target.append(preserve_target)
 
     def active_text_area(self) -> _FakeTextArea:
         return self._text_area
@@ -110,6 +115,18 @@ class _EditorHarness(PromptBarRequestsMixin):
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
+
+
+class _MountHarness(PromptBarMountMixin):
+    def __init__(self, bar: _FakeBar | None) -> None:
+        self._bar = bar
+        self._prompt_context: PromptContext | None = _ctx()
+
+    def query_one(self, selector: str, expect_type: Any = None) -> Any:
+        del selector, expect_type
+        if self._bar is None:
+            raise RuntimeError("no prompt bar")
+        return self._bar
 
 
 def _event(text: str = "second") -> PromptInputBar.EditorRequested:
@@ -227,6 +244,16 @@ def test_single_pane_editor_review_marker_reloads_multi_agent_markdown() -> None
     assert harness.unmount_calls == 0
 
 
+def test_load_editor_markdown_into_bar_preserves_target() -> None:
+    bar = _FakeBar(stacked=False)
+    harness = _MountHarness(bar)
+
+    harness._load_editor_markdown_into_bar("edited\n---\nstack")
+
+    assert bar.loaded_markdown == ["edited\n---\nstack"]
+    assert bar.loaded_preserve_target == [True]
+
+
 def test_single_pane_editor_empty_return_unmounts() -> None:
     bar = _FakeBar(stacked=False)
     harness = _EditorHarness(bar=bar, editor_result=None)
@@ -251,6 +278,7 @@ def test_all_editor_opens_whole_stack_not_active_pane() -> None:
     # alone; the edited result reloads verbatim (compact separators preserved).
     assert harness.editor_inputs == ["alpha\n\n---\n\nbeta"]
     assert bar.loaded_markdown == ["alpha\n---\nbeta EDITED"]
+    assert bar.loaded_preserve_target == [True]
     assert bar.updated_panes == []
 
 
@@ -262,6 +290,7 @@ def test_all_editor_nonempty_return_reloads_without_launching() -> None:
 
     # All-stack editor reloads the bar; it never launches or unmounts.
     assert bar.loaded_markdown == ["uno\n---\ndos"]
+    assert bar.loaded_preserve_target == [True]
     assert harness.finished == []
     assert harness.loaded == []
     assert harness.unmount_calls == 0
@@ -276,6 +305,7 @@ def test_all_editor_strips_review_marker_on_reload() -> None:
 
     # The ` @` review marker is stripped before the markdown is re-stacked.
     assert bar.loaded_markdown == ["uno\n---\ndos"]
+    assert bar.loaded_preserve_target == [True]
     assert harness.finished == []
 
 

@@ -387,7 +387,11 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         return self._stack.editor_markdown()
 
     def load_stack_from_xprompt_markdown(
-        self, text: str, *, binding: XPromptBinding | None = None
+        self,
+        text: str,
+        *,
+        binding: XPromptBinding | None = None,
+        preserve_target: bool = False,
     ) -> None:
         """Reload the whole bar from edited xprompt markdown (the multi-pane ``^G`` return).
 
@@ -400,10 +404,18 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         normalizes a lone body pane through the canonical splitter instead of
         keeping the body text verbatim.
         """
+        previous_stack = self._stack if preserve_target else None
         self._stack = PromptStackState.from_text(text)
         self._rebuild_stack()
         if binding is not None:
             self.target_xprompt(binding, source_markdown=text)
+        elif previous_stack is not None and previous_stack.binding is not None:
+            self._stack.binding = previous_stack.binding
+            self._stack._clean_content_hash = previous_stack._clean_content_hash
+            self._stack._bound_source_markdown = previous_stack._bound_source_markdown
+            self._stack._bound_source_texts = previous_stack._bound_source_texts
+            self._refresh_target_classes()
+            self._refresh_title()
         else:
             self._refresh_target_classes()
         self.refresh_frontmatter_panel_from_stack()

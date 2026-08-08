@@ -19,6 +19,7 @@ from sase.ace.hints import build_editor_args
 from sase.xprompt import get_all_prompts
 from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.reference_display import (
+    workflow_reference_insertion,
     workflow_kind_value,
     workflow_reference_prefix,
     workflow_reference_suffix,
@@ -31,7 +32,11 @@ from ..widgets.xprompt_arg_assist import (
     xprompt_assist_entry_from_workflow,
 )
 from .base import OptionListNavigationMixin
-from .xprompt_browser_helpers import append_input_args, resolve_source_to_file_path
+from .xprompt_browser_helpers import (
+    append_input_args,
+    classify_source,
+    resolve_source_to_file_path,
+)
 
 # ``Ctrl+I`` inline-expansion handler supplied by the prompt-bar request layer.
 # Called with the selected ``(name, workflow)``; returns ``None`` on success
@@ -57,6 +62,7 @@ class _XPromptFilterInput(Input):
         ("ctrl+d", "scroll_preview_down", "Scroll Down"),
         ("ctrl+u", "scroll_preview_up_or_clear", "Scroll Up/Clear"),
         ("ctrl+e", "forward('open_selected_in_editor')", "Open Definition"),
+        ("ctrl+o", "forward('open_selected_for_editing')", "Edit Here"),
         ("ctrl+i", "forward('expand_selected')", "Expand"),
     ]
 
@@ -94,8 +100,10 @@ class XPromptSelectModal(
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("ctrl+e", "open_selected_in_editor", "Open Definition"),
+        ("ctrl+o", "open_selected_for_editing", "Edit Here"),
         ("ctrl+i", "expand_selected", "Expand"),
     ]
+    _edit_definition_request_id = 0
 
     def __init__(
         self,
@@ -249,7 +257,7 @@ class XPromptSelectModal(
                         with VerticalScroll(id="xprompt-preview-scroll"):
                             yield Static("", id="xprompt-preview")
                 yield Static(
-                    "j/k ↑/↓: navigate • ^d/^u: scroll preview • ^e: open definition • ^i: expand • Enter: select • Esc/q: cancel",
+                    "j/k ↑/↓: navigate • ^d/^u: scroll preview • ^e: open definition • ^o: edit here • ^i: expand • Enter: select • Esc/q: cancel",
                     id="xprompt-hints",
                 )
 
@@ -416,6 +424,80 @@ class XPromptSelectModal(
             return
 
         self._reload_prompts(selected_name=selected_name)
+
+    def action_open_selected_for_editing(self) -> None:
+        """Load the selected simple definition into the prompt bar for editing."""
+        selected_name = self._selected_name()
+        if selected_name is None:
+            self.notify("No xprompt selected", severity="warning")
+            return
+
+        workflow = self._prompts.get(selected_name)
+        if workflow is None:
+            self.notify("Could not find selected xprompt", severity="warning")
+            return
+        if not workflow.is_simple_xprompt():
+            self.notify("Workflow graphs use ^e / $EDITOR", severity="warning")
+            return
+
+        file_path = resolve_source_to_file_path(workflow.source_path)
+        if file_path is None:
+            self.notify("Definition source is unavailable", severity="error")
+            return
+
+        _category, _display, editable = classify_source(workflow.source_path)
+        request_id = self._edit_definition_request_id + 1
+        self._edit_definition_request_id = request_id
+        self.run_worker(
+            self._load_selected_definition_for_editing(
+                name=selected_name,
+                source_path=workflow.source_path,
+                editable=editable,
+                reference=workflow_reference_insertion(selected_name, workflow),
+                request_id=request_id,
+            ),
+            exclusive=True,
+            group="xprompt-selector-definition-load",
+        )
+
+    async def _load_selected_definition_for_editing(
+        self,
+        *,
+        name: str,
+        source_path: str | None,
+        editable: bool,
+        reference: str,
+        request_id: int,
+    ) -> None:
+        """Read and apply the selected definition outside the widget pump."""
+        from .xprompt_definition_loader import load_xprompt_definition_for_prompt_bar
+
+        try:
+            loaded = await load_xprompt_definition_for_prompt_bar(
+                name=name,
+                source_path=source_path,
+                editable=editable,
+                reference=reference,
+            )
+        except Exception as exc:
+            if request_id == self._edit_definition_request_id:
+                self.notify(f"Could not load definition: {exc}", severity="error")
+            return
+
+        if request_id != self._edit_definition_request_id:
+            return
+        if not getattr(self, "is_mounted", False):
+            return
+        loader = getattr(self.app, "load_xprompt_definition_into_home_prompt_bar", None)
+        if not callable(loader):
+            return
+        loader(
+            loaded.markdown,
+            display_name=loaded.display_name,
+            binding=loaded.binding,
+            read_only=loaded.read_only,
+            has_comments=loaded.has_comments,
+        )
 
     def action_expand_selected(self) -> None:
         """Inline-expand the highlighted xprompt into the originating pane (``Ctrl+I``).

@@ -93,7 +93,10 @@ class PromptBarRequestsMixin:
             # paths, then reload the whole bar from the edited markdown. The
             # all-stack editor never launches — it only re-stacks the bar.
             marked, cleaned = strip_editor_review_markers(prompt)
-            bar.load_stack_from_xprompt_markdown(cleaned if marked else prompt)
+            bar.load_stack_from_xprompt_markdown(
+                cleaned if marked else prompt,
+                preserve_target=True,
+            )
         else:
             # Empty editor return is a no-op edit: keep the bar mounted and
             # refocus the active pane, matching the stacked ``^G`` behavior.

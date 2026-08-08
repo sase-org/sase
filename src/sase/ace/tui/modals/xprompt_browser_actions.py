@@ -41,8 +41,6 @@ class XPromptBrowserActionsMixin:
 
     def action_edit_xprompt(self) -> None:
         """Schedule loading a simple definition into a bound prompt bar."""
-        from sase.ace.tui.modals.xprompt_browser_helpers import is_yaml_backed_source
-
         item = self._get_highlighted_item()  # type: ignore[attr-defined]
         if item is None:
             return
@@ -53,15 +51,14 @@ class XPromptBrowserActionsMixin:
         if file_path is None:
             self.notify("Definition source is unavailable", severity="error")  # type: ignore[attr-defined]
             return
-        config_backed = is_yaml_backed_source(item.source_path)
         request_id = self._edit_xprompt_request_id + 1
         self._edit_xprompt_request_id = request_id
         self.run_worker(  # type: ignore[attr-defined]
             self._load_xprompt_definition(
-                file_path=file_path,
                 name=item.name,
+                source_path=item.source_path,
                 editable=item.is_editable,
-                config_backed=config_backed,
+                reference=item.insertion,
                 request_id=request_id,
             ),
             exclusive=True,
@@ -71,42 +68,22 @@ class XPromptBrowserActionsMixin:
     async def _load_xprompt_definition(
         self,
         *,
-        file_path: str,
         name: str,
+        source_path: str | None,
         editable: bool,
-        config_backed: bool,
+        reference: str,
         request_id: int,
     ) -> None:
         """Read and apply one xprompt definition outside the widget pump."""
-        import asyncio
-
-        from sase.ace.tui.widgets.prompt_stack import XPromptBinding
-        from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-        from sase.xprompt.save import load_config_xprompt_markdown
+        from .xprompt_definition_loader import load_xprompt_definition_for_prompt_bar
 
         try:
-            if config_backed:
-                markdown = await asyncio.to_thread(
-                    load_config_xprompt_markdown, file_path, name
-                )
-                binding = (
-                    XPromptBinding.for_config(
-                        file_path,
-                        name,
-                        reference=f"#{name}",
-                    )
-                    if editable
-                    else None
-                )
-            else:
-                markdown = await asyncio.to_thread(
-                    Path(file_path).read_text, encoding="utf-8"
-                )
-                binding = (
-                    XPromptBinding.for_file(file_path, reference=f"#{name}")
-                    if editable
-                    else None
-                )
+            loaded = await load_xprompt_definition_for_prompt_bar(
+                name=name,
+                source_path=source_path,
+                editable=editable,
+                reference=reference,
+            )
         except Exception as exc:
             if request_id == self._edit_xprompt_request_id:
                 self.notify(f"Could not load definition: {exc}", severity="error")  # type: ignore[attr-defined]
@@ -119,13 +96,12 @@ class XPromptBrowserActionsMixin:
         loader = getattr(self.app, "load_xprompt_definition_into_home_prompt_bar", None)  # type: ignore[attr-defined]
         if not callable(loader):
             return
-        model = PromptFrontmatter.parse(markdown)
         loader(
-            markdown,
-            display_name=f"#{name}",
-            binding=binding,
-            read_only=not editable,
-            has_comments=model.has_comments,
+            loaded.markdown,
+            display_name=loaded.display_name,
+            binding=loaded.binding,
+            read_only=loaded.read_only,
+            has_comments=loaded.has_comments,
         )
 
     def action_external_edit_xprompt(self) -> None:

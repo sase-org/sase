@@ -344,7 +344,7 @@ class PromptBarMountMixin:
 
         try:
             bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-            bar.load_stack_from_xprompt_markdown(markdown)
+            bar.load_stack_from_xprompt_markdown(markdown, preserve_target=True)
         except Exception:
             pass
 

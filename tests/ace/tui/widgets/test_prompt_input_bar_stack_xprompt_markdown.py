@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding
@@ -127,6 +129,36 @@ async def test_prompt_bar_target_api_sets_and_clears_binding(tmp_path: Path) -> 
 
         assert bar.xprompt_target() is None
         assert not bar.has_class("xprompt-target")
+
+
+async def test_preserve_target_reload_keeps_binding_and_dirty_baseline(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "review.md"
+    source.write_text("body\n", encoding="utf-8")
+    binding = XPromptBinding.for_file(source, reference="#review")
+    app = _PromptBarApp("body")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.load_stack_from_xprompt_markdown("body\n", binding=binding)
+        await pilot.pause()
+        assert bar.xprompt_target() == binding
+        assert not bar._stack.is_dirty
+
+        bar.load_stack_from_xprompt_markdown(
+            "edited\n---\nsecond",
+            preserve_target=True,
+        )
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.xprompt_target() == binding
+        assert bar.all_prompt_texts() == ["edited", "second"]
+        assert bar._stack.is_dirty
+        assert bar.has_class("dirty")
 
 
 async def test_load_stack_from_xprompt_markdown_clears_frontmatter_panel() -> None:
