@@ -6,7 +6,9 @@ from pathlib import Path
 
 from sase.sdd._link_files import list_sdd_files, resolve_sdd_root
 from sase.sdd._link_models import RepairAction, RepairReport, SddFile, SddIssue
+from sase.sdd._link_parent import LocalPlanChanges, parent_section_issue
 from sase.sdd._link_support import (
+    PLAN_KINDS,
     infer_counterpart,
     link_reference,
     mixed_link_agrees,
@@ -36,7 +38,7 @@ def repair_sdd_links(path: str | None = None, *, write: bool = False) -> RepairR
         )
 
     files = list_sdd_files(root, kind="all")
-    issues: list[SddIssue] = []
+    issues: list[SddIssue] = _parent_section_issues(root, files)
     updates: dict[Path, tuple[SddFile, SddFile, SddArtifactLinkType, str]] = {}
     actions: list[RepairAction] = []
 
@@ -122,6 +124,34 @@ def repair_sdd_links(path: str | None = None, *, write: bool = False) -> RepairR
         issues=issues,
         changed_files=changed_files,
     )
+
+
+def _parent_section_issues(root: Path, files: list[SddFile]) -> list[SddIssue]:
+    """Report every plan whose PARENT header does not resolve under *root*.
+
+    Repair cannot invent a parent plan, but reporting the condition keeps it
+    from staying silent while ``validate`` fails on it. The published-parent
+    case self-heals: ``--write`` refreshes the plans store first, so a parent
+    that has since landed resolves by the time this runs.
+    """
+
+    from sase.sdd.plan_header_block import (
+        PlanHeaderDisposition,
+        parse_plan_header_block,
+    )
+
+    local_changes = LocalPlanChanges(root)
+    issues: list[SddIssue] = []
+    for file in files:
+        if file.kind not in PLAN_KINDS or file.parse_error is not None:
+            continue
+        header = parse_plan_header_block(file.path.read_text(encoding="utf-8"))
+        if header.disposition is PlanHeaderDisposition.INVALID:
+            continue
+        issue = parent_section_issue(root, file, header.sections, local_changes)
+        if issue is not None:
+            issues.append(issue)
+    return issues
 
 
 def _queue_update(

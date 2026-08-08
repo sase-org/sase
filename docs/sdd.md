@@ -506,6 +506,16 @@ parses in its canonical form (`header-invalid` otherwise), `PARENT` resolves to 
 plan file, and the `PROMPT` bullet (when present) uses the correct link kind and
 canonical placement; these are all errors unless explicitly allowlisted for legacy data.
 
+The `PARENT` check is scoped to what the current workspace owns. Plans are published to
+the store asynchronously, so a phase plan can land before the epic plan its `PARENT`
+points at, and every workspace holding that snapshot would otherwise fail on a file none
+of its agents wrote or can produce. An unresolvable `PARENT` is therefore a
+`parent-missing-target` error only when the plans checkout reports local changes to the
+referencing plan — the case the current agent can actually fix — and a
+`parent-unpublished` warning when that plan is already published and merely waiting on
+its parent to land. A plan tree that is not a usable git checkout stays strict, and
+`sase plan links repair` reports both codes so the condition is never silent.
+
 `sase plan links validate` hides warning-severity issues from its text output by default
 — the summary line still reports the warning count and appends
 `(use --show-warnings to display)` so they remain discoverable without scrolling through

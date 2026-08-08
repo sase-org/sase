@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.sdd._link_files import list_sdd_files, resolve_sdd_root
-from sase.sdd._link_models import SddFile, SddIssue, SddValidation
+from sase.sdd._link_models import SddIssue, SddValidation
+from sase.sdd._link_parent import LocalPlanChanges, parent_section_issue
 from sase.sdd._legacy_prompt_files import list_plans_store_prompt_files
 from sase.sdd._link_support import (
     PLAN_KINDS,
@@ -18,8 +19,6 @@ from sase.sdd._link_support import (
 from sase.sdd.artifact_links import SddArtifactLinkKind
 from sase.sdd.plan_header_block import (
     PlanHeaderDisposition,
-    PlanHeaderSection,
-    PlanHeaderSectionKind,
     parse_plan_header_block,
 )
 from sase.sdd.plan_tiers import normalize_plan_tier
@@ -43,6 +42,7 @@ def validate_sdd_tree(
 
     files = list_sdd_files(root, kind="all")
     issues: list[SddIssue] = []
+    local_changes = LocalPlanChanges(root)
 
     for prompt_path, _month in list_plans_store_prompt_files(root):
         issues.append(
@@ -94,7 +94,11 @@ def validate_sdd_tree(
                     )
                 )
             else:
-                _validate_parent_section(root, file, header.sections, issues)
+                parent_issue = parent_section_issue(
+                    root, file, header.sections, local_changes
+                )
+                if parent_issue is not None:
+                    issues.append(parent_issue)
 
         link_type = expected_link_type(file)
         link_field = link_type.legacy_field
@@ -193,42 +197,6 @@ def collect_sdd_links(root: Path) -> list[dict[str, Any]]:
                 )
         rows.append(row)
     return rows
-
-
-def _validate_parent_section(
-    root: Path,
-    file: SddFile,
-    sections: tuple[PlanHeaderSection, ...],
-    issues: list[SddIssue],
-) -> None:
-    parent = next(
-        (
-            section
-            for section in sections
-            if section.kind is PlanHeaderSectionKind.PARENT
-        ),
-        None,
-    )
-    if parent is None or parent.label is None:
-        return
-    from sase.sdd._paths import has_month_dirs
-    from sase.sdd.plan_refs import resolve_plan_reference_from_roots
-
-    plans_root = root / "plans" if has_month_dirs(root / "plans") else root
-    resolution = resolve_plan_reference_from_roots(
-        parent.label,
-        roots=(plans_root,),
-    )
-    if resolution.resolved_path is not None and resolution.resolved_path.is_file():
-        return
-    issues.append(
-        SddIssue(
-            severity="error",
-            code="parent-missing-target",
-            path=file.relpath,
-            message=(f"PARENT target does not resolve to a plan file: {parent.label}"),
-        )
-    )
 
 
 def _apply_legacy_error_allowlist(
