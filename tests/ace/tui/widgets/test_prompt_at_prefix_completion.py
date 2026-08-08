@@ -7,9 +7,16 @@ from unittest.mock import patch
 
 from _pytest.monkeypatch import MonkeyPatch
 
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 from ._completion_helpers import CompletionTestApp, create_entries
+
+# Path completion loads its directory inventory on a Textual thread worker
+# (``_schedule_prompt_path_inventory_load`` -> ``run_worker(..., thread=True)``),
+# so ``pause()`` returns while the listing is still off the message pump. Every
+# wait below names the candidate state the worker result produces, which is
+# never the state the keypress starts from.
 
 
 class TestAtPrefixIntegration:
@@ -31,10 +38,12 @@ class TestAtPrefixIntegration:
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
                 assert ta._try_file_completion_tab() is True
-            for _ in range(100):
-                if not ta._prompt_path_inflight:
-                    break
-                await pilot.pause(0.01)
+            # A pending load shows a single placeholder candidate, so wait for
+            # the real home-directory entries rather than for any candidate.
+            await wait_for(
+                pilot,
+                lambda: "alpha" in [c.name for c in ta._file_completion_candidates],
+            )
             assert ta._file_completion_active is True
             assert len(ta._file_completion_candidates) > 1
             for c in ta._file_completion_candidates:
@@ -56,11 +65,12 @@ class TestAtPrefixIntegration:
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
                 assert ta._try_file_completion_tab() is True
-            for _ in range(100):
-                if not ta._prompt_path_inflight:
-                    break
-                await pilot.pause(0.01)
-            assert ta.text == "@~/alpha/"
+            # The insertion lands first and the menu closes only once the
+            # worker result confirms the single match, so wait on both.
+            await wait_for(
+                pilot,
+                lambda: ta.text == "@~/alpha/" and not ta._file_completion_active,
+            )
             assert ta._file_completion_active is False
 
     async def test_at_prefix_directory_drilldown(
@@ -82,12 +92,24 @@ class TestAtPrefixIntegration:
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
                 await pilot.press("ctrl+t")
+                await wait_for(
+                    pilot,
+                    lambda: "alpha" in [c.name for c in ta._file_completion_candidates],
+                )
                 assert ta._file_completion_active is True
                 # First candidate should be alpha/ (dirs first, alphabetical)
                 assert ta._file_completion_candidates[0].name == "alpha"
                 # Accept the directory via Ctrl+L to drill down
                 await pilot.press("ctrl+l")
                 assert ta.text == "@~/alpha/"
+                # The drilldown listing is a second worker load, so wait for
+                # alpha's entries to replace the home-directory candidates.
+                await wait_for(
+                    pilot,
+                    lambda: (
+                        "foo.py" in [c.name for c in ta._file_completion_candidates]
+                    ),
+                )
                 assert ta._file_completion_active is True
                 names = [c.name for c in ta._file_completion_candidates]
                 assert "foo.py" in names

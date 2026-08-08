@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from textual.widgets import OptionList
 
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui.modals.artifact_files_modal import ArtifactFileSelectionModal
 from sase.ace.tui.modals.copy_as_modal import CopyAsModal
 from sase.artifact_cli.references import artifact_file_json_dict
@@ -18,8 +20,26 @@ from tests.ace.tui.modals.artifact_files_modal_test_helpers import (
 )
 
 
-async def _drain_clipboard_tasks(app: object) -> None:
-    """Wait for tracked copy delivery instead of relying on pump timing."""
+async def _wait_for_copy_delivery(
+    pilot: object,
+    predicate: Callable[[], bool],
+) -> None:
+    """Wait for one copy to land, off Textual's message pump.
+
+    ``ArtifactFileCopyingMixin`` hands every copy to ``schedule_copy_delivery``,
+    which spawns a pump-free task that awaits ``asyncio.to_thread`` twice (to
+    resolve the value and again to reach the system clipboard). ``pause()``
+    only guarantees in-loop idle, so it returns while that task is still on a
+    worker thread and the observable end state is still the initial one.
+
+    *predicate* must name a state transition the delivery causes -- a copied
+    value or a notification that is not there when the key is pressed -- so the
+    wait cannot pass on state that was already true.
+    """
+    await wait_for(pilot, predicate)
+    # The same task emits the "Copied ..." notification after the clipboard
+    # write, so drain it before asserting on notifications.
+    app = getattr(pilot, "app", None)
     while tasks := tuple(getattr(app, "_pump_free_clipboard_tasks", ())):
         await asyncio.gather(*tasks)
         await asyncio.sleep(0)
@@ -56,8 +76,7 @@ async def test_artifact_file_modal_y_copies_highlighted_markdown_contents_and_st
         await pilot.pause()
 
         await pilot.press("y")
-        await pilot.pause()
-        await _drain_clipboard_tasks(pilot.app)
+        await _wait_for_copy_delivery(pilot, lambda: len(copied) == 1)
 
         assert pilot.app.screen is modal
         assert result == "sentinel"
@@ -108,7 +127,7 @@ async def test_artifact_file_modal_Y_anchors_workspace_stored_path_and_stays_ope
         await pilot.pause()
 
         await pilot.press("Y")
-        await pilot.pause()
+        await _wait_for_copy_delivery(pilot, lambda: len(copied) == 1)
 
         assert pilot.app.screen is modal
         assert result == "sentinel"
@@ -151,7 +170,7 @@ async def test_artifact_file_modal_Y_copies_home_relative_stored_path_without_wo
         await pilot.pause()
 
         await pilot.press("Y")
-        await pilot.pause()
+        await _wait_for_copy_delivery(pilot, lambda: len(copied) == 1)
 
         assert pilot.app.screen is modal
         assert result == "sentinel"
@@ -198,9 +217,12 @@ async def test_artifact_file_modal_copy_anchors_pdf_markdown_source_path(
         pilot.app.push_screen(modal)
         await pilot.pause()
 
+        # Each key schedules its own delivery task, so the second key waits
+        # for the first copy rather than racing it to the clipboard list.
         await pilot.press("y")
+        await _wait_for_copy_delivery(pilot, lambda: len(copied) == 1)
         await pilot.press("Y")
-        await pilot.pause()
+        await _wait_for_copy_delivery(pilot, lambda: len(copied) == 2)
 
         assert pilot.app.screen is modal
 
@@ -250,7 +272,7 @@ async def test_artifact_file_modal_Y_prefers_stored_path_over_source_for_global_
         await pilot.pause()
 
         await pilot.press("Y")
-        await pilot.pause()
+        await _wait_for_copy_delivery(pilot, lambda: len(copied) == 1)
 
         assert pilot.app.screen is modal
 
@@ -293,7 +315,7 @@ async def test_artifact_file_modal_Y_never_emits_bare_path_for_recycled_workspac
         await pilot.pause()
 
         await pilot.press("Y")
-        await pilot.pause()
+        await _wait_for_copy_delivery(pilot, lambda: len(copied) == 1)
 
         assert pilot.app.screen is modal
 
@@ -338,7 +360,7 @@ async def test_artifact_file_modal_Y_warns_when_chosen_source_path_is_gone(
         await pilot.pause()
 
         await pilot.press("Y")
-        await pilot.pause()
+        await _wait_for_copy_delivery(pilot, lambda: len(copied) == 1)
 
         assert pilot.app.screen is modal
 
@@ -386,7 +408,7 @@ async def test_artifact_file_modal_Y_anchors_path_recovered_from_agent_meta_json
         await pilot.pause()
 
         await pilot.press("Y")
-        await pilot.pause()
+        await _wait_for_copy_delivery(pilot, lambda: len(copied) == 1)
 
         assert pilot.app.screen is modal
 
@@ -426,7 +448,7 @@ async def test_artifact_file_modal_y_recovers_workspace_from_agent_meta_json(
         await pilot.pause()
 
         await pilot.press("y")
-        await pilot.pause()
+        await _wait_for_copy_delivery(pilot, lambda: len(copied) == 1)
 
         assert pilot.app.screen is modal
 
@@ -461,7 +483,7 @@ async def test_artifact_file_modal_y_warns_for_non_markdown_artifact_file_withou
         await pilot.pause()
 
         await pilot.press("y")
-        await pilot.pause()
+        await _wait_for_copy_delivery(pilot, lambda: len(notifications) == 1)
 
         assert pilot.app.screen is modal
 
@@ -505,11 +527,13 @@ async def test_artifact_file_modal_copy_palette_copies_every_single_representati
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        for key in ("@", "l", "c", "p", "P", "J"):
+        # One delivery task per key: wait for each copy before pressing the
+        # next, so the asserted order is not a race between concurrent tasks.
+        for index, key in enumerate(("@", "l", "c", "p", "P", "J")):
             await pilot.press("%")
             assert isinstance(pilot.app.screen, CopyAsModal)
             await pilot.press(key)
-            await pilot.pause()
+            await _wait_for_copy_delivery(pilot, lambda n=index: len(copied) == n + 1)
             assert pilot.app.screen is modal
 
     assert copied == [
@@ -566,10 +590,9 @@ async def test_artifact_file_modal_copy_palette_formats_marked_sets_and_skips(
         option_list.highlighted = 1
         await pilot.press("m")
 
-        for key in ("@", "l", "c", "P", "J"):
+        for index, key in enumerate(("@", "l", "c", "P", "J")):
             await pilot.press("%", key)
-            await pilot.pause()
-            await _drain_clipboard_tasks(pilot.app)
+            await _wait_for_copy_delivery(pilot, lambda n=index: len(copied) == n + 1)
 
     assert copied[0] == f"@file:{first.id}\n@file:{second.id}"
     assert copied[1] == (f"- [First](file:{first.id})\n- [Second](file:{second.id})")
@@ -618,6 +641,9 @@ async def test_artifact_file_modal_copy_palette_disables_unavailable_contents_an
         assert rows["source_path"].preview == "not recorded"
 
         await pilot.press("c", "P")
+        # Both rows are refused before any delivery is scheduled, but wait on
+        # the refusals rather than assume the pump has drained them.
+        await _wait_for_copy_delivery(pilot, lambda: len(notifications) == 2)
         assert pilot.app.screen is palette
         await pilot.press("escape")
         await pilot.pause()

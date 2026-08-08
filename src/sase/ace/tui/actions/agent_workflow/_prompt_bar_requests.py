@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from ._prompt_bar_mount import strip_editor_review_markers
@@ -11,6 +12,8 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets import PromptInputBar
     from sase.xprompt.models import XPrompt
     from sase.xprompt.workflow_models import Workflow
+
+log = logging.getLogger(__name__)
 
 
 class PromptBarRequestsMixin:
@@ -372,7 +375,10 @@ class PromptBarRequestsMixin:
                             for name, xp in xprompts.items():
                                 extra_prompts[name] = xprompt_to_workflow(xp)
         except Exception:
-            pass
+            # The selector still opens without project-local entries, but a
+            # silent swallow here is indistinguishable from "the project has no
+            # xprompts" -- which is exactly how this path has failed before.
+            log.exception("Failed to load project-local xprompts for the selector")
 
         # 2. Live frontmatter locals authored on this prompt. These take
         #    precedence over project-local entries and feed the expansion

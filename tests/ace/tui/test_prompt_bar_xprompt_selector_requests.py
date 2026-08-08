@@ -9,6 +9,7 @@ trigger range, and the handler routes insertion through
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
@@ -513,8 +514,30 @@ def _gh_project(
     return workspace
 
 
+def _assert_no_swallowed_lookup_failure(caplog: pytest.LogCaptureFixture) -> None:
+    """Fail with the cause when project-local resolution raised.
+
+    ``on_prompt_input_bar_snippet_requested`` catches everything the
+    project-local lookup can raise and opens the selector without those
+    entries, so a resolution failure and "this project has no xprompts" both
+    show up as an empty ``_extra_prompts``. Both assertions below are therefore
+    ambiguous on their own; check the logged traceback first.
+    """
+    swallowed = [
+        record
+        for record in caplog.records
+        if record.name.endswith("_prompt_bar_requests") and record.exc_info
+    ]
+    formatter = logging.Formatter()
+    assert not swallowed, "project-local xprompt resolution raised:\n" + "\n".join(
+        formatter.formatException(record.exc_info)  # type: ignore[arg-type]
+        for record in swallowed
+    )
+
+
 def test_vcs_tag_offers_project_local_xprompts_by_canonical_name(
     _gh_project: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     harness = _SelectorHarness()
     origin_bar = _OriginBar()
@@ -522,24 +545,31 @@ def test_vcs_tag_offers_project_local_xprompts_by_canonical_name(
     # The tag names the project by its user-facing ``PROJECT_NAME``, while the
     # ProjectSpec directory key is ``gh_org__proj``. Keying the workspace lookup
     # by the directory key silently drops the project's ``sase.yml`` xprompts.
-    harness.on_prompt_input_bar_snippet_requested(
-        _event(origin_bar, _StubTextArea(text="#git:proj do the thing #"))
-    )
+    with caplog.at_level(logging.ERROR):
+        harness.on_prompt_input_bar_snippet_requested(
+            _event(origin_bar, _StubTextArea(text="#git:proj do the thing #"))
+        )
 
+    _assert_no_swallowed_lookup_failure(caplog)
     modal, _callback = harness.pushed[0]
     assert isinstance(modal, XPromptSelectModal)
     assert "proj/thing" in modal._extra_prompts
     assert "proj/thing" in modal._prompts
 
 
-def test_vcs_tag_directory_key_spelling_also_resolves(_gh_project: Path) -> None:
+def test_vcs_tag_directory_key_spelling_also_resolves(
+    _gh_project: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     harness = _SelectorHarness()
     origin_bar = _OriginBar()
 
-    harness.on_prompt_input_bar_snippet_requested(
-        _event(origin_bar, _StubTextArea(text="#git:gh_org__proj do the thing #"))
-    )
+    with caplog.at_level(logging.ERROR):
+        harness.on_prompt_input_bar_snippet_requested(
+            _event(origin_bar, _StubTextArea(text="#git:gh_org__proj do the thing #"))
+        )
 
+    _assert_no_swallowed_lookup_failure(caplog)
     modal, _callback = harness.pushed[0]
     assert isinstance(modal, XPromptSelectModal)
     # Canonicalization also normalizes the directory-key spelling, so the entry
