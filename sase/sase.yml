@@ -103,7 +103,7 @@ memory:
         (.md or .yml file) or in ~/.config/sase/sase.yml (`xprompts` field).
     Xprompt Memory:
       aliases:
-        - sase memory file
+        - memory file
       definition: >-
         A flat SASE memory note exposed as a namespaced xprompt: `sase/memory/foo.md`
         expands with `#memory/foo`, and the `memory/` prefix is required.
