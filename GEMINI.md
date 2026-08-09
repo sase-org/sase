@@ -48,23 +48,14 @@ sase.md file in this directory) is that you need to run `just install` before ru
 other commands like `just check` (since it is possible we haven't used this workspace
 directory in a long time and package dependencies may have changed).
 
-##### 1.1.1 Exceptions
-
-There is no point in running the `just check` command if the only file changes you made
-fall into one of the following categories:
-
-- Bead changes (i.e. changes to files in the sdd/beads/ directory).
-- Changes to (or the creation of new) markdown files or images in the sdd/research/
-  directory.
-
 #### 1.2 PNG Snapshot Tests
 
 Run `just test-visual` for the dedicated ACE PNG snapshot suite; goldens live in
 `tests/ace/tui/visual/snapshots/png/`. On failures, inspect `.pytest_cache/sase-visual/`
-for actual/expected/diff/source artifacts, and use `--sase-update-visual-snapshots` only
-to accept intentional visual changes. Local runs use exact pixel equality by default,
-while CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin
-color and fontconfig/Fira Code to keep rendering deterministic.
+for actual/expected/diff/source artifacts, and use `--sase-update-visual-snapshots` to
+accept intentional visual changes. Local runs use exact pixel equality by default, while
+CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin color and
+fontconfig/Fira Code to keep rendering deterministic.
 
 ### 2. Glossary of Terms (glossary)
 
