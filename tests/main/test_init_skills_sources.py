@@ -219,7 +219,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
             "sase_new_task",
             (
                 "sase memory read sase_beads.md",
-                "sase bead list --type task --format full --limit 0",
+                "sase bead search '<distinctive-term>' --type task",
                 "sase bead +1 <task-id>",
                 "Do not create a task",
                 "same underlying defect/root cause or desired remediation",
@@ -428,6 +428,18 @@ def test_commit_skill_sources_do_not_reference_legacy_bead_flag(
     body = src.read_text(encoding="utf-8")
     assert "--bead-id" not in body
     assert "sase bead list --status=in_progress" not in body
+
+
+def test_sase_new_task_duplicate_detection_stays_query_scoped() -> None:
+    """Duplicate detection must use search, while the epic check remains a list."""
+    src = get_sase_package_skills_dir() / "sase_new_task.md"
+    front_matter, body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
+    flat = _collapse_whitespace(body)
+
+    assert front_matter is not None
+    assert "sase bead search" in flat
+    assert "sase bead list --type task" not in flat
+    assert "sase bead list --type plan --tier epic" in flat
 
 
 def test_git_commit_skill_invokes_observable_wrapper() -> None:
