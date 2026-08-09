@@ -511,6 +511,9 @@ refresh-contract-manifest: _setup
     @printf "\n---------- Regenerating contract test manifest... ----------\n"
     {{ venv_bin }}/python tools/refresh_contract_manifest
 
+ratchet-core-window *args: _venv
+    @{{ venv_bin }}/python tools/ratchet_core_window {{ args }}
+
 audit-patch-stitch-terminology: _setup
     @printf "\n---------- Auditing Patch/stitch terminology... ----------\n"
     {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root .

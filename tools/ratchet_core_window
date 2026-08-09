@@ -1,0 +1,735 @@
+#!/usr/bin/env python3
+"""Ratchet sase's ``sase-core-rs`` requirement to the newest complete PyPI release.
+
+Exit codes:
+  0: declared floor already matches the newest complete release
+  2: a ratchet is pending, report-only, or was applied
+  3: the tool could not determine or apply a safe ratchet
+"""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import json
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import tomllib
+import urllib.error
+import urllib.request
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_PYPROJECT = REPO_ROOT / "pyproject.toml"
+DEFAULT_UV_LOCK = REPO_ROOT / "uv.lock"
+DEPENDENCY_NAME = "sase-core-rs"
+PYPI_URL = f"https://pypi.org/pypi/{DEPENDENCY_NAME}/json"
+PYPI_TIMEOUT_SECONDS = 5.0
+PYPI_ATTEMPTS = 3
+EXIT_OK = 0
+EXIT_RATCHET = 2
+EXIT_COULD_NOT_DETERMINE = 3
+
+_VERSION_RE = re.compile(r"\d+(?:\.\d+)*")
+_SPECIFIER_RE = re.compile(r"(<=|>=|==|=|<|>)\s*(\d+(?:\.\d+)*)")
+_PACKAGE_NAME_RE = re.compile(r"\s*([A-Za-z0-9_.-]+)")
+_DEPENDENCY_LINE_RE = re.compile(
+    r"^(?P<prefix>\s*(?P<quote>[\"'])sase-core-rs)"
+    r"(?P<specifier>[^;\"']+)"
+    r"(?P<suffix>(?:\s*;[^\"']*)?(?P=quote)\s*,?\s*(?:#.*)?(?:\r?\n)?)$"
+)
+_TRANSIENT_HTTP_CODES = frozenset({408, 429, 500, 502, 503, 504})
+
+UrlOpenFn = Callable[..., Any]
+SleepFn = Callable[[float], None]
+LockRunner = Callable[[Path, "ParsedVersion"], subprocess.CompletedProcess[str]]
+
+
+class RatchetError(ValueError):
+    """Raised when the ratchet cannot proceed safely."""
+
+
+class PyPIError(RatchetError):
+    """Raised when PyPI metadata is unavailable or unusable."""
+
+
+class LockRefreshError(RatchetError):
+    """Raised when ``uv lock`` fails or changes an unexpected region."""
+
+
+@dataclass(frozen=True)
+class ParsedVersion:
+    raw: str
+    parts: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class Constraint:
+    operator: str
+    version: ParsedVersion
+
+
+@dataclass(frozen=True)
+class CoreRequirement:
+    specifier: str
+    floor: ParsedVersion
+
+
+@dataclass(frozen=True)
+class ReleaseFileSummary:
+    has_non_yanked_file: bool
+    has_sdist: bool
+    wheel_tags: frozenset[str]
+
+
+def _error(message: str) -> None:
+    print(f"[ratchet_core_window] {message}", file=sys.stderr)
+
+
+def parse_version(value: object, label: str = "version") -> ParsedVersion:
+    if not isinstance(value, str) or not _VERSION_RE.fullmatch(value.strip()):
+        raise RatchetError(
+            f"unsupported {label} {value!r}; expected a numeric dot-separated version"
+        )
+    raw = value.strip()
+    return ParsedVersion(raw=raw, parts=tuple(int(part) for part in raw.split(".")))
+
+
+def _compare_versions(left: ParsedVersion, right: ParsedVersion) -> int:
+    width = max(len(left.parts), len(right.parts))
+    left_parts = left.parts + (0,) * (width - len(left.parts))
+    right_parts = right.parts + (0,) * (width - len(right.parts))
+    return (left_parts > right_parts) - (left_parts < right_parts)
+
+
+def _normalize_name(name: str) -> str:
+    return name.replace("_", "-").lower()
+
+
+def _parse_specifier(specifier: str) -> list[Constraint]:
+    constraints: list[Constraint] = []
+    for item in specifier.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        match = _SPECIFIER_RE.fullmatch(item)
+        if match is None:
+            raise RatchetError(
+                f"unsupported {DEPENDENCY_NAME} specifier {specifier!r}; "
+                "only comma-separated numeric comparison bounds are supported"
+            )
+        operator, version = match.groups()
+        constraints.append(
+            Constraint(operator=operator, version=parse_version(version, "specifier"))
+        )
+    if not constraints:
+        raise RatchetError(f"{DEPENDENCY_NAME} dependency has an empty specifier")
+    return constraints
+
+
+def _inclusive_minimum(constraints: list[Constraint]) -> ParsedVersion:
+    candidates = [
+        constraint.version
+        for constraint in constraints
+        if constraint.operator in {">=", "=", "=="}
+    ]
+    if not candidates:
+        raise RatchetError(f"{DEPENDENCY_NAME} dependency has no inclusive minimum")
+    return max(candidates, key=lambda version: version.parts)
+
+
+def _read_core_requirement(pyproject: Path) -> CoreRequirement:
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise RatchetError(f"missing pyproject file: {pyproject}") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise RatchetError(f"invalid TOML in {pyproject}: {exc}") from exc
+
+    project = data.get("project")
+    dependencies = project.get("dependencies") if isinstance(project, dict) else None
+    if not isinstance(dependencies, list):
+        raise RatchetError(f"{pyproject} is missing [project] dependencies")
+
+    for dependency in dependencies:
+        if not isinstance(dependency, str):
+            raise RatchetError(
+                f"{pyproject} contains a non-string dependency entry: {dependency!r}"
+            )
+        dependency_without_marker = dependency.split(";", 1)[0].strip()
+        match = _PACKAGE_NAME_RE.match(dependency_without_marker)
+        if match is None:
+            continue
+        if _normalize_name(match.group(1)) != DEPENDENCY_NAME:
+            continue
+        specifier = dependency_without_marker[match.end() :].strip()
+        if not specifier:
+            raise RatchetError(
+                f"{pyproject} declares {DEPENDENCY_NAME} without a version specifier"
+            )
+        constraints = _parse_specifier(specifier)
+        return CoreRequirement(
+            specifier=specifier,
+            floor=_inclusive_minimum(constraints),
+        )
+
+    raise RatchetError(f"{pyproject} does not declare a {DEPENDENCY_NAME} dependency")
+
+
+def ceiling_specifier_for_floor(version: ParsedVersion) -> str:
+    """Return the upper-bound policy paired with a selected core floor."""
+
+    if len(version.parts) < 2:
+        raise RatchetError(
+            f"cannot compute a compatibility ceiling from {version.raw}; "
+            "expected at least major.minor"
+        )
+    major = version.parts[0]
+    minor = version.parts[1]
+    if major == 0:
+        return f"<0.{minor + 1}.0"
+    return f"<{major + 1}.0.0"
+
+
+def dependency_specifier_for_floor(version: ParsedVersion) -> str:
+    return f">={version.raw},{ceiling_specifier_for_floor(version)}"
+
+
+def fetch_pypi_metadata(
+    *,
+    urlopen_fn: UrlOpenFn | None = None,
+    sleep_fn: SleepFn = time.sleep,
+    attempts: int = PYPI_ATTEMPTS,
+) -> dict[str, object]:
+    opener = urlopen_fn or urllib.request.urlopen
+    delay = 0.5
+    last_error: str | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            with opener(PYPI_URL, timeout=PYPI_TIMEOUT_SECONDS) as response:  # noqa: S310
+                payload = response.read()
+            loaded = json.loads(payload.decode("utf-8"))
+            if not isinstance(loaded, dict):
+                raise PyPIError("PyPI response root is not a JSON object")
+            return loaded
+        except urllib.error.HTTPError as exc:
+            last_error = f"HTTP {exc.code}"
+            if exc.code not in _TRANSIENT_HTTP_CODES:
+                break
+        except (OSError, TimeoutError, json.JSONDecodeError) as exc:
+            last_error = str(exc)
+        if attempt < attempts:
+            sleep_fn(delay)
+            delay *= 2
+    raise PyPIError(
+        f"could not determine newest {DEPENDENCY_NAME} release from PyPI: "
+        f"{last_error or 'unknown error'}"
+    )
+
+
+def _release_map(metadata: dict[str, object]) -> dict[str, object]:
+    releases = metadata.get("releases")
+    if not isinstance(releases, dict):
+        raise PyPIError("PyPI response is missing a releases object")
+    return releases
+
+
+def _file_is_yanked(file_info: dict[str, object]) -> bool:
+    return bool(file_info.get("yanked"))
+
+
+def _wheel_tags(filename: str) -> set[str]:
+    if not filename.endswith(".whl"):
+        return set()
+    parts = filename[:-4].split("-")
+    if len(parts) < 5:
+        return set()
+    python_tag, abi_tag, platform_field = parts[-3], parts[-2], parts[-1]
+    return {
+        f"{python_tag}-{abi_tag}-{platform_tag}"
+        for platform_tag in platform_field.split(".")
+        if platform_tag
+    }
+
+
+def _release_file_summary(files: object) -> ReleaseFileSummary:
+    if not isinstance(files, list):
+        return ReleaseFileSummary(False, False, frozenset())
+
+    has_non_yanked_file = False
+    has_sdist = False
+    wheel_tags: set[str] = set()
+    for file_info in files:
+        if not isinstance(file_info, dict) or _file_is_yanked(file_info):
+            continue
+        has_non_yanked_file = True
+        filename = file_info.get("filename")
+        package_type = file_info.get("packagetype")
+        if package_type == "sdist":
+            has_sdist = True
+        elif package_type == "bdist_wheel" and isinstance(filename, str):
+            wheel_tags.update(_wheel_tags(filename))
+    return ReleaseFileSummary(
+        has_non_yanked_file=has_non_yanked_file,
+        has_sdist=has_sdist,
+        wheel_tags=frozenset(wheel_tags),
+    )
+
+
+def select_target_version(
+    metadata: dict[str, object],
+    current_floor: ParsedVersion,
+) -> ParsedVersion:
+    releases = _release_map(metadata)
+    current_summary = _release_file_summary(releases.get(current_floor.raw))
+    if not current_summary.has_sdist or not current_summary.wheel_tags:
+        raise PyPIError(
+            f"declared floor {DEPENDENCY_NAME}=={current_floor.raw} is not a "
+            "complete non-yanked PyPI release"
+        )
+
+    candidates: list[ParsedVersion] = []
+    for raw_version, files in releases.items():
+        if not isinstance(raw_version, str) or not _VERSION_RE.fullmatch(raw_version):
+            continue
+        summary = _release_file_summary(files)
+        if not summary.has_non_yanked_file:
+            continue
+        if summary.has_sdist and current_summary.wheel_tags <= summary.wheel_tags:
+            candidates.append(parse_version(raw_version, "PyPI release"))
+
+    if not candidates:
+        raise PyPIError(
+            f"could not find a complete non-yanked {DEPENDENCY_NAME} release on PyPI"
+        )
+    return max(candidates, key=lambda version: version.parts)
+
+
+def rewrite_pyproject_requirement(text: str, new_specifier: str) -> str:
+    lines = text.splitlines(keepends=True)
+    matches = 0
+    for index, line in enumerate(lines):
+        match = _DEPENDENCY_LINE_RE.match(line)
+        if match is None:
+            continue
+        matches += 1
+        lines[index] = (
+            f"{match.group('prefix')}{new_specifier}{match.group('suffix')}"
+        )
+    if matches != 1:
+        raise RatchetError(
+            f"expected exactly one line-form {DEPENDENCY_NAME} dependency in "
+            f"pyproject.toml, found {matches}"
+        )
+    return "".join(lines)
+
+
+def _changed_line_indices(before: str, after: str, label: str) -> list[int]:
+    before_lines = before.splitlines(keepends=True)
+    after_lines = after.splitlines(keepends=True)
+    if len(before_lines) != len(after_lines):
+        raise LockRefreshError(
+            f"{label} changed line count from {len(before_lines)} to "
+            f"{len(after_lines)}; expected in-place replacements only"
+        )
+    return [
+        index
+        for index, (before_line, after_line) in enumerate(
+            zip(before_lines, after_lines, strict=True)
+        )
+        if before_line != after_line
+    ]
+
+
+def _find_package_stanza(lines: list[str], package_name: str) -> range:
+    stanza_starts = [
+        index for index, line in enumerate(lines) if line.strip() == "[[package]]"
+    ]
+    for offset, start in enumerate(stanza_starts):
+        end = stanza_starts[offset + 1] if offset + 1 < len(stanza_starts) else len(lines)
+        if any(
+            line.strip() == f'name = "{package_name}"'
+            for line in lines[start + 1 : end]
+        ):
+            return range(start, end)
+    raise LockRefreshError(f"uv.lock has no [[package]] stanza for {package_name}")
+
+
+def _validate_pyproject_diff(
+    before: str,
+    after: str,
+    new_specifier: str,
+) -> None:
+    changed = _changed_line_indices(before, after, "pyproject.toml")
+    if len(changed) != 1:
+        raise LockRefreshError(
+            f"pyproject.toml changed {len(changed)} line(s); expected only the "
+            f"{DEPENDENCY_NAME} requirement"
+        )
+    before_line = before.splitlines(keepends=True)[changed[0]]
+    after_line = after.splitlines(keepends=True)[changed[0]]
+    if DEPENDENCY_NAME not in before_line or f"{DEPENDENCY_NAME}{new_specifier}" not in after_line:
+        raise LockRefreshError(
+            f"pyproject.toml changed line is not the {DEPENDENCY_NAME} requirement"
+        )
+
+
+def _validate_uv_lock_diff(
+    before: str,
+    after: str,
+    target: ParsedVersion,
+    new_specifier: str,
+) -> None:
+    changed = _changed_line_indices(before, after, "uv.lock")
+    if len(changed) != 7:
+        raise LockRefreshError(
+            f"uv.lock changed {len(changed)} line(s); expected exactly 7 "
+            f"{DEPENDENCY_NAME} replacements"
+        )
+
+    before_lines = before.splitlines(keepends=True)
+    after_lines = after.splitlines(keepends=True)
+    package_stanza = _find_package_stanza(before_lines, DEPENDENCY_NAME)
+    metadata_indices = [
+        index
+        for index, line in enumerate(before_lines)
+        if f'{{ name = "{DEPENDENCY_NAME}", specifier = ' in line
+    ]
+    if len(metadata_indices) != 1:
+        raise LockRefreshError(
+            f"uv.lock has {len(metadata_indices)} metadata requires-dist "
+            f"specifier lines for {DEPENDENCY_NAME}; expected 1"
+        )
+    metadata_index = metadata_indices[0]
+
+    counts = {"metadata": 0, "version": 0, "sdist": 0, "wheel": 0}
+    for index in changed:
+        before_line = before_lines[index].strip()
+        after_line = after_lines[index].strip()
+        if index == metadata_index:
+            expected = f'{{ name = "{DEPENDENCY_NAME}", specifier = "{new_specifier}" }}'
+            if expected not in after_line:
+                raise LockRefreshError(
+                    f"uv.lock metadata specifier did not update to {new_specifier}"
+                )
+            counts["metadata"] += 1
+            continue
+        if index not in package_stanza:
+            raise LockRefreshError(
+                f"uv.lock changed outside the {DEPENDENCY_NAME} package stanza"
+            )
+        if before_line.startswith("version = "):
+            if after_line != f'version = "{target.raw}"':
+                raise LockRefreshError(
+                    f"uv.lock package version did not update to {target.raw}"
+                )
+            counts["version"] += 1
+        elif before_line.startswith("sdist = "):
+            if f"sase_core_rs-{target.raw}.tar.gz" not in after_line:
+                raise LockRefreshError(
+                    f"uv.lock sdist line did not update to {target.raw}"
+                )
+            counts["sdist"] += 1
+        elif before_line.startswith("{ url = ") and ".whl" in before_line:
+            if f"sase_core_rs-{target.raw}-" not in after_line:
+                raise LockRefreshError(
+                    f"uv.lock wheel line did not update to {target.raw}"
+                )
+            counts["wheel"] += 1
+        else:
+            raise LockRefreshError(
+                f"uv.lock changed unexpected {DEPENDENCY_NAME} stanza line: "
+                f"{before_line}"
+            )
+
+    expected_counts = {"metadata": 1, "version": 1, "sdist": 1, "wheel": 4}
+    if counts != expected_counts:
+        raise LockRefreshError(
+            f"uv.lock changed {counts}; expected {expected_counts}"
+        )
+
+
+def _validate_expected_diffs(
+    *,
+    before_pyproject: str,
+    after_pyproject: str,
+    before_uv_lock: str,
+    after_uv_lock: str,
+    target: ParsedVersion,
+    new_specifier: str,
+) -> None:
+    _validate_pyproject_diff(before_pyproject, after_pyproject, new_specifier)
+    _validate_uv_lock_diff(before_uv_lock, after_uv_lock, target, new_specifier)
+
+
+def _unified_diff(before: str, after: str, path: str) -> str:
+    return "".join(
+        difflib.unified_diff(
+            before.splitlines(keepends=True),
+            after.splitlines(keepends=True),
+            fromfile=f"a/{path}",
+            tofile=f"b/{path}",
+        )
+    )
+
+
+def _combined_diff(
+    *,
+    before_pyproject: str,
+    after_pyproject: str,
+    before_uv_lock: str,
+    after_uv_lock: str,
+) -> str:
+    return (
+        _unified_diff(before_pyproject, after_pyproject, "pyproject.toml")
+        + _unified_diff(before_uv_lock, after_uv_lock, "uv.lock")
+    )
+
+
+def _run_uv_lock(
+    project_dir: Path,
+    target: ParsedVersion,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["uv", "lock", "--upgrade-package", f"{DEPENDENCY_NAME}=={target.raw}"],
+        cwd=project_dir,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _run_lock_or_raise(
+    project_dir: Path,
+    target: ParsedVersion,
+    lock_runner: LockRunner,
+) -> None:
+    try:
+        result = lock_runner(project_dir, target)
+    except OSError as exc:
+        raise LockRefreshError(f"uv lock could not run: {exc}") from exc
+    if result.returncode != 0:
+        detail = "\n".join(
+            item
+            for item in (
+                result.stdout.strip(),
+                result.stderr.strip(),
+            )
+            if item
+        )
+        raise LockRefreshError(
+            f"uv lock failed with exit code {result.returncode}"
+            f"{': ' + detail if detail else ''}"
+        )
+
+
+def _copy_scratch_project_files(project_dir: Path, scratch_dir: Path) -> None:
+    for name in ("README.md", "LICENSE"):
+        source = project_dir / name
+        if source.is_file():
+            shutil.copy2(source, scratch_dir / name)
+
+
+def _render_report_diff(
+    *,
+    pyproject: Path,
+    uv_lock: Path,
+    before_pyproject: str,
+    after_pyproject: str,
+    before_uv_lock: str,
+    target: ParsedVersion,
+    new_specifier: str,
+    lock_runner: LockRunner,
+) -> str:
+    with tempfile.TemporaryDirectory(prefix="sase-core-window-") as raw_tmp:
+        scratch = Path(raw_tmp)
+        (scratch / "pyproject.toml").write_text(after_pyproject, encoding="utf-8")
+        (scratch / "uv.lock").write_text(before_uv_lock, encoding="utf-8")
+        _copy_scratch_project_files(pyproject.parent, scratch)
+        _run_lock_or_raise(scratch, target, lock_runner)
+        after_uv_lock = (scratch / "uv.lock").read_text(encoding="utf-8")
+
+    _validate_expected_diffs(
+        before_pyproject=before_pyproject,
+        after_pyproject=after_pyproject,
+        before_uv_lock=before_uv_lock,
+        after_uv_lock=after_uv_lock,
+        target=target,
+        new_specifier=new_specifier,
+    )
+    return _combined_diff(
+        before_pyproject=before_pyproject,
+        after_pyproject=after_pyproject,
+        before_uv_lock=before_uv_lock,
+        after_uv_lock=after_uv_lock,
+    )
+
+
+def _apply_ratchet(
+    *,
+    pyproject: Path,
+    uv_lock: Path,
+    before_pyproject: str,
+    after_pyproject: str,
+    before_uv_lock: str,
+    target: ParsedVersion,
+    new_specifier: str,
+    lock_runner: LockRunner,
+) -> str:
+    pyproject.write_text(after_pyproject, encoding="utf-8")
+    try:
+        _run_lock_or_raise(pyproject.parent, target, lock_runner)
+        after_uv_lock = uv_lock.read_text(encoding="utf-8")
+        _validate_expected_diffs(
+            before_pyproject=before_pyproject,
+            after_pyproject=after_pyproject,
+            before_uv_lock=before_uv_lock,
+            after_uv_lock=after_uv_lock,
+            target=target,
+            new_specifier=new_specifier,
+        )
+    except RatchetError:
+        pyproject.write_text(before_pyproject, encoding="utf-8")
+        uv_lock.write_text(before_uv_lock, encoding="utf-8")
+        raise
+
+    return _combined_diff(
+        before_pyproject=before_pyproject,
+        after_pyproject=after_pyproject,
+        before_uv_lock=before_uv_lock,
+        after_uv_lock=after_uv_lock,
+    )
+
+
+def _validate_project_paths(pyproject: Path, uv_lock: Path) -> None:
+    if pyproject.name != "pyproject.toml":
+        raise RatchetError("uv lock requires --pyproject to be named pyproject.toml")
+    if uv_lock.name != "uv.lock":
+        raise RatchetError("uv lock requires --uv-lock to be named uv.lock")
+    if pyproject.parent != uv_lock.parent:
+        raise RatchetError("--pyproject and --uv-lock must live in the same directory")
+
+
+def ratchet_core_window(
+    *,
+    pyproject: Path = DEFAULT_PYPROJECT,
+    uv_lock: Path = DEFAULT_UV_LOCK,
+    check: bool = False,
+    report_only: bool = False,
+    metadata_fetcher: Callable[[], dict[str, object]] | None = None,
+    lock_runner: LockRunner | None = None,
+) -> int:
+    fetcher = metadata_fetcher or fetch_pypi_metadata
+    runner = lock_runner or _run_uv_lock
+    _validate_project_paths(pyproject, uv_lock)
+    before_pyproject = pyproject.read_text(encoding="utf-8")
+    before_uv_lock = uv_lock.read_text(encoding="utf-8")
+    requirement = _read_core_requirement(pyproject)
+    target = select_target_version(fetcher(), requirement.floor)
+    comparison = _compare_versions(target, requirement.floor)
+    if comparison < 0:
+        raise RatchetError(
+            f"refusing to lower {DEPENDENCY_NAME} floor from "
+            f"{requirement.floor.raw} to {target.raw}"
+        )
+    if comparison == 0:
+        print(
+            f"{DEPENDENCY_NAME} floor already matches newest complete "
+            f"published release {target.raw}"
+        )
+        return EXIT_OK
+
+    new_specifier = dependency_specifier_for_floor(target)
+    after_pyproject = rewrite_pyproject_requirement(before_pyproject, new_specifier)
+    summary = (
+        f"{DEPENDENCY_NAME} ratchet {requirement.floor.raw} -> {target.raw} "
+        f"({new_specifier})"
+    )
+    if check:
+        print(f"{summary} pending")
+        return EXIT_RATCHET
+    if report_only:
+        diff = _render_report_diff(
+            pyproject=pyproject,
+            uv_lock=uv_lock,
+            before_pyproject=before_pyproject,
+            after_pyproject=after_pyproject,
+            before_uv_lock=before_uv_lock,
+            target=target,
+            new_specifier=new_specifier,
+            lock_runner=runner,
+        )
+        print(f"{summary} would update:")
+        print(diff, end="")
+        return EXIT_RATCHET
+
+    _apply_ratchet(
+        pyproject=pyproject,
+        uv_lock=uv_lock,
+        before_pyproject=before_pyproject,
+        after_pyproject=after_pyproject,
+        before_uv_lock=before_uv_lock,
+        target=target,
+        new_specifier=new_specifier,
+        lock_runner=runner,
+    )
+    print(f"{summary} applied")
+    return EXIT_RATCHET
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=(
+            "Exit 0 means no ratchet is needed; 2 means a ratchet is pending, "
+            "reported, or applied; 3 means the tool could not determine or "
+            "safely apply the ratchet."
+        ),
+    )
+    parser.add_argument(
+        "--pyproject",
+        type=Path,
+        default=DEFAULT_PYPROJECT,
+        help="Path to sase's pyproject.toml.",
+    )
+    parser.add_argument(
+        "--uv-lock",
+        type=Path,
+        default=DEFAULT_UV_LOCK,
+        help="Path to sase's uv.lock.",
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--check",
+        action="store_true",
+        help="write nothing and exit 2 when a ratchet is pending.",
+    )
+    mode.add_argument(
+        "--report-only",
+        action="store_true",
+        help="write nothing and print the exact diff that would be applied.",
+    )
+    namespace = parser.parse_args(argv)
+
+    try:
+        return ratchet_core_window(
+            pyproject=namespace.pyproject,
+            uv_lock=namespace.uv_lock,
+            check=namespace.check,
+            report_only=namespace.report_only,
+        )
+    except RatchetError as exc:
+        _error(str(exc))
+        return EXIT_COULD_NOT_DETERMINE
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
