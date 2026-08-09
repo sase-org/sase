@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
-import subprocess
 from typing import Literal, cast
 
 from rich.console import RenderableType
@@ -16,10 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Markdown, Static
 from textual.worker import Worker, WorkerState
 
-from sase.ace.hints import build_editor_args
-from sase.ace.tui.actions.artifact_viewer_handoff import open_artifact_path
 from sase.ace.tui.actions.clipboard import schedule_copy_delivery
-from sase.ace.tui.util.external_tool import suspend_for_external_tool
 from sase.ace.tui.util.lazy_syntax import (
     LazySyntaxRenderCache,
     exceeds_plain_render_cap,
@@ -31,6 +26,7 @@ from sase.ace.tui.util.pump_tasks import (
 )
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 
+from ._source_file_actions import SourceFileActionsMixin
 from .base import CopyModeForwardingMixin, FilterInput
 from .preview_search import PreviewSearchResult, build_search_result
 
@@ -67,7 +63,11 @@ def _fence_leading_yaml_frontmatter(content: str) -> str:
     return content
 
 
-class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
+class PreviewPanelModal(
+    CopyModeForwardingMixin,
+    SourceFileActionsMixin,
+    ModalScreen[None],
+):
     """Presentational modal for resolved xprompt/file previews."""
 
     BINDINGS = [
@@ -476,20 +476,6 @@ class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
             task_name="sase-preview-copy-contents",
         )
 
-    def action_copy_path(self) -> None:
-        path = self._payload.source_path
-        if path is None:
-            self.notify(
-                "This preview does not have a path to copy",
-                severity="warning",
-            )
-            return
-        self._schedule_copy(
-            path,
-            copied_message="Copied path",
-            task_name="sase-preview-copy-path",
-        )
-
     def _schedule_copy(
         self,
         value: str,
@@ -504,34 +490,8 @@ class PreviewPanelModal(CopyModeForwardingMixin, ModalScreen[None]):
             task_name=task_name,
         )
 
-    def action_open_in_editor(self) -> None:
-        path = self._payload.source_path
-        if path is None:
-            self.notify(
-                "This preview does not have a file to edit",
-                severity="warning",
-            )
-            return
-        editor = os.environ.get("EDITOR") or "nvim"
-        editor_args = build_editor_args(editor, [path])
-        with suspend_for_external_tool(
-            self.app,
-            action="preview_open_editor",
-            tool_kind="editor",
-            command=editor_args[0],
-            path_count=1,
-        ):
-            subprocess.run(editor_args, check=False)
-
-    def action_open_in_viewer(self) -> None:
-        path = self._payload.source_path
-        if path is None:
-            self.notify(
-                "This preview does not have a file to view",
-                severity="warning",
-            )
-            return
-        open_artifact_path(self.app, path)
+    def _source_action_path(self) -> str | None:
+        return self._payload.source_path
 
     def action_scroll_down(self) -> None:
         scroll = self.query_one("#preview-scroll", VerticalScroll)

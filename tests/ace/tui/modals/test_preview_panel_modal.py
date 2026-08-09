@@ -198,15 +198,15 @@ async def test_preview_modal_opens_source_in_editor(
     run = MagicMock()
     monkeypatch.setenv("EDITOR", "vim")
     monkeypatch.setattr(
-        "sase.ace.tui.modals.preview_panel_modal.build_editor_args",
+        "sase.ace.tui.modals._source_file_actions.build_jump_editor_argv",
         build_args,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.preview_panel_modal.suspend_for_external_tool",
+        "sase.ace.tui.modals._source_file_actions.suspend_for_external_tool",
         fake_suspend,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.preview_panel_modal.subprocess.run",
+        "sase.ace.tui.modals._source_file_actions.subprocess.run",
         run,
     )
     app = _PreviewModalTestApp(_payload())
@@ -216,7 +216,7 @@ async def test_preview_modal_opens_source_in_editor(
         await pilot.press("o")
         await pilot.pause()
 
-    build_args.assert_called_once_with("vim", ["/tmp/src/example.py"])
+    build_args.assert_called_once_with("vim", "/tmp/src/example.py", None, None)
     run.assert_called_once_with(["vim", "/tmp/src/example.py"], check=False)
     assert handoffs == [
         {

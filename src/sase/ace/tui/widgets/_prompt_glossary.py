@@ -10,6 +10,10 @@ from rich.style import Style
 from textual.widgets._text_area import TextAreaTheme
 
 from sase.ace.tui.glossary_catalog import PromptGlossaryContext
+from sase.ace.tui.modals.glossary_preview_render import (
+    glossary_definition_position as _glossary_definition_position,
+    glossary_source_path as _glossary_source_path,
+)
 from sase.ace.tui.widgets._jinja_highlight import (
     _JINJA_THEME_NAME,
     _MAX_OVERLAY_BYTES,
@@ -134,20 +138,11 @@ class PromptGlossaryMixin(_MixinBase):
             return False
         catalog, span, entry = match
 
-        from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
-        from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
+        from sase.ace.tui.modals.glossary_preview_modal import GlossaryPreviewModal
 
-        payload = PreviewPayload(
-            kind_label="glossary",
-            icon="G",
-            title=entry.term,
-            source_path=_glossary_source_path(catalog, entry),
-            content=_glossary_preview_markdown(catalog, entry),
-            lexer="markdown",
-            reference=span.matched_text,
-            default_view="rendered",
+        self.app.push_screen(
+            GlossaryPreviewModal(catalog, entry, matched_text=span.matched_text)
         )
-        self.app.push_screen(PreviewPanelModal(payload))
         return True
 
     def _jump_to_glossary_definition_under_cursor(self) -> bool:
@@ -394,75 +389,6 @@ def _entry_for_span(
         if entry.index == span.entry_index:
             return entry
     return None
-
-
-def _glossary_preview_markdown(
-    catalog: EditorGlossaryCatalog,
-    entry: GlossaryEntry,
-) -> str:
-    lines = [
-        f"# {entry.term}",
-        "",
-        entry.definition.strip(),
-    ]
-    aliases = tuple(alias for alias in entry.configured_aliases if alias)
-    if aliases:
-        lines.extend(("", f"ALIASES: {', '.join(aliases)}"))
-    project = getattr(catalog.project, "name", None) or getattr(
-        catalog.project, "key", ""
-    )
-    if project:
-        lines.extend(("", f"PROJECT: {project}"))
-    source = _glossary_source_display(catalog, entry)
-    if source:
-        lines.extend(("", f"SOURCE: `{source}`"))
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def _glossary_source_display(
-    catalog: EditorGlossaryCatalog,
-    entry: GlossaryEntry,
-) -> str | None:
-    path = _glossary_source_path(catalog, entry)
-    if path is None:
-        return None
-    line, col = _glossary_definition_position(entry)
-    if line is None:
-        return path
-    if col is None:
-        return f"{path}:{line}"
-    return f"{path}:{line}:{col}"
-
-
-def _glossary_source_path(
-    catalog: EditorGlossaryCatalog,
-    entry: GlossaryEntry,
-) -> str | None:
-    source = entry.source if isinstance(entry.source, dict) else None
-    path = source.get("config_path") if source is not None else None
-    if isinstance(path, str) and path:
-        return path
-    config_path = getattr(catalog, "config_path", None)
-    return str(config_path) if config_path is not None else None
-
-
-def _glossary_definition_position(
-    entry: GlossaryEntry,
-) -> tuple[int | None, int | None]:
-    source = entry.source if isinstance(entry.source, dict) else None
-    definition_range = source.get("definition_range") if source is not None else None
-    if not isinstance(definition_range, dict):
-        return None, None
-    start = definition_range.get("start")
-    if not isinstance(start, dict):
-        return None, None
-    line = start.get("line")
-    character = start.get("character")
-    out_line = int(line) + 1 if isinstance(line, int) and line >= 0 else None
-    out_col = (
-        int(character) + 1 if isinstance(character, int) and character >= 0 else None
-    )
-    return out_line, out_col
 
 
 def _editor_range_to_offsets(

@@ -4339,8 +4339,14 @@ rules from the xprompt LSP. Loading, validation, and matcher compilation run off
 render path and are cached per project/config signature. Config edits, project changes,
 and watched `sase.yml` changes invalidate the cache.
 
-`K` on a glossary phrase opens the Markdown preview panel with the canonical term,
-definition, configured aliases, project, and source path. `Ctrl+]` opens the
+`K` on a glossary phrase opens a compact definition card. The title shows the canonical
+term and discloses the matched phrase only when you opened an alias. The body renders
+the definition as prose, followed by display-alias chips, numbered `SEE ALSO` chips for
+glossary terms mentioned by the definition, and a property grid for project, source, and
+match count. Press `1`-`9` to follow a `SEE ALSO` term in place and `Backspace` to walk
+back through the card history. `y` copies the definition, while `Y`, `o`, and `Z` copy
+the source path, open the owning `sase.yml` definition line in `$EDITOR`, or hand the
+file to the artifact viewer when a source path is available. `Ctrl+]` opens the
 project-local `sase/sase.yml` definition range through the normal editor/tmux jump flow.
 If the catalog is still loading, ACE schedules a warm and asks you to retry rather than
 falling through to word lookup or an unrelated jump target.

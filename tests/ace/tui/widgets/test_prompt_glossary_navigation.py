@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import io
 from pathlib import Path
 from typing import Any
 
 import pytest
+from rich.console import Console
 
 from sase.ace.testing import PromptPage
 from sase.ace.tui.glossary_catalog import PromptGlossaryContext
-from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
+from sase.ace.tui.modals.glossary_preview_modal import GlossaryPreviewModal
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 from ._prompt_glossary_helpers import catalog_for_text, install_warm_glossary
@@ -30,10 +32,16 @@ async def _wait_for(
 
 
 def _top_is_preview(page: PromptPage) -> bool:
-    return isinstance(page.ta.app.screen_stack[-1], PreviewPanelModal)
+    return isinstance(page.ta.app.screen_stack[-1], GlossaryPreviewModal)
 
 
-async def test_k_on_glossary_term_pushes_markdown_preview(
+def _render_text(renderable: object) -> str:
+    console = Console(file=io.StringIO(), width=100, record=True)
+    console.print(renderable)
+    return console.export_text()
+
+
+async def test_k_on_glossary_term_pushes_glossary_preview_card(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -54,23 +62,32 @@ async def test_k_on_glossary_term_pushes_markdown_preview(
         await _wait_for(page, lambda: _top_is_preview(page))
 
         modal = page.ta.app.screen_stack[-1]
-        assert isinstance(modal, PreviewPanelModal)
-        payload = modal._payload
-        assert payload.kind_label == "glossary"
-        assert payload.default_view == "rendered"
-        assert payload.title == "Agent Clan"
-        assert payload.source_path == str(tmp_path / "sase.yml")
-        assert "# Agent Clan" in payload.content
-        assert "A named, rootless container for coordinated agents." in payload.content
-        assert "ALIASES: clan, agent clans" in payload.content
-        assert "Aliases:" not in payload.content
-        assert "PROJECT: sase" in payload.content
-        assert "SOURCE:" in payload.content
-        assert str(tmp_path / "sase.yml") in payload.content
+        assert isinstance(modal, GlossaryPreviewModal)
+        assert modal._entry.term == "Agent Clan"
+        assert modal._matched_text == "Agent Clan"
+        assert modal._source_action_path() == str(tmp_path / "sase.yml")
+        assert modal._source_action_position() == (8, 5)
+        title_text = _render_text(modal._build_title())
+        meta_text = _render_text(modal._build_meta())
+        assert "GLOSSARY" in title_text
+        assert "Agent Clan" in title_text
+        assert "matched" not in title_text
+        assert "A named, rootless container for coordinated agents." in (
+            modal._definition_markdown()
+        )
+        assert "ALSO KNOWN AS" in meta_text
+        assert "clan" in meta_text
+        assert "agent clans" not in meta_text
+        assert "Project" in meta_text
+        assert "sase" in meta_text
+        assert "Source" in meta_text
+        assert str(tmp_path / "sase.yml") in meta_text
+        assert "Matches" in meta_text
+        assert "3 forms" in meta_text
         assert page.ta._prompt_preview_request_id == 0
 
 
-async def test_k_on_glossary_alias_keeps_reference_without_matched_field(
+async def test_k_on_glossary_alias_discloses_matched_text_in_title(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -84,11 +101,11 @@ async def test_k_on_glossary_alias_keeps_reference_without_matched_field(
         await _wait_for(page, lambda: _top_is_preview(page))
 
         modal = page.ta.app.screen_stack[-1]
-        assert isinstance(modal, PreviewPanelModal)
-        payload = modal._payload
-        assert payload.title == "Agent Clan"
-        assert payload.reference == "clan"
-        assert "Matched:" not in payload.content
+        assert isinstance(modal, GlossaryPreviewModal)
+        assert modal._entry.term == "Agent Clan"
+        assert modal._matched_text == "clan"
+        title_text = _render_text(modal._build_title())
+        assert 'matched "clan"' in title_text
 
 
 async def test_k_on_cold_glossary_defers_without_word_lookup(
