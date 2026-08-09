@@ -40,6 +40,13 @@ def conn(tmp_path: Path) -> Iterator[sqlite3.Connection]:
 
 
 @pytest.fixture
+def project(tmp_path: Path) -> Iterator[BeadProject]:
+    """Create a fresh BeadProject in a temporary directory."""
+    with BeadProject.init(tmp_path) as bead_project:
+        yield bead_project
+
+
+@pytest.fixture
 def project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Create a fresh beads project and route the CLI's lookups at it."""
     with BeadProject.init(tmp_path):
