@@ -76,8 +76,6 @@ memory:
         enabled and disabled; missing `PROJECT_STATE:` means enabled, and only an
         explicit disable changes that. The system-managed `home` project remains hidden.
     Sase Repo:
-      aliases:
-        - repository
       definition: >-
         A sase repo is any repository SASE knows: a project's primary repo, an SDD
         sidecar repo (`<project>--plans` or `<project>--research`), or a repo declared
