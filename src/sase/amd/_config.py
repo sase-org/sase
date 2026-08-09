@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 import re
+from typing import Any
 
 import sase.config.core as config_core
 from sase.content_layout import resolve_project_config_read_path
+from sase.glossary_config import MEMORY_CONFIG_KEY
 
 from ._shared import load_yaml_mapping
 
@@ -14,29 +18,78 @@ _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
 _PROJECT_TITLE_SUFFIX = "Agent Instructions"
 _MANAGED_TEMPLATE_KEY = "amd_agents_template"
 _MINIMAL_TEMPLATE_KEY = "amd_agents_minimal_template"
+_LEGACY_AMD_H1_TITLE_KEY = "amd_h1_title"
+_MEMORY_H1_TITLE_KEY = "h1_title"
+_MEMORY_H1_TITLE_PATH = f"{MEMORY_CONFIG_KEY}.{_MEMORY_H1_TITLE_KEY}"
 
 
-def _validate_amd_h1_title(raw: object, *, path: Path) -> tuple[str | None, str | None]:
+@dataclass(frozen=True)
+class _AmdH1TitleResolution:
+    value: Any | None = None
+    display_path: str = _MEMORY_H1_TITLE_PATH
+    declared: bool = False
+    error: str | None = None
+
+
+def _validate_amd_h1_title(
+    raw: object, *, path: Path, display_path: str
+) -> tuple[str | None, str | None]:
     if raw is None:
         return None, None
     if not isinstance(raw, str):
-        return None, f"{path}: amd_h1_title must be a string or null"
+        return None, f"{path}: {display_path} must be a string or null"
     title = raw.strip()
     if not title:
-        return None, f"{path}: amd_h1_title must not be empty"
+        return None, f"{path}: {display_path} must not be empty"
     return title, None
 
 
-def _load_project_amd_h1_title(root: Path) -> tuple[str | None, str | None]:
+def _resolve_amd_h1_title_config(data: Mapping[str, Any]) -> _AmdH1TitleResolution:
+    if MEMORY_CONFIG_KEY in data:
+        memory = data[MEMORY_CONFIG_KEY]
+        if not isinstance(memory, Mapping):
+            return _AmdH1TitleResolution(
+                declared=True,
+                display_path=MEMORY_CONFIG_KEY,
+                error=f"{MEMORY_CONFIG_KEY} must be a mapping",
+            )
+        if _MEMORY_H1_TITLE_KEY in memory:
+            return _AmdH1TitleResolution(
+                value=memory[_MEMORY_H1_TITLE_KEY],
+                display_path=_MEMORY_H1_TITLE_PATH,
+                declared=True,
+            )
+    if _LEGACY_AMD_H1_TITLE_KEY in data:
+        return _AmdH1TitleResolution(
+            value=data[_LEGACY_AMD_H1_TITLE_KEY],
+            display_path=_LEGACY_AMD_H1_TITLE_KEY,
+            declared=True,
+        )
+    return _AmdH1TitleResolution()
+
+
+def _load_project_amd_h1_title(
+    root: Path,
+) -> tuple[str | None, str | None, bool]:
     config_path = resolve_project_config_read_path(root)
     if config_path is None:
-        return None, None
+        return None, None, False
     data, load_error = load_yaml_mapping(config_path)
     if load_error is not None:
-        return None, load_error
-    if data is None or "amd_h1_title" not in data:
-        return None, None
-    return _validate_amd_h1_title(data["amd_h1_title"], path=config_path)
+        return None, load_error, False
+    if data is None:
+        return None, None, False
+    resolved = _resolve_amd_h1_title_config(data)
+    if resolved.error is not None:
+        return None, f"{config_path}: {resolved.error}", True
+    if not resolved.declared:
+        return None, None, False
+    title, title_error = _validate_amd_h1_title(
+        resolved.value,
+        path=config_path,
+        display_path=resolved.display_path,
+    )
+    return title, title_error, True
 
 
 def _same_resolved_path(left: Path, right: Path) -> bool:
@@ -138,11 +191,17 @@ def _load_user_amd_h1_title(config_dir: Path) -> tuple[str | None, str | None]:
         data, load_error = load_yaml_mapping(config_path)
         if load_error is not None:
             return None, load_error
-        if data is None or "amd_h1_title" not in data:
+        if data is None:
+            continue
+        resolved = _resolve_amd_h1_title_config(data)
+        if resolved.error is not None:
+            return None, f"{config_path}: {resolved.error}"
+        if not resolved.declared:
             continue
         title, title_error = _validate_amd_h1_title(
-            data["amd_h1_title"],
+            resolved.value,
             path=config_path,
+            display_path=resolved.display_path,
         )
         if title_error is not None:
             return None, title_error
@@ -150,8 +209,8 @@ def _load_user_amd_h1_title(config_dir: Path) -> tuple[str | None, str | None]:
 
 
 def _load_amd_h1_title(root: Path) -> tuple[str | None, str | None]:
-    title, title_error = _load_project_amd_h1_title(root)
-    if title is not None or title_error is not None:
+    title, title_error, project_declared = _load_project_amd_h1_title(root)
+    if title is not None or title_error is not None or project_declared:
         return title, title_error
 
     config_dir = _user_config_dir_for_home_root(root)

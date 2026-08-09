@@ -42,7 +42,7 @@ def test_glossary_facade_normalizes_catalog_entries(monkeypatch) -> None:
                 aliases=("agent clans",),
                 source=glossary.GlossarySource(
                     config_path="/repo/sase/sase.yml",
-                    config_key_path=("glossary", "Agent Clan"),
+                    config_key_path=("memory", "glossary", "Agent Clan"),
                 ),
             )
         ]

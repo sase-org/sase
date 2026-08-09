@@ -31,7 +31,7 @@ def test_home_root_omits_bead_memory_note(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(home_root / "sase.yml", 'amd_h1_title: "Home Instructions"\n')
+    write(home_root / "sase.yml", 'memory:\n  h1_title: "Home Instructions"\n')
 
     assert run_memory() == 0
 
@@ -68,7 +68,7 @@ def test_retirement_converges_in_one_pass(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(home_root / "sase.yml", 'amd_h1_title: "Home Instructions"\n')
+    write(home_root / "sase.yml", 'memory:\n  h1_title: "Home Instructions"\n')
 
     assert run_memory() == 0
 
@@ -119,7 +119,7 @@ def test_retirement_guard_leaves_mismatched_home_copy_untouched(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(home_root / "sase.yml", 'amd_h1_title: "Home Instructions"\n')
+    write(home_root / "sase.yml", 'memory:\n  h1_title: "Home Instructions"\n')
 
     assert run_memory() == 0
 

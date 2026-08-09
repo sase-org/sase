@@ -23,9 +23,9 @@ from sase.core.glossary_facade import (
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
+from sase.glossary_config import GLOSSARY_CONFIG_KEY, resolve_glossary_config
 from sase.xprompt._parsing_vcs_refs import resolve_known_project_ref
 
-GLOSSARY_CONFIG_KEY = "glossary"
 EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION = 1
 
 
@@ -151,18 +151,34 @@ def _load_editor_glossary_catalog(
     if loaded is None:
         return EditorGlossaryCatalogResult(project, None, ())
 
-    raw_glossary = loaded.get(GLOSSARY_CONFIG_KEY)
-    if raw_glossary is None:
+    resolution = resolve_glossary_config(loaded)
+    if resolution.error is not None:
+        return EditorGlossaryCatalogResult(
+            project,
+            None,
+            (f"{config_path}: {resolution.error}",),
+        )
+    if not resolution.declared or resolution.node is None:
         return EditorGlossaryCatalogResult(project, None, ())
 
     lines = _read_lines(config_path)
-    entries, shape_errors = _glossary_entries(config_path, raw_glossary, lines)
+    entries, shape_errors = _glossary_entries(
+        config_path,
+        resolution.node,
+        lines,
+        config_key_path=resolution.key_path,
+        display_path=resolution.display_path,
+    )
     if shape_errors:
         return EditorGlossaryCatalogResult(project, None, shape_errors)
     if not entries:
         return EditorGlossaryCatalogResult(project, None, ())
 
-    diagnostics = _validation_diagnostics(config_path, entries)
+    diagnostics = _validation_diagnostics(
+        config_path,
+        entries,
+        display_path=resolution.display_path,
+    )
     if diagnostics:
         return EditorGlossaryCatalogResult(project, None, diagnostics)
 
@@ -369,8 +385,11 @@ def _glossary_entries(
     config_path: Path,
     raw: Any,
     lines: Sequence[str],
+    *,
+    config_key_path: tuple[str, ...],
+    display_path: str,
 ) -> tuple[tuple[GlossaryInputEntry, ...], tuple[str, ...]]:
-    prefix = f"{config_path}: {GLOSSARY_CONFIG_KEY}"
+    prefix = f"{config_path}: {display_path}"
     if not isinstance(raw, Mapping):
         return (), (f"{prefix} must be a mapping",)
 
@@ -378,7 +397,7 @@ def _glossary_entries(
     entries: list[GlossaryInputEntry] = []
     for term, value in raw.items():
         term_path = _path_component(term)
-        path = f"{GLOSSARY_CONFIG_KEY}.{term_path}"
+        path = f"{display_path}.{term_path}"
         if not isinstance(term, str) or not term.strip() or _has_newline(term):
             errors.append(f"{config_path}: {path}: term must be a nonblank string")
             continue
@@ -419,7 +438,14 @@ def _glossary_entries(
                 term=term,
                 definition=definition,
                 aliases=tuple(aliases),
-                source=_glossary_source(config_path, raw, term, value, lines),
+                source=_glossary_source(
+                    config_path,
+                    raw,
+                    term,
+                    value,
+                    lines,
+                    config_key_path=config_key_path,
+                ),
             )
         )
     return tuple(entries), tuple(errors)
@@ -431,13 +457,15 @@ def _glossary_source(
     term: str,
     entry_node: Mapping[Any, Any],
     lines: Sequence[str],
+    *,
+    config_key_path: tuple[str, ...],
 ) -> GlossarySource:
     term_range = _key_range(glossary_node, term)
     definition_range = _value_range(entry_node, "definition", lines)
     aliases_range = _value_range(entry_node, "aliases", lines)
     return GlossarySource(
         config_path=str(config_path),
-        config_key_path=(GLOSSARY_CONFIG_KEY, term),
+        config_key_path=(*config_key_path, term),
         term_range=term_range,
         definition_range=definition_range,
         aliases_range=aliases_range,
@@ -447,6 +475,8 @@ def _glossary_source(
 def _validation_diagnostics(
     config_path: Path,
     entries: Sequence[GlossaryInputEntry],
+    *,
+    display_path: str,
 ) -> tuple[str, ...]:
     try:
         diagnostics = validate_glossary_entries(entries)
@@ -454,7 +484,7 @@ def _validation_diagnostics(
         return (f"{config_path}: failed to validate glossary: {exc}",)
 
     errors = tuple(
-        _format_diagnostic(config_path, diagnostic)
+        _format_diagnostic(config_path, diagnostic, display_path=display_path)
         for diagnostic in diagnostics
         if diagnostic.severity == "error"
     )
@@ -464,9 +494,21 @@ def _validation_diagnostics(
 def _format_diagnostic(
     config_path: Path,
     diagnostic: GlossaryDiagnostic,
+    *,
+    display_path: str,
 ) -> str:
-    path = diagnostic.path or GLOSSARY_CONFIG_KEY
+    path = _diagnostic_path(diagnostic.path, display_path)
     return f"{config_path}: {path}: {diagnostic.message}"
+
+
+def _diagnostic_path(path: str | None, display_path: str) -> str:
+    if not path:
+        return display_path
+    if path == GLOSSARY_CONFIG_KEY:
+        return display_path
+    if path.startswith(f"{GLOSSARY_CONFIG_KEY}."):
+        return f"{display_path}{path.removeprefix(GLOSSARY_CONFIG_KEY)}"
+    return path
 
 
 def _config_signature(path: Path) -> _GlossaryConfigSignature | None:

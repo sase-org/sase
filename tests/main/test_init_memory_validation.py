@@ -52,7 +52,7 @@ def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
     )
     write(
         project_root / "sase.yml",
-        'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
     )
     write(project_root / "AGENTS.md", "# Stale Instructions\n")
     write(
@@ -71,6 +71,62 @@ def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
     }
 
 
+def test_memory_plan_reads_legacy_amd_title_as_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\namd_h1_title: "Legacy Instructions"\n',
+    )
+
+    plan = plan_memory()
+
+    action_by_path = {action.path: action for action in plan.actions}
+    agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
+    assert agents.startswith("# Legacy Instructions\n")
+
+
+def test_memory_plan_prefers_memory_h1_title_over_legacy_amd_title(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        "is_sase_managed: true\n"
+        'memory:\n  h1_title: "Canonical Instructions"\n'
+        'amd_h1_title: "Legacy Instructions"\n',
+    )
+
+    plan = plan_memory()
+
+    action_by_path = {action.path: action for action in plan.actions}
+    agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
+    assert agents.startswith("# Canonical Instructions\n")
+
+
 def test_memory_plan_repairs_unreferenced_long_memory_without_title(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -86,7 +142,7 @@ def test_memory_plan_repairs_unreferenced_long_memory_without_title(
         home_root=home_root,
         config_dir=config_dir,
     )
-    # Enabled project memory with no ``amd_h1_title`` derives a stable title.
+    # Enabled project memory with no ``memory.h1_title`` derives a stable title.
     write(
         project_root / "sase.yml",
         "is_sase_managed: true\nsdd:\n  version_controlled: true\n",
@@ -167,7 +223,7 @@ def test_memory_plan_invalid_amd_title_still_blocks(
     )
     write(
         project_root / "sase.yml",
-        "is_sase_managed: true\namd_h1_title: 123\n",
+        "is_sase_managed: true\nmemory:\n  h1_title: 123\n",
     )
     write(
         project_root / "sase" / "memory" / "cli_rules.md",
@@ -177,7 +233,9 @@ def test_memory_plan_invalid_amd_title_still_blocks(
 
     plan = plan_memory()
 
-    assert any("amd_h1_title must be a string" in blocker for blocker in plan.blockers)
+    assert any(
+        "memory.h1_title must be a string" in blocker for blocker in plan.blockers
+    )
 
 
 def test_run_init_memory_returns_int_and_wrapper_raises_system_exit(

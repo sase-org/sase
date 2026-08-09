@@ -66,7 +66,7 @@ def test_project_template_override_renders_and_round_trips(
     write(
         project_root / "sase.yml",
         "is_sase_managed: true\n"
-        'amd_h1_title: "Project Instructions"\n'
+        'memory:\n  h1_title: "Project Instructions"\n'
         "amd_agents_template: templates/project-agents.md\n",
     )
     write(
@@ -117,7 +117,7 @@ def test_root_config_template_beats_user_template(
         config_dir=config_dir,
     )
     monkeypatch.setattr(config_core, "CONFIG_DIR", config_dir)
-    write(config_dir / "sase.yml", 'amd_h1_title: "Home Instructions"\n')
+    write(config_dir / "sase.yml", 'memory:\n  h1_title: "Home Instructions"\n')
     write(
         config_dir / "AGENTS.template.md",
         _managed_template("User template frame."),
@@ -159,7 +159,7 @@ def test_user_template_is_resolved_from_chezmoi_source_config_dir(
     monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
     monkeypatch.setattr(config_core, "CHEZMOI_HOME", chezmoi_home)
     source_config_dir = chezmoi_home / "dot_config" / "sase"
-    write(source_config_dir / "sase.yml", 'amd_h1_title: "Source Home"\n')
+    write(source_config_dir / "sase.yml", 'memory:\n  h1_title: "Source Home"\n')
     write(
         source_config_dir / "AGENTS.template.md",
         _managed_template("Chezmoi source template frame."),
@@ -295,7 +295,7 @@ def test_invalid_managed_template_blocks_without_writing(
     write(
         project_root / "sase.yml",
         "is_sase_managed: true\n"
-        'amd_h1_title: "Project Instructions"\n'
+        'memory:\n  h1_title: "Project Instructions"\n'
         "amd_agents_template: templates/project-agents.md\n",
     )
     write(project_root / "templates" / "project-agents.md", template)

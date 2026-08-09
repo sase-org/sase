@@ -98,13 +98,14 @@ def test_catalog_for_project_uses_project_alias_and_source_ranges(
     workspace.mkdir()
     config_path = _write_config(
         workspace,
-        """glossary:
-  Agent Clan:
-    aliases:
-      - clan
-    definition: >-
-      A named, rootless container
-      for agents.
+        """memory:
+  glossary:
+    Agent Clan:
+      aliases:
+        - clan
+      definition: >-
+        A named, rootless container
+        for agents.
 """,
     )
     record = _record(
@@ -133,20 +134,83 @@ def test_catalog_for_project_uses_project_alias_and_source_ranges(
     assert entry.effective_aliases == ("Agent Clan", "clan")
     assert entry.source == {
         "config_path": str(config_path),
-        "config_key_path": ["glossary", "Agent Clan"],
+        "config_key_path": ["memory", "glossary", "Agent Clan"],
         "term_range": {
-            "start": {"line": 1, "character": 2},
-            "end": {"line": 1, "character": 12},
+            "start": {"line": 2, "character": 4},
+            "end": {"line": 2, "character": 14},
         },
         "definition_range": {
-            "start": {"line": 4, "character": 16},
-            "end": {"line": 6, "character": 17},
+            "start": {"line": 5, "character": 18},
+            "end": {"line": 7, "character": 19},
         },
         "aliases_range": {
-            "start": {"line": 3, "character": 6},
-            "end": {"line": 3, "character": 12},
+            "start": {"line": 4, "character": 8},
+            "end": {"line": 4, "character": 14},
         },
     }
+
+
+def test_catalog_legacy_top_level_glossary_still_loads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    config_path = _write_config(
+        workspace,
+        """glossary:
+  Agent Clan:
+    definition: A named, rootless container.
+""",
+    )
+    record = _record("sase", workspace)
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project("sase")
+
+    assert result.ok
+    assert result.catalog is not None
+    source = result.catalog.entries[0].source
+    assert source is not None
+    assert source["config_path"] == str(config_path)
+    assert source["config_key_path"] == ["glossary", "Agent Clan"]
+    assert source["term_range"] == {
+        "start": {"line": 1, "character": 2},
+        "end": {"line": 1, "character": 12},
+    }
+
+
+def test_catalog_prefers_memory_glossary_over_legacy_top_level(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _write_config(
+        workspace,
+        """memory:
+  glossary:
+    Canonical Term:
+      definition: The canonical entry.
+glossary:
+  Legacy Term:
+    definition: The legacy entry.
+""",
+    )
+    record = _record("sase", workspace)
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project("sase")
+
+    assert result.ok
+    assert result.catalog is not None
+    assert [entry.term for entry in result.catalog.entries] == ["Canonical Term"]
+    assert result.catalog.entries[0].source is not None
+    assert result.catalog.entries[0].source["config_key_path"] == [
+        "memory",
+        "glossary",
+        "Canonical Term",
+    ]
 
 
 def test_catalog_without_ref_uses_launch_workspace_and_never_falls_back_from_bad_ref(
@@ -159,11 +223,11 @@ def test_catalog_without_ref_uses_launch_workspace_and_never_falls_back_from_bad
     beta.mkdir()
     _write_config(
         alpha,
-        "glossary:\n  Alpha Term:\n    definition: Alpha definition.\n",
+        "memory:\n  glossary:\n    Alpha Term:\n      definition: Alpha definition.\n",
     )
     _write_config(
         beta,
-        "glossary:\n  Beta Term:\n    definition: Beta definition.\n",
+        "memory:\n  glossary:\n    Beta Term:\n      definition: Beta definition.\n",
     )
     records = [
         _record("alpha", alpha),
@@ -197,15 +261,16 @@ def test_catalog_reports_validation_diagnostics(
     workspace.mkdir()
     config_path = _write_config(
         workspace,
-        """glossary:
-  Agent:
-    aliases:
-      - worker
-    definition: A worker.
-  Worker:
-    aliases:
-      - worker
-    definition: Another worker.
+        """memory:
+  glossary:
+    Agent:
+      aliases:
+        - worker
+      definition: A worker.
+    Worker:
+      aliases:
+        - worker
+      definition: Another worker.
 """,
     )
     record = _record("sase", workspace)
@@ -227,7 +292,7 @@ def test_catalog_reports_validation_diagnostics(
 
     assert result.catalog is None
     assert result.diagnostics == (
-        f"{config_path}: glossary.Worker.aliases[0]: "
+        f"{config_path}: memory.glossary.Worker.aliases[0]: "
         "alias is claimed by more than one term",
     )
 
@@ -241,8 +306,13 @@ def test_lsp_payload_materializes_enabled_project_catalogs_and_default(
     missing = tmp_path / "missing"
     beta.mkdir()
     alpha.mkdir()
-    _write_config(beta, "glossary:\n  Beta Term:\n    definition: Beta.\n")
-    _write_config(alpha, "glossary:\n  Alpha Term:\n    definition: Alpha.\n")
+    _write_config(
+        beta, "memory:\n  glossary:\n    Beta Term:\n      definition: Beta.\n"
+    )
+    _write_config(
+        alpha,
+        "memory:\n  glossary:\n    Alpha Term:\n      definition: Alpha.\n",
+    )
     records = [
         _record("beta", beta, aliases=["b"], display_name="Beta"),
         _record("alpha", alpha, display_name="Alpha"),

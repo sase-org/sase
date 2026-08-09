@@ -48,15 +48,16 @@ def test_memory_plan_generates_project_glossary_before_agents(
         monkeypatch,
         project_config="""
 is_sase_managed: true
-glossary:
-  Agent Clan:
-    aliases:
-      - agent clans
-      - clan
-    definition: >-
-      A named, rootless container for agents that run in parallel.
-  Workspace:
-    definition: A numbered project checkout.
+memory:
+  glossary:
+    Agent Clan:
+      aliases:
+        - agent clans
+        - clan
+      definition: >-
+        A named, rootless container for agents that run in parallel.
+    Workspace:
+      definition: A numbered project checkout.
 """,
     )
 
@@ -94,11 +95,12 @@ def test_memory_plan_omits_alias_line_when_only_alias_is_term_plural(
         monkeypatch,
         project_config="""
 is_sase_managed: true
-glossary:
-  Patch:
-    aliases:
-      - patches
-    definition: A tracked unit of change.
+memory:
+  glossary:
+    Patch:
+      aliases:
+        - patches
+      definition: A tracked unit of change.
 """,
     )
 
@@ -124,11 +126,12 @@ def test_memory_apply_generates_glossary_idempotently_and_copies_provider_shims(
         monkeypatch,
         project_config="""
 is_sase_managed: true
-glossary:
-  Workspace:
-    aliases:
-      - workspaces
-    definition: A numbered project checkout.
+memory:
+  glossary:
+    Workspace:
+      aliases:
+        - workspaces
+      definition: A numbered project checkout.
 """,
     )
 
@@ -152,15 +155,16 @@ def test_memory_plan_blocks_invalid_project_glossary(
         monkeypatch,
         project_config="""
 is_sase_managed: true
-glossary:
-  Agent Clan:
-    aliases:
-      - workspace
-    definition: A named container.
-  Workspace:
-    aliases:
-      - workspace
-    definition: A numbered checkout.
+memory:
+  glossary:
+    Agent Clan:
+      aliases:
+        - workspace
+      definition: A named container.
+    Workspace:
+      aliases:
+        - workspace
+      definition: A numbered checkout.
 """,
     )
 
@@ -182,9 +186,10 @@ def test_memory_plan_refuses_to_overwrite_unmarked_glossary_note(
         monkeypatch,
         project_config="""
 is_sase_managed: true
-glossary:
-  Workspace:
-    definition: A numbered project checkout.
+memory:
+  glossary:
+    Workspace:
+      definition: A numbered project checkout.
 """,
     )
     write(
@@ -212,9 +217,10 @@ def test_memory_init_retires_generated_glossary_when_config_is_removed(
         monkeypatch,
         project_config="""
 is_sase_managed: true
-glossary:
-  Workspace:
-    definition: A numbered project checkout.
+memory:
+  glossary:
+    Workspace:
+      definition: A numbered project checkout.
 """,
     )
     assert run_memory() == 0
@@ -244,12 +250,69 @@ def test_memory_init_ignores_home_glossary_config(
         monkeypatch,
         project_config="is_sase_managed: true\n",
         home_config="""
-glossary:
-  Home Term:
-    definition: This must not become home memory.
+memory:
+  glossary:
+    Home Term:
+      definition: This must not become home memory.
 """,
     )
 
     assert run_memory() == 0
 
     assert not (home_root / "sase" / "memory" / "glossary.md").exists()
+
+
+def test_memory_plan_legacy_top_level_glossary_still_generates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(
+        tmp_path,
+        monkeypatch,
+        project_config="""
+is_sase_managed: true
+glossary:
+  Legacy Term:
+    definition: A legacy glossary entry.
+""",
+    )
+
+    plan = plan_memory()
+
+    assert plan.blockers == ()
+    glossary = next(
+        action for action in plan.actions if action.path.name == "glossary.md"
+    )
+    glossary_text = str(glossary.new_content)
+    assert "## Legacy Term" in glossary_text
+    assert "A legacy glossary entry." in glossary_text
+
+
+def test_memory_plan_prefers_memory_glossary_over_legacy_top_level(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(
+        tmp_path,
+        monkeypatch,
+        project_config="""
+is_sase_managed: true
+memory:
+  glossary:
+    Canonical Term:
+      definition: A canonical glossary entry.
+glossary:
+  Legacy Term:
+    definition: A legacy glossary entry.
+""",
+    )
+
+    plan = plan_memory()
+
+    assert plan.blockers == ()
+    glossary = next(
+        action for action in plan.actions if action.path.name == "glossary.md"
+    )
+    glossary_text = str(glossary.new_content)
+    assert "## Canonical Term" in glossary_text
+    assert "## Legacy Term" not in glossary_text

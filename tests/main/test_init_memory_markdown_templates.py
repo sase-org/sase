@@ -287,7 +287,7 @@ def test_custom_sase_template_round_trips_into_agents(
     write(
         project_root / "sase.yml",
         "is_sase_managed: true\n"
-        'amd_h1_title: "Project Instructions"\n'
+        'memory:\n  h1_title: "Project Instructions"\n'
         "memory_sase_template: templates/sase.md\n",
     )
     write(project_root / "templates" / "sase.md", _sase_template())

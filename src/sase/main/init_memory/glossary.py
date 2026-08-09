@@ -14,6 +14,7 @@ from sase.core.glossary_facade import (
     build_glossary_catalog,
     validate_glossary_entries,
 )
+from sase.glossary_config import GLOSSARY_CONFIG_KEY, resolve_glossary_config
 from sase.memory.notes import (
     AGENTS_PARENT,
     apply_memory_frontmatter,
@@ -23,7 +24,6 @@ from sase.project_management import load_local_config
 
 from .formatting import format_generated_memory_markdown
 
-GLOSSARY_CONFIG_KEY = "glossary"
 GLOSSARY_MEMORY_TITLE = "Glossary of Terms"
 GENERATED_GLOSSARY_MARKER_KEY = "sase_generated"
 GENERATED_GLOSSARY_MARKER_VALUE = "glossary"
@@ -60,10 +60,16 @@ def load_project_glossary_memory(
     loaded = load_local_config(config_path)
     if not loaded.valid:
         return None, (loaded.error or f"{config_path}: invalid configuration",)
-    raw = loaded.config.get(GLOSSARY_CONFIG_KEY)
-    if raw is None:
+    resolution = resolve_glossary_config(loaded.config)
+    if resolution.error is not None:
+        return None, (f"{config_path}: {resolution.error}",)
+    if not resolution.declared or resolution.node is None:
         return None, ()
-    entries, shape_errors = _glossary_entries(config_path, raw)
+    entries, shape_errors = _glossary_entries(
+        config_path,
+        resolution.node,
+        display_path=resolution.display_path,
+    )
     if shape_errors:
         return None, shape_errors
     if not entries:
@@ -74,7 +80,8 @@ def load_project_glossary_memory(
         return None, (f"{config_path}: failed to validate glossary: {exc}",)
     if diagnostics:
         return None, tuple(
-            f"{config_path}: {diagnostic.path or GLOSSARY_CONFIG_KEY}: "
+            f"{config_path}: "
+            f"{_diagnostic_path(diagnostic.path, resolution.display_path)}: "
             f"{diagnostic.message}"
             for diagnostic in diagnostics
             if diagnostic.severity == "error"
@@ -87,9 +94,9 @@ def load_project_glossary_memory(
 
 
 def _glossary_entries(
-    config_path: Path, raw: Any
+    config_path: Path, raw: Any, *, display_path: str
 ) -> tuple[tuple[GlossaryInputEntry, ...], tuple[str, ...]]:
-    prefix = f"{config_path}: {GLOSSARY_CONFIG_KEY}"
+    prefix = f"{config_path}: {display_path}"
     if not isinstance(raw, Mapping):
         return (), (f"{prefix} must be a mapping",)
 
@@ -97,7 +104,7 @@ def _glossary_entries(
     entries: list[GlossaryInputEntry] = []
     for term, value in raw.items():
         term_path = _path_component(term)
-        path = f"{GLOSSARY_CONFIG_KEY}.{term_path}"
+        path = f"{display_path}.{term_path}"
         if not isinstance(term, str) or not term.strip() or _has_newline(term):
             errors.append(f"{config_path}: {path}: term must be a nonblank string")
             continue
@@ -141,6 +148,16 @@ def _glossary_entries(
             )
         )
     return tuple(entries), tuple(errors)
+
+
+def _diagnostic_path(path: str | None, display_path: str) -> str:
+    if not path:
+        return display_path
+    if path == GLOSSARY_CONFIG_KEY:
+        return display_path
+    if path.startswith(f"{GLOSSARY_CONFIG_KEY}."):
+        return f"{display_path}{path.removeprefix(GLOSSARY_CONFIG_KEY)}"
+    return path
 
 
 def _render_glossary_memory(catalog: GlossaryCatalog) -> GeneratedGlossaryMemory:

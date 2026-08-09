@@ -69,7 +69,7 @@ def test_init_memory_manages_live_home_from_user_overlay(
     )
     # The home AMD title is read from the live user config dir.
     monkeypatch.setattr(config_core, "CONFIG_DIR", config_dir)
-    write(config_dir / "sase.yml", 'amd_h1_title: "Athena Home"\n')
+    write(config_dir / "sase.yml", 'memory:\n  h1_title: "Athena Home"\n')
 
     assert run_handler() == 0
 
@@ -105,7 +105,7 @@ def test_init_memory_manages_chezmoi_home_from_source_overlay(
     monkeypatch.setattr(config_core, "CHEZMOI_HOME", chezmoi_home)
     write(
         chezmoi_home / "dot_config" / "sase" / "sase.yml",
-        'amd_h1_title: "Source Title"\n',
+        'memory:\n  h1_title: "Source Title"\n',
     )
 
     deployed: list[Path] = []
