@@ -219,7 +219,8 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
             "sase_new_task",
             (
                 "sase memory read sase_beads.md",
-                "sase bead search '<distinctive-term>' --type task",
+                "sase bead search "
+                "'symbol|filename|command|error-fragment' --regex --type task",
                 "sase bead +1 <task-id>",
                 "Do not create a task",
                 "same underlying defect/root cause or desired remediation",
@@ -437,7 +438,10 @@ def test_sase_new_task_duplicate_detection_stays_query_scoped() -> None:
     flat = _collapse_whitespace(body)
 
     assert front_matter is not None
-    assert "sase bead search" in flat
+    assert (
+        "sase bead search 'symbol|filename|command|error-fragment' --regex --type task"
+        in flat
+    )
     assert "sase bead list --type task" not in flat
     assert "sase bead list --type plan --tier epic" in flat
 
