@@ -103,9 +103,9 @@ jobs:
         run: |
           set -euo pipefail
           ratchet_status=0
-          python tools/ratchet_core_window --report-only || ratchet_status=$?
+          python tools/ratchet_core_window || ratchet_status=$?
           if [ "$ratchet_status" -eq 2 ]; then
-            echo "sase-core-rs ratchet is in report-only mode; no dependency metadata was changed."
+            echo "sase-core-rs ratchet applied dependency metadata changes."
           elif [ "$ratchet_status" -ne 0 ]; then
             exit "$ratchet_status"
           fi
