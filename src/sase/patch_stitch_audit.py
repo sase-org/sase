@@ -338,7 +338,16 @@ def _is_external_legacy_boundary(
     if repo == "sase-core":
         return _line_contains(
             line,
+            "CHANGESPEC_WIRE_SCHEMA_VERSION",
+            "ChangeSpecTag",
             "ChangeSpecWire",
+            "ChangespecChildWire",
+            "ChangeSpecTagsQuery",
+            "JumpToChangeSpec",
+            "changespec_metadata",
+            "changespec_status",
+            "changespec_tags",
+            "list_changespec_tags",
             'alias = "changespec"',
             '"changespec"',
             "serde",

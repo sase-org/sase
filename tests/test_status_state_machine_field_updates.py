@@ -212,9 +212,7 @@ STATUS: Draft
         # (only the parent's status is on the wire). The previous handler
         # included the parent name; this is the deliberate Phase 4 contract.
         assert "parent is Draft" in error
-        assert (
-            "Children of WIP/Draft ChangeSpecs must be WIP, Draft, or Reverted" in error
-        )
+        assert "Children of WIP/Draft Patches must be WIP, Draft, or Reverted" in error
 
     finally:
         Path(project_file).unlink()

@@ -348,7 +348,7 @@ def test_draft_to_ready_blocked_when_sibling_has_children(tmp_path: Path) -> Non
             # status — only the sibling NAME stays on the wire. The previous
             # handler included "(Draft)"; this is the deliberate Phase 4
             # contract.
-            "sibling ChangeSpec 'foo_bar__2' has unreverted children" in error
+            "sibling Patch 'foo_bar__2' has unreverted children" in error
         )
 
     finally:

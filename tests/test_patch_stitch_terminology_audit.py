@@ -59,6 +59,18 @@ def test_classifier_accepts_legacy_wire_key() -> None:
     assert rule == "legacy_serialized_data"
 
 
+def test_classifier_accepts_sase_core_stable_mobile_wire_name() -> None:
+    classification, rule, _reason = _classify_candidate(
+        "sase-core",
+        "crates/sase_gateway/contracts/api_v1/mobile_api_v1.json",
+        '"success": "MobileChangeSpecTagListResponseWire"',
+        "MobileChangeSpecTagListResponseWire",
+    )
+
+    assert classification == "legacy-compatibility-boundary"
+    assert rule == "external_legacy_boundary"
+
+
 def test_classifier_accepts_stable_public_path() -> None:
     classification, rule, _reason = _classify_candidate(
         "main",

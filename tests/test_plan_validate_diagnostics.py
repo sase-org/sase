@@ -142,7 +142,7 @@ body
             {
                 "type-mismatch",
                 "value-empty",
-                "bug-id-without-changespec",
+                "bug-id-without-patch",
                 "phases-empty",
             },
             1,
