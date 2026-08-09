@@ -58,12 +58,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from sase.ace.changespec.models import ChangeSpec  # noqa: E402
+from sase.ace.patch.models import Patch  # noqa: E402
 from sase.ace.query import evaluator as query_evaluator  # noqa: E402
 from sase.ace.query.parser import _parse_query_python  # noqa: E402
 from sase.core import parser_facade, query_corpus_facade, query_facade  # noqa: E402
 from sase.core.wire import to_json_dict  # noqa: E402
-from sase.core.wire_conversion import changespec_to_wire  # noqa: E402
+from sase.core.wire_conversion import changespec_to_wire  # noqa: E402  # legacy Python compat symbol
 
 from tests.perf.bench_core_parse import _build_synthetic_bytes  # noqa: E402, PLC2701
 
@@ -121,7 +121,7 @@ def _time_calls(
     return _summarize(samples)
 
 
-def _load_synthetic_specs(num_specs: int) -> list[ChangeSpec]:
+def _load_synthetic_specs(num_specs: int) -> list[Patch]:
     """Materialize ``num_specs`` synthetic specs from the parse benchmark.
 
     We parse through the public facade so the wire shape used by query
@@ -140,8 +140,8 @@ def _load_synthetic_specs(num_specs: int) -> list[ChangeSpec]:
             pass
 
 
-def _load_home_tree_specs() -> tuple[list[ChangeSpec], list[str]]:
-    """Load real home-tree ChangeSpecs when available for an explicit local row."""
+def _load_home_tree_specs() -> tuple[list[Patch], list[str]]:
+    """Load real home-tree Patches when available for an explicit local row."""
     projects_root = Path.home() / ".sase" / "projects"
     if not projects_root.exists():
         return [], [f"{projects_root} does not exist"]
@@ -150,7 +150,7 @@ def _load_home_tree_specs() -> tuple[list[ChangeSpec], list[str]]:
     if not gp_files:
         return [], [f"{projects_root} contains no project spec files"]
 
-    specs: list[ChangeSpec] = []
+    specs: list[Patch] = []
     notes: list[str] = []
     for path in gp_files:
         try:
@@ -158,7 +158,7 @@ def _load_home_tree_specs() -> tuple[list[ChangeSpec], list[str]]:
         except Exception as exc:  # pragma: no cover - local fixture dependent
             notes.append(f"skipped {path.name}: {exc}")
     if not specs:
-        notes.append("no ChangeSpecs parsed from home-tree project spec files")
+        notes.append("no Patches parsed from home-tree project spec files")
     return specs, notes
 
 
@@ -222,7 +222,7 @@ def _measure_parse_evaluate(
 def _measure_query_workload(
     *,
     query: str,
-    specs: list[ChangeSpec],
+    specs: list[Patch],
     label: str,
     num_specs: int,
     runs: int,
@@ -267,7 +267,9 @@ def _measure_query_workload(
 
     rust_module = _load_rust_module()
     if rust_module is not None:
-        spec_dicts = [to_json_dict(changespec_to_wire(cs)) for cs in specs]
+        spec_dicts = [
+            to_json_dict(changespec_to_wire(cs)) for cs in specs
+        ]  # legacy Python compat symbol
 
         def rust_one_shot_diagnostic_eval() -> int:
             return sum(rust_module.evaluate_query_many(query, spec_dicts))

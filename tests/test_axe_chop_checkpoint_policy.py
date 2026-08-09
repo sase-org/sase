@@ -175,7 +175,7 @@ def test_runner_terminal_success_finalizes_pending_checkpoint(
     )
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch(
             "sase.axe.chop_runner_script.evaluate_chop_preflight",
             return_value=preflight,

@@ -55,7 +55,7 @@ def _resolve_identity_by_name(
     if cl_name is None:
         # Running agents don't get cl_name in agent_meta.json; fall back to
         # the project directory name (matches the typical ``cl_name=project``
-        # convention for run-type agents that don't target a specific ChangeSpec).
+        # convention for run-type agents that don't target a specific Patch).
         info = parse_agent_artifact_path(artifact_dir)
         cl_name = (
             info.project_name

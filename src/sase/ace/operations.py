@@ -151,6 +151,9 @@ def update_to_changespec(
     return provider.checkout(update_target, target_dir)
 
 
+update_to_patch = update_to_changespec
+
+
 def has_active_children(
     changespec: ChangeSpec,
     all_changespecs: list[ChangeSpec],
@@ -218,6 +221,9 @@ def rename_changespec_with_references(
     update_changespec_name_atomic(project_file, old_name, new_name)
     update_running_field_cl_name(project_file, old_name, new_name)
     update_parent_references_atomic(project_file, old_name, new_name)
+
+
+rename_patch_with_references = rename_changespec_with_references
 
 
 def save_diff_to_file(

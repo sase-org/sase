@@ -334,7 +334,7 @@ def test_record_does_not_persist_default_git_home(tmp_path: Path) -> None:
     assert json.loads(fake.read_text()) == {"entries": ["#gh:sase"]}
 
 
-class _FakeChangeSpec:
+class _FakePatch:
     def __init__(self, name: str) -> None:
         self.name = name
 
@@ -357,8 +357,8 @@ def test_load_launchable_drops_refs_that_no_longer_resolve(
         lambda *a, **k: {"sase": workspace},
     )
     monkeypatch.setattr(
-        "sase.ace.changespec.cache.find_all_changespecs_cached",
-        lambda *a, **k: [_FakeChangeSpec("somecs")],
+        "sase.ace.patch.cache.find_all_patches_cached",
+        lambda *a, **k: [_FakePatch("somecs")],
     )
 
     result = load_launchable_vcs_xprompt_mru()
@@ -379,7 +379,7 @@ def test_load_launchable_keeps_entries_when_resolution_index_unavailable(
     def _boom(*_a: object, **_k: object) -> list[object]:
         raise RuntimeError("transient resolution failure")
 
-    monkeypatch.setattr("sase.ace.changespec.cache.find_all_changespecs_cached", _boom)
+    monkeypatch.setattr("sase.ace.patch.cache.find_all_patches_cached", _boom)
 
     result = load_launchable_vcs_xprompt_mru()
 

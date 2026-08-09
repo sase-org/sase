@@ -240,19 +240,25 @@ def test_validate_sase_core_rs_requires_stats_v5_runner_counters() -> None:
     )
     assert not validator._validate_agent_stats_work_schema(
         module_with_payload(
-            {"schema_version": 3, "work": {"projects": [], "changespecs": []}}
+            {
+                "schema_version": 3,
+                "work": {"projects": [], "changespecs": []},
+            }  # legacy wire key
         )
     )
     assert not validator._validate_agent_stats_work_schema(
         module_with_payload(
-            {"schema_version": 4, "work": {"projects": [], "changespecs": []}}
+            {
+                "schema_version": 4,
+                "work": {"projects": [], "changespecs": []},
+            }  # legacy wire key
         )
     )
     assert not validator._validate_agent_stats_work_schema(
         module_with_payload(
             {
                 "schema_version": 5,
-                "work": {"projects": [], "changespecs": []},
+                "work": {"projects": [], "changespecs": []},  # legacy wire key
                 "xprompts": {"rows": []},
             }
         )
@@ -261,7 +267,7 @@ def test_validate_sase_core_rs_requires_stats_v5_runner_counters() -> None:
         module_with_payload(
             {
                 "schema_version": 5,
-                "work": {"projects": [], "changespecs": []},
+                "work": {"projects": [], "changespecs": []},  # legacy wire key
                 "xprompts": {"rows": []},
                 "runners": {
                     "lanes_counted": 0,

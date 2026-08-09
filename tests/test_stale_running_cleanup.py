@@ -46,7 +46,7 @@ def test_cleanup_keeps_running_process_entries() -> None:
 
 
 def test_cleanup_logs_entry_without_cl_name() -> None:
-    """Test log message for entry without ChangeSpec name."""
+    """Test log message for entry without Patch name."""
     claims = [
         WorkspaceClaim(workspace_num=2, workflow="run", cl_name=None, pid=54321),
     ]
@@ -75,7 +75,7 @@ def test_cleanup_logs_entry_without_cl_name() -> None:
         log_msg = log_fn.call_args[0][0]
         assert "Released stale workspace #2" in log_msg
         assert "run" in log_msg
-        assert "for CL" not in log_msg  # No ChangeSpec name
+        assert "for CL" not in log_msg  # No Patch name
 
 
 def test_get_all_project_files_nonexistent_dir() -> None:

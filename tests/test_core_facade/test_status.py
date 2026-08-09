@@ -242,13 +242,13 @@ def test_plan_status_transition_real_extension_parity() -> None:
     assert via_facade == direct
 
 
-def test_transition_changespec_status_uses_planner_facade(
+def test_transition_patch_status_uses_planner_facade(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """End-to-end: the in-lock decision step routes through the planner facade.
 
     A fake plan returned by the facade must be honored by the side-effect
-    pipeline — proving :func:`transition_changespec_status_python` no
+    pipeline — proving :func:`transition_patch_status_python` no
     longer hard-codes the pure decision.
     """
     from sase.core.status_wire import (
@@ -256,7 +256,7 @@ def test_transition_changespec_status_uses_planner_facade(
         SUFFIX_ACTION_NONE,
         StatusTransitionPlanWire,
     )
-    from sase.status_state_machine import transition_changespec_status
+    from sase.status_state_machine import transition_patch_status
 
     project = tmp_path / "myproj.sase"
     project.write_text(SAMPLE_PROJECT_TEXT)
@@ -287,7 +287,7 @@ def test_transition_changespec_status_uses_planner_facade(
         lambda *args, **kwargs: [],
     )
 
-    success, old_status, error, _ = transition_changespec_status(
+    success, old_status, error, _ = transition_patch_status(
         str(project), "example", "Draft", validate=True
     )
 
@@ -304,7 +304,7 @@ def test_transition_changespec_status_uses_planner_facade(
     assert "STATUS: Draft" in project.read_text()
 
 
-def test_transition_changespec_status_planner_failure_skips_side_effects(
+def test_transition_patch_status_planner_failure_skips_side_effects(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A failing plan must short-circuit before any disk writes happen."""
@@ -312,7 +312,7 @@ def test_transition_changespec_status_planner_failure_skips_side_effects(
         STATUS_WIRE_SCHEMA_VERSION,
         StatusTransitionPlanWire,
     )
-    from sase.status_state_machine import transition_changespec_status
+    from sase.status_state_machine import transition_patch_status
 
     project = tmp_path / "myproj.sase"
     original_text = SAMPLE_PROJECT_TEXT
@@ -334,11 +334,11 @@ def test_transition_changespec_status_planner_failure_skips_side_effects(
 
     def fail_if_called(*args, **kwargs):  # type: ignore[no-untyped-def]
         write_calls.append((args, kwargs))
-        raise AssertionError("write_changespec_atomic must not run on plan failure")
+        raise AssertionError("write_patch_atomic must not run on plan failure")
 
-    monkeypatch.setattr("sase.ace.changespec.write_changespec_atomic", fail_if_called)
+    monkeypatch.setattr("sase.ace.changespec.write_patch_atomic", fail_if_called)
 
-    success, old_status, error, sibling_results = transition_changespec_status(
+    success, old_status, error, sibling_results = transition_patch_status(
         str(project), "example", "Draft", validate=True
     )
 

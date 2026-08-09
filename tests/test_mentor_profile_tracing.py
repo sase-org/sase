@@ -2,10 +2,10 @@
 
 from unittest.mock import patch
 
-from sase.ace.changespec import CommitEntry
+from sase.ace.patch import CommitEntry
 from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
 from sase.config.mentor import MentorProfileConfig
-from test_utils import build_changespec, make_mentor_config
+from test_utils import build_patch, make_mentor_config
 
 
 def test_trace_profile_matching_first_commit_match() -> None:
@@ -15,7 +15,7 @@ def test_trace_profile_matching_first_commit_match() -> None:
         mentors=[make_mentor_config()],
         first_commit=True,
     )
-    cs = build_changespec(
+    cs = build_patch(
         commits=[CommitEntry(number=1, note="Initial commit")],
     )
     with patch(
@@ -40,7 +40,7 @@ def test_trace_profile_matching_no_match() -> None:
         mentors=[make_mentor_config()],
         first_commit=True,
     )
-    cs = build_changespec(
+    cs = build_patch(
         commits=[CommitEntry(number=2, note="Second commit")],
     )
     with patch(
@@ -60,7 +60,7 @@ def test_trace_profile_matching_amend_note_match() -> None:
         mentors=[make_mentor_config()],
         amend_note_regexes=[r"fix.*bug"],
     )
-    cs = build_changespec(
+    cs = build_patch(
         commits=[CommitEntry(number=1, note="fix the bug in parser")],
     )
     with patch(
@@ -81,7 +81,7 @@ def test_trace_profile_matching_amend_note_match() -> None:
 
 def test_trace_profile_matching_empty_profiles() -> None:
     """Trace returns empty list when no profiles loaded."""
-    cs = build_changespec(
+    cs = build_patch(
         commits=[CommitEntry(number=1, note="commit")],
     )
     with patch(
@@ -104,7 +104,7 @@ def test_trace_profile_matching_projects_mismatch() -> None:
         first_commit=True,
         projects=["sase"],
     )
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/home/user/.sase/projects/bug/bug.sase",
         commits=[CommitEntry(number=1, note="commit")],
     )
@@ -132,7 +132,7 @@ def test_trace_profile_matching_projects_match() -> None:
         first_commit=True,
         projects=["sase"],
     )
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/home/user/.sase/projects/sase/sase.sase",
         commits=[CommitEntry(number=1, note="commit")],
     )
@@ -169,7 +169,7 @@ def test_trace_profile_matching_reads_diff_once_per_invocation() -> None:
         read_paths.append(diff_path)
         return "diff --git a/src/main.py b/src/main.py\n+token\n"
 
-    cs = build_changespec(
+    cs = build_patch(
         commits=[CommitEntry(number=1, note="n", diff="~/.sase/diffs/sample.diff")]
     )
     with (

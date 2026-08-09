@@ -154,7 +154,7 @@ def main() -> NoReturn:
         sys.exit(0)
 
     # --- patch / changespec ---
-    if args.command in {"patch", "changespec"}:
+    if args.command in {"patch", "changespec"}:  # legacy command alias
         from .patch_handler import handle_patch_command
 
         handle_patch_command(args)

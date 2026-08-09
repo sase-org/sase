@@ -1,4 +1,4 @@
-"""CLI coverage for ChangeSpec artifact references."""
+"""CLI coverage for Patch artifact references."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from sase.ace.changespec import parse_project_file
+from sase.ace.patch import parse_project_file
 from sase.main.patch_handler import _handle_ref
 from sase.main.parser import create_parser, default_list_delegation_notice
 from tests.artifact_refs.helpers import context as make_context
@@ -32,14 +32,14 @@ def _project_file(tmp_path: Path, refs: tuple[str, ...] = ()) -> Path:
 
 def _target(monkeypatch, project: Path) -> None:
     monkeypatch.setattr(
-        "sase.main.patch_handler.find_all_changespecs",
+        "sase.main.patch_handler.find_all_patches",
         lambda: parse_project_file(str(project)),
     )
 
 
 def test_ref_parser_defaults_to_list_and_documents_options() -> None:
     parser = create_parser()
-    args = parser.parse_args(["changespec", "ref"])
+    args = parser.parse_args(["patch", "ref"])
 
     assert args.ref_action == "list"
     assert default_list_delegation_notice(args) == (
@@ -49,7 +49,7 @@ def test_ref_parser_defaults_to_list_and_documents_options() -> None:
 
     explicit = parser.parse_args(
         [
-            "changespec",
+            "patch",
             "ref",
             "list",
             "--changespec",
@@ -58,14 +58,14 @@ def test_ref_parser_defaults_to_list_and_documents_options() -> None:
             "--resolve",
         ]
     )
-    assert explicit.changespec == "sase_feature"
+    assert explicit.patch == "sase_feature"
     assert explicit.json is True
     assert explicit.resolve is True
 
     canonical = parser.parse_args(["patch", "ref", "list", "--patch", "sase_feature"])
     assert canonical.command == "patch"
     assert canonical.patch == "sase_feature"
-    assert canonical.changespec == "sase_feature"
+    assert canonical.patch == "sase_feature"
 
 
 def test_ref_add_normalizes_deduplicates_and_persists(
@@ -76,7 +76,7 @@ def test_ref_add_normalizes_deduplicates_and_persists(
     project = _project_file(tmp_path, ("research:202607/existing.md",))
     _target(monkeypatch, project)
     args = argparse.Namespace(
-        changespec="sase_feature",
+        patch="sase_feature",
         ref_action="add",
         refs=[
             "research:202607/existing.md",
@@ -87,8 +87,8 @@ def test_ref_add_normalizes_deduplicates_and_persists(
 
     assert _handle_ref(args) == 0
 
-    changespec = parse_project_file(str(project))[0]
-    assert changespec.refs == [
+    patch = parse_project_file(str(project))[0]
+    assert patch.refs == [
         "research:202607/existing.md",
         "plans:202607/plan.md",
     ]
@@ -105,7 +105,7 @@ def test_ref_rm_detaches_only_requested_entries(
     )
     _target(monkeypatch, project)
     args = argparse.Namespace(
-        changespec="sase_feature",
+        patch="sase_feature",
         ref_action="rm",
         refs=["research:202607/report.md"],
     )
@@ -134,7 +134,7 @@ def test_ref_list_resolve_json_returns_machine_readable_outcomes(
         lambda _project: context,
     )
     args = argparse.Namespace(
-        changespec="sase_feature",
+        patch="sase_feature",
         ref_action="list",
         json=True,
         resolve=True,

@@ -2,7 +2,7 @@
 
 The directive/config layers (epic sase-55 Phases 1-2) resolve an effective
 effort level into an :class:`LLMInvocationOptions`; this module turns that level
-into the ChangeSpecI flags a given provider understands, honoring the
+into the CLI flags a given provider understands, honoring the
 explicit-vs-default contract:
 
 - An *explicitly* requested effort (``%effort``/``@effort``) that a provider
@@ -31,7 +31,7 @@ def effort_cli_args(
     provider_label: str,
     supported: Mapping[str, Sequence[str]],
 ) -> list[str]:
-    """Return the ChangeSpecI args selecting *options*' effort for one provider.
+    """Return the CLI args selecting *options*' effort for one provider.
 
     ``supported`` maps each effort level the provider can honor to the argv
     fragment that selects it (an empty mapping means the provider supports no

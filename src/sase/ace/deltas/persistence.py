@@ -154,3 +154,6 @@ def update_changespec_deltas_field(
     except Exception as e:
         logging.error(f"Failed to update deltas for {changespec_name}: {e}")
         return False
+
+
+update_patch_deltas_field = update_changespec_deltas_field

@@ -128,7 +128,7 @@ def _build_synthetic_root(
         project_dir = root / project_name
         # Project spec file used by RUNNING-field code paths in real life.
         # Empty file is fine for these benchmarks; we don't exercise
-        # changespec parsing.
+        # patch parsing.
         project_dir.mkdir(parents=True, exist_ok=True)
         (project_dir / f"{project_name}.sase").write_text("", encoding="utf-8")
 

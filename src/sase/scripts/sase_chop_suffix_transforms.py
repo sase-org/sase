@@ -7,8 +7,8 @@ from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_cho
 @builtin_chop("suffix_transforms")
 def _run(runtime: BuiltinChopRuntime) -> None:
     runtime.hook_runner.run_suffix_transforms(
-        runtime.all_changespecs,
-        runtime.filtered_changespecs,
+        runtime.all_patches,
+        runtime.filtered_patches,
     )
 
 

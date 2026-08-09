@@ -151,7 +151,7 @@ def register_bead_create_parser(
         "-c",
         "--patch",
         "--changespec",
-        dest="changespec",
+        dest="patch",
         help="Attach a Patch name to a plan bead",
     )
     parser.add_argument("-d", "--description", help="Issue description")
@@ -296,7 +296,7 @@ def register_bead_work_parser(
         "-c",
         "--cl-name",
         metavar="NAME",
-        help="ChangeSpec name for the approved epic completion notification",
+        help="Patch name for the approved epic completion notification",
     )
     parser.add_argument(
         "-n",

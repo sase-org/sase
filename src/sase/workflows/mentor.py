@@ -1,4 +1,4 @@
-"""Workflow for running mentor agents on ChangeSpecs."""
+"""Workflow for running mentor agents on Patches."""
 
 import json
 import logging
@@ -12,7 +12,7 @@ from typing import NoReturn
 from rich.console import Console
 from rich.markup import escape as _esc
 
-from sase.ace.patch import find_all_changespecs
+from sase.ace.patch import find_all_patches
 from sase.ace.mentor_output import (
     MENTOR_OUTPUT_JSON_SCHEMA,
     MentorComment,
@@ -64,7 +64,7 @@ def _build_mentor_prompt(
 
     Args:
         mentor: The mentor configuration.
-        cl_name: ChangeSpec name passed to the embedded workflow.
+        cl_name: Patch name passed to the embedded workflow.
         vcs_type: Registered workspace workflow type.
         project: Optional project name for xprompt resolution.
 
@@ -183,17 +183,17 @@ def _parse_mentor_json(
         return None
 
 
-def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
-    """Find a ChangeSpec by name across all project files.
+def _find_patch_by_name(cl_name: str) -> tuple[str | None, str | None]:
+    """Find a Patch by name across all project files.
 
     Args:
-        cl_name: The ChangeSpec name to search for.
+        cl_name: The Patch name to search for.
 
     Returns:
         Tuple of (project_file_path, project_name) if found, (None, None) otherwise.
     """
-    all_changespecs = find_all_changespecs()
-    for cs in all_changespecs:
+    all_patches = find_all_patches()
+    for cs in all_patches:
         if cs.name == cl_name:
             # Extract project name from file path
             # Path format: ~/.sase/projects/<project>/<project>.sase (or legacy .gp)
@@ -203,7 +203,7 @@ def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
 
 
 class MentorWorkflow(BaseWorkflow):
-    """A workflow for running mentor agents on ChangeSpecs."""
+    """A workflow for running mentor agents on Patches."""
 
     def __init__(
         self,
@@ -218,7 +218,7 @@ class MentorWorkflow(BaseWorkflow):
         Args:
             profile_name: Name of the profile containing the mentor.
             mentor_name: Name of the mentor to use.
-            cl_name: ChangeSpec name to work on (defaults to current branch name).
+            cl_name: Patch name to work on (defaults to current branch name).
             timestamp: Timestamp for chat file naming (YYmmdd_HHMMSS format).
             who: Optional identifier for the mentor run.
         """
@@ -241,15 +241,15 @@ class MentorWorkflow(BaseWorkflow):
     @property
     def description(self) -> str:
         """Return a description of what this workflow does."""
-        return f"Run mentor '{self.mentor_name}' on a ChangeSpec"
+        return f"Run mentor '{self.mentor_name}' on a Patch"
 
     def run(self) -> bool:
         """Run the mentor workflow."""
-        # Resolve ChangeSpec name
+        # Resolve Patch name
         resolved_cl_name = self.cl_name or get_cl_name_from_branch()
         if not resolved_cl_name:
             print_status(
-                "Error: Could not determine ChangeSpec name. Use --cl to specify.",
+                "Error: Could not determine Patch name. Use --cl to specify.",
                 "error",
             )
             return False
@@ -274,11 +274,11 @@ class MentorWorkflow(BaseWorkflow):
             )
             return False
 
-        # Find the ChangeSpec and its project
-        project_file, project = _find_changespec_by_name(resolved_cl_name)
+        # Find the Patch and its project
+        project_file, project = _find_patch_by_name(resolved_cl_name)
         if not project_file or not project:
             print_status(
-                f"Error: ChangeSpec '{resolved_cl_name}' not found in any project file.",
+                f"Error: Patch '{resolved_cl_name}' not found in any project file.",
                 "error",
             )
             return False
@@ -469,7 +469,7 @@ def main() -> NoReturn:
         help="Profile and mentor name in format 'profile:mentor' (e.g., 'code:comments')",
     )
     parser.add_argument(
-        "--cl", dest="cl_name", help="ChangeSpec name (defaults to branch name)"
+        "--cl", dest="cl_name", help="Patch name (defaults to branch name)"
     )
     args = parser.parse_args()
 

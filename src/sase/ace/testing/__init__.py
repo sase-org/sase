@@ -10,6 +10,8 @@ from .fixtures import DEFAULT_CHANGESPECS, make_changespec
 from .prompt_document import set_agent_prompt_document
 from .wait import wait_for
 
+make_patch = make_changespec
+
 __all__ = [
     "DEFAULT_CHANGESPECS",
     "AcePage",
@@ -17,6 +19,7 @@ __all__ = [
     "PromptPage",
     "VimEditorPage",
     "make_changespec",
+    "make_patch",
     "set_agent_prompt_document",
     "wait_for",
 ]

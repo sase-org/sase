@@ -250,7 +250,7 @@ class PromptStepMixin:
                 expanded_prompt = expanded_prompt + format_instr
 
         # Collect meta_* from embedded pre-steps so the TUI can display
-        # Workspace/Project/ChangeSpec immediately when the agent starts.
+        # Workspace/Project/Patch immediately when the agent starts.
         pre_step_meta: dict[str, str] = {}
         for info in embedded_workflows:
             for pre_step in info.pre_steps:

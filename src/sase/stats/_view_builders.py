@@ -14,7 +14,7 @@ from sase.project_display_names import (
 )
 from sase.stats._view_models import (
     ActivityView,
-    ChangeSpecWorkRow,
+    PatchWorkRow,
     CountRow,
     DistributionRow,
     OverviewView,
@@ -164,20 +164,20 @@ def build_projects_view(
     display_snapshot: ProjectDisplaySnapshot,
 ) -> ProjectsView:
     work = mapping(run_payload.get("work"))
-    changespec_rows: list[ChangeSpecWorkRow] = []
-    for row in rows(work, "changespecs"):
+    patch_rows: list[PatchWorkRow] = []
+    for row in rows(work, "changespecs"):  # legacy wire key
         project = project_display_for(
             text(row.get("project"), "unknown"),
             snapshot=display_snapshot,
         )
-        changespec_key = text(row.get("name"), "unknown")
-        changespec_rows.append(
-            ChangeSpecWorkRow(
+        patch_key = text(row.get("name"), "unknown")
+        patch_rows.append(
+            PatchWorkRow(
                 project_key=project.project_key,
                 project_label=project.project_label,
-                changespec_key=changespec_key,
-                changespec_label=humanize_cl_name(
-                    changespec_key,
+                patch_key=patch_key,
+                patch_label=humanize_cl_name(
+                    patch_key,
                     snapshot=display_snapshot,
                 ),
                 status=text(row.get("status"), "unknown"),
@@ -190,12 +190,10 @@ def build_projects_view(
                 last_run_ts=number(row.get("last_run_ts")),
             )
         )
-    changespecs = tuple(changespec_rows)
-    changespecs_by_project: defaultdict[str, list[ChangeSpecWorkRow]] = defaultdict(
-        list
-    )
-    for changespec in changespecs:
-        changespecs_by_project[changespec.project_key].append(changespec)
+    patches = tuple(patch_rows)
+    patches_by_project: defaultdict[str, list[PatchWorkRow]] = defaultdict(list)
+    for patch in patches:
+        patches_by_project[patch.project_key].append(patch)
 
     project_rows: list[ProjectWorkRow] = []
     for row in rows(work, "projects"):
@@ -215,11 +213,13 @@ def build_projects_view(
                 waiting=integer(row.get("waiting")),
                 success_rate=number(row.get("success_rate")),
                 commits=integer(row.get("commits")),
-                distinct_changespecs=integer(row.get("distinct_changespecs")),
+                distinct_patches=integer(
+                    row.get("distinct_changespecs")  # legacy stats wire field
+                ),
                 unattributed_runs=integer(row.get("unattributed_runs")),
                 total_runtime_seconds=number(row.get("total_runtime_seconds")),
                 last_run_ts=number(row.get("last_run_ts")),
-                changespecs=tuple(changespecs_by_project[project.project_key]),
+                patches=tuple(patches_by_project[project.project_key]),
             )
         )
     projects = tuple(
@@ -232,14 +232,14 @@ def build_projects_view(
             ),
         )
     )
-    truncated = integer(work.get("truncated_changespec_rows"))
+    truncated = integer(work.get("truncated_patch_rows"))
     return ProjectsView(
         projects=projects,
-        changespecs=changespecs,
+        patches=patches,
         project_count=len(projects),
-        changespec_count=len(changespecs) + truncated,
+        patch_count=len(patches) + truncated,
         unattributed_runs=integer(work.get("unattributed_runs")),
-        truncated_changespec_rows=truncated,
+        truncated_patch_rows=truncated,
         malformed_spec_files_skipped=integer(work.get("malformed_spec_files_skipped")),
     )
 
@@ -279,7 +279,7 @@ def build_runtime_view(
         "model",
         "workflow",
         "project",
-        "changespec",
+        "patch",
     }
     group_by = cast(RuntimeGroupBy, raw_group if raw_group in valid_groups else "agent")
     runtime_rows: list[RuntimeRow] = []
@@ -290,7 +290,7 @@ def build_runtime_view(
                 group_key,
                 snapshot=display_snapshot,
             ).project_label
-        elif group_by == "changespec":
+        elif group_by == "patch":
             group_label = humanize_cl_name(group_key, snapshot=display_snapshot)
         else:
             group_label = group_key

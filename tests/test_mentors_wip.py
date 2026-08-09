@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.ace.changespec import MentorEntry, MentorStatusLine
+from sase.ace.patch import MentorEntry, MentorStatusLine
 from sase.ace.mentors import (
     clear_mentor_draft_flags,
     format_mentors_field,
@@ -161,8 +161,8 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_clear_mentor_draft_flags_wrong_changespec(tmp_path: Path) -> None:
-    """Test that other ChangeSpecs are not affected."""
+def test_clear_mentor_draft_flags_wrong_patch(tmp_path: Path) -> None:
+    """Test that other Patches are not affected."""
     content = """NAME: other-cl
 STATUS: Draft
 MENTORS:
@@ -217,8 +217,8 @@ STATUS: Ready
     Path(file_path).unlink()
 
 
-def test_clear_mentor_draft_flags_changespec_not_found(tmp_path: Path) -> None:
-    """Test that function returns True when changespec not found."""
+def test_clear_mentor_draft_flags_patch_not_found(tmp_path: Path) -> None:
+    """Test that function returns True when patch not found."""
     content = """NAME: other-cl
 STATUS: Ready
 """
@@ -282,8 +282,8 @@ STATUS: Ready
     Path(file_path).unlink()
 
 
-def test_set_mentor_draft_flags_changespec_not_found(tmp_path: Path) -> None:
-    """Test that function returns True when changespec not found."""
+def test_set_mentor_draft_flags_patch_not_found(tmp_path: Path) -> None:
+    """Test that function returns True when patch not found."""
     content = """NAME: other-cl
 STATUS: Ready
 """

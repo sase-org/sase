@@ -55,7 +55,7 @@ class FakeLoadingApp(AgentLoadingMixin):
     """Minimal app exposing just the attrs touched by loader apply tests."""
 
     def __init__(self) -> None:
-        self.current_tab = "changespecs"
+        self.current_tab = "changespecs"  # legacy tab id
         self.current_idx = 0
         self.hide_non_run_agents = False
         self._agents: list[Agent] = []

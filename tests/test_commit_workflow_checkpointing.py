@@ -149,7 +149,7 @@ def test_run_records_completed_steps_for_pull_request(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.create_changespec",
+            "sase.workflows.commit.workflow.create_patch",
             return_value="proj_feat_1",
         ),
         patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save),
@@ -165,7 +165,7 @@ def test_run_records_completed_steps_for_pull_request(
         "dispatch",
         "file_hooks",
         "after_hook",
-        "create_changespec",
+        "create_patch",
         "write_result_marker",
         "publish_bead_pages",
     ]

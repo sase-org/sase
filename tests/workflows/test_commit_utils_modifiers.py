@@ -43,7 +43,7 @@ COMMITS:
 
 
 def test_reject_proposals_and_set_status_atomic_wrong_cl(tmp_path: Path) -> None:
-    """Test when the ChangeSpec name doesn't match."""
+    """Test when the Patch name doesn't match."""
     content = """NAME: other-cl
 STATUS: Ready
 COMMITS:
@@ -54,7 +54,7 @@ COMMITS:
         result = reject_proposals_and_set_status_atomic(
             str(project_file), "test-cl", "Mailed"
         )
-        # Should fail because the ChangeSpec name doesn't match
+        # Should fail because the Patch name doesn't match
         assert result is False
     finally:
         project_file.unlink()
@@ -147,8 +147,8 @@ COMMITS:
         project_file.unlink()
 
 
-def test_mark_proposal_broken_multiple_changespecs(tmp_path: Path) -> None:
-    """Test with multiple changespecs in the file."""
+def test_mark_proposal_broken_multiple_patches(tmp_path: Path) -> None:
+    """Test with multiple patches in the file."""
     content = """NAME: first-cl
 STATUS: Ready
 COMMITS:

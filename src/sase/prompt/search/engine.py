@@ -2,7 +2,7 @@
 
 :func:`search_prompts` is a pure function over a pre-loaded
 :class:`~sase.prompt.search.model.PromptHit` corpus. It does no IO and no
-rendering — discovery is the sources layer's job, presentation is the ChangeSpecI's.
+rendering — discovery is the sources layer's job, presentation is the CLI's.
 Given a query and the filter knobs that mirror the ``sase prompt search`` flag
 set, it returns a :class:`~sase.prompt.search.model.PromptSearchResult` carrying
 the ranked, post-limit matches plus the pre-limit ``total`` and per-source
@@ -47,7 +47,7 @@ class EmptyPromptQueryError(ValueError):
 
     The CLI translates this into a usage error (exit ``2``), mirroring
     ``sase bead search``; the engine raises it so the contract is enforced for
-    every caller, not just the ChangeSpecI.
+    every caller, not just the CLI.
     """
 
     def __init__(self, query: str) -> None:

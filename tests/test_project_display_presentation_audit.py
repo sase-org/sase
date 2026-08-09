@@ -28,19 +28,19 @@ class _CanonicalExemption:
 _CANONICAL_EXEMPTIONS = (
     _CanonicalExemption(
         "src/sase/main/patch_handler.py",
-        "_changespec_payload",
+        "_patch_payload",
         "cs.name",
         "Stable JSON output must retain the exact Patch identity.",
     ),
     _CanonicalExemption(
         "src/sase/main/patch_handler.py",
-        "_changespec_payload",
+        "_patch_payload",
         "cs.project_basename",
         "Stable JSON output must retain the canonical project key.",
     ),
     _CanonicalExemption(
         "src/sase/main/patch_handler.py",
-        "_changespec_payload",
+        "_patch_payload",
         "cs.parent",
         "Stable JSON output must retain the exact parent identity.",
     ),
@@ -75,14 +75,14 @@ _CANONICAL_EXEMPTIONS = (
         "src/sase/ace/tui/modals/project_select_modal.py",
         "_load_items",
         "cs.project_basename",
-        "ChangeSpec options retain the canonical owning project for replay and lookup.",
+        "Patch options retain the canonical owning project for replay and lookup.",
         "keyword:project_name",
     ),
     _CanonicalExemption(
         "src/sase/ace/tui/modals/project_select_modal.py",
         "_load_items",
         "cs.name",
-        "ChangeSpec options retain the exact ChangeSpec identity beside selection_label.",
+        "Patch options retain the exact Patch identity beside selection_label.",
         "keyword:cl_name",
     ),
     _CanonicalExemption(
@@ -107,7 +107,7 @@ _CANONICAL_EXEMPTIONS = (
         "src/sase/ace/tui/actions/agents/_notification_launch_approval.py",
         "_read_launch_approval_task_metadata",
         "workspace.get('cl_name')",
-        "The task retains exact ChangeSpec metadata while only display_name is projected.",
+        "The task retains exact Patch metadata while only display_name is projected.",
     ),
     _CanonicalExemption(
         "src/sase/ace/tui/actions/agents/_notification_launch_approval.py",
@@ -142,7 +142,7 @@ _SINK_CALLS = {
     "update",
 }
 _PROJECTORS = {
-    "_changespec_cell",
+    "_patch_cell",
     "_project_cell",
     "humanize_cl_name",
     "humanize_cl_names_in_text",
@@ -153,7 +153,7 @@ _PROJECTORS = {
     "project_display_name_for",
 }
 _IDENTITY_ATTRIBUTES = {
-    "changespec_key",
+    "patch_key",
     "cl_name",
     "group_key",
     "parent",
@@ -162,7 +162,7 @@ _IDENTITY_ATTRIBUTES = {
     "project_key",
     "project_name",
 }
-_NAME_IDENTITY_BASES = {"change", "changespec", "claim", "cs"}
+_NAME_IDENTITY_BASES = {"change", "patch", "claim", "cs"}
 
 
 def _parse(path: str) -> ast.Module:
@@ -296,8 +296,8 @@ def test_canonical_exemptions_name_existing_sites_and_rationales() -> None:
         )
 
 
-def test_changespec_completion_catalog_projects_display_fields() -> None:
-    """Completion name/tag fields cannot directly consume ChangeSpec identity."""
+def test_patch_completion_catalog_projects_display_fields() -> None:
+    """Completion name/tag fields cannot directly consume Patch identity."""
     path = "src/sase/xprompt/vcs_project_completion.py"
     tree = _parse(path)
     parents = _parent_map(tree)

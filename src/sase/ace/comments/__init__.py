@@ -17,6 +17,7 @@ from .operations import (
 )
 
 update_patch_comments_field = update_changespec_comments_field
+transform_patch_comments_field = transform_changespec_comments_field
 
 __all__ = [
     # core.py
@@ -30,6 +31,7 @@ __all__ = [
     "remove_comment_entry",
     "set_comment_suffix",
     "transform_changespec_comments_field",
+    "transform_patch_comments_field",
     "update_changespec_comments_field",
     "update_patch_comments_field",
     "update_comment_suffix_type",

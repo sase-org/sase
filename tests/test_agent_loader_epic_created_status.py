@@ -154,7 +154,7 @@ def test_host_epic_metadata_reload_crosses_real_artifact_loader_boundary(
 
     before, _ = load_artifact_delta_agents(
         [artifacts_dir],
-        changespec_snapshot=[],
+        patch_snapshot=[],
         update_index=False,
     )
     assert {agent.agent_name: agent.status for agent in before} == {
@@ -169,7 +169,7 @@ def test_host_epic_metadata_reload_crosses_real_artifact_loader_boundary(
     )
     after, _ = load_artifact_delta_agents(
         [artifacts_dir],
-        changespec_snapshot=[],
+        patch_snapshot=[],
         update_index=False,
     )
 

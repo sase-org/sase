@@ -107,13 +107,13 @@ def _parse_header(
     aliases: list[str] = []
     display_name: str | None = None
     active_claim_count = 0
-    before_changespec = True
+    before_patch = True
     in_running = False
     for line in content.splitlines():
         if line.startswith("NAME:"):
-            before_changespec = False
+            before_patch = False
             in_running = False
-        if not before_changespec:
+        if not before_patch:
             continue
         if line.startswith("PROJECT_STATE:"):
             raw_state = line.split(":", 1)[1].strip() or "enabled"

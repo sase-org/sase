@@ -1,7 +1,7 @@
-"""Tests for ace/changespec/validation.py - ChangeSpec validation functions."""
+"""Tests for ace/patch/validation.py - Patch validation functions."""
 
-from sase.ace.changespec.models import (
-    ChangeSpec,
+from sase.ace.patch.models import (
+    Patch,
     CommentEntry,
     CommitEntry,
     HookEntry,
@@ -20,8 +20,8 @@ from sase.ace.changespec.validation import (
 )
 
 
-def _make_cs(**kwargs: object) -> ChangeSpec:
-    """Helper to build a minimal ChangeSpec with overrides."""
+def _make_cs(**kwargs: object) -> Patch:
+    """Helper to build a minimal Patch with overrides."""
     defaults: dict[str, object] = {
         "name": "test",
         "description": "desc",
@@ -32,7 +32,7 @@ def _make_cs(**kwargs: object) -> ChangeSpec:
         "line_number": 1,
     }
     defaults |= kwargs
-    return ChangeSpec(**defaults)  # type: ignore[arg-type]
+    return Patch(**defaults)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

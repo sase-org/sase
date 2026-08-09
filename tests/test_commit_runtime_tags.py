@@ -518,7 +518,7 @@ def _run_workflow(payload: dict, method: str, provider: MagicMock) -> RunResult:
         patch("sase.workflows.commit.workflow.checkpoint_save"),
         patch("sase.workflows.commit.workflow.checkpoint_delete"),
         patch("sase.workflows.commit.workflow.append_commits_entry", return_value=None),
-        patch("sase.workflows.commit.workflow.create_changespec", return_value=None),
+        patch("sase.workflows.commit.workflow.create_patch", return_value=None),
         patch(_PROJECT_NAME_TARGET, return_value=None),
         patch(_PROVIDER_TARGET, return_value=provider),
     ):

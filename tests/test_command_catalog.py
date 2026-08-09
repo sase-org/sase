@@ -42,7 +42,7 @@ def test_every_app_keymap_has_a_command_spec() -> None:
 
 def test_app_command_spec_uses_configured_key() -> None:
     """A CommandSpec's key sequence must reflect the merged keymap."""
-    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "B"}}})
+    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "B"}}})
     by_id = {c.id: c for c in iter_app_commands(reg)}
     assert by_id["app.next_patch"].key_sequence == ("B",)
     assert by_id["app.next_patch"].key_display == "B"
@@ -73,8 +73,8 @@ def test_jump_commands_use_back_and_forward_defaults_on_every_tab() -> None:
     assert "ctrl+k" not in forward.aliases
     assert by_id["app.next_agent_metadata_section"].tabs == ("agents",)
     assert by_id["app.prev_agent_metadata_section"].tabs == ("agents",)
-    assert "app.prev_changespec_history" not in by_id
-    assert "app.next_changespec_history" not in by_id
+    assert "app.prev_patch_history" not in by_id
+    assert "app.next_patch_history" not in by_id
 
 
 def test_last_vcs_xprompt_editor_command_is_all_tab_agent_command() -> None:
@@ -186,7 +186,7 @@ def test_patch_sync_commands_use_patch_labels() -> None:
     assert by_id["app.start_rewind"].label == "Rewind Patch / Revive agent"
 
 
-def test_bulk_change_status_command_is_changespec_only() -> None:
+def test_bulk_change_status_command_is_patch_only() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.bulk_change_status"]
 

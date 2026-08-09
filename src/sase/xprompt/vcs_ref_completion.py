@@ -303,7 +303,7 @@ def build_vcs_ref_candidates(
     use_cache: bool = True,
     config: _VcsRefCompletionConfig | None = None,
 ) -> list[VcsRefCandidate]:
-    """Return ordered project, ChangeSpec, and namespace candidates."""
+    """Return ordered project, Patch, and namespace candidates."""
     settings = config or load_vcs_ref_completion_config()
     if not settings.enabled:
         return []

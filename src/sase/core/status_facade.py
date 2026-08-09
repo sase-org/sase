@@ -8,10 +8,10 @@ The three pure status operations (:func:`read_status_from_lines`,
 typed :class:`StatusTransitionPlanWire` so callers never see the
 cross-language dict layer.
 
-:func:`transition_changespec_status` performs disk IO (it acquires a lock
+:func:`transition_patch_status` performs disk IO (it acquires a lock
 and rewrites the project file) and is Python-owned host logic; the Rust
 planner integration happens *inside*
-:func:`transition_changespec_status_python` via the
+:func:`transition_patch_status_python` via the
 :func:`plan_status_transition` facade entry above.
 
 The Python golden helpers
@@ -34,7 +34,7 @@ from sase.core.status_wire import (
     status_wire_to_json_dict,
 )
 from sase.status_state_machine.siblings import SiblingRevertResult
-from sase.status_state_machine.transitions import transition_changespec_status_python
+from sase.status_state_machine.transitions import transition_patch_status_python
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -55,7 +55,7 @@ def apply_status_update(lines: list[str], changespec_name: str, new_status: str)
 def plan_status_transition(
     request: StatusTransitionRequestWire,
 ) -> StatusTransitionPlanWire:
-    """Plan a status transition for one ChangeSpec via ``sase_core_rs``.
+    """Plan a status transition for one Patch via ``sase_core_rs``.
 
     The request is the pre-gathered host context (parent status, blocking
     children, sibling info, existing-name set) — see
@@ -68,25 +68,25 @@ def plan_status_transition(
     return status_plan_from_dict(payload)
 
 
-def transition_changespec_status(
+def transition_patch_status(
     project_file: str,
     changespec_name: str,
     new_status: str,
     validate: bool = True,
     console: Console | None = None,
 ) -> tuple[bool, str | None, str | None, list[SiblingRevertResult]]:
-    """Transition a ChangeSpec STATUS.
+    """Transition a Patch STATUS.
 
     This entry point is intentionally Python-owned host logic: it
     acquires a file lock and applies disk-bound side effects (atomic
     rewrites, archive moves, suffix renames, mentor flag updates, VCS
     calls). The Rust planner integration happens *inside*
-    :func:`transition_changespec_status_python` via the
+    :func:`transition_patch_status_python` via the
     :func:`plan_status_transition` facade entry above, so the pure
     decision step still routes through Rust while Python remains
     responsible for every side effect.
     """
-    return transition_changespec_status_python(
+    return transition_patch_status_python(
         project_file,
         changespec_name,
         new_status,

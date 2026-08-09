@@ -360,7 +360,7 @@ class AgyProvider(LLMProvider):
         # Antigravity does not yet document a stable error contract, so these
         # patterns target the Google-stack transport/rate-limit/timeout failures
         # `agy` surfaces from the Gemini backend it routes to (gRPC status names
-        # plus the ChangeSpecI's own print timeout). They deliberately avoid the bare
+        # plus the CLI's own print timeout). They deliberately avoid the bare
         # HTTP "429"/"Too Many Requests" wording that the Codex provider already
         # owns, so the global error-based retry finder stays unambiguous. The
         # patterns are case-insensitive substrings; users can extend them via

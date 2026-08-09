@@ -31,8 +31,8 @@ class AxeStatus:
     last_full_cycle: str | None
     last_hook_cycle: str | None
     next_full_cycle: str | None
-    total_changespecs: int
-    filtered_changespecs: int
+    total_patches: int
+    filtered_patches: int
     uptime_seconds: int
 
 
@@ -43,7 +43,7 @@ class CycleResult:
     timestamp: str
     cycle_type: Literal["full", "hook", "comment"]
     duration_ms: int
-    changespecs_processed: int
+    patches_processed: int
     updates: list[dict] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 

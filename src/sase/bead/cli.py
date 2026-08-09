@@ -45,7 +45,7 @@ _parse_type_arg = cli_basic._parse_type_arg
 _preview_bead_work_force_reuse = cli_work.preview_bead_work_force_reuse
 _print_work_plan_summary = cli_work.print_work_plan_summary
 _render_cleanup_preview = cli_work.render_cleanup_preview
-_resolve_changespec_launch_context = cli_work.resolve_changespec_launch_context
+_resolve_patch_launch_context = cli_work.resolve_patch_launch_context
 _rollback_work_launch = cli_work.rollback_work_launch
 _status_icon = cli_common.status_icon
 
@@ -64,7 +64,7 @@ __all__ = [
     "_preview_bead_work_force_reuse",
     "_print_work_plan_summary",
     "_render_cleanup_preview",
-    "_resolve_changespec_launch_context",
+    "_resolve_patch_launch_context",
     "_rollback_work_launch",
     "_status_icon",
     "handle_bead_blocked",

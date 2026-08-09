@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from sase.ace.testing import make_changespec
+from sase.ace.testing import make_patch
 from sase.ace.tui.commands import extract_command_context
 from sase.ace.tui.commands.context import (
     _completed_agent_count,
@@ -18,8 +18,9 @@ from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, LumberjackItem
 
 def _make_app_stub(
     *,
-    tab: str = "changespecs",
-    changespecs: list | None = None,
+    tab: str = "changespecs",  # legacy tab id
+    patches: list | None = None,
+    changespecs: list | None = None,  # legacy helper keyword
     current_idx: int = 0,
     agents: list | None = None,
     axe_items: list | None = None,
@@ -35,7 +36,7 @@ def _make_app_stub(
         current_tab=tab,
         current_idx=current_idx,
         current_attempt_number=current_attempt_number,
-        changespecs=changespecs or [],
+        patches=patches if patches is not None else changespecs or [],  # legacy helper
         _agents=agents or [],
         _axe_items=axe_items or [],
         marked_indices=marked_indices or set(),
@@ -50,28 +51,30 @@ def _make_app_stub(
     )
 
 
-def test_extract_context_changespecs_tab_picks_selected_cs() -> None:
-    cs0 = make_changespec(name="alpha", cl="123")
-    cs1 = make_changespec(name="beta")
+def test_extract_context_patches_tab_picks_selected_cs() -> None:
+    cs0 = make_patch(name="alpha", cl="123")
+    cs1 = make_patch(name="beta")
     app = _make_app_stub(
-        tab="changespecs",
-        changespecs=[cs0, cs1],
+        tab="changespecs",  # legacy tab id
+        patches=[cs0, cs1],
         current_idx=1,
         marked_indices={0, 1},
     )
     ctx = extract_command_context(app)  # type: ignore[arg-type]
     assert ctx.tab == "artifacts"
-    assert ctx.changespec is cs1
+    assert ctx.patch is cs1
     assert ctx.agent is None
     assert ctx.axe_item is None
     assert ctx.mark_count == 2
     assert ctx.completed_agent_count == 0
 
 
-def test_extract_context_changespecs_tab_handles_empty_list() -> None:
-    app = _make_app_stub(tab="changespecs", changespecs=[], current_idx=0)
+def test_extract_context_patches_tab_handles_empty_list() -> None:
+    app = _make_app_stub(
+        tab="changespecs", changespecs=[], current_idx=0
+    )  # legacy tab id
     ctx = extract_command_context(app)  # type: ignore[arg-type]
-    assert ctx.changespec is None
+    assert ctx.patch is None
     assert ctx.mark_count == 0
 
 

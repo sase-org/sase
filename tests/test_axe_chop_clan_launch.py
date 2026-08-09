@@ -75,7 +75,7 @@ def test_dry_run_previews_one_concrete_clan_without_reserving_names(
     clan_summary = "[bold cyan]Large modules[/bold cyan]\n  Split safely."
     _write_clan_result(tmp_path, clan_summary=clan_summary)
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agent_from_cwd") as launch_one,
         patch("sase.axe.chop_runner.launch_agents_from_cwd") as launch_many,
     ):
@@ -130,7 +130,7 @@ def test_dry_run_allocates_member_tokens_inside_the_concrete_clan(
         member_names=("split_file.first.@", "split_file.second.@"),
     )
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agent_from_cwd") as launch_one,
         patch("sase.axe.chop_runner.launch_agents_from_cwd") as launch_many,
     ):
@@ -256,7 +256,7 @@ def test_runner_batches_clan_proposals_with_per_member_env_and_full_waits(
         ]
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agent_from_cwd") as launch_one,
         patch("sase.axe.chop_runner.launch_agents_from_cwd", side_effect=_launch_many),
     ):

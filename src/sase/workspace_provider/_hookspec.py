@@ -44,7 +44,7 @@ class ResolvedRef:
     """Result of resolving a workspace reference (e.g. ``#gh``, ``#git``).
 
     ``canonical_ref`` is the launch identity to use when the matched ref is a
-    provider-specific locator rather than a stable project or ChangeSpec name.
+    provider-specific locator rather than a stable project or Patch name.
     """
 
     project_file: str
@@ -211,7 +211,7 @@ class WorkspaceHookSpec:
     @hookspec(firstresult=True)
     def ws_submit(
         self,
-        changespec_file: str,
+        patch_file: str,
         changespec_name: str,
         project_basename: str,
         console: object | None,
@@ -321,7 +321,7 @@ class WorkspaceHookSpec:
     def ws_prepare_mail(
         self,
         changespec_name: str,
-        changespec_parent: str | None,
+        patch_parent: str | None,
         project_basename: str,
         project_file: str,
         target_dir: str,

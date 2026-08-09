@@ -1,6 +1,6 @@
 """Tests for ace/hooks/mutations.py - pure suffix operations."""
 
-from sase.ace.changespec.models import HookEntry, HookStatusLine
+from sase.ace.patch.models import HookEntry, HookStatusLine
 from sase.ace.hooks.mutations import (
     _apply_clear_hook_suffix,
     _apply_hook_suffix_update,
@@ -9,10 +9,10 @@ from sase.ace.hooks.mutations import (
 
 
 def _make_cs_with_hooks(hooks: list[HookEntry] | None = None):
-    """Build a minimal ChangeSpec-like object for get_failed_hooks_file_path."""
-    from sase.ace.changespec.models import ChangeSpec
+    """Build a minimal Patch-like object for get_failed_hooks_file_path."""
+    from sase.ace.patch.models import Patch
 
-    return ChangeSpec(
+    return Patch(
         name="test",
         description="desc",
         parent=None,

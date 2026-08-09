@@ -46,8 +46,8 @@ def test_beads_list_bridge_lists_known_project_beads(
     assert alpha_summary["child_count"] == 1
     assert alpha_summary["block_count"] == 1
     assert alpha_summary["plan_path_display"] == "plans/alpha.md"
-    assert alpha_summary["patch_name"] == "alpha_changespec"
-    assert alpha_summary["changespec_name"] == "alpha_changespec"
+    assert alpha_summary["patch_name"] == "alpha_patch"
+    assert alpha_summary["changespec_name"] == "alpha_patch"
     assert alpha_summary["patch_bug_id"] is None
     assert alpha_summary["changespec_bug_id"] is None
     assert alpha_summary["created_at"] == alpha_epic.created_at

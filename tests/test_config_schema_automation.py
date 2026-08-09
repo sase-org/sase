@@ -70,7 +70,7 @@ def test_config_schema_accepts_declarative_chop_policies() -> None:
                                 "name": "audit",
                                 "description": "Audit configured changes",
                                 "inhibit_if": {
-                                    "changespec": {
+                                    "patch": {
                                         "name_prefix": "audit_",
                                         "statuses": ["WIP", "Ready"],
                                     },

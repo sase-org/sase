@@ -77,7 +77,7 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
         print(
             f"Error: CLI commit method '{cli_method}' conflicts with "
             f"SASE_COMMIT_METHOD='{env_method}'. "
-            "Set SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1 to force the ChangeSpecI method.",
+            "Set SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1 to force the CLI method.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -138,18 +138,18 @@ def handle_restore_command(args: argparse.Namespace) -> NoReturn:
     Args:
         args: Parsed command-line arguments.
     """
-    from sase.ace.patch import find_all_changespecs
-    from sase.ace.restore import list_reverted_changespecs, restore_changespec
+    from sase.ace.patch import find_all_patches
+    from sase.ace.restore import list_reverted_patches, restore_patch
 
     console = Console()
 
     # Handle --list flag
     if args.list:
-        reverted = list_reverted_changespecs()
+        reverted = list_reverted_patches()
         if not reverted:
-            console.print("[yellow]No reverted ChangeSpecs found.[/yellow]")
+            console.print("[yellow]No reverted Patches found.[/yellow]")
         else:
-            console.print("[bold]Reverted ChangeSpecs:[/bold]")
+            console.print("[bold]Reverted Patches:[/bold]")
             from sase.project_display_names import humanize_cl_name
 
             for cs in reverted:
@@ -161,19 +161,19 @@ def handle_restore_command(args: argparse.Namespace) -> NoReturn:
         console.print("[red]Error: name is required (unless using --list)[/red]")
         sys.exit(1)
 
-    # Find the ChangeSpec by name
-    all_changespecs = find_all_changespecs()
-    target_changespec = None
-    for cs in all_changespecs:
+    # Find the Patch by name
+    all_patches = find_all_patches()
+    target_patch = None
+    for cs in all_patches:
         if cs.name == args.name:
-            target_changespec = cs
+            target_patch = cs
             break
 
-    if target_changespec is None:
-        console.print(f"[red]Error: ChangeSpec '{_esc(args.name)}' not found[/red]")
+    if target_patch is None:
+        console.print(f"[red]Error: Patch '{_esc(args.name)}' not found[/red]")
         sys.exit(1)
 
-    success, error = restore_changespec(target_changespec, console)
+    success, error = restore_patch(target_patch, console)
     if not success:
         console.print(f"[red]Error: {_esc(str(error))}[/red]")
         sys.exit(1)
@@ -181,10 +181,10 @@ def handle_restore_command(args: argparse.Namespace) -> NoReturn:
     try:
         from sase.logs.run_log import log_event
 
-        log_event(event="changespec_restored", cl_name=args.name)
+        log_event(event="patch_restored", cl_name=args.name)
     except Exception:
         pass
-    console.print("[green]ChangeSpec restored successfully[/green]")
+    console.print("[green]Patch restored successfully[/green]")
     sys.exit(0)
 
 
@@ -194,24 +194,24 @@ def handle_revert_command(args: argparse.Namespace) -> NoReturn:
     Args:
         args: Parsed command-line arguments.
     """
-    from sase.ace.patch import find_all_changespecs
-    from sase.ace.revert import revert_changespec
+    from sase.ace.patch import find_all_patches
+    from sase.ace.revert import revert_patch
 
     console = Console()
 
-    # Find the ChangeSpec by name
-    all_changespecs = find_all_changespecs()
-    target_changespec = None
-    for cs in all_changespecs:
+    # Find the Patch by name
+    all_patches = find_all_patches()
+    target_patch = None
+    for cs in all_patches:
         if cs.name == args.name:
-            target_changespec = cs
+            target_patch = cs
             break
 
-    if target_changespec is None:
-        console.print(f"[red]Error: ChangeSpec '{_esc(args.name)}' not found[/red]")
+    if target_patch is None:
+        console.print(f"[red]Error: Patch '{_esc(args.name)}' not found[/red]")
         sys.exit(1)
 
-    success, error = revert_changespec(target_changespec, console)
+    success, error = revert_patch(target_patch, console)
     if not success:
         console.print(f"[red]Error: {_esc(str(error))}[/red]")
         sys.exit(1)
@@ -219,8 +219,8 @@ def handle_revert_command(args: argparse.Namespace) -> NoReturn:
     try:
         from sase.logs.run_log import log_event
 
-        log_event(event="changespec_reverted", cl_name=args.name)
+        log_event(event="patch_reverted", cl_name=args.name)
     except Exception:
         pass
-    console.print("[green]ChangeSpec reverted successfully[/green]")
+    console.print("[green]Patch reverted successfully[/green]")
     sys.exit(0)

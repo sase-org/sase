@@ -1,7 +1,7 @@
 """Fan out a ``%r:N``-decorated prompt into N independent agents.
 
 This module is the shared entry point for both the TUI launch path
-(``sase ace``) and the ChangeSpecI ``sase run`` path. Given a prompt
+(``sase ace``) and the CLI ``sase run`` path. Given a prompt
 containing a ``%repeat:N`` (or ``%r:N``) directive, :func:`spawn_repeat_batch`
 resolves a unique name base, constructs one :class:`RepeatAgentSpec` per
 iteration, and invokes a caller-supplied ``base_spawn_fn`` to spawn each

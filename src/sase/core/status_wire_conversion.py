@@ -44,7 +44,7 @@ from sase.core.status_wire import (
     SUFFIX_ACTION_APPEND,
     SUFFIX_ACTION_NONE,
     SUFFIX_ACTION_STRIP,
-    ChangespecChildWire,
+    PatchChildWire,
     StatusTransitionPlanWire,
     StatusTransitionRequestWire,
 )
@@ -69,7 +69,7 @@ def _format_invalid_transition_error(
 
 
 def _classify_archive_action(old_status: str | None, new_status: str) -> str:
-    """Reproduce the archive-class compare from ``transition_changespec_status_python``.
+    """Reproduce the archive-class compare from ``transition_patch_status_python``.
 
     The original code does ``old_status in ARCHIVE_STATUSES`` on the raw
     value returned from the file (which can carry a workspace suffix).
@@ -104,7 +104,7 @@ def _plan_status_transition_python(
     :class:`StatusTransitionRequestWire`.
 
     The decision tree mirrors
-    :func:`sase.status_state_machine.transitions.transition_changespec_status_python`
+    :func:`sase.status_state_machine.transitions.transition_patch_status_python`
     branch-for-branch:
 
     - WIP→Draft: validate only.
@@ -249,7 +249,7 @@ def _plan_status_transition_python(
             (
                 f"Cannot transition '{changespec_name}' to {new_status}: "
                 f"parent is {request.parent_status}. "
-                f"Children of WIP/Draft ChangeSpecs must be WIP, Draft, or Reverted."
+                f"Children of WIP/Draft Patches must be WIP, Draft, or Reverted."
             ),
         )
 
@@ -274,7 +274,7 @@ def _plan_status_transition_python(
             request,
             (
                 f"Cannot transition '{changespec_name}' to Ready: "
-                f"sibling ChangeSpec '{sibling}' has unreverted children."
+                f"sibling Patch '{sibling}' has unreverted children."
             ),
         )
 
@@ -331,9 +331,9 @@ def build_status_transition_request(
 
     Performs the Python-only I/O the planner needs:
 
-    - parses the in-project ``ChangeSpec`` list to look up the parent's
+    - parses the in-project ``Patch`` list to look up the parent's
       base status;
-    - walks ``find_all_changespecs()`` (across projects) when the
+    - walks ``find_all_patches()`` (across projects) when the
       transition is Ready→Draft, both for blocking-children and to seed
       ``existing_names``;
     - builds ``siblings_with_unreverted_children`` for the
@@ -356,24 +356,24 @@ def build_status_transition_request(
     Returns:
         A fully populated request wire.
     """
-    from sase.ace.patch import find_all_changespecs, parse_project_file
+    from sase.ace.patch import find_all_patches, parse_project_file
     from sase.ace.revert import has_children
 
     base_old_status = remove_workspace_suffix(old_status)
     parent_status: str | None = None
-    blocking_children: tuple[ChangespecChildWire, ...] = ()
+    blocking_children: tuple[PatchChildWire, ...] = ()
     siblings_with_unreverted_children: tuple[str, ...] = ()
     existing_names: tuple[str, ...] = ()
 
-    project_changespecs = parse_project_file(project_file)
+    project_patches = parse_project_file(project_file)
     current_cs = next(
-        (cs for cs in project_changespecs if cs.name == changespec_name), None
+        (cs for cs in project_patches if cs.name == changespec_name), None
     )
 
     # Parent status lookup — only meaningful for the "ready"-style branch.
     if current_cs is not None and current_cs.parent:
         parent_cs = next(
-            (cs for cs in project_changespecs if cs.name == current_cs.parent),
+            (cs for cs in project_patches if cs.name == current_cs.parent),
             None,
         )
         if parent_cs is not None:
@@ -381,16 +381,16 @@ def build_status_transition_request(
 
     # Cross-project context for Ready -> Draft.
     if new_status == "Draft" and base_old_status == "Ready":
-        all_changespecs = find_all_changespecs()
-        existing_names = tuple(cs.name for cs in all_changespecs)
+        all_patches = find_all_patches()
+        existing_names = tuple(cs.name for cs in all_patches)
         invalid_children = [
             cs
-            for cs in all_changespecs
+            for cs in all_patches
             if cs.parent == changespec_name
             and cs.status not in ("WIP", "Draft", "Reverted")
         ]
         blocking_children = tuple(
-            ChangespecChildWire(name=cs.name, status=remove_workspace_suffix(cs.status))
+            PatchChildWire(name=cs.name, status=remove_workspace_suffix(cs.status))
             for cs in invalid_children
         )
 
@@ -400,15 +400,15 @@ def build_status_transition_request(
         and base_old_status in ("WIP", "Draft")
         and has_suffix(changespec_name)
     ):
-        all_changespecs = find_all_changespecs()
+        all_patches = find_all_patches()
         base_name = strip_reverted_suffix(changespec_name)
         offenders: list[str] = []
-        for cs in project_changespecs:
+        for cs in project_patches:
             if cs.name == changespec_name:
                 continue
             cs_base = strip_reverted_suffix(cs.name)
             if cs_base == base_name and cs.status in ("WIP", "Draft"):
-                if has_children(cs, all_changespecs):
+                if has_children(cs, all_patches):
                     offenders.append(cs.name)
         siblings_with_unreverted_children = tuple(offenders)
 

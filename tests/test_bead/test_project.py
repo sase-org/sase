@@ -81,7 +81,7 @@ def test_create_and_update_phase_size(project):
     assert project.show(phase.id).size is PhaseSize.XLARGE
 
 
-def test_create_epic_with_changespec_metadata(project):
+def test_create_epic_with_patch_metadata(project):
     issue = project.create(
         "My Epic",
         IssueType.PLAN,
@@ -112,7 +112,7 @@ def test_create_child(project):
     assert child.issue_type == IssueType.PHASE
 
 
-def test_create_child_rejects_changespec_metadata(project):
+def test_create_child_rejects_patch_metadata(project):
     epic = project.create("Epic", IssueType.PLAN)
     with pytest.raises(ValueError, match="Only plan issues can carry"):
         project.create(
@@ -176,7 +176,7 @@ def test_update(project):
     assert updated.title == "Updated"
 
 
-def test_update_changespec_metadata(project):
+def test_update_patch_metadata(project):
     epic = project.create("Epic", IssueType.PLAN)
     updated = project.update(
         epic.id,
@@ -198,7 +198,7 @@ def test_update_patch_metadata_aliases(project):
     assert updated.patch_bug_id == "12345"
 
 
-def test_update_rejects_bug_id_without_changespec(project):
+def test_update_rejects_bug_id_without_patch(project):
     epic = project.create("Epic", IssueType.PLAN)
     with pytest.raises(ValueError, match="requires changespec_name"):
         project.update(epic.id, changespec_bug_id="12345")

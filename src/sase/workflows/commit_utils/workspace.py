@@ -17,7 +17,7 @@ def save_diff(
     """Save the current diff to a file.
 
     Args:
-        cl_name: The ChangeSpec name (used in filename).
+        cl_name: The Patch name (used in filename).
         target_dir: Optional directory to run diff in.
         timestamp: Optional timestamp for filename (YYmmdd_HHMMSS format).
 

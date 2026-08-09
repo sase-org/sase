@@ -117,7 +117,7 @@ def test_reject_all_new_proposals_success(tmp_path: Path) -> None:
 
 
 def test_reject_all_new_proposals_wrong_cl_name(tmp_path: Path) -> None:
-    """Test that returning 0 when ChangeSpec name doesn't match."""
+    """Test that returning 0 when Patch name doesn't match."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
     ) as f:

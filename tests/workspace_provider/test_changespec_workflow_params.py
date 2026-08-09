@@ -1,17 +1,17 @@
-"""Tests for create_changespec_for_workflow parameter forwarding and env vars."""
+"""Tests for create_patch_for_workflow parameter forwarding and env vars."""
 
 from unittest.mock import patch
 
 import pytest
 
-from sase.workspace_provider.patch import create_changespec_for_workflow
+from sase.workspace_provider.patch import create_patch_for_workflow
 
 
 # --- parent parameter ---
 
 
-def test_create_changespec_for_workflow_passes_parent() -> None:
-    """Parent argument is forwarded to add_changespec_to_project_file."""
+def test_create_patch_for_workflow_passes_parent() -> None:
+    """Parent argument is forwarded to add_patch_to_project_file."""
     with (
         patch(
             "sase.workspace_provider.patch._get_commits_ahead",
@@ -30,15 +30,15 @@ def test_create_changespec_for_workflow_passes_parent() -> None:
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_child_1",
         ) as mock_add,
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="HEAD~1",
@@ -57,7 +57,7 @@ def test_create_changespec_for_workflow_passes_parent() -> None:
 # --- SASE_AGENT_CHAT_PATH env var ---
 
 
-def test_create_changespec_uses_agent_chat_path_env(
+def test_create_patch_uses_agent_chat_path_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When SASE_AGENT_CHAT_PATH is set, use it instead of creating a new chat file."""
@@ -79,15 +79,15 @@ def test_create_changespec_uses_agent_chat_path_env(
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",
@@ -105,7 +105,7 @@ def test_create_changespec_uses_agent_chat_path_env(
         assert initial_commits[0][2] == "~/chats/ace-run-260101_120000.md"
 
 
-def test_create_changespec_falls_back_without_agent_chat_path(
+def test_create_patch_falls_back_without_agent_chat_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When SASE_AGENT_CHAT_PATH is not set, fall back to save_chat_history."""
@@ -128,15 +128,15 @@ def test_create_changespec_falls_back_without_agent_chat_path(
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",
@@ -154,10 +154,10 @@ def test_create_changespec_falls_back_without_agent_chat_path(
 # --- bug parameter ---
 
 
-def test_create_changespec_for_workflow_passes_bug(
+def test_create_patch_for_workflow_passes_bug(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """bug parameter is forwarded to add_changespec_to_project_file."""
+    """bug parameter is forwarded to add_patch_to_project_file."""
     monkeypatch.delenv("SASE_AGENT_CHAT_PATH", raising=False)
     with (
         patch(
@@ -177,15 +177,15 @@ def test_create_changespec_for_workflow_passes_bug(
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="HEAD~1",
@@ -204,7 +204,7 @@ def test_create_changespec_for_workflow_passes_bug(
 # --- Full success path ---
 
 
-def test_create_changespec_for_workflow_success(
+def test_create_patch_for_workflow_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SASE_AGENT_CHAT_PATH", raising=False)
@@ -227,18 +227,18 @@ def test_create_changespec_for_workflow_success(
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
         patch(
             "sase.workspace_provider.patch.subprocess.run"
         ),  # Prevent real git branch -m
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",
@@ -268,7 +268,7 @@ def test_create_changespec_for_workflow_success(
 # --- SASE_PLAN env var ---
 
 
-def test_create_changespec_for_workflow_passes_plan(
+def test_create_patch_for_workflow_passes_plan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """SASE_PLAN env var propagates as plan_path in initial_commits tuple."""
@@ -293,16 +293,16 @@ def test_create_changespec_for_workflow_passes_plan(
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_plan_1",
         ) as mock_add,
         patch("sase.workspace_provider.patch.subprocess.run"),
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",
@@ -327,7 +327,7 @@ def test_create_changespec_for_workflow_passes_plan(
         assert commit_tuple[5] == "~/.sase/plans/my_plan.md"
 
 
-def test_create_changespec_for_workflow_uses_repo_relative_plan(
+def test_create_patch_for_workflow_uses_repo_relative_plan(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Absolute in-repo SASE_PLAN is stored as a repo-relative plan_path."""
@@ -357,16 +357,16 @@ def test_create_changespec_for_workflow_uses_repo_relative_plan(
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_plan_3",
         ) as mock_add,
         patch("sase.workspace_provider.patch.subprocess.run"),
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",
@@ -380,7 +380,7 @@ def test_create_changespec_for_workflow_uses_repo_relative_plan(
         assert initial_commits[0][5] == "sdd/plans/202605/my_plan.md"
 
 
-def test_create_changespec_for_workflow_plan_outside_home(
+def test_create_patch_for_workflow_plan_outside_home(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """SASE_PLAN path not under HOME is passed through unchanged."""
@@ -405,16 +405,16 @@ def test_create_changespec_for_workflow_plan_outside_home(
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_plan_2",
         ) as mock_add,
         patch("sase.workspace_provider.patch.subprocess.run"),
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",
@@ -438,7 +438,7 @@ def test_create_changespec_for_workflow_plan_outside_home(
         assert commit_tuple[5] == "/opt/plans/my_plan.md"
 
 
-def test_create_changespec_for_workflow_no_plan_when_env_unset(
+def test_create_patch_for_workflow_no_plan_when_env_unset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Without SASE_PLAN, initial_commits tuple stays at 4 elements."""
@@ -462,16 +462,16 @@ def test_create_changespec_for_workflow_no_plan_when_env_unset(
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_thing_1",
         ) as mock_add,
         patch("sase.workspace_provider.patch.subprocess.run"),
     ):
-        create_changespec_for_workflow(
+        create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",

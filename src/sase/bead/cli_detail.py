@@ -325,7 +325,7 @@ def render_issue_detail(
     if issue.issue_type == IssueType.PLAN and (
         issue.changespec_name or issue.changespec_bug_id
     ):
-        lines.extend(["", palette.section("CHANGESPEC")])
+        lines.extend(["", palette.section("PATCH")])
         if issue.changespec_name:
             lines.append(f"  {palette.label('Name:')} {issue.changespec_name}")
         if issue.changespec_bug_id:

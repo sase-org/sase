@@ -33,7 +33,7 @@ def test_retired_selected_panel_toggle_leader_override_is_filtered() -> None:
 def test_empty_config_uses_builtin_defaults() -> None:
     """Empty config uses defaults from default_config.yml."""
     reg = load_keymap_registry({})
-    assert reg.app.next_changespec == "j"
+    assert reg.app.next_patch == "j"
     assert reg.app.quit == "q"
     assert reg.app.next_tab == "tab"
     assert reg.app.jump_to_entry_fast == "ctrl+o"
@@ -199,7 +199,7 @@ def test_custom_agent_launcher_defaults_to_plus() -> None:
 
     assert reg.app.start_custom_agent == "plus"
     assert reg.app.start_agent_home == "space"
-    assert reg.app.start_agent_from_changespec == "ctrl+@"
+    assert reg.app.start_agent_from_patch == "ctrl+@"
 
 
 def test_restore_prompt_stash_defaults_to_at() -> None:
@@ -228,9 +228,9 @@ def test_agent_launch_defaults_use_distinct_space_keys() -> None:
     reg = load_keymap_registry({})
 
     assert reg.app.start_agent_home == "space"
-    assert reg.app.start_agent_from_changespec == "ctrl+@"
-    assert reg.app.start_agent_from_changespec != "space"
-    assert reg.app.start_agent_from_changespec != reg.app.start_agent_home
+    assert reg.app.start_agent_from_patch == "ctrl+@"
+    assert reg.app.start_agent_from_patch != "space"
+    assert reg.app.start_agent_from_patch != reg.app.start_agent_home
     assert LeaderModeKeymaps().keys["agent_home"] == "h"
     assert reg.leader_mode.keys["agent_home"] == "h"
     assert reg.leader_mode.keys["agent_home"] != "space"
@@ -244,13 +244,13 @@ def test_ctrl_space_user_config_canonicalizes_to_ctrl_at() -> None:
     reg = load_keymap_registry(
         {
             "keymaps": {
-                "app": {"start_agent_from_changespec": "ctrl+space"},
+                "app": {"start_agent_from_patch": "ctrl+space"},
                 "modes": {"leader_mode": {"keys": {"agent_from_cl": "ctrl+space"}}},
             }
         }
     )
 
-    assert reg.app.start_agent_from_changespec == "ctrl+@"
+    assert reg.app.start_agent_from_patch == "ctrl+@"
     assert reg.leader_mode.keys["agent_from_cl"] == "ctrl+@"
 
 
@@ -276,9 +276,9 @@ def test_g_and_o_default_bindings_do_not_collide() -> None:
 
 def test_partial_app_override() -> None:
     """Overriding one app key preserves all other defaults."""
-    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "B"}}})
-    assert reg.app.next_changespec == "B"
-    assert reg.app.prev_changespec == "k"  # unchanged
+    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "B"}}})
+    assert reg.app.next_patch == "B"
+    assert reg.app.prev_patch == "k"  # unchanged
     assert reg.app.quit == "q"  # unchanged
 
 
@@ -483,7 +483,7 @@ def test_copy_mode_nested_override() -> None:
                 "modes": {
                     "copy_mode": {
                         "keys": {
-                            "changespecs": {"bug": "B"},
+                            "changespecs": {"bug": "B"},  # legacy wire key
                         },
                     },
                 },
@@ -532,5 +532,5 @@ def test_unknown_mode_becomes_generic() -> None:
 def test_non_dict_keymaps_config() -> None:
     """Non-dict keymaps config falls back to builtin defaults."""
     reg = load_keymap_registry({"keymaps": "invalid"})
-    assert reg.app.next_changespec == "j"
+    assert reg.app.next_patch == "j"
     assert isinstance(reg.fold_mode, FoldModeKeymaps)

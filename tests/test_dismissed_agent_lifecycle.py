@@ -27,7 +27,7 @@ class FakeFullApp(TrackedTaskRecorderMixin, AgentDismissingMixin, AgentRevivalMi
         self._init_tracked_task_recorder()
         self.current_tab = "agents"
         self.current_idx = 0
-        self.changespecs = []  # type: ignore[assignment]
+        self.patches = []  # type: ignore[assignment]
         self._agents: list[Agent] = []
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []

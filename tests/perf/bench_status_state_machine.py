@@ -10,11 +10,11 @@ Workloads
 ---------
 
 - ``golden`` — the committed ``tests/core_golden/myproj.sase`` corpus
-  (4 ChangeSpecs, ~50 lines).
-- ``synthetic_<N>`` — a generated ``.sase`` with ``--num-specs`` ChangeSpecs
+  (4 Patches, ~50 lines).
+- ``synthetic_<N>`` — a generated ``.sase`` with ``--num-specs`` Patches
   templated after the golden file. Stretches the line-walking cost in
   ``read_status_from_lines`` / ``apply_status_update`` past the noise
-  floor and captures the worst case for changespecs that live at the end
+  floor and captures the worst case for patches that live at the end
   of the file.
 
 Scenarios
@@ -25,11 +25,11 @@ Scenarios
 - ``remove_workspace_suffix`` — pure regex-driven suffix stripping.
 - ``read_status_from_lines`` / ``apply_status_update`` — the line-based
   pure helpers already exposed through ``sase.core.status_facade``.
-- ``transition_changespec_status`` — full orchestrator on a temp project
+- ``transition_patch_status`` — full orchestrator on a temp project
   file with ``validate=True``, including disk I/O. Two flavors:
-  - ``transition_changespec_status_wip_to_draft`` (no suffix, no mentor
+  - ``transition_patch_status_wip_to_draft`` (no suffix, no mentor
     flags, simplest path);
-  - ``transition_changespec_status_wip_to_ready`` (parses project,
+  - ``transition_patch_status_wip_to_ready`` (parses project,
     checks parent constraint, may strip suffix; closest to the cost a
     Rust planner would replace).
 
@@ -67,7 +67,7 @@ from sase.core.status_facade import (
     apply_status_update,
     plan_status_transition,
     read_status_from_lines,
-    transition_changespec_status,
+    transition_patch_status,
 )
 from sase.core.status_wire import (
     STATUS_WIRE_SCHEMA_VERSION,
@@ -226,21 +226,21 @@ def _measure_transition(
 
         def s_wip_to_draft() -> bool:
             _reset()
-            ok, _, _, _ = transition_changespec_status(
+            ok, _, _, _ = transition_patch_status(
                 str(proj), target_name, "Draft", validate=True
             )
             return ok
 
         def s_wip_to_ready() -> bool:
             _reset()
-            ok, _, _, _ = transition_changespec_status(
+            ok, _, _, _ = transition_patch_status(
                 str(proj), target_name, "Ready", validate=True
             )
             return ok
 
         scenarios: dict[str, Callable[[], Any]] = {
-            "transition_changespec_status_wip_to_draft": s_wip_to_draft,
-            "transition_changespec_status_wip_to_ready": s_wip_to_ready,
+            "transition_patch_status_wip_to_draft": s_wip_to_draft,
+            "transition_patch_status_wip_to_ready": s_wip_to_ready,
         }
         results = {
             name: _time_calls(fn, runs=runs, warmup=warmup)
@@ -332,7 +332,7 @@ def run_bench(
     if not skip_synthetic:
         synthetic_text = _build_synthetic_text(num_specs)
         # Target the last spec — worst case for line-walkers. The name
-        # uses hyphens so :func:`sase.core.changespec.has_suffix` does
+        # uses hyphens so :func:`sase.core.patch.has_suffix` does
         # not match (otherwise WIP→Ready triggers the sibling-revert
         # path, which is a separate cost that should be measured by
         # its own targeted scenario).

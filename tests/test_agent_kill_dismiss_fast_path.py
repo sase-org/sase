@@ -222,7 +222,7 @@ def _build_dismiss_app(panel_widget: AgentList | None) -> Any:
         def __init__(self) -> None:
             self.current_tab = "agents"
             self.current_idx = 0
-            self.changespecs: list[Any] = []
+            self.patches: list[Any] = []
             self._agents: list[Agent] = []
             self._dismissed_agents: set[Any] = set()
             self._dismissed_agent_objects: list[Agent] = []

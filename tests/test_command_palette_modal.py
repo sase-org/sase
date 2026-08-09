@@ -69,21 +69,21 @@ def _spec(
         key_sequence=key_sequence,
         key_display=key_display,
         category=category,  # type: ignore[arg-type]
-        tabs=("changespecs", "agents", "axe"),
+        tabs=("changespecs", "agents", "axe"),  # legacy tab id
         executor=CommandExecutor(kind="app_action", action="quit"),
         aliases=aliases,
     )
 
 
 def _live_specs() -> list[CommandSpec]:
-    """Build an applicable list from the real catalog for the ChangeSpecs tab.
+    """Build an applicable list from the real catalog for the Patches tab.
 
     The Phase 3 wiring will pass exactly this kind of pre-filtered list
     in. Using the real catalog keeps the modal honest about real ids.
     """
     reg = load_keymap_registry({})
     catalog = build_command_catalog(reg)
-    ctx = CommandContext(tab="changespecs")
+    ctx = CommandContext(tab="changespecs")  # legacy tab id
     return [s for s in catalog if is_command_available(s, ctx)]
 
 
@@ -294,10 +294,10 @@ def test_build_position_text_contains_fraction_and_accent_style() -> None:
 
 async def test_modal_renders_nonempty_applicable_list() -> None:
     specs = _live_specs()
-    assert specs, "expected applicable specs on the changespecs tab"
+    assert specs, "expected applicable specs on the patches tab"
 
     async with _TestApp().run_test() as pilot:
-        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
         pilot.app.push_screen(modal)
         await pilot.pause()
 
@@ -309,7 +309,7 @@ async def test_modal_focuses_input_on_mount() -> None:
     async with _TestApp().run_test() as pilot:
         modal = CommandPaletteModal(
             specs=[_spec("app.refresh", "Refresh tab")],
-            tab="changespecs",
+            tab="changespecs",  # legacy tab id
         )
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -322,7 +322,7 @@ async def test_modal_renders_key_filter_hint() -> None:
     async with _TestApp().run_test() as pilot:
         modal = CommandPaletteModal(
             specs=[_spec("app.refresh", "Refresh tab")],
-            tab="changespecs",
+            tab="changespecs",  # legacy tab id
         )
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -358,7 +358,7 @@ async def test_modal_filtering_narrows_list() -> None:
         _spec("app.next", "Next entry"),
     ]
     async with _TestApp().run_test() as pilot:
-        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
         pilot.app.push_screen(modal)
         await pilot.pause()
 
@@ -399,7 +399,7 @@ async def test_modal_filtering_resets_highlight_to_top() -> None:
         _spec("app.next", "Next entry"),
     ]
     async with _TestApp().run_test() as pilot:
-        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
         pilot.app.push_screen(modal)
         await pilot.pause()
 
@@ -417,7 +417,7 @@ async def test_modal_filtering_resets_highlight_to_top() -> None:
 async def test_modal_empty_state_shown_when_no_match() -> None:
     specs = [_spec("app.refresh", "Refresh tab")]
     async with _TestApp().run_test() as pilot:
-        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
         pilot.app.push_screen(modal)
         await pilot.pause()
 
@@ -434,7 +434,7 @@ async def test_modal_empty_state_shown_when_no_match() -> None:
 async def test_modal_status_empty_filter_shows_zero_position() -> None:
     specs = [_spec("app.refresh", "Refresh tab")]
     async with _TestApp().run_test() as pilot:
-        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
         pilot.app.push_screen(modal)
         await pilot.pause()
 
@@ -462,7 +462,7 @@ async def test_modal_enter_returns_highlighted_id() -> None:
             _spec("app.refresh", "Refresh tab"),
             _spec("app.kill_agent", "Kill agent"),
         ]
-        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
@@ -487,7 +487,7 @@ async def test_modal_enter_after_filter_returns_filtered_top() -> None:
             _spec("app.refresh", "Refresh tab"),
             _spec("app.kill_agent", "Kill agent"),
         ]
-        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
@@ -514,7 +514,7 @@ async def test_modal_escape_returns_none() -> None:
 
         modal = CommandPaletteModal(
             specs=[_spec("app.refresh", "Refresh tab")],
-            tab="changespecs",
+            tab="changespecs",  # legacy tab id
         )
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
@@ -538,7 +538,7 @@ async def test_modal_enter_with_no_results_is_noop() -> None:
 
         modal = CommandPaletteModal(
             specs=[_spec("app.refresh", "Refresh tab")],
-            tab="changespecs",
+            tab="changespecs",  # legacy tab id
         )
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
@@ -563,7 +563,7 @@ async def test_modal_down_arrow_moves_highlight() -> None:
         _spec("app.c", "Charlie"),
     ]
     async with _TestApp().run_test() as pilot:
-        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
         pilot.app.push_screen(modal)
         await pilot.pause()
 
@@ -607,7 +607,7 @@ async def test_modal_ctrl_n_ctrl_p_navigate() -> None:
         _spec("app.b", "Bravo"),
     ]
     async with _TestApp().run_test() as pilot:
-        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
         pilot.app.push_screen(modal)
         await pilot.pause()
 
@@ -636,7 +636,7 @@ async def test_modal_typing_q_does_not_cancel() -> None:
             _spec("app.quit", "Quit ace"),
             _spec("app.refresh", "Refresh tab"),
         ]
-        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 

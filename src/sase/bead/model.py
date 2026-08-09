@@ -261,7 +261,7 @@ class Issue:
         if self.issue_type != IssueType.PLAN and (
             self.changespec_name or self.changespec_bug_id
         ):
-            raise ValueError("Only plan issues can carry ChangeSpec metadata")
+            raise ValueError("Only plan issues can carry Patch metadata")
         if self.status == Status.READY and self.issue_type != IssueType.TASK:
             raise ValueError("Only task issues can have ready status")
         if self.status == Status.SNOOZED and self.issue_type != IssueType.TASK:

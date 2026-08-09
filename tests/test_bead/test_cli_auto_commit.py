@@ -153,7 +153,7 @@ def test_bead_create_in_separate_repo_writes_and_commits_workspace_local_clone(
 
     args = argparse.Namespace(
         type=f"plan({plan})",
-        changespec=None,
+        changespec=None,  # legacy context field
         bug_id=None,
         tier=None,
         title="Created",
@@ -195,7 +195,7 @@ def test_handle_bead_create_auto_commit_message(
     plan.write_text("# Plan\n", encoding="utf-8")
     args = argparse.Namespace(
         type=f"plan({plan})",
-        changespec=None,
+        changespec=None,  # legacy context field
         bug_id=None,
         tier=None,
         title="Created",

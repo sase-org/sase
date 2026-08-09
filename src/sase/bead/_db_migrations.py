@@ -33,8 +33,8 @@ def _migrate_add_is_ready_to_work(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def _migrate_add_changespec_metadata(conn: sqlite3.Connection) -> None:
-    """Add ChangeSpec metadata columns to a pre-existing issues table."""
+def _migrate_add_patch_metadata(conn: sqlite3.Connection) -> None:
+    """Add Patch metadata columns to a pre-existing issues table."""
     columns = _columns(conn)
     if not columns:
         return
@@ -224,7 +224,7 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     """
     _migrate_issue_types(conn)
     _migrate_add_is_ready_to_work(conn)
-    _migrate_add_changespec_metadata(conn)
+    _migrate_add_patch_metadata(conn)
     _migrate_add_tier(conn)
     _migrate_add_model(conn)
     _migrate_add_refs(conn)

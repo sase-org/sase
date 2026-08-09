@@ -10,7 +10,7 @@ from sase.core.changespec import (
     changespec_name_to_branch,
     ensure_project_prefix,
     get_next_suffix_number,
-    get_workspace_directory_for_changespec,
+    get_workspace_directory_for_patch,
 )
 from sase.core.paths import shorten_path
 from sase.core.shell import run_workspace_command, strip_hook_prefix
@@ -25,15 +25,15 @@ def test_shorten_path_partial_home_match() -> None:
     assert result == path
 
 
-def test_get_workspace_directory_for_changespec_extracts_basename() -> None:
-    """Test that get_workspace_directory_for_changespec extracts project basename."""
-    mock_changespec = MagicMock()
-    mock_changespec.file_path = "/some/path/my_project.sase"
-    mock_changespec.project_basename = "my_project"
+def test_get_workspace_directory_for_patch_extracts_basename() -> None:
+    """Test that get_workspace_directory_for_patch extracts project basename."""
+    mock_patch = MagicMock()
+    mock_patch.file_path = "/some/path/my_project.sase"
+    mock_patch.project_basename = "my_project"
 
     with patch("sase.running_field.get_workspace_directory") as mock_get_ws:
         mock_get_ws.return_value = "/workspace/my_project"
-        get_workspace_directory_for_changespec(mock_changespec)
+        get_workspace_directory_for_patch(mock_patch)
         # Should extract "my_project" from "my_project.sase"
         mock_get_ws.assert_called_once_with("my_project")
 

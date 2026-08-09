@@ -2,12 +2,12 @@
 
 from unittest.mock import patch
 
-from sase.ace.changespec import ChangeSpec, CommitEntry
+from sase.ace.patch import Patch, CommitEntry
 from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.widgets.keybinding_footer import _MODE_BADGE_STYLE
 
 
-def _make_changespec(
+def _make_patch(
     name: str = "test_feature",
     description: str = "Test description",
     status: str = "Ready",
@@ -15,9 +15,9 @@ def _make_changespec(
     parent: str | None = None,
     file_path: str = "/tmp/test.sase",
     commits: list[CommitEntry] | None = None,
-) -> ChangeSpec:
-    """Create a mock ChangeSpec for testing."""
-    return ChangeSpec(
+) -> Patch:
+    """Create a mock Patch for testing."""
+    return Patch(
         name=name,
         description=description,
         parent=parent,
@@ -37,9 +37,9 @@ def _make_changespec(
 def test_keybinding_footer_reword_hidden_reverted() -> None:
     """Test 'w' (reword) binding is hidden for Reverted status."""
     footer = KeybindingFooter()
-    changespec = _make_changespec(status="Reverted", cl="123456")
+    patch = _make_patch(status="Reverted", cl="123456")
 
-    bindings = footer._compute_available_bindings(changespec)
+    bindings = footer._compute_available_bindings(patch)
     binding_keys = [b[0] for b in bindings]
 
     assert "w" not in binding_keys
@@ -54,9 +54,9 @@ def test_keybinding_footer_reword_hidden_reverted() -> None:
 def test_keybinding_footer_mail_visible_ready_status() -> None:
     """Test 'M' binding is visible when status is Ready."""
     footer = KeybindingFooter()
-    changespec = _make_changespec(status="Ready", cl="123456")
+    patch = _make_patch(status="Ready", cl="123456")
 
-    bindings = footer._compute_available_bindings(changespec)
+    bindings = footer._compute_available_bindings(patch)
     binding_keys = [b[0] for b in bindings]
 
     assert "M" in binding_keys
@@ -69,9 +69,9 @@ def test_keybinding_footer_accept_visible_with_proposals() -> None:
     """Test 'A' (accept) binding is visible when proposed entries exist."""
     footer = KeybindingFooter()
     commits = [CommitEntry(number=1, note="Test", proposal_letter="a")]
-    changespec = _make_changespec(status="Ready", commits=commits)
+    patch = _make_patch(status="Ready", commits=commits)
 
-    bindings = footer._compute_available_bindings(changespec)
+    bindings = footer._compute_available_bindings(patch)
     binding_keys = [b[0] for b in bindings]
 
     assert "A" in binding_keys
@@ -81,9 +81,9 @@ def test_keybinding_footer_accept_hidden_without_proposals() -> None:
     """Test 'A' (accept) binding is hidden when no proposed entries."""
     footer = KeybindingFooter()
     commits = [CommitEntry(number=1, note="Test")]
-    changespec = _make_changespec(status="Ready", commits=commits)
+    patch = _make_patch(status="Ready", commits=commits)
 
-    bindings = footer._compute_available_bindings(changespec)
+    bindings = footer._compute_available_bindings(patch)
     binding_keys = [b[0] for b in bindings]
 
     assert "A" not in binding_keys
@@ -110,9 +110,9 @@ def test_keybinding_footer_custom_registry_changes_keys() -> None:
     footer.set_keymap_registry(KeymapRegistry(app=custom_app))
 
     commits = [CommitEntry(number=1, note="Test", proposal_letter="a")]
-    changespec = _make_changespec(status="Ready", cl="123456", commits=commits)
+    patch = _make_patch(status="Ready", cl="123456", commits=commits)
 
-    bindings = footer._compute_available_bindings(changespec)
+    bindings = footer._compute_available_bindings(patch)
     binding_keys = [b[0] for b in bindings]
 
     assert "Z" in binding_keys  # accept_proposal remapped

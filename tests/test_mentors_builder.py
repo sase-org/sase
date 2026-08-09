@@ -2,20 +2,20 @@
 
 from unittest.mock import patch
 
-from sase.ace.changespec import ChangeSpec, CommitEntry, MentorEntry, MentorStatusLine
+from sase.ace.patch import Patch, CommitEntry, MentorEntry, MentorStatusLine
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.hint_tracker import HintTracker
 from sase.ace.tui.widgets.mentors_builder import build_mentors_section
 from rich.text import Text
 
 
-def _make_changespec(
+def _make_patch(
     name: str = "test_feature",
     commits: list[CommitEntry] | None = None,
     mentors: list[MentorEntry] | None = None,
-) -> ChangeSpec:
-    """Create a minimal ChangeSpec for testing."""
-    return ChangeSpec(
+) -> Patch:
+    """Create a minimal Patch for testing."""
+    return Patch(
         name=name,
         description="Test description",
         parent=None,
@@ -58,7 +58,7 @@ def test_commented_status_displayed(_mock_fmt: object, _mock_exists: object) -> 
         profiles=["prof"],
         status_lines=[msl],
     )
-    changespec = _make_changespec(
+    patch = _make_patch(
         commits=[CommitEntry(number=1, note="initial")],
         mentors=[mentor_entry],
     )
@@ -66,7 +66,7 @@ def test_commented_status_displayed(_mock_fmt: object, _mock_exists: object) -> 
     text = Text()
     tracker = build_mentors_section(
         text,
-        changespec,
+        patch,
         mentors_fold=FoldLevel.EXPANDED,
         with_hints=True,
         hint_tracker=_make_hint_tracker(counter=0),
@@ -100,7 +100,7 @@ def test_commented_shown_in_collapsed_mode(
         profiles=["prof"],
         status_lines=[msl],
     )
-    changespec = _make_changespec(
+    patch = _make_patch(
         commits=[CommitEntry(number=1, note="initial")],
         mentors=[mentor_entry],
     )
@@ -108,7 +108,7 @@ def test_commented_shown_in_collapsed_mode(
     text = Text()
     build_mentors_section(
         text,
-        changespec,
+        patch,
         mentors_fold=FoldLevel.COLLAPSED,
         with_hints=False,
         hint_tracker=_make_hint_tracker(),
@@ -141,7 +141,7 @@ def test_error_non_path_suffix_no_hint(_mock_fmt: object, _mock_exists: object) 
         profiles=["prof"],
         status_lines=[msl],
     )
-    changespec = _make_changespec(
+    patch = _make_patch(
         commits=[CommitEntry(number=3, note="current")],
         mentors=[mentor_entry],
     )
@@ -149,7 +149,7 @@ def test_error_non_path_suffix_no_hint(_mock_fmt: object, _mock_exists: object) 
     text = Text()
     tracker = build_mentors_section(
         text,
-        changespec,
+        patch,
         mentors_fold=FoldLevel.FULLY_EXPANDED,
         with_hints=True,
         hint_tracker=_make_hint_tracker(counter=5),
@@ -183,7 +183,7 @@ def test_error_file_path_no_hint_without_with_hints(_mock_fmt: object) -> None:
         profiles=["prof"],
         status_lines=[msl],
     )
-    changespec = _make_changespec(
+    patch = _make_patch(
         commits=[CommitEntry(number=3, note="current")],
         mentors=[mentor_entry],
     )
@@ -191,7 +191,7 @@ def test_error_file_path_no_hint_without_with_hints(_mock_fmt: object) -> None:
     text = Text()
     tracker = build_mentors_section(
         text,
-        changespec,
+        patch,
         mentors_fold=FoldLevel.FULLY_EXPANDED,
         with_hints=False,
         hint_tracker=_make_hint_tracker(counter=0),
@@ -226,7 +226,7 @@ def test_error_absolute_path_suffix_gets_hint(
         profiles=["prof"],
         status_lines=[msl],
     )
-    changespec = _make_changespec(
+    patch = _make_patch(
         commits=[CommitEntry(number=3, note="current")],
         mentors=[mentor_entry],
     )
@@ -234,7 +234,7 @@ def test_error_absolute_path_suffix_gets_hint(
     text = Text()
     tracker = build_mentors_section(
         text,
-        changespec,
+        patch,
         mentors_fold=FoldLevel.FULLY_EXPANDED,
         with_hints=True,
         hint_tracker=_make_hint_tracker(counter=0),

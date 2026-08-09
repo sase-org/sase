@@ -43,10 +43,10 @@ def seed_diamond(project_dir: Path) -> tuple[str, list[str]]:
         return epic.id, [p1.id, p2.id, p3.id, p4.id]
 
 
-def seed_changespec_epic(project_dir: Path) -> tuple[str, list[str]]:
+def seed_patch_epic(project_dir: Path) -> tuple[str, list[str]]:
     with BeadProject(project_dir) as proj:
         epic = proj.create(
-            "ChangeSpec epic",
+            "Patch epic",
             IssueType.PLAN,
             changespec_name="feature_epic",
             changespec_bug_id="12345",

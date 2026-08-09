@@ -62,7 +62,7 @@
       "phase7b_python_median_s": 0.0039988274220377207,
       "phase7b_rust_median_s": 0.00006670202128589153,
       "must_beat_python": true,
-      "rationale": "Product TUI filter route with the ChangeSpec corpus cached and query compilation plus Rust evaluation inside the timed loop. Query-corpus Phase 6 measured ~60x faster than the Python batch baseline on synthetic_1000_specs; the 100 and 10000 rows remain in the Phase 6 artifact as supporting evidence, while the direct one-shot Rust row remains a non-product diagnostic."
+      "rationale": "Product TUI filter route with the Patch corpus cached and query compilation plus Rust evaluation inside the timed loop. Query-corpus Phase 6 measured ~60x faster than the Python batch baseline on synthetic_1000_specs; the 100 and 10000 rows remain in the Phase 6 artifact as supporting evidence, while the direct one-shot Rust row remains a non-product diagnostic."
     },
     {
       "id": "scan_agent_artifacts.synthetic_6p_200pp.scan_facade",

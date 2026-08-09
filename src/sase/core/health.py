@@ -8,7 +8,7 @@ runtime dependency; there is no Python-mode escape hatch.
 Behavior summary:
 
 - The extension must import. A missing wheel produces ``status="error"`` and
-  the ChangeSpecI exits non-zero. Non-``ImportError`` import-time failures (e.g. ABI
+  the CLI exits non-zero. Non-``ImportError`` import-time failures (e.g. ABI
   mismatch) surface verbatim so a misbuilt wheel does not look like a
   missing install.
 - The extension must expose representative parser, agent-launch, and bead

@@ -491,7 +491,7 @@ def main(argv: list[str] | None = None) -> int:
         "--cs-count",
         type=int,
         default=100,
-        help="ChangeSpec count for sase_ace_cold_open (default 100).",
+        help="Patch count for sase_ace_cold_open (default 100).",
     )
     parser.add_argument(
         "-a",

@@ -6,7 +6,7 @@ from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_cho
 
 @builtin_chop("pending_checks_poll")
 def _run(runtime: BuiltinChopRuntime) -> None:
-    runtime.hook_runner.run_pending_checks_poll(runtime.filtered_changespecs)
+    runtime.hook_runner.run_pending_checks_poll(runtime.filtered_patches)
 
 
 def main() -> None:

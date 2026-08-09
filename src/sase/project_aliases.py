@@ -233,7 +233,7 @@ def find_project_ref_owner(
 
 
 def _load_project_changespec_names(project: str) -> frozenset[str]:
-    """Return active and archived ChangeSpec names for *project*."""
+    """Return active and archived Patch names for *project*."""
     from sase.ace.patch import parse_project_file
     from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
@@ -248,9 +248,7 @@ def _load_project_changespec_names(project: str) -> frozenset[str]:
             )
         )
         if project_file.is_file():
-            names.update(
-                changespec.name for changespec in parse_project_file(str(project_file))
-            )
+            names.update(patch.name for patch in parse_project_file(str(project_file)))
     return frozenset(names)
 
 

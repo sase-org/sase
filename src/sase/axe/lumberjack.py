@@ -33,7 +33,7 @@ from .chop_runner import (
 )
 from .chop_script_context import (
     ChopScriptContext,
-    serialize_changespecs,
+    serialize_patches,
     write_chop_context,
 )
 from .config import AxeConfig, ChopConfig, LumberjackConfig
@@ -137,7 +137,7 @@ class Lumberjack:
         )
 
     def _run_tick(self) -> None:
-        """Execute one tick: refresh changespecs, serialize context, invoke chop scripts."""
+        """Execute one tick: refresh patches, serialize context, invoke chop scripts."""
         _tick_start = time.monotonic()
         finalized_actions = finalize_launched_chop_runs(
             self.name,
@@ -165,12 +165,10 @@ class Lumberjack:
             AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
             return
 
-        all_changespecs = self._check_runner.get_all_changespecs()
-        filtered_changespecs = self._check_runner.get_filtered_changespecs(
-            all_changespecs
-        )
+        all_patches = self._check_runner.get_all_patches()
+        filtered_patches = self._check_runner.get_filtered_patches(all_patches)
 
-        # Serialize changespecs and context to disk for chop scripts
+        # Serialize patches and context to disk for chop scripts
         tick_dir = self._state_dir / "tick"
         if not best_effort_test_state_write_allowed(
             tick_dir, category="axe-chop-state"
@@ -182,8 +180,8 @@ class Lumberjack:
         filtered_cs_file = str(tick_dir / "filtered_changespecs.json")
         context_file = str(tick_dir / "context.json")
 
-        serialize_changespecs(all_changespecs, all_cs_file)
-        serialize_changespecs(filtered_changespecs, filtered_cs_file)
+        serialize_patches(all_patches, all_cs_file)
+        serialize_patches(filtered_patches, filtered_cs_file)
 
         ctx = ChopScriptContext(
             max_hook_runners=self.axe_config.max_hook_runners,
@@ -192,8 +190,8 @@ class Lumberjack:
             query=self.axe_config.query,
             lumberjack_name=self.name,
             state_dir=str(self._state_dir),
-            all_changespecs_file=all_cs_file,
-            filtered_changespecs_file=filtered_cs_file,
+            all_patches_file=all_cs_file,
+            filtered_patches_file=filtered_cs_file,
             verbose_lumberjack_diagnostics=(
                 self.axe_config.verbose_lumberjack_diagnostics
             ),

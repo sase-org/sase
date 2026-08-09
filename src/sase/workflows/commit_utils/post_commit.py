@@ -1,7 +1,7 @@
 """Post-commit utility for appending COMMITS entries after commit/proposal creation.
 
 Called by CommitWorkflow after a successful commit or proposal to record the
-entry in the ChangeSpec.  Reads ``commit_result.json`` (written by
+entry in the Patch.  Reads ``commit_result.json`` (written by
 CommitWorkflow) for the diff path and ``SASE_AGENT_CHAT_PATH`` for the chat
 transcript path.
 """

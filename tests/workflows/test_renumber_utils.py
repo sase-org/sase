@@ -36,7 +36,7 @@ def test_parse_commit_entries_with_metadata() -> None:
 
 
 def test_find_commits_section_not_found() -> None:
-    """Test finding commits section when ChangeSpec not found."""
+    """Test finding commits section when Patch not found."""
     lines = [
         "NAME: other_cl\n",
         "STATUS: Ready\n",

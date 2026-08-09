@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from sase.ace.patch import changespec_lock, get_entry_id, write_changespec_atomic
+from sase.ace.patch import patch_lock, get_entry_id, write_patch_atomic
 from sase.ace.patch.section_order import PROJECT_SPEC_SECTION_HEADERS
 from sase.ace.patch.storage import is_stitch_section_header
 from sase.workflows.renumber_utils import (
@@ -87,7 +87,7 @@ def _update_hooks_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         promote_mapping: Mapping from old entry IDs to new entry IDs.
         archive_mapping: Mapping from old entry IDs to archived format
             (e.g., "1a" -> "1a-3") for non-first accepted proposals.
@@ -96,19 +96,19 @@ def _update_hooks_with_id_mapping(
         Updated lines with hook status lines renumbered.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     in_hooks = False
 
     for line in lines:
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             in_hooks = False
             updated_lines.append(line)
-        elif in_target_changespec and line.startswith("HOOKS:"):
+        elif in_target_patch and line.startswith("HOOKS:"):
             in_hooks = True
             updated_lines.append(line)
-        elif in_target_changespec and in_hooks and line.startswith("      | "):
+        elif in_target_patch and in_hooks and line.startswith("      | "):
             # This is a status line (6-space + "| " prefixed)
             stripped = line.strip()[2:]  # Skip "| " prefix
             # Match status line format: (N) or (Na) followed by rest
@@ -140,7 +140,7 @@ def _update_hooks_with_id_mapping(
                     updated_lines.append(f"      | ({new_id}){rest}\n")
             else:
                 updated_lines.append(line)
-        elif in_target_changespec and in_hooks:
+        elif in_target_patch and in_hooks:
             # Check if still in hooks section
             if line.startswith("  ") and not line.startswith("    "):
                 # Command line (2-space indented, not 4-space) - still in hooks
@@ -172,26 +172,26 @@ def _update_mentors_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         promote_mapping: Mapping from old entry IDs to new entry IDs.
 
     Returns:
         Updated lines with mentor entry_ref suffixes renumbered.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     in_mentors = False
 
     for line in lines:
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             in_mentors = False
             updated_lines.append(line)
-        elif in_target_changespec and line.startswith("MENTORS:"):
+        elif in_target_patch and line.startswith("MENTORS:"):
             in_mentors = True
             updated_lines.append(line)
-        elif in_target_changespec and in_mentors and line.startswith("      | "):
+        elif in_target_patch and in_mentors and line.startswith("      | "):
             # This is a status line (6-space + "| " prefixed)
             # Format: | profile:mentor - STATUS - (suffix)
             # We need to update entry_ref suffixes like (2a) -> (3)
@@ -207,7 +207,7 @@ def _update_mentors_with_id_mapping(
                 updated_lines.append(updated_line)
             else:
                 updated_lines.append(line)
-        elif in_target_changespec and in_mentors:
+        elif in_target_patch and in_mentors:
             # Check if still in mentors section
             if line.startswith("  ") and line.strip().startswith("("):
                 # Entry header line (2-space indented, starts with "(") - still in mentors
@@ -239,26 +239,26 @@ def _update_comments_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         promote_mapping: Mapping from old entry IDs to new entry IDs.
 
     Returns:
         Updated lines with comment entry_ref suffixes renumbered.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     in_comments = False
 
     for line in lines:
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             in_comments = False
             updated_lines.append(line)
-        elif in_target_changespec and line.startswith("COMMENTS:"):
+        elif in_target_patch and line.startswith("COMMENTS:"):
             in_comments = True
             updated_lines.append(line)
-        elif in_target_changespec and in_comments:
+        elif in_target_patch and in_comments:
             # Check if still in comments section (2-space indented, starts with [)
             if line.startswith("  ["):
                 # This is a comment entry line
@@ -293,33 +293,33 @@ def _reject_remaining_proposals_unlocked(
     """Reject remaining proposals by changing (!: NEW PROPOSAL) to (~!: NEW PROPOSAL).
 
     This is an unlocked version that operates on in-memory lines.
-    Must be called while holding the changespec lock.
+    Must be called while holding the patch lock.
 
     Args:
         lines: All lines from the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
 
     Returns:
         Updated lines with remaining proposals rejected.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     in_commits = False
 
     for line in lines:
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             in_commits = False
             updated_lines.append(line)
-        elif in_target_changespec:
+        elif in_target_patch:
             if is_stitch_section_header(line):
                 in_commits = True
                 updated_lines.append(line)
             elif line.startswith(PROJECT_SPEC_SECTION_HEADERS):
                 in_commits = False
                 if line.startswith("NAME:"):
-                    in_target_changespec = False
+                    in_target_patch = False
                 updated_lines.append(line)
             elif in_commits:
                 stripped = line.strip()
@@ -364,7 +364,7 @@ def renumber_commit_entries(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         accepted_proposals: List of (base_number, letter) tuples that were accepted,
             in the order they should become regular entries.
         extra_msgs: Optional list of messages to append to each accepted entry's note.
@@ -376,11 +376,11 @@ def renumber_commit_entries(
         True if successful, False otherwise.
     """
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
-            # Find the ChangeSpec and its commits section
+            # Find the Patch and its commits section
             commits_start, commits_end = find_commits_section(lines, cl_name)
 
             if commits_start < 0:
@@ -488,7 +488,7 @@ def renumber_commit_entries(
             commit_msg = f"Renumber commit entries for {cl_name}"
             if mark_ready_to_mail:
                 commit_msg += " and mark ready to mail"
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "".join(new_lines),
                 commit_msg,

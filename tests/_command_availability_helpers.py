@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.ace.changespec import ChangeSpec, CommitEntry
+from sase.ace.patch import Patch, CommitEntry
 from sase.ace.tui.commands import CommandSpec, build_command_catalog
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -14,14 +14,14 @@ def catalog_by_id() -> dict[str, CommandSpec]:
     return {c.id: c for c in build_command_catalog(load_keymap_registry({}))}
 
 
-def make_changespec(
+def make_patch(
     *,
     cl: str | None = "12345",
     status: str = "Ready",
     commits: list[CommitEntry] | None = None,
     **kwargs: Any,
-) -> ChangeSpec:
-    return ChangeSpec(
+) -> Patch:
+    return Patch(
         name=kwargs.get("name", "test_cl"),
         description="test",
         parent=None,

@@ -49,7 +49,7 @@ def _fetch_parent_pr_tags(parent_cl_name: str | None) -> dict[str, object]:
     try:
         from sase.vcs_provider.config import extract_pr_tags
         from sase.workflows.utils import (
-            get_changespec_from_file,
+            get_patch_from_file,
             get_project_file_path,
             get_project_from_workspace,
         )
@@ -59,7 +59,7 @@ def _fetch_parent_pr_tags(parent_cl_name: str | None) -> dict[str, object]:
             return {}
 
         project_file = get_project_file_path(project_name)
-        parent_cs = get_changespec_from_file(project_file, parent_cl_name)
+        parent_cs = get_patch_from_file(project_file, parent_cl_name)
         if parent_cs is None or not parent_cs.pr_url:
             return {}
 
@@ -155,14 +155,14 @@ def build_pr_body(payload: dict) -> None:
         )
 
 
-def detect_parent_changespec(base_cl_name: str | None, payload: dict) -> str | None:
-    """Detect the parent ChangeSpec from the current branch.
+def detect_parent_patch(base_cl_name: str | None, payload: dict) -> str | None:
+    """Detect the parent Patch from the current branch.
 
-    Returns the ChangeSpec name if the current branch corresponds to an
-    existing ChangeSpec, None otherwise.
+    Returns the Patch name if the current branch corresponds to an
+    existing Patch, None otherwise.
     """
     from sase.workflows.utils import (
-        get_changespec_from_file,
+        get_patch_from_file,
         get_cl_name_from_branch,
         get_project_file_path,
         get_project_from_workspace,
@@ -191,8 +191,8 @@ def detect_parent_changespec(base_cl_name: str | None, payload: dict) -> str | N
 
     try:
         project_file = get_project_file_path(project_name)
-        cs = get_changespec_from_file(project_file, branch_cl)
+        cs = get_patch_from_file(project_file, branch_cl)
     except Exception as exc:
-        print_status(f"Parent auto-detect: failed to read ChangeSpec: {exc}", "warning")
+        print_status(f"Parent auto-detect: failed to read Patch: {exc}", "warning")
         return None
     return branch_cl if cs is not None else None

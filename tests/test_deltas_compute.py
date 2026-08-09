@@ -1,4 +1,4 @@
-"""Tests for refresh_deltas_for_changespec and the sync-deltas CLI."""
+"""Tests for refresh_deltas_for_patch and the sync-deltas CLI."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.changespec import DeltaEntry, DeltaLineStats
-from sase.ace.deltas import refresh_deltas_for_changespec
+from sase.ace.patch import DeltaEntry, DeltaLineStats
+from sase.ace.deltas import refresh_deltas_for_patch
 
 
 def _write_project(tmp_path: Path, body: str) -> Path:
@@ -21,16 +21,15 @@ def _write_project(tmp_path: Path, body: str) -> Path:
     return project_file
 
 
-# --- refresh_deltas_for_changespec ---------------------------------------
+# --- refresh_deltas_for_patch ---------------------------------------
 
 
-def test_refresh_returns_false_when_changespec_is_missing(tmp_path: Path) -> None:
+def test_refresh_returns_false_when_patch_is_missing(tmp_path: Path) -> None:
     project_file = _write_project(
         tmp_path, "NAME: other\nDESCRIPTION:\n  x\nSTATUS: WIP\n\n\n"
     )
     assert (
-        refresh_deltas_for_changespec(str(project_file), "missing", str(tmp_path))
-        is False
+        refresh_deltas_for_patch(str(project_file), "missing", str(tmp_path)) is False
     )
 
 
@@ -42,9 +41,7 @@ def test_refresh_writes_section_when_compute_succeeds(
         tmp_path, "NAME: feature\nDESCRIPTION:\n  test\nSTATUS: WIP\n\n\n"
     )
 
-    def fake_compute(
-        changespec: object, provider: object, cwd: str
-    ) -> list[DeltaEntry]:
+    def fake_compute(patch: object, provider: object, cwd: str) -> list[DeltaEntry]:
         return [
             DeltaEntry(
                 path="added.py",
@@ -59,7 +56,7 @@ def test_refresh_writes_section_when_compute_succeeds(
         "sase.ace.deltas.refresh.get_vcs_provider", lambda _cwd: object()
     )
 
-    ok = refresh_deltas_for_changespec(str(project_file), "feature", str(tmp_path))
+    ok = refresh_deltas_for_patch(str(project_file), "feature", str(tmp_path))
     assert ok is True
     body = project_file.read_text()
     assert "DELTAS:" in body
@@ -84,9 +81,7 @@ def test_refresh_preserves_existing_section_on_compute_error(
 
     from sase.ace.deltas import DeltaComputationError
 
-    def fake_compute(
-        changespec: object, provider: object, cwd: str
-    ) -> list[DeltaEntry]:
+    def fake_compute(patch: object, provider: object, cwd: str) -> list[DeltaEntry]:
         raise DeltaComputationError("feature", "vcs blew up")
 
     monkeypatch.setattr("sase.ace.deltas.refresh.compute_deltas", fake_compute)
@@ -94,7 +89,7 @@ def test_refresh_preserves_existing_section_on_compute_error(
         "sase.ace.deltas.refresh.get_vcs_provider", lambda _cwd: object()
     )
 
-    ok = refresh_deltas_for_changespec(str(project_file), "feature", str(tmp_path))
+    ok = refresh_deltas_for_patch(str(project_file), "feature", str(tmp_path))
     assert ok is False
     assert "+ previously_known.py" in project_file.read_text()
 
@@ -113,7 +108,7 @@ def test_refresh_swallows_provider_lookup_errors(
 
     monkeypatch.setattr("sase.ace.deltas.refresh.get_vcs_provider", boom)
 
-    ok = refresh_deltas_for_changespec(str(project_file), "feature", str(tmp_path))
+    ok = refresh_deltas_for_patch(str(project_file), "feature", str(tmp_path))
     assert ok is False
     assert "+ keep.py" in project_file.read_text()
 
@@ -124,7 +119,7 @@ def test_refresh_swallows_provider_lookup_errors(
 def test_sync_deltas_cli_help_includes_short_options() -> None:
     """CLI exposes -c/-p/-w short options per the project convention."""
     out = subprocess.run(
-        [sys.executable, "-m", "sase", "changespec", "sync-deltas", "--help"],
+        [sys.executable, "-m", "sase", "patch", "sync-deltas", "--help"],
         capture_output=True,
         text=True,
         check=False,
@@ -143,7 +138,7 @@ def test_sync_deltas_cli_reports_missing_project_file(tmp_path: Path) -> None:
             sys.executable,
             "-m",
             "sase",
-            "changespec",
+            "patch",
             "sync-deltas",
             "-c",
             "feature",

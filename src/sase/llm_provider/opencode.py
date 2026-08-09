@@ -26,7 +26,7 @@ _OPENCODE_PATH_ENV = "SASE_OPENCODE_PATH"
 # OpenCode forwards reasoning effort via ``--variant <level>`` ("Model variant
 # (provider-specific reasoning effort)"); the level is validated downstream by
 # OpenCode/the model API, so every canonical level is forwarded and an invalid
-# combination surfaces as a ChangeSpecI run error rather than a SASE-side rejection.
+# combination surfaces as a CLI run error rather than a SASE-side rejection.
 _EFFORT_CLI_ARGS: dict[str, list[str]] = {
     level: ["--variant", level] for level in EFFORT_LEVELS_ORDERED
 }

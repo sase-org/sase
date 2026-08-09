@@ -1,4 +1,4 @@
-"""VCS/ChangeSpec launch context helpers for ``sase bead work``."""
+"""VCS/Patch launch context helpers for ``sase bead work``."""
 
 from __future__ import annotations
 
@@ -8,22 +8,20 @@ from typing import TYPE_CHECKING
 from sase.core.paths import sase_projects_dir
 
 if TYPE_CHECKING:
-    from sase.bead.work import ChangeSpecLaunchContext, VCSLaunchContext
+    from sase.bead.work import PatchLaunchContext, VCSLaunchContext
 
 
-def resolve_changespec_launch_context(
+def resolve_patch_launch_context(
     *,
     changespec_name: str,
     bug_id: str,
-) -> ChangeSpecLaunchContext:
-    """Resolve VCS/project context for a ChangeSpec-attached epic launch."""
-    from sase.bead.work import ChangeSpecLaunchContext
+) -> PatchLaunchContext:
+    """Resolve VCS/project context for a Patch-attached epic launch."""
+    from sase.bead.work import PatchLaunchContext
 
-    vcs_context = _resolve_required_vcs_launch_context(
-        purpose="ChangeSpec-attached epic"
-    )
+    vcs_context = _resolve_required_vcs_launch_context(purpose="Patch-attached epic")
 
-    return ChangeSpecLaunchContext(
+    return PatchLaunchContext(
         changespec_name=changespec_name,
         bug_id=bug_id,
         vcs_workflow=vcs_context.vcs_workflow,

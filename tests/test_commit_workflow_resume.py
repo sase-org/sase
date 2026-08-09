@@ -329,7 +329,7 @@ def test_resume_handles_pull_request_path(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.create_changespec",
+            "sase.workflows.commit.workflow.create_patch",
             return_value="proj_feat_1",
         ) as mock_cs,
         patch("sase.workflows.commit.workflow.append_commits_entry") as mock_append,
@@ -436,10 +436,10 @@ def test_append_commits_entry_idempotent_on_resume(
 
 
 @patch(_PROVIDER_TARGET)
-def test_resume_detects_existing_changespec_in_project_file(
+def test_resume_detects_existing_patch_in_project_file(
     mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
 ) -> None:
-    """Observation-level idempotency: skip create_changespec if the name exists."""
+    """Observation-level idempotency: skip create_patch if the name exists."""
     provider = _make_provider(head_subject="feat: x")
     mock_get.return_value = provider
 
@@ -456,7 +456,7 @@ def test_resume_detects_existing_changespec_in_project_file(
     checkpoint.checkpoint_save(cp)
 
     with (
-        patch("sase.workflows.commit.workflow.create_changespec") as mock_cs,
+        patch("sase.workflows.commit.workflow.create_patch") as mock_cs,
         patch("sase.workflows.commit.workflow.write_result_marker"),
     ):
         assert CommitWorkflow.resume() == RunResult.OK

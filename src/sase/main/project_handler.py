@@ -8,7 +8,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from sase.ace.patch import changespec_lock, write_changespec_atomic
+from sase.ace.patch import patch_lock, write_patch_atomic
 from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.running_field._model import WorkspaceClaim
 from sase.core.agent_launch_claims import list_workspace_claims_from_content
@@ -283,7 +283,7 @@ def set_project_state_locked(
 
     project = _canonical_project_ref(project)
     project_file = _resolve_mutable_project_file(project)
-    with changespec_lock(str(project_file)):
+    with patch_lock(str(project_file)):
         content = project_file.read_text(encoding="utf-8")
         claims = list_workspace_claims_from_content(content)
         markers = _live_artifact_marker_paths(project_file.parent)
@@ -295,7 +295,7 @@ def set_project_state_locked(
             raise _ProjectLifecycleBlockedError(project, state, claims, markers)
 
         updated = apply_project_lifecycle_update(content, state)
-        write_changespec_atomic(
+        write_patch_atomic(
             str(project_file),
             updated,
             f"Set PROJECT_STATE to {state}",
@@ -319,7 +319,7 @@ def delete_project_locked(
     _reject_system_managed_project(project, root)
     project_file = Path(preferred_project_spec_path(str(project_dir), project))
 
-    with changespec_lock(str(project_file)):
+    with patch_lock(str(project_file)):
         project_dir = _resolve_deletable_project_dir(project, root)
         _reject_system_managed_project(project, root)
         project_file = Path(preferred_project_spec_path(str(project_dir), project))

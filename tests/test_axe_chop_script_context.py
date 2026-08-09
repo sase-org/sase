@@ -2,8 +2,8 @@
 
 import json
 
-from sase.ace.changespec import (
-    ChangeSpec,
+from sase.ace.patch import (
+    Patch,
     CommentEntry,
     CommitEntry,
     HookEntry,
@@ -13,10 +13,10 @@ from sase.ace.changespec import (
 )
 from sase.axe.chop_script_context import (
     ChopScriptContext,
-    load_changespecs_from_file,
+    load_patches_from_file,
     prepare_chop_run_context,
     read_chop_context,
-    serialize_changespecs,
+    serialize_patches,
     write_chop_context,
 )
 
@@ -32,8 +32,8 @@ class TestChopScriptContextRoundTrip:
             query="status:Ready",
             lumberjack_name="hooks",
             state_dir="/tmp/axe/lumberjacks/hooks",
-            all_changespecs_file="/tmp/all.json",
-            filtered_changespecs_file="/tmp/filtered.json",
+            all_patches_file="/tmp/all.json",
+            filtered_patches_file="/tmp/filtered.json",
         )
         path = str(tmp_path / "ctx.json")
         write_chop_context(ctx, path)
@@ -51,8 +51,8 @@ class TestChopScriptContextRoundTrip:
                     "query": "",
                     "lumberjack_name": "hooks",
                     "state_dir": "/tmp/axe/lumberjacks/hooks",
-                    "all_changespecs_file": "/tmp/all.json",
-                    "filtered_changespecs_file": "/tmp/filtered.json",
+                    "all_patches_file": "/tmp/all.json",
+                    "filtered_patches_file": "/tmp/filtered.json",
                 }
             ),
             encoding="utf-8",
@@ -74,8 +74,8 @@ class TestChopScriptContextRoundTrip:
                     "query": "",
                     "lumberjack_name": "hooks",
                     "state_dir": "/tmp/axe/lumberjacks/hooks",
-                    "all_changespecs_file": "/tmp/all.json",
-                    "filtered_changespecs_file": "/tmp/filtered.json",
+                    "all_patches_file": "/tmp/all.json",
+                    "filtered_patches_file": "/tmp/filtered.json",
                     "source": "manual",
                     "dry_run": True,
                     "future_field": {"nested": "value"},
@@ -101,8 +101,8 @@ class TestChopScriptContextRoundTrip:
                     "query": "",
                     "lumberjack_name": "hooks",
                     "state_dir": "/tmp/axe/lumberjacks/hooks",
-                    "all_changespecs_file": "/tmp/all.json",
-                    "filtered_changespecs_file": "/tmp/filtered.json",
+                    "all_patches_file": "/tmp/all.json",
+                    "filtered_patches_file": "/tmp/filtered.json",
                 }
             ),
             encoding="utf-8",
@@ -127,13 +127,13 @@ class TestChopScriptContextRoundTrip:
         assert loaded.vars == {"limit": 1}
 
 
-class TestChangeSpecSerialization:
-    """ChangeSpec serialize/load round-trip tests."""
+class TestPatchSerialization:
+    """Patch serialize/load round-trip tests."""
 
-    def _minimal_changespec(self, name="cs1"):
-        return ChangeSpec(
+    def _minimal_patch(self, name="cs1"):
+        return Patch(
             name=name,
-            description="A test changespec",
+            description="A test patch",
             parent=None,
             cl=None,
             status="WIP",
@@ -143,18 +143,18 @@ class TestChangeSpecSerialization:
 
     def test_minimal_round_trip(self, tmp_path):
         """No nested dataclasses."""
-        cs = self._minimal_changespec()
+        cs = self._minimal_patch()
         path = str(tmp_path / "cs.json")
-        serialize_changespecs([cs], path)
-        loaded = load_changespecs_from_file(path)
+        serialize_patches([cs], path)
+        loaded = load_patches_from_file(path)
         assert len(loaded) == 1
         assert loaded[0] == cs
 
     def test_full_round_trip(self, tmp_path):
         """All nested types populated."""
-        cs = ChangeSpec(
+        cs = Patch(
             name="full",
-            description="Full changespec",
+            description="Full patch",
             parent="parent_cs",
             cl="12345",
             status="Ready",
@@ -226,7 +226,7 @@ class TestChangeSpecSerialization:
             ],
         )
         path = str(tmp_path / "full.json")
-        serialize_changespecs([cs], path)
-        loaded = load_changespecs_from_file(path)
+        serialize_patches([cs], path)
+        loaded = load_patches_from_file(path)
         assert len(loaded) == 1
         assert loaded[0] == cs

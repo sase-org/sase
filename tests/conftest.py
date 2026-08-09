@@ -8,8 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from sase.ace.changespec import (
-    ChangeSpec,
+from sase.ace.patch import (
+    Patch,
     CommentEntry,
     CommitEntry,
     HookEntry,
@@ -537,13 +537,13 @@ def tz_divergence(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 @pytest.fixture
-def make_changespec(tmp_path: Path) -> "_ChangeSpecFactory":
-    """Fixture that provides a factory for creating ChangeSpec objects for testing."""
-    return _ChangeSpecFactory(tmp_path)
+def make_patch(tmp_path: Path) -> "_PatchFactory":
+    """Fixture that provides a factory for creating Patch objects for testing."""
+    return _PatchFactory(tmp_path)
 
 
-class _ChangeSpecFactory:
-    """Factory class for creating ChangeSpec objects in tests."""
+class _PatchFactory:
+    """Factory class for creating Patch objects in tests."""
 
     def __init__(self, tmp_path: Path) -> None:
         self._tmp_path = tmp_path
@@ -559,9 +559,9 @@ class _ChangeSpecFactory:
         commits: list[CommitEntry] | None = None,
         hooks: list[HookEntry] | None = None,
         comments: list[CommentEntry] | None = None,
-    ) -> ChangeSpec:
-        """Create a ChangeSpec for testing."""
-        return ChangeSpec(
+    ) -> Patch:
+        """Create a Patch for testing."""
+        return Patch(
             name=name,
             description=description,
             parent=parent,
@@ -580,8 +580,8 @@ class _ChangeSpecFactory:
         cl: str | None = "http://cl/123456789",
         status: str = "Mailed",
         parent: str | None = None,
-    ) -> ChangeSpec:
-        """Create a ChangeSpec backed by a temporary project spec file on disk.
+    ) -> Patch:
+        """Create a Patch backed by a temporary project spec file on disk.
 
         The caller is responsible for cleaning up the temp file via
         ``Path(cs.file_path).unlink()``.
@@ -607,7 +607,7 @@ STATUS: {status}
 
 ---
 """)
-            return ChangeSpec(
+            return Patch(
                 name=name,
                 description="A test feature",
                 parent=parent,

@@ -23,7 +23,7 @@ from ._mobile_helper_beads import (
 )
 from ._mobile_helper_catalog import (
     build_structured_xprompts_catalog,
-    changespec_tags_response,
+    patch_tags_response,
     xprompt_catalog_response,
 )
 from ._mobile_helper_common import (
@@ -60,7 +60,7 @@ def handle_mobile_helper_bridge(
         request = _read_request(stdin)
         operation = getattr(args, "mobile_helper_bridge_subcommand", None)
         if operation == "changespec-tags":
-            response = changespec_tags_response(request)
+            response = patch_tags_response(request)
         elif operation == "xprompt-catalog":
             response = xprompt_catalog_response(request)
         elif operation == "beads-list":

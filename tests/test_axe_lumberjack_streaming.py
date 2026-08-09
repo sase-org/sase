@@ -23,7 +23,7 @@ def _make_streaming_script(tmp: Path, name: str, body: str) -> Path:
     return script
 
 
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
 def test_streaming_chop_writes_output_before_exit(
     mock_find: MagicMock,
     temp_state_dir: Path,
@@ -95,7 +95,7 @@ def test_streaming_chop_writes_output_before_exit(
 
 @patch("sase.axe.chop_runner.stream_chop_script")
 @patch("sase.axe.chop_runner.discover_chop_script")
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
 def test_streaming_chop_records_pid_on_running_entry(
     mock_find: MagicMock,
     mock_discover: MagicMock,
@@ -133,7 +133,7 @@ def test_streaming_chop_records_pid_on_running_entry(
 
 @patch("sase.axe.chop_runner.stream_chop_script")
 @patch("sase.axe.chop_runner.discover_chop_script")
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
 def test_streaming_chop_records_source_scheduled(
     mock_find: MagicMock,
     mock_discover: MagicMock,

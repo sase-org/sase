@@ -44,8 +44,8 @@ def _context(tmp_path: Path, *, result_file: Path) -> Path:
             query="status:Ready",
             lumberjack_name="sdk-test",
             state_dir=str(tmp_path),
-            all_changespecs_file=str(tmp_path / "all.json"),
-            filtered_changespecs_file=str(tmp_path / "filtered.json"),
+            all_patches_file=str(tmp_path / "all.json"),
+            filtered_patches_file=str(tmp_path / "filtered.json"),
             result_file=str(result_file),
         ),
         str(path),
@@ -295,9 +295,9 @@ def test_hook_builtin_uses_shared_runner_and_emits_noop_result(tmp_path: Path) -
 
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "no_op"
-    assert result["reason"] == "no_matching_changespecs"
+    assert result["reason"] == "no_matching_patches"
     assert result["counters"] == {
-        "changespecs": 0,
+        "patches": 0,
         "hooks": 0,
         "started": 0,
         "updates": 0,

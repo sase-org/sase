@@ -211,7 +211,7 @@ def test_multi_prompt_segments_do_not_derive_vcs_history_keys(
     """Segments are saved and deduped without segment-specific VCS history keys."""
     test_file = tmp_path / "prompt_history.json"
     prompt = (
-        "#git:sase #pr:sase_feature\nstart the ChangeSpec\n"
+        "#git:sase #pr:sase_feature\nstart the Patch\n"
         "---\n"
         "#git:sase_feature\ncontinue the important work"
     )
@@ -226,9 +226,7 @@ def test_multi_prompt_segments_do_not_derive_vcs_history_keys(
         entries = {entry.text: entry for entry in load_prompt_history()}
         assert entries[prompt].branch_or_workspace == ""
         assert (
-            entries[
-                "#git:sase #pr:sase_feature\nstart the ChangeSpec"
-            ].branch_or_workspace
+            entries["#git:sase #pr:sase_feature\nstart the Patch"].branch_or_workspace
             == ""
         )
         assert (

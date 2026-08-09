@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 from sase.bead.work import (
-    ChangeSpecLaunchContext,
+    PatchLaunchContext,
     EPIC_CLAN_SUMMARY_SCRIPT,
     EpicWorkPlan,
     _PhaseAssignment as PhaseAssignment,
@@ -53,7 +53,7 @@ class TestRenderEdgeCases:
         assert "#bd/work_phase_bead:p2" in rendered
         assert "#bd/land_epic:e1" in rendered
 
-    def test_vcs_and_changespec_wrappers_preserve_identical_bead_waits(
+    def test_vcs_and_patch_wrappers_preserve_identical_bead_waits(
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
@@ -66,11 +66,11 @@ class TestRenderEdgeCases:
             land_epic_xprompt=Workflow(name="bd/land_epic"),
             vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
         )
-        changespec_rendered = render_multi_prompt(
+        patch_rendered = render_multi_prompt(
             plan,
             work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
             land_epic_xprompt=Workflow(name="bd/land_epic"),
-            changespec_context=ChangeSpecLaunchContext(
+            patch_context=PatchLaunchContext(
                 changespec_name="feature_epic",
                 vcs_workflow="git",
                 project_name="sase",
@@ -79,7 +79,7 @@ class TestRenderEdgeCases:
 
         expected = ["%w(bead=p1)", "%w(bead=p1)", "%w(bead=p2)"]
         assert _bead_wait_lines(vcs_rendered) == expected
-        assert _bead_wait_lines(changespec_rendered) == expected
+        assert _bead_wait_lines(patch_rendered) == expected
 
     def test_user_override_xprompt_names_propagate(
         self, conn: sqlite3.Connection

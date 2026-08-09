@@ -6,7 +6,7 @@ from hypothesis import given, assume
 from hypothesis import strategies as st
 
 from sase.ace.changespec.suffix_utils import parse_suffix_prefix, _ParsedSuffix
-from sase.ace.changespec.models import (
+from sase.ace.patch.models import (
     is_running_agent_suffix,
     extract_pid_from_agent_suffix,
     HookStatusLine,
@@ -326,8 +326,8 @@ class TestFindCommitsSection:
         assert start == 2
         assert end == len(lines)
 
-    def test_commits_end_at_next_changespec(self) -> None:
-        """Lines 191-193: commits_end set when hitting next ChangeSpec."""
+    def test_commits_end_at_next_patch(self) -> None:
+        """Lines 191-193: commits_end set when hitting next Patch."""
         lines = [
             "NAME: my_cl\n",
             "COMMITS:\n",
@@ -355,7 +355,7 @@ class TestFindCommitsSection:
         assert end == 5
 
     def test_not_found(self) -> None:
-        """Returns (-1, -1) when ChangeSpec name not found."""
+        """Returns (-1, -1) when Patch name not found."""
         lines = ["NAME: other_cl\n", "STATUS: Draft\n"]
         assert find_commits_section(lines, "my_cl") == (-1, -1)
 

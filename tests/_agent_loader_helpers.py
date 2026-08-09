@@ -40,7 +40,7 @@ def _mock_agent_loader_sources(
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(

@@ -235,7 +235,7 @@ def task_detail(
         ("Command", Text(_command_display(task))),
     ]
     if task.cl_name:
-        rows.append(("ChangeSpec", Text(task.cl_name)))
+        rows.append(("Patch", Text(task.cl_name)))
     if task.tags:
         rows.append(("Tags", Text(", ".join(task.tags))))
     if task.phase:

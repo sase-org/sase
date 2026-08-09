@@ -50,7 +50,7 @@ def resolve_agent_refs_in_prompt(prompt: str) -> tuple[str, str | None]:
     """Resolve @name agent references in VCS tags.
 
     Normalizes underscore VCS refs, extracts the VCS tag, checks for
-    @name in the ref portion, and replaces it with the agent's changespec.
+    @name in the ref portion, and replaces it with the agent's patch.
 
     Returns (resolved_prompt, resolved_vcs_tag).
     """
@@ -78,12 +78,12 @@ def resolve_agent_refs_in_prompt(prompt: str) -> tuple[str, str | None]:
         return prompt, vcs_tag
 
     # Resolve the agent reference.
-    from sase.agent.names import resolve_agent_changespec
+    from sase.agent.names import resolve_agent_patch
 
-    changespec = resolve_agent_changespec(agent_name)
+    patch = resolve_agent_patch(agent_name)
 
-    # Replace @name with the changespec in the VCS tag portion.
-    new_tag = vcs_tag.replace(f"@{agent_name}", changespec)
+    # Replace @name with the patch in the VCS tag portion.
+    new_tag = vcs_tag.replace(f"@{agent_name}", patch)
     resolved_prompt = prompt.replace(vcs_tag, new_tag, 1)
 
     # Re-extract vcs_tag from the resolved prompt.

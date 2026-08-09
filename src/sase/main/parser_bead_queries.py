@@ -248,7 +248,7 @@ def register_bead_show_parser(
         description=(
             "Show one bead's full detail block: status, type, tier, owner, "
             "assignee, model, phase size, parent lineage, children, "
-            "dependencies, blockers, description, notes, ChangeSpec, and the "
+            "dependencies, blockers, description, notes, Patch, and the "
             "linked plan. --format compact prints the same single row as "
             "'sase bead list'; --format json adds the resolved parent, child, "
             "dependency, blocker, and plan graph as machine-readable data. "

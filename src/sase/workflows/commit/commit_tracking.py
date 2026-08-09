@@ -1,4 +1,4 @@
-"""Post-commit tracking: diff capture, COMMITS entries, result markers, ChangeSpec."""
+"""Post-commit tracking: diff capture, COMMITS entries, result markers, Patch."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 
 def resolve_cl_name() -> str | None:
-    """Resolve the ChangeSpec/branch name from env var or current branch."""
+    """Resolve the Patch/branch name from env var or current branch."""
     cl_name = os.environ.get("SASE_AGENT_CL_NAME")
     if cl_name:
         return cl_name
@@ -578,26 +578,26 @@ def write_result_marker(
     )
 
 
-def create_changespec(
+def create_patch(
     payload: dict,
     base_cl_name: str | None,
     parent_cl_name: str | None,
     reserved_name: str | None,
     pr_url: str | None,
 ) -> str | None:
-    """Best-effort ChangeSpec creation after a successful PR flow."""
+    """Best-effort Patch creation after a successful PR flow."""
     try:
         from sase.workflows.utils import (
             get_project_file_path,
             get_project_from_workspace,
         )
         from sase.workspace_provider.patch import (
-            create_changespec_for_workflow,
+            create_patch_for_workflow,
         )
 
         project_name = get_project_from_workspace()
         if not project_name:
-            print_status("Skipping ChangeSpec: could not detect project name.", "info")
+            print_status("Skipping Patch: could not detect project name.", "info")
             return None
 
         project_file = get_project_file_path(project_name)
@@ -615,7 +615,7 @@ def create_changespec(
         ).strip()
         status = status_map.get(raw_status.lower(), "Draft")
 
-        cs_name = create_changespec_for_workflow(
+        cs_name = create_patch_for_workflow(
             project_name=project_name,
             project_file=project_file,
             checkout_target=checkout_target,
@@ -632,12 +632,12 @@ def create_changespec(
             status=status,
         )
         if cs_name:
-            print_status(f"Created ChangeSpec: {cs_name}", "success")
+            print_status(f"Created Patch: {cs_name}", "success")
         else:
-            print_status("Skipping ChangeSpec: no new commits detected.", "info")
+            print_status("Skipping Patch: no new commits detected.", "info")
         return cs_name
     except Exception as exc:
-        print_status(f"Skipping ChangeSpec: {exc}", "warning")
+        print_status(f"Skipping Patch: {exc}", "warning")
         return None
 
 

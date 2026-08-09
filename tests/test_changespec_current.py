@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.main.patch_handler import _handle_current
 from sase.main.parser import create_parser
 
@@ -54,8 +54,8 @@ def _cs(
     cl: str | None = None,
     status: str = "Ready",
     parent: str | None = "parent_spec",
-) -> ChangeSpec:
-    return ChangeSpec(
+) -> Patch:
+    return Patch(
         name=name,
         description="test",
         parent=parent,
@@ -70,15 +70,15 @@ def _run_current(
     monkeypatch: Any,
     capsys: Any,
     *,
-    changespecs: list[ChangeSpec],
+    patches: list[Patch],
     provider: _FakeProvider,
     project: str | None = "proj",
     output_format: str = "json",
     project_file: str | None = None,
 ) -> tuple[int, str, str]:
     monkeypatch.setattr(
-        "sase.main.patch_handler.find_all_changespecs",
-        lambda: changespecs,
+        "sase.main.patch_handler.find_all_patches",
+        lambda: patches,
     )
     monkeypatch.setattr(
         "sase.main.patch_handler.get_project_from_workspace",
@@ -94,20 +94,20 @@ def _run_current(
     return code, captured.out, captured.err
 
 
-def test_changespec_current_parser_accepts_format_short_flag() -> None:
-    args = create_parser().parse_args(["changespec", "current", "-f", "json"])
+def test_patch_current_parser_accepts_format_short_flag() -> None:
+    args = create_parser().parse_args(["patch", "current", "-f", "json"])
 
-    assert args.command == "changespec"
+    assert args.command == "patch"
     assert args.changespec_subcommand == "current"
     assert args.format == "json"
 
 
-def test_changespec_search_parser_accepts_query_and_format_short_flag() -> None:
+def test_patch_search_parser_accepts_query_and_format_short_flag() -> None:
     args = create_parser().parse_args(
-        ["changespec", "search", '"feature" AND %y', "-f", "markdown"]
+        ["patch", "search", '"feature" AND %y', "-f", "markdown"]
     )
 
-    assert args.command == "changespec"
+    assert args.command == "patch"
     assert args.changespec_subcommand == "search"
     assert args.query == '"feature" AND %y'
     assert args.format == "markdown"
@@ -120,12 +120,12 @@ def test_top_level_search_parser_is_not_registered() -> None:
     assert exc_info.value.code == 2
 
 
-def test_changespec_current_matches_provider_url(monkeypatch: Any, capsys: Any) -> None:
+def test_patch_current_matches_provider_url(monkeypatch: Any, capsys: Any) -> None:
     url = "https://github.com/sase-org/sase/pull/123"
     code, out, err = _run_current(
         monkeypatch,
         capsys,
-        changespecs=[
+        patches=[
             _cs("proj_other", cl="https://github.com/sase-org/sase/pull/999"),
             _cs("proj_feature", cl=url),
         ],
@@ -137,14 +137,14 @@ def test_changespec_current_matches_provider_url(monkeypatch: Any, capsys: Any) 
     assert json.loads(out)["name"] == "proj_feature"
 
 
-def test_changespec_current_json_includes_refs(monkeypatch: Any, capsys: Any) -> None:
-    changespec = _cs("proj_feature")
-    changespec.refs = ["research:202607/report.md"]
+def test_patch_current_json_includes_refs(monkeypatch: Any, capsys: Any) -> None:
+    patch = _cs("proj_feature")
+    patch.refs = ["research:202607/report.md"]
 
     code, out, err = _run_current(
         monkeypatch,
         capsys,
-        changespecs=[changespec],
+        patches=[patch],
         provider=_FakeProvider(branch="proj_feature"),
     )
 
@@ -153,7 +153,7 @@ def test_changespec_current_json_includes_refs(monkeypatch: Any, capsys: Any) ->
     assert json.loads(out)["refs"] == ["research:202607/report.md"]
 
 
-def test_changespec_current_humanizes_plain_and_markdown_not_json(
+def test_patch_current_humanizes_plain_and_markdown_not_json(
     monkeypatch: Any,
     capsys: Any,
 ) -> None:
@@ -171,7 +171,7 @@ def test_changespec_current_humanizes_plain_and_markdown_not_json(
     code, plain, err = _run_current(
         monkeypatch,
         capsys,
-        changespecs=[cs],
+        patches=[cs],
         provider=_FakeProvider(url="https://example.test/pr/1"),
         project="gh_acme__widgets",
         output_format="plain",
@@ -188,7 +188,7 @@ def test_changespec_current_humanizes_plain_and_markdown_not_json(
     code, markdown, err = _run_current(
         monkeypatch,
         capsys,
-        changespecs=[cs],
+        patches=[cs],
         provider=_FakeProvider(url="https://example.test/pr/1"),
         project="gh_acme__widgets",
         output_format="markdown",
@@ -203,7 +203,7 @@ def test_changespec_current_humanizes_plain_and_markdown_not_json(
     code, raw_json, err = _run_current(
         monkeypatch,
         capsys,
-        changespecs=[cs],
+        patches=[cs],
         provider=_FakeProvider(url="https://example.test/pr/1"),
         project="gh_acme__widgets",
         output_format="json",
@@ -215,11 +215,11 @@ def test_changespec_current_humanizes_plain_and_markdown_not_json(
     assert payload["project"] == "gh_acme__widgets"
 
 
-def test_changespec_current_matches_exact_branch(monkeypatch: Any, capsys: Any) -> None:
+def test_patch_current_matches_exact_branch(monkeypatch: Any, capsys: Any) -> None:
     code, out, err = _run_current(
         monkeypatch,
         capsys,
-        changespecs=[_cs("proj_feature")],
+        patches=[_cs("proj_feature")],
         provider=_FakeProvider(branch="proj_feature"),
     )
 
@@ -228,13 +228,11 @@ def test_changespec_current_matches_exact_branch(monkeypatch: Any, capsys: Any) 
     assert json.loads(out)["name"] == "proj_feature"
 
 
-def test_changespec_current_matches_git_style_branch(
-    monkeypatch: Any, capsys: Any
-) -> None:
+def test_patch_current_matches_git_style_branch(monkeypatch: Any, capsys: Any) -> None:
     code, out, err = _run_current(
         monkeypatch,
         capsys,
-        changespecs=[_cs("proj_feature_work_1")],
+        patches=[_cs("proj_feature_work_1")],
         provider=_FakeProvider(branch="feature-work_1"),
     )
 
@@ -243,13 +241,13 @@ def test_changespec_current_matches_git_style_branch(
     assert json.loads(out)["name"] == "proj_feature_work_1"
 
 
-def test_changespec_current_matches_project_prefix_stripped_branch(
+def test_patch_current_matches_project_prefix_stripped_branch(
     monkeypatch: Any, capsys: Any
 ) -> None:
     code, out, err = _run_current(
         monkeypatch,
         capsys,
-        changespecs=[_cs("proj_feature_work_1")],
+        patches=[_cs("proj_feature_work_1")],
         provider=_FakeProvider(branch="feature_work_1"),
     )
 
@@ -258,13 +256,13 @@ def test_changespec_current_matches_project_prefix_stripped_branch(
     assert json.loads(out)["name"] == "proj_feature_work_1"
 
 
-def test_changespec_current_no_match_diagnoses_context(
+def test_patch_current_no_match_diagnoses_context(
     monkeypatch: Any, capsys: Any
 ) -> None:
     code, out, err = _run_current(
         monkeypatch,
         capsys,
-        changespecs=[_cs("proj_other")],
+        patches=[_cs("proj_other")],
         provider=_FakeProvider(branch="missing", url="https://example.test/pr/1"),
     )
 
@@ -276,13 +274,11 @@ def test_changespec_current_no_match_diagnoses_context(
     assert "change_url: https://example.test/pr/1" in err
 
 
-def test_changespec_current_ambiguous_match_fails(
-    monkeypatch: Any, capsys: Any
-) -> None:
+def test_patch_current_ambiguous_match_fails(monkeypatch: Any, capsys: Any) -> None:
     code, out, err = _run_current(
         monkeypatch,
         capsys,
-        changespecs=[
+        patches=[
             _cs("proj_feature_work_1"),
             _cs("proj_feature_work__1"),
         ],

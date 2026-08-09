@@ -4,7 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     HookEntry,
     HookStatusLine,
 )
@@ -15,7 +15,7 @@ from sase.ace.hooks import (
     has_failing_test_target_hooks,
     has_running_hooks,
     hook_needs_run,
-    update_changespec_hooks_field,
+    update_patch_hooks_field,
 )
 from sase.ace.hooks.formatting import (
     format_hooks_field,
@@ -271,8 +271,8 @@ def testapply_hooks_update_preserves_deltas_boundary() -> None:
     assert "DELTAS:\n  ~ src/example.py\n" in "".join(result)
 
 
-# Tests for update_changespec_hooks_field
-def test_update_changespec_hooks_field_clear_status(tmp_path: Path) -> None:
+# Tests for update_patch_hooks_field
+def test_update_patch_hooks_field_clear_status(tmp_path: Path) -> None:
     """Test clearing hook status (for rerun)."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
@@ -292,7 +292,7 @@ HOOKS:
     try:
         # Clear hook status (simulating rerun) - no status lines
         new_hooks = [HookEntry(command="my_command")]
-        success = update_changespec_hooks_field(file_path, "test_cl", new_hooks)
+        success = update_patch_hooks_field(file_path, "test_cl", new_hooks)
         assert success is True
 
         # Verify status was cleared

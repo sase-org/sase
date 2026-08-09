@@ -24,12 +24,14 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-CHANGESPEC_WIRE_SCHEMA_VERSION = 5
-SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS = frozenset(
+CHANGESPEC_WIRE_SCHEMA_VERSION = 5  # legacy wire schema alias
+SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS = frozenset(  # legacy wire schema alias
     {2, 3, 4, CHANGESPEC_WIRE_SCHEMA_VERSION}
 )
-PATCH_WIRE_SCHEMA_VERSION = CHANGESPEC_WIRE_SCHEMA_VERSION
-SUPPORTED_PATCH_WIRE_SCHEMA_VERSIONS = SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS
+PATCH_WIRE_SCHEMA_VERSION = CHANGESPEC_WIRE_SCHEMA_VERSION  # legacy schema alias
+SUPPORTED_PATCH_WIRE_SCHEMA_VERSIONS = (
+    SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS  # legacy schema alias
+)
 
 
 @dataclass(frozen=True)
@@ -195,7 +197,7 @@ class PatchWire:
 
 @dataclass
 class ChangeSpecWire:
-    """The full parsed wire form of one ChangeSpec.
+    """The full parsed legacy wire form of one Patch.
 
     Fields mirror the legacy :class:`sase.ace.patch.models.ChangeSpec` alias plus the
     derived ``project_basename`` and a stable ``source_span``. Lists are
@@ -225,7 +227,7 @@ class ChangeSpecWire:
 # symvision: https://github.com/sase-org/sase-core.git
 @dataclass
 class ParseErrorWire:
-    """Structured error a Rust parser may emit instead of a ChangeSpecWire."""
+    """Structured error a Rust parser may emit instead of a PatchWire."""
 
     kind: str
     message: str

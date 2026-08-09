@@ -108,7 +108,7 @@ class BeadProjectMutationMixin:
         except KeyError:
             old_issue = None
         if old_issue is not None:
-            fields = _normalize_changespec_fields(fields)
+            fields = _normalize_patch_fields(fields)
             _validate_issue_update(old_issue, fields)
         issue, outcome = rust_beads.update(
             self.beads_dir, issue_id, **fields, now=self._current_time()
@@ -134,7 +134,7 @@ class BeadProjectMutationMixin:
         from sase.core import bead_mutation_facade as rust_beads
 
         resolved_ids = [self.resolve_id(issue_id) for issue_id in issue_ids]
-        normalized_fields = _normalize_changespec_fields(fields)
+        normalized_fields = _normalize_patch_fields(fields)
         for issue_id in resolved_ids:
             try:
                 old_issue: Issue | None = self.show(issue_id)
@@ -476,7 +476,7 @@ def _optional_text(value: str | int | None) -> str:
     return "" if value is None else str(value)
 
 
-def _normalize_changespec_fields(
+def _normalize_patch_fields(
     fields: dict[str, str | int | None],
 ) -> dict[str, str | int | None]:
     normalized = dict(fields)

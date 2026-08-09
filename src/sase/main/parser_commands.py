@@ -2,8 +2,6 @@
 
 import argparse
 
-from sase.main.parser_plan import register_plan_parser
-
 
 def register_comments_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'comments' subcommand parser."""
@@ -59,7 +57,7 @@ def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase config mentor-match
     config_mentor_match_parser = config_subparsers.add_parser(
         "mentor-match",
-        help="Trace mentor profile matching for a ChangeSpec",
+        help="Trace mentor profile matching for a Patch",
     )
     config_mentor_match_parser.add_argument(
         "changespec_name", help="NAME of the ChangeSpec to trace matching for"

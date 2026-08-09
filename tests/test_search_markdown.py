@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 from inline_snapshot import snapshot
 
-from sase.ace.changespec import (
-    ChangeSpec,
+from sase.ace.patch import (
+    Patch,
     CommentEntry,
     CommitEntry,
     HookEntry,
@@ -36,8 +36,8 @@ def _cs(
     comments: list[CommentEntry] | None = None,
     mentors: list[MentorEntry] | None = None,
     project_name: str = "myproject",
-) -> ChangeSpec:
-    return ChangeSpec(
+) -> Patch:
+    return Patch(
         name=name,
         description=description,
         parent=parent,
@@ -54,7 +54,7 @@ def _cs(
 
 
 def _capture_markdown(
-    changespecs: list[ChangeSpec],
+    patches: list[Patch],
     *,
     query: str = "",
     project_display_snapshot: ProjectDisplaySnapshot | None = None,
@@ -66,7 +66,7 @@ def _capture_markdown(
     sys.stdout = buf = StringIO()
     try:
         _display_markdown(
-            changespecs,
+            patches,
             query=query,
             project_display_snapshot=project_display_snapshot,
         )
@@ -117,11 +117,11 @@ class TestMdStatusIndicator:
 
 
 # ---------------------------------------------------------------------------
-# Minimal ChangeSpec
+# Minimal Patch
 # ---------------------------------------------------------------------------
 
 
-class TestMinimalChangeSpec:
+class TestMinimalPatch:
     def test_minimal_output(self) -> None:
         out = _capture_markdown([_cs(name="my_feature", description="A simple fix")])
         assert out == snapshot("""\
@@ -139,11 +139,11 @@ Found 1 change(s): 1 Ready
 
 
 # ---------------------------------------------------------------------------
-# Full ChangeSpec with all sections
+# Full Patch with all sections
 # ---------------------------------------------------------------------------
 
 
-class TestFullChangeSpec:
+class TestFullPatch:
     def test_full_output(self) -> None:
         cs = _cs(
             name="feature_auth",
@@ -260,12 +260,12 @@ Found 1 change(s): 1 Ready
 
 
 # ---------------------------------------------------------------------------
-# Multiple ChangeSpecs — separator
+# Multiple Patches — separator
 # ---------------------------------------------------------------------------
 
 
-class TestMultipleChangeSpecs:
-    def test_separator_between_changespecs(self) -> None:
+class TestMultiplePatches:
+    def test_separator_between_patches(self) -> None:
         out = _capture_markdown(
             [
                 _cs(name="first", status="WIP", description="First change"),
@@ -301,9 +301,9 @@ Found 2 change(s): 1 Draft, 1 WIP
         project_display_case: ProjectDisplayCase,
     ) -> None:
         canonical = project_display_case.project_key
-        child_key, child_label = project_display_case.changespec("child")
-        other_key, _other_label = project_display_case.changespec("other")
-        changespecs = [
+        child_key, child_label = project_display_case.patch("child")
+        other_key, _other_label = project_display_case.patch("other")
+        patches = [
             _cs(
                 name=child_key,
                 parent=project_display_case.parent_key,
@@ -327,7 +327,7 @@ Found 2 change(s): 1 Draft, 1 WIP
         )
 
         out = _capture_markdown(
-            changespecs,
+            patches,
             project_display_snapshot=project_display_case.snapshot,
         )
 
@@ -344,8 +344,8 @@ def test_plain_and_rich_search_project_names_without_mutating_identity(
     capsys,
     project_display_case: ProjectDisplayCase,
 ) -> None:
-    changespec = _cs(
-        name=project_display_case.changespec_key,
+    patch = _cs(
+        name=project_display_case.patch_key,
         parent=project_display_case.parent_key,
         project_name=project_display_case.project_key,
     )
@@ -356,34 +356,34 @@ def test_plain_and_rich_search_project_names_without_mutating_identity(
                 workspace_num=7,
                 pid=123,
                 workflow="axe",
-                cl_name=project_display_case.changespec_key,
+                cl_name=project_display_case.patch_key,
             )
         ],
     )
 
     _display_plain(
-        [changespec],
+        [patch],
         project_display_snapshot=project_display_case.snapshot,
     )
     plain = capsys.readouterr().out
     _display_rich(
-        [changespec],
+        [patch],
         project_display_snapshot=project_display_case.snapshot,
     )
     rich = capsys.readouterr().out
 
     for output in (plain, rich):
-        assert project_display_case.changespec_label in output
+        assert project_display_case.patch_label in output
         assert project_display_case.parent_label in output
-        assert f"NAME: {project_display_case.changespec_key}" not in output
+        assert f"NAME: {project_display_case.patch_key}" not in output
         assert f"PARENT: {project_display_case.parent_key}" not in output
-        assert f"| {project_display_case.changespec_key}" not in output
+        assert f"| {project_display_case.patch_key}" not in output
     assert (
         f"/projects/{project_display_case.project_key}/"
         f"{project_display_case.project_key}.sase" in plain
     )
-    assert changespec.name == project_display_case.changespec_key
-    assert changespec.parent == project_display_case.parent_key
+    assert patch.name == project_display_case.patch_key
+    assert patch.parent == project_display_case.parent_key
 
 
 # ---------------------------------------------------------------------------

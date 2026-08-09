@@ -1,8 +1,8 @@
-"""Tests for evaluating parsed queries against ChangeSpec objects."""
+"""Tests for evaluating parsed queries against Patch objects."""
 
 from typing import Any
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     CommentEntry,
     CommitEntry,
     HookEntry,
@@ -12,36 +12,36 @@ from sase.ace.query import evaluate_query, parse_query
 
 
 def test_evaluate_string_match_case_sensitive(
-    make_changespec: Any,
+    make_patch: Any,
 ) -> None:
     """Test case-sensitive string matching."""
     query = parse_query('c"Feature"')
-    cs = make_changespec.create(name="my_Feature_test")
+    cs = make_patch.create(name="my_Feature_test")
     assert evaluate_query(query, cs) is True
 
-    cs2 = make_changespec.create(name="my_feature_test")
+    cs2 = make_patch.create(name="my_feature_test")
     assert evaluate_query(query, cs2) is False
 
 
-def test_evaluate_or_match(make_changespec: Any) -> None:
+def test_evaluate_or_match(make_patch: Any) -> None:
     """Test OR expression evaluation."""
     query = parse_query('"feature" OR "bugfix"')
-    cs1 = make_changespec.create(name="my_feature")
+    cs1 = make_patch.create(name="my_feature")
     assert evaluate_query(query, cs1) is True
 
-    cs2 = make_changespec.create(name="my_bugfix")
+    cs2 = make_patch.create(name="my_bugfix")
     assert evaluate_query(query, cs2) is True
 
-    cs3 = make_changespec.create(name="refactor")
+    cs3 = make_patch.create(name="refactor")
     assert evaluate_query(query, cs3) is False
 
 
 def test_evaluate_error_suffix_matches_history_suffix(
-    make_changespec: Any,
+    make_patch: Any,
 ) -> None:
-    """Test !!! matches ChangeSpec with suffix in COMMITS entry."""
+    """Test !!! matches Patch with suffix in COMMITS entry."""
     query = parse_query("!!!")
-    cs = make_changespec.create(
+    cs = make_patch.create(
         status="Ready",  # No suffix in status
         commits=[
             CommitEntry(
@@ -56,11 +56,11 @@ def test_evaluate_error_suffix_matches_history_suffix(
 
 
 def test_evaluate_error_suffix_matches_comment_suffix(
-    make_changespec: Any,
+    make_patch: Any,
 ) -> None:
-    """Test !!! matches ChangeSpec with suffix in COMMENTS entry."""
+    """Test !!! matches Patch with suffix in COMMENTS entry."""
     query = parse_query("!!!")
-    cs = make_changespec.create(
+    cs = make_patch.create(
         status="Ready",  # No suffix in status
         comments=[
             CommentEntry(
@@ -75,11 +75,11 @@ def test_evaluate_error_suffix_matches_comment_suffix(
 
 
 def test_evaluate_no_status_suffix_excludes_hook_suffix(
-    make_changespec: Any,
+    make_patch: Any,
 ) -> None:
-    """Test !! excludes ChangeSpec with suffix in HOOKS status line."""
+    """Test !! excludes Patch with suffix in HOOKS status line."""
     query = parse_query("!!")
-    cs = make_changespec.create(
+    cs = make_patch.create(
         status="Ready",  # No suffix in status
         hooks=[
             HookEntry(
@@ -100,11 +100,11 @@ def test_evaluate_no_status_suffix_excludes_hook_suffix(
 
 
 def test_evaluate_error_suffix_ignores_plain_hook_suffix(
-    make_changespec: Any,
+    make_patch: Any,
 ) -> None:
     """Test !!! does NOT match plain suffixes (without !: prefix) in hooks."""
     query = parse_query("!!!")
-    cs = make_changespec.create(
+    cs = make_patch.create(
         status="Ready",  # No suffix in status
         hooks=[
             HookEntry(
@@ -125,11 +125,11 @@ def test_evaluate_error_suffix_ignores_plain_hook_suffix(
 
 
 def test_evaluate_error_suffix_ignores_plain_suffix(
-    make_changespec: Any,
+    make_patch: Any,
 ) -> None:
     """Test !!! does NOT match plain suffixes (no prefix) in history."""
     query = parse_query("!!!")
-    cs = make_changespec.create(
+    cs = make_patch.create(
         status="Ready",  # No suffix in status
         commits=[
             CommitEntry(

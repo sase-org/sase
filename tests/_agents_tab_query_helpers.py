@@ -52,7 +52,7 @@ class FakeAgentApp(AgentLoadingMixin):
     """Minimal app exposing just the attributes ``_finalize_agent_list`` needs."""
 
     def __init__(self, query: str = "") -> None:
-        self.current_tab = "changespecs"  # avoid widget queries
+        self.current_tab = "changespecs"  # avoid widget queries  # legacy tab id
         self.current_idx = 0
         self.hide_non_run_agents = False
         self._agents: list[Agent] = []
@@ -81,7 +81,7 @@ class FakeAgentApp(AgentLoadingMixin):
         self._agents_loading = False
         self._agents_first_load_done = True
         # Deferred live-hint scan coalescing state (the apply path schedules a
-        # scan once the list is finalized). These fakes stay on the changespecs
+        # scan once the list is finalized). These fakes stay on the patches
         # tab, so the scheduled worker is recorded but never runs.
         self._live_hints_scan_scheduled = False
         self._live_hints_scan_running = False
@@ -107,7 +107,7 @@ class FakeAgentApp(AgentLoadingMixin):
         return None
 
     # Stubs for methods the finalizer calls when on agents tab — not
-    # exercised because our fake stays on changespecs tab.
+    # exercised because our fake stays on patches tab.
     def _refresh_agents_display(self, **_kwargs: Any) -> None:
         pass
 

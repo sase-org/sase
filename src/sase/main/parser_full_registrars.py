@@ -17,7 +17,6 @@ from sase.main.parser_commands import (
     register_lsp_parser,
     register_notify_parser,
     register_path_parser,
-    register_plan_parser,
     register_questions_parser,
     register_revive_log_parser,
     register_run_parser,
@@ -37,6 +36,7 @@ from sase.main.parser_init import register_init_parser
 from sase.main.parser_launch import register_launch_parser
 from sase.main.parser_memory import register_memory_parser
 from sase.main.parser_mobile import register_mobile_parser
+from sase.main.parser_plan import register_plan_parser
 from sase.main.parser_plugin import register_plugin_parser
 from sase.main.parser_project import register_project_parser
 from sase.main.parser_prompt import register_prompt_parser

@@ -45,7 +45,7 @@ def _make_mixin() -> RenameMixin:
     return obj
 
 
-def _make_changespec(
+def _make_patch(
     name: str = "old_cl",
     file_path: str = "/tmp/proj.sase",
     status: str = "WIP",
@@ -95,7 +95,7 @@ def test_immutable_writes_alias_no_existing(
     mock_provider_fn.return_value = provider
 
     mixin = _make_mixin()
-    cs = _make_changespec(name="old_cl")
+    cs = _make_patch(name="old_cl")
     mixin._execute_rename(cs, "new_cl")
 
     # Should NOT call provider rename
@@ -146,7 +146,7 @@ def test_immutable_rekeys_existing_alias(
     mock_provider_fn.return_value = provider
 
     mixin = _make_mixin()
-    cs = _make_changespec(name="old_cl")
+    cs = _make_patch(name="old_cl")
     mixin._execute_rename(cs, "new_cl")
 
     # Should NOT call provider rename
@@ -196,7 +196,7 @@ def test_mutable_renames_and_removes_stale_alias(
     mock_provider_fn.return_value = provider
 
     mixin = _make_mixin()
-    cs = _make_changespec(name="old_cl")
+    cs = _make_patch(name="old_cl")
     mixin._execute_rename(cs, "new_cl")
 
     # Should call provider rename

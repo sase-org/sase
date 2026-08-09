@@ -102,11 +102,11 @@ def _capture_footer(tab: str) -> list[tuple[str, str]]:
 
 
 def test_footer_leader_bindings_include_models_panel() -> None:
-    bindings = _capture_footer("changespecs")
+    bindings = _capture_footer("changespecs")  # legacy wire key
     assert any(label == "models panel" for _, label in bindings)
 
 
-@pytest.mark.parametrize("tab", ["changespecs", "agents", "axe"])
+@pytest.mark.parametrize("tab", ["changespecs", "agents", "axe"])  # legacy wire key
 def test_footer_leader_bindings_present_on_every_tab(tab: str) -> None:
     bindings = _capture_footer(tab)
     assert any(label == "models panel" for _, label in bindings)

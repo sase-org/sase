@@ -1,7 +1,7 @@
-"""Tests for ready-to-mail helper functions in changespec module."""
+"""Tests for ready-to-mail helper functions in patch module."""
 
-from sase.ace.changespec import (
-    ChangeSpec,
+from sase.ace.patch import (
+    Patch,
     CommitEntry,
     HookEntry,
     HookStatusLine,
@@ -10,13 +10,13 @@ from sase.ace.changespec import (
 )
 
 
-def _make_changespec(
+def _make_patch(
     commits: list | None = None,
     hooks: list | None = None,
     status: str = "Ready",
-) -> ChangeSpec:
-    """Helper function to create a ChangeSpec with required fields for tests."""
-    return ChangeSpec(
+) -> Patch:
+    """Helper function to create a Patch with required fields for tests."""
+    return Patch(
         name="test",
         description="test",
         parent=None,
@@ -32,7 +32,7 @@ def _make_changespec(
 # Tests for get_current_and_proposal_entry_ids
 def test_get_current_and_proposal_entry_ids_with_proposals() -> None:
     """Test returns current + proposals with same number."""
-    changespec = _make_changespec(
+    patch = _make_patch(
         commits=[
             CommitEntry(number=1, note="First change"),
             CommitEntry(number=2, note="Second change"),
@@ -40,18 +40,18 @@ def test_get_current_and_proposal_entry_ids_with_proposals() -> None:
             CommitEntry(number=2, note="Proposal B", proposal_letter="b"),
         ],
     )
-    result = get_current_and_proposal_entry_ids(changespec)
+    result = get_current_and_proposal_entry_ids(patch)
     assert result == ["2", "2a", "2b"]
 
 
 def test_get_current_and_proposal_entry_ids_all_proposals() -> None:
     """Test returns empty list when all entries are proposals (no current)."""
-    changespec = _make_changespec(
+    patch = _make_patch(
         commits=[
             CommitEntry(number=1, note="Only proposal", proposal_letter="a"),
         ],
     )
-    result = get_current_and_proposal_entry_ids(changespec)
+    result = get_current_and_proposal_entry_ids(patch)
     assert result == []
 
 
@@ -76,8 +76,8 @@ def test_all_hooks_passed_for_entries_one_failed() -> None:
             ],
         ),
     ]
-    changespec = _make_changespec(hooks=hooks)
-    result = all_hooks_passed_for_entries(changespec, ["2"])
+    patch = _make_patch(hooks=hooks)
+    result = all_hooks_passed_for_entries(patch, ["2"])
     assert result is False
 
 
@@ -94,8 +94,8 @@ def test_all_hooks_passed_for_entries_no_status() -> None:
             ],
         ),
     ]
-    changespec = _make_changespec(hooks=hooks)
-    result = all_hooks_passed_for_entries(changespec, ["2", "2a"])
+    patch = _make_patch(hooks=hooks)
+    result = all_hooks_passed_for_entries(patch, ["2", "2a"])
     assert result is False
 
 
@@ -107,7 +107,7 @@ def test_all_hooks_passed_for_entries_skip_dollar_no_status() -> None:
             status_lines=[],  # No status lines at all
         ),
     ]
-    changespec = _make_changespec(hooks=hooks)
+    patch = _make_patch(hooks=hooks)
     # Should pass because $-prefixed hooks are completely skipped
-    result = all_hooks_passed_for_entries(changespec, ["2"])
+    result = all_hooks_passed_for_entries(patch, ["2"])
     assert result is True

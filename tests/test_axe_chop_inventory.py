@@ -131,7 +131,7 @@ def test_chop_inventory_to_dict_carries_description_parts() -> None:
                         name="friendly",
                         description=(
                             "Complete finished hooks and start stale ones\n\n"
-                            "Scans ChangeSpecs and advances stale hook work."
+                            "Scans Patches and advances stale hook work."
                         ),
                     )
                 ],
@@ -144,15 +144,14 @@ def test_chop_inventory_to_dict_carries_description_parts() -> None:
     configured = next(c for c in payload["configured"] if c["name"] == "friendly")
     assert configured["description"] == (
         "Complete finished hooks and start stale ones\n\n"
-        "Scans ChangeSpecs and advances stale hook work."
+        "Scans Patches and advances stale hook work."
     )
     assert (
         configured["description_summary"]
         == "Complete finished hooks and start stale ones"
     )
     assert (
-        configured["description_body"]
-        == "Scans ChangeSpecs and advances stale hook work."
+        configured["description_body"] == "Scans Patches and advances stale hook work."
     )
 
 
@@ -214,7 +213,7 @@ def _render_chop_list(config: AxeConfig, *, verbose: bool) -> str:
 @pytest.mark.parametrize("verbose", [False, True])
 def test_configured_chops_table_shows_summary_first(verbose: bool) -> None:
     """The Description column stays summary-only; verbose adds the full body."""
-    body = "Scans ChangeSpecs and advances stale hook work."
+    body = "Scans Patches and advances stale hook work."
     config = AxeConfig(
         lumberjacks={
             "hooks": LumberjackConfig(

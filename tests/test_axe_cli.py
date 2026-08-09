@@ -69,7 +69,7 @@ def default_axe_config() -> AxeConfig:
                     "chops": [
                         {
                             "name": "pr_submitted_checks",
-                            "description": "Check ChangeSpecs",
+                            "description": "Check Patches",
                         },
                     ],
                 },
@@ -307,7 +307,7 @@ def test_handle_axe_chop_run_records_run_history_under_lumberjack(
     args = argparse.Namespace(chop_name="hook_checks", lumberjack="hooks")
     with (
         patch("sase.axe.cli.load_axe_config", return_value=config),
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         pytest.raises(SystemExit) as exc_info,
     ):
         handle_axe_chop_run(args)
@@ -336,7 +336,7 @@ def test_handle_axe_chop_run_unconfigured_script_uses_oneshot(
     args = argparse.Namespace(chop_name="freestanding", lumberjack=None)
     with (
         patch("sase.axe.cli.load_axe_config", return_value=config),
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         pytest.raises(SystemExit) as exc_info,
     ):
         handle_axe_chop_run(args)

@@ -1,8 +1,8 @@
 """Synthetic-data fixture builders for the TUI performance harness.
 
 Phase 1 of sdd/plans/202604/tui_perf_overhaul_1.md (bead sase-w.1). Generates
-in-memory ``ChangeSpec`` and ``Agent`` lists at the sizes the perf runbook
-expects (100 / 500 / 2,000 ChangeSpecs, 50 / 200 / 1,000 agents) plus
+in-memory ``Patch`` and ``Agent`` lists at the sizes the perf runbook
+expects (100 / 500 / 2,000 Patches, 50 / 200 / 1,000 agents) plus
 helpers for synthetic large-reply payloads (1 MB / 5 MB / 20 MB). Kept
 disk-free so the bench can isolate UI-thread cost from disk I/O cost.
 """
@@ -12,11 +12,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
-CHANGESPEC_SIZES: tuple[int, ...] = (100, 500, 2000)
+PATCH_SIZES: tuple[int, ...] = (100, 500, 2000)
 AGENT_SIZES: tuple[int, ...] = (50, 200, 1000)
 LARGE_REPLY_SIZES_MB: tuple[int, ...] = (1, 5, 20)
 
@@ -31,9 +31,9 @@ HINT_CLAN_SUMMARY_KB: int = 8
 HINT_CLAN_GENERATION: str = "20260727120000"
 
 
-def make_changespec(name: str, file_path: Path, *, status: str = "WIP") -> ChangeSpec:
-    """Return a minimal :class:`ChangeSpec` suitable for harness fixtures."""
-    return ChangeSpec(
+def make_patch(name: str, file_path: Path, *, status: str = "WIP") -> Patch:
+    """Return a minimal :class:`Patch` suitable for harness fixtures."""
+    return Patch(
         name=name,
         description=f"synthetic {name}",
         parent=None,
@@ -44,12 +44,12 @@ def make_changespec(name: str, file_path: Path, *, status: str = "WIP") -> Chang
     )
 
 
-def make_changespec_list(
+def make_patch_list(
     n: int, *, gp_file: Path, status_cycle: tuple[str, ...] = ("WIP", "Draft", "Ready")
-) -> list[ChangeSpec]:
-    """Return ``n`` synthetic ChangeSpecs cycling statuses for fold variety."""
+) -> list[Patch]:
+    """Return ``n`` synthetic Patches cycling statuses for fold variety."""
     return [
-        make_changespec(
+        make_patch(
             f"cs_{i:05d}",
             gp_file,
             status=status_cycle[i % len(status_cycle)],
@@ -266,12 +266,12 @@ def make_hint_clan_container(
 class FixtureSet:
     """A bundle of fixtures pinned to one scenario size."""
 
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     agents: list[Agent]
 
 
 def build_fixture(cs_count: int, agent_count: int, *, gp_file: Path) -> FixtureSet:
     return FixtureSet(
-        changespecs=make_changespec_list(cs_count, gp_file=gp_file),
+        patches=make_patch_list(cs_count, gp_file=gp_file),
         agents=make_agent_list(agent_count, project_file=str(gp_file)),
     )

@@ -26,7 +26,7 @@ tier: epic
 title: Deterministic rollout
 goal: Ship the rollout through an ordered DAG
 model: claude/opus
-changespec: rollout
+patch: rollout
 bug_id: 12345
 phases:
   - id: core
@@ -432,7 +432,7 @@ def test_valid_plan_runs_real_bead_work_wave_path(
 
     plan_path = project_dir / "rollout.md"
     plan_path.write_text(
-        EPIC_PLAN.replace("changespec: rollout\nbug_id: 12345\n", ""),
+        EPIC_PLAN.replace("patch: rollout\nbug_id: 12345\n", ""),
         encoding="utf-8",
     )
     captured: dict[str, str] = {}

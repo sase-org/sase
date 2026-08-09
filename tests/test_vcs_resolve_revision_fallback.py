@@ -1,6 +1,6 @@
 """Tests for vcs_resolve_revision suffixed-branch fallback.
 
-When a base-name ChangeSpec (no __N suffix) can't find its branch,
+When a base-name Patch (no __N suffix) can't find its branch,
 the resolver should fall back to a unique suffixed remote branch
 (e.g. origin/feat-bar-1) if exactly one match exists.
 """

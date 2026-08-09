@@ -4,7 +4,7 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch as patch_ctx
 
 import pytest
 from sase.ace.scheduler.checks_runner import (
@@ -26,19 +26,19 @@ from sase.workspace_provider import SUBMITTED_CHECK_EXIT_CODE_CLOSED
 from tests.conftest import redirect_sase_home
 
 
-def _mock_changespec(status: str = "Draft") -> MagicMock:
-    changespec = MagicMock()
-    changespec.name = "my_feature"
-    changespec.file_path = "/path/to/project.sase"
-    changespec.pr_url = "http://cl/123456"
-    changespec.status = status
-    changespec.comments = None
-    return changespec
+def _mock_patch(status: str = "Draft") -> MagicMock:
+    patch = MagicMock()
+    patch.name = "my_feature"
+    patch.file_path = "/path/to/project.sase"
+    patch.pr_url = "http://cl/123456"
+    patch.status = status
+    patch.comments = None
+    return patch
 
 
 def test_extract_change_identifier_valid_https() -> None:
     """Test extracting PR number from https URL via workspace provider plugin."""
-    with patch(
+    with patch_ctx(
         "sase.workspace_provider.extract_change_identifier",
         return_value=("987654321", "hg"),
     ):
@@ -48,7 +48,7 @@ def test_extract_change_identifier_valid_https() -> None:
 
 def test_extract_change_identifier_invalid_url() -> None:
     """Test that invalid URLs return None."""
-    with patch(
+    with patch_ctx(
         "sase.workspace_provider.extract_change_identifier",
         return_value=None,
     ):
@@ -84,11 +84,11 @@ def test_get_pending_checks_no_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test that missing checks directory returns empty list."""
-    mock_changespec = MagicMock()
-    mock_changespec.name = "test_feature"
+    mock_patch = MagicMock()
+    mock_patch.name = "test_feature"
 
     redirect_sase_home(monkeypatch, tmp_path)
-    result = _get_pending_checks(mock_changespec)
+    result = _get_pending_checks(mock_patch)
     assert result == []
 
 
@@ -96,8 +96,8 @@ def test_get_pending_checks_with_matching_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test finding pending checks in the checks directory."""
-    mock_changespec = MagicMock()
-    mock_changespec.name = "my_feature"
+    mock_patch = MagicMock()
+    mock_patch.name = "my_feature"
 
     redirect_sase_home(monkeypatch, tmp_path)
     checks_shard = tmp_path / "checks" / "202412"
@@ -106,7 +106,7 @@ def test_get_pending_checks_with_matching_files(
     (checks_shard / "my_feature-reviewer_comments-241227_120001.txt").touch()
     (checks_shard / "other_feature-cl_submitted-241227_120002.txt").touch()
 
-    result = _get_pending_checks(mock_changespec)
+    result = _get_pending_checks(mock_patch)
 
     # Should find 2 files matching my_feature
     assert len(result) == 2
@@ -119,15 +119,15 @@ def test_has_pending_check_different_type(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test has_pending_check returns False for different check type."""
-    mock_changespec = MagicMock()
-    mock_changespec.name = "my_feature"
+    mock_patch = MagicMock()
+    mock_patch.name = "my_feature"
 
     redirect_sase_home(monkeypatch, tmp_path)
     checks_shard = tmp_path / "checks" / "202412"
     checks_shard.mkdir(parents=True)
     (checks_shard / "my_feature-cl_submitted-241227_120000.txt").touch()
 
-    result = has_pending_check(mock_changespec, CHECK_TYPE_REVIEWER_COMMENTS)
+    result = has_pending_check(mock_patch, CHECK_TYPE_REVIEWER_COMMENTS)
     assert result is False
 
 
@@ -135,12 +135,12 @@ def test__check_pending_checks_processes_completed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test that completed checks are processed and cleaned up."""
-    mock_changespec = MagicMock()
-    mock_changespec.name = "my_feature"
-    mock_changespec.file_path = "/path/to/project.sase"
-    mock_changespec.pr_url = "http://cl/123456"
-    mock_changespec.status = "Mailed"
-    mock_changespec.comments = None
+    mock_patch = MagicMock()
+    mock_patch.name = "my_feature"
+    mock_patch.file_path = "/path/to/project.sase"
+    mock_patch.pr_url = "http://cl/123456"
+    mock_patch.status = "Mailed"
+    mock_patch.comments = None
     mock_log = MagicMock()
 
     redirect_sase_home(monkeypatch, tmp_path)
@@ -149,13 +149,13 @@ def test__check_pending_checks_processes_completed(
     check_file = checks_shard / "my_feature-cl_submitted-241227_120000.txt"
     check_file.write_text(f"Output\n{CHECK_COMPLETE_MARKER}EXIT_CODE: 1\n")
 
-    with patch("sase.ace.scheduler.checks_runner.update_last_checked"):
-        with patch(
+    with patch_ctx("sase.ace.scheduler.checks_runner.update_last_checked"):
+        with patch_ctx(
             "sase.ace.scheduler.checks_runner.is_parent_submitted"
         ) as mock_parent:
             mock_parent.return_value = True
-            pending = _get_pending_checks(mock_changespec)
-            process_pending_checks_for(mock_changespec, pending, mock_log)
+            pending = _get_pending_checks(mock_patch)
+            process_pending_checks_for(mock_patch, pending, mock_log)
 
     # The check file should be cleaned up
     assert not check_file.exists()
@@ -165,8 +165,8 @@ def test__check_pending_checks_incomplete_not_processed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test that incomplete checks are not processed."""
-    mock_changespec = MagicMock()
-    mock_changespec.name = "my_feature"
+    mock_patch = MagicMock()
+    mock_patch.name = "my_feature"
     mock_log = MagicMock()
 
     redirect_sase_home(monkeypatch, tmp_path)
@@ -175,8 +175,8 @@ def test__check_pending_checks_incomplete_not_processed(
     check_file = checks_shard / "my_feature-cl_submitted-241227_120000.txt"
     check_file.write_text("Still running...\n")
 
-    pending = _get_pending_checks(mock_changespec)
-    result = process_pending_checks_for(mock_changespec, pending, mock_log)
+    pending = _get_pending_checks(mock_patch)
+    result = process_pending_checks_for(mock_patch, pending, mock_log)
 
     # The check file should still exist
     assert check_file.exists()
@@ -196,23 +196,25 @@ def test_check_complete_marker() -> None:
 
 
 def test_handle_cl_submitted_completion_archives_closed_non_terminal_spec() -> None:
-    """Exit 20 archives a non-terminal ChangeSpec and clears sync cache."""
-    changespec = _mock_changespec(status="Draft")
+    """Exit 20 archives a non-terminal Patch and clears sync cache."""
+    patch = _mock_patch(status="Draft")
     log = MagicMock()
 
     with (
-        patch("sase.ace.scheduler.checks_runner.update_last_checked") as mock_checked,
-        patch(
-            "sase.ace.scheduler.checks_runner.transition_changespec_status",
+        patch_ctx(
+            "sase.ace.scheduler.checks_runner.update_last_checked"
+        ) as mock_checked,
+        patch_ctx(
+            "sase.ace.scheduler.checks_runner.transition_patch_status",
             return_value=(True, "Draft", None, []),
         ) as mock_transition,
-        patch("sase.ace.sync_cache.clear_cache_entry") as mock_clear,
-        patch(
+        patch_ctx("sase.ace.sync_cache.clear_cache_entry") as mock_clear,
+        patch_ctx(
             "sase.ace.scheduler.checks_runner.is_parent_submitted"
         ) as mock_parent_submitted,
     ):
         result = _handle_cl_submitted_completion(
-            changespec,
+            patch,
             SUBMITTED_CHECK_EXIT_CODE_CLOSED,
             log,
         )
@@ -244,20 +246,22 @@ def test_handle_cl_submitted_completion_closed_terminal_status_is_noop(
     status: str,
 ) -> None:
     """Exit 20 does not rewrite already-terminal specs."""
-    changespec = _mock_changespec(status=status)
+    patch = _mock_patch(status=status)
     log = MagicMock()
 
     with (
-        patch("sase.ace.scheduler.checks_runner.update_last_checked") as mock_checked,
-        patch(
-            "sase.ace.scheduler.checks_runner.transition_changespec_status"
+        patch_ctx(
+            "sase.ace.scheduler.checks_runner.update_last_checked"
+        ) as mock_checked,
+        patch_ctx(
+            "sase.ace.scheduler.checks_runner.transition_patch_status"
         ) as mock_transition,
-        patch(
+        patch_ctx(
             "sase.ace.scheduler.checks_runner.is_parent_submitted"
         ) as mock_parent_submitted,
     ):
         result = _handle_cl_submitted_completion(
-            changespec,
+            patch,
             SUBMITTED_CHECK_EXIT_CODE_CLOSED,
             log,
         )
@@ -272,20 +276,22 @@ def test_handle_cl_submitted_completion_closed_terminal_status_is_noop(
 def test_handle_cl_submitted_completion_other_nonzero_exit_is_noop(
     exit_code: int,
 ) -> None:
-    """Only the closed-unmerged exit code archives a ChangeSpec."""
-    changespec = _mock_changespec(status="Draft")
+    """Only the closed-unmerged exit code archives a Patch."""
+    patch = _mock_patch(status="Draft")
     log = MagicMock()
 
     with (
-        patch("sase.ace.scheduler.checks_runner.update_last_checked") as mock_checked,
-        patch(
-            "sase.ace.scheduler.checks_runner.transition_changespec_status"
+        patch_ctx(
+            "sase.ace.scheduler.checks_runner.update_last_checked"
+        ) as mock_checked,
+        patch_ctx(
+            "sase.ace.scheduler.checks_runner.transition_patch_status"
         ) as mock_transition,
-        patch(
+        patch_ctx(
             "sase.ace.scheduler.checks_runner.is_parent_submitted"
         ) as mock_parent_submitted,
     ):
-        result = _handle_cl_submitted_completion(changespec, exit_code, log)
+        result = _handle_cl_submitted_completion(patch, exit_code, log)
 
     assert result is None
     mock_checked.assert_called_once_with("my_feature")
@@ -295,26 +301,28 @@ def test_handle_cl_submitted_completion_other_nonzero_exit_is_noop(
 
 def test_handle_cl_submitted_completion_exit_zero_still_submits() -> None:
     """Exit 0 keeps the existing Submitted transition behavior."""
-    changespec = _mock_changespec(status="Mailed")
+    patch = _mock_patch(status="Mailed")
     log = MagicMock()
 
     with (
-        patch("sase.ace.scheduler.checks_runner.update_last_checked") as mock_checked,
-        patch(
+        patch_ctx(
+            "sase.ace.scheduler.checks_runner.update_last_checked"
+        ) as mock_checked,
+        patch_ctx(
             "sase.ace.scheduler.checks_runner.is_parent_submitted",
             return_value=True,
         ) as mock_parent_submitted,
-        patch(
-            "sase.ace.scheduler.checks_runner.transition_changespec_status",
+        patch_ctx(
+            "sase.ace.scheduler.checks_runner.transition_patch_status",
             return_value=(True, "Mailed", None, []),
         ) as mock_transition,
-        patch("sase.ace.sync_cache.clear_cache_entry") as mock_clear,
+        patch_ctx("sase.ace.sync_cache.clear_cache_entry") as mock_clear,
     ):
-        result = _handle_cl_submitted_completion(changespec, 0, log)
+        result = _handle_cl_submitted_completion(patch, 0, log)
 
     assert result == "Status changed Mailed -> Submitted"
     mock_checked.assert_called_once_with("my_feature")
-    mock_parent_submitted.assert_called_once_with(changespec)
+    mock_parent_submitted.assert_called_once_with(patch)
     mock_transition.assert_called_once_with(
         "/path/to/project.sase",
         "my_feature",
@@ -328,7 +336,7 @@ def test_process_pending_checks_for_archives_on_closed_exit_code(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The pending-check poll handles the closed-unmerged completion marker."""
-    changespec = _mock_changespec(status="Ready")
+    patch = _mock_patch(status="Ready")
     log = MagicMock()
 
     redirect_sase_home(monkeypatch, tmp_path)
@@ -340,17 +348,17 @@ def test_process_pending_checks_for_archives_on_closed_exit_code(
         f"EXIT_CODE: {SUBMITTED_CHECK_EXIT_CODE_CLOSED}\n"
     )
 
-    pending = _get_pending_checks(changespec)
+    pending = _get_pending_checks(patch)
 
     with (
-        patch("sase.ace.scheduler.checks_runner.update_last_checked"),
-        patch(
-            "sase.ace.scheduler.checks_runner.transition_changespec_status",
+        patch_ctx("sase.ace.scheduler.checks_runner.update_last_checked"),
+        patch_ctx(
+            "sase.ace.scheduler.checks_runner.transition_patch_status",
             return_value=(True, "Ready", None, []),
         ) as mock_transition,
-        patch("sase.ace.sync_cache.clear_cache_entry") as mock_clear,
+        patch_ctx("sase.ace.sync_cache.clear_cache_entry") as mock_clear,
     ):
-        result = process_pending_checks_for(changespec, pending, log)
+        result = process_pending_checks_for(patch, pending, log)
 
     assert result == ["Status changed Ready -> Archived"]
     mock_transition.assert_called_once_with(
@@ -368,38 +376,38 @@ def test_process_pending_checks_for_archives_on_closed_exit_code(
 
 def test_start_reviewer_comments_check_skips_for_git() -> None:
     """Test that start_reviewer_comments_check returns None when plugin says unsupported."""
-    mock_changespec = MagicMock()
-    mock_changespec.name = "my_feature"
-    mock_changespec.pr_url = "https://github.com/user/repo/pull/42"
+    mock_patch = MagicMock()
+    mock_patch.name = "my_feature"
+    mock_patch.pr_url = "https://github.com/user/repo/pull/42"
     mock_log = MagicMock()
 
-    with patch(
+    with patch_ctx(
         "sase.workspace_provider.supports_reviewer_comments",
         return_value=False,
     ):
-        result = start_reviewer_comments_check(mock_changespec, "/workspace", mock_log)
+        result = start_reviewer_comments_check(mock_patch, "/workspace", mock_log)
     assert result is None
 
 
 def test_start_reviewer_comments_check_skips_for_no_cl() -> None:
     """Test that start_reviewer_comments_check handles None PR gracefully."""
-    mock_changespec = MagicMock()
-    mock_changespec.name = "my_feature"
-    mock_changespec.pr_url = None
+    mock_patch = MagicMock()
+    mock_patch.name = "my_feature"
+    mock_patch.pr_url = None
     mock_log = MagicMock()
 
     # With no CL, the supports_reviewer_comments check is skipped entirely.
     # We mock generate_reviewer_comments_script to return a script body and
     # patch Popen to avoid actually running a command.
     with (
-        patch(
+        patch_ctx(
             "sase.workspace_provider.generate_reviewer_comments_script",
             return_value="critique_comments my_feature 2>&1",
         ),
-        patch("sase.ace.scheduler.checks_runner.subprocess.Popen") as mock_popen,
+        patch_ctx("sase.ace.scheduler.checks_runner.subprocess.Popen") as mock_popen,
     ):
         mock_popen.return_value = MagicMock()
-        result = start_reviewer_comments_check(mock_changespec, "/workspace", mock_log)
+        result = start_reviewer_comments_check(mock_patch, "/workspace", mock_log)
     # Should attempt to start (for hg repos that might not have a PR URL yet)
     assert result == "Started reviewer_comments check"
 
@@ -466,7 +474,7 @@ def testreap_orphan_check_files_preserves_completed(
 def test_scan_all_pending_checks_groups_by_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Files from different shards are grouped by safe ChangeSpec name."""
+    """Files from different shards are grouped by safe Patch name."""
     redirect_sase_home(monkeypatch, tmp_path)
     shard_a = tmp_path / "checks" / "202603"
     shard_b = tmp_path / "checks" / "202604"
@@ -508,7 +516,7 @@ def test_scan_all_pending_checks_ignores_malformed_filenames(
 def test_run_pending_checks_poll_scans_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The poll walks the checks directory once regardless of ChangeSpec count."""
+    """The poll walks the checks directory once regardless of Patch count."""
     from sase.axe.hook_jobs import HookJobRunner
     from sase.axe.state import AxeMetrics
 
@@ -528,12 +536,12 @@ def test_run_pending_checks_poll_scans_once(
         log_callback=MagicMock(),
     )
 
-    with patch(
+    with patch_ctx(
         "sase.ace.scheduler.checks_runner.iter_sharded_files",
         return_value=iter([]),
     ) as mock_iter:
         runner.run_pending_checks_poll(specs)
 
     # One call for the reaper, one call for scan_all_pending_checks.
-    # Crucially, NOT one-per-ChangeSpec.
+    # Crucially, NOT one-per-Patch.
     assert mock_iter.call_count == 2

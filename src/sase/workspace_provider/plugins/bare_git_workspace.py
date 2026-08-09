@@ -128,16 +128,14 @@ class BareGitWorkspacePlugin:
     @hookimpl
     def ws_submit(
         self,
-        changespec_file: str,
+        patch_file: str,
         changespec_name: str,
         project_basename: str,
         console: object | None,
     ) -> tuple[bool, str | None] | None:
-        if not self._is_bare_git_project(changespec_file):
+        if not self._is_bare_git_project(patch_file):
             return None
-        return submit_bare_git(
-            changespec_file, changespec_name, project_basename, console
-        )
+        return submit_bare_git(patch_file, changespec_name, project_basename, console)
 
     @hookimpl
     def ws_setup_workflow(
@@ -178,7 +176,7 @@ class BareGitWorkspacePlugin:
     def ws_prepare_mail(
         self,
         changespec_name: str,
-        changespec_parent: str | None,
+        patch_parent: str | None,
         project_basename: str,
         project_file: str,
         target_dir: str,

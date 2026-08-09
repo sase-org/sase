@@ -1,6 +1,5 @@
 """Tests for mentor output schema, storage, and acceptance state."""
 
-import json
 from pathlib import Path
 
 from sase.ace.mentor_output import (
@@ -190,7 +189,7 @@ def test_load_all_skips_acceptance_files(tmp_path: Path, monkeypatch: object) ->
 
 
 def test_cl_name_with_slash(tmp_path: Path, monkeypatch: object) -> None:
-    """Test that ChangeSpec names with slashes are sanitized."""
+    """Test that Patch names with slashes are sanitized."""
     monkeypatch.setattr("sase.ace.mentor_output.SASE_MENTORS_DIR", tmp_path)  # type: ignore[attr-defined]
 
     output = _make_output()

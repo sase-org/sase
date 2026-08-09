@@ -90,7 +90,7 @@ def handle_axe_chop_doctor(args: argparse.Namespace) -> None:
 def handle_axe_chop_run(args: argparse.Namespace) -> None:
     """Run a single chop once in the foreground, then exit.
 
-    Routes through :func:`run_configured_chop_once` so the ChangeSpecI shares context
+    Routes through :func:`run_configured_chop_once` so the CLI shares context
     building, env propagation, timeout, and run-history writing with the
     scheduled lumberjack and the TUI manual-run action. When the chop name
     is not configured (a discoverable but unattached script), falls back to

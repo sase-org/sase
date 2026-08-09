@@ -1,7 +1,7 @@
 """Phase 5 end-to-end coverage for the ``:`` command palette key.
 
 The Phase 3 wiring tests in ``tests/test_command_palette_wiring.py``
-already prove that ``:`` opens the palette on the ChangeSpecs tab and that the
+already prove that ``:`` opens the palette on the Patches tab and that the
 palette dispatches selections through the existing app actions. This
 suite locks in equivalent behavior on the **Agents** and **AXE** tabs
 and protects the user-visible acceptance from the Phase 5 plan that
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from sase.ace.testing import AcePage, make_changespec
+from sase.ace.testing import AcePage, make_patch
 from sase.ace.tui import AceApp
 from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
 
@@ -25,7 +25,7 @@ async def test_colon_opens_command_palette_from_agents_tab() -> None:
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             await page.press("shift+tab")
             await page.expect_state("tab", "agents")
@@ -47,7 +47,7 @@ async def test_colon_opens_command_palette_from_axe_tab() -> None:
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             await page.press("tab")
             await page.expect_state("tab", "axe")
@@ -62,14 +62,14 @@ async def test_colon_opens_command_palette_from_axe_tab() -> None:
 
 
 async def test_semicolon_opens_command_palette_from_agents_and_axe_tabs() -> None:
-    """Pressing ``;`` opens the palette from each non-ChangeSpec tab."""
+    """Pressing ``;`` opens the palette from each non-Patch tab."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             await page.press("shift+tab")
             await page.expect_state("tab", "agents")
@@ -101,7 +101,7 @@ async def test_palette_executes_refresh_from_agents_tab() -> None:
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             await page.press("shift+tab")
             await page.expect_state("tab", "agents")
@@ -125,7 +125,7 @@ async def test_palette_executes_refresh_from_axe_tab() -> None:
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             await page.press("tab")
             await page.expect_state("tab", "axe")
@@ -148,11 +148,11 @@ async def test_palette_escape_dismisses_from_each_tab() -> None:
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             # Agents-first order: pressing Tab cycles PRs -> AXE -> Agents.
-            for expected_tab in ("changespecs", "axe", "agents"):
-                if expected_tab != "changespecs":
+            for expected_tab in ("changespecs", "axe", "agents"):  # legacy tab id
+                if expected_tab != "changespecs":  # legacy tab id
                     await page.press("tab")
                 await page.expect_state("tab", expected_tab)
 

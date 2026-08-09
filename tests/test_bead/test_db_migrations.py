@@ -140,9 +140,9 @@ class TestMigrationAddsColumn:
         finally:
             conn.close()
 
-    def test_pre_changespec_db_gets_migrated(self, tmp_path) -> None:
-        """A database created without ChangeSpec columns gains them."""
-        db_path = tmp_path / "old_changespec.db"
+    def test_pre_patch_db_gets_migrated(self, tmp_path) -> None:
+        """A database created without Patch columns gains them."""
+        db_path = tmp_path / "old_patch.db"
         old = sqlite3.connect(str(db_path))
         old.execute(
             "CREATE TABLE issues ("

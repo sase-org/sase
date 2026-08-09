@@ -100,12 +100,12 @@ def test_log_projects_changespec_names_but_preserves_paths(
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     canonical_path = f"/tmp/{project_display_case.project_key}/result.json"
 
-    lumberjack._log(f"* {project_display_case.changespec_key}: wrote {canonical_path}")
+    lumberjack._log(f"* {project_display_case.patch_key}: wrote {canonical_path}")
 
     log_path = (
         temp_state_dir / "lumberjacks" / "test_lumberjack" / "logs" / "output.log"
     )
     rendered = Text.from_ansi(log_path.read_text(encoding="utf-8")).plain
-    assert project_display_case.changespec_label in rendered
-    assert project_display_case.changespec_key not in rendered
+    assert project_display_case.patch_label in rendered
+    assert project_display_case.patch_key not in rendered
     assert canonical_path in rendered

@@ -80,8 +80,8 @@ class VCSLaunchContext:
 
 
 @dataclass(frozen=True)
-class ChangeSpecLaunchContext(VCSLaunchContext):
-    """VCS launch wrapper for ChangeSpec-attached epic work."""
+class PatchLaunchContext(VCSLaunchContext):
+    """VCS launch wrapper for Patch-attached epic work."""
 
     changespec_name: str
     bug_id: str = ""
@@ -373,7 +373,7 @@ def render_multi_prompt(
     work_phase_xprompt: Workflow,
     land_epic_xprompt: Workflow,
     vcs_context: VCSLaunchContext | None = None,
-    changespec_context: ChangeSpecLaunchContext | None = None,
+    patch_context: PatchLaunchContext | None = None,
     *,
     declare_clan: bool = True,
 ) -> str:
@@ -397,18 +397,18 @@ def render_multi_prompt(
     prompt to the launcher.
 
     When *vcs_context* is provided, every segment is prefixed with the project
-    VCS xprompt. When *changespec_context* is provided, the first phase segment
-    targets the project ref and includes ``#pr`` to create/own the ChangeSpec;
-    later phase segments and the land segment target the ChangeSpec ref
+    VCS xprompt. When *patch_context* is provided, the first phase segment
+    targets the project ref and includes ``#pr`` to create/own the Patch;
+    later phase segments and the land segment target the Patch ref
     directly.
     """
-    if vcs_context is not None and changespec_context is not None:
-        raise ValueError("provide either vcs_context or changespec_context, not both")
-    launch_context = changespec_context or vcs_context
+    if vcs_context is not None and patch_context is not None:
+        raise ValueError("provide either vcs_context or patch_context, not both")
+    launch_context = patch_context or vcs_context
     if launch_context is not None:
         _validate_vcs_context(launch_context)
-    if changespec_context is not None:
-        _validate_changespec_context(changespec_context)
+    if patch_context is not None:
+        _validate_patch_context(patch_context)
 
     segments: list[str] = []
     is_first_phase = True
@@ -564,14 +564,13 @@ def _validate_vcs_context(ctx: VCSLaunchContext) -> None:
         )
 
 
-def _validate_changespec_context(ctx: ChangeSpecLaunchContext) -> None:
+def _validate_patch_context(ctx: PatchLaunchContext) -> None:
     missing = []
     if not ctx.changespec_name:
         missing.append("changespec_name")
     if missing:
         raise ValueError(
-            "ChangeSpec launch context is missing required field(s): "
-            + ", ".join(missing)
+            "Patch launch context is missing required field(s): " + ", ".join(missing)
         )
 
 
@@ -605,17 +604,17 @@ def _segment_prefix(
     if ctx is None:
         return []
 
-    if isinstance(ctx, ChangeSpecLaunchContext):
+    if isinstance(ctx, PatchLaunchContext):
         ref = ctx.project_name if is_first_phase else ctx.changespec_name
     else:
         ref = ctx.project_name
     line = f"#{ctx.vcs_workflow}:{ref}"
-    if is_first_phase and isinstance(ctx, ChangeSpecLaunchContext):
+    if is_first_phase and isinstance(ctx, PatchLaunchContext):
         line = f"{line} {_pr_reference(ctx)}"
     return [line]
 
 
-def _pr_reference(ctx: ChangeSpecLaunchContext) -> str:
+def _pr_reference(ctx: PatchLaunchContext) -> str:
     if ctx.bug_id:
         return f"#pr(name={ctx.changespec_name}, bug_id={ctx.bug_id})"
     return f"#pr:{ctx.changespec_name}"

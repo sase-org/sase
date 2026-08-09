@@ -1,18 +1,18 @@
-"""Tests for ChangeSpec status indicators in TUI widgets."""
+"""Tests for Patch status indicators in TUI widgets."""
 
-from sase.ace.changespec import ChangeSpec, CommitEntry, HookEntry, HookStatusLine
+from sase.ace.patch import Patch, CommitEntry, HookEntry, HookStatusLine
 from sase.ace.tui.widgets.ancestors_children_panel import _get_simple_status_indicator
 from sase.ace.tui.widgets.changespec_list import _get_status_indicator
 
 
-def _make_changespec(
+def _make_patch(
     name: str = "test_feature",
     status: str = "Draft",
     commits: list[CommitEntry] | None = None,
     hooks: list[HookEntry] | None = None,
-) -> ChangeSpec:
-    """Create a mock ChangeSpec for testing."""
-    return ChangeSpec(
+) -> Patch:
+    """Create a mock Patch for testing."""
+    return Patch(
         name=name,
         description="Test description",
         parent=None,
@@ -97,16 +97,16 @@ def test_get_simple_status_indicator_unknown_returns_w() -> None:
 
 def test_get_status_indicator_draft_with_running_agent() -> None:
     """Test Draft with running agent shows @D."""
-    changespec = _make_changespec(status="Draft", hooks=_make_running_agent_hook())
-    indicator, letter_color = _get_status_indicator(changespec)
+    patch = _make_patch(status="Draft", hooks=_make_running_agent_hook())
+    indicator, letter_color = _get_status_indicator(patch)
     assert indicator == "@D"
     assert letter_color == "#FFD700"  # Gold for Draft
 
 
 def test_get_status_indicator_draft_with_running_process() -> None:
     """Test Draft with running process shows $D."""
-    changespec = _make_changespec(status="Draft", hooks=_make_running_process_hook())
-    indicator, letter_color = _get_status_indicator(changespec)
+    patch = _make_patch(status="Draft", hooks=_make_running_process_hook())
+    indicator, letter_color = _get_status_indicator(patch)
     assert indicator == "$D"
     assert letter_color == "#FFD700"  # Gold for Draft
 
@@ -116,24 +116,24 @@ def test_get_status_indicator_draft_with_running_process() -> None:
 
 def test_get_status_indicator_mailed() -> None:
     """Test Mailed status returns 'M' with cyan-green color."""
-    changespec = _make_changespec(status="Mailed")
-    indicator, letter_color = _get_status_indicator(changespec)
+    patch = _make_patch(status="Mailed")
+    indicator, letter_color = _get_status_indicator(patch)
     assert indicator == "M"
     assert letter_color == "#00D787"
 
 
 def test_get_status_indicator_submitted() -> None:
     """Test Submitted status returns 'S' with dark green color."""
-    changespec = _make_changespec(status="Submitted")
-    indicator, letter_color = _get_status_indicator(changespec)
+    patch = _make_patch(status="Submitted")
+    indicator, letter_color = _get_status_indicator(patch)
     assert indicator == "S"
     assert letter_color == "#00AF00"
 
 
 def test_get_status_indicator_reverted() -> None:
     """Test Reverted status returns 'X' with gray color."""
-    changespec = _make_changespec(status="Reverted")
-    indicator, letter_color = _get_status_indicator(changespec)
+    patch = _make_patch(status="Reverted")
+    indicator, letter_color = _get_status_indicator(patch)
     assert indicator == "X"
     assert letter_color == "#808080"
 

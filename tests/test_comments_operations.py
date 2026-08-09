@@ -1,6 +1,6 @@
 """Tests for ace/comments/operations.py - pure comment formatting and manipulation."""
 
-from sase.ace.changespec import CommentEntry
+from sase.ace.patch import CommentEntry
 from sase.ace.comments.operations import (
     _apply_comments_to_lines,
     _format_comments_field,
@@ -108,7 +108,7 @@ def test_format_comments_field_multiple() -> None:
 
 
 def test_apply_comments_insert_new() -> None:
-    """Insert COMMENTS into a changespec that has none."""
+    """Insert COMMENTS into a patch that has none."""
     file_lines = [
         "NAME: my_feature\n",
         "DESCRIPTION: Feature description\n",
@@ -147,8 +147,8 @@ def test_apply_comments_remove() -> None:
     assert "[alice]" not in result
 
 
-def test_apply_comments_wrong_changespec() -> None:
-    """Don't modify a different changespec."""
+def test_apply_comments_wrong_patch() -> None:
+    """Don't modify a different patch."""
     file_lines = [
         "NAME: other_feature\n",
         "STATUS: Draft\n",
@@ -159,7 +159,7 @@ def test_apply_comments_wrong_changespec() -> None:
 
 
 def test_apply_comments_end_of_file() -> None:
-    """Insert at end when target is last changespec with no trailing content."""
+    """Insert at end when target is last patch with no trailing content."""
     file_lines = [
         "NAME: my_feature\n",
         "STATUS: Draft\n",
@@ -170,8 +170,8 @@ def test_apply_comments_end_of_file() -> None:
     assert "[alice]" in result
 
 
-def test_apply_comments_multiple_changespecs() -> None:
-    """Insert into correct changespec when multiple exist."""
+def test_apply_comments_multiple_patches() -> None:
+    """Insert into correct patch when multiple exist."""
     file_lines = [
         "NAME: first\n",
         "STATUS: Draft\n",
@@ -183,7 +183,7 @@ def test_apply_comments_multiple_changespecs() -> None:
     entry = CommentEntry(reviewer="bob", file_path="/b.json")
     result = _apply_comments_to_lines(file_lines, "second", [entry])
     assert "[bob]" in result
-    # The first changespec should not get comments
+    # The first patch should not get comments
     first_idx = result.index("NAME: first")
     second_idx = result.index("NAME: second")
     bob_idx = result.index("[bob]")

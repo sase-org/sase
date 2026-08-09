@@ -24,8 +24,8 @@ async def test_default_keys_still_work() -> None:
 
 
 async def test_remapped_navigation_key() -> None:
-    """Remapping next_changespec to 'B' makes 'B' navigate and 'j' not."""
-    keymap_cfg = {"app": {"next_changespec": "B"}}
+    """Remapping next_patch to 'B' makes 'B' navigate and 'j' not."""
+    keymap_cfg = {"app": {"next_patch": "B"}}
 
     # 'B' should navigate
     with _patch_config(keymap_cfg):
@@ -44,7 +44,7 @@ async def test_remapped_navigation_key() -> None:
 
 async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
     with _patch_config():
-        async with AcePage(initial_tab="changespecs") as page:
+        async with AcePage(initial_tab="changespecs") as page:  # legacy wire key
             edits: list[str] = []
             for subtab, subtab_key, top_level_subtab, expected_edit in (
                 ("prs", None, "prs", True),
@@ -98,7 +98,7 @@ async def test_custom_app_and_leader_query_remaps_stay_independent() -> None:
     }
 
     with _patch_config(keymap_cfg):
-        async with AcePage(initial_tab="changespecs") as page:
+        async with AcePage(initial_tab="changespecs") as page:  # legacy wire key
             edits: list[bool] = []
             page.app.action_edit_query = lambda: edits.append(True)  # type: ignore[method-assign]
 
@@ -126,8 +126,10 @@ async def test_custom_app_and_leader_query_remaps_stay_independent() -> None:
 
 async def test_bare_question_mark_opens_help_and_leader_chord_is_retired() -> None:
     with _patch_config():
-        async with AcePage(initial_tab="changespecs") as page:
-            for index, tab in enumerate(("changespecs", "agents", "axe")):
+        async with AcePage(initial_tab="changespecs") as page:  # legacy wire key
+            for index, tab in enumerate(
+                ("changespecs", "agents", "axe")
+            ):  # legacy wire key
                 if index:
                     await page.press("shift+tab")
                     await page.expect_state("tab", tab)
@@ -198,7 +200,7 @@ async def test_ctrl_at_dispatches_repeat_agent_binding_not_home_space() -> None:
             def _record_home_agent() -> None:
                 home_calls.append(True)
 
-            page.app.action_start_agent_from_changespec = _record_repeat_agent  # type: ignore[method-assign]
+            page.app.action_start_agent_from_patch = _record_repeat_agent  # type: ignore[method-assign]
             page.app.action_start_agent_home = _record_home_agent  # type: ignore[method-assign]
 
             await page.press("space")
@@ -226,7 +228,7 @@ async def test_leader_space_dispatches_current_selection_and_h_dispatches_home()
                 quick_calls.append(True)
 
             page.app._show_prompt_input_bar_for_home = _record_agent_home  # type: ignore[method-assign]
-            page.app._start_agent_from_changespec_quick = _record_quick_agent  # type: ignore[method-assign]
+            page.app._start_agent_from_patch_quick = _record_quick_agent  # type: ignore[method-assign]
 
             await page.press("space")
             assert home_calls == [True]

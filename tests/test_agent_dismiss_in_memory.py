@@ -278,11 +278,11 @@ def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # typ
     ]
 
 
-def test_dismiss_done_changespec_agent_does_not_full_reload() -> None:
-    """ChangeSpec-sourced agents (hooks/mentors/CRS) take the in-memory path."""
+def test_dismiss_done_patch_agent_does_not_full_reload() -> None:
+    """Patch-sourced agents (hooks/mentors/CRS) take the in-memory path."""
     app = FakeDismissApp()
     agent = make_agent(raw_suffix="20240101120000")
-    agent._from_changespec = True
+    agent._from_patch = True
     app._agents_with_children = [agent]
     app._agents = [agent]
 

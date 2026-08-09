@@ -12,8 +12,8 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from sase.core.patch import get_workspace_directory_for_patch
 from sase.core.paths import sase_subdir
 from sase.status_state_machine import (
-    reset_changespec_pr_url,
-    transition_changespec_status,
+    reset_patch_pr_url,
+    transition_patch_status,
 )
 from sase.vcs_provider import get_vcs_provider
 from sase.project_display_names import humanize_cl_name
@@ -21,14 +21,14 @@ from sase.project_display_names import humanize_cl_name
 from .patch import (
     ChangeSpec,
     changespec_lock,
-    find_all_changespecs,
+    find_all_patches,
     write_changespec_atomic,
 )
 from .hooks.processes import kill_and_persist_all_running_processes
 from .operations import (
     calculate_lifecycle_new_name,
     has_active_children,
-    rename_changespec_with_references,
+    rename_changespec_with_references as rename_patch_with_references,
     save_diff_to_file,
 )
 
@@ -78,7 +78,7 @@ def update_changespec_name_atomic(
         )
 
 
-def revert_changespec(
+def revert_patch(
     changespec: ChangeSpec, console: Console | None = None
 ) -> tuple[bool, str | None]:
     """Revert a ChangeSpec by pruning its revision and updating its status.
@@ -113,13 +113,13 @@ def revert_changespec(
     )
 
     # Get all changespecs to check for children and name conflicts
-    all_changespecs = find_all_changespecs()
+    all_changespecs = find_all_patches()
 
     # Validate no children
     if has_children(changespec, all_changespecs):
         return (
             False,
-            "Cannot revert: other ChangeSpecs have this one as their parent",
+            "Cannot revert: other Patches have this one as their parent",
         )
 
     # Calculate new name with suffix
@@ -188,7 +188,7 @@ def revert_changespec(
     # Rename the ChangeSpec (skip if name is unchanged, e.g., WIP with existing suffix)
     if new_name != changespec.name:
         try:
-            rename_changespec_with_references(
+            rename_patch_with_references(
                 changespec.file_path, changespec.name, new_name
             )
         except Exception as e:
@@ -202,7 +202,7 @@ def revert_changespec(
             )
 
     # Update STATUS to Reverted
-    success, _, error, _ = transition_changespec_status(
+    success, _, error, _ = transition_patch_status(
         changespec.file_path,
         new_name,  # Use the new name after rename
         "Reverted",
@@ -213,7 +213,7 @@ def revert_changespec(
 
     # Remove PR field (only if there was a PR to reset).
     if changespec.pr_url is not None:
-        reset_changespec_pr_url(changespec.file_path, new_name)
+        reset_patch_pr_url(changespec.file_path, new_name)
 
     if console:
         console.print("[green]Status updated to Reverted, PR removed[/green]")
@@ -222,4 +222,4 @@ def revert_changespec(
 
 
 update_patch_name_atomic = update_changespec_name_atomic
-revert_patch = revert_changespec
+revert_changespec = revert_patch  # legacy API alias

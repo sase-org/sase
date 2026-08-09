@@ -1,7 +1,6 @@
 """Convenience functions that construct and store notifications."""
 
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -84,7 +83,7 @@ def notify_sync_result(
         sender="sync",
         notes=[f"Sync {status} for {display_name}"],
         files=[project_file],
-        action="JumpToChangeSpec",
+        action="JumpToChangeSpec",  # legacy notification action
         action_data={
             "patch_name": cl_name,
             "changespec_name": cl_name,
@@ -102,13 +101,13 @@ def notify_mentors_complete(
     has_comments: bool,
     sender: str = "mentors",
 ) -> None:
-    """Send a notification when all mentors finish for a ChangeSpec entry.
+    """Send a notification when all mentors finish for a Patch entry.
 
-    Fires once per (ChangeSpec, entry_id) when either every started mentor
+    Fires once per (Patch, entry_id) when either every started mentor
     has reached a terminal status, or no mentor profiles matched.
 
     Args:
-        cl_name: ChangeSpec name.
+        cl_name: Patch name.
         project_file: Path to the ``.gp`` project file.
         entry_id: COMMITS entry ID this notification refers to.
         mentor_summary: Human-readable one-line summary, e.g.

@@ -7,21 +7,21 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.integrations.mobile_helpers import handle_mobile_helper_bridge
 
 
-def create_changespec(
+def create_patch(
     name: str,
     status: str,
     project: str,
     *,
     archive: bool = False,
-) -> ChangeSpec:
+) -> Patch:
     suffix = "-archive" if archive else ""
-    return ChangeSpec(
+    return Patch(
         name=name,
         description="",
         parent=None,
@@ -32,13 +32,13 @@ def create_changespec(
     )
 
 
-def stub_changespecs(
+def stub_patches(
     monkeypatch: pytest.MonkeyPatch,
-    changespecs: list[ChangeSpec],
+    patches: list[Patch],
 ) -> None:
     monkeypatch.setattr(
-        "sase.integrations.changespec_tags.find_all_changespecs",
-        lambda: changespecs,
+        "sase.integrations.patch_tags.find_all_patches",
+        lambda: patches,
     )
 
 
@@ -66,7 +66,7 @@ def seed_bead_project(root: Path) -> tuple[Path, Issue, Issue, Issue]:
             notes="Alpha note",
             design="plans/alpha.md",
             tier=BeadTier.EPIC,
-            changespec_name="alpha_changespec",
+            changespec_name="alpha_patch",
         )
         epic = project.update(epic.id, status=Status.IN_PROGRESS.value)
         phase = project.create("Alpha Phase", IssueType.PHASE, parent_id=epic.id)

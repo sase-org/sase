@@ -2,9 +2,9 @@
 
 from io import StringIO
 
-from sase.ace.changespec import ChangeSpec
-from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
-from sase.ace.display import display_changespec
+from sase.ace.patch import Patch
+from sase.ace.patch.models import DeltaEntry, DeltaLineStats
+from sase.ace.display import display_patch
 from sase.ace.status import get_available_statuses
 from rich.console import Console
 
@@ -18,10 +18,10 @@ def test_get_available_statuses_includes_others() -> None:
     assert all(s != current_status for s in available)
 
 
-def test_display_changespec_without_hints_returns_empty() -> None:
-    """Test that display_changespec without hints returns empty dict."""
-    # Create a minimal ChangeSpec
-    changespec = ChangeSpec(
+def test_display_patch_without_hints_returns_empty() -> None:
+    """Test that display_patch without hints returns empty dict."""
+    # Create a minimal Patch
+    patch = Patch(
         name="test_spec",
         description="Test description",
         parent=None,
@@ -35,16 +35,16 @@ def test_display_changespec_without_hints_returns_empty() -> None:
     console = Console(file=StringIO(), force_terminal=True)
 
     # Call without hints (default)
-    hint_mappings, hook_hint_to_idx = display_changespec(changespec, console)
+    hint_mappings, hook_hint_to_idx = display_patch(patch, console)
 
     # Should be empty when hints not enabled
     assert hint_mappings == {}
     assert hook_hint_to_idx == {}
 
 
-def test_display_changespec_renders_deltas_section() -> None:
-    """display_changespec emits the DELTAS section for non-empty deltas."""
-    changespec = ChangeSpec(
+def test_display_patch_renders_deltas_section() -> None:
+    """display_patch emits the DELTAS section for non-empty deltas."""
+    patch = Patch(
         name="test_spec",
         description="Test description",
         parent=None,
@@ -73,7 +73,7 @@ def test_display_changespec_renders_deltas_section() -> None:
 
     buf = StringIO()
     console = Console(file=buf, force_terminal=False, color_system=None, width=200)
-    display_changespec(changespec, console)
+    display_patch(patch, console)
     out = buf.getvalue()
     assert "DELTAS:" in out
     assert "+ src/added.py" in out
@@ -84,9 +84,9 @@ def test_display_changespec_renders_deltas_section() -> None:
     assert "-5" in out
 
 
-def test_display_changespec_omits_deltas_when_empty() -> None:
-    """display_changespec does not render DELTAS for None / empty list."""
-    changespec = ChangeSpec(
+def test_display_patch_omits_deltas_when_empty() -> None:
+    """display_patch does not render DELTAS for None / empty list."""
+    patch = Patch(
         name="test_spec",
         description="Test description",
         parent=None,
@@ -98,18 +98,18 @@ def test_display_changespec_omits_deltas_when_empty() -> None:
     )
     buf = StringIO()
     console = Console(file=buf, force_terminal=False, color_system=None, width=200)
-    display_changespec(changespec, console)
+    display_patch(patch, console)
     assert "DELTAS:" not in buf.getvalue()
 
-    changespec.deltas = []
+    patch.deltas = []
     buf2 = StringIO()
     console2 = Console(file=buf2, force_terminal=False, color_system=None, width=200)
-    display_changespec(changespec, console2)
+    display_patch(patch, console2)
     assert "DELTAS:" not in buf2.getvalue()
 
 
-def test_display_changespec_renders_stored_refs() -> None:
-    changespec = ChangeSpec(
+def test_display_patch_renders_stored_refs() -> None:
+    patch = Patch(
         name="test_spec",
         description="Test description",
         parent=None,
@@ -122,7 +122,7 @@ def test_display_changespec_renders_stored_refs() -> None:
     buf = StringIO()
     console = Console(file=buf, force_terminal=False, color_system=None, width=200)
 
-    display_changespec(changespec, console)
+    display_patch(patch, console)
 
     output = buf.getvalue()
     assert "REFS:" in output

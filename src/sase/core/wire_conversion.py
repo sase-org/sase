@@ -1,9 +1,9 @@
 """Convert Python Patch dataclasses to core wire records.
 
 These helpers are the only place the Python models touch the wire shape. Phase
-1D adds the inverse direction — building :class:`ChangeSpecWire` instances
+1D adds the inverse direction — building legacy :class:`ChangeSpecWire` instances
 from the plain dict shape returned by the Rust ``sase_core_rs`` PyO3 binding —
-in :func:`changespec_wire_from_dict`.
+in legacy :func:`changespec_wire_from_dict`.
 """
 
 from __future__ import annotations
@@ -11,7 +11,6 @@ from __future__ import annotations
 from typing import Any
 
 from sase.ace.patch.models import (
-    ChangeSpec,
     CommentEntry,
     DeltaEntry,
     HookEntry,
@@ -23,9 +22,9 @@ from sase.ace.patch.models import (
     TimestampEntry,
 )
 from sase.core.wire import (
-    CHANGESPEC_WIRE_SCHEMA_VERSION,
+    CHANGESPEC_WIRE_SCHEMA_VERSION,  # legacy wire schema
     PATCH_WIRE_SCHEMA_VERSION,
-    ChangeSpecWire,
+    ChangeSpecWire,  # legacy wire type
     CommentWire,
     CommitWire,
     DeltaWire,
@@ -38,7 +37,7 @@ from sase.core.wire import (
     PatchMentorWire,
     PatchWire,
     SourceSpanWire,
-    SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS,
+    SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS,  # legacy wire schema
     SUPPORTED_PATCH_WIRE_SCHEMA_VERSIONS,
     StitchWire,
     TimestampWire,
@@ -177,7 +176,7 @@ def _delta_glyph_to_change_type(glyph: str) -> str:
 
 
 def changespec_wire_from_dict(record: dict[str, Any]) -> ChangeSpecWire:
-    """Rebuild a :class:`ChangeSpecWire` from the dict shape Rust emits.
+    """Rebuild a legacy :class:`ChangeSpecWire` from the dict shape Rust emits.
 
     The PyO3 binding (`sase_core_rs.parse_project_bytes`) returns plain Python
     dicts whose keys mirror the JSON shape of the wire dataclasses. This
@@ -190,10 +189,12 @@ def changespec_wire_from_dict(record: dict[str, Any]) -> ChangeSpecWire:
     accepting unknown wire shapes.
     """
     schema_version = record.get("schema_version")
-    if schema_version not in SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS:
+    if (
+        schema_version not in SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS
+    ):  # legacy wire schema
         raise ValueError(
-            f"Unsupported ChangeSpecWire schema_version={schema_version!r}; "
-            f"this build understands {CHANGESPEC_WIRE_SCHEMA_VERSION}."
+            f"Unsupported ChangeSpecWire schema_version={schema_version!r}; "  # legacy wire type
+            f"this build understands {CHANGESPEC_WIRE_SCHEMA_VERSION}."  # legacy wire schema
         )
 
     span = record["source_span"]
@@ -203,7 +204,7 @@ def changespec_wire_from_dict(record: dict[str, Any]) -> ChangeSpecWire:
         end_line=span["end_line"],
     )
 
-    return ChangeSpecWire(
+    return ChangeSpecWire(  # legacy wire type
         schema_version=schema_version,
         name=record["name"],
         project_basename=record["project_basename"],
@@ -431,13 +432,14 @@ def _delta_wire_from_dict(record: dict[str, Any]) -> DeltaWire:
     )
 
 
+# Legacy Python compatibility symbol required by tools/validate_sase_core_rs.
 # symvision: tools/validate_sase_core_rs
-def changespec_to_wire(
-    cs: ChangeSpec,
+def changespec_to_wire(  # legacy Python compat symbol
+    cs: Patch,
     *,
     end_line: int | None = None,
 ) -> ChangeSpecWire:
-    """Project a Python ``ChangeSpec`` into a :class:`ChangeSpecWire`.
+    """Project a Python ``Patch`` into a legacy :class:`ChangeSpecWire`.
 
     ``end_line`` defaults to ``cs.line_number`` because the existing Python
     parser does not track end positions. Phase 1 (Rust parser) will fill this
@@ -448,8 +450,8 @@ def changespec_to_wire(
         start_line=cs.line_number,
         end_line=end_line if end_line is not None else cs.line_number,
     )
-    return ChangeSpecWire(
-        schema_version=CHANGESPEC_WIRE_SCHEMA_VERSION,
+    return ChangeSpecWire(  # legacy wire type
+        schema_version=CHANGESPEC_WIRE_SCHEMA_VERSION,  # legacy wire schema
         name=cs.name,
         project_basename=cs.project_basename,
         project_display_name=cs.project_display_name,

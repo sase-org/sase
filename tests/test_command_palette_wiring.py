@@ -13,37 +13,37 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from sase.ace.testing import AcePage, make_changespec
+from sase.ace.testing import AcePage, make_patch
 from sase.ace.tui import AceApp
 from sase.ace.tui.commands import CommandContext, extract_command_context
 
 
 async def test_colon_opens_command_palette_modal() -> None:
-    """Pressing ``:`` from the ChangeSpecs tab opens the palette modal."""
+    """Pressing ``:`` from the Patches tab opens the palette modal."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
-            await page.expect_state("tab", "changespecs")
+            await page.expect_state("tab", "changespecs")  # legacy tab id
             await page.press("colon")
             await page.expect_modal("CommandPaletteModal")
 
 
 async def test_semicolon_opens_command_palette_modal() -> None:
-    """Pressing ``;`` from the ChangeSpecs tab opens the same palette modal."""
+    """Pressing ``;`` from the Patches tab opens the same palette modal."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
-            await page.expect_state("tab", "changespecs")
+            await page.expect_state("tab", "changespecs")  # legacy tab id
             await page.press("semicolon")
             await page.expect_modal("CommandPaletteModal")
 
@@ -56,7 +56,7 @@ async def test_palette_escape_dismisses_without_side_effects() -> None:
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             await page.press("colon")
             await page.expect_modal("CommandPaletteModal")
@@ -73,7 +73,7 @@ async def test_palette_executes_refresh_via_action() -> None:
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             await page.press("colon")
             await page.expect_modal("CommandPaletteModal")
@@ -87,14 +87,14 @@ async def test_palette_executes_refresh_via_action() -> None:
 
 
 async def test_palette_omits_inapplicable_axe_only_command_on_cls_tab() -> None:
-    """Stop-axe-and-quit is AXE-scoped — it must not appear from ChangeSpecs filter."""
+    """Stop-axe-and-quit is AXE-scoped — it must not appear from Patches filter."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             await page.press("4")
             await page.press("colon")
@@ -107,7 +107,7 @@ async def test_palette_omits_inapplicable_axe_only_command_on_cls_tab() -> None:
             modal = page.app.screen
             assert isinstance(modal, CommandPaletteModal)
             ids = {s.id for s in modal._all_specs}
-            # All ChangeSpecs-tab applicable specs are present:
+            # All Patches-tab applicable specs are present:
             assert "app.refresh" in ids
             assert "app.show_agent_run_log" in ids
             # Specs that only apply to other tabs are excluded by tab scope:
@@ -122,7 +122,7 @@ async def test_palette_context_uses_current_tab_badge() -> None:
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             # Tab to axe (Agents-first order: PRs -> AXE).
             await page.press("tab")
@@ -155,7 +155,7 @@ async def test_palette_filter_input_swallows_typing_no_action_dispatched() -> No
     ):
         async with AcePage(
             query="test_feature",
-            changespecs=[make_changespec()],
+            patches=[make_patch()],
         ) as page:
             await page.press("colon")
             await page.expect_modal("CommandPaletteModal")
@@ -181,8 +181,8 @@ def test_action_open_command_palette_uses_real_catalog() -> None:
     from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
 
     assert isinstance(modal, CommandPaletteModal)
-    # No changespecs loaded yet, so the palette only shows what is
-    # applicable on an empty ChangeSpecs tab.  The refresh command must still
+    # No patches loaded yet, so the palette only shows what is
+    # applicable on an empty Patches tab.  The refresh command must still
     # be there (always applicable on every tab).
     assert any(s.id == "app.refresh" for s in modal._all_specs)
 
@@ -246,9 +246,9 @@ def test_action_open_command_palette_unknown_id_is_silent() -> None:
 
 def test_extract_command_context_smoke_against_real_app() -> None:
     """Confirm the extractor works against a real AceApp instance."""
-    app = AceApp(auto_start_axe=False, initial_tab="changespecs")
+    app = AceApp(auto_start_axe=False, initial_tab="changespecs")  # legacy tab id
     ctx = extract_command_context(app)
     assert isinstance(ctx, CommandContext)
     assert ctx.tab == "artifacts"
-    assert ctx.changespec is None
+    assert ctx.patch is None
     assert ctx.mark_count == 0

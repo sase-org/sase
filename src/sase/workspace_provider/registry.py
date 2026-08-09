@@ -168,7 +168,7 @@ def load_registry(
 
     The primary checkout is always represented in the registry so that
     ``sase workspace list`` can show ``#0`` without special-casing it at
-    the ChangeSpecI layer.  Differences between the on-disk record and the
+    the CLI layer.  Differences between the on-disk record and the
     store's current configuration (project_key, primary path) are
     reconciled in favor of the store and written back on save.
 

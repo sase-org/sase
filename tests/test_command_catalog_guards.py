@@ -290,7 +290,7 @@ def test_open_command_palette_command_is_always_present() -> None:
 
 
 def test_tree_navigation_command_tab_scopes() -> None:
-    """Sibling navigation applies to ChangeSpecs and Agents; ancestor/child stay ChangeSpec-only."""
+    """Sibling navigation applies to Patches and Agents; ancestor/child stay Patch-only."""
     catalog = build_command_catalog(_registry())
     ancestor = get_command_by_id(catalog, "app.start_ancestor_mode")
     child = get_command_by_id(catalog, "app.start_child_mode")

@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sase.status_state_machine import transition_changespec_status
+from sase.status_state_machine import transition_patch_status
 from sase.status_state_machine.field_updates import (
     _apply_bug_update,
     _apply_pr_url_update,
@@ -90,16 +90,16 @@ def test_transition_to_draft_blocked_when_child_is_ready(tmp_path: Path) -> None
     )
 
     try:
-        # Mock find_all_changespecs to return a child with Ready status
+        # Mock find_all_patches to return a child with Ready status
         mock_child = MagicMock()
         mock_child.name = "Child Feature"
         mock_child.parent = "Parent Feature"
         mock_child.status = "Ready"
 
-        with patch("sase.ace.patch.find_all_changespecs") as mock_find:
+        with patch("sase.ace.patch.find_all_patches") as mock_find:
             mock_find.return_value = [mock_child]
 
-            success, old_status, error, _ = transition_changespec_status(
+            success, old_status, error, _ = transition_patch_status(
                 project_file, "Parent Feature", "Draft", validate=True
             )
 
@@ -123,7 +123,7 @@ def test_transition_to_draft_allowed_when_children_are_draft_or_reverted(
     )
 
     try:
-        # Mock find_all_changespecs to return children with valid statuses
+        # Mock find_all_patches to return children with valid statuses
         mock_child_draft = MagicMock()
         mock_child_draft.name = "Child Draft"
         mock_child_draft.parent = "Parent Feature"
@@ -141,7 +141,7 @@ def test_transition_to_draft_allowed_when_children_are_draft_or_reverted(
         mock_unrelated.status = "Ready"
 
         with (
-            patch("sase.ace.patch.find_all_changespecs") as mock_find,
+            patch("sase.ace.patch.find_all_patches") as mock_find,
             patch("sase.ace.mentors.set_mentor_draft_flags"),
             patch("sase.ace.revert.update_changespec_name_atomic"),
             patch("sase.running_field.get_workspace_directory") as mock_ws_dir,
@@ -157,7 +157,7 @@ def test_transition_to_draft_allowed_when_children_are_draft_or_reverted(
             ]
             mock_ws_dir.side_effect = RuntimeError("No workspace")
 
-            success, old_status, error, _ = transition_changespec_status(
+            success, old_status, error, _ = transition_patch_status(
                 project_file, "Parent Feature", "Draft", validate=True
             )
 
@@ -200,7 +200,7 @@ STATUS: Draft
 
     try:
         # Try to transition child from Draft to Ready when parent is Draft
-        success, old_status, error, _ = transition_changespec_status(
+        success, old_status, error, _ = transition_patch_status(
             project_file, "Child Feature", "Ready", validate=True
         )
 
@@ -256,7 +256,7 @@ STATUS: Draft
             mock_has_suffix.return_value = False
 
             # Transition child from Draft to Ready when parent is Ready
-            success, old_status, error, _ = transition_changespec_status(
+            success, old_status, error, _ = transition_patch_status(
                 project_file, "Child Feature", "Ready", validate=True
             )
 
@@ -300,7 +300,7 @@ STATUS: Draft
     try:
         # Transition child to Reverted - this should succeed even with Draft parent
         # Note: validate=False because Reverted is typically set via revert operation
-        success, old_status, error, _ = transition_changespec_status(
+        success, old_status, error, _ = transition_patch_status(
             project_file, "Child Feature", "Reverted", validate=False
         )
 
@@ -422,8 +422,8 @@ def test__apply_bug_update_removes_bug() -> None:
     assert "BUG:" not in result
 
 
-def test__apply_bug_update_noop_when_changespec_not_found() -> None:
-    """Test _apply_bug_update is a no-op when target ChangeSpec is not found."""
+def test__apply_bug_update_noop_when_patch_not_found() -> None:
+    """Test _apply_bug_update is a no-op when target Patch is not found."""
     lines = [
         "NAME: Other Feature\n",
         "STATUS: Draft\n",

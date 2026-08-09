@@ -2,7 +2,7 @@
 
 from inline_snapshot import snapshot
 
-from sase.ace.changespec import HookEntry, HookStatusLine
+from sase.ace.patch import HookEntry, HookStatusLine
 from sase.ace.hooks.mutations import (
     _apply_clear_hook_suffix,
     _apply_hook_suffix_update,
@@ -134,8 +134,8 @@ class TestApplyClearHookSuffix:
 
 
 class TestGetFailedHooksFilePath:
-    def test_finds_path_in_suffix(self, make_changespec) -> None:  # type: ignore[no-untyped-def]
-        cs = make_changespec.create(
+    def test_finds_path_in_suffix(self, make_patch) -> None:  # type: ignore[no-untyped-def]
+        cs = make_patch.create(
             hooks=[
                 HookEntry(
                     command="check",
@@ -153,8 +153,8 @@ class TestGetFailedHooksFilePath:
             "/tmp/abc_failed_hooks_xyz.txt"
         )
 
-    def test_finds_path_in_summary(self, make_changespec) -> None:  # type: ignore[no-untyped-def]
-        cs = make_changespec.create(
+    def test_finds_path_in_summary(self, make_patch) -> None:  # type: ignore[no-untyped-def]
+        cs = make_patch.create(
             hooks=[
                 HookEntry(
                     command="check",
@@ -172,12 +172,12 @@ class TestGetFailedHooksFilePath:
             "/tmp/my_failed_hooks_run1.txt"
         )
 
-    def test_returns_none_when_no_hooks(self, make_changespec) -> None:  # type: ignore[no-untyped-def]
-        cs = make_changespec.create(hooks=None)
+    def test_returns_none_when_no_hooks(self, make_patch) -> None:  # type: ignore[no-untyped-def]
+        cs = make_patch.create(hooks=None)
         assert get_failed_hooks_file_path(cs) is None
 
-    def test_returns_none_when_no_match(self, make_changespec) -> None:  # type: ignore[no-untyped-def]
-        cs = make_changespec.create(
+    def test_returns_none_when_no_match(self, make_patch) -> None:  # type: ignore[no-untyped-def]
+        cs = make_patch.create(
             hooks=[
                 HookEntry(
                     command="check",

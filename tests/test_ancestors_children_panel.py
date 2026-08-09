@@ -1,11 +1,11 @@
 """Tests for AncestorsChildrenPanel sibling logic."""
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.tui.models.changespec_graph_index import (
-    build_changespec_graph_index,
+    build_patch_graph_index,
 )
 from sase.ace.tui.widgets.ancestors_children_panel import AncestorsChildrenPanel
-from conftest import _ChangeSpecFactory
+from conftest import _PatchFactory
 
 
 def _find_siblings_and_keys(
@@ -17,21 +17,21 @@ def _find_siblings_and_keys(
     """Helper to call _find_siblings and _assign_sibling_keys directly.
 
     Args:
-        current_name: Name of the currently selected ChangeSpec.
-        current_status: Status of the currently selected ChangeSpec.
-        sibling_specs: List of (name, status) tuples for other ChangeSpecs.
+        current_name: Name of the currently selected Patch.
+        current_status: Status of the currently selected Patch.
+        sibling_specs: List of (name, status) tuples for other Patches.
         hide_reverted: Whether to hide reverted/archived siblings.
 
     Returns:
         Tuple of (panel, sibling_names, sibling_keys).
     """
-    current = _ChangeSpecFactory.create(name=current_name, status=current_status)
-    all_cs: list[ChangeSpec] = [current] + [
-        _ChangeSpecFactory.create(name=n, status=s) for n, s in sibling_specs
+    current = _PatchFactory.create(name=current_name, status=current_status)
+    all_cs: list[Patch] = [current] + [
+        _PatchFactory.create(name=n, status=s) for n, s in sibling_specs
     ]
     panel = AncestorsChildrenPanel.__new__(AncestorsChildrenPanel)
     panel._hidden_reverted_sibling_count = 0
-    index = build_changespec_graph_index(all_cs)
+    index = build_patch_graph_index(all_cs)
     siblings = panel._find_siblings(current, index, hide_reverted)
     keys = panel._assign_sibling_keys(siblings)
     return panel, siblings, keys

@@ -108,7 +108,7 @@ def _raw_auto_plan_argument() -> tuple[str | None, bool]:
 
 
 def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
-    """Approve one pending plan proposal from the ChangeSpecI."""
+    """Approve one pending plan proposal from the CLI."""
     from rich.console import Console
 
     try:

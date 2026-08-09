@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.patch import (
-    ChangeSpec,
+    Patch,
     CommentEntry,
     CommitEntry,
     HookEntry,
@@ -34,8 +34,8 @@ class ChopScriptContext:
     query: str
     lumberjack_name: str
     state_dir: str
-    all_changespecs_file: str
-    filtered_changespecs_file: str
+    all_patches_file: str
+    filtered_patches_file: str
     verbose_lumberjack_diagnostics: bool = False
     source: str = "scheduled"
     dry_run: bool = False
@@ -127,20 +127,20 @@ def prepare_chop_run_context(
     return destination
 
 
-def serialize_changespecs(changespecs: list[ChangeSpec], path: str) -> None:
-    """Serialize a list of ChangeSpecs to a JSON file.
+def serialize_patches(patches: list[Patch], path: str) -> None:
+    """Serialize a list of Patches to a JSON file.
 
     Creates parent directories if they don't exist.
 
     Args:
-        changespecs: The changespecs to serialize.
+        patches: The patches to serialize.
         path: Destination file path.
     """
-    _atomic_json_write([asdict(cs) for cs in changespecs], path)
+    _atomic_json_write([asdict(cs) for cs in patches], path)
 
 
-def load_changespecs_from_file(path: str) -> list[ChangeSpec]:
-    """Load a list of ChangeSpecs from a JSON file.
+def load_patches_from_file(path: str) -> list[Patch]:
+    """Load a list of Patches from a JSON file.
 
     Handles reconstruction of nested dataclasses (CommitEntry,
     HookEntry with HookStatusLine, CommentEntry, MentorEntry with
@@ -150,24 +150,24 @@ def load_changespecs_from_file(path: str) -> list[ChangeSpec]:
         path: Source file path.
 
     Returns:
-        List of deserialized ChangeSpecs.
+        List of deserialized Patches.
     """
     with open(path) as f:
         content = f.read()
     if not content.strip():
         return []
     raw_list = json.loads(content)
-    return [_reconstruct_changespec(d) for d in raw_list]
+    return [_reconstruct_patch(d) for d in raw_list]
 
 
-def _reconstruct_changespec(d: dict) -> ChangeSpec:
-    """Reconstruct a ChangeSpec from a plain dict."""
+def _reconstruct_patch(d: dict) -> Patch:
+    """Reconstruct a Patch from a plain dict."""
     commits = d.pop("commits", None)
     hooks = d.pop("hooks", None)
     comments = d.pop("comments", None)
     mentors = d.pop("mentors", None)
 
-    return ChangeSpec(
+    return Patch(
         **d,
         commits=[_reconstruct_commit_entry(c) for c in commits]
         if commits is not None

@@ -2,7 +2,6 @@
 
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from sase.config.core import (
@@ -53,8 +52,8 @@ class MentorProfileConfig:
     file_globs: list[str] | None = None  # Glob patterns to match changed file paths
     diff_regexes: list[str] | None = None  # Regex patterns to match diff content
     amend_note_regexes: list[str] | None = None  # Regex patterns to match commit notes
-    first_commit: bool = False  # Whether to match on the first commit of a ChangeSpec
-    projects: list[str] | None = None  # Only match changespecs in these projects
+    first_commit: bool = False  # Whether to match on the first commit of a Patch
+    projects: list[str] | None = None  # Only match patches in these projects
 
     def __post_init__(self) -> None:
         """Validate that at least one matching criterion is provided."""

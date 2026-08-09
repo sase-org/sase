@@ -1,4 +1,4 @@
-"""sase.core facade for Patch/ChangeSpec parsing.
+"""sase.core facade for Patch parsing.
 
 :func:`parse_patch_project_bytes` calls
 ``sase_core_rs.parse_patch_project_bytes`` directly through
@@ -17,11 +17,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.ace.patch.models import ChangeSpec, Patch
+from sase.ace.patch.models import Patch
 from sase.ace.patch.parser import parse_patch_project_file_python
 from sase.core.rust import require_rust_binding
-from sase.core.wire import ChangeSpecWire, PatchWire
-from sase.core.wire_conversion import changespec_wire_from_dict, patch_wire_from_dict
+from sase.core.wire import ChangeSpecWire, PatchWire  # legacy wire type
+from sase.core.wire_conversion import (
+    changespec_wire_from_dict,  # legacy wire converter
+    patch_wire_from_dict,
+)
 
 
 def parse_patch_project_file(file_path: str) -> list[Patch]:
@@ -29,7 +32,7 @@ def parse_patch_project_file(file_path: str) -> list[Patch]:
     return parse_patch_project_file_python(file_path)
 
 
-def parse_project_file(file_path: str) -> list[ChangeSpec]:
+def parse_project_file(file_path: str) -> list[Patch]:
     """Legacy alias returning the same objects as :func:`parse_patch_project_file`."""
     return parse_patch_project_file(file_path)
 
@@ -47,4 +50,6 @@ def parse_project_bytes(file_path: str, data: bytes) -> list[ChangeSpecWire]:
     """Parse a project file's bytes into legacy ChangeSpec wire records via Rust."""
     rust_parse_project_bytes = require_rust_binding("parse_project_bytes")
     raw: list[dict[str, Any]] = rust_parse_project_bytes(file_path, data)
-    return [changespec_wire_from_dict(record) for record in raw]
+    return [
+        changespec_wire_from_dict(record) for record in raw
+    ]  # legacy wire converter

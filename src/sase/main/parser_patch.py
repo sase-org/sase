@@ -19,7 +19,7 @@ class _PatchTargetAction(argparse.Action):
         del parser, option_string
         setattr(namespace, self.dest, values)
         namespace.patch = values
-        namespace.changespec = values
+        namespace.changespec = values  # legacy parser destination
 
 
 def _add_patch_target_argument(
@@ -36,7 +36,7 @@ def _add_patch_target_argument(
         required=required,
         help=help,
     )
-    parser.set_defaults(patch=None, changespec=None)
+    parser.set_defaults(patch=None, changespec=None)  # legacy parser destination
 
 
 def register_patch_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -219,7 +219,10 @@ def register_patch_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-register_changespec_parser = register_patch_parser
+register_changespec_parser = register_patch_parser  # legacy parser alias
 
 
-__all__ = ["register_changespec_parser", "register_patch_parser"]
+__all__ = [
+    "register_changespec_parser",  # legacy parser alias
+    "register_patch_parser",
+]

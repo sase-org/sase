@@ -31,13 +31,15 @@ def test_axe_view_error_report_is_error_not_priority() -> None:
 
 
 def test_axe_non_error_action_stays_priority() -> None:
-    n = _n(sender="axe", action="JumpToChangeSpec")
+    n = _n(sender="axe", action="JumpToChangeSpec")  # legacy notification action
     assert is_priority(n)
     assert not is_error(n)
 
 
 def test_crs_sender_is_priority() -> None:
-    assert is_priority(_n(sender="crs", action="JumpToChangeSpec"))
+    assert is_priority(
+        _n(sender="crs", action="JumpToChangeSpec")
+    )  # legacy notification action
 
 
 def test_user_agent_view_error_report_is_error_not_priority() -> None:
@@ -53,7 +55,9 @@ def test_file_hook_view_error_report_is_error_not_priority() -> None:
 
 
 def test_sync_result_is_not_priority() -> None:
-    assert not is_priority(_n(sender="sync", action="JumpToChangeSpec"))
+    assert not is_priority(
+        _n(sender="sync", action="JumpToChangeSpec")
+    )  # legacy notification action
 
 
 def test_hitl_is_not_priority() -> None:

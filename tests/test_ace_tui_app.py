@@ -1,13 +1,16 @@
 """Tests for the ace TUI app initialization, navigation, and modals."""
 
-from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
-from sase.ace.testing import AcePage, make_changespec
+from sase.ace.patch.models import DeltaEntry, DeltaLineStats
+from sase.ace.testing import (
+    AcePage,
+    make_changespec as make_patch,  # legacy ACE test helper name
+)
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.ace.tui.widgets.changespec_detail import ChangeSpecDetail
+from sase.ace.tui.widgets.patch_detail import PatchDetail
 
 
 def _detail_plain(page: AcePage) -> str:
-    detail = page.query_one_widget("#detail-panel", ChangeSpecDetail)
+    detail = page.query_one_widget("#detail-panel", PatchDetail)
     content = detail.content
     renderable = getattr(content, "renderable", content)
     return getattr(renderable, "plain", str(renderable))
@@ -17,7 +20,7 @@ def _detail_plain(page: AcePage) -> str:
 
 
 async def test_navigation_next_key() -> None:
-    """Test 'j' key navigates to next changespec."""
+    """Test 'j' key navigates to next patch."""
     async with AcePage() as page:
         assert page.state["idx"] == 0
         await page.press("4")
@@ -31,11 +34,11 @@ async def test_navigation_next_key() -> None:
 
 async def test_navigation_next_at_end() -> None:
     """Test 'j' key at last item cycles to first item."""
-    changespecs = [
-        make_changespec(name="feature_a"),
-        make_changespec(name="feature_b"),
+    patches = [
+        make_patch(name="feature_a"),
+        make_patch(name="feature_b"),
     ]
-    async with AcePage(changespecs=changespecs) as page:
+    async with AcePage(patches=patches) as page:
         await page.press("4")
         await page.press("j")
         assert page.state["idx"] == 1
@@ -47,11 +50,11 @@ async def test_navigation_next_at_end() -> None:
 
 async def test_navigation_prev_at_start() -> None:
     """Test 'k' key at first item cycles to last item."""
-    changespecs = [
-        make_changespec(name="feature_a"),
-        make_changespec(name="feature_b"),
+    patches = [
+        make_patch(name="feature_a"),
+        make_patch(name="feature_b"),
     ]
-    async with AcePage(changespecs=changespecs) as page:
+    async with AcePage(patches=patches) as page:
         assert page.state["idx"] == 0
         await page.press("4")
 
@@ -65,8 +68,8 @@ async def test_navigation_prev_at_start() -> None:
 
 async def test_query_edit_modal_cancel() -> None:
     """Test pressing Escape cancels query edit modal."""
-    changespecs = [make_changespec()]
-    async with AcePage(query='"original"', changespecs=changespecs) as page:
+    patches = [make_patch()]
+    async with AcePage(query='"original"', patches=patches) as page:
         original_query = page.state["query"]
         await page.press("4")
 
@@ -84,11 +87,11 @@ async def test_query_edit_modal_cancel() -> None:
 
 async def test_query_edit_modal_apply() -> None:
     """Test applying a new query updates query_string."""
-    changespecs = [
-        make_changespec(name="feature_a"),
-        make_changespec(name="other_b"),
+    patches = [
+        make_patch(name="feature_a"),
+        make_patch(name="other_b"),
     ]
-    async with AcePage(query='"feature"', changespecs=changespecs) as page:
+    async with AcePage(query='"feature"', patches=patches) as page:
         assert page.state["query"] == '"feature"'
         await page.press("4")
 
@@ -110,8 +113,8 @@ async def test_query_edit_modal_apply() -> None:
 
 async def test_query_edit_modal_invalid_query() -> None:
     """Test invalid query shows error notification."""
-    changespecs = [make_changespec()]
-    async with AcePage(query='"valid"', changespecs=changespecs) as page:
+    patches = [make_patch()]
+    async with AcePage(query='"valid"', patches=patches) as page:
         original_query = page.state["query"]
         await page.press("4")
 
@@ -154,8 +157,8 @@ async def test_unmark_navigates_to_next_spec() -> None:
 
 async def test_mark_single_spec_stays() -> None:
     """Test marking the only spec stays on it."""
-    changespecs = [make_changespec(name="only_spec")]
-    async with AcePage(query='"only"', changespecs=changespecs) as page:
+    patches = [make_patch(name="only_spec")]
+    async with AcePage(query='"only"', patches=patches) as page:
         assert page.state["idx"] == 0
         await page.press("4")
 
@@ -170,8 +173,8 @@ async def test_mark_single_spec_stays() -> None:
 
 async def test_deltas_fold_mode_cycles_summary_files_lines() -> None:
     """Test zd cycles DELTAS through summary, file list, and line details."""
-    changespecs = [
-        make_changespec(
+    patches = [
+        make_patch(
             name="feature_deltas",
             deltas=[
                 DeltaEntry(
@@ -182,7 +185,7 @@ async def test_deltas_fold_mode_cycles_summary_files_lines() -> None:
             ],
         )
     ]
-    async with AcePage(query='"feature_deltas"', changespecs=changespecs) as page:
+    async with AcePage(query='"feature_deltas"', patches=patches) as page:
         await page.press("4")
         assert "DELTAS:  +0 ~1 (+2 ~3 -1) -0 (1 file)" in _detail_plain(page)
         assert "src/feature.py" not in _detail_plain(page)

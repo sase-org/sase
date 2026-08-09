@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.ace.changespec import ChangeSpec, HookEntry, HookStatusLine
+from sase.ace.patch import Patch, HookEntry, HookStatusLine
 from sase.ace.hooks import execution
 from sase.ace.hooks.output_capture import compact_completed_hook_output
 from sase.config import metahook
@@ -76,7 +76,7 @@ def test_completion_path_compacts_only_after_parsing_full_capture(
         status="RUNNING",
     )
     hook = HookEntry(command="just test", status_lines=[status])
-    changespec = ChangeSpec(
+    patch = Patch(
         name="test",
         description="test",
         parent=None,
@@ -84,7 +84,7 @@ def test_completion_path_compacts_only_after_parsing_full_capture(
         hooks=[hook],
     )
 
-    completed = execution.check_hook_completion(changespec, hook)
+    completed = execution.check_hook_completion(patch, hook)
 
     assert completed is not None
     assert completed.status_lines is not None
@@ -124,7 +124,7 @@ def test_metahook_matches_full_output_before_completed_capture_is_compacted(
         status="RUNNING",
     )
     hook = HookEntry(command="!just test", status_lines=[status])
-    changespec = ChangeSpec(
+    patch = Patch(
         name="test",
         description="test",
         parent=None,
@@ -132,7 +132,7 @@ def test_metahook_matches_full_output_before_completed_capture_is_compacted(
         hooks=[hook],
     )
 
-    completed = execution.check_hook_completion(changespec, hook)
+    completed = execution.check_hook_completion(patch, hook)
 
     assert completed is not None
     assert completed.status_lines is not None

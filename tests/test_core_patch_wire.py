@@ -12,12 +12,10 @@ from sase.core import parser_facade
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.wire import (
     PATCH_WIRE_SCHEMA_VERSION,
-    ChangeSpecWire,
     PatchWire,
     to_json_dict,
 )
 from sase.core.wire_conversion import (
-    changespec_wire_from_dict,
     patch_to_wire,
     patch_wire_from_dict,
 )
@@ -167,13 +165,13 @@ def test_patch_wire_from_dict_rejects_conflicting_stitch_id_aliases() -> None:
         patch_wire_from_dict(record)
 
 
-def test_changespec_wire_from_dict_accepts_canonical_spellings() -> None:
-    wire = changespec_wire_from_dict(_base_record())
+def test_patch_wire_from_dict_accepts_canonical_spellings() -> None:
+    wire = patch_wire_from_dict(_base_record())
 
-    assert isinstance(wire, ChangeSpecWire)
-    assert wire.commits[0].number == 1
-    assert wire.hooks[0].status_lines[0].commit_entry_num == "1"
-    assert wire.mentors[0].entry_id == "1"
+    assert isinstance(wire, PatchWire)
+    assert wire.stitches[0].number == 1
+    assert wire.hooks[0].status_lines[0].stitch_id == "1"
+    assert wire.mentors[0].stitch_id == "1"
 
 
 def test_parse_patch_project_bytes_uses_canonical_rust_binding(

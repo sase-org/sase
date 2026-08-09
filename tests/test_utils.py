@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import yaml
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.config.mentor import MentorConfig, _MentorFocusArea
 
 
@@ -28,8 +28,8 @@ def make_mentor_config(
     )
 
 
-def build_changespec(**kwargs: Any) -> ChangeSpec:
-    """Create a ChangeSpec with sensible defaults for tests."""
+def build_patch(**kwargs: Any) -> Patch:
+    """Create a Patch with sensible defaults for tests."""
     defaults: dict[str, Any] = {
         "name": "test-cl",
         "description": "Test description",
@@ -44,7 +44,10 @@ def build_changespec(**kwargs: Any) -> ChangeSpec:
         "mentors": None,
     }
     defaults.update(kwargs)
-    return ChangeSpec(**defaults)  # type: ignore[arg-type]
+    return Patch(**defaults)  # type: ignore[arg-type]
+
+
+build_changespec = build_patch  # legacy test helper alias
 
 
 @contextmanager

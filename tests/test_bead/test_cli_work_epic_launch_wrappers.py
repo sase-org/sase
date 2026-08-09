@@ -15,7 +15,7 @@ from .cli_work_helpers import (
     bead_wait_lines,
     epic_clan_declaration,
     make_args,
-    seed_changespec_epic,
+    seed_patch_epic,
     seed_diamond,
 )
 
@@ -86,13 +86,13 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
             assert phase.assignee == ""
 
 
-def test_work_dry_run_renders_changespec_launch_wrappers(
+def test_work_dry_run_renders_patch_launch_wrappers(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    epic_id, phase_ids = seed_changespec_epic(project_dir)
+    epic_id, phase_ids = seed_patch_epic(project_dir)
     fake_home = tmp_path / "home"
     project_root = fake_home / ".sase" / "projects" / "sase"
     project_root.mkdir(parents=True)

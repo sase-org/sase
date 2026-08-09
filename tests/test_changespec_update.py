@@ -1,13 +1,15 @@
-"""Tests for update_to_changespec operations."""
+"""Tests for update_to_patch operations."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch as mock_patch
 
-from sase.ace.changespec import ChangeSpec
-from sase.ace.operations import update_to_changespec
+from sase.ace.operations import (
+    update_to_changespec as update_to_patch,  # legacy ACE API name
+)
+from sase.ace.patch import Patch
 
 
-def _make_changespec(**kwargs: object) -> ChangeSpec:
-    """Create a ChangeSpec with sensible defaults for testing."""
+def _make_patch(**kwargs: object) -> Patch:
+    """Create a Patch with sensible defaults for testing."""
     defaults: dict[str, object] = {
         "name": "test_feature",
         "description": "Test",
@@ -18,27 +20,27 @@ def _make_changespec(**kwargs: object) -> ChangeSpec:
         "line_number": 1,
     }
     defaults.update(kwargs)
-    return ChangeSpec(**defaults)  # type: ignore[arg-type]
+    return Patch(**defaults)  # type: ignore[arg-type]
 
 
-def test_update_to_changespec_with_revision() -> None:
-    """Test that update_to_changespec uses provided revision when specified."""
-    changespec = _make_changespec(parent="parent_cl_123", cl="cl_456")
+def test_update_to_patch_with_revision() -> None:
+    """Test that update_to_patch uses provided revision when specified."""
+    patch = _make_patch(parent="parent_cl_123", cl="cl_456")
 
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
     mock_provider.resolve_revision.side_effect = lambda name, *_: name
 
-    with patch("sase.ace.operations.get_workspace_dir_from_project") as mock_get_ws:
+    with mock_patch(
+        "sase.ace.operations.get_workspace_dir_from_project"
+    ) as mock_get_ws:
         mock_get_ws.return_value = "/tmp/project/src"
-        with patch("os.path.exists", return_value=True):
-            with patch("os.path.isdir", return_value=True):
-                with patch(
+        with mock_patch("os.path.exists", return_value=True):
+            with mock_patch("os.path.isdir", return_value=True):
+                with mock_patch(
                     "sase.vcs_provider.get_vcs_provider", return_value=mock_provider
                 ):
-                    success, error = update_to_changespec(
-                        changespec, revision="custom_revision"
-                    )
+                    success, error = update_to_patch(patch, revision="custom_revision")
 
     assert success is True
     assert error is None

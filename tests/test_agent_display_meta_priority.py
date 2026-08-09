@@ -18,10 +18,10 @@ def _make_agent(**overrides) -> Agent:  # type: ignore[no-untyped-def]
     return Agent(**defaults)
 
 
-class TestMetaChangespecPriority:
+class TestMetaPatchPriority:
     """meta_changespec should be preferred over meta_project when both present."""
 
-    def test_changespec_preferred_over_project(self) -> None:
+    def test_patch_preferred_over_project(self) -> None:
         agent = _make_agent(
             step_output={
                 "meta_project": "my_project",
@@ -34,7 +34,7 @@ class TestMetaChangespecPriority:
         assert "Patch: proj_feat_1" in text
         assert "Project: my_project" not in text
 
-    def test_project_shown_when_no_changespec(self) -> None:
+    def test_project_shown_when_no_patch(self) -> None:
         agent = _make_agent(
             step_output={"meta_project": "my_project"},
         )
@@ -44,7 +44,7 @@ class TestMetaChangespecPriority:
         assert "Project: my_project" in text
         assert "Patch:" not in text
 
-    def test_changespec_shown_alone(self) -> None:
+    def test_patch_shown_alone(self) -> None:
         agent = _make_agent(
             step_output={"meta_changespec": "proj_feat_1"},
         )
@@ -53,7 +53,7 @@ class TestMetaChangespecPriority:
 
         assert "Patch: proj_feat_1" in text
 
-    def test_changespec_with_cl_num(self) -> None:
+    def test_patch_with_cl_num(self) -> None:
         agent = _make_agent(
             step_output={
                 "meta_project": "my_project",

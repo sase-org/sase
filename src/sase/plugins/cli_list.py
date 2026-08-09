@@ -1,6 +1,6 @@
 """Orchestration for ``sase plugin list``: load, then render or emit JSON.
 
-This is the ChangeSpecI-facing seam on top of the Phase 1 catalog engine. It loads the
+This is the PatchI-facing seam on top of the Phase 1 catalog engine. It loads the
 catalog via :func:`sase.plugins.catalog.load_plugin_catalog`, then either prints
 the stable ``-j|--json`` payload or hands the model to the Rich renderer. No
 GitHub or cache details leak through here — only the public catalog facade.

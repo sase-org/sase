@@ -28,8 +28,8 @@ class ProjectDisplayCase:
 
     project_key: str = "gh_acme__widgets"
     project_label: str = "widgets"
-    changespec_key: str = "gh_acme__widgets_feature"
-    changespec_label: str = "widgets_feature"
+    patch_key: str = "gh_acme__widgets_feature"
+    patch_label: str = "widgets_feature"
     parent_key: str = "gh_acme__widgets_parent"
     parent_label: str = "widgets_parent"
     snapshot: ProjectDisplaySnapshot = field(init=False)
@@ -37,9 +37,9 @@ class ProjectDisplayCase:
     def __post_init__(self) -> None:
         if self.project_key == self.project_label:
             raise ValueError("project display regression case requires key != label")
-        if self.changespec_key == self.changespec_label:
+        if self.patch_key == self.patch_label:
             raise ValueError(
-                "project display regression case requires ChangeSpec key != label"
+                "project display regression case requires Patch key != label"
             )
         object.__setattr__(
             self,
@@ -47,9 +47,20 @@ class ProjectDisplayCase:
             ProjectDisplaySnapshot({self.project_key: self.project_label}),
         )
 
-    def changespec(self, suffix: str) -> tuple[str, str]:
-        """Return canonical and projected ChangeSpec names for *suffix*."""
+    def patch(self, suffix: str) -> tuple[str, str]:
+        """Return canonical and projected Patch names for *suffix*."""
         return (f"{self.project_key}_{suffix}", f"{self.project_label}_{suffix}")
+
+    @property
+    def changespec_key(self) -> str:  # legacy ACE fixture alias
+        return self.patch_key
+
+    @property
+    def changespec_label(self) -> str:  # legacy ACE fixture alias
+        return self.patch_label
+
+    def changespec(self, suffix: str) -> tuple[str, str]:  # legacy ACE fixture alias
+        return self.patch(suffix)
 
     def project_record(
         self,

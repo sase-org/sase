@@ -32,7 +32,7 @@ def fixture_rows() -> list[dict[str, Any] | str]:
             "notes": ["full row", "all fields populated"],
             "files": ["/tmp/full.py"],
             "tags": ["done", "review"],
-            "action": "JumpToChangeSpec",
+            "action": "JumpToChangeSpec",  # legacy notification action
             "action_data": {
                 "changespec_name": "valid-full",
                 "project_file": "/tmp/project.sase",
@@ -58,7 +58,7 @@ def fixture_rows() -> list[dict[str, Any] | str]:
             "timestamp": BASE_TIMESTAMP,
             "sender": "sync",
             "dismissed": True,
-            "action": "JumpToChangeSpec",
+            "action": "JumpToChangeSpec",  # legacy notification action
             "action_data": {"changespec_name": "dismissed-row"},
         },
         {
@@ -132,7 +132,7 @@ def fixture_rows() -> list[dict[str, Any] | str]:
             "id": "priority-crs",
             "timestamp": BASE_TIMESTAMP,
             "sender": "crs",
-            "action": "JumpToChangeSpec",
+            "action": "JumpToChangeSpec",  # legacy notification action
             "action_data": {"changespec_name": "crs-cl"},
         },
         {
@@ -161,7 +161,7 @@ def synthetic_rows(count: int) -> Iterable[dict[str, Any]]:
         "UserQuestion",
         "JumpToMentorReview",
         "ViewErrorReport",
-        "JumpToChangeSpec",
+        "JumpToChangeSpec",  # legacy notification action
     ]
     senders = [
         "user-workflow",
@@ -208,7 +208,7 @@ def synthetic_rows(count: int) -> Iterable[dict[str, Any]]:
             }
         elif action == "ViewErrorReport":
             row["action_data"] = {"error_report_path": f"/tmp/sase/error_{idx}.txt"}
-        elif action == "JumpToChangeSpec":
+        elif action == "JumpToChangeSpec":  # legacy notification action
             row["action_data"] = {
                 "changespec_name": f"sase-{idx % 31}",
                 "project_file": "/tmp/sase/project.sase",

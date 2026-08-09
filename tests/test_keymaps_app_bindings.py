@@ -141,8 +141,8 @@ def test_default_jump_and_metadata_navigation_keys_are_unique() -> None:
 
     assert by_action["jump_to_entry_fast"].key == "ctrl+o"
     assert by_action["jump_to_entry_forward"].key == "ctrl+shift+o"
-    assert "prev_changespec_history" not in by_action
-    assert "next_changespec_history" not in by_action
+    assert "prev_patch_history" not in by_action
+    assert "next_patch_history" not in by_action
     assert [b.action for b in bindings if b.key == "ctrl+o"] == ["jump_to_entry_fast"]
     assert [b.action for b in bindings if b.key == "ctrl+shift+o"] == [
         "jump_to_entry_forward"

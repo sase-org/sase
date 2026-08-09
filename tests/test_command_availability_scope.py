@@ -22,7 +22,7 @@ def test_catalog_has_one_cleanup_command_and_no_legacy_kill_all() -> None:
 
 
 def test_command_hidden_when_tab_not_in_spec_tabs() -> None:
-    """A ChangeSpec-only command must be hidden on the agents tab."""
+    """A Patch-only command must be hidden on the agents tab."""
     catalog = _catalog_by_id()
     show_diff = catalog["app.show_diff"]
     ctx = CommandContext(tab="agents")
@@ -38,27 +38,32 @@ def test_metadata_sections_are_agents_only_and_forward_jump_is_all_tab() -> None
     for section_command in (next_section, prev_section):
         assert is_command_available(section_command, CommandContext(tab="agents"))
         assert not is_command_available(
-            section_command, CommandContext(tab="changespecs")
+            section_command,
+            CommandContext(tab="changespecs"),  # legacy tab id
         )
         assert not is_command_available(section_command, CommandContext(tab="axe"))
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("changespecs", "agents", "axe"):  # legacy tab id
         assert is_command_available(jump_forward, CommandContext(tab=tab))
 
 
 def test_fold_palette_commands_are_scoped_by_fold_surface() -> None:
     catalog = _catalog_by_id()
-    changespec_fold = catalog["fold.cycle_stitches"]
+    patch_fold = catalog["fold.cycle_stitches"]
     agent_fold = catalog["fold.agents.cycle_level"]
     regular_agent = SimpleNamespace(is_family_container_row=False)
 
-    assert is_command_available(changespec_fold, CommandContext(tab="changespecs"))
-    assert not is_command_available(changespec_fold, CommandContext(tab="agents"))
+    assert is_command_available(
+        patch_fold, CommandContext(tab="changespecs")
+    )  # legacy tab id
+    assert not is_command_available(patch_fold, CommandContext(tab="agents"))
     assert is_command_available(
         agent_fold,
         CommandContext(tab="agents", agent=regular_agent),  # type: ignore[arg-type]
     )
-    assert not is_command_available(agent_fold, CommandContext(tab="changespecs"))
+    assert not is_command_available(
+        agent_fold, CommandContext(tab="changespecs")
+    )  # legacy tab id
 
 
 def test_direct_fold_palette_commands_follow_active_context_scale() -> None:
@@ -84,11 +89,13 @@ def test_direct_fold_palette_commands_follow_active_context_scale() -> None:
         spec = catalog[f"fold.set_level_{position}"]
         assert is_command_available(
             spec,
-            CommandContext(tab="changespecs", artifacts_subtab="prs"),
+            CommandContext(tab="changespecs", artifacts_subtab="prs"),  # legacy tab id
         )
         assert not is_command_available(
             spec,
-            CommandContext(tab="changespecs", artifacts_subtab="commits"),
+            CommandContext(
+                tab="changespecs", artifacts_subtab="commits"
+            ),  # legacy tab id
         )
         assert not is_command_available(spec, CommandContext(tab="axe"))
 
@@ -128,5 +135,5 @@ def test_show_help_palette_entry_is_available_across_tabs_and_artifacts() -> Non
     for subtab in ("prs", "commits", "bugs", "beads", "plans", "chats", "other"):
         assert is_command_available(
             show_help,
-            CommandContext(tab="changespecs", artifacts_subtab=subtab),  # type: ignore[arg-type]
+            CommandContext(tab="changespecs", artifacts_subtab=subtab),  # type: ignore[arg-type]  # legacy tab id
         )

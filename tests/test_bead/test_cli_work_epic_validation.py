@@ -12,17 +12,17 @@ from sase.bead import cli as bead_cli
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import BeadProject
 
-from .cli_work_helpers import make_args, seed_changespec_epic, seed_diamond
+from .cli_work_helpers import make_args, seed_patch_epic, seed_diamond
 
 pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
 
 
-def test_work_changespec_epic_errors_without_project_context(
+def test_work_patch_epic_errors_without_project_context(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    epic_id, phase_ids = seed_changespec_epic(project_dir)
+    epic_id, phase_ids = seed_patch_epic(project_dir)
     monkeypatch.setattr(
         "sase.bead.project_name.infer_project_name_from_cwd",
         lambda: None,

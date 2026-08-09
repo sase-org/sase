@@ -36,8 +36,8 @@ def get_axe_status() -> dict | None:
             "last_full_cycle": status.last_full_cycle,
             "last_hook_cycle": status.last_hook_cycle,
             "next_full_cycle": status.next_full_cycle,
-            "total_changespecs": status.total_changespecs,
-            "filtered_changespecs": status.filtered_changespecs,
+            "total_patches": status.total_patches,
+            "filtered_patches": status.filtered_patches,
             "uptime_seconds": status.uptime_seconds,
         }
     else:
@@ -58,8 +58,8 @@ def get_axe_status() -> dict | None:
             "last_full_cycle": None,
             "last_hook_cycle": None,
             "next_full_cycle": None,
-            "total_changespecs": 0,
-            "filtered_changespecs": 0,
+            "total_patches": 0,
+            "filtered_patches": 0,
             "uptime_seconds": 0,
         }
 

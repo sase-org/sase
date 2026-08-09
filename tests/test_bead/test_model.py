@@ -181,7 +181,7 @@ class TestIssueValidation:
         with pytest.raises(ValueError, match="Phase issues cannot carry"):
             issue.validate()
 
-    def test_task_with_changespec_metadata_raises(self) -> None:
+    def test_task_with_patch_metadata_raises(self) -> None:
         issue = Issue(
             id="test-task",
             title="A task",
@@ -244,7 +244,7 @@ class TestIssueValidation:
         issue.patch_bug_id = "67890"
         assert issue.changespec_bug_id == "67890"
 
-    def test_phase_with_changespec_metadata_raises(self) -> None:
+    def test_phase_with_patch_metadata_raises(self) -> None:
         issue = Issue(
             id="test-1",
             title="A phase",

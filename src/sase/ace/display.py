@@ -648,3 +648,6 @@ def display_changespec(
     )
 
     return hint_mappings, hook_hint_to_idx
+
+
+display_patch = display_changespec

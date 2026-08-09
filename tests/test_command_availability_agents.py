@@ -9,7 +9,7 @@ from sase.ace.tui.commands import (
 from tests._command_availability_helpers import (
     catalog_by_id as _catalog_by_id,
     make_agent as _make_agent,
-    make_changespec as _make_changespec,
+    make_patch as _make_patch,
 )
 
 
@@ -106,7 +106,8 @@ def test_zoom_panel_available_for_agent_or_whole_panel_focus_only() -> None:
         spec, CommandContext(tab="agents", group_focused=True)
     )
     assert not is_command_available(
-        spec, CommandContext(tab="changespecs", agent=_make_agent())
+        spec,
+        CommandContext(tab="changespecs", agent=_make_agent()),  # legacy tab id
     )
 
 
@@ -297,7 +298,9 @@ def test_open_artifact_files_is_available_on_agents_tab() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.open_artifact_files"]
     assert is_command_available(spec, CommandContext(tab="agents"))
-    assert not is_command_available(spec, CommandContext(tab="changespecs"))
+    assert not is_command_available(
+        spec, CommandContext(tab="changespecs")
+    )  # legacy tab id
 
 
 def test_save_marked_agent_group_requires_marks_on_agents_tab() -> None:
@@ -308,7 +311,7 @@ def test_save_marked_agent_group_requires_marks_on_agents_tab() -> None:
     assert is_command_available(spec, CommandContext(tab="agents", mark_count=2))
 
 
-def test_bulk_change_status_is_changespec_only() -> None:
+def test_bulk_change_status_is_patch_only() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.bulk_change_status"]
 
@@ -316,24 +319,24 @@ def test_bulk_change_status_is_changespec_only() -> None:
     assert is_command_available(
         spec,
         CommandContext(
-            tab="changespecs",
-            changespec=_make_changespec(),
+            tab="changespecs",  # legacy tab id
+            patch=_make_patch(),
             mark_count=2,
         ),
     )
 
 
-def test_jump_to_agent_changespec_requires_resolution() -> None:
+def test_jump_to_agent_patch_requires_resolution() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.jump_to_agent_patch"]
     agent = _make_agent()
     assert not is_command_available(
         spec,
-        CommandContext(tab="agents", agent=agent, can_jump_to_changespec=False),
+        CommandContext(tab="agents", agent=agent, can_jump_to_patch=False),
     )
     assert is_command_available(
         spec,
-        CommandContext(tab="agents", agent=agent, can_jump_to_changespec=True),
+        CommandContext(tab="agents", agent=agent, can_jump_to_patch=True),
     )
 
 
@@ -366,7 +369,9 @@ def test_jump_to_next_unread_done_agent_requires_unread_completed_agent() -> Non
     )
     assert not is_command_available(
         spec,
-        CommandContext(tab="changespecs", unread_completed_agent_count=1),
+        CommandContext(
+            tab="changespecs", unread_completed_agent_count=1
+        ),  # legacy tab id
     )
 
 
@@ -387,9 +392,10 @@ def test_revert_agent_available_with_marks_or_revertable_focus() -> None:
     )
     assert is_command_available(spec, CommandContext(tab="agents", mark_count=2))
 
-    # Tab scoping still applies — marks on the ChangeSpecs tab don't surface it.
+    # Tab scoping still applies — marks on the Patches tab don't surface it.
     assert not is_command_available(
-        spec, CommandContext(tab="changespecs", mark_count=2)
+        spec,
+        CommandContext(tab="changespecs", mark_count=2),  # legacy tab id
     )
 
 
@@ -404,5 +410,5 @@ def test_jump_to_next_stopped_agent_requires_stopped_agent() -> None:
     )
     assert not is_command_available(
         spec,
-        CommandContext(tab="changespecs", stopped_agent_count=1),
+        CommandContext(tab="changespecs", stopped_agent_count=1),  # legacy tab id
     )

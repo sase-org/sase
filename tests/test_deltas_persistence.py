@@ -5,11 +5,11 @@ import tempfile
 from pathlib import Path
 import threading
 
-from sase.ace.changespec import DeltaEntry
+from sase.ace.patch import DeltaEntry
 from sase.ace.deltas import (
-    CHANGESPEC_SECTION_ORDER,
+    PATCH_SECTION_ORDER,
     apply_deltas_update,
-    update_changespec_deltas_field,
+    update_patch_deltas_field,
 )
 
 
@@ -24,14 +24,14 @@ def _write_tmp(tmp_path: Path, contents: str) -> str:
 
 def test_section_order_constant_places_deltas_between_commits_and_hooks() -> None:
     """DELTAS sits immediately after COMMITS and immediately before HOOKS."""
-    idx_commits = CHANGESPEC_SECTION_ORDER.index("COMMITS:")
-    idx_deltas = CHANGESPEC_SECTION_ORDER.index("DELTAS:")
-    idx_hooks = CHANGESPEC_SECTION_ORDER.index("HOOKS:")
+    idx_commits = PATCH_SECTION_ORDER.index("COMMITS:")
+    idx_deltas = PATCH_SECTION_ORDER.index("DELTAS:")
+    idx_hooks = PATCH_SECTION_ORDER.index("HOOKS:")
     assert idx_deltas == idx_commits + 1
     assert idx_hooks == idx_deltas + 1
 
 
-def test_insert_into_changespec_with_no_prior_deltas_section(tmp_path: Path) -> None:
+def test_insert_into_patch_with_no_prior_deltas_section(tmp_path: Path) -> None:
     """Insert DELTAS in canonical position when COMMITS and HOOKS exist."""
     initial = (
         "NAME: my_cl\n"
@@ -49,7 +49,7 @@ def test_insert_into_changespec_with_no_prior_deltas_section(tmp_path: Path) -> 
             DeltaEntry(path="src/a.py", change_type="A"),
             DeltaEntry(path="src/b.py", change_type="M"),
         ]
-        assert update_changespec_deltas_field(path, "my_cl", deltas) is True
+        assert update_patch_deltas_field(path, "my_cl", deltas) is True
         with open(path, encoding="utf-8") as f:
             result = f.read()
 
@@ -84,7 +84,7 @@ def test_insert_when_hooks_absent_uses_next_post_deltas_section(tmp_path: Path) 
     path = _write_tmp(tmp_path, initial)
     try:
         deltas = [DeltaEntry(path="src/a.py", change_type="A")]
-        assert update_changespec_deltas_field(path, "my_cl", deltas) is True
+        assert update_patch_deltas_field(path, "my_cl", deltas) is True
         with open(path, encoding="utf-8") as f:
             result = f.read()
         deltas_idx = result.index("DELTAS:")
@@ -116,7 +116,7 @@ def test_replace_existing_deltas_section(tmp_path: Path) -> None:
             DeltaEntry(path="new/file.py", change_type="A"),
             DeltaEntry(path="other.py", change_type="D"),
         ]
-        assert update_changespec_deltas_field(path, "my_cl", new_deltas) is True
+        assert update_patch_deltas_field(path, "my_cl", new_deltas) is True
         with open(path, encoding="utf-8") as f:
             result = f.read()
 
@@ -151,7 +151,7 @@ def test_remove_section_when_given_empty_list(tmp_path: Path) -> None:
     )
     path = _write_tmp(tmp_path, initial)
     try:
-        assert update_changespec_deltas_field(path, "my_cl", []) is True
+        assert update_patch_deltas_field(path, "my_cl", []) is True
         with open(path, encoding="utf-8") as f:
             result = f.read()
 
@@ -181,7 +181,7 @@ def test_remove_when_no_existing_section_is_noop(tmp_path: Path) -> None:
     )
     path = _write_tmp(tmp_path, initial)
     try:
-        assert update_changespec_deltas_field(path, "my_cl", []) is True
+        assert update_patch_deltas_field(path, "my_cl", []) is True
         with open(path, encoding="utf-8") as f:
             result = f.read()
         assert result == initial
@@ -189,8 +189,8 @@ def test_remove_when_no_existing_section_is_noop(tmp_path: Path) -> None:
         os.unlink(path)
 
 
-def test_only_target_changespec_is_modified(tmp_path: Path) -> None:
-    """Other ChangeSpecs in the same file are left untouched."""
+def test_only_target_patch_is_modified(tmp_path: Path) -> None:
+    """Other Patches in the same file are left untouched."""
     initial = (
         "NAME: cl_one\n"
         "DESCRIPTION:\n"
@@ -216,7 +216,7 @@ def test_only_target_changespec_is_modified(tmp_path: Path) -> None:
     path = _write_tmp(tmp_path, initial)
     try:
         deltas = [DeltaEntry(path="two/added.py", change_type="A")]
-        assert update_changespec_deltas_field(path, "cl_two", deltas) is True
+        assert update_patch_deltas_field(path, "cl_two", deltas) is True
         with open(path, encoding="utf-8") as f:
             result = f.read()
 
@@ -232,15 +232,15 @@ def test_only_target_changespec_is_modified(tmp_path: Path) -> None:
         os.unlink(path)
 
 
-def test_insert_at_end_of_changespec_when_no_post_sections(tmp_path: Path) -> None:
-    """No HOOKS/COMMENTS/etc. after COMMITS — insert at end of ChangeSpec."""
+def test_insert_at_end_of_patch_when_no_post_sections(tmp_path: Path) -> None:
+    """No HOOKS/COMMENTS/etc. after COMMITS — insert at end of Patch."""
     initial = (
         "NAME: my_cl\nDESCRIPTION:\n  Test\nSTATUS: Ready\nCOMMITS:\n  (1) initial\n"
     )
     path = _write_tmp(tmp_path, initial)
     try:
         deltas = [DeltaEntry(path="src/a.py", change_type="A")]
-        assert update_changespec_deltas_field(path, "my_cl", deltas) is True
+        assert update_patch_deltas_field(path, "my_cl", deltas) is True
         with open(path, encoding="utf-8") as f:
             result = f.read()
         assert "DELTAS:\n" in result
@@ -296,7 +296,7 @@ def test_concurrent_writers_serialize_via_lock(tmp_path: Path) -> None:
         deltas_b = [DeltaEntry(path="thread_b.py", change_type="M")]
 
         def writer(key: str, deltas: list[DeltaEntry], out: dict[str, bool]) -> None:
-            out[key] = update_changespec_deltas_field(path, "my_cl", deltas)
+            out[key] = update_patch_deltas_field(path, "my_cl", deltas)
 
         for _ in range(20):
             results: dict[str, bool] = {}

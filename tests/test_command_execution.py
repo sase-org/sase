@@ -29,7 +29,7 @@ def _spec(
         key_sequence=key_sequence,
         key_display=key_display,
         category="Misc",
-        tabs=("changespecs", "agents", "axe"),
+        tabs=("changespecs", "agents", "axe"),  # legacy tab id
         executor=executor,
         aliases=aliases,
     )
@@ -88,8 +88,10 @@ def test_execute_fold_mode_sets_active_then_handles() -> None:
 def test_execute_copy_mode_sets_active_then_handles() -> None:
     app = MagicMock()
     spec = _spec(
-        "copy.changespecs.name",
-        CommandExecutor(kind="copy_mode_key", subkey="n", copy_tab="changespecs"),
+        "copy.patches.name",
+        CommandExecutor(
+            kind="copy_mode_key", subkey="n", copy_tab="changespecs"
+        ),  # legacy wire key
         key_display="%n",
         key_sequence=("percent_sign", "n"),
     )

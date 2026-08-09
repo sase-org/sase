@@ -1,14 +1,14 @@
-"""Tests for create_changespec_for_workflow core behavior."""
+"""Tests for create_patch_for_workflow core behavior."""
 
 from unittest.mock import patch
 
-from sase.workspace_provider.patch import create_changespec_for_workflow
+from sase.workspace_provider.patch import create_patch_for_workflow
 
 
 # --- No-commits edge cases ---
 
 
-def test_create_changespec_for_workflow_no_commits() -> None:
+def test_create_patch_for_workflow_no_commits() -> None:
     with (
         patch(
             "sase.workspace_provider.patch._get_commits_ahead",
@@ -18,7 +18,7 @@ def test_create_changespec_for_workflow_no_commits() -> None:
             "sase.workspace_provider.patch.refresh_deltas_after_commits_change",
         ) as mock_refresh,
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",
@@ -31,7 +31,7 @@ def test_create_changespec_for_workflow_no_commits() -> None:
         mock_refresh.assert_not_called()
 
 
-def test_create_changespec_for_workflow_refreshes_deltas_after_creation() -> None:
+def test_create_patch_for_workflow_refreshes_deltas_after_creation() -> None:
     with (
         patch(
             "sase.workspace_provider.patch._get_commits_ahead",
@@ -50,11 +50,11 @@ def test_create_changespec_for_workflow_refreshes_deltas_after_creation() -> Non
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_add_thing_1",
         ),
         patch("sase.workspace_provider.patch.os.getcwd", return_value="/workspace"),
@@ -63,7 +63,7 @@ def test_create_changespec_for_workflow_refreshes_deltas_after_creation() -> Non
             return_value=False,
         ) as mock_refresh,
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",
@@ -101,15 +101,15 @@ def test_create_changespec_for_workflow_no_commits_with_fallback() -> None:
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_my_cl_1",
         ) as mock_add,
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="HEAD~1",
@@ -135,7 +135,7 @@ def test_create_changespec_for_workflow_no_commits_no_fallback() -> None:
         "sase.workspace_provider.patch._get_commits_ahead",
         return_value=[],
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="HEAD~1",
@@ -151,7 +151,7 @@ def test_create_changespec_for_workflow_no_commits_no_fallback() -> None:
 # --- commit_description behavior ---
 
 
-def test_create_changespec_uses_full_commit_description() -> None:
+def test_create_patch_uses_full_commit_description() -> None:
     """When commit_description is provided AND git log returns subjects,
     the full commit_description is used for DESCRIPTION (not just subjects)."""
     with (
@@ -172,15 +172,15 @@ def test_create_changespec_uses_full_commit_description() -> None:
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
     ):
-        result = create_changespec_for_workflow(
+        result = create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",
@@ -198,7 +198,7 @@ def test_create_changespec_uses_full_commit_description() -> None:
         assert description != "feat: add thing"
 
 
-def test_create_changespec_adds_project_prefix_to_cl_name() -> None:
+def test_create_patch_adds_project_prefix_to_cl_name() -> None:
     """cl_name without project prefix gets normalized before passing through."""
     with (
         patch(
@@ -218,15 +218,15 @@ def test_create_changespec_adds_project_prefix_to_cl_name() -> None:
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="sase_fix_split_1",
         ) as mock_add,
     ):
-        create_changespec_for_workflow(
+        create_patch_for_workflow(
             project_name="sase",
             project_file="/fake/sase.sase",
             checkout_target="origin/main",
@@ -237,11 +237,11 @@ def test_create_changespec_adds_project_prefix_to_cl_name() -> None:
             cl_name="fix_split",  # Missing project prefix
         )
         mock_add.assert_called_once()
-        # cl_name passed to add_changespec should now include the prefix
+        # cl_name passed to add_patch should now include the prefix
         assert mock_add.call_args[0][1] == "sase_fix_split"
 
 
-def test_create_changespec_strips_pr_tags_from_commit_description() -> None:
+def test_create_patch_strips_pr_tags_from_commit_description() -> None:
     """strip_pr_tags is applied to the full commit_description."""
     with (
         patch(
@@ -261,11 +261,11 @@ def test_create_changespec_strips_pr_tags_from_commit_description() -> None:
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_patch",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.patch.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_patch_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
         patch(
@@ -273,7 +273,7 @@ def test_create_changespec_strips_pr_tags_from_commit_description() -> None:
             side_effect=lambda s: s.replace("[TAG]", ""),
         ) as mock_strip,
     ):
-        create_changespec_for_workflow(
+        create_patch_for_workflow(
             project_name="proj",
             project_file="/fake/proj.sase",
             checkout_target="origin/main",

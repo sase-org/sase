@@ -21,17 +21,17 @@ from sase.running_field import (
 from sase.vcs_provider import get_vcs_provider
 from sase.project_display_names import humanize_cl_name
 
-from .patch import ChangeSpec, find_all_changespecs
+from .patch import ChangeSpec, find_all_patches
 from .revert import update_changespec_name_atomic
 
 
-def list_reverted_changespecs() -> list[ChangeSpec]:
+def list_reverted_patches() -> list[ChangeSpec]:
     """Find all ChangeSpecs with "Reverted" status.
 
     Returns:
         List of ChangeSpecs that have status "Reverted"
     """
-    all_changespecs = find_all_changespecs()
+    all_changespecs = find_all_patches()
     return [cs for cs in all_changespecs if cs.status == "Reverted"]
 
 
@@ -109,7 +109,7 @@ def _clear_hook_status_lines_for_last_history(
     return (True, None)
 
 
-def restore_changespec(
+def restore_patch(
     changespec: ChangeSpec, console: Console | None = None
 ) -> tuple[bool, str | None]:
     """Restore a reverted or archived ChangeSpec by re-applying its diff and creating a new PR.
@@ -231,4 +231,5 @@ def restore_changespec(
     return (True, None)
 
 
-restore_patch = restore_changespec
+list_reverted_changespecs = list_reverted_patches  # legacy API alias
+restore_changespec = restore_patch  # legacy API alias

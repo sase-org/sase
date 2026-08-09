@@ -6,7 +6,7 @@ from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_cho
 
 @builtin_chop("mentor_checks")
 def _run(runtime: BuiltinChopRuntime) -> None:
-    runtime.hook_runner.run_mentor_checks(runtime.filtered_changespecs)
+    runtime.hook_runner.run_mentor_checks(runtime.filtered_patches)
 
 
 def main() -> None:

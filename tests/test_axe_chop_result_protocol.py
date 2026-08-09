@@ -56,7 +56,7 @@ def test_structured_no_op_is_persisted_with_run_local_context(
         },
     )
 
-    with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
         outcome = run_configured_chop_once(
             lumberjack_name="checks",
             chop=ChopConfig(
@@ -102,7 +102,7 @@ def test_invalid_result_fails_closed_as_check_error(
         "printf '%s' '{not-json' > \"$SASE_CHOP_RESULT_FILE\"\n",
     )
 
-    with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
         outcome = run_configured_chop_once(
             lumberjack_name="checks",
             chop=ChopConfig(name="broken", description=""),
@@ -139,7 +139,7 @@ def test_standalone_workflow_proposal_fails_closed(
         },
     )
 
-    with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
         outcome = run_configured_chop_once(
             lumberjack_name="checks",
             chop=ChopConfig(name="workflow", description=""),
@@ -181,7 +181,7 @@ def test_conflicting_raw_clan_summaries_fail_before_launch(
     )
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agent_from_cwd") as launch_one,
         patch("sase.axe.chop_runner.launch_agents_from_cwd") as launch_many,
     ):
@@ -229,7 +229,7 @@ def test_dry_run_previews_scaffolds_and_never_launches(
     )
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agent_from_cwd") as launch,
     ):
         outcome = run_configured_chop_once(

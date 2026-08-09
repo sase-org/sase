@@ -1,8 +1,8 @@
-"""Tests for format_changespec_for_clipboard() function."""
+"""Tests for format_patch_for_clipboard() function."""
 
 from typing import Any
-from sase.ace.changespec import (
-    ChangeSpec,
+from sase.ace.patch import (
+    Patch,
     CommentEntry,
     CommitEntry,
     HookEntry,
@@ -10,17 +10,17 @@ from sase.ace.changespec import (
     MentorEntry,
     MentorStatusLine,
 )
-from sase.ace.tui.actions.clipboard._helpers import format_changespec_for_clipboard
+from sase.ace.tui.actions.clipboard._helpers import format_patch_for_clipboard
 
 
-def _make_basic_changespec(
+def _make_basic_patch(
     name: str = "test_cl",
     description: str = "Test description",
     status: str = "Ready",
     **kwargs: Any,
-) -> ChangeSpec:
-    """Helper to create a basic ChangeSpec for testing."""
-    return ChangeSpec(
+) -> Patch:
+    """Helper to create a basic Patch for testing."""
+    return Patch(
         name=name,
         description=description,
         status=status,
@@ -36,47 +36,47 @@ def _make_basic_changespec(
     )
 
 
-def test_format_changespec_with_parent() -> None:
-    """Test formatting ChangeSpec with parent field."""
-    cs = _make_basic_changespec(parent="parent_cl")
-    result = format_changespec_for_clipboard(cs)
+def test_format_patch_with_parent() -> None:
+    """Test formatting Patch with parent field."""
+    cs = _make_basic_patch(parent="parent_cl")
+    result = format_patch_for_clipboard(cs)
     assert "PARENT: parent_cl" in result
 
 
-def test_format_changespec_with_pr() -> None:
-    """Test formatting ChangeSpec with PR field."""
-    cs = _make_basic_changespec(cl="12345")
-    result = format_changespec_for_clipboard(cs)
+def test_format_patch_with_pr() -> None:
+    """Test formatting Patch with PR field."""
+    cs = _make_basic_patch(cl="12345")
+    result = format_patch_for_clipboard(cs)
     assert "PR: 12345" in result
 
 
-def test_format_changespec_with_bug() -> None:
-    """Test formatting ChangeSpec with bug field."""
-    cs = _make_basic_changespec(bug="b/123456")
-    result = format_changespec_for_clipboard(cs)
+def test_format_patch_with_bug() -> None:
+    """Test formatting Patch with bug field."""
+    cs = _make_basic_patch(bug="b/123456")
+    result = format_patch_for_clipboard(cs)
     assert "BUG: b/123456" in result
 
 
-def test_format_changespec_with_refs() -> None:
-    cs = _make_basic_changespec()
+def test_format_patch_with_refs() -> None:
+    cs = _make_basic_patch()
     cs.refs = ["research:202607/report.md", "file:default:abc123"]
 
-    result = format_changespec_for_clipboard(cs)
+    result = format_patch_for_clipboard(cs)
 
     assert ("REFS:\n  research:202607/report.md\n  file:default:abc123") in result
 
 
-def test_format_changespec_commits_with_plain_suffix() -> None:
+def test_format_patch_commits_with_plain_suffix() -> None:
     """Test formatting commits with plain suffix (no type)."""
     commits = [
         CommitEntry(number=1, note="Commit with note", suffix="Plain note"),
     ]
-    cs = _make_basic_changespec(commits=commits)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(commits=commits)
+    result = format_patch_for_clipboard(cs)
     assert "(1) Commit with note - (Plain note)" in result
 
 
-def test_format_changespec_commits_with_chat_and_diff() -> None:
+def test_format_patch_commits_with_chat_and_diff() -> None:
     """Test formatting commits with chat and diff paths."""
     commits = [
         CommitEntry(
@@ -86,26 +86,26 @@ def test_format_changespec_commits_with_chat_and_diff() -> None:
             diff="/path/to/diff.txt",
         ),
     ]
-    cs = _make_basic_changespec(commits=commits)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(commits=commits)
+    result = format_patch_for_clipboard(cs)
     assert "[chat: /path/to/chat.md]" in result
     assert "[diff: /path/to/diff.txt]" in result
 
 
-def test_format_changespec_with_hooks() -> None:
-    """Test formatting ChangeSpec with HOOKS section."""
+def test_format_patch_with_hooks() -> None:
+    """Test formatting Patch with HOOKS section."""
     hooks = [
         HookEntry(command="flake8 src"),
         HookEntry(command="pytest tests"),
     ]
-    cs = _make_basic_changespec(hooks=hooks)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(hooks=hooks)
+    result = format_patch_for_clipboard(cs)
     assert "HOOKS:" in result
     assert "  flake8 src" in result
     assert "  pytest tests" in result
 
 
-def test_format_changespec_hooks_with_status_lines() -> None:
+def test_format_patch_hooks_with_status_lines() -> None:
     """Test formatting hooks with status lines."""
     hooks = [
         HookEntry(
@@ -120,13 +120,13 @@ def test_format_changespec_hooks_with_status_lines() -> None:
             ],
         ),
     ]
-    cs = _make_basic_changespec(hooks=hooks)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(hooks=hooks)
+    result = format_patch_for_clipboard(cs)
     assert "  flake8 src" in result
     assert "(1) [240601_123456] PASSED (1m23s)" in result
 
 
-def test_format_changespec_hooks_with_summarize_complete_suffix() -> None:
+def test_format_patch_hooks_with_summarize_complete_suffix() -> None:
     """Test formatting hooks with summarize_complete suffix type."""
     hooks = [
         HookEntry(
@@ -142,12 +142,12 @@ def test_format_changespec_hooks_with_summarize_complete_suffix() -> None:
             ],
         ),
     ]
-    cs = _make_basic_changespec(hooks=hooks)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(hooks=hooks)
+    result = format_patch_for_clipboard(cs)
     assert "(%: fix_id)" in result
 
 
-def test_format_changespec_hooks_with_summary() -> None:
+def test_format_patch_hooks_with_summary() -> None:
     """Test formatting hooks with compound suffix (suffix + summary)."""
     hooks = [
         HookEntry(
@@ -164,23 +164,23 @@ def test_format_changespec_hooks_with_summary() -> None:
             ],
         ),
     ]
-    cs = _make_basic_changespec(hooks=hooks)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(hooks=hooks)
+    result = format_patch_for_clipboard(cs)
     assert "(%: fix_id | Brief summary of error)" in result
 
 
-def test_format_changespec_with_comments() -> None:
-    """Test formatting ChangeSpec with COMMENTS section."""
+def test_format_patch_with_comments() -> None:
+    """Test formatting Patch with COMMENTS section."""
     comments = [
         CommentEntry(reviewer="critique", file_path="/path/to/comments.json"),
     ]
-    cs = _make_basic_changespec(comments=comments)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(comments=comments)
+    result = format_patch_for_clipboard(cs)
     assert "COMMENTS:" in result
     assert "[critique] /path/to/comments.json" in result
 
 
-def test_format_changespec_comments_with_suffix() -> None:
+def test_format_patch_comments_with_suffix() -> None:
     """Test formatting comments with suffix."""
     comments = [
         CommentEntry(
@@ -190,12 +190,12 @@ def test_format_changespec_comments_with_suffix() -> None:
             suffix_type="error",
         ),
     ]
-    cs = _make_basic_changespec(comments=comments)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(comments=comments)
+    result = format_patch_for_clipboard(cs)
     assert "(!: Unresolved Comments)" in result
 
 
-def test_format_changespec_comments_with_running_agent_suffix() -> None:
+def test_format_patch_comments_with_running_agent_suffix() -> None:
     """Test formatting comments with running_agent suffix."""
     comments = [
         CommentEntry(
@@ -205,22 +205,22 @@ def test_format_changespec_comments_with_running_agent_suffix() -> None:
             suffix_type="running_agent",
         ),
     ]
-    cs = _make_basic_changespec(comments=comments)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(comments=comments)
+    result = format_patch_for_clipboard(cs)
     assert "(@: agent_240601_123456)" in result
 
 
-def test_format_changespec_mentors_with_draft() -> None:
+def test_format_patch_mentors_with_draft() -> None:
     """Test formatting mentors with Draft marker."""
     mentors = [
         MentorEntry(entry_id="1", profiles=["profile1"], is_draft=True),
     ]
-    cs = _make_basic_changespec(mentors=mentors)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(mentors=mentors)
+    result = format_patch_for_clipboard(cs)
     assert "(1) profile1 (Draft)" in result
 
 
-def test_format_changespec_mentors_with_status_lines() -> None:
+def test_format_patch_mentors_with_status_lines() -> None:
     """Test formatting mentors with status lines."""
     mentors = [
         MentorEntry(
@@ -237,12 +237,12 @@ def test_format_changespec_mentors_with_status_lines() -> None:
             ],
         ),
     ]
-    cs = _make_basic_changespec(mentors=mentors)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(mentors=mentors)
+    result = format_patch_for_clipboard(cs)
     assert "test_profile:test_mentor - PASSED - (5m30s)" in result
 
 
-def test_format_changespec_mentors_status_with_timestamp() -> None:
+def test_format_patch_mentors_status_with_timestamp() -> None:
     """Test formatting mentor status lines with timestamp."""
     mentors = [
         MentorEntry(
@@ -258,12 +258,12 @@ def test_format_changespec_mentors_status_with_timestamp() -> None:
             ],
         ),
     ]
-    cs = _make_basic_changespec(mentors=mentors)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(mentors=mentors)
+    result = format_patch_for_clipboard(cs)
     assert "[240601_123456] test_profile:test_mentor - RUNNING" in result
 
 
-def test_format_changespec_mentors_status_with_suffix() -> None:
+def test_format_patch_mentors_status_with_suffix() -> None:
     """Test formatting mentor status lines with suffix."""
     mentors = [
         MentorEntry(
@@ -281,6 +281,6 @@ def test_format_changespec_mentors_status_with_suffix() -> None:
             ],
         ),
     ]
-    cs = _make_basic_changespec(mentors=mentors)
-    result = format_changespec_for_clipboard(cs)
+    cs = _make_basic_patch(mentors=mentors)
+    result = format_patch_for_clipboard(cs)
     assert "(@: mentor_process_123)" in result

@@ -64,7 +64,7 @@ def test_write_and_read_hook_cycle_result(temp_state_dir: Path) -> None:
             timestamp="2025-01-15T10:00:05-05:00",
             cycle_type="hook",
             duration_ms=45,
-            changespecs_processed=10,
+            patches_processed=10,
             updates=[],
             errors=[],
         )

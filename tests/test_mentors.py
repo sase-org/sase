@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from sase.ace.changespec import MentorEntry, MentorStatusLine
+from sase.ace.patch import MentorEntry, MentorStatusLine
 from sase.ace.mentors import (
     add_mentor_entry,
     format_mentors_field,
@@ -103,14 +103,14 @@ DESCRIPTION:
     Path(file_path).unlink()
 
 
-def test_add_mentor_entry_last_changespec_with_trailing_blanks(tmp_path: Path) -> None:
-    """Test MENTORS is inside ChangeSpec boundary when trailing blank lines exist.
+def test_add_mentor_entry_last_patch_with_trailing_blanks(tmp_path: Path) -> None:
+    """Test MENTORS is inside Patch boundary when trailing blank lines exist.
 
-    When the target is the last ChangeSpec and the file has trailing blank lines
-    (2+ blank lines = end-of-ChangeSpec boundary), MENTORS must be inserted
-    BEFORE those blanks so the parser includes it in the ChangeSpec.
+    When the target is the last Patch and the file has trailing blank lines
+    (2+ blank lines = end-of-Patch boundary), MENTORS must be inserted
+    BEFORE those blanks so the parser includes it in the Patch.
     """
-    from sase.ace.changespec.parser import parse_project_file
+    from sase.ace.patch.parser import parse_project_file
 
     content = "NAME: test-cl\nSTATUS: Ready\nDESCRIPTION:\n  Test description\n\n\n"
     with tempfile.NamedTemporaryFile(
@@ -123,12 +123,12 @@ def test_add_mentor_entry_last_changespec_with_trailing_blanks(tmp_path: Path) -
     assert result is True
 
     # Parse and verify the MENTORS field is visible to the parser
-    changespecs = parse_project_file(file_path)
-    assert len(changespecs) == 1
-    assert changespecs[0].mentors is not None
-    assert len(changespecs[0].mentors) == 1
-    assert changespecs[0].mentors[0].entry_id == "1"
-    assert changespecs[0].mentors[0].profiles == ["feature"]
+    patches = parse_project_file(file_path)
+    assert len(patches) == 1
+    assert patches[0].mentors is not None
+    assert len(patches[0].mentors) == 1
+    assert patches[0].mentors[0].entry_id == "1"
+    assert patches[0].mentors[0].profiles == ["feature"]
 
     Path(file_path).unlink()
 
@@ -256,7 +256,7 @@ MENTORS:
 
 def test_parse_commented_status_roundtrip(tmp_path: Path) -> None:
     """Test that COMMENTED status survives write-then-parse roundtrip."""
-    from sase.ace.changespec import parse_project_file
+    from sase.ace.patch import parse_project_file
 
     content = """\
 NAME: test-cl
@@ -271,9 +271,9 @@ MENTORS:
         f.write(content)
         file_path = f.name
 
-    changespecs = parse_project_file(file_path)
-    assert len(changespecs) == 1
-    cs = changespecs[0]
+    patches = parse_project_file(file_path)
+    assert len(patches) == 1
+    cs = patches[0]
     assert cs.mentors is not None
     assert len(cs.mentors) == 1
     assert cs.mentors[0].status_lines is not None
@@ -390,7 +390,7 @@ def test_merge_preserves_terminal_status_from_disk() -> None:
 
     When the caller has a stale RUNNING status but the disk has been updated
     to PASSED by set_mentor_status(), the merge should prefer the disk version.
-    This prevents the race condition where update_changespec_mentors_field()
+    This prevents the race condition where update_patch_mentors_field()
     overwrites a newer terminal status with a stale RUNNING status.
     """
     from sase.ace.mentors import merge_mentor_status_lines

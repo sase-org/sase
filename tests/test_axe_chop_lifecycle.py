@@ -138,7 +138,7 @@ def test_launch_failure_releases_only_unlaunched_once_per_keys(
 
     chop = ChopConfig(name="docs", description="")
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agent_from_cwd", side_effect=_launch),
     ):
         outcome = run_configured_chop_once(

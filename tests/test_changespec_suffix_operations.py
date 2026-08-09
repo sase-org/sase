@@ -1,4 +1,4 @@
-"""Tests for ChangeSpec suffix allocation."""
+"""Tests for Patch suffix allocation."""
 
 import os
 import tempfile
@@ -10,7 +10,7 @@ from sase.workflows.commit.patch_operations import compute_suffixed_cl_name
 
 def test_compute_suffixed_cl_name_basic(tmp_path: Path) -> None:
     """Test compute_suffixed_cl_name returns suffixed name."""
-    # Project file with one existing ChangeSpec (already prefixed)
+    # Project file with one existing Patch (already prefixed)
     content = "NAME: test_project_eval_foobar_1\nSTATUS: Draft\n"
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
@@ -54,7 +54,7 @@ def test_compute_suffixed_cl_name_no_existing(tmp_path: Path) -> None:
 def test_compute_suffixed_cl_name_skips_remote_branch_suffixes(tmp_path: Path) -> None:
     """Suffix allocation excludes _<N> whose branch already exists on the remote.
 
-    Regression for the orphaned-PR bug: the ChangeSpec namespace is nearly
+    Regression for the orphaned-PR bug: the Patch namespace is nearly
     empty (only _1) but the remote branch namespace is dense (_1.._4), so the
     reserved name must skip every taken remote branch instead of colliding.
     """
@@ -82,7 +82,7 @@ def test_compute_suffixed_cl_name_skips_remote_branch_suffixes(tmp_path: Path) -
             result = compute_suffixed_cl_name(
                 "test_project", "test_project_eval_foo", cwd="/repo"
             )
-        # ChangeSpec _1 + remote _1.._4 are taken, so the next free is _5.
+        # Patch _1 + remote _1.._4 are taken, so the next free is _5.
         assert result == "test_project_eval_foo_5"
         provider.existing_branch_suffixes.assert_called_once_with(
             "test_project_eval_foo", "/repo"

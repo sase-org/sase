@@ -348,7 +348,7 @@ def print_agent_start_banner(
     *, cl_name: str, workspace_dir: str, workflow_name: str, prompt: str
 ) -> None:
     print("Starting agent run")
-    print(f"ChangeSpec: {cl_name}")
+    print(f"Patch: {cl_name}")
     print(f"Workspace: {workspace_dir}")
     print(f"Workflow: {workflow_name}")
     print()

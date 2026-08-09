@@ -1,7 +1,7 @@
 """Check cycle runner for full and comment check cycles.
 
 This module handles the longer-interval check cycles (1-5 minutes) that
-start PR submitted checks and comment checks for ChangeSpecs.
+start PR submitted checks and comment checks for Patches.
 """
 
 import time
@@ -9,8 +9,8 @@ from collections.abc import Callable
 from datetime import datetime
 
 from sase.ace.patch import (
-    ChangeSpec,
-    find_all_changespecs,
+    Patch,
+    find_all_patches,
     get_base_status,
     is_edit_locked,
 )
@@ -50,7 +50,7 @@ class CheckCycleRunner:
         """Initialize the check cycle runner.
 
         Args:
-            query: Query string for filtering ChangeSpecs (or None/empty for all).
+            query: Query string for filtering Patches (or None/empty for all).
             log_callback: Callback function for logging messages.
         """
         self.query = query or None
@@ -65,29 +65,29 @@ class CheckCycleRunner:
         """Check if this is still the first cycle."""
         return self._first_cycle
 
-    def get_all_changespecs(self) -> list[ChangeSpec]:
-        """Get all changespecs (unfiltered)."""
-        return find_all_changespecs()
+    def get_all_patches(self) -> list[Patch]:
+        """Get all patches (unfiltered)."""
+        return find_all_patches()
 
-    def get_filtered_changespecs(
-        self, all_changespecs: list[ChangeSpec] | None = None
-    ) -> list[ChangeSpec]:
-        """Get all changespecs filtered by query.
+    def get_filtered_patches(
+        self, all_patches: list[Patch] | None = None
+    ) -> list[Patch]:
+        """Get all patches filtered by query.
 
         Args:
-            all_changespecs: Optional pre-fetched list of all changespecs.
+            all_patches: Optional pre-fetched list of all patches.
 
         Returns:
-            List of changespecs matching the query filter.
+            List of patches matching the query filter.
         """
-        if all_changespecs is None:
-            all_changespecs = find_all_changespecs()
+        if all_patches is None:
+            all_patches = find_all_patches()
 
-        # Remove changespecs from edit-locked project files
-        unlocked = [cs for cs in all_changespecs if not is_edit_locked(cs.file_path)]
-        if len(unlocked) < len(all_changespecs):
-            skipped = len(all_changespecs) - len(unlocked)
-            self._log(f"Skipping {skipped} changespec(s) due to edit lock", None)
+        # Remove patches from edit-locked project files
+        unlocked = [cs for cs in all_patches if not is_edit_locked(cs.file_path)]
+        if len(unlocked) < len(all_patches):
+            skipped = len(all_patches) - len(unlocked)
+            self._log(f"Skipping {skipped} patch(s) due to edit lock", None)
 
         if not self.query:
             return unlocked
@@ -95,48 +95,46 @@ class CheckCycleRunner:
         mask = evaluate_query_many(self.query, unlocked)
         return [cs for cs, keep in zip(unlocked, mask, strict=True) if keep]
 
-    def is_leaf_cl(self, changespec: ChangeSpec) -> bool:
-        """Check if a ChangeSpec is a leaf ChangeSpec (no parent or parent is submitted)."""
-        return is_parent_submitted(changespec)
+    def is_leaf_cl(self, patch: Patch) -> bool:
+        """Check if a Patch is a leaf Patch (no parent or parent is submitted)."""
+        return is_parent_submitted(patch)
 
-    def should_check_status(
-        self, changespec: ChangeSpec, bypass_cache: bool = False
-    ) -> bool:
-        """Determine if a ChangeSpec's status should be checked.
+    def should_check_status(self, patch: Patch, bypass_cache: bool = False) -> bool:
+        """Determine if a Patch's status should be checked.
 
         Uses sync_cache to throttle checks to minimum 5-minute intervals.
 
         Args:
-            changespec: The ChangeSpec to check.
+            patch: The Patch to check.
             bypass_cache: If True, skip the cache check.
 
         Returns:
-            True if the ChangeSpec should be checked, False otherwise.
+            True if the Patch should be checked, False otherwise.
         """
         if bypass_cache:
             return True
-        return should_check(changespec.name)
+        return should_check(patch.name)
 
     def run_full_check_cycle(self) -> tuple[datetime, int, list[dict]]:
         """Run full status check cycle - starts PR submitted checks only.
 
         Returns:
-            Tuple of (cycle_timestamp, changespecs_processed, updates_list).
+            Tuple of (cycle_timestamp, patches_processed, updates_list).
         """
         start = time.time()
-        all_changespecs = self.get_all_changespecs()
-        filtered_changespecs = self.get_filtered_changespecs(all_changespecs)
+        all_patches = self.get_all_patches()
+        filtered_patches = self.get_filtered_patches(all_patches)
         updates: list[dict] = []
 
-        for changespec in filtered_changespecs:
-            # On first cycle, bypass cache for leaf ChangeSpecs
-            bypass_cache = self._first_cycle and self.is_leaf_cl(changespec)
+        for patch in filtered_patches:
+            # On first cycle, bypass cache for leaf Patches
+            bypass_cache = self._first_cycle and self.is_leaf_cl(patch)
 
             # Start PR submitted checks only
-            check_updates = self._start_cl_submitted_check(changespec, bypass_cache)
+            check_updates = self._start_cl_submitted_check(patch, bypass_cache)
             for update in check_updates:
-                updates.append({"changespec": changespec.name, "message": update})
-                self._log(f"* {changespec.name}: {update}", "green bold")
+                updates.append({"patch": patch.name, "message": update})
+                self._log(f"* {patch.name}: {update}", "green bold")
 
         cycle_timestamp = datetime.now(get_timezone())
         self._first_cycle = False
@@ -147,7 +145,7 @@ class CheckCycleRunner:
             timestamp=cycle_timestamp.isoformat(),
             cycle_type="full",
             duration_ms=duration_ms,
-            changespecs_processed=len(filtered_changespecs),
+            patches_processed=len(filtered_patches),
             updates=updates,
             errors=[],
         )
@@ -155,39 +153,39 @@ class CheckCycleRunner:
 
         summary = (
             "pr_submitted_checks: "
-            f"all_changespecs={len(all_changespecs)} "
-            f"filtered_changespecs={len(filtered_changespecs)} "
-            f"processed={len(filtered_changespecs)} started={len(updates)} "
+            f"all_patches={len(all_patches)} "
+            f"filtered_patches={len(filtered_patches)} "
+            f"processed={len(filtered_patches)} started={len(updates)} "
             f"updates={len(updates)} duration_ms={duration_ms}"
         )
         if not updates:
             summary += " reason="
             summary += (
-                "no_matching_changespecs"
-                if not filtered_changespecs
+                "no_matching_patches"
+                if not filtered_patches
                 else "no_eligible_pr_submitted_checks"
             )
         self._log(summary, "green" if updates else None)
 
-        return cycle_timestamp, len(filtered_changespecs), updates
+        return cycle_timestamp, len(filtered_patches), updates
 
     def run_comment_check_cycle(self) -> tuple[datetime, int, list[dict]]:
         """Run comment check cycle - starts reviewer/author comment checks.
 
         Returns:
-            Tuple of (cycle_timestamp, changespecs_processed, updates_list).
+            Tuple of (cycle_timestamp, patches_processed, updates_list).
         """
         start = time.time()
-        all_changespecs = self.get_all_changespecs()
-        filtered_changespecs = self.get_filtered_changespecs(all_changespecs)
+        all_patches = self.get_all_patches()
+        filtered_patches = self.get_filtered_patches(all_patches)
         updates: list[dict] = []
 
-        for changespec in filtered_changespecs:
+        for patch in filtered_patches:
             # Start comment checks (no cache throttling - has its own interval)
-            check_updates = self._start_comment_checks(changespec)
+            check_updates = self._start_comment_checks(patch)
             for update in check_updates:
-                updates.append({"changespec": changespec.name, "message": update})
-                self._log(f"* {changespec.name}: {update}", "green bold")
+                updates.append({"patch": patch.name, "message": update})
+                self._log(f"* {patch.name}: {update}", "green bold")
 
         cycle_timestamp = datetime.now(get_timezone())
 
@@ -197,43 +195,41 @@ class CheckCycleRunner:
             timestamp=cycle_timestamp.isoformat(),
             cycle_type="comment",
             duration_ms=duration_ms,
-            changespecs_processed=len(filtered_changespecs),
+            patches_processed=len(filtered_patches),
             updates=updates,
             errors=[],
         )
         write_cycle_result(result)
 
         mailed_count = sum(
-            1
-            for changespec in filtered_changespecs
-            if get_base_status(changespec.status) == "Mailed"
+            1 for patch in filtered_patches if get_base_status(patch.status) == "Mailed"
         )
         summary = (
             "comment_checks: "
-            f"all_changespecs={len(all_changespecs)} "
-            f"filtered_changespecs={len(filtered_changespecs)} "
-            f"mailed={mailed_count} processed={len(filtered_changespecs)} "
+            f"all_patches={len(all_patches)} "
+            f"filtered_patches={len(filtered_patches)} "
+            f"mailed={mailed_count} processed={len(filtered_patches)} "
             f"started={len(updates)} updates={len(updates)} duration_ms={duration_ms}"
         )
         if not updates:
-            if not filtered_changespecs:
-                reason = "no_matching_changespecs"
+            if not filtered_patches:
+                reason = "no_matching_patches"
             elif mailed_count == 0:
-                reason = "no_mailed_changespecs"
+                reason = "no_mailed_patches"
             else:
                 reason = "no_eligible_comment_checks"
             summary += f" reason={reason}"
         self._log(summary, "green" if updates else None)
 
-        return cycle_timestamp, len(filtered_changespecs), updates
+        return cycle_timestamp, len(filtered_patches), updates
 
     def _start_cl_submitted_check(
-        self, changespec: ChangeSpec, bypass_cache: bool = False
+        self, patch: Patch, bypass_cache: bool = False
     ) -> list[str]:
-        """Start PR submitted check for a ChangeSpec (non-blocking).
+        """Start PR submitted check for a Patch (non-blocking).
 
         Args:
-            changespec: The ChangeSpec to check.
+            patch: The Patch to check.
             bypass_cache: If True, skip the cache check.
 
         Returns:
@@ -243,33 +239,33 @@ class CheckCycleRunner:
 
         # Get workspace directory
         try:
-            workspace_dir = get_workspace_directory(changespec.project_basename)
+            workspace_dir = get_workspace_directory(patch.project_basename)
         except RuntimeError:
             workspace_dir = None
 
         # Check if we should run status checks
-        if not self.should_check_status(changespec, bypass_cache):
+        if not self.should_check_status(patch, bypass_cache):
             return updates
 
         # Update cache when starting checks
-        update_last_checked(changespec.name)
+        update_last_checked(patch.name)
 
         # Start PR submitted check if not already pending
-        if not has_pending_check(changespec, CHECK_TYPE_CL_SUBMITTED):
-            if is_parent_submitted(changespec) and changespec.pr_url:
-                update = start_cl_submitted_check(changespec, workspace_dir, self._log)
+        if not has_pending_check(patch, CHECK_TYPE_CL_SUBMITTED):
+            if is_parent_submitted(patch) and patch.pr_url:
+                update = start_cl_submitted_check(patch, workspace_dir, self._log)
                 if update:
                     updates.append(update)
 
         return updates
 
-    def _start_comment_checks(self, changespec: ChangeSpec) -> list[str]:
-        """Start reviewer comment checks for a ChangeSpec (non-blocking).
+    def _start_comment_checks(self, patch: Patch) -> list[str]:
+        """Start reviewer comment checks for a Patch (non-blocking).
 
         Comment checks bypass the sync_cache since they have their own interval.
 
         Args:
-            changespec: The ChangeSpec to check.
+            patch: The Patch to check.
 
         Returns:
             List of update messages for checks that were started.
@@ -278,7 +274,7 @@ class CheckCycleRunner:
 
         # Get workspace directory
         try:
-            workspace_dir = get_workspace_directory(changespec.project_basename)
+            workspace_dir = get_workspace_directory(patch.project_basename)
         except RuntimeError:
             workspace_dir = None
 
@@ -286,12 +282,12 @@ class CheckCycleRunner:
             return updates
 
         # Start reviewer comments check if conditions are met
-        if not has_pending_check(changespec, CHECK_TYPE_REVIEWER_COMMENTS):
-            if get_base_status(changespec.status) == "Mailed":
+        if not has_pending_check(patch, CHECK_TYPE_REVIEWER_COMMENTS):
+            if get_base_status(patch.status) == "Mailed":
                 # Check if we need to start
                 existing_reviewer_entry = None
-                if changespec.comments:
-                    for entry in changespec.comments:
+                if patch.comments:
+                    for entry in patch.comments:
                         if entry.reviewer == "critique":
                             existing_reviewer_entry = entry
                             break
@@ -301,7 +297,7 @@ class CheckCycleRunner:
                 )
                 if should_start:
                     update = start_reviewer_comments_check(
-                        changespec, workspace_dir, self._log
+                        patch, workspace_dir, self._log
                     )
                     if update:
                         updates.append(update)

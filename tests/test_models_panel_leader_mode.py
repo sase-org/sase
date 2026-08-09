@@ -12,7 +12,7 @@ from tests._temporary_llm_override_helpers import full_registry
 def test_leader_handler_dispatches_models_panel() -> None:
     mixin = MagicMock()
     mixin._keymap_registry = full_registry()
-    mixin.current_tab = "changespecs"
+    mixin.current_tab = "changespecs"  # legacy tab id
     mixin.marked_indices = []
     mixin._leader_mode_active = True
 
@@ -32,7 +32,7 @@ def test_leader_handler_honors_legacy_action_id() -> None:
             }
         }
     )
-    mixin.current_tab = "changespecs"
+    mixin.current_tab = "changespecs"  # legacy tab id
     mixin.marked_indices = []
     mixin._leader_mode_active = True
 

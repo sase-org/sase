@@ -173,24 +173,24 @@ def test_by_date_agent_grouping_reference_uses_configured_tz(
     assert abs((reference - datetime.now()).total_seconds()) > 3000
 
 
-def test_by_date_changespec_grouping_reference_uses_configured_tz(
+def test_by_date_patch_grouping_reference_uses_configured_tz(
     tz_divergence: None,
     monkeypatch: pytest.MonkeyPatch,
-    make_changespec,  # type: ignore[no-untyped-def]
+    make_patch,  # type: ignore[no-untyped-def]
 ) -> None:
-    from sase.ace.tui.models.changespec_groups import _tree as cs_tree
-    from sase.ace.tui.models.changespec_groups._buckets import ChangeSpecGroupingMode
+    from sase.ace.tui.models.patch_groups import _tree as cs_tree
+    from sase.ace.tui.models.patch_groups._buckets import PatchGroupingMode
 
     captured: dict[str, datetime] = {}
-    real = cs_tree.keys_for_changespecs
+    real = cs_tree.keys_for_patches
 
-    def spy(changespecs, mode, reference, latest_map=None):  # type: ignore[no-untyped-def]
+    def spy(patches, mode, reference, latest_map=None):  # type: ignore[no-untyped-def]
         captured["reference"] = reference
-        return real(changespecs, mode, reference, latest_map=latest_map)
+        return real(patches, mode, reference, latest_map=latest_map)
 
-    monkeypatch.setattr(cs_tree, "keys_for_changespecs", spy)
-    cs = make_changespec.create(name="demo")
-    cs_tree.enumerate_changespec_group_keys([cs], ChangeSpecGroupingMode.BY_DATE)
+    monkeypatch.setattr(cs_tree, "keys_for_patches", spy)
+    cs = make_patch.create(name="demo")
+    cs_tree.enumerate_patch_group_keys([cs], PatchGroupingMode.BY_DATE)
 
     reference = captured["reference"]
     assert abs((reference - local_now()).total_seconds()) < 5
@@ -309,7 +309,7 @@ def test_hook_wrapper_embeds_configured_timezone(
 ) -> None:
     import types
 
-    from sase.ace.changespec.models import HookEntry
+    from sase.ace.patch.models import HookEntry
     from sase.ace.hooks import execution
 
     captured: dict[str, str] = {}
@@ -324,9 +324,9 @@ def test_hook_wrapper_embeds_configured_timezone(
 
     monkeypatch.setattr(execution.subprocess, "Popen", _fake_popen)
 
-    changespec = types.SimpleNamespace(name="demo")
+    patch = types.SimpleNamespace(name="demo")
     hook = HookEntry(command="echo hi")
-    execution.start_hook_background(changespec, hook, "/tmp", "1")
+    execution.start_hook_background(patch, hook, "/tmp", "1")
 
     assert 'TZ="America/New_York" date +"%y%m%d_%H%M%S"' in captured["script"]
     assert "America/New_York timezone" not in captured["script"]

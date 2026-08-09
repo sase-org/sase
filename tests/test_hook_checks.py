@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from sase.ace.changespec import ChangeSpec, CommentEntry, HookEntry, HookStatusLine
+from sase.ace.patch import Patch, CommentEntry, HookEntry, HookStatusLine
 from sase.ace.scheduler.hook_checks import (
     _wait_for_completion_marker,
     check_hooks,
@@ -28,15 +28,15 @@ def _make_hook(
     return HookEntry(command=command, status_lines=[status_line])
 
 
-def _make_changespec(
+def _make_patch(
     name: str = "test_cs",
     status: str = "Ready",
     file_path: str = "/path/to/project.sase",
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
-) -> ChangeSpec:
-    """Create a ChangeSpec for axe workflow testing."""
-    return ChangeSpec(
+) -> Patch:
+    """Create a Patch for axe workflow testing."""
+    return Patch(
         name=name,
         description="Test description",
         parent=None,
@@ -57,7 +57,7 @@ def test_check_hooks_skips_submitted() -> None:
     have completed (to update status and release workspaces), but we
     don't start new stale hooks.
     """
-    cs = _make_changespec(
+    cs = _make_patch(
         status="Submitted",
         hooks=[
             # Use PASSED status - no completion check needed, no stale hooks
@@ -75,7 +75,7 @@ def test_check_hooks_skips_submitted() -> None:
 
 def test_check_hooks_no_hooks() -> None:
     """Test check_hooks returns empty when no hooks."""
-    cs = _make_changespec(hooks=None)
+    cs = _make_patch(hooks=None)
     log = MagicMock()
 
     updates, hooks_started = check_hooks(cs, log)
@@ -89,7 +89,7 @@ def test_check_hooks_no_hooks() -> None:
 
 def test_wait_for_completion_marker_finds_on_first_retry() -> None:
     """Test that _wait_for_completion_marker returns hook when found on retry."""
-    cs = _make_changespec()
+    cs = _make_patch()
     hook = _make_hook(command="test_cmd", status="RUNNING", timestamp="240101120000")
     completed_hook = _make_hook(
         command="test_cmd", status="PASSED", timestamp="240101120000"
@@ -114,7 +114,7 @@ def test_wait_for_completion_marker_finds_on_first_retry() -> None:
 
 def test_wait_for_completion_marker_returns_none_after_all_retries() -> None:
     """Test that _wait_for_completion_marker returns None if marker never found."""
-    cs = _make_changespec()
+    cs = _make_patch()
     hook = _make_hook(command="test_cmd", status="RUNNING", timestamp="240101120000")
 
     with (
@@ -135,7 +135,7 @@ def test_wait_for_completion_marker_returns_none_after_all_retries() -> None:
 
 def test_check_hooks_logs_warning_on_merge_failure() -> None:
     """Test that check_hooks logs a warning when merge_hook_updates fails."""
-    # Create a changespec with a RUNNING hook that has completed
+    # Create a patch with a RUNNING hook that has completed
     status_line = HookStatusLine(
         commit_entry_num="1",
         timestamp="240101120000",
@@ -144,7 +144,7 @@ def test_check_hooks_logs_warning_on_merge_failure() -> None:
         suffix="12345",  # PID
     )
     hook = HookEntry(command="test_cmd", status_lines=[status_line])
-    cs = _make_changespec(hooks=[hook])
+    cs = _make_patch(hooks=[hook])
     log = MagicMock()
 
     # Create a completed hook to return from check_hook_completion

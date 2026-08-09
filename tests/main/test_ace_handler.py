@@ -168,15 +168,17 @@ def test_tab_option_defaults_to_agents() -> None:
     assert args.tab == "agents"
 
 
-@pytest.mark.parametrize("tab", ["artifacts", "changespecs", "agents", "axe"])
+@pytest.mark.parametrize(
+    "tab", ["artifacts", "changespecs", "agents", "axe"]
+)  # legacy tab id
 def test_tab_option_accepts_valid_choices(tab: str) -> None:
     args = _parse_ace_args(["--tab", tab])
     assert args.tab == tab
 
 
 def test_tab_option_short_flag() -> None:
-    args = _parse_ace_args(["-t", "changespecs"])
-    assert args.tab == "changespecs"
+    args = _parse_ace_args(["-t", "changespecs"])  # legacy tab id
+    assert args.tab == "changespecs"  # legacy tab id
 
 
 def test_tab_option_rejects_invalid_choice() -> None:

@@ -33,7 +33,7 @@ class _PlanRejectResult:
 
 
 def handle_plan_reject_command(args: argparse.Namespace) -> NoReturn:
-    """Reject one pending plan proposal from the ChangeSpecI."""
+    """Reject one pending plan proposal from the CLI."""
     from rich.console import Console
 
     try:

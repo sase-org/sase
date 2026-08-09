@@ -6,7 +6,7 @@ from tests._project_display_case import ProjectDisplayCase
 from tests.stats._views_payloads import activity_payload, run_payload
 
 
-@pytest.mark.parametrize("group_by", ["project", "changespec"])
+@pytest.mark.parametrize("group_by", ["project", "patch"])
 def test_runtime_work_group_literals_round_trip(group_by: str) -> None:
     payload = run_payload()
     payload["runtime_group_by"] = group_by
@@ -21,7 +21,7 @@ def test_work_rows_tolerate_partial_and_invalid_values() -> None:
         {
             "work": {
                 "projects": [{"project": "sase", "runs": True}],
-                "changespecs": [
+                "changespecs": [  # legacy wire key
                     {
                         "project": "sase",
                         "name": "orphan",
@@ -29,17 +29,17 @@ def test_work_rows_tolerate_partial_and_invalid_values() -> None:
                         "has_pr": "yes",
                     }
                 ],
-                "truncated_changespec_rows": 2,
+                "truncated_patch_rows": 2,
             }
         },
         {},
     )
 
     assert views.projects.project_count == 1
-    assert views.projects.changespec_count == 3
+    assert views.projects.patch_count == 3
     assert views.projects.projects[0].runs == 0
-    assert views.projects.projects[0].changespecs[0].status == "unknown"
-    assert views.projects.projects[0].changespecs[0].has_pr is False
+    assert views.projects.projects[0].patches[0].status == "unknown"
+    assert views.projects.projects[0].patches[0].has_pr is False
 
 
 def test_project_display_snapshot_projects_every_project_bearing_row(
@@ -49,10 +49,10 @@ def test_project_display_snapshot_projects_every_project_bearing_row(
     widgets_key = project_display_case.project_key
     payload["workspaces"][0]["project"] = widgets_key  # type: ignore[index]
     payload["work"]["projects"][0]["project"] = widgets_key  # type: ignore[index]
-    payload["work"]["changespecs"][0].update(  # type: ignore[index,union-attr]
+    payload["work"]["changespecs"][0].update(  # type: ignore[index,union-attr]  # legacy wire key
         {
             "project": widgets_key,
-            "name": project_display_case.changespec_key,
+            "name": project_display_case.patch_key,
         }
     )
     payload["runtime_group_by"] = "project"
@@ -70,15 +70,13 @@ def test_project_display_snapshot_projects_every_project_bearing_row(
         widgets_key,
         project_display_case.project_label,
     )
-    assert [row.changespec_key for row in project.changespecs] == [
-        project_display_case.changespec_key
+    assert [row.patch_key for row in project.patches] == [
+        project_display_case.patch_key
     ]
+    assert project.patches[0].patch_label == project_display_case.patch_label
     assert (
-        project.changespecs[0].changespec_label == project_display_case.changespec_label
-    )
-    assert (
-        project.changespecs[0].project_key,
-        project.changespecs[0].project_label,
+        project.patches[0].project_key,
+        project.patches[0].project_label,
     ) == (widgets_key, project_display_case.project_label)
     assert (
         views.activity.workspaces[0].project_key,
@@ -91,13 +89,13 @@ def test_project_display_snapshot_projects_every_project_bearing_row(
     assert views.projects.projects[1].project_label == "core"
 
 
-def test_changespec_runtime_groups_are_humanized_without_losing_identity(
+def test_patch_runtime_groups_are_humanized_without_losing_identity(
     project_display_case: ProjectDisplayCase,
 ) -> None:
     payload = run_payload()
-    changespec_key, changespec_label = project_display_case.changespec("repair_labels")
-    payload["runtime_group_by"] = "changespec"
-    payload["runtime_groups"][0]["group"] = changespec_key  # type: ignore[index]
+    patch_key, patch_label = project_display_case.patch("repair_labels")
+    payload["runtime_group_by"] = "patch"
+    payload["runtime_groups"][0]["group"] = patch_key  # type: ignore[index]
 
     runtime = build_statistics_views(
         payload,
@@ -106,8 +104,8 @@ def test_changespec_runtime_groups_are_humanized_without_losing_identity(
     ).runtime
 
     assert (runtime.rows[0].group_key, runtime.rows[0].group_label) == (
-        changespec_key,
-        changespec_label,
+        patch_key,
+        patch_label,
     )
 
 
@@ -121,7 +119,7 @@ def test_ranked_project_ties_sort_by_visible_label_then_canonical_key() -> None:
     ):
         row["project"] = project_key
         row["runs"] = 4
-    payload["work"]["changespecs"] = []  # type: ignore[index]
+    payload["work"]["changespecs"] = []  # type: ignore[index]  # legacy wire key
     snapshot = ProjectDisplaySnapshot(
         {
             "gh_zed__widgets": "widgets",

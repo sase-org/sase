@@ -3,7 +3,7 @@
 import logging
 import os
 
-from sase.ace.patch import write_changespec_atomic
+from sase.ace.patch import write_patch_atomic
 from sase.core.paths import is_valid_sase_project_name
 from sase.output import print_status
 from sase.workflows.utils import get_project_file_path
@@ -105,7 +105,7 @@ def create_project_file(project: str) -> bool:
                 content = (
                     f"PROJECT_STATE: sibling\nWORKSPACE_DIR: {linked_repo_primary}\n"
                 )
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 content,
                 f"Create project file for {project}",

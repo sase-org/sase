@@ -51,44 +51,44 @@ def test_canonical_status_property() -> None:
 
 
 def test_evaluate_project_match(
-    make_changespec: Any,
+    make_patch: Any,
 ) -> None:
     """Test project filter matches project basename."""
     query = parse_query("+myproject")
-    cs = make_changespec.create(
+    cs = make_patch.create(
         file_path="/home/user/.sase/projects/myproject/myproject.sase"
     )
     assert evaluate_query(query, cs) is True
 
 
 def test_evaluate_ancestor_no_match(
-    make_changespec: Any,
+    make_patch: Any,
 ) -> None:
-    """Test ancestor filter does not match unrelated ChangeSpec."""
+    """Test ancestor filter does not match unrelated Patch."""
     query = parse_query("^unrelated")
-    cs = make_changespec.create(name="feature", parent="different_parent")
+    cs = make_patch.create(name="feature", parent="different_parent")
     all_cs = [cs]
     assert evaluate_query(query, cs, all_cs) is False
 
 
-def test_evaluate_ancestor_without_all_changespecs(
-    make_changespec: Any,
+def test_evaluate_ancestor_without_all_patches(
+    make_patch: Any,
 ) -> None:
-    """Test ancestor filter returns False when all_changespecs is None."""
+    """Test ancestor filter returns False when all_patches is None."""
     query = parse_query("^parent")
-    cs = make_changespec.create(name="feature", parent="parent")
-    # all_changespecs=None (default)
+    cs = make_patch.create(name="feature", parent="parent")
+    # all_patches=None (default)
     assert evaluate_query(query, cs) is False
 
 
 def test_evaluate_ancestor_handles_cycle(
-    make_changespec: Any,
+    make_patch: Any,
 ) -> None:
     """Test ancestor filter handles cycles without infinite loop."""
     query = parse_query("^unrelated")
     # Create a cycle: A -> B -> A
-    cs_a = make_changespec.create(name="A", parent="B")
-    cs_b = make_changespec.create(name="B", parent="A")
+    cs_a = make_patch.create(name="A", parent="B")
+    cs_b = make_patch.create(name="B", parent="A")
     all_cs = [cs_a, cs_b]
     # Should not hang, should return False since "unrelated" is not in the cycle
     assert evaluate_query(query, cs_a, all_cs) is False
@@ -98,13 +98,13 @@ def test_evaluate_ancestor_handles_cycle(
 
 
 def test_full_pipeline_ancestor_chain(
-    make_changespec: Any,
+    make_patch: Any,
 ) -> None:
     """Test full pipeline with ancestor filter on parent chain."""
-    parent = make_changespec.create(name="parent_feature")
-    child = make_changespec.create(name="child_feature", parent="parent_feature")
-    grandchild = make_changespec.create(name="grandchild", parent="child_feature")
-    unrelated = make_changespec.create(name="unrelated_feature")
+    parent = make_patch.create(name="parent_feature")
+    child = make_patch.create(name="child_feature", parent="parent_feature")
+    grandchild = make_patch.create(name="grandchild", parent="child_feature")
+    unrelated = make_patch.create(name="unrelated_feature")
 
     all_cs = [parent, child, grandchild, unrelated]
 

@@ -11,8 +11,8 @@ from sase.workflows.accept import (
     parse_proposal_entries_with_shorthand,
     parse_proposal_id,
 )
-from sase.ace.changespec import CommitEntry
-from sase.workflows.utils import get_changespec_from_file
+from sase.ace.patch import CommitEntry
+from sase.workflows.utils import get_patch_from_file
 
 
 # Tests for parse_proposal_id
@@ -102,9 +102,9 @@ def testfind_proposal_entry_none_history() -> None:
     assert result is None
 
 
-# Tests for get_changespec_from_file
-def test_get_changespec_from_file_multiple_specs(tmp_path: Path) -> None:
-    """Test getting changespec from file with multiple specs."""
+# Tests for get_patch_from_file
+def test_get_patch_from_file_multiple_specs(tmp_path: Path) -> None:
+    """Test getting patch from file with multiple specs."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
     ) as f:
@@ -116,7 +116,7 @@ def test_get_changespec_from_file_multiple_specs(tmp_path: Path) -> None:
         temp_path = f.name
 
     try:
-        result = get_changespec_from_file(temp_path, "second_cl")
+        result = get_patch_from_file(temp_path, "second_cl")
         assert result is not None
         assert result.name == "second_cl"
     finally:

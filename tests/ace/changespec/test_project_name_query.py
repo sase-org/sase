@@ -175,4 +175,4 @@ def test_changespec_search_cli_uses_effective_project_name(
     for name in expected:
         assert f"NAME: {name}" in output
     if not expected:
-        assert "No ChangeSpecs match the query." in output
+        assert "No Patches match the query." in output

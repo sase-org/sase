@@ -266,7 +266,7 @@ def test_load_all_agents_with_running_claims() -> None:
             return_value=True,
         ),
         patch("sase.ace.tui.models.agent_loader.is_process_running", return_value=True),
-        patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch("sase.ace.tui.models.agent_loader.find_all_patches", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
@@ -321,7 +321,7 @@ def test_load_all_agents_filters_hook_processes() -> None:
             return_value=True,
         ),
         patch("sase.ace.tui.models.agent_loader.is_process_running", return_value=True),
-        patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch("sase.ace.tui.models.agent_loader.find_all_patches", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
@@ -372,7 +372,7 @@ def test_load_all_agents_includes_axe_fix_hook() -> None:
             return_value=True,
         ),
         patch("sase.ace.tui.models.agent_loader.is_process_running", return_value=True),
-        patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch("sase.ace.tui.models.agent_loader.find_all_patches", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
@@ -426,7 +426,7 @@ def test_load_all_agents_assigns_axe_summarize_hook_to_review_tribe() -> None:
             return_value=True,
         ),
         patch("sase.ace.tui.models.agent_loader.is_process_running", return_value=True),
-        patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch("sase.ace.tui.models.agent_loader.find_all_patches", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),

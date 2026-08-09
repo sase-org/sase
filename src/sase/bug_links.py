@@ -1,4 +1,4 @@
-"""Pure cross-linking between external bugs, epic beads, and ChangeSpecs."""
+"""Pure cross-linking between external bugs, epic beads, and Patches."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from sase.ace.patch.models import ChangeSpec
+from sase.ace.patch.models import Patch
 from sase.bead.model import BeadTier, Issue, IssueType
 
 
@@ -16,7 +16,7 @@ class BugLinks:
 
     bug_id: str
     epics: tuple[Issue, ...]
-    changespecs: tuple[ChangeSpec, ...]
+    patches: tuple[Patch, ...]
 
     @property
     def epic_beads(self) -> tuple[Issue, ...]:
@@ -24,14 +24,14 @@ class BugLinks:
         return self.epics
 
     @property
-    def prs(self) -> tuple[ChangeSpec, ...]:
-        """Presentation alias for ChangeSpecs shown in the Bugs pane."""
-        return self.changespecs
+    def prs(self) -> tuple[Patch, ...]:
+        """Presentation alias for Patches shown in the Bugs pane."""
+        return self.patches
 
     @property
-    def patches(self) -> tuple[ChangeSpec, ...]:
-        """Canonical presentation alias for linked patches."""
-        return self.changespecs
+    def changespecs(self) -> tuple[Patch, ...]:
+        """Legacy alias for callers not yet renamed to ``patches``."""
+        return self.patches
 
 
 def _normalize_bug_id(value: str | int | None) -> str:
@@ -72,9 +72,9 @@ def _normalize_bug_id(value: str | int | None) -> str:
 def find_bug_links(
     bug_id: str | int,
     beads: Iterable[Issue],
-    changespecs: Iterable[ChangeSpec],
+    patches: Iterable[Patch],
 ) -> BugLinks:
-    """Return epic beads and ChangeSpecs whose existing bug fields match.
+    """Return epic beads and Patches whose existing bug fields match.
 
     Inputs are intentionally supplied by the caller: project/store resolution
     and I/O remain outside this pure helper, making it safe to run on cached TUI
@@ -82,7 +82,7 @@ def find_bug_links(
     """
     normalized = _normalize_bug_id(bug_id)
     if not normalized:
-        return BugLinks(bug_id="", epics=(), changespecs=())
+        return BugLinks(bug_id="", epics=(), patches=())
 
     epics = tuple(
         bead
@@ -91,15 +91,13 @@ def find_bug_links(
         and bead.tier == BeadTier.EPIC
         and _normalize_bug_id(bead.changespec_bug_id) == normalized
     )
-    linked_changespecs = tuple(
-        changespec
-        for changespec in changespecs
-        if _normalize_bug_id(changespec.bug) == normalized
+    linked_patches = tuple(
+        patch for patch in patches if _normalize_bug_id(patch.bug) == normalized
     )
     return BugLinks(
         bug_id=normalized,
         epics=epics,
-        changespecs=linked_changespecs,
+        patches=linked_patches,
     )
 
 

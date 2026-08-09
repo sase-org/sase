@@ -63,7 +63,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
     )
     assert (
         "Open the interactive control surface for agents, projects, notifications, "
-        "automation, and ChangeSpecs."
+        "automation, and Patches."
     ) in help_text
     assert (
         "Launch or resume a coding-agent run from a prompt, xprompt, workflow, or history."

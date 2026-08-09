@@ -40,7 +40,7 @@ def test_run_configured_chop_once_records_manual_source(
     )
     chop = ChopConfig(name="live_chop", description="")
 
-    with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
         outcome = run_configured_chop_once(
             lumberjack_name="hooks",
             chop=chop,
@@ -75,7 +75,7 @@ def test_run_configured_chop_once_resolves_explicit_full_script_name(
         script="actual_executable",
     )
 
-    with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
         outcome = run_configured_chop_once(
             lumberjack_name="hooks",
             chop=chop,
@@ -104,7 +104,7 @@ def test_run_configured_chop_once_uses_per_chop_timeout(
     chop = ChopConfig(name="noop_chop", description="", timeout=7)
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
         from sase.axe.chop_script_runner import _StreamedScriptResult
@@ -138,7 +138,7 @@ def test_run_configured_chop_once_falls_back_to_default_timeout(
     chop = ChopConfig(name="noop_chop", description="")
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
         from sase.axe.chop_script_runner import _StreamedScriptResult
@@ -172,7 +172,7 @@ def test_run_configured_chop_once_propagates_chop_env(
     chop = ChopConfig(name="env_chop", description="", env={"MY_VAR": "abc"})
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
         from sase.axe.chop_script_runner import _StreamedScriptResult
@@ -214,7 +214,7 @@ def test_run_configured_chop_once_exports_source_and_dry_run(
     chop = ChopConfig(name="env_chop", description="")
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
         from sase.axe.chop_script_runner import _StreamedScriptResult
@@ -262,7 +262,7 @@ def test_run_configured_chop_once_resolves_secrets_and_exports_target_env(
 
     with (
         patch.dict("os.environ", {"SOURCE_TOKEN": "resolved"}),
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
     ):
         from sase.axe.chop_script_runner import _StreamedScriptResult
@@ -295,7 +295,7 @@ def test_run_configured_chop_once_records_unresolved_secret_as_check_error(
 
     with (
         patch.dict("os.environ", {}, clear=True),
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
     ):
         outcome = run_configured_chop_once(
             lumberjack_name="checks",
@@ -317,7 +317,7 @@ def test_run_configured_chop_once_missing_script(
     axe_config: AxeConfig,
 ) -> None:
     chop = ChopConfig(name="absent_chop", description="")
-    with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
         outcome = run_configured_chop_once(
             lumberjack_name="hooks",
             chop=chop,
@@ -423,7 +423,7 @@ def test_run_configured_chop_once_records_failure_with_exit_code(
 ) -> None:
     chop = ChopConfig(name="bad_chop", description="")
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch(
             "sase.axe.chop_runner.discover_chop_script",
             return_value=Path("/fake/script"),
@@ -457,7 +457,7 @@ def test_run_configured_chop_once_reuses_passed_context_file(
     fake_ctx = str(tmp_path / "fake_context.json")
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs") as mock_find,
+        patch("sase.axe.chop_runner.find_all_patches") as mock_find,
         patch(
             "sase.axe.chop_runner.discover_chop_script",
             return_value=Path("/fake/script"),
@@ -487,7 +487,7 @@ def test_run_configured_chop_once_indexes_history_newest_first(
 ) -> None:
     chop = ChopConfig(name="hook_checks", description="")
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch(
             "sase.axe.chop_runner.discover_chop_script",
             return_value=Path("/fake/script"),

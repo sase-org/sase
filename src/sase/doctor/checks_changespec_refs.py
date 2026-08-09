@@ -1,11 +1,11 @@
-"""ChangeSpec artifact-reference validation for ``sase doctor``."""
+"""Patch artifact-reference validation for ``sase doctor``."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.ace.patch import ChangeSpec, parse_project_file
+from sase.ace.patch import Patch, parse_project_file
 from sase.artifact_ref_lists import resolve_artifact_ref_list
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 from sase.doctor.checks_project import resolve_current_project_record
@@ -19,30 +19,28 @@ _MAX_DETAIL_ROWS = 10
 _NAMESPACE_STATUSES = frozenset({"unknown_kind", "unknown_repo", "unknown_project"})
 
 
-def changespec_ref_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
-    """Return the ChangeSpec reference validation check."""
+def patch_ref_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
+    """Return the Patch reference validation check."""
 
     return (
         CheckSpec(
-            id="project.changespec_refs",
+            id="project.patch_refs",
             group="project",
-            title="ChangeSpec artifact references",
-            runner=lambda: _check_changespec_refs(context),
+            title="Patch artifact references",
+            runner=lambda: _check_patch_refs(context),
         ),
     )
 
 
-def _check_changespec_refs(context: DoctorContext) -> DiagnosticCheck:
+def _check_patch_refs(context: DoctorContext) -> DiagnosticCheck:
     resolution = resolve_current_project_record(context)
     record = resolution.record
     if record is None:
         return _skip("no current project store is available", context)
 
-    changespecs = _load_changespecs(record)
+    patches = _load_patches(record)
     refs = [
-        (changespec.name, reference)
-        for changespec in changespecs
-        for reference in (changespec.refs or ())
+        (patch.name, reference) for patch in patches for reference in (patch.refs or ())
     ]
     reference_context = _reference_context(record)
     if reference_context is None:
@@ -50,23 +48,22 @@ def _check_changespec_refs(context: DoctorContext) -> DiagnosticCheck:
             "artifact-reference context is unavailable",
             context,
             record=record,
-            changespec_count=len(changespecs),
+            patch_count=len(patches),
             reference_count=len(refs),
         )
 
     if not refs:
         return DiagnosticCheck(
-            id="project.changespec_refs",
+            id="project.patch_refs",
             group="project",
             status="OK",
-            title="ChangeSpec artifact references",
+            title="Patch artifact references",
             summary=(
-                f"all {len(changespecs)} ChangeSpecs have valid artifact "
-                "references (0 stored)"
+                f"all {len(patches)} Patches have valid artifact references (0 stored)"
             ),
             data={
                 "project": record.project_name,
-                "changespec_count": len(changespecs),
+                "patch_count": len(patches),
                 "reference_count": 0,
                 "findings": [],
             },
@@ -108,15 +105,15 @@ def _check_changespec_refs(context: DoctorContext) -> DiagnosticCheck:
     _append_group(details, "WARNING: ambiguous artifact references", ambiguous)
     problem_count = len(findings)
     return DiagnosticCheck(
-        id="project.changespec_refs",
+        id="project.patch_refs",
         group="project",
         status="WARN" if problem_count else "OK",
-        title="ChangeSpec artifact references",
+        title="Patch artifact references",
         summary=(
-            f"{problem_count} of {len(refs)} ChangeSpec artifact references "
+            f"{problem_count} of {len(refs)} Patch artifact references "
             "do not resolve cleanly"
             if problem_count
-            else f"all {len(refs)} ChangeSpec artifact references resolve cleanly"
+            else f"all {len(refs)} Patch artifact references resolve cleanly"
         ),
         details=tuple(details[:_MAX_DETAIL_ROWS]),
         next_steps=(
@@ -129,19 +126,19 @@ def _check_changespec_refs(context: DoctorContext) -> DiagnosticCheck:
         ),
         data={
             "project": record.project_name,
-            "changespec_count": len(changespecs),
+            "patch_count": len(patches),
             "reference_count": len(refs),
             "findings": findings,
         },
     )
 
 
-def _load_changespecs(record: ProjectRecordWire) -> list[ChangeSpec]:
-    changespecs: list[ChangeSpec] = []
+def _load_patches(record: ProjectRecordWire) -> list[Patch]:
+    patches: list[Patch] = []
     for raw_path in (record.project_file, record.archive_file):
         if raw_path and Path(raw_path).is_file():
-            changespecs.extend(parse_project_file(raw_path))
-    return changespecs
+            patches.extend(parse_project_file(raw_path))
+    return patches
 
 
 def _reference_context(record: ProjectRecordWire) -> ArtifactRefContext | None:
@@ -169,22 +166,22 @@ def _skip(
     context: DoctorContext,
     *,
     record: ProjectRecordWire | None = None,
-    changespec_count: int = 0,
+    patch_count: int = 0,
     reference_count: int = 0,
 ) -> DiagnosticCheck:
     return DiagnosticCheck(
-        id="project.changespec_refs",
+        id="project.patch_refs",
         group="project",
         status="SKIP",
-        title="ChangeSpec artifact references",
+        title="Patch artifact references",
         summary=summary,
         data={
             "project": record.project_name if record is not None else context.project,
-            "changespec_count": changespec_count,
+            "patch_count": patch_count,
             "reference_count": reference_count,
             "findings": [],
         },
     )
 
 
-__all__ = ["changespec_ref_check_specs"]
+__all__ = ["patch_ref_check_specs"]

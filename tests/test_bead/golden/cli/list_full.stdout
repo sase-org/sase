@@ -15,8 +15,8 @@ CHILDREN
 DESCRIPTION
   Parent description
 
-CHANGESPEC
-  Name: alpha_changespec
+PATCH
+  Name: alpha_patch
   Bug ID: BUG-1
 
 PLAN

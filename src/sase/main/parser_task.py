@@ -126,7 +126,7 @@ def register_task_parser(subparsers: argparse._SubParsersAction) -> None:
         "--query",
         default=None,
         metavar="TEXT",
-        help="Case-insensitive substring filter over label, command, and ChangeSpec name",
+        help="Case-insensitive substring filter over label, command, and Patch name",
     )
     list_parser.add_argument(
         "-r",

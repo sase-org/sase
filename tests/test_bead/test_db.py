@@ -102,9 +102,7 @@ class TestCreateAndGet:
         assert result.id == "e-2"
         assert result.parent_id == "e-1"
 
-    def test_create_plan_with_changespec_metadata(
-        self, conn: sqlite3.Connection
-    ) -> None:
+    def test_create_plan_with_patch_metadata(self, conn: sqlite3.Connection) -> None:
         create_issue(
             conn,
             Issue(
@@ -122,7 +120,7 @@ class TestCreateAndGet:
         assert issue.changespec_name == "feature_epic"
         assert issue.changespec_bug_id == "12345"
 
-    def test_create_phase_with_changespec_metadata_fails(
+    def test_create_phase_with_patch_metadata_fails(
         self, conn: sqlite3.Connection
     ) -> None:
         create_issue(conn, _epic())
@@ -195,7 +193,7 @@ class TestUpdateIssue:
     def test_update_nonexistent_returns_none(self, conn: sqlite3.Connection) -> None:
         assert update_issue(conn, "no-such", title="X") is None
 
-    def test_update_changespec_metadata(self, conn: sqlite3.Connection) -> None:
+    def test_update_patch_metadata(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
         updated = update_issue(
             conn,

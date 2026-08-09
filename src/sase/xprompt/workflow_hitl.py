@@ -95,7 +95,7 @@ class CLIHITLHandler:
     """CLI handler for human-in-the-loop prompts during workflow execution."""
 
     def __init__(self, console: Console | None = None) -> None:
-        """Initialize the ChangeSpecI HITL handler.
+        """Initialize the CLI HITL handler.
 
         Args:
             console: Optional Rich console for output. Creates one if not provided.

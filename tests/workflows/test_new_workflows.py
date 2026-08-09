@@ -41,7 +41,7 @@ class TestCrsWorkflow:
         finally:
             os.unlink(comments_file)
 
-    def test_build_crs_prompt_requires_provider_with_changespec(self) -> None:
+    def test_build_crs_prompt_requires_provider_with_patch(self) -> None:
         with pytest.raises(
             ValueError,
             match="vcs_type is required when cl_name is provided",

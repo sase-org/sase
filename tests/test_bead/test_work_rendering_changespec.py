@@ -1,11 +1,11 @@
-"""ChangeSpec prompt rendering tests for bead work plans."""
+"""Patch prompt rendering tests for bead work plans."""
 
 from __future__ import annotations
 
 import sqlite3
 
 from sase.bead.work import (
-    ChangeSpecLaunchContext,
+    PatchLaunchContext,
     _build_epic_work_plan,
     render_multi_prompt,
 )
@@ -20,7 +20,7 @@ from .work_test_helpers import (
 )
 
 
-class TestChangeSpecRendering:
+class TestPatchRendering:
     def test_single_phase_wraps_phase_and_land(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1"), phase("p1")])
         plan = _build_epic_work_plan(conn, "e1")
@@ -29,7 +29,7 @@ class TestChangeSpecRendering:
             plan,
             work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
             land_epic_xprompt=Workflow(name="bd/land_epic"),
-            changespec_context=ChangeSpecLaunchContext(
+            patch_context=PatchLaunchContext(
                 changespec_name="feature_epic",
                 vcs_workflow="git",
                 project_name="sase",
@@ -67,7 +67,7 @@ class TestChangeSpecRendering:
             plan,
             work_phase_xprompt=Workflow(name="custom/work"),
             land_epic_xprompt=Workflow(name="custom/land"),
-            changespec_context=ChangeSpecLaunchContext(
+            patch_context=PatchLaunchContext(
                 changespec_name="feature_epic",
                 vcs_workflow="gh",
                 project_name="sase",
@@ -121,7 +121,7 @@ class TestChangeSpecRendering:
             plan,
             work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
             land_epic_xprompt=Workflow(name="bd/land_epic"),
-            changespec_context=ChangeSpecLaunchContext(
+            patch_context=PatchLaunchContext(
                 changespec_name="feature_epic",
                 vcs_workflow="git",
                 project_name="sase",
@@ -148,7 +148,7 @@ class TestChangeSpecRendering:
             plan,
             work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
             land_epic_xprompt=Workflow(name="bd/land_epic"),
-            changespec_context=ChangeSpecLaunchContext(
+            patch_context=PatchLaunchContext(
                 changespec_name="feature_epic",
                 bug_id="12345",
                 vcs_workflow="git",

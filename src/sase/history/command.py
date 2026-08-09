@@ -19,7 +19,7 @@ class CommandEntry:
 
     command: str  # The shell command
     project: str  # Project name
-    cl_name: str | None  # ChangeSpec name (None if project-only)
+    cl_name: str | None  # Patch name (None if project-only)
     timestamp: str  # When first created (YYMMDD_HHMMSS)
     last_used: str  # When last used
 
@@ -95,7 +95,7 @@ def add_or_update_command(
     Args:
         command: The shell command.
         project: Project name.
-        cl_name: Optional ChangeSpec name.
+        cl_name: Optional Patch name.
     """
     commands = _load_command_history()
     current_timestamp = generate_timestamp()
@@ -129,9 +129,9 @@ def _format_command_for_display(
 
     Args:
         entry: The command entry to format.
-        current_cl: The current ChangeSpec name (for marking).
+        current_cl: The current Patch name (for marking).
         current_project: The current project name (for secondary marking).
-        max_context_len: Maximum context (project/ChangeSpec) length for padding.
+        max_context_len: Maximum context (project/Patch) length for padding.
 
     Returns:
         Formatted display string.
@@ -168,14 +168,14 @@ def get_commands_for_display(
     """Get commands formatted for display.
 
     Commands are sorted in 3 tiers:
-    1. Commands matching current ChangeSpec (marked with '*')
-    2. Commands matching current project but different ChangeSpec (marked with '~')
+    1. Commands matching current Patch (marked with '*')
+    2. Commands matching current project but different Patch (marked with '~')
     3. All other commands (no marker)
 
     Within each tier, commands are sorted by last_used timestamp (most recent first).
 
     Args:
-        current_cl: The current ChangeSpec/ChangeSpec name. If None, no PR matching.
+        current_cl: The current Patch/Patch name. If None, no PR matching.
         current_project: The current project name. If None, no project matching.
 
     Returns:

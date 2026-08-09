@@ -397,7 +397,7 @@ def humanize_cl_name(
     *,
     snapshot: ProjectDisplaySnapshot | None = None,
 ) -> str:
-    """Project a canonical project/ChangeSpec name to a display label."""
+    """Project a canonical project/Patch name to a display label."""
     return _humanize_cl_name_with_map(
         name,
         _display_names(projects_root, snapshot),
@@ -410,7 +410,7 @@ def humanize_cl_names_in_text(
     *,
     snapshot: ProjectDisplaySnapshot | None = None,
 ) -> str:
-    """Project standalone canonical project/ChangeSpec tokens in display text."""
+    """Project standalone canonical project/Patch tokens in display text."""
     display_names = _display_names(projects_root, snapshot)
     if not text or not display_names:
         return text
@@ -452,7 +452,7 @@ def humanize_safe_stem(
     *,
     snapshot: ProjectDisplaySnapshot | None = None,
 ) -> str:
-    """Project a filename-safe project/ChangeSpec stem prefix for display."""
+    """Project a filename-safe project/Patch stem prefix for display."""
     display_names = _display_names(projects_root, snapshot)
     if not stem or not display_names:
         return stem

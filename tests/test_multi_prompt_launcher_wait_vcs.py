@@ -131,7 +131,7 @@ def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
     ):
         launch_multi_prompt_agents(
             segments=[
-                "#git:sase #pr:sase_feature\nstart the ChangeSpec",
+                "#git:sase #pr:sase_feature\nstart the Patch",
                 "#git:sase_feature\ncontinue the work",
                 "%wait\n#git:sase_feature\nland the epic",
             ],

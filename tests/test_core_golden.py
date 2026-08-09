@@ -7,7 +7,7 @@ byte; until then the snapshots also pin the Python implementation's behavior
 so Phase 0B routing changes can't drift silently.
 
 The corpus lives in ``tests/core_golden/`` and intentionally exercises every
-section type a ``ChangeSpec`` can carry, plus archive/terminal statuses and
+section type a ``Patch`` can carry, plus archive/terminal statuses and
 sibling suffixes.
 """
 
@@ -18,7 +18,7 @@ from pathlib import Path
 
 from inline_snapshot import snapshot
 
-from sase.ace.changespec.models import ChangeSpec
+from sase.ace.patch.models import Patch
 from sase.ace.query.types import to_canonical_string
 from sase.core import (
     graph_index_facade,
@@ -27,18 +27,18 @@ from sase.core import (
     status_facade,
 )
 from sase.core.wire import to_json_dict
-from sase.core.wire_conversion import changespec_to_wire
+from sase.core.wire_conversion import changespec_to_wire  # legacy Python compat symbol
 
 _CORPUS_DIR = Path(__file__).parent / "core_golden"
 _PROJECT_GP = _CORPUS_DIR / "myproj.sase"
 _ARCHIVE_GP = _CORPUS_DIR / "myproj-archive.sase"
 
 
-def _load(path: Path) -> list[ChangeSpec]:
+def _load(path: Path) -> list[Patch]:
     return parser_facade.parse_project_file(str(path))
 
 
-def _wire_dicts(specs: list[ChangeSpec]) -> list[dict]:
+def _wire_dicts(specs: list[Patch]) -> list[dict]:
     """Project specs to JSON-safe wire dicts with file paths normalized.
 
     The absolute ``file_path`` is replaced with its basename so snapshots are
@@ -46,7 +46,7 @@ def _wire_dicts(specs: list[ChangeSpec]) -> list[dict]:
     """
     out: list[dict] = []
     for cs in specs:
-        wire = changespec_to_wire(cs)
+        wire = changespec_to_wire(cs)  # legacy Python compat symbol
         d = to_json_dict(wire)
         d["file_path"] = Path(d["file_path"]).name
         d["source_span"]["file_path"] = Path(d["source_span"]["file_path"]).name
@@ -67,8 +67,8 @@ def test_corpus_parses_to_expected_names() -> None:
     assert [cs.name for cs in archive_specs] == ["archived_one", "reverted_two"]
 
 
-def test_changespec_wire_json_snapshot() -> None:
-    """Full ChangeSpecWire JSON shape for the canonical project corpus."""
+def test_patch_wire_json_snapshot() -> None:
+    """Full PatchWire JSON shape for the canonical project corpus."""
     specs = _load(_PROJECT_GP)
     payload = _wire_dicts(specs)
     assert payload == snapshot(
@@ -378,7 +378,7 @@ def test_query_evaluation_results_snapshot() -> None:
 def test_graph_index_summary_snapshot() -> None:
     """Stable summary of the graph index over the project corpus."""
     specs = _load(_PROJECT_GP)
-    index = graph_index_facade.build_changespec_graph_index(specs)
+    index = graph_index_facade.build_patch_graph_index(specs)
     summary = {
         "names": sorted(index.name_map.keys()),
         "children_of_alpha": [cs.name for cs in index.get_children("alpha")],

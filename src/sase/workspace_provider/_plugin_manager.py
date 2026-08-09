@@ -77,13 +77,13 @@ class WorkspacePluginManager:
 
     def submit(
         self,
-        changespec_file: str,
+        patch_file: str,
         changespec_name: str,
         project_basename: str,
         console: object | None = None,
     ) -> tuple[bool, str | None] | None:
         return self._pm.hook.ws_submit(  # type: ignore[no-any-return]
-            changespec_file=changespec_file,
+            patch_file=patch_file,
             changespec_name=changespec_name,
             project_basename=project_basename,
             console=console,
@@ -175,7 +175,7 @@ class WorkspacePluginManager:
     def prepare_mail(
         self,
         changespec_name: str,
-        changespec_parent: str | None,
+        patch_parent: str | None,
         project_basename: str,
         project_file: str,
         target_dir: str,
@@ -183,7 +183,7 @@ class WorkspacePluginManager:
     ) -> object | None:
         return self._pm.hook.ws_prepare_mail(  # type: ignore[no-any-return]
             changespec_name=changespec_name,
-            changespec_parent=changespec_parent,
+            patch_parent=patch_parent,
             project_basename=project_basename,
             project_file=project_file,
             target_dir=target_dir,

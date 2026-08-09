@@ -1,9 +1,7 @@
 """Extra tests for query evaluator — covers get_searchable_text edge cases."""
 
-from inline_snapshot import snapshot
-
-from sase.ace.changespec import (
-    ChangeSpec,
+from sase.ace.patch import (
+    Patch,
     CommentEntry,
     CommitEntry,
     HookEntry,
@@ -25,8 +23,8 @@ def _cs(
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
     mentors: list[MentorEntry] | None = None,
-) -> ChangeSpec:
-    return ChangeSpec(
+) -> Patch:
+    return Patch(
         name=name,
         description=description,
         parent=parent,

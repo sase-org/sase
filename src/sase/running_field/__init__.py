@@ -11,7 +11,7 @@ Where:
 - #N is the workspace number (1 = main workspace, 2+ = workspace shares)
 - PID is the process ID of the running agent (required - every entry must have a PID)
 - WORKFLOW is the name of the running workflow (e.g., crs, crs, run, rerun)
-- CL_NAME is the ChangeSpec name being worked on (optional, can be empty)
+- CL_NAME is the Patch name being worked on (optional, can be empty)
 """
 
 from sase.running_field._model import (

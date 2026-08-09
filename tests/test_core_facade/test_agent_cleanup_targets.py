@@ -38,7 +38,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
     )
     assert target.status == "FAILED"
     assert target.workspace == 7
-    assert target.from_changespec is False
+    assert target.from_patch is False
     assert target.tribe == "triage"
     assert target.agent_name == "friendly"
     assert target.agent_family_parallel is True

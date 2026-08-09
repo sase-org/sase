@@ -63,7 +63,7 @@ def test_explicit_agent_name_collision_skips_and_releases_once_per_key(
     chop = ChopConfig(name="audit", description="")
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch(
             "sase.axe.chop_runner.launch_agent_from_cwd",
             side_effect=collision,
@@ -159,7 +159,7 @@ def test_explicit_agent_name_collision_relinks_later_wait_and_keeps_launching(
         )
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agent_from_cwd", side_effect=_launch),
     ):
         outcome = run_configured_chop_once(
@@ -203,7 +203,7 @@ def test_derived_agent_name_collision_remains_action_failed(
     )
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch(
             "sase.axe.chop_runner.launch_agent_from_cwd",
             side_effect=AgentNameLaunchCollisionError("audit.run", "audit.run1"),
@@ -246,7 +246,7 @@ def test_clan_agent_name_collision_remains_action_failed(
     )
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch(
             "sase.axe.chop_runner.launch_agents_from_cwd",
             side_effect=AgentNameLaunchCollisionError(

@@ -1,12 +1,12 @@
-"""Tests for atomic ChangeSpec REFS persistence."""
+"""Tests for atomic Patch REFS persistence."""
 
 from pathlib import Path
 
 from sase.ace.changespec.refs_persistence import (
     _apply_refs_update,
-    update_changespec_refs_field,
+    update_patch_refs_field,
 )
-from sase.ace.changespec.section_order import CHANGESPEC_SECTION_ORDER
+from sase.ace.patch.section_order import PATCH_SECTION_ORDER
 
 
 def _spec() -> list[str]:
@@ -25,12 +25,14 @@ def _spec() -> list[str]:
 
 
 def test_section_order_places_refs_between_status_and_commits() -> None:
-    status = CHANGESPEC_SECTION_ORDER.index("STATUS:")
-    refs = CHANGESPEC_SECTION_ORDER.index("REFS:")
-    commits = CHANGESPEC_SECTION_ORDER.index("COMMITS:")
+    status = PATCH_SECTION_ORDER.index("STATUS:")
+    refs = PATCH_SECTION_ORDER.index("REFS:")
+    stitches = PATCH_SECTION_ORDER.index("STITCHES:")
+    commits = PATCH_SECTION_ORDER.index("COMMITS:")
 
     assert refs == status + 1
-    assert commits == refs + 1
+    assert stitches == refs + 1
+    assert commits == stitches + 1  # legacy serialized section
 
 
 def test_apply_refs_update_inserts_normalized_refs_in_canonical_position() -> None:
@@ -85,13 +87,13 @@ def test_apply_refs_update_inserts_before_two_blank_line_end() -> None:
     ) in updated
 
 
-def test_update_changespec_refs_field_writes_under_atomic_helper(
+def test_update_patch_refs_field_writes_under_atomic_helper(
     tmp_path: Path,
 ) -> None:
     project_file = tmp_path / "project.sase"
     project_file.write_text("".join(_spec()), encoding="utf-8")
 
-    assert update_changespec_refs_field(
+    assert update_patch_refs_field(
         str(project_file),
         "example",
         ["research:202607/report.md"],

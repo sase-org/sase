@@ -5,7 +5,7 @@ assigned name (via %id directive or manual TUI naming).
 
 This package was split out from a single ``names.py`` module. The submodules
 group related concerns; the public API re-exported here is unchanged. Two
-functions (``resolve_agent_changespec`` and ``reserve_repeat_name_base``)
+functions (``resolve_agent_patch`` and ``reserve_repeat_name_base``)
 are defined here rather than in a submodule because their callees are
 patched in tests via ``sase.agent.names.<callee>`` — keeping caller and
 callee in the same module namespace lets those patches take effect.
@@ -148,8 +148,8 @@ from sase.agent.names._templates import (
 from sase.agent.names._wipe import AgentNameWipeResult, wipe_agent_name_for_reuse
 
 
-def resolve_agent_changespec(name: str) -> str:
-    """Resolve a named agent to its changespec (branch/ChangeSpec name).
+def resolve_agent_patch(name: str) -> str:
+    """Resolve a named agent to its patch (branch/Patch name).
 
     Raises AgentRefError for all failure modes.
     """
@@ -184,21 +184,21 @@ def resolve_agent_changespec(name: str) -> str:
             f"The agent must have run a #pr workflow to create a PR."
         )
 
-    changespec = step_output.get("meta_patch") or step_output.get("meta_changespec")
-    if not changespec:
+    patch = step_output.get("meta_patch") or step_output.get("meta_changespec")
+    if not patch:
         # Legacy fallback
         meta_new_cl = step_output.get("meta_new_cl")
         if meta_new_cl:
             value = str(meta_new_cl).strip()
             paren_idx = value.rfind(" (")
-            changespec = value[:paren_idx].strip() if paren_idx > 0 else value
-    if not changespec:
+            patch = value[:paren_idx].strip() if paren_idx > 0 else value
+    if not patch:
         raise AgentRefError(
             f"Agent '{name}' completed but did not create a PR. "
             f"The agent must have run a #pr workflow to use @{name} syntax."
         )
 
-    return str(changespec).strip()
+    return str(patch).strip()
 
 
 def reserve_repeat_name_base(explicit_base: str | None, count: int) -> str:
@@ -341,7 +341,7 @@ __all__ = [
     "release_planned_registered_clan_name",
     "reserve_registered_template_name",
     "reserve_registered_template_names",
-    "resolve_agent_changespec",
+    "resolve_agent_patch",
     "resolve_resume_agent_name",
     "resolve_wait_dependency",
     "retry_agent_name_template",

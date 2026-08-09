@@ -77,11 +77,11 @@ def prepare_workspace(
 
     Args:
         workspace_dir: The workspace directory.
-        cl_name: Display name for the ChangeSpec/project (used for backup diff name).
-        update_target: What to checkout (ChangeSpec branch or "p4head").
+        cl_name: Display name for the Patch/project (used for backup diff name).
+        update_target: What to checkout (Patch branch or "p4head").
         backup_suffix: Suffix appended to cl_name for the backup diff name
             (e.g., "ace" produces "{cl_name}-ace").
-        project_basename: Project basename for resolving changespec names to
+        project_basename: Project basename for resolving patch names to
             git branch names.
 
     Returns:

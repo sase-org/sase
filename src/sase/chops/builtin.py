@@ -6,11 +6,11 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from sase.ace.patch import ChangeSpec
+from sase.ace.patch import Patch
 from sase.axe.check_cycles import CheckCycleRunner
 from sase.axe.chop_script_context import (
     ChopScriptContext,
-    load_changespecs_from_file,
+    load_patches_from_file,
 )
 from sase.axe.hook_jobs import HookJobRunner
 from sase.axe.state import AxeMetrics
@@ -35,26 +35,24 @@ class BuiltinChopRuntime:
     name: str
     context: ChopScriptContext
     log: ChopLogger
-    _all_changespecs: list[ChangeSpec] | None = field(default=None, init=False)
-    _filtered_changespecs: list[ChangeSpec] | None = field(default=None, init=False)
+    _all_patches: list[Patch] | None = field(default=None, init=False)
+    _filtered_patches: list[Patch] | None = field(default=None, init=False)
     _hook_runner: HookJobRunner | None = field(default=None, init=False)
     _check_cycle_runner: CheckCycleRunner | None = field(default=None, init=False)
 
     @property
-    def all_changespecs(self) -> list[ChangeSpec]:
-        if self._all_changespecs is None:
-            self._all_changespecs = load_changespecs_from_file(
-                self.context.all_changespecs_file
-            )
-        return self._all_changespecs
+    def all_patches(self) -> list[Patch]:
+        if self._all_patches is None:
+            self._all_patches = load_patches_from_file(self.context.all_patches_file)
+        return self._all_patches
 
     @property
-    def filtered_changespecs(self) -> list[ChangeSpec]:
-        if self._filtered_changespecs is None:
-            self._filtered_changespecs = load_changespecs_from_file(
-                self.context.filtered_changespecs_file
+    def filtered_patches(self) -> list[Patch]:
+        if self._filtered_patches is None:
+            self._filtered_patches = load_patches_from_file(
+                self.context.filtered_patches_file
             )
-        return self._filtered_changespecs
+        return self._filtered_patches
 
     @property
     def hook_runner(self) -> HookJobRunner:

@@ -240,7 +240,7 @@ def test_parser_accepts_mobile_gateway_start() -> None:
     assert args.push_retry_limit == 3
 
 
-def test_parser_accepts_mobile_helper_bridge_changespec_tags() -> None:
+def test_parser_accepts_mobile_helper_bridge_patch_tags() -> None:
     args = create_parser().parse_args(["mobile", "helper-bridge", "changespec-tags"])
 
     assert args.command == "mobile"

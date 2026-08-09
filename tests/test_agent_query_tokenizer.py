@@ -205,8 +205,8 @@ def test_bang_is_not_operator() -> None:
     assert tokens[1].type == TokenType.STRING
 
 
-def test_changespec_shorthand_is_rejected() -> None:
-    # ChangeSpec sigils (status %d, project +, ancestor ^, sibling ~, name &,
+def test_patch_shorthand_is_rejected() -> None:
+    # Patch sigils (status %d, project +, ancestor ^, sibling ~, name &,
     # running-agent @@@, running-process $$$, any-special *) are NOT carried
     # over to the agent query language — the tokenizer must error on them.
     for q in ("%d", "+proj", "^anc", "~sib", "&name", "@@@", "$$$", "*"):
@@ -215,7 +215,7 @@ def test_changespec_shorthand_is_rejected() -> None:
 
 
 def test_repeated_bang_is_just_repeated_not() -> None:
-    # !!! used to be ChangeSpec error-suffix sugar; in agent-land it is just
+    # !!! used to be Patch error-suffix sugar; in agent-land it is just
     # three NOT operators. The tokenizer is happy; the parser will demand a
     # primary after the chain.
     tokens = list(tokenize("!!!"))

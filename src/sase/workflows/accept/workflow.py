@@ -4,8 +4,10 @@ import os
 import sys
 from typing import NoReturn
 
-from sase.ace.patch import ChangeSpec, CommitEntry
-from sase.ace.operations import update_to_changespec
+from sase.ace.patch import Patch, CommitEntry
+from sase.ace.operations import (
+    update_to_changespec as update_to_patch,  # legacy ACE API name
+)
 from sase.workflows.commit_utils import (
     apply_diff_to_workspace,
     clean_workspace,
@@ -24,7 +26,7 @@ from sase.vcs_provider import get_vcs_provider
 from sase.workflows.base import BaseWorkflow
 from sase.workflows.utils import (
     add_test_hooks_if_available,
-    get_changespec_from_file,
+    get_patch_from_file,
     get_cl_name_from_branch,
     get_project_file_path,
     get_project_from_workspace,
@@ -51,7 +53,7 @@ class AcceptWorkflow(BaseWorkflow):
         Args:
             proposals: List of (proposal_id, msg) tuples to accept.
                 Each proposal_id is e.g., "2a", and msg is an optional message.
-            cl_name: Optional ChangeSpec name. Defaults to current branch name.
+            cl_name: Optional Patch name. Defaults to current branch name.
             project_file: Optional path to project file. If not provided,
                 will try to infer from sase_workspace_name command.
             mark_ready_to_mail: If True, also reject remaining proposals
@@ -86,11 +88,11 @@ class AcceptWorkflow(BaseWorkflow):
         Returns:
             True if the workflow completed successfully, False otherwise.
         """
-        # Get ChangeSpec name
+        # Get Patch name
         cl_name = self._cl_name or get_cl_name_from_branch()
         if not cl_name:
             print_status(
-                "No ChangeSpec name provided and not on a branch. "
+                "No Patch name provided and not on a branch. "
                 "Use 'sase cl accept <proposals> --cl <cl_name>' to specify.",
                 "error",
             )
@@ -116,10 +118,10 @@ class AcceptWorkflow(BaseWorkflow):
             print_status(f"Project file not found: {project_file}", "error")
             return False
 
-        # Get the ChangeSpec upfront for validation
-        changespec = get_changespec_from_file(project_file, cl_name)
-        if not changespec:
-            print_status(f"ChangeSpec not found: {cl_name}", "error")
+        # Get the Patch upfront for validation
+        patch = get_patch_from_file(project_file, cl_name)
+        if not patch:
+            print_status(f"Patch not found: {cl_name}", "error")
             return False
 
         # Validate ALL proposals upfront before making any changes
@@ -136,7 +138,7 @@ class AcceptWorkflow(BaseWorkflow):
             base_num, letter = parsed
 
             # Validate proposal exists and has diff
-            entry = find_proposal_entry(changespec.commits, base_num, letter)
+            entry = find_proposal_entry(patch.commits, base_num, letter)
             if not entry:
                 print_status(
                     f"Proposal ({base_num}{letter}) not found in COMMITS.", "error"
@@ -159,7 +161,7 @@ class AcceptWorkflow(BaseWorkflow):
         else:
             # Full workflow: claim workspace, checkout, apply diffs, amend
             amend_result = self._run_amend_workflow(
-                validated_proposals, project_file, project, cl_name, changespec
+                validated_proposals, project_file, project, cl_name, patch
             )
             if amend_result[0] is None:
                 return False
@@ -239,7 +241,7 @@ class AcceptWorkflow(BaseWorkflow):
         project_file: str,
         project: str | None,
         cl_name: str,
-        changespec: ChangeSpec,
+        patch: Patch,
     ) -> tuple[list[tuple[int, str]], list[str | None]] | tuple[None, None]:
         """Run the workspace checkout/apply/amend steps.
 
@@ -288,10 +290,10 @@ class AcceptWorkflow(BaseWorkflow):
             if not clean_success:
                 print_status(f"Warning: sase_hg_clean failed: {clean_error}", "warning")
 
-            # Update to the changespec branch
+            # Update to the patch branch
             print_status(f"Updating to branch: {cl_name}", "progress")
-            success, error_msg = update_to_changespec(
-                changespec, revision=cl_name, workspace_dir=workspace_dir
+            success, error_msg = update_to_patch(
+                patch, revision=cl_name, workspace_dir=workspace_dir
             )
             if not success:
                 print_status(f"Failed to update to branch: {error_msg}", "error")
@@ -383,7 +385,7 @@ def main() -> NoReturn:
     parser.add_argument(
         "--cl",
         dest="cl_name",
-        help="ChangeSpec name (defaults to current branch name).",
+        help="Patch name (defaults to current branch name).",
     )
 
     args = parser.parse_args()

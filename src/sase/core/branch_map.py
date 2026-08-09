@@ -5,7 +5,7 @@ the original branch name is persisted in a JSON mapping so that
 ``resolve_revision`` can still find the branch.
 
 The mapping lives at ``~/.sase/projects/<project_basename>/branch_map.json``
-and maps *current ChangeSpec name* → *actual git branch name*.
+and maps *current Patch name* → *actual git branch name*.
 """
 
 import json

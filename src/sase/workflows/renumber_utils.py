@@ -18,13 +18,13 @@ def sort_hook_status_lines(lines: list[str], cl_name: str) -> list[str]:
 
     Args:
         lines: All lines from the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
 
     Returns:
         Lines with hook status lines sorted by entry ID.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     in_hooks = False
     current_status_lines: list[tuple[str, int, str]] = []  # (line, num, letter)
 
@@ -41,14 +41,14 @@ def sort_hook_status_lines(lines: list[str], cl_name: str) -> list[str]:
         if line.startswith("NAME: "):
             flush_status_lines()
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             in_hooks = False
             updated_lines.append(line)
-        elif in_target_changespec and line.startswith("HOOKS:"):
+        elif in_target_patch and line.startswith("HOOKS:"):
             flush_status_lines()
             in_hooks = True
             updated_lines.append(line)
-        elif in_target_changespec and in_hooks and line.startswith("      | "):
+        elif in_target_patch and in_hooks and line.startswith("      | "):
             # Status line - accumulate for sorting
             stripped = line.strip()[2:]  # Skip "| " prefix
             # Match: (1), (1a), or (1a-3) format (archive suffix ignored for sorting)
@@ -60,11 +60,11 @@ def sort_hook_status_lines(lines: list[str], cl_name: str) -> list[str]:
             else:
                 flush_status_lines()
                 updated_lines.append(line)
-        elif in_target_changespec and in_hooks and line.startswith("  "):
+        elif in_target_patch and in_hooks and line.startswith("  "):
             # New hook command line
             flush_status_lines()
             updated_lines.append(line)
-        elif in_target_changespec and in_hooks:
+        elif in_target_patch and in_hooks:
             # End of hooks section
             flush_status_lines()
             in_hooks = False
@@ -204,7 +204,7 @@ def find_commits_section(lines: list[str], cl_name: str) -> tuple[int, int]:
 
     Args:
         lines: All lines from the project file.
-        cl_name: The ChangeSpec name to find.
+        cl_name: The Patch name to find.
 
     Returns:
         Tuple of (commits_start, commits_end) line indices.
@@ -212,20 +212,20 @@ def find_commits_section(lines: list[str], cl_name: str) -> tuple[int, int]:
         commits_end is one past the last commit entry line.
         Returns (-1, -1) if the COMMITS section is not found.
     """
-    in_target_changespec = False
+    in_target_patch = False
     commits_start = -1
     commits_end = -1
 
     for i, line in enumerate(lines):
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            if in_target_changespec:
-                # We hit the next ChangeSpec
+            if in_target_patch:
+                # We hit the next Patch
                 if commits_end < 0:
                     commits_end = i
                 break
-            in_target_changespec = current_name == cl_name
-        elif in_target_changespec:
+            in_target_patch = current_name == cl_name
+        elif in_target_patch:
             if is_stitch_section_header(line):
                 commits_start = i
             elif commits_start >= 0:

@@ -89,6 +89,9 @@ def update_changespec_hooks_field(
         return False
 
 
+update_patch_hooks_field = update_changespec_hooks_field
+
+
 def _normalize_parsed_plain_suffix_types(hooks: list[HookEntry]) -> list[HookEntry]:
     """Mark unprefixed parsed suffixes as explicit plain values.
 
@@ -164,6 +167,9 @@ def transform_changespec_hooks_field(
     except Exception as e:
         logging.error(f"Failed to transform hooks for {changespec_name}: {e}")
         return False
+
+
+transform_patch_hooks_field = transform_changespec_hooks_field
 
 
 def merge_hook_updates(

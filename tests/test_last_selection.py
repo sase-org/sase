@@ -22,7 +22,7 @@ def test_save_last_selection_creates_parent_dirs() -> None:
         temp_path = Path(tmpdir) / "subdir" / "last_selection.txt"
 
         with patch("sase.ace.last_selection._LAST_SELECTION_FILE", temp_path):
-            result = save_last_selection("test_changespec")
+            result = save_last_selection("test_patch")
             assert result is True
             assert temp_path.exists()
 
@@ -53,5 +53,5 @@ def test_save_last_selection_oserror() -> None:
             patch("sase.ace.last_selection._LAST_SELECTION_FILE", temp_path),
             patch.object(Path, "write_text", side_effect=OSError("Simulated error")),
         ):
-            result = save_last_selection("test_changespec")
+            result = save_last_selection("test_patch")
             assert result is False

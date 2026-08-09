@@ -119,10 +119,10 @@ def test_open_editor_with_content_cleans_up_temp_file(
 # === Tests for handle_reword_prepare ===
 
 
-def _make_context_and_changespec(
+def _make_context_and_patch(
     status: str = "Draft", cl: str | None = "123456"
 ) -> tuple[MagicMock, MagicMock]:
-    """Create mock WorkflowContext and ChangeSpec."""
+    """Create mock WorkflowContext and Patch."""
     ctx = MagicMock()
     ctx.console = MagicMock()
 
@@ -145,7 +145,7 @@ def test_handle_reword_prepare_editor_returns_none(
     _mock_fetch: MagicMock, _mock_editor: MagicMock
 ) -> None:
     """Test prepare returns None when editor returns None."""
-    ctx, cs = _make_context_and_changespec()
+    ctx, cs = _make_context_and_patch()
 
     result = handle_reword_prepare(ctx, cs)
 
@@ -161,7 +161,7 @@ def test_handle_reword_prepare_trailing_newline_no_false_diff(
     """Test trailing newline differences don't trigger a reword."""
     mock_fetch.return_value = "Same description\n"
     mock_editor.return_value = "Same description"  # no trailing newline
-    ctx, cs = _make_context_and_changespec(status="Ready")
+    ctx, cs = _make_context_and_patch(status="Ready")
 
     result = handle_reword_prepare(ctx, cs)
 
@@ -173,7 +173,7 @@ def test_handle_reword_prepare_fetch_fails(
     _mock_fetch: MagicMock,
 ) -> None:
     """Test prepare returns None when description fetch fails."""
-    ctx, cs = _make_context_and_changespec()
+    ctx, cs = _make_context_and_patch()
 
     result = handle_reword_prepare(ctx, cs)
 
@@ -192,7 +192,7 @@ def test_handle_reword_prepare_returns_edited_description(
     _mock_fetch: MagicMock, _mock_editor: MagicMock
 ) -> None:
     """Test prepare returns edited description when changed."""
-    ctx, cs = _make_context_and_changespec()
+    ctx, cs = _make_context_and_patch()
 
     result = handle_reword_prepare(ctx, cs)
 

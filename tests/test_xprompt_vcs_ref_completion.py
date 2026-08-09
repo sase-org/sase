@@ -168,7 +168,7 @@ def _project(
         aliases=aliases,
         kind=kind,  # type: ignore[arg-type]
         project=name,
-        status="Draft" if kind == "changespec" else "",
+        status="Draft" if kind == "patch" else "",
     )
 
 
@@ -182,7 +182,7 @@ def test_build_candidates_filters_projects_by_workflow_and_appends_namespaces() 
             return_value=[
                 _project("dotfiles", workflow="git"),
                 _project("sase", workflow="gh"),
-                _project("ship-it", workflow="gh", kind="changespec"),
+                _project("ship-it", workflow="gh", kind="patch"),
             ],
         ),
         patch.object(vrf, "_list_cached_namespaces", return_value=(namespace,)),
@@ -195,7 +195,7 @@ def test_build_candidates_filters_projects_by_workflow_and_appends_namespaces() 
 
     assert result == [
         _project("sase", workflow="gh"),
-        _project("ship-it", workflow="gh", kind="changespec"),
+        _project("ship-it", workflow="gh", kind="patch"),
         namespace,
     ]
 

@@ -100,7 +100,11 @@ def parse_type_arg(value: str) -> tuple[IssueType, str | None, str | None]:
 
 def handle_bead_create(args: argparse.Namespace) -> None:
     issue_type, plan_path, parent_id = parse_type_arg(args.type)
-    changespec_name = getattr(args, "changespec", None) or ""
+    changespec_name = (
+        getattr(args, "patch", None)
+        or getattr(args, "changespec", None)  # legacy CLI alias
+        or ""
+    )
     changespec_bug_id = getattr(args, "bug_id", None) or ""
     if issue_type != IssueType.PLAN and (changespec_name or changespec_bug_id):
         print(

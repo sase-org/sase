@@ -10,9 +10,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.ace.patch import (
-    changespec_lock,
-    find_all_changespecs,
-    write_changespec_atomic,
+    patch_lock,
+    find_all_patches,
+    write_patch_atomic,
 )
 from sase.core.paths import (
     is_valid_sase_project_name,
@@ -54,7 +54,7 @@ def set_bare_repo_dir(project_file: str, bare_repo_dir: str) -> bool:
             _invalidate_project_identity()
             return True
 
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
 
@@ -65,7 +65,7 @@ def set_bare_repo_dir(project_file: str, bare_repo_dir: str) -> bool:
             for i, line in enumerate(lines):
                 if line.startswith("BARE_REPO_DIR:"):
                     lines[i] = new_line
-                    write_changespec_atomic(
+                    write_patch_atomic(
                         project_file,
                         "".join(lines),
                         f"Update BARE_REPO_DIR to {bare_repo_dir}",
@@ -81,7 +81,7 @@ def set_bare_repo_dir(project_file: str, bare_repo_dir: str) -> bool:
                     break
 
             lines.insert(insert_idx, new_line)
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "".join(lines),
                 f"Set BARE_REPO_DIR to {bare_repo_dir}",
@@ -146,7 +146,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     1. **Project shorthand** (no ``/``, matching project dir): look up
        ``BARE_REPO_DIR`` and ``WORKSPACE_DIR`` from
        ``~/.sase/projects/<name>/<name>.sase``.
-    2. **ChangeSpec name**: search all changespecs for a matching name,
+    2. **Patch name**: search all patches for a matching name,
        verify project has ``BARE_REPO_DIR``.
     3. **Missing project shorthand**: initialize a new bare-git project using
        the standard ``#git:<project>`` first-use defaults.
@@ -186,19 +186,19 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
                         checkout_target=checkout_target,
                     )
 
-        # --- Mode 2: ChangeSpec name ---
-        for cs in find_all_changespecs():
+        # --- Mode 2: Patch name ---
+        for cs in find_all_patches():
             if cs.name == git_ref:
                 bare_repo_dir = parse_bare_repo_dir(cs.file_path)
                 if not bare_repo_dir:
                     raise ValueError(
-                        f"ChangeSpec '{git_ref}' found in {cs.file_path} "
+                        f"Patch '{git_ref}' found in {cs.file_path} "
                         "but BARE_REPO_DIR is not set"
                     )
                 workspace_dir = parse_workspace_dir(cs.file_path)
                 if not workspace_dir:
                     raise ValueError(
-                        f"ChangeSpec '{git_ref}' found in {cs.file_path} "
+                        f"Patch '{git_ref}' found in {cs.file_path} "
                         "but WORKSPACE_DIR is not set"
                     )
                 return ResolvedGitRef(

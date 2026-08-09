@@ -73,7 +73,7 @@ def build_cleanup_side_effects(
     seen_notifications: set[AgentCleanupIdentityWire] = set()
 
     def add_bundle(target: AgentCleanupTargetWire) -> None:
-        if target.from_changespec or target.identity in seen_bundle:
+        if target.from_patch or target.identity in seen_bundle:
             return
         seen_bundle.add(target.identity)
         bundle_candidates.append(AgentCleanupBundleSaveIntentWire(target.identity))

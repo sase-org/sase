@@ -2,15 +2,15 @@
 
 from unittest.mock import patch
 
-from sase.ace.hooks.defaults import get_required_changespec_hooks
+from sase.ace.hooks.defaults import get_required_patch_hooks
 
 
-def test_get_required_changespec_hooks_uses_config_override() -> None:
+def test_get_required_patch_hooks_uses_config_override() -> None:
     """Test that config override is used when present."""
     with patch(
         "sase.ace.hooks.defaults.get_vcs_provider_config",
         return_value={"default_hooks": ["!$my_presubmit", "$my_lint"]},
     ):
-        result = get_required_changespec_hooks()
+        result = get_required_patch_hooks()
 
     assert result == ("!$my_presubmit", "$my_lint")

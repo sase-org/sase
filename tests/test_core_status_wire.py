@@ -27,7 +27,7 @@ from sase.core.status_wire import (
     SUFFIX_ACTION_APPEND,
     SUFFIX_ACTION_NONE,
     SUFFIX_ACTION_STRIP,
-    ChangespecChildWire,
+    PatchChildWire,
     StatusFieldReadWire,
     _StatusFieldUpdateWire,
     StatusTransitionPlanWire,
@@ -49,30 +49,26 @@ def _status_request_from_dict(data: dict[str, object]) -> StatusTransitionReques
             f"{STATUS_WIRE_SCHEMA_VERSION}"
         )
     blocking_raw = data.get("blocking_children")
-    blocking_children: tuple[ChangespecChildWire, ...]
+    blocking_children: tuple[PatchChildWire, ...]
     if not blocking_raw:
         blocking_children = ()
     elif isinstance(blocking_raw, list | tuple):
-        parsed_children: list[ChangespecChildWire] = []
+        parsed_children: list[PatchChildWire] = []
         for item in blocking_raw:
-            if isinstance(item, ChangespecChildWire):
+            if isinstance(item, PatchChildWire):
                 parsed_children.append(item)
             elif isinstance(item, dict):
                 parsed_children.append(
-                    ChangespecChildWire(
+                    PatchChildWire(
                         name=str(item["name"]),
                         status=str(item["status"]),
                     )
                 )
             else:
-                raise TypeError(
-                    f"Cannot decode ChangespecChildWire from {type(item)!r}"
-                )
+                raise TypeError(f"Cannot decode PatchChildWire from {type(item)!r}")
         blocking_children = tuple(parsed_children)
     else:
-        raise TypeError(
-            f"Cannot decode ChangespecChildWire from {type(blocking_raw)!r}"
-        )
+        raise TypeError(f"Cannot decode PatchChildWire from {type(blocking_raw)!r}")
     return StatusTransitionRequestWire(
         schema_version=schema,
         changespec_name=str(data["changespec_name"]),
@@ -97,7 +93,7 @@ def _request(
     new_status: str = "Draft",
     validate: bool = True,
     parent_status: str | None = None,
-    blocking_children: tuple[ChangespecChildWire, ...] = (),
+    blocking_children: tuple[PatchChildWire, ...] = (),
     siblings_with_unreverted_children: tuple[str, ...] = (),
     existing_names: tuple[str, ...] = (),
 ) -> StatusTransitionRequestWire:
@@ -177,7 +173,7 @@ def test_request_round_trips_through_json() -> None:
         changespec_name="proj_foo",
         old_status="Ready (proj_2)",
         new_status="Draft",
-        blocking_children=(ChangespecChildWire(name="proj_foo_child", status="Ready"),),
+        blocking_children=(PatchChildWire(name="proj_foo_child", status="Ready"),),
         existing_names=("proj_foo", "proj_foo_1"),
     )
     payload = status_wire_to_json_dict(req)
@@ -359,8 +355,8 @@ def test_ready_to_draft_blocked_by_invalid_children() -> None:
             old_status="Ready",
             new_status="Draft",
             blocking_children=(
-                ChangespecChildWire(name="proj_child_a", status="Mailed"),
-                ChangespecChildWire(name="proj_child_b", status="Submitted"),
+                PatchChildWire(name="proj_child_a", status="Mailed"),
+                PatchChildWire(name="proj_child_b", status="Submitted"),
             ),
         )
     )
@@ -432,7 +428,7 @@ def test_wip_to_ready_blocked_by_sibling_unreverted_children() -> None:
     )
     assert plan.success is False
     assert plan.error is not None
-    assert "sibling ChangeSpec 'proj_feature_1'" in plan.error
+    assert "sibling Patch 'proj_feature_1'" in plan.error
     assert "unreverted children" in plan.error
 
 

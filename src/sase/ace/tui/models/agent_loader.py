@@ -65,6 +65,7 @@ from ._timestamps import normalize_to_14_digit
 from .agent import Agent
 from .workflow import WorkflowEntry
 
+_FIND_ALL_PATCHES_IMPL = find_all_patches
 find_all_changespecs = find_all_patches
 
 
@@ -182,10 +183,13 @@ def load_all_workflows() -> list[WorkflowEntry]:
 def _patch_snapshot_for_loader(
     patch_snapshot: list[Patch] | None,
 ) -> list[Patch]:
+    finder = (
+        find_all_changespecs
+        if find_all_changespecs is not _FIND_ALL_PATCHES_IMPL
+        else find_all_patches
+    )
     return (
-        patch_snapshot
-        if patch_snapshot is not None
-        else find_all_changespecs(include_states="all")
+        patch_snapshot if patch_snapshot is not None else finder(include_states="all")
     )
 
 

@@ -1,6 +1,6 @@
-"""Tests for suffix classification functions in ace/changespec/models.py."""
+"""Tests for suffix classification functions in ace/patch/models.py."""
 
-from sase.ace.changespec.models import (
+from sase.ace.patch.models import (
     is_plain_suffix,
     is_running_process_suffix,
 )

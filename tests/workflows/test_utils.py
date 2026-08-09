@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 from sase.workflows.utils import (
     _get_changed_test_targets,
     add_test_hooks_if_available,
-    get_changespec_from_file,
+    get_patch_from_file,
     get_cl_name_from_branch,
-    get_initial_hooks_for_changespec,
+    get_initial_hooks_for_patch,
     get_project_from_workspace,
 )
 
@@ -110,7 +110,7 @@ def test_add_test_hooks_if_available_adds_hooks() -> None:
             return_value="//foo:test1 //bar:test2",
         ),
         patch(
-            "sase.ace.hooks.add_test_target_hooks_to_changespec", return_value=True
+            "sase.ace.hooks.add_test_target_hooks_to_patch", return_value=True
         ) as mock_add_hooks,
         patch("sase.output.print_status"),
     ):
@@ -176,8 +176,8 @@ def test_add_test_hooks_if_available_returns_false_on_failure() -> None:
         patch(
             "sase.workflows.utils._get_changed_test_targets", return_value="//foo:test1"
         ),
-        patch("sase.workflows.utils.get_changespec_from_file", return_value=None),
-        patch("sase.ace.hooks.add_test_target_hooks_to_changespec", return_value=False),
+        patch("sase.workflows.utils.get_patch_from_file", return_value=None),
+        patch("sase.ace.hooks.add_test_target_hooks_to_patch", return_value=False),
         patch("sase.output.print_status"),
     ):
         result = add_test_hooks_if_available("/fake/project.sase", "cl_name")
@@ -185,35 +185,35 @@ def test_add_test_hooks_if_available_returns_false_on_failure() -> None:
     assert result is False
 
 
-# Tests for get_initial_hooks_for_changespec
+# Tests for get_initial_hooks_for_patch
 
 
-def test_get_initial_hooks_for_changespec_returns_config_hooks() -> None:
+def test_get_initial_hooks_for_patch_returns_config_hooks() -> None:
     """Test that hooks from plugin config are returned."""
     config = {"default_hooks": ["!$example_presubmit", "$example_lint"]}
     with (
         patch("sase.workflows.utils._get_changed_test_targets", return_value=None),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value=config),
     ):
-        result = get_initial_hooks_for_changespec()
+        result = get_initial_hooks_for_patch()
 
     assert "!$example_presubmit" in result
     assert "$example_lint" in result
     assert len(result) == 2
 
 
-def test_get_initial_hooks_for_changespec_returns_empty_without_config() -> None:
+def test_get_initial_hooks_for_patch_returns_empty_without_config() -> None:
     """Test that no default hooks are returned when no config is set."""
     with (
         patch("sase.workflows.utils._get_changed_test_targets", return_value=None),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
     ):
-        result = get_initial_hooks_for_changespec()
+        result = get_initial_hooks_for_patch()
 
     assert len(result) == 0
 
 
-def test_get_initial_hooks_for_changespec_preserves_order() -> None:
+def test_get_initial_hooks_for_patch_preserves_order() -> None:
     """Test that hooks are in correct order: required first, then test targets."""
     config = {"default_hooks": ["!$example_presubmit", "$example_lint"]}
     with (
@@ -222,7 +222,7 @@ def test_get_initial_hooks_for_changespec_preserves_order() -> None:
         ),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value=config),
     ):
-        result = get_initial_hooks_for_changespec()
+        result = get_initial_hooks_for_patch()
 
     # Required hooks should be first
     assert result[0] == "!$example_presubmit"
@@ -318,9 +318,9 @@ def test_get_project_from_workspace_falls_back_when_resolution_fails(
     assert result == "sase"
 
 
-# Tests for get_changespec_from_file
-def test_get_changespec_from_file_not_found(tmp_path: Path) -> None:
-    """Test get_changespec_from_file returns None when ChangeSpec not found."""
+# Tests for get_patch_from_file
+def test_get_patch_from_file_not_found(tmp_path: Path) -> None:
+    """Test get_patch_from_file returns None when Patch not found."""
     content = """NAME: other_feature
 DESCRIPTION: Test description
 STATUS: Ready
@@ -332,7 +332,7 @@ STATUS: Ready
         temp_path = f.name
 
     try:
-        result = get_changespec_from_file(temp_path, "nonexistent")
+        result = get_patch_from_file(temp_path, "nonexistent")
         assert result is None
     finally:
         Path(temp_path).unlink()

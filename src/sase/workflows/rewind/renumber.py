@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from sase.ace.patch import changespec_lock, get_entry_id, write_changespec_atomic
+from sase.ace.patch import patch_lock, get_entry_id, write_patch_atomic
 from sase.workflows.renumber_utils import (
     build_commits_section,
     find_commits_section,
@@ -43,26 +43,26 @@ def _update_hooks_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         id_mapping: Mapping from old entry IDs to new entry IDs (or None for deletion).
 
     Returns:
         Updated lines with hook status lines renumbered.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     in_hooks = False
 
     for line in lines:
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             in_hooks = False
             updated_lines.append(line)
-        elif in_target_changespec and line.startswith("HOOKS:"):
+        elif in_target_patch and line.startswith("HOOKS:"):
             in_hooks = True
             updated_lines.append(line)
-        elif in_target_changespec and in_hooks and line.startswith("      | "):
+        elif in_target_patch and in_hooks and line.startswith("      | "):
             # This is a status line (6-space + "| " prefixed)
             stripped = line.strip()[2:]  # Skip "| " prefix
             # Match status line format: (N) or (Na) or (Na-M) followed by rest
@@ -98,7 +98,7 @@ def _update_hooks_with_id_mapping(
                     updated_lines.append(f"      | ({new_id}){rest}\n")
             else:
                 updated_lines.append(line)
-        elif in_target_changespec and in_hooks:
+        elif in_target_patch and in_hooks:
             # Check if still in hooks section
             if line.startswith("  ") and not line.startswith("    "):
                 # Command line (2-space indented, not 4-space) - still in hooks
@@ -131,7 +131,7 @@ def _update_mentors_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         id_mapping: Mapping from old entry IDs to new entry IDs (or None for deletion).
         selected_entry_num: The entry number being rewound to.
 
@@ -139,7 +139,7 @@ def _update_mentors_with_id_mapping(
         Updated lines with mentor entries renumbered.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     in_mentors = False
     skip_status_lines = (
         False  # Track if we're skipping status lines for a deleted entry
@@ -148,15 +148,15 @@ def _update_mentors_with_id_mapping(
     for line in lines:
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             in_mentors = False
             skip_status_lines = False
             updated_lines.append(line)
-        elif in_target_changespec and line.startswith("MENTORS:"):
+        elif in_target_patch and line.startswith("MENTORS:"):
             in_mentors = True
             skip_status_lines = False
             updated_lines.append(line)
-        elif in_target_changespec and in_mentors:
+        elif in_target_patch and in_mentors:
             # Check if this is an entry header line: (N) profile1 [profile2 ...]
             entry_match = re.match(r"^  \((\d+[a-z]?)\)\s+(.*)$", line)
             if entry_match:
@@ -233,26 +233,26 @@ def _update_comments_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         id_mapping: Mapping from old entry IDs to new entry IDs (or None for deletion).
 
     Returns:
         Updated lines with comment entry_ref suffixes renumbered.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     in_comments = False
 
     for line in lines:
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             in_comments = False
             updated_lines.append(line)
-        elif in_target_changespec and line.startswith("COMMENTS:"):
+        elif in_target_patch and line.startswith("COMMENTS:"):
             in_comments = True
             updated_lines.append(line)
-        elif in_target_changespec and in_comments:
+        elif in_target_patch and in_comments:
             if line.startswith("  ["):
                 # Comment entry line - check for entry_ref suffix
                 suffix_match = re.search(r" - \((\d+[a-z])\)$", line)
@@ -289,7 +289,7 @@ def rewind_commit_entries(
     cl_name: str,
     selected_entry_num: int,
 ) -> bool:
-    """Update ChangeSpec after rewinding to a previous entry.
+    """Update Patch after rewinding to a previous entry.
 
     The renumbering logic:
     1. Keep entries 1...(selected-1) as accepted entries (unchanged)
@@ -310,18 +310,18 @@ def rewind_commit_entries(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         selected_entry_num: The entry number being rewound to.
 
     Returns:
         True if successful, False otherwise.
     """
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
-            # Find the ChangeSpec and its commits section
+            # Find the Patch and its commits section
             commits_start, commits_end = find_commits_section(lines, cl_name)
 
             if commits_start < 0:
@@ -453,7 +453,7 @@ def rewind_commit_entries(
 
             # Write atomically
             commit_msg = f"Rewind {cl_name} to entry ({selected_entry_num})"
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "".join(new_lines),
                 commit_msg,

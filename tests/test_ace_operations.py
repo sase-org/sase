@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from sase.ace.operations import (
     get_available_workflows,
     get_workspace_directory,
-    update_to_changespec,
+    update_to_changespec as update_to_patch,  # legacy ACE API name
 )
 
 # === Tests for get_workspace_directory ===
@@ -21,11 +21,11 @@ def test_get_workspace_directory_main_workspace(
     mock_get_first.return_value = 1
     mock_get_dir.return_value = ("/path/to/main", None)
 
-    mock_changespec = MagicMock()
-    mock_changespec.file_path = "/project.sase"
-    mock_changespec.project_basename = "project"
+    mock_patch = MagicMock()
+    mock_patch.file_path = "/project.sase"
+    mock_patch.project_basename = "project"
 
-    result = get_workspace_directory(mock_changespec)
+    result = get_workspace_directory(mock_patch)
 
     assert result == ("/path/to/main", None)
 
@@ -47,54 +47,50 @@ def test_get_available_workflows_crs_with_suffix_ignored(
     mock_comment.reviewer = "critique"
     mock_comment.suffix = "timestamp_123"
 
-    mock_changespec = MagicMock()
-    mock_changespec.comments = [mock_comment]
+    mock_patch = MagicMock()
+    mock_patch.comments = [mock_comment]
 
-    result = get_available_workflows(mock_changespec)
+    result = get_available_workflows(mock_patch)
 
     assert result == []
 
 
-# === Tests for update_to_changespec ===
+# === Tests for update_to_patch ===
 
 
 @patch("sase.ace.operations.get_workspace_dir_from_project")
-def test_update_to_changespec_workspace_not_found(
+def test_update_to_patch_workspace_not_found(
     mock_get_dir: MagicMock,
 ) -> None:
-    """Test update_to_changespec handles workspace lookup failure."""
+    """Test update_to_patch handles workspace lookup failure."""
     mock_get_dir.side_effect = RuntimeError("Workspace not found")
 
-    mock_changespec = MagicMock()
-    mock_changespec.project_basename = "test_project"
+    mock_patch = MagicMock()
+    mock_patch.project_basename = "test_project"
 
-    success, error = update_to_changespec(mock_changespec)
+    success, error = update_to_patch(mock_patch)
 
     assert success is False
     assert error == "Workspace not found"
 
 
-def test_update_to_changespec_directory_not_exists() -> None:
-    """Test update_to_changespec handles non-existent directory."""
-    mock_changespec = MagicMock()
+def test_update_to_patch_directory_not_exists() -> None:
+    """Test update_to_patch handles non-existent directory."""
+    mock_patch = MagicMock()
 
-    success, error = update_to_changespec(
-        mock_changespec, workspace_dir="/nonexistent/path"
-    )
+    success, error = update_to_patch(mock_patch, workspace_dir="/nonexistent/path")
 
     assert success is False
     assert error is not None
     assert "does not exist" in error
 
 
-def test_update_to_changespec_path_not_directory() -> None:
-    """Test update_to_changespec handles path that is not a directory."""
+def test_update_to_patch_path_not_directory() -> None:
+    """Test update_to_patch handles path that is not a directory."""
     with tempfile.NamedTemporaryFile() as tmp_file:
-        mock_changespec = MagicMock()
+        mock_patch = MagicMock()
 
-        success, error = update_to_changespec(
-            mock_changespec, workspace_dir=tmp_file.name
-        )
+        success, error = update_to_patch(mock_patch, workspace_dir=tmp_file.name)
 
         assert success is False
         assert error is not None
@@ -102,30 +98,30 @@ def test_update_to_changespec_path_not_directory() -> None:
 
 
 @patch("sase.vcs_provider.get_vcs_provider")
-def test_update_to_changespec_uses_parent_revision(
+def test_update_to_patch_uses_parent_revision(
     mock_get_provider: MagicMock,
 ) -> None:
-    """Test update_to_changespec uses parent when no revision specified."""
+    """Test update_to_patch uses parent when no revision specified."""
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
     mock_provider.resolve_revision.side_effect = lambda name, *_: name
     mock_get_provider.return_value = mock_provider
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        mock_changespec = MagicMock()
-        mock_changespec.parent = "parent_rev"
+        mock_patch = MagicMock()
+        mock_patch.parent = "parent_rev"
 
-        success, error = update_to_changespec(mock_changespec, workspace_dir=tmpdir)
+        success, error = update_to_patch(mock_patch, workspace_dir=tmpdir)
 
         assert success is True
         mock_provider.checkout.assert_called_once_with("parent_rev", tmpdir)
 
 
 @patch("sase.vcs_provider.get_vcs_provider")
-def test_update_to_changespec_uses_provider_default(
+def test_update_to_patch_uses_provider_default(
     mock_get_provider: MagicMock,
 ) -> None:
-    """Test update_to_changespec uses provider default when no parent or revision."""
+    """Test update_to_patch uses provider default when no parent or revision."""
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
     mock_provider.get_default_parent_revision.return_value = "p4head"
@@ -133,10 +129,10 @@ def test_update_to_changespec_uses_provider_default(
     mock_get_provider.return_value = mock_provider
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        mock_changespec = MagicMock()
-        mock_changespec.parent = None
+        mock_patch = MagicMock()
+        mock_patch.parent = None
 
-        success, error = update_to_changespec(mock_changespec, workspace_dir=tmpdir)
+        success, error = update_to_patch(mock_patch, workspace_dir=tmpdir)
 
         assert success is True
         mock_provider.get_default_parent_revision.assert_called_once_with(tmpdir)

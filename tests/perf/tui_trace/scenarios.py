@@ -12,7 +12,7 @@ from sase.ace.tui.app import AceApp
 
 from ..fixtures import (
     AGENT_SIZES,
-    CHANGESPEC_SIZES,
+    PATCH_SIZES,
     LARGE_REPLY_SIZES_MB,
     build_fixture,
     make_large_reply,
@@ -58,7 +58,7 @@ async def _run_scenario(
 
     with patch(
         "sase.ace.changespec.find_all_changespecs_cached",
-        return_value=fixture.changespecs,
+        return_value=fixture.patches,
     ):
 
         def _apply_query(query: str) -> None:
@@ -66,13 +66,13 @@ async def _run_scenario(
 
             app.query_string = query
             app.parsed_query = parse_query(query)  # type: ignore[assignment]
-            app._load_changespecs()  # type: ignore[attr-defined]
+            app._load_patches()  # type: ignore[attr-defined]
 
         _mark_start("cold_start")
         app = AceApp(
             query='"cs_"',
             auto_start_axe=False,
-            initial_tab="changespecs",
+            initial_tab="changespecs",  # legacy tab id
         )
         async with app.run_test() as pilot:
             await pilot.pause()
@@ -134,7 +134,7 @@ async def _run_full_baseline(
     gp_file: Path,
 ) -> dict[str, Any]:
     """Run all fixture-size combinations and dump a baseline JSON."""
-    paired = list(zip(CHANGESPEC_SIZES, AGENT_SIZES, strict=True))
+    paired = list(zip(PATCH_SIZES, AGENT_SIZES, strict=True))
     large_reply_text = make_large_reply(LARGE_REPLY_SIZES_MB[0])
 
     scenarios: list[dict[str, Any]] = []

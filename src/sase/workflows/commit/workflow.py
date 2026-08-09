@@ -19,7 +19,7 @@ from sase.workflows.commit.commit_tracking import (
     append_commits_entry,
     capture_pre_commit_diff,
     cleanup_reservation,
-    create_changespec,
+    create_patch,
     resolve_cl_name,
     resolve_project_file,
     write_result_marker,
@@ -39,7 +39,7 @@ from sase.workflows.commit.pr_operations import (
     append_pr_tags,
     apply_project_pr_prefix,
     build_pr_body,
-    detect_parent_changespec,
+    detect_parent_patch,
 )
 from sase.workflows.commit.runtime_tags import apply_runtime_commit_tags
 from sase.workflows.commit.runtime_tags import resolve_local_agent_name
@@ -140,9 +140,9 @@ class CommitWorkflow(BaseWorkflow):
 
         # Pre-compute the _<N> suffix for create_pull_request so the PR branch is
         # created with the correct suffixed name (important for non-git VCS
-        # where ChangeSpec creation may not be able to rename the branch later).
-        # Save the base name so _create_changespec can pass it (un-suffixed)
-        # to add_changespec_to_project_file, which adds its own suffix.
+        # where Patch creation may not be able to rename the branch later).
+        # Save the base name so _create_patch can pass it (un-suffixed)
+        # to add_patch_to_project_file, which adds its own suffix.
         self._base_cl_name = None
         if self._method == "create_pull_request":
             base_name: str = self._payload["name"]
@@ -164,7 +164,7 @@ class CommitWorkflow(BaseWorkflow):
             except Exception:
                 pass  # Best-effort; fall back to unsuffixed name
 
-        # Resolve parent ChangeSpec: explicit flag takes precedence, then auto-detect
+        # Resolve parent Patch: explicit flag takes precedence, then auto-detect
         if self._method == "create_pull_request":
             explicit_parent = self._payload.get("parent")
             if explicit_parent:
@@ -172,14 +172,14 @@ class CommitWorkflow(BaseWorkflow):
                 if not _explicit_parent_resolves(self._parent_cl_name):
                     print_status(
                         f"Explicit parent '{self._parent_cl_name}' does not "
-                        "resolve to an existing ChangeSpec — dropping it so "
+                        "resolve to an existing Patch — dropping it so "
                         "it does not leak into the PARENT field.",
                         "warning",
                     )
                     self._parent_cl_name = None
                     self._payload.pop("parent", None)
             else:
-                self._parent_cl_name = detect_parent_changespec(
+                self._parent_cl_name = detect_parent_patch(
                     self._base_cl_name, self._payload
                 )
 
@@ -194,7 +194,7 @@ class CommitWorkflow(BaseWorkflow):
         provider = get_vcs_provider(cwd)
         dispatch = getattr(provider, self._method)
 
-        # Resolve ChangeSpec name and project file for COMMITS entries and diff
+        # Resolve Patch name and project file for COMMITS entries and diff
         # capture.  Cached on self so both capture and append use the same
         # values without double resolution.
         self._cl_name = resolve_cl_name()
@@ -244,7 +244,7 @@ class CommitWorkflow(BaseWorkflow):
             return RunResult.FAILED
 
         # If dispatch had to re-suffix the branch to dodge a remote-branch
-        # collision, re-point the ChangeSpec reservation at the branch that was
+        # collision, re-point the Patch reservation at the branch that was
         # actually pushed so the recorded NAME matches the PR branch.
         if self._method == "create_pull_request" and self._payload.get("_resuffixed"):
             self._repoint_reservation_after_resuffix()
@@ -314,12 +314,12 @@ class CommitWorkflow(BaseWorkflow):
         return True
 
     def _repoint_reservation_after_resuffix(self) -> None:
-        """Move the ChangeSpec reservation to a re-suffixed PR branch name.
+        """Move the Patch reservation to a re-suffixed PR branch name.
 
         When the VCS dispatch renames the branch to escape a remote collision
         it records the new name in ``payload["name"]``.  Drop the now-stale
         reservation stub and adopt the new name as ``_reserved_name`` so the
-        ChangeSpec is created under the branch that was actually pushed.
+        Patch is created under the branch that was actually pushed.
         """
         new_name = self._payload.get("name")
         if not new_name or new_name == self._reserved_name:
@@ -332,7 +332,7 @@ class CommitWorkflow(BaseWorkflow):
             if project_name and self._reserved_name:
                 remove_reservation(project_name, self._reserved_name)
         except Exception:
-            pass  # Best-effort cleanup; the ChangeSpec still uses the new name.
+            pass  # Best-effort cleanup; the Patch still uses the new name.
         self._reserved_name = new_name
 
     def _run_tracking_steps(
@@ -345,10 +345,10 @@ class CommitWorkflow(BaseWorkflow):
         when every applicable step succeeds.
         """
         if self._method == "create_pull_request":
-            if "create_changespec" in cp.completed_steps:
+            if "create_patch" in cp.completed_steps:
                 cs_name = cp.cs_name
             else:
-                cs_name = create_changespec(
+                cs_name = create_patch(
                     self._payload,
                     self._base_cl_name,
                     self._parent_cl_name,
@@ -359,7 +359,7 @@ class CommitWorkflow(BaseWorkflow):
                     cleanup_reservation(self._reserved_name)
                 else:
                     cp.cs_name = cs_name
-                    cp.completed_steps.append("create_changespec")
+                    cp.completed_steps.append("create_patch")
                     checkpoint_save(cp)
         else:
             cs_name = cp.cs_name

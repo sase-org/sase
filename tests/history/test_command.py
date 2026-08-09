@@ -62,7 +62,7 @@ def test_get_commands_for_display_empty(tmp_path: Path) -> None:
 
 
 def test_get_commands_for_display_sorts_project_second(tmp_path: Path) -> None:
-    """Test that commands from same project but different ChangeSpec are sorted second."""
+    """Test that commands from same project but different Patch are sorted second."""
     test_file = tmp_path / "command_history.json"
     with patch("sase.history.command._COMMAND_HISTORY_FILE", test_file):
         entries = [
@@ -92,7 +92,7 @@ def test_get_commands_for_display_sorts_project_second(tmp_path: Path) -> None:
 
         result = get_commands_for_display("feature", "myproject")
         assert len(result) == 3
-        # Current ChangeSpec first, then same project, then other
+        # Current Patch first, then same project, then other
         assert result[0][1].command == "current cl command"
         assert result[1][1].command == "same project command"
         assert result[2][1].command == "other project command"

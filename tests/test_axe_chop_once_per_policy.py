@@ -269,7 +269,7 @@ def test_all_duplicate_proposals_record_skipped_run(
     )
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agent_from_cwd") as launch,
     ):
         outcome = run_configured_chop_once(

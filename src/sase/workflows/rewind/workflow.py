@@ -2,9 +2,9 @@
 
 import os
 
-from sase.ace.patch import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.hooks.processes import kill_and_persist_all_running_processes
-from sase.ace.operations import update_to_changespec
+from sase.ace.operations import update_to_patch
 from sase.ace.timestamps.recording import add_timestamp_entry_atomic
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.output import print_status
@@ -15,7 +15,7 @@ from sase.running_field import (
     release_workspace,
 )
 from sase.vcs_provider import get_vcs_provider
-from sase.workflows.utils import get_changespec_from_file
+from sase.workflows.utils import get_patch_from_file
 
 from .renumber import rewind_commit_entries
 
@@ -33,7 +33,7 @@ class RewindWorkflow:
         """Initialize the rewind workflow.
 
         Args:
-            cl_name: The ChangeSpec name.
+            cl_name: The Patch name.
             project_file: Path to the project file.
             selected_entry_num: The entry number to rewind to.
             skip_vcs: If True, skip VCS operations (bookkeeping only).
@@ -56,16 +56,16 @@ class RewindWorkflow:
         if not os.path.isfile(project_file):
             return (False, f"Project file not found: {project_file}")
 
-        # Get the ChangeSpec upfront for validation
-        changespec = get_changespec_from_file(project_file, cl_name)
-        if not changespec:
-            return (False, f"ChangeSpec not found: {cl_name}")
+        # Get the Patch upfront for validation
+        patch = get_patch_from_file(project_file, cl_name)
+        if not patch:
+            return (False, f"Patch not found: {cl_name}")
 
         # Extract project basename
         project = os.path.basename(os.path.dirname(project_file))
 
         # Validate entry exists and get all numeric entries
-        numeric_entries = [e for e in (changespec.commits or []) if not e.is_proposed]
+        numeric_entries = [e for e in (patch.commits or []) if not e.is_proposed]
         entry_nums = {e.number for e in numeric_entries}
 
         if selected_entry_num not in entry_nums:
@@ -85,16 +85,16 @@ class RewindWorkflow:
                 return (False, f"Entry ({selected_entry_num}) has no DIFF path")
 
         # Kill running processes before rewind
-        self._kill_running_processes(changespec, project_file, cl_name)
+        self._kill_running_processes(patch, project_file, cl_name)
 
         # Bookkeeping-only mode: skip all VCS operations
         if self._skip_vcs:
             print_status("Skipping VCS operations (bookkeeping only)", "progress")
-            print_status("Updating ChangeSpec entries...", "progress")
+            print_status("Updating Patch entries...", "progress")
             if rewind_commit_entries(project_file, cl_name, selected_entry_num):
-                print_status("ChangeSpec entries updated", "success")
+                print_status("Patch entries updated", "success")
             else:
-                return (False, "Failed to update ChangeSpec entries")
+                return (False, "Failed to update Patch entries")
 
             add_timestamp_entry_atomic(
                 project_file,
@@ -147,10 +147,10 @@ class RewindWorkflow:
             if not clean_success:
                 print_status(f"Warning: sase_hg_clean failed: {clean_error}", "warning")
 
-            # Update to the changespec branch
+            # Update to the patch branch
             print_status(f"Updating to branch: {cl_name}", "progress")
-            success, error_msg = update_to_changespec(
-                changespec, revision=cl_name, workspace_dir=workspace_dir
+            success, error_msg = update_to_patch(
+                patch, revision=cl_name, workspace_dir=workspace_dir
             )
             if not success:
                 return (False, f"Failed to update to branch: {error_msg}")
@@ -189,16 +189,16 @@ class RewindWorkflow:
 
             print_status("Commit amended", "success")
 
-            # Update ChangeSpec with renumbering
-            print_status("Updating ChangeSpec entries...", "progress")
+            # Update Patch with renumbering
+            print_status("Updating Patch entries...", "progress")
             if rewind_commit_entries(
                 project_file,
                 cl_name,
                 selected_entry_num,
             ):
-                print_status("ChangeSpec entries updated", "success")
+                print_status("Patch entries updated", "success")
             else:
-                return (False, "Failed to update ChangeSpec entries")
+                return (False, "Failed to update Patch entries")
 
             add_timestamp_entry_atomic(
                 project_file,
@@ -216,19 +216,19 @@ class RewindWorkflow:
 
     def _kill_running_processes(
         self,
-        changespec: ChangeSpec,
+        patch: Patch,
         project_file: str,
         cl_name: str,
     ) -> None:
         """Kill any running hook/agent/mentor processes before rewind.
 
         Args:
-            changespec: The ChangeSpec object.
+            patch: The Patch object.
             project_file: Path to the project file.
-            cl_name: The ChangeSpec name.
+            cl_name: The Patch name.
         """
         kill_and_persist_all_running_processes(
-            changespec,
+            patch,
             project_file,
             cl_name,
             "Killed for rewind operation",

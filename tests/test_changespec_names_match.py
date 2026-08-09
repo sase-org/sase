@@ -3,7 +3,7 @@
 from sase.core.changespec import changespec_names_match
 
 
-class TestChangespecNamesMatch:
+class TestPatchNamesMatch:
     def test_exact_match(self) -> None:
         assert changespec_names_match("tcpm_launch_tests", "tcpm_launch_tests")
 

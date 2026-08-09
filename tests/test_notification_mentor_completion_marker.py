@@ -20,7 +20,7 @@ def test_marker_isolated_per_entry_id() -> None:
     assert is_notified("/proj.sase", "cl-1", "2") is False
 
 
-def test_marker_isolated_per_changespec() -> None:
+def test_marker_isolated_per_patch() -> None:
     mark_notified("/proj.sase", "cl-1", "1")
     assert is_notified("/proj.sase", "cl-2", "1") is False
 

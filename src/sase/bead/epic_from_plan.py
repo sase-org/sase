@@ -134,7 +134,7 @@ def create_and_launch_epic_from_plan(
                 description=plan.goal,
                 design=plan_ref,
                 tier=BeadTier.EPIC,
-                changespec_name=plan.changespec or "",
+                changespec_name=plan.patch or "",
                 changespec_bug_id=plan.bug_id or "",
                 model=plan.model or "",
                 created_by=resolve_bead_creator(

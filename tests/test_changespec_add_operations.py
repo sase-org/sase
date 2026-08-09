@@ -1,17 +1,17 @@
-"""Tests for adding ChangeSpecs to project files."""
+"""Tests for adding Patches to project files."""
 
 import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.ace.changespec.parser import parse_project_file
-from sase.workflows.commit.patch_operations import add_changespec_to_project_file
+from sase.ace.patch.parser import parse_project_file
+from sase.workflows.commit.patch_operations import add_patch_to_project_file
 
 
-def test_add_changespec_inherits_parent_hooks(tmp_path: Path) -> None:
-    """Test that child ChangeSpec inherits hooks from parent."""
-    # Create a project file with a parent ChangeSpec containing hooks
+def test_add_patch_inherits_parent_hooks(tmp_path: Path) -> None:
+    """Test that child Patch inherits hooks from parent."""
+    # Create a project file with a parent Patch containing hooks
     parent_content = """NAME: parent_feature
 DESCRIPTION:
   Parent description
@@ -33,7 +33,7 @@ HOOKS:
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="child_feature",
                 description="Child description",
@@ -48,12 +48,12 @@ HOOKS:
         with open(project_file, encoding="utf-8") as f:
             content = f.read()
 
-        # Verify child ChangeSpec exists
+        # Verify child Patch exists
         assert "NAME: child_feature_1" in content
 
-        # Parse to verify hooks - find the child ChangeSpec
-        changespecs = parse_project_file(project_file)
-        child_cs = next(cs for cs in changespecs if cs.name == "child_feature_1")
+        # Parse to verify hooks - find the child Patch
+        patches = parse_project_file(project_file)
+        child_cs = next(cs for cs in patches if cs.name == "child_feature_1")
         assert child_cs.hooks is not None
 
         # Get hook commands from the child
@@ -70,9 +70,9 @@ HOOKS:
         os.unlink(project_file)
 
 
-def test_add_changespec_inherits_parent_bug(tmp_path: Path) -> None:
-    """Test that child ChangeSpec inherits BUG from parent."""
-    # Create a project file with a parent ChangeSpec containing BUG
+def test_add_patch_inherits_parent_bug(tmp_path: Path) -> None:
+    """Test that child Patch inherits BUG from parent."""
+    # Create a project file with a parent Patch containing BUG
     parent_content = """NAME: parent_feature
 DESCRIPTION:
   Parent description
@@ -91,7 +91,7 @@ STATUS: Draft
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="child_feature",
                 description="Child description",
@@ -103,8 +103,8 @@ STATUS: Draft
         assert result is not None
 
         # Parse to verify BUG inheritance
-        changespecs = parse_project_file(project_file)
-        child_cs = next(cs for cs in changespecs if cs.name == "child_feature_1")
+        patches = parse_project_file(project_file)
+        child_cs = next(cs for cs in patches if cs.name == "child_feature_1")
 
         # Child should have inherited parent's BUG
         assert child_cs.bug == "http://b/12345678"
@@ -112,7 +112,7 @@ STATUS: Draft
         os.unlink(project_file)
 
 
-def test_add_changespec_initial_commit_plan_drawer(tmp_path: Path) -> None:
+def test_add_patch_initial_commit_plan_drawer(tmp_path: Path) -> None:
     """Plan path in position 5 of initial_commits tuple emits PLAN drawer."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
@@ -125,7 +125,7 @@ def test_add_changespec_initial_commit_plan_drawer(tmp_path: Path) -> None:
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="plan_feature",
                 description="Has plan",
@@ -145,8 +145,8 @@ def test_add_changespec_initial_commit_plan_drawer(tmp_path: Path) -> None:
 
         assert result is not None
 
-        changespecs = parse_project_file(project_file)
-        cs = next(c for c in changespecs if c.name == "plan_feature_1")
+        patches = parse_project_file(project_file)
+        cs = next(c for c in patches if c.name == "plan_feature_1")
         assert cs.commits is not None
         assert len(cs.commits) == 1
         assert cs.commits[0].plan == "~/.sase/plans/my_plan.md"
@@ -154,7 +154,7 @@ def test_add_changespec_initial_commit_plan_drawer(tmp_path: Path) -> None:
         os.unlink(project_file)
 
 
-def test_add_changespec_initial_commit_no_plan_drawer(tmp_path: Path) -> None:
+def test_add_patch_initial_commit_no_plan_drawer(tmp_path: Path) -> None:
     """4-element tuple (no plan_path) does not emit PLAN drawer."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
@@ -167,7 +167,7 @@ def test_add_changespec_initial_commit_no_plan_drawer(tmp_path: Path) -> None:
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="no_plan_feature",
                 description="No plan",
@@ -180,8 +180,8 @@ def test_add_changespec_initial_commit_no_plan_drawer(tmp_path: Path) -> None:
 
         assert result is not None
 
-        changespecs = parse_project_file(project_file)
-        cs = next(c for c in changespecs if c.name == "no_plan_feature_1")
+        patches = parse_project_file(project_file)
+        cs = next(c for c in patches if c.name == "no_plan_feature_1")
         assert cs.commits is not None
         assert len(cs.commits) == 1
         assert cs.commits[0].plan is None
@@ -189,8 +189,8 @@ def test_add_changespec_initial_commit_no_plan_drawer(tmp_path: Path) -> None:
         os.unlink(project_file)
 
 
-def test_add_changespec_initial_commits_creates_timestamps(tmp_path: Path) -> None:
-    """ChangeSpec with initial_commits includes a TIMESTAMPS section with COMMIT entries."""
+def test_add_patch_initial_commits_creates_timestamps(tmp_path: Path) -> None:
+    """Patch with initial_commits includes a TIMESTAMPS section with COMMIT entries."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
     ) as f:
@@ -202,7 +202,7 @@ def test_add_changespec_initial_commits_creates_timestamps(tmp_path: Path) -> No
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="ts_feature",
                 description="Timestamps test",
@@ -225,7 +225,7 @@ def test_add_changespec_initial_commits_creates_timestamps(tmp_path: Path) -> No
         os.unlink(project_file)
 
 
-def test_add_changespec_initial_commits_multiple_timestamps(tmp_path: Path) -> None:
+def test_add_patch_initial_commits_multiple_timestamps(tmp_path: Path) -> None:
     """Multiple initial commits produce multiple COMMIT timestamp lines in order."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
@@ -238,7 +238,7 @@ def test_add_changespec_initial_commits_multiple_timestamps(tmp_path: Path) -> N
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="multi_ts",
                 description="Multi timestamps",
@@ -274,8 +274,8 @@ def test_add_changespec_initial_commits_multiple_timestamps(tmp_path: Path) -> N
         os.unlink(project_file)
 
 
-def test_add_changespec_no_commits_no_timestamps(tmp_path: Path) -> None:
-    """ChangeSpec without initial_commits has no TIMESTAMPS section."""
+def test_add_patch_no_commits_no_timestamps(tmp_path: Path) -> None:
+    """Patch without initial_commits has no TIMESTAMPS section."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
     ) as f:
@@ -287,7 +287,7 @@ def test_add_changespec_no_commits_no_timestamps(tmp_path: Path) -> None:
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="no_ts",
                 description="No timestamps",
@@ -304,7 +304,7 @@ def test_add_changespec_no_commits_no_timestamps(tmp_path: Path) -> None:
         os.unlink(project_file)
 
 
-def test_add_changespec_no_parent_bug_inherited_when_no_parent(tmp_path: Path) -> None:
+def test_add_patch_no_parent_bug_inherited_when_no_parent(tmp_path: Path) -> None:
     """Test that no BUG is inherited when there's no parent."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
@@ -317,7 +317,7 @@ def test_add_changespec_no_parent_bug_inherited_when_no_parent(tmp_path: Path) -
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="orphan_feature",
                 description="Orphan description",
@@ -328,8 +328,8 @@ def test_add_changespec_no_parent_bug_inherited_when_no_parent(tmp_path: Path) -
 
         assert result is not None
 
-        changespecs = parse_project_file(project_file)
-        cs = changespecs[0]
+        patches = parse_project_file(project_file)
+        cs = patches[0]
 
         # Should have no BUG since no parent and no explicit bug
         assert cs.bug is None
@@ -337,11 +337,11 @@ def test_add_changespec_no_parent_bug_inherited_when_no_parent(tmp_path: Path) -
         os.unlink(project_file)
 
 
-def test_add_changespec_drops_parent_when_not_found_anywhere(tmp_path: Path) -> None:
+def test_add_patch_drops_parent_when_not_found_anywhere(tmp_path: Path) -> None:
     """Bogus parent (not in active file, not in archive) is dropped with a warning.
 
     Regression guard: previously ``PARENT: p4head`` (or any other unresolvable
-    string) would be written verbatim into the generated ChangeSpec. Now the
+    string) would be written verbatim into the generated Patch. Now the
     PARENT line is omitted entirely when the parent does not resolve.
     """
     with tempfile.NamedTemporaryFile(
@@ -355,11 +355,11 @@ def test_add_changespec_drops_parent_when_not_found_anywhere(tmp_path: Path) -> 
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="child_feature",
                 description="Child description",
-                parent="p4head",  # hg sentinel — not a ChangeSpec name
+                parent="p4head",  # hg sentinel — not a Patch name
                 pr_url="http://cl/22222",
             )
 
@@ -372,15 +372,15 @@ def test_add_changespec_drops_parent_when_not_found_anywhere(tmp_path: Path) -> 
         assert "PARENT: p4head" not in content
         assert "PARENT:" not in content
 
-        # Parser agrees the ChangeSpec has no parent.
-        changespecs = parse_project_file(project_file)
-        child_cs = next(c for c in changespecs if c.name == "child_feature_1")
+        # Parser agrees the Patch has no parent.
+        patches = parse_project_file(project_file)
+        child_cs = next(c for c in patches if c.name == "child_feature_1")
         assert child_cs.parent is None
     finally:
         os.unlink(project_file)
 
 
-def test_add_changespec_keeps_parent_when_in_archive(tmp_path: Path) -> None:
+def test_add_patch_keeps_parent_when_in_archive(tmp_path: Path) -> None:
     """Parent in the archive (terminal CS) is valid — PARENT line is kept."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
@@ -400,7 +400,7 @@ def test_add_changespec_keeps_parent_when_in_archive(tmp_path: Path) -> None:
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="child_feature",
                 description="Child description",
@@ -410,8 +410,8 @@ def test_add_changespec_keeps_parent_when_in_archive(tmp_path: Path) -> None:
 
         assert result is not None
 
-        changespecs = parse_project_file(project_file)
-        child_cs = next(c for c in changespecs if c.name == "child_feature_1")
+        patches = parse_project_file(project_file)
+        child_cs = next(c for c in patches if c.name == "child_feature_1")
         assert child_cs.parent == "submitted_parent"
     finally:
         os.unlink(project_file)
@@ -419,7 +419,7 @@ def test_add_changespec_keeps_parent_when_in_archive(tmp_path: Path) -> None:
             os.unlink(archive_file)
 
 
-def test_add_changespec_keeps_real_active_parent(tmp_path: Path) -> None:
+def test_add_patch_keeps_real_active_parent(tmp_path: Path) -> None:
     """A real active parent still produces ``PARENT: <name>`` at the right spot."""
     parent_content = (
         "NAME: parent_feature\n"
@@ -438,7 +438,7 @@ def test_add_changespec_keeps_real_active_parent(tmp_path: Path) -> None:
             "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = add_changespec_to_project_file(
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="child_feature",
                 description="Child description",
@@ -448,8 +448,8 @@ def test_add_changespec_keeps_real_active_parent(tmp_path: Path) -> None:
 
         assert result is not None
 
-        changespecs = parse_project_file(project_file)
-        child_cs = next(c for c in changespecs if c.name == "child_feature_1")
+        patches = parse_project_file(project_file)
+        child_cs = next(c for c in patches if c.name == "child_feature_1")
         assert child_cs.parent == "parent_feature"
     finally:
         os.unlink(project_file)

@@ -1,9 +1,9 @@
-"""Functions for adding COMMITS entries to ChangeSpecs."""
+"""Functions for adding COMMITS entries to Patches."""
 
 import os
 import re
 
-from sase.ace.patch import changespec_lock, write_changespec_atomic
+from sase.ace.patch import patch_lock, write_patch_atomic
 from sase.ace.patch.section_order import PROJECT_SPEC_SECTION_HEADERS
 from sase.ace.patch.storage import (
     DEFAULT_STITCH_SECTION_HEADER,
@@ -97,33 +97,33 @@ def format_chat_line_with_duration(
 
 
 def get_next_commit_number(lines: list[str], cl_name: str) -> int:
-    """Get the next commit entry number for a ChangeSpec.
+    """Get the next commit entry number for a Patch.
 
     Only counts regular entries (not proposed entries with letter suffixes).
 
     Args:
         lines: Lines from the project file.
-        cl_name: The ChangeSpec name to find.
+        cl_name: The Patch name to find.
 
     Returns:
         The next commit entry number (1 if no entries exist).
     """
-    in_target_changespec = False
+    in_target_patch = False
     in_commits = False
     max_number = 0
 
     for line in lines:
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             in_commits = False
-        elif in_target_changespec:
+        elif in_target_patch:
             if is_stitch_section_header(line):
                 in_commits = True
             elif line.startswith(PROJECT_SPEC_SECTION_HEADERS):
                 in_commits = False
                 if line.startswith("NAME:"):
-                    in_target_changespec = False
+                    in_target_patch = False
             elif in_commits:
                 # Check for regular commit entry: (N) Note text (no letter suffix)
                 # Skip proposed entries like (2a)
@@ -140,7 +140,7 @@ def _get_last_regular_commit_number(lines: list[str], cl_name: str) -> int:
 
     Args:
         lines: Lines from the project file.
-        cl_name: The ChangeSpec name to find.
+        cl_name: The Patch name to find.
 
     Returns:
         The last regular commit entry number (0 if no entries exist).
@@ -153,28 +153,28 @@ def _get_next_proposal_letter(lines: list[str], cl_name: str, base_number: int) 
 
     Args:
         lines: Lines from the project file.
-        cl_name: The ChangeSpec name to find.
+        cl_name: The Patch name to find.
         base_number: The base commit number (e.g., 2 for 2a, 2b, etc.).
 
     Returns:
         The next available letter ('a' if none exist, 'b' if 'a' exists, etc.).
     """
-    in_target_changespec = False
+    in_target_patch = False
     in_commits = False
     used_letters: set[str] = set()
 
     for line in lines:
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             in_commits = False
-        elif in_target_changespec:
+        elif in_target_patch:
             if is_stitch_section_header(line):
                 in_commits = True
             elif line.startswith(PROJECT_SPEC_SECTION_HEADERS):
                 in_commits = False
                 if line.startswith("NAME:"):
-                    in_target_changespec = False
+                    in_target_patch = False
             elif in_commits:
                 # Check for proposed entry: (Na) where N is base_number
                 match = re.match(r"^\s*\((\d+)([a-z])\)\s+", line)
@@ -200,14 +200,14 @@ def add_proposed_commit_entry(
     body: list[str] | None = None,
     plan_path: str | None = None,
 ) -> tuple[bool, str | None]:
-    """Add a proposed COMMITS entry to a ChangeSpec.
+    """Add a proposed COMMITS entry to a Patch.
 
     Proposed entries have format (Na) where N is the last regular entry number.
     Acquires a lock for the entire read-modify-write cycle.
 
     Args:
         project_file: Path to the project file.
-        cl_name: The ChangeSpec name to add commit entry to.
+        cl_name: The Patch name to add commit entry to.
         note: The note for this commit entry.
         diff_path: Optional path to the diff file.
         chat_path: Optional path to the chat file.
@@ -218,7 +218,7 @@ def add_proposed_commit_entry(
         Tuple of (success, entry_id). entry_id is like "2a" if successful.
     """
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
@@ -231,22 +231,22 @@ def add_proposed_commit_entry(
             proposal_letter = _get_next_proposal_letter(lines, cl_name, base_number)
             entry_id = f"{base_number}{proposal_letter}"
 
-            # Find the ChangeSpec and determine where to add the commit entry
-            in_target_changespec = False
+            # Find the Patch and determine where to add the commit entry
+            in_target_patch = False
             commits_field_line = -1
             last_commit_entry_line = -1
-            changespec_end_line = -1
+            patch_end_line = -1
 
             in_commits_section = False
             for i, line in enumerate(lines):
                 if line.startswith("NAME: "):
                     current_name = line[6:].strip()
-                    if in_target_changespec:
-                        # We hit the next ChangeSpec, stop here
-                        changespec_end_line = i
+                    if in_target_patch:
+                        # We hit the next Patch, stop here
+                        patch_end_line = i
                         break
-                    in_target_changespec = current_name == cl_name
-                elif in_target_changespec:
+                    in_target_patch = current_name == cl_name
+                elif in_target_patch:
                     if is_stitch_section_header(line):
                         commits_field_line = i
                         in_commits_section = True
@@ -266,15 +266,15 @@ def add_proposed_commit_entry(
                         elif stripped and not stripped.startswith("#"):
                             # Non-commit, non-empty line - commits section ended
                             in_commits_section = False
-                            if changespec_end_line < 0:
-                                changespec_end_line = i
+                            if patch_end_line < 0:
+                                patch_end_line = i
 
             # Handle end of file
-            if in_target_changespec and changespec_end_line < 0:
-                changespec_end_line = len(lines)
+            if in_target_patch and patch_end_line < 0:
+                patch_end_line = len(lines)
 
-            if not in_target_changespec and changespec_end_line < 0:
-                # ChangeSpec not found
+            if not in_target_patch and patch_end_line < 0:
+                # Patch not found
                 return False, None
 
             # Build the commit entry (2-space indented, sub-fields 6-space indented)
@@ -304,15 +304,15 @@ def add_proposed_commit_entry(
                     insert_idx = commits_field_line + 1
             else:
                 # No COMMITS field - need to add one
-                # Find where to insert (before STATUS or at end of changespec)
-                insert_idx = changespec_end_line
+                # Find where to insert (before STATUS or at end of patch)
+                insert_idx = patch_end_line
                 for i, line in enumerate(lines):
-                    if in_target_changespec and line.startswith("STATUS:"):
+                    if in_target_patch and line.startswith("STATUS:"):
                         insert_idx = i
                         break
                     if line.startswith("NAME: "):
                         current_name = line[6:].strip()
-                        in_target_changespec = current_name == cl_name
+                        in_target_patch = current_name == cl_name
 
                 # Add canonical stitch-history header.
                 entry_lines.insert(0, f"{DEFAULT_STITCH_SECTION_HEADER}\n")
@@ -322,7 +322,7 @@ def add_proposed_commit_entry(
                 lines.insert(insert_idx + j, entry_line)
 
             # Write atomically
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "".join(lines),
                 f"Add proposed commit entry {entry_id} for {cl_name}",
@@ -355,13 +355,13 @@ def add_commit_entry_with_id(
     body: list[str] | None = None,
     plan_path: str | None = None,
 ) -> tuple[bool, str | None]:
-    """Add a new COMMITS entry to a ChangeSpec, returning the entry ID.
+    """Add a new COMMITS entry to a Patch, returning the entry ID.
 
     Acquires a lock for the entire read-modify-write cycle.
 
     Args:
         project_file: Path to the project file.
-        cl_name: The ChangeSpec name to add commit entry to.
+        cl_name: The Patch name to add commit entry to.
         note: The note for this commit entry.
         diff_path: Optional path to the diff file.
         chat_path: Optional path to the chat file.
@@ -372,26 +372,26 @@ def add_commit_entry_with_id(
         Tuple of (success, entry_id). entry_id is like "1", "2" if successful.
     """
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
-            # Find the ChangeSpec and determine where to add the commit entry
-            in_target_changespec = False
+            # Find the Patch and determine where to add the commit entry
+            in_target_patch = False
             commits_field_line = -1
             last_commit_entry_line = -1
-            changespec_end_line = -1
+            patch_end_line = -1
 
             in_commits_section = False
             for i, line in enumerate(lines):
                 if line.startswith("NAME: "):
                     current_name = line[6:].strip()
-                    if in_target_changespec:
-                        # We hit the next ChangeSpec, stop here
-                        changespec_end_line = i
+                    if in_target_patch:
+                        # We hit the next Patch, stop here
+                        patch_end_line = i
                         break
-                    in_target_changespec = current_name == cl_name
-                elif in_target_changespec:
+                    in_target_patch = current_name == cl_name
+                elif in_target_patch:
                     if is_stitch_section_header(line):
                         commits_field_line = i
                         in_commits_section = True
@@ -410,15 +410,15 @@ def add_commit_entry_with_id(
                         elif stripped and not stripped.startswith("#"):
                             # Non-commit, non-empty line - commits section ended
                             in_commits_section = False
-                            if changespec_end_line < 0:
-                                changespec_end_line = i
+                            if patch_end_line < 0:
+                                patch_end_line = i
 
             # Handle end of file
-            if in_target_changespec and changespec_end_line < 0:
-                changespec_end_line = len(lines)
+            if in_target_patch and patch_end_line < 0:
+                patch_end_line = len(lines)
 
-            if not in_target_changespec and changespec_end_line < 0:
-                # ChangeSpec not found
+            if not in_target_patch and patch_end_line < 0:
+                # Patch not found
                 return False, None
 
             # Get the next commit number
@@ -451,15 +451,15 @@ def add_commit_entry_with_id(
                     insert_idx = commits_field_line + 1
             else:
                 # No COMMITS field - need to add one
-                # Find where to insert (before STATUS or at end of changespec)
-                insert_idx = changespec_end_line
+                # Find where to insert (before STATUS or at end of patch)
+                insert_idx = patch_end_line
                 for i, line in enumerate(lines):
-                    if in_target_changespec and line.startswith("STATUS:"):
+                    if in_target_patch and line.startswith("STATUS:"):
                         insert_idx = i
                         break
                     if line.startswith("NAME: "):
                         current_name = line[6:].strip()
-                        in_target_changespec = current_name == cl_name
+                        in_target_patch = current_name == cl_name
 
                 # Add canonical stitch-history header.
                 entry_lines.insert(0, f"{DEFAULT_STITCH_SECTION_HEADER}\n")
@@ -469,7 +469,7 @@ def add_commit_entry_with_id(
                 lines.insert(insert_idx + j, entry_line)
 
             # Write atomically
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "".join(lines),
                 f"Add commit entry {next_num} for {cl_name}",
@@ -502,13 +502,13 @@ def add_commit_entry(
     body: list[str] | None = None,
     plan_path: str | None = None,
 ) -> bool:
-    """Add a new COMMITS entry to a ChangeSpec.
+    """Add a new COMMITS entry to a Patch.
 
     Compatibility wrapper around :func:`add_commit_entry_with_id`.
 
     Args:
         project_file: Path to the project file.
-        cl_name: The ChangeSpec name to add commit entry to.
+        cl_name: The Patch name to add commit entry to.
         note: The note for this commit entry.
         diff_path: Optional path to the diff file.
         chat_path: Optional path to the chat file.

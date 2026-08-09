@@ -204,7 +204,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
                 "sase patch search '<query>' -f markdown",
                 "Patches can carry a `REFS:` section",
                 "sase patch ref add --patch <name>",
-                "project.changespec_refs",
+                "project.patch_refs",
             ),
         ),
         (

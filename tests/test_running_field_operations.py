@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.ace.changespec import write_changespec_atomic
+from sase.ace.patch import write_patch_atomic
 from sase.running_field import (
     WorkspaceClaim,
     WorkspaceClaimError,
@@ -153,8 +153,8 @@ def test_hold_workspace_claim_preserves_identity_and_pins_atomically(
     )
     try:
         with patch(
-            "sase.running_field._operations.write_changespec_atomic",
-            wraps=write_changespec_atomic,
+            "sase.running_field._operations.write_patch_atomic",
+            wraps=write_patch_atomic,
         ) as write_atomic:
             result = hold_workspace_claim(
                 project_file,

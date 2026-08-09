@@ -1,6 +1,6 @@
 """Orchestration for ``sase plugin show <plugin_name>``: find, then render or JSON.
 
-Like :mod:`sase.plugins.cli_list`, this is the ChangeSpecI-facing seam on top of the
+Like :mod:`sase.plugins.cli_list`, this is the PatchI-facing seam on top of the
 Phase 1 catalog engine. It loads the catalog via
 :func:`sase.plugins.catalog.load_plugin_catalog`, resolves the requested plugin
 with :func:`sase.plugins.catalog.find_plugin`, and either prints the stable

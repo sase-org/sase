@@ -107,7 +107,7 @@ def resume_commit_workflow(
         ).inc()
         return RunResult.FAILED
 
-    _reconcile_changespec_from_project_file(wf, cp, checkpoint_save)
+    _reconcile_patch_from_project_file(wf, cp, checkpoint_save)
 
     tracking_result = wf._run_tracking_steps(cp, cp.dispatch_result)
     if tracking_result != RunResult.OK:
@@ -142,22 +142,22 @@ def _get_head_subject(provider: object, cwd: str) -> str | None:
     return desc.strip().splitlines()[0] if desc.strip() else ""
 
 
-def _reconcile_changespec_from_project_file(
+def _reconcile_patch_from_project_file(
     wf: CommitWorkflow,
     cp: CommitCheckpoint,
     checkpoint_save: Callable[[CommitCheckpoint], str | None],
 ) -> None:
-    """Checkpoint a ChangeSpec already recorded by a prior attempt."""
+    """Checkpoint a Patch already recorded by a prior attempt."""
     if wf._method != "create_pull_request":
         return
-    if "create_changespec" in cp.completed_steps:
+    if "create_patch" in cp.completed_steps:
         return
     candidate = cp.cs_name or wf._reserved_name
     if not candidate or not wf._project_file:
         return
     if _changespec_name_in_project_file(wf._project_file, candidate):
         cp.cs_name = candidate
-        cp.completed_steps.append("create_changespec")
+        cp.completed_steps.append("create_patch")
         checkpoint_save(cp)
 
 

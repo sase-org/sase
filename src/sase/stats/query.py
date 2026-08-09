@@ -19,7 +19,7 @@ RuntimeGroupBy = Literal[
     "model",
     "workflow",
     "project",
-    "changespec",
+    "patch",
 ]
 
 

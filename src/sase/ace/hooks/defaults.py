@@ -3,7 +3,7 @@
 from sase.vcs_provider.config import get_vcs_provider_config
 
 
-def get_required_changespec_hooks() -> tuple[str, ...]:
+def get_required_patch_hooks() -> tuple[str, ...]:
     """Get the required hooks for new ChangeSpecs.
 
     Reads ``vcs_provider.default_hooks`` from the merged config (sase.yml +
@@ -18,3 +18,6 @@ def get_required_changespec_hooks() -> tuple[str, ...]:
     if hooks:
         return tuple(hooks)
     return ()
+
+
+get_required_changespec_hooks = get_required_patch_hooks  # legacy API alias

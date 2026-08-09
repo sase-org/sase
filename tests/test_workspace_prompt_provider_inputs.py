@@ -34,7 +34,7 @@ def test_fix_hook_ref_free_invocation_remains_ref_free() -> None:
     assert expanded.startswith("The command `just test` is failing.")
 
 
-def test_fix_hook_changespec_requires_provider() -> None:
+def test_fix_hook_patch_requires_provider() -> None:
     with pytest.raises(SystemExit):
         process_xprompt_references(
             '#fix_hook(hook_command="just test", output_file="/tmp/hook-output", '

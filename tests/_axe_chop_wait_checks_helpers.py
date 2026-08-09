@@ -20,8 +20,8 @@ def write_context(tmp_path: Path) -> Path:
             query="status:Ready",
             lumberjack_name="wait_checks",
             state_dir=str(tmp_path / "state"),
-            all_changespecs_file=str(tmp_path / "all.json"),
-            filtered_changespecs_file=str(tmp_path / "filtered.json"),
+            all_patches_file=str(tmp_path / "all.json"),
+            filtered_patches_file=str(tmp_path / "filtered.json"),
         ),
         str(path),
     )

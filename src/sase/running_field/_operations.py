@@ -4,7 +4,7 @@ import os
 import time
 from pathlib import Path
 
-from sase.ace.patch import changespec_lock, write_changespec_atomic
+from sase.ace.patch import patch_lock, write_patch_atomic
 from sase.core.agent_launch_claims import (
     allocate_and_claim_workspace_from_content,
     list_workspace_claims_from_content,
@@ -87,7 +87,7 @@ def claim_workspace(
         workspace_num: Workspace number to claim (1 = main, 2+ = shares)
         workflow: Name of the workflow claiming the workspace
         pid: Process ID of the claiming process (required)
-        cl_name: Optional ChangeSpec name being worked on
+        cl_name: Optional Patch name being worked on
         artifacts_timestamp: Optional timestamp of the artifacts directory (YYYYmmddHHMMSS)
         pinned: If True, the claim is pinned and won't be cleaned up as stale
 
@@ -109,7 +109,7 @@ def claim_workspace(
             return ClaimResult(success=False, error=last_error)
 
         try:
-            with changespec_lock(project_file):
+            with patch_lock(project_file):
                 with open(project_file, encoding="utf-8") as f:
                     content = f.read()
 
@@ -137,7 +137,7 @@ def claim_workspace(
                     return ClaimResult(success=False, error=str(reason))
 
                 cl_part = f" for {cl_name}" if cl_name else ""
-                write_changespec_atomic(
+                write_patch_atomic(
                     project_file,
                     str(plan["content"]),
                     f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
@@ -171,7 +171,7 @@ def release_workspace(
         project_file: Path to the ProjectSpec file
         workspace_num: Workspace number to release
         workflow: Optional workflow name to match (for more specific release)
-        cl_name: Optional ChangeSpec name to match (for more specific release)
+        cl_name: Optional Patch name to match (for more specific release)
 
     Returns:
         ClaimResult.  ``success`` is True on a successful release; on
@@ -185,7 +185,7 @@ def release_workspace(
         )
 
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
 
@@ -247,7 +247,7 @@ def release_workspace(
                     result_content = clean_orphaned_blank_lines(result_content)
 
             # Write atomically
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 result_content,
                 f"Release workspace #{workspace_num}",
@@ -279,7 +279,7 @@ def hold_workspace_claim(
         )
 
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
 
@@ -340,7 +340,7 @@ def hold_workspace_claim(
                 )
                 return ClaimResult(success=False, error=str(reason))
 
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 str(plan["content"]),
                 f"Hold workspace #{workspace_num} for failed agent run",
@@ -379,7 +379,7 @@ def transfer_workspace_claim(
         )
 
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
 
@@ -403,7 +403,7 @@ def transfer_workspace_claim(
                 )
                 return ClaimResult(success=False, error=str(reason))
 
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 str(plan["content"]),
                 f"Transfer workspace #{workspace_num} from pid {from_pid} to {to_pid}",
@@ -420,14 +420,14 @@ def update_running_field_cl_name(
 ) -> bool:
     """Update the cl_name in RUNNING field entries.
 
-    This is used when a ChangeSpec is renamed (e.g., during restore) to
+    This is used when a Patch is renamed (e.g., during restore) to
     ensure the RUNNING field entries reference the new name.
     Acquires a lock for the entire read-modify-write cycle.
 
     Args:
         project_file: Path to the ProjectSpec file
-        old_cl_name: The old ChangeSpec name to replace
-        new_cl_name: The new ChangeSpec name
+        old_cl_name: The old Patch name to replace
+        new_cl_name: The new Patch name
 
     Returns:
         True if update was successful, False otherwise
@@ -436,7 +436,7 @@ def update_running_field_cl_name(
         return False
 
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
                 lines = content.split("\n")
@@ -476,7 +476,7 @@ def update_running_field_cl_name(
                 return True
 
             # Write atomically
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "\n".join(new_lines),
                 f"Rename {old_cl_name} to {new_cl_name} in RUNNING field",
@@ -512,7 +512,7 @@ def claim_next_axe_workspace(
         project_file: Path to the ProjectSpec file.
         workflow: Name of the workflow claiming the workspace.
         pid: Process ID of the claiming process.
-        cl_name: Optional ChangeSpec name being worked on.
+        cl_name: Optional Patch name being worked on.
         artifacts_timestamp: Optional timestamp of the artifacts directory.
         pinned: If True, the claim is pinned and won't be cleaned up as stale.
         min_workspace: Minimum workspace number to consider (default: 10).
@@ -545,7 +545,7 @@ def claim_next_axe_workspace(
             raise WorkspaceClaimError(f"Project file does not exist: {project_file}")
 
         try:
-            with changespec_lock(project_file):
+            with patch_lock(project_file):
                 with open(project_file, encoding="utf-8") as f:
                     content = f.read()
 
@@ -579,7 +579,7 @@ def claim_next_axe_workspace(
                 workspace_num = int(outcome["workspace_num"])
 
                 cl_part = f" for {cl_name}" if cl_name else ""
-                write_changespec_atomic(
+                write_patch_atomic(
                     project_file,
                     str(plan["content"]),
                     f"Claim workspace #{workspace_num} ({workflow}){cl_part}",

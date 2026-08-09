@@ -72,7 +72,7 @@ class _ValidatedPlan:
     model: str | None
     title: str
     phases: tuple[ValidatedPlanPhase, ...]
-    changespec: str | None
+    patch: str | None
     bug_id: int | None
     parent_bead: str | None
     bead: str | None
@@ -107,7 +107,31 @@ def validate_plan(
     retaining the validator's warning.
     """
     binding = require_rust_binding("plan_validate")
-    return _validation_result_from_dict(binding(content, tier, mode))
+    return _validation_result_from_dict(
+        binding(_content_for_core_plan_validator(content), tier, mode)
+    )
+
+
+def _content_for_core_plan_validator(content: str) -> str:
+    """Translate authored Patch frontmatter to the current Rust schema."""
+    from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
+
+    frontmatter, _body, had_frontmatter = parse_frontmatter(content)
+    if (
+        not had_frontmatter
+        or "patch" not in frontmatter
+        or "changespec" in frontmatter  # legacy core field
+    ):
+        return content
+    value = frontmatter["patch"]
+    translated = set_frontmatter_fields(
+        content,
+        {
+            "patch": None,
+            "changespec": value,  # legacy core field
+        },
+    )
+    return translated.replace("patch: null\n", "")
 
 
 def validate_plan_file(
@@ -196,7 +220,9 @@ def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
         model=_optional_str(payload.get("model")),
         title=str(payload["title"]),
         phases=tuple(_validated_phase_from_dict(item) for item in payload["phases"]),
-        changespec=_optional_str(payload.get("changespec")),
+        patch=_optional_str(
+            payload.get("patch", payload.get("changespec"))  # legacy core field
+        ),
         bug_id=(int(payload["bug_id"]) if payload.get("bug_id") is not None else None),
         parent_bead=_optional_str(payload.get("parent_bead")),
         bead=_optional_str(payload.get("bead")),

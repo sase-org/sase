@@ -1,4 +1,4 @@
-"""Create a ChangeSpec after an agent workflow pushes commits."""
+"""Create a Patch after an agent workflow pushes commits."""
 
 import os
 import re
@@ -6,7 +6,7 @@ import subprocess
 
 from sase.history.chat import save_chat_history
 from sase.ace.deltas import refresh_deltas_after_commits_change
-from sase.workflows.commit.patch_operations import add_changespec_to_project_file
+from sase.workflows.commit.patch_operations import add_patch_to_project_file
 from sase.core.paths import (
     make_safe_filename,
     sharded_path,
@@ -15,7 +15,7 @@ from sase.core.paths import (
 from sase.core.time import generate_timestamp
 from sase.project_display_names import humanize_cl_name, project_display_name_for
 from sase.workflows.commit.plan_paths import format_sase_plan_reference
-from sase.workflows.utils import get_initial_hooks_for_changespec
+from sase.workflows.utils import get_initial_hooks_for_patch
 
 _CONVENTIONAL_PREFIXES = re.compile(
     r"^(feat|fix|chore|ref|docs|test|ci|build|perf|style)\s*:\s*",
@@ -49,7 +49,7 @@ def _get_commits_ahead(checkout_target: str, branch_name: str) -> list[str]:
 
 
 def _derive_cl_name(project_name: str, commit_subjects: list[str]) -> str:
-    """Build a snake_case ChangeSpec name from the first commit subject."""
+    """Build a snake_case Patch name from the first commit subject."""
     if not commit_subjects:
         return f"{project_name}_agent_changes"
 
@@ -125,7 +125,7 @@ def _save_committed_diff(
     return shorten_path(diff_path)
 
 
-def create_changespec_for_workflow(
+def create_patch_for_workflow(
     project_name: str,
     project_file: str,
     checkout_target: str,
@@ -142,9 +142,9 @@ def create_changespec_for_workflow(
     reserved_name: str | None = None,
     **legacy_kwargs: object,
 ) -> str | None:
-    """Create a ChangeSpec for commits produced by an agent workflow.
+    """Create a Patch for commits produced by an agent workflow.
 
-    Returns the suffixed ChangeSpec name on success, or ``None`` when the
+    Returns the suffixed Patch name on success, or ``None`` when the
     agent branch has no new commits relative to *checkout_target* and no
     *commit_description* fallback is provided.
 
@@ -153,7 +153,7 @@ def create_changespec_for_workflow(
             DESCRIPTION source when provided, and as a fallback commit
             subject when ``git log`` returns empty.
         reserved_name: Pre-computed suffixed name from a prior reservation.
-            Passed through to ``add_changespec_to_project_file`` to replace
+            Passed through to ``add_patch_to_project_file`` to replace
             the reservation in-place.
     """
     from sase.vcs_provider.config import strip_pr_tags
@@ -199,7 +199,7 @@ def create_changespec_for_workflow(
             timestamp=ts,
         )
     diff_path = _save_committed_diff(cl_name, checkout_target, branch_name, ts)
-    hooks = get_initial_hooks_for_changespec(verbose=False)
+    hooks = get_initial_hooks_for_patch(verbose=False)
 
     # Compute display path for plan.
     plan_display: str | None = None
@@ -211,7 +211,7 @@ def create_changespec_for_workflow(
     if plan_display:
         initial_commit = (*initial_commit, None, plan_display)
 
-    result = add_changespec_to_project_file(
+    result = add_patch_to_project_file(
         project_name,
         cl_name,
         description,
@@ -234,7 +234,7 @@ def create_changespec_for_workflow(
     return result
 
 
-create_patch_for_workflow = create_changespec_for_workflow
+create_patch_for_workflow = create_patch_for_workflow
 
 
 __all__ = [
@@ -242,6 +242,6 @@ __all__ = [
     "_derive_cl_name",
     "_get_commits_ahead",
     "_save_committed_diff",
-    "create_changespec_for_workflow",
+    "create_patch_for_workflow",
     "create_patch_for_workflow",
 ]

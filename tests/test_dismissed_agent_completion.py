@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -87,14 +86,14 @@ def test_failed_archived_statuses_remain_blocking(
 
 
 @pytest.mark.parametrize(
-    ("bundle_name", "bundle_changespec"),
+    ("bundle_name", "bundle_patch"),
     [("other", "change"), ("worker", "other-change")],
 )
-def test_archive_name_and_changespec_mismatches_fail_closed(
+def test_archive_name_and_patch_mismatches_fail_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     bundle_name: str,
-    bundle_changespec: str,
+    bundle_patch: str,
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     artifact_dir = make_agent(
@@ -108,7 +107,7 @@ def test_archive_name_and_changespec_mismatches_fail_closed(
         tmp_path,
         artifact_dir,
         bundle_name,
-        changespec_name=bundle_changespec,
+        changespec_name=bundle_patch,
     )
     rebuild_completion_archive()
 

@@ -92,7 +92,7 @@ _LISTING_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
 
 
 def _scan_listing_snapshot() -> AgentArtifactScanWire:
-    """Acquire one ace-run snapshot for the ChangeSpecI listing call sites."""
+    """Acquire one ace-run snapshot for the CLI listing call sites."""
     # Local import: ``sase.core.agent_scan_facade`` pulls in the TUI loader
     # chain at import time (for the shared mtime cache), which transitively
     # imports ``sase.agent`` again. A module-level import here would

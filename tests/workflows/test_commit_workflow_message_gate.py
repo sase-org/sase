@@ -52,7 +52,7 @@ def _run_until_dispatch(
         stack.enter_context(patch("sase.workflows.commit.workflow.build_pr_body"))
         stack.enter_context(
             patch(
-                "sase.workflows.commit.workflow.detect_parent_changespec",
+                "sase.workflows.commit.workflow.detect_parent_patch",
                 return_value=None,
             )
         )

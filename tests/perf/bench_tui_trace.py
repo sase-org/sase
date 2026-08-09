@@ -32,19 +32,14 @@ from sase.xprompt import xprompt_inspect
 
 from .fixtures import (
     AGENT_SIZES,
-    CHANGESPEC_SIZES,
-    HINT_FAMILY_MEMBER_COUNT,
+    PATCH_SIZES,
     HINT_REPLY_SIZE_KB,
 )
 from .tui_trace.common import (
     _read_jsonl,
-    _summarize_jk,
     _summarize_spans,
-    _wait_for_startup,
 )
 from .tui_trace.scenarios import (
-    _DEFAULT_J_KEYS,
-    _QUERY_EDIT_SEQUENCE,
     _run_full_baseline,
     _run_scenario,
 )
@@ -52,9 +47,7 @@ from .tui_trace.view_hints import (
     VIEW_HINTS_BASELINE_PATH,
     VIEW_HINTS_BASELINE_RUNS,
     VIEW_HINTS_STEPS,
-    _HINT_RENDER_SPAN,
     _run_view_hints_scenario,
-    _summarize_hint_counters,
     run_view_hints_baseline,
 )
 
@@ -82,7 +75,7 @@ async def test_baseline_smoke(_trace_env: tuple[Path, Path, Path]) -> None:
     """Smoke test: run the smallest fixture and confirm trace JSONL fills."""
     trace_path, _perf_path, gp_file = _trace_env
     result = await _run_scenario(
-        CHANGESPEC_SIZES[0],
+        PATCH_SIZES[0],
         AGENT_SIZES[0],
         j_keys=10,
         gp_file=gp_file,
@@ -91,11 +84,11 @@ async def test_baseline_smoke(_trace_env: tuple[Path, Path, Path]) -> None:
     spans = _read_jsonl(trace_path)
     assert spans, "tui_trace.jsonl was empty — instrumentation may not be wired"
     summary = _summarize_spans(spans)
-    assert "changespec.filter" in summary, (
-        f"missing changespec.filter span; saw {sorted(summary)}"
+    assert "patch.filter" in summary, (
+        f"missing patch.filter span; saw {sorted(summary)}"
     )
-    assert any(name.startswith("widget.changespec_list.") for name in summary), (
-        f"missing changespec_list spans; saw {sorted(summary)}"
+    assert any(name.startswith("widget.patch_list.") for name in summary), (
+        f"missing patch_list spans; saw {sorted(summary)}"
     )
     print(json.dumps(result, indent=2), file=sys.stderr)
 

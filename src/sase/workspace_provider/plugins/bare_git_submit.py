@@ -88,20 +88,20 @@ def prepare_mail_git(
 
 
 def submit_bare_git(
-    changespec_file: str,
+    patch_file: str,
     changespec_name: str,
     project_basename: str,
     console: object | None,
 ) -> tuple[bool, str | None]:
-    """Submit a bare-git ChangeSpec by merging its branch to the default branch.
+    """Submit a bare-git Patch by merging its branch to the default branch.
 
-    After merging, renames the ChangeSpec with a timestamp suffix and
+    After merging, renames the Patch with a timestamp suffix and
     transitions its status to Submitted.
     """
     from rich.console import Console
     from rich.markup import escape as escape_markup
 
-    from sase.ace.patch import find_all_changespecs
+    from sase.ace.patch import find_all_patches
     from sase.ace.hooks.processes import kill_and_persist_all_running_processes
     from sase.ace.operations import has_active_children
     from sase.running_field import (
@@ -114,14 +114,14 @@ def submit_bare_git(
 
     rich_console: Console | None = console if isinstance(console, Console) else None
 
-    # Find the ChangeSpec object for process/children checks
-    all_changespecs = find_all_changespecs()
-    changespec = None
-    for cs in all_changespecs:
+    # Find the Patch object for process/children checks
+    all_patches = find_all_patches()
+    patch = None
+    for cs in all_patches:
         if cs.name == changespec_name:
-            changespec = cs
+            patch = cs
             break
-    if changespec is None:
+    if patch is None:
         return (False, f"ChangeSpec '{changespec_name}' not found")
 
     # Kill any running processes before submitting
@@ -131,32 +131,32 @@ def submit_bare_git(
         else None
     )
     kill_and_persist_all_running_processes(
-        changespec,
-        changespec_file,
+        patch,
+        patch_file,
         changespec_name,
-        "Killed hook running on submitted ChangeSpec.",
+        "Killed hook running on submitted Patch.",
         log_fn=log_fn,
     )
 
     # Validate no active children
     if has_active_children(
-        changespec,
-        all_changespecs,
+        patch,
+        all_patches,
         terminal_statuses=("Submitted", "Reverted", "Archived"),
     ):
         return (
             False,
-            "Cannot submit: other ChangeSpecs have this one as their parent "
+            "Cannot submit: other Patches have this one as their parent "
             "and are not Submitted, Reverted, or Archived",
         )
 
     # Get workspace info
-    workspace_dir = parse_workspace_dir(changespec_file)
+    workspace_dir = parse_workspace_dir(patch_file)
     if not workspace_dir:
         return (False, "WORKSPACE_DIR is not set for this project")
 
     # Claim a workspace from the unified pool (#10+) for the submit operation
-    workspace_num = get_first_available_axe_workspace(changespec_file)
+    workspace_num = get_first_available_axe_workspace(patch_file)
     workflow_name = f"submit-{changespec_name}"
     pid = os.getpid()
 
@@ -169,7 +169,7 @@ def submit_bare_git(
         rich_console.print(f"[cyan]Claiming workspace #{workspace_num}[/cyan]")
 
     claim_result = claim_workspace(
-        changespec_file, workspace_num, workflow_name, pid, changespec_name
+        patch_file, workspace_num, workflow_name, pid, changespec_name
     )
     if not claim_result.success:
         return (
@@ -213,7 +213,7 @@ def submit_bare_git(
 
         # Bare git: local merge + push
         return _submit_via_local_merge(
-            changespec_file,
+            patch_file,
             changespec_name,
             project_basename,
             ws_dir,
@@ -224,7 +224,7 @@ def submit_bare_git(
 
     finally:
         release_workspace(
-            changespec_file,
+            patch_file,
             workspace_num,
             workflow_name,
             changespec_name,
@@ -234,7 +234,7 @@ def submit_bare_git(
 
 
 def _submit_via_local_merge(
-    changespec_file: str,
+    patch_file: str,
     changespec_name: str,
     project_basename: str,
     ws_dir: str,
@@ -309,4 +309,4 @@ def _submit_via_local_merge(
             f"[green]Deleted branch {escape_markup(branch_name)}[/green]"
         )
 
-    return finalize_submission(changespec_file, changespec_name, rich_console)
+    return finalize_submission(patch_file, changespec_name, rich_console)

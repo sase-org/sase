@@ -19,7 +19,7 @@ import time
 import traceback as tb_mod
 from pathlib import Path
 
-from sase.ace.patch import ChangeSpec, parse_project_file
+from sase.ace.patch import Patch, parse_project_file
 from sase.ace.hooks import (
     contract_test_target_command,
     format_duration,
@@ -52,7 +52,7 @@ from sase.xprompt import escape_for_xprompt, process_xprompt_references
 
 
 def _update_hook_suffix(
-    cs: ChangeSpec,
+    cs: Patch,
     project_file: str,
     proposal_id: str | None,
     exit_code: int,
@@ -377,7 +377,7 @@ def main() -> int:
                 "cl_name": changespec_name,
             }
         else:
-            action = "JumpToChangeSpec"
+            action = "JumpToChangeSpec"  # legacy notification action
             action_data = {
                 "patch_name": changespec_name,
                 "changespec_name": changespec_name,

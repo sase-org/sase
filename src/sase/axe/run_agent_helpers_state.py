@@ -65,15 +65,15 @@ def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
         metadata["meta_new_commit"] = result
     if cwd := _text(commit_result.get("cwd")):
         metadata["meta_commit_cwd"] = cwd
-    if changespec := (
+    if patch := (
         _text(commit_result.get("patch_name"))
         or _text(commit_result.get("changespec_name"))
         or _text(commit_result.get("commit_patch_name"))
         or _text(commit_result.get("commit_changespec_name"))
         or _text(commit_result.get("name"))
     ):
-        metadata["meta_patch"] = changespec
-        metadata["meta_changespec"] = changespec
+        metadata["meta_patch"] = patch
+        metadata["meta_changespec"] = patch  # legacy metadata key
     if diff_path := _text(commit_result.get("diff_path")):
         metadata["diff_path"] = diff_path
     if committed_at := _committed_at_text(commit_result.get("committed_at")):

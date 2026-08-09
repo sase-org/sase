@@ -210,7 +210,7 @@ def _fetch_or_fall_back(
         payload = fetch_fn()
     except GhNotFoundError:
         # A missing gh is always a hard error: never silently serve stale data
-        # without the user knowing the ChangeSpecI they need is absent.
+        # without the user knowing the CLI they need is absent.
         raise
     except PluginCatalogError as exc:
         if cached is None:

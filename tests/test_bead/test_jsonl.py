@@ -13,7 +13,7 @@ from sase.bead.db import (
     list_issues,
 )
 from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
-from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.model import Issue, IssueType
 
 NOW = "2026-03-17T00:00:00Z"
 
@@ -92,7 +92,7 @@ class TestExport:
         assert len(e2_data["dependencies"]) == 1
         assert e2_data["dependencies"][0]["depends_on_id"] == "e-1"
 
-    def test_export_includes_changespec_metadata(
+    def test_export_includes_patch_metadata(
         self, conn: sqlite3.Connection, tmp_path: object
     ) -> None:
         from pathlib import Path
@@ -295,7 +295,7 @@ class TestImport:
         assert first is not None and first.refs == with_refs["refs"]
         assert second is not None and second.refs == []
 
-    def test_import_changespec_metadata(
+    def test_import_patch_metadata(
         self, conn: sqlite3.Connection, tmp_path: object
     ) -> None:
         from pathlib import Path
@@ -347,7 +347,7 @@ class TestImport:
         assert issue.patch_name == "feature_epic"
         assert issue.patch_bug_id == "12345"
 
-    def test_import_missing_changespec_metadata_defaults_empty(
+    def test_import_missing_patch_metadata_defaults_empty(
         self, conn: sqlite3.Connection, tmp_path: object
     ) -> None:
         from pathlib import Path
@@ -497,7 +497,7 @@ class TestRoundTrip:
         finally:
             conn2.close()
 
-    def test_export_import_roundtrip_changespec_metadata(
+    def test_export_import_roundtrip_patch_metadata(
         self, conn: sqlite3.Connection, tmp_path: object
     ) -> None:
         from pathlib import Path
@@ -511,7 +511,7 @@ class TestRoundTrip:
         jsonl_path = tmp_path / "issues.jsonl"
         export_to_jsonl(conn, jsonl_path)
 
-        conn2 = init_db(tmp_path / "test_changespec_roundtrip.db")
+        conn2 = init_db(tmp_path / "test_patch_roundtrip.db")
         try:
             import_from_jsonl(jsonl_path, conn2)
             imported = get_issue(conn2, "e-1")

@@ -18,7 +18,7 @@ def launch_bead_work_agents(
 ) -> list[AgentLaunchResult]:
     """Launch the rendered bead-work multi-prompt.
 
-    When a VCS/ChangeSpec launch context was resolved (every segment carries an
+    When a VCS/Patch launch context was resolved (every segment carries an
     explicit ``#<workflow>:<ref>`` prefix), dispatch through the fast planned
     adapter that skips generic fan-out discovery. Otherwise fall back to the
     generic CWD launcher, which resolves project context from the workspace.

@@ -2,8 +2,8 @@
 
 from unittest.mock import patch
 
-from sase.ace.changespec import (
-    ChangeSpec,
+from sase.ace.patch import (
+    Patch,
     CommentEntry,
     CommitEntry,
     HookEntry,
@@ -16,7 +16,7 @@ from sase.ace.scheduler.suffix_transforms import strip_terminal_status_markers
 
 def test_strip_terminal_status_markers_skips_drafted() -> None:
     """Test strip_terminal_status_markers skips Ready status."""
-    cs = ChangeSpec(
+    cs = Patch(
         name="test",
         description="Test",
         parent=None,
@@ -41,7 +41,7 @@ def test_strip_terminal_status_markers_skips_drafted() -> None:
 
 def test_strip_terminal_status_markers_processes_reverted() -> None:
     """Test strip_terminal_status_markers processes Reverted status."""
-    cs = ChangeSpec(
+    cs = Patch(
         name="test",
         description="Test",
         parent=None,
@@ -71,7 +71,7 @@ def test_strip_terminal_status_markers_processes_reverted() -> None:
 
 def test_strip_terminal_status_markers_skips_plain_suffix() -> None:
     """Test strip_terminal_status_markers skips plain suffixes (only strips error)."""
-    cs = ChangeSpec(
+    cs = Patch(
         name="test",
         description="Test",
         parent=None,
@@ -108,7 +108,7 @@ def test_strip_terminal_status_markers_processes_hooks() -> None:
             )
         ],
     )
-    cs = ChangeSpec(
+    cs = Patch(
         name="test",
         description="Test",
         parent=None,
@@ -120,7 +120,7 @@ def test_strip_terminal_status_markers_processes_hooks() -> None:
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.transform_changespec_hooks_field",
+        "sase.ace.scheduler.suffix_transforms.transform_patch_hooks_field",
         side_effect=lambda _path, _name, transform: transform([hook]) != [hook],
     ):
         result = strip_terminal_status_markers(cs)
@@ -137,7 +137,7 @@ def test_strip_terminal_status_markers_processes_comments() -> None:
         suffix="ZOMBIE",
         suffix_type="error",
     )
-    cs = ChangeSpec(
+    cs = Patch(
         name="test",
         description="Test",
         parent=None,
@@ -149,7 +149,7 @@ def test_strip_terminal_status_markers_processes_comments() -> None:
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.transform_changespec_comments_field",
+        "sase.ace.scheduler.suffix_transforms.transform_patch_comments_field",
         side_effect=lambda _path, _name, transform: transform([comment]) != [comment],
     ):
         result = strip_terminal_status_markers(cs)
@@ -172,7 +172,7 @@ def test_strip_terminal_status_markers_processes_hooks_empty_running_agent() -> 
             )
         ],
     )
-    cs = ChangeSpec(
+    cs = Patch(
         name="test",
         description="Test",
         parent=None,
@@ -184,7 +184,7 @@ def test_strip_terminal_status_markers_processes_hooks_empty_running_agent() -> 
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.transform_changespec_hooks_field",
+        "sase.ace.scheduler.suffix_transforms.transform_patch_hooks_field",
         side_effect=lambda _path, _name, transform: transform([hook]) != [hook],
     ):
         result = strip_terminal_status_markers(cs)
@@ -202,7 +202,7 @@ def test_strip_terminal_status_markers_processes_comments_running_agent() -> Non
         suffix="241226_120000",
         suffix_type="running_agent",
     )
-    cs = ChangeSpec(
+    cs = Patch(
         name="test",
         description="Test",
         parent=None,
@@ -214,7 +214,7 @@ def test_strip_terminal_status_markers_processes_comments_running_agent() -> Non
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.transform_changespec_comments_field",
+        "sase.ace.scheduler.suffix_transforms.transform_patch_comments_field",
         side_effect=lambda _path, _name, transform: transform([comment]) != [comment],
     ):
         result = strip_terminal_status_markers(cs)
@@ -239,7 +239,7 @@ def test_strip_terminal_status_markers_processes_mentors_running_agent() -> None
             )
         ],
     )
-    cs = ChangeSpec(
+    cs = Patch(
         name="test",
         description="Test",
         parent=None,
@@ -251,7 +251,7 @@ def test_strip_terminal_status_markers_processes_mentors_running_agent() -> None
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.update_changespec_mentors_field",
+        "sase.ace.scheduler.suffix_transforms.update_patch_mentors_field",
         return_value=True,
     ):
         result = strip_terminal_status_markers(cs)
@@ -278,7 +278,7 @@ def test_strip_terminal_status_markers_skips_mentors_without_running_agent() -> 
             )
         ],
     )
-    cs = ChangeSpec(
+    cs = Patch(
         name="test",
         description="Test",
         parent=None,

@@ -75,7 +75,7 @@ def prepare_mail(
 
     result = ws_prepare_mail(
         changespec_name=changespec.name,
-        changespec_parent=changespec.parent,
+        patch_parent=changespec.parent,
         project_basename=changespec.project_basename,
         project_file=changespec.file_path,
         target_dir=target_dir,
@@ -116,9 +116,9 @@ def execute_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> b
     if changespec.pr_url is None:
         url_ok, change_url = provider.get_change_url(target_dir)
         if url_ok and change_url:
-            from sase.status_state_machine import update_changespec_pr_url_atomic
+            from sase.status_state_machine import update_patch_pr_url_atomic
 
-            update_changespec_pr_url_atomic(
+            update_patch_pr_url_atomic(
                 changespec.file_path, changespec.name, change_url
             )
             console.print(f"[green]PR created: {change_url}[/green]")

@@ -1,7 +1,7 @@
 """
 Constants and validation helpers for STATUS field state machine.
 
-This module defines the valid statuses and transitions for ChangeSpecs.
+This module defines the valid statuses and transitions for Patches.
 """
 
 import logging
@@ -26,7 +26,7 @@ def remove_workspace_suffix(status: str) -> str:
     return result
 
 
-# All valid STATUS values for ChangeSpecs
+# All valid STATUS values for Patches
 # Note: In-progress statuses (ending with "...") have been removed.
 # Workspace tracking is now done via the RUNNING field in ProjectSpec files.
 # Note: "Changes Requested" status has been replaced by the COMMENTS field.
@@ -40,7 +40,7 @@ VALID_STATUSES = [
     "Archived",
 ]
 
-# Statuses that cause a ChangeSpec to be moved to the archive file
+# Statuses that cause a Patch to be moved to the archive file
 ARCHIVE_STATUSES = frozenset({"Submitted", "Archived", "Reverted"})
 
 

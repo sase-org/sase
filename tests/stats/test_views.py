@@ -31,14 +31,14 @@ def test_builds_all_presentation_views_from_binding_payloads() -> None:
     assert views.runs.outcomes[0].share == 0.6
     assert views.runs.commit_distribution[-1].label == "3+"
     assert views.projects.project_count == 2
-    assert views.projects.changespec_count == 3
+    assert views.projects.patch_count == 3
     assert views.projects.unattributed_runs == 1
-    assert views.projects.truncated_changespec_rows == 1
+    assert views.projects.truncated_patch_rows == 1
     assert views.projects.malformed_spec_files_skipped == 2
-    assert views.projects.projects[0].changespecs[0].changespec_key == "stats-view"
-    assert views.projects.projects[0].changespecs[0].changespec_label == "stats-view"
-    assert views.projects.projects[1].changespecs[0].status == "unknown"
-    assert views.projects.changespecs[0].has_pr is True
+    assert views.projects.projects[0].patches[0].patch_key == "stats-view"
+    assert views.projects.projects[0].patches[0].patch_label == "stats-view"
+    assert views.projects.projects[1].patches[0].status == "unknown"
+    assert views.projects.patches[0].has_pr is True
     assert views.providers.rows[0].share == pytest.approx(4 / 6)
     assert views.providers.rows[-1].mean_runtime_seconds is None
     assert views.runtime.rows[0].share == pytest.approx(2 / 3)
@@ -103,9 +103,9 @@ def test_empty_and_partial_payloads_are_safe() -> None:
     assert views.overview.runs_delta is None
     assert views.runs.outcomes == ()
     assert views.projects.projects == ()
-    assert views.projects.changespecs == ()
+    assert views.projects.patches == ()
     assert views.projects.project_count == 0
-    assert views.projects.changespec_count == 0
+    assert views.projects.patch_count == 0
     assert views.overview.top_projects == ()
     assert views.providers.rows == ()
     assert views.runtime.group_by == "agent"

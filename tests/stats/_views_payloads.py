@@ -101,7 +101,7 @@ def run_payload() -> dict[str, object]:
                     "waiting": 0,
                     "success_rate": 0.75,
                     "commits": 5,
-                    "distinct_changespecs": 2,
+                    "distinct_patches": 2,
                     "unattributed_runs": 1,
                     "total_runtime_seconds": 1_200.0,
                     "last_run_ts": 7_000.0,
@@ -116,13 +116,13 @@ def run_payload() -> dict[str, object]:
                     "waiting": 0,
                     "success_rate": 0.0,
                     "commits": 2,
-                    "distinct_changespecs": 1,
+                    "distinct_patches": 1,
                     "unattributed_runs": 0,
                     "total_runtime_seconds": 300.0,
                     "last_run_ts": 6_000.0,
                 },
             ],
-            "changespecs": [
+            "changespecs": [  # legacy wire key
                 {
                     "project": "sase",
                     "name": "stats-view",
@@ -149,7 +149,7 @@ def run_payload() -> dict[str, object]:
                 },
             ],
             "unattributed_runs": 1,
-            "truncated_changespec_rows": 1,
+            "truncated_patch_rows": 1,
             "malformed_spec_files_skipped": 2,
         },
         "runners": {

@@ -4,7 +4,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sase.ace.changespec import ChangeSpec, HookEntry, HookStatusLine
+from sase.ace.patch import Patch, HookEntry, HookStatusLine
 from sase.ace.hooks.processes import (
     kill_and_persist_all_running_processes,
     kill_running_processes_for_hooks,
@@ -38,7 +38,7 @@ def test_mark_hooks_as_killed_sets_dead_status() -> None:
 
     # Call mark_hooks_as_killed with description
     result = mark_hooks_as_killed(
-        [hook], killed_processes, "Killed hook running on reverted ChangeSpec."
+        [hook], killed_processes, "Killed hook running on reverted Patch."
     )
 
     # Verify the result
@@ -59,7 +59,7 @@ def test_mark_hooks_as_killed_sets_dead_status() -> None:
     # Suffix should now include PID and description with timestamp
     assert result_sl.suffix is not None
     assert result_sl.suffix.startswith("12345 | [")
-    assert "Killed hook running on reverted ChangeSpec." in result_sl.suffix
+    assert "Killed hook running on reverted Patch." in result_sl.suffix
 
 
 # Tests for kill_running_processes_for_hooks
@@ -158,7 +158,7 @@ def test_kill_running_processes_for_hooks_handles_process_not_found(
 # Tests for kill_and_persist_all_running_processes
 
 
-@patch("sase.ace.hooks.persistence.update_changespec_hooks_field")
+@patch("sase.ace.hooks.persistence.update_patch_hooks_field")
 @patch("sase.ace.hooks.processes.mark_hooks_as_killed")
 @patch("sase.ace.hooks.processes.kill_running_mentor_processes")
 @patch("sase.ace.hooks.processes.kill_running_agent_processes")
@@ -186,14 +186,14 @@ def test_kill_and_persist_with_running_hooks(
     updated_hooks = [MagicMock()]
     mock_mark_killed.return_value = updated_hooks
 
-    changespec = MagicMock(spec=ChangeSpec)
-    changespec.hooks = [hook]
-    changespec.comments = None
-    changespec.mentors = None
+    patch = MagicMock(spec=Patch)
+    patch.hooks = [hook]
+    patch.comments = None
+    patch.mentors = None
 
     log_messages: list[str] = []
     kill_and_persist_all_running_processes(
-        changespec,
+        patch,
         "/fake/project.sase",
         "test_cl",
         "Killed for test",
@@ -209,9 +209,9 @@ def test_kill_and_persist_with_running_hooks(
     assert any("hook process" in msg for msg in log_messages)
 
 
-@patch("sase.ace.hooks.persistence.update_changespec_hooks_field")
+@patch("sase.ace.hooks.persistence.update_patch_hooks_field")
 @patch("sase.ace.hooks.processes.mark_hook_agents_as_killed")
-@patch("sase.ace.comments.operations.update_changespec_comments_field")
+@patch("sase.ace.comments.operations.update_patch_comments_field")
 @patch("sase.ace.comments.operations.mark_comment_agents_as_killed")
 @patch("sase.ace.hooks.processes.kill_running_mentor_processes")
 @patch("sase.ace.hooks.processes.kill_running_agent_processes")
@@ -243,13 +243,13 @@ def test_kill_and_persist_with_running_agents(
     mock_mark_hook_agents.return_value = [MagicMock()]
     mock_mark_comment_agents.return_value = [MagicMock()]
 
-    changespec = MagicMock(spec=ChangeSpec)
-    changespec.hooks = [hook]
-    changespec.comments = [comment_entry]
-    changespec.mentors = None
+    patch = MagicMock(spec=Patch)
+    patch.hooks = [hook]
+    patch.comments = [comment_entry]
+    patch.mentors = None
 
     kill_and_persist_all_running_processes(
-        changespec, "/fake/project.sase", "test_cl", "Killed for test"
+        patch, "/fake/project.sase", "test_cl", "Killed for test"
     )
 
     mock_mark_hook_agents.assert_called_once()

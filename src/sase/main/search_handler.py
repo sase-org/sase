@@ -16,7 +16,7 @@ from sase.project_display_names import (
 
 def handle_search_command(args: argparse.Namespace) -> None:
     """Handle the 'sase changespec search' command."""
-    from sase.ace.patch import find_all_changespecs
+    from sase.ace.patch import find_all_patches
     from sase.ace.query import parse_query
     from sase.core.query_facade import evaluate_query_many
 
@@ -26,12 +26,12 @@ def handle_search_command(args: argparse.Namespace) -> None:
         print(f"Error: Invalid query: {e}")
         sys.exit(1)
 
-    all_changespecs = find_all_changespecs()
-    mask = evaluate_query_many(args.query, all_changespecs)
-    matching = [cs for cs, keep in zip(all_changespecs, mask, strict=True) if keep]
+    all_patches = find_all_patches()
+    mask = evaluate_query_many(args.query, all_patches)
+    matching = [cs for cs, keep in zip(all_patches, mask, strict=True) if keep]
 
     if not matching:
-        print("No ChangeSpecs match the query.")
+        print("No Patches match the query.")
         sys.exit(0)
 
     project_display_snapshot = load_project_display_snapshot()
@@ -63,7 +63,7 @@ def _display_rich(
     """Display search results with rich formatting."""
     from collections import Counter
 
-    from sase.ace.display import display_changespec
+    from sase.ace.display import display_patch
     from sase.ace.display_helpers import get_status_color
     from rich.console import Console
     from rich.panel import Panel
@@ -71,7 +71,7 @@ def _display_rich(
 
     console = Console()
     for cs in matching:
-        display_changespec(
+        display_patch(
             cs,
             console,
             project_display_snapshot=project_display_snapshot,
@@ -85,11 +85,9 @@ def _display_rich(
     breakdown = ", ".join(
         f"{count} {status}" for status, count in sorted(status_counts.items())
     )
-    summary.append(
-        f"Found {len(matching)} ChangeSpec(s): {breakdown}\n\n", style="bold"
-    )
+    summary.append(f"Found {len(matching)} Patch(s): {breakdown}\n\n", style="bold")
 
-    # One-line per ChangeSpec
+    # One-line per Patch
     for cs in matching:
         status_color = get_status_color(cs.status)
         display_name = humanize_cl_name(
@@ -117,7 +115,7 @@ def _display_plain(
         file_path = cs.file_path.replace(str(Path.home()), "~")
         print(f"--- {file_path}:{cs.line_number} ---")
 
-        # BUG field (from ChangeSpec)
+        # BUG field (from Patch)
         if cs.bug:
             print(f"BUG: {cs.bug}")
 
@@ -209,7 +207,7 @@ def _display_plain(
                             f"      | {ts_str}{msl.profile_name}:{msl.mentor_name}"
                             f" - {msl.status}{duration_str}{suffix_str}"
                         )
-        print()  # Blank line between ChangeSpecs
+        print()  # Blank line between Patches
 
 
 # ---------------------------------------------------------------------------
@@ -265,13 +263,13 @@ def _md_table(headers: list[str], rows: list[list[str]]) -> list[str]:
     return lines
 
 
-def _md_changespec(
-    cs: ChangeSpec,  # type: ignore[name-defined]  # noqa: F821
+def _md_patch(
+    cs: Patch,  # type: ignore[name-defined]  # noqa: F821
     *,
     project_display_snapshot: ProjectDisplaySnapshot | None = None,
     heading: str | None = None,
 ) -> list[str]:
-    """Render a single ChangeSpec as markdown lines."""
+    """Render a single Patch as markdown lines."""
     lines: list[str] = []
 
     # Heading
@@ -330,7 +328,7 @@ def _md_changespec(
                     ),
                 ]
             )
-        lines.extend(_md_table(["Workspace", "PID", "Workflow", "ChangeSpec"], ws_rows))
+        lines.extend(_md_table(["Workspace", "PID", "Workflow", "Patch"], ws_rows))
         lines.append("")
 
     # Description as blockquote
@@ -450,16 +448,15 @@ def _display_markdown(
     """Display search results as agent-friendly markdown."""
     from collections import Counter
 
-    from sase.ace.patch import ChangeSpec
+    from sase.ace.patch import Patch
 
-    changespecs: list[ChangeSpec] = matching
+    patches: list[Patch] = matching
     headings = [
-        humanize_cl_name(cs.name, snapshot=project_display_snapshot)
-        for cs in changespecs
+        humanize_cl_name(cs.name, snapshot=project_display_snapshot) for cs in patches
     ]
 
     # Summary header
-    status_counts = Counter(cs.status for cs in changespecs)
+    status_counts = Counter(cs.status for cs in patches)
     breakdown = ", ".join(
         f"{count} {status}" for status, count in sorted(status_counts.items())
     )
@@ -468,8 +465,8 @@ def _display_markdown(
     if query:
         print(f"**Query:** `{query}`")
         print("")
-    print(f"Found {len(changespecs)} change(s): {breakdown}")
-    if len(changespecs) > 1:
+    print(f"Found {len(patches)} change(s): {breakdown}")
+    if len(patches) > 1:
         # Reuse the exact projected heading for link text and destination so
         # display-name substitution cannot make the quick links drift.
         links = " · ".join(f"[{heading}](#{heading})" for heading in headings)
@@ -477,12 +474,12 @@ def _display_markdown(
         print(links)
     print("")
 
-    # Render each ChangeSpec separated by horizontal rules
-    for i, (cs, heading) in enumerate(zip(changespecs, headings, strict=True)):
+    # Render each Patch separated by horizontal rules
+    for i, (cs, heading) in enumerate(zip(patches, headings, strict=True)):
         if i > 0:
             print("---")
             print("")
-        for line in _md_changespec(
+        for line in _md_patch(
             cs,
             project_display_snapshot=project_display_snapshot,
             heading=heading,

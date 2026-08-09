@@ -4,9 +4,13 @@ from collections.abc import Callable
 
 import pytest
 
-import sase.ace.changespec as changespec_module
+import sase.ace.patch as patch_module
 import sase.ace.testing as testing_module
-from sase.ace.testing import AcePage, PromptPage, make_changespec
+from sase.ace.testing import (
+    AcePage,
+    PromptPage,
+    make_changespec as make_patch,  # legacy ACE test helper name
+)
 from sase.ace.tui import AceApp
 
 
@@ -47,13 +51,13 @@ async def test_ace_page_export_svg() -> None:
         assert "rich-terminal" in svg
 
 
-async def test_ace_page_custom_changespecs() -> None:
-    """Passing custom changespecs overrides defaults."""
+async def test_ace_page_custom_patches() -> None:
+    """Passing custom patches overrides defaults."""
     custom = [
-        make_changespec(name="custom_a"),
-        make_changespec(name="custom_b"),
+        make_patch(name="custom_a"),
+        make_patch(name="custom_b"),
     ]
-    async with AcePage(query='"custom"', changespecs=custom) as page:
+    async with AcePage(query='"custom"', patches=custom) as page:
         state = page.state
         assert state["total"] == 2
         assert state["selected"]["name"] == "custom_a"
@@ -153,7 +157,7 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
 
     async def mount_state(app: AceApp) -> None:
         calls.add("mount-state")
-        app._apply_changespecs(app._read_changespecs_from_disk())
+        app._apply_patches(app._read_patches_from_disk())
         app._mount_state_loads_done = True
 
     async def agents(app: AceApp) -> None:
@@ -300,7 +304,7 @@ async def test_ace_page_restores_overrides_when_entry_fails(
     failure_phase: str,
 ) -> None:
     original_mount_state = AceApp._run_mount_state_loads
-    original_find = changespec_module.find_all_changespecs
+    original_find = patch_module.find_all_patches
 
     if failure_phase == "construction":
 
@@ -334,7 +338,7 @@ async def test_ace_page_restores_overrides_when_entry_fails(
         await page.__aenter__()
 
     assert AceApp._run_mount_state_loads is original_mount_state
-    assert changespec_module.find_all_changespecs is original_find
+    assert patch_module.find_all_patches is original_find
 
 
 def test_ace_page_rejects_unknown_startup_policy() -> None:

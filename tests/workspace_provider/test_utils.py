@@ -98,8 +98,8 @@ class TestSetWorkspaceDir:
             assert set_workspace_dir(gp, "/repo/")
             assert os.path.exists(gp)
 
-    @patch("sase.workspace_provider.utils.write_changespec_atomic")
-    @patch("sase.workspace_provider.utils.changespec_lock")
+    @patch("sase.workspace_provider.utils.write_patch_atomic")
+    @patch("sase.workspace_provider.utils.patch_lock")
     def test_updates_existing(
         self, mock_lock: MagicMock, mock_write: MagicMock, tmp_path: Path
     ) -> None:
@@ -117,8 +117,8 @@ class TestSetWorkspaceDir:
             assert "/old/" not in written
             os.unlink(f.name)
 
-    @patch("sase.workspace_provider.utils.write_changespec_atomic")
-    @patch("sase.workspace_provider.utils.changespec_lock")
+    @patch("sase.workspace_provider.utils.write_patch_atomic")
+    @patch("sase.workspace_provider.utils.patch_lock")
     def test_inserts_before_running(
         self, mock_lock: MagicMock, mock_write: MagicMock, tmp_path: Path
     ) -> None:

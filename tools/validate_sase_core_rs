@@ -359,7 +359,7 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
         _error("agent statistics work-schema probe payload has no work dict")
         return False
     if not isinstance(work.get("projects"), list) or not isinstance(
-        work.get("changespecs"), list
+        work.get("changespecs"), list  # legacy stats wire key
     ):
         _error("agent statistics work-schema probe payload has invalid work rows")
         return False

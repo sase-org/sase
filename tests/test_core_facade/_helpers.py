@@ -12,14 +12,14 @@ import types
 
 import pytest
 
-from sase.ace.changespec.parser import parse_project_file_python
+from sase.ace.patch.parser import parse_project_file_python
 from tests._rust_extension_module_helpers import (
     evict_rust_extension,
     patch_rust_extension,
 )
 
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
-from sase.core.wire_conversion import changespec_to_wire
+from sase.core.wire_conversion import changespec_to_wire  # legacy Python compat symbol
 
 SAMPLE_PROJECT_TEXT = """\
 NAME: example
@@ -145,7 +145,7 @@ def python_wire_records_as_dicts(file_path: str, _data: bytes) -> list[dict]:
     wires = []
     for cs in specs:
         cs.file_path = file_path
-        wires.append(changespec_to_wire(cs))
+        wires.append(changespec_to_wire(cs))  # legacy Python compat symbol
     return [
         {
             "schema_version": w.schema_version,

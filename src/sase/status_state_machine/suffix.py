@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.vcs_provider import get_vcs_provider
 
-from .siblings import SiblingRevertResult, revert_sibling_draft_changespecs
+from .siblings import SiblingRevertResult, revert_sibling_draft_patches
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -100,7 +100,7 @@ def handle_suffix_strip(
     # Update NAME field
     update_changespec_name_atomic(project_file, suffixed_name, base_name)
 
-    # Rename the ChangeSpec branch in git to match the new name
+    # Rename the Patch branch in git to match the new name
     project_basename = Path(project_file).stem
     try:
         # Use a non-primary workspace (>=100) to avoid disrupting the main workspace
@@ -137,16 +137,14 @@ def handle_suffix_strip(
     except RuntimeError as e:
         logger.warning(f"Could not get workspace directory: {e}")
 
-    # Update PARENT references in other ChangeSpecs
+    # Update PARENT references in other Patches
     update_parent_references_atomic(project_file, suffixed_name, base_name)
 
     # Update RUNNING field entries
     update_running_field_cl_name(project_file, suffixed_name, base_name)
 
-    # Auto-revert sibling WIP/Draft ChangeSpecs with the same basename
-    return revert_sibling_draft_changespecs(
-        project_file, base_name, suffixed_name, console
-    )
+    # Auto-revert sibling WIP/Draft Patches with the same basename
+    return revert_sibling_draft_patches(project_file, base_name, suffixed_name, console)
 
 
 def handle_suffix_append(
@@ -178,7 +176,7 @@ def handle_suffix_append(
     # Update NAME field
     update_changespec_name_atomic(project_file, base_name, suffixed_name)
 
-    # Rename the ChangeSpec branch in git to match the new name
+    # Rename the Patch branch in git to match the new name
     project_basename = Path(project_file).stem
     try:
         # Use a non-primary workspace (>=100) to avoid disrupting the main workspace
@@ -228,7 +226,7 @@ def handle_suffix_append(
     except RuntimeError as e:
         logger.warning(f"Could not get workspace directory: {e}")
 
-    # Update PARENT references in other ChangeSpecs
+    # Update PARENT references in other Patches
     update_parent_references_atomic(project_file, base_name, suffixed_name)
 
     # Update RUNNING field entries

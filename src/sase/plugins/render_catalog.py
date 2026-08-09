@@ -53,7 +53,7 @@ def build_catalog_list_panel(
 ) -> Panel:
     """Console-free renderable for the ``sase plugin list`` catalog panel.
 
-    Returns the same Rich :class:`~rich.panel.Panel` the ChangeSpecI prints, so a TUI can
+    Returns the same Rich :class:`~rich.panel.Panel` the CLI prints, so a TUI can
     display it verbatim for guaranteed list parity.
     """
     now = time.time() if now is None else now
@@ -324,7 +324,7 @@ def build_detail_panel(
     """Console-free renderable for the ``sase plugin show`` detail panel.
 
     Public so the TUI detail panel can display the same ``show``-equivalent
-    renderable, giving the TUI and the ChangeSpecI visual parity for free.
+    renderable, giving the TUI and the CLI visual parity for free.
     """
     border = _BUILTIN_STYLE if entry.is_builtin else _COMMUNITY_STYLE
 

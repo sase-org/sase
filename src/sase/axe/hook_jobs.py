@@ -7,7 +7,7 @@ completions, start hooks/mentors/workflows, and perform cleanup tasks.
 from collections.abc import Callable
 from datetime import datetime
 
-from sase.ace.patch import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.scheduler.checks_runner import (
     reap_orphan_check_files,
     process_pending_checks_for,
@@ -37,15 +37,15 @@ from .state import AxeMetrics
 LogCallback = Callable[[str, str | None], None]
 
 
-def _count_entries(changespecs: list[ChangeSpec], attr: str) -> int:
-    return sum(len(getattr(changespec, attr) or []) for changespec in changespecs)
+def _count_entries(patches: list[Patch], attr: str) -> int:
+    return sum(len(getattr(patch, attr) or []) for patch in patches)
 
 
 def _format_noop_reason(
-    *, inspected_changespecs: int, inspected_entries: int, noun: str
+    *, inspected_patches: int, inspected_entries: int, noun: str
 ) -> str:
-    if inspected_changespecs == 0:
-        return "no_matching_changespecs"
+    if inspected_patches == 0:
+        return "no_matching_patches"
     if inspected_entries == 0:
         return f"no_{noun}"
     return "no_updates_or_launches"
@@ -90,24 +90,24 @@ class HookJobRunner:
         self._hooks_started_this_tick = 0
         self._agents_started_this_tick = 0
 
-    def run_hook_checks(self, filtered_changespecs: list[ChangeSpec]) -> None:
+    def run_hook_checks(self, filtered_patches: list[Patch]) -> None:
         """Run hook completion and startup checks.
 
         Args:
-            filtered_changespecs: List of changespecs to check.
+            filtered_patches: List of patches to check.
         """
         self._hooks_started_this_tick = 0
         self._agents_started_this_tick = 0
         updates_before = self.metrics.total_updates
         hooks_started_before = self.metrics.hooks_started
-        inspected_hooks = _count_entries(filtered_changespecs, "hooks")
+        inspected_hooks = _count_entries(filtered_patches, "hooks")
 
-        for changespec in filtered_changespecs:
-            if not changespec.hooks:
+        for patch in filtered_patches:
+            if not patch.hooks:
                 continue
 
             hook_updates, hooks_started = check_hooks(
-                changespec,
+                patch,
                 self._log,
                 self.zombie_timeout_seconds,
                 self.max_hook_runners,
@@ -119,36 +119,36 @@ class HookJobRunner:
             self.metrics.total_updates += len(hook_updates)
 
             for update in hook_updates:
-                self._log(f"* {changespec.name}: {update}", "green bold")
+                self._log(f"* {patch.name}: {update}", "green bold")
 
         updates = self.metrics.total_updates - updates_before
         started = self.metrics.hooks_started - hooks_started_before
         summary = (
             "hook_checks: "
-            f"changespecs={len(filtered_changespecs)} hooks={inspected_hooks} "
+            f"patches={len(filtered_patches)} hooks={inspected_hooks} "
             f"updates={updates} started={started}"
         )
         if updates == 0 and started == 0:
             summary += " reason=" + _format_noop_reason(
-                inspected_changespecs=len(filtered_changespecs),
+                inspected_patches=len(filtered_patches),
                 inspected_entries=inspected_hooks,
                 noun="hooks",
             )
         self._log(summary, "green" if updates or started else None)
 
-    def run_mentor_checks(self, filtered_changespecs: list[ChangeSpec]) -> None:
+    def run_mentor_checks(self, filtered_patches: list[Patch]) -> None:
         """Run mentor completion and startup checks.
 
         Args:
-            filtered_changespecs: List of changespecs to check.
+            filtered_patches: List of patches to check.
         """
         updates_before = self.metrics.total_updates
         mentors_started_before = self.metrics.mentors_started
-        inspected_mentors = _count_entries(filtered_changespecs, "mentors")
+        inspected_mentors = _count_entries(filtered_patches, "mentors")
         all_profiles = get_all_mentor_profiles()
-        for changespec in filtered_changespecs:
+        for patch in filtered_patches:
             mentor_updates, mentors_started = check_mentors(
-                changespec,
+                patch,
                 self._log,
                 self.zombie_timeout_seconds,
                 self.max_agent_runners,
@@ -162,42 +162,42 @@ class HookJobRunner:
             self.metrics.total_updates += len(mentor_updates)
 
             for update in mentor_updates:
-                self._log(f"* {changespec.name}: {update}", "green bold")
+                self._log(f"* {patch.name}: {update}", "green bold")
 
         updates = self.metrics.total_updates - updates_before
         started = self.metrics.mentors_started - mentors_started_before
         summary = (
             "mentor_checks: "
-            f"changespecs={len(filtered_changespecs)} mentors={inspected_mentors} "
+            f"patches={len(filtered_patches)} mentors={inspected_mentors} "
             f"profiles={len(all_profiles)} updates={updates} started={started}"
         )
         if updates == 0 and started == 0:
             summary += " reason=" + _format_noop_reason(
-                inspected_changespecs=len(filtered_changespecs),
+                inspected_patches=len(filtered_patches),
                 inspected_entries=inspected_mentors,
                 noun="mentors",
             )
         self._log(summary, "green" if updates or started else None)
 
-    def run_workflow_checks(self, filtered_changespecs: list[ChangeSpec]) -> None:
+    def run_workflow_checks(self, filtered_patches: list[Patch]) -> None:
         """Run CRS/fix-hook workflow checks.
 
         Args:
-            filtered_changespecs: List of changespecs to check.
+            filtered_patches: List of patches to check.
         """
         updates_before = self.metrics.total_updates
         workflows_started_before = self.metrics.workflows_started
-        for changespec in filtered_changespecs:
+        for patch in filtered_patches:
             # Check completion of running workflows
-            completion_updates = check_and_complete_workflows(changespec, self._log)
+            completion_updates = check_and_complete_workflows(patch, self._log)
             self.metrics.total_updates += len(completion_updates)
 
             for update in completion_updates:
-                self._log(f"* {changespec.name}: {update}", "green bold")
+                self._log(f"* {patch.name}: {update}", "green bold")
 
             # Start stale workflows
             start_updates, started, _ = start_stale_workflows(
-                changespec,
+                patch,
                 self._log,
                 self.max_agent_runners,
                 self._agents_started_this_tick,
@@ -208,33 +208,33 @@ class HookJobRunner:
             self.metrics.total_updates += len(start_updates)
 
             for update in start_updates:
-                self._log(f"* {changespec.name}: {update}", "green bold")
+                self._log(f"* {patch.name}: {update}", "green bold")
 
         updates = self.metrics.total_updates - updates_before
         started = self.metrics.workflows_started - workflows_started_before
         summary = (
             "workflow_checks: "
-            f"changespecs={len(filtered_changespecs)} updates={updates} "
+            f"patches={len(filtered_patches)} updates={updates} "
             f"started={started}"
         )
         if updates == 0 and started == 0:
             summary += " reason="
             summary += (
-                "no_matching_changespecs"
-                if not filtered_changespecs
+                "no_matching_patches"
+                if not filtered_patches
                 else "no_workflow_updates_or_launches"
             )
         self._log(summary, "green" if updates or started else None)
 
-    def run_pending_checks_poll(self, filtered_changespecs: list[ChangeSpec]) -> None:
+    def run_pending_checks_poll(self, filtered_patches: list[Patch]) -> None:
         """Poll for completed background checks.
 
         Walks ~/.sase/checks/ once per tick (O(M) in file count), dispatches
-        per-ChangeSpec work from the single scan, and reaps orphaned output
+        per-Patch work from the single scan, and reaps orphaned output
         files left behind by killed or crashed background checks.
 
         Args:
-            filtered_changespecs: List of changespecs to check.
+            filtered_patches: List of patches to check.
         """
         updates_before = self.metrics.total_updates
         reaped = reap_orphan_check_files(self._log)
@@ -243,27 +243,27 @@ class HookJobRunner:
         matched_files = 0
         unmatched_groups = 0
 
-        # Filenames encode ChangeSpec names via make_safe_filename(), which is
+        # Filenames encode Patch names via make_safe_filename(), which is
         # lossy (e.g. "foo-bar" and "foo_bar" both map to "foo_bar").  Any
         # collisions here inherit a pre-existing ambiguity in the filename
         # format and are not resolved in this poll.
-        safe_to_cs = {make_safe_filename(cs.name): cs for cs in filtered_changespecs}
+        safe_to_cs = {make_safe_filename(cs.name): cs for cs in filtered_patches}
         for safe_name, pending in by_name.items():
-            changespec = safe_to_cs.get(safe_name)
-            if changespec is None:
+            patch = safe_to_cs.get(safe_name)
+            if patch is None:
                 unmatched_groups += 1
                 continue
             matched_files += len(pending)
-            updates = process_pending_checks_for(changespec, pending, self._log)
+            updates = process_pending_checks_for(patch, pending, self._log)
             self.metrics.total_updates += len(updates)
 
             for update in updates:
-                self._log(f"* {changespec.name}: {update}", "green bold")
+                self._log(f"* {patch.name}: {update}", "green bold")
 
         update_count = self.metrics.total_updates - updates_before
         summary = (
             "pending_checks_poll: "
-            f"changespecs={len(filtered_changespecs)} pending_files={pending_files} "
+            f"patches={len(filtered_patches)} pending_files={pending_files} "
             f"matched_files={matched_files} unmatched_groups={unmatched_groups} "
             f"reaped={reaped} updates={update_count}"
         )
@@ -271,105 +271,103 @@ class HookJobRunner:
             if not by_name:
                 reason = "no_pending_check_files"
             elif matched_files == 0:
-                reason = "no_pending_files_for_filtered_changespecs"
+                reason = "no_pending_files_for_filtered_patches"
             else:
                 reason = "no_completed_checks"
             summary += f" reason={reason}"
         self._log(summary, "green" if update_count or reaped else None)
 
-    def run_comment_zombie_checks(self, filtered_changespecs: list[ChangeSpec]) -> None:
+    def run_comment_zombie_checks(self, filtered_patches: list[Patch]) -> None:
         """Check for zombie comment entries.
 
         Args:
-            filtered_changespecs: List of changespecs to check.
+            filtered_patches: List of patches to check.
         """
         updates_before = self.metrics.total_updates
         zombies_before = self.metrics.zombies_detected
-        inspected_comments = _count_entries(filtered_changespecs, "comments")
-        for changespec in filtered_changespecs:
-            updates = check_comment_zombies(changespec, self.zombie_timeout_seconds)
+        inspected_comments = _count_entries(filtered_patches, "comments")
+        for patch in filtered_patches:
+            updates = check_comment_zombies(patch, self.zombie_timeout_seconds)
             if updates:
                 self.metrics.zombies_detected += len(updates)
                 self.metrics.total_updates += len(updates)
 
                 for update in updates:
-                    self._log(f"* {changespec.name}: {update}", "yellow")
+                    self._log(f"* {patch.name}: {update}", "yellow")
 
         update_count = self.metrics.total_updates - updates_before
         zombies = self.metrics.zombies_detected - zombies_before
         summary = (
             "comment_zombie_checks: "
-            f"changespecs={len(filtered_changespecs)} comments={inspected_comments} "
+            f"patches={len(filtered_patches)} comments={inspected_comments} "
             f"zombies={zombies} updates={update_count}"
         )
         if update_count == 0:
             summary += " reason=" + _format_noop_reason(
-                inspected_changespecs=len(filtered_changespecs),
+                inspected_patches=len(filtered_patches),
                 inspected_entries=inspected_comments,
                 noun="comments",
             )
         self._log(summary, "yellow" if update_count else None)
 
     def run_suffix_transforms(
-        self, all_changespecs: list[ChangeSpec], filtered_changespecs: list[ChangeSpec]
+        self, all_patches: list[Patch], filtered_patches: list[Patch]
     ) -> datetime:
         """Run suffix transformation checks.
 
         Args:
-            all_changespecs: All changespecs (for ready-to-mail check).
-            filtered_changespecs: List of filtered changespecs to transform.
+            all_patches: All patches (for ready-to-mail check).
+            filtered_patches: List of filtered patches to transform.
 
         Returns:
             Timestamp of when the hook cycle completed.
         """
         updates_before = self.metrics.total_updates
-        for changespec in filtered_changespecs:
+        for patch in filtered_patches:
             updates: list[str] = []
 
             # Transform old proposal suffixes (!: -> ~:)
-            updates.extend(transform_old_proposal_suffixes(changespec))
+            updates.extend(transform_old_proposal_suffixes(patch))
 
             # Strip error markers from old commit entry hooks
-            updates.extend(strip_old_entry_error_markers(changespec))
+            updates.extend(strip_old_entry_error_markers(patch))
 
             # Acknowledge terminal status attention markers
-            updates.extend(strip_terminal_status_markers(changespec))
+            updates.extend(strip_terminal_status_markers(patch))
 
             self.metrics.total_updates += len(updates)
 
             for update in updates:
-                self._log(f"* {changespec.name}: {update}", "green bold")
+                self._log(f"* {patch.name}: {update}", "green bold")
 
         cycle_timestamp = datetime.now(get_timezone())
         update_count = self.metrics.total_updates - updates_before
         summary = (
             "suffix_transforms: "
-            f"all_changespecs={len(all_changespecs)} "
-            f"filtered_changespecs={len(filtered_changespecs)} updates={update_count}"
+            f"all_patches={len(all_patches)} "
+            f"filtered_patches={len(filtered_patches)} updates={update_count}"
         )
         if update_count == 0:
             summary += " reason="
             summary += (
-                "no_matching_changespecs"
-                if not filtered_changespecs
+                "no_matching_patches"
+                if not filtered_patches
                 else "no_stale_suffix_markers"
             )
         self._log(summary, "green" if update_count else None)
 
         return cycle_timestamp
 
-    def run_orphan_cleanup(self, all_changespecs: list[ChangeSpec]) -> None:
-        """Clean up orphaned workspace claims for reverted ChangeSpecs.
+    def run_orphan_cleanup(self, all_patches: list[Patch]) -> None:
+        """Clean up orphaned workspace claims for reverted Patches.
 
         Args:
-            all_changespecs: All changespecs to check for orphans.
+            all_patches: All patches to check for orphans.
         """
-        released = cleanup_orphaned_workspace_claims(all_changespecs, self._log)
+        released = cleanup_orphaned_workspace_claims(all_patches, self._log)
         if released > 0:
             self.metrics.total_updates += released
-        summary = (
-            f"orphan_cleanup: changespecs={len(all_changespecs)} released={released}"
-        )
+        summary = f"orphan_cleanup: patches={len(all_patches)} released={released}"
         if released == 0:
             summary += " reason=no_orphaned_workspace_claims"
         self._log(summary, "green" if released else None)

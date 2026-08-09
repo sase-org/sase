@@ -48,7 +48,7 @@ def launch_planned_bead_work_agents(
     collision safety is unchanged: the launcher still validates every explicit
     name before spawning.
 
-    Used only when ``sase bead work`` resolved a VCS/ChangeSpec launch context,
+    Used only when ``sase bead work`` resolved a VCS/Patch launch context,
     so every segment carries an explicit ``#<workflow>:<ref>`` prefix. The
     no-context case keeps using :func:`launch_agent_from_cwd`.
     """

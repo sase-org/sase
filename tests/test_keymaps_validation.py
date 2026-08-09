@@ -72,24 +72,20 @@ def test_ctrl_space_aliases_canonicalize_to_ctrl_at() -> None:
 
 def test_empty_string_key_invalid() -> None:
     """Empty string is not a valid key and reverts to default."""
-    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": ""}}})
-    assert reg.app.next_changespec == "j"  # default
+    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": ""}}})
+    assert reg.app.next_patch == "j"  # default
 
 
 def test_invalid_key_reverts_to_default() -> None:
     """Nonsense key name reverts to default."""
-    reg = load_keymap_registry(
-        {"keymaps": {"app": {"next_changespec": "not_a_real_key"}}}
-    )
-    assert reg.app.next_changespec == "j"
+    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "not_a_real_key"}}})
+    assert reg.app.next_patch == "j"
 
 
 def test_invalid_key_logs_warning(caplog: pytest.LogCaptureFixture) -> None:
     """Invalid key triggers a log warning."""
     with caplog.at_level(logging.WARNING):
-        load_keymap_registry(
-            {"keymaps": {"app": {"next_changespec": "not_a_real_key"}}}
-        )
+        load_keymap_registry({"keymaps": {"app": {"next_patch": "not_a_real_key"}}})
     assert any("Invalid key" in r.message for r in caplog.records)
 
 
@@ -98,16 +94,16 @@ def test_invalid_key_logs_warning(caplog: pytest.LogCaptureFixture) -> None:
 
 def test_duplicate_app_keys_reverts_to_default() -> None:
     """Override that conflicts with a default key reverts."""
-    # next_changespec overridden to "q" clashes with quit's default "q".
-    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "q"}}})
-    assert reg.app.next_changespec == "j"  # reverted to default
+    # next_patch overridden to "q" clashes with quit's default "q".
+    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "q"}}})
+    assert reg.app.next_patch == "j"  # reverted to default
     assert reg.app.quit == "q"  # unchanged
 
 
 def test_duplicate_app_keys_logs_warning(caplog: pytest.LogCaptureFixture) -> None:
     """Duplicate key conflict triggers a log warning."""
     with caplog.at_level(logging.WARNING):
-        load_keymap_registry({"keymaps": {"app": {"next_changespec": "q"}}})
+        load_keymap_registry({"keymaps": {"app": {"next_patch": "q"}}})
     assert any("Duplicate key" in r.message for r in caplog.records)
 
 
@@ -134,14 +130,14 @@ def test_both_overrides_duplicate_revert_both() -> None:
         {
             "keymaps": {
                 "app": {
-                    "next_changespec": "Z",
-                    "prev_changespec": "Z",
+                    "next_patch": "Z",
+                    "prev_patch": "Z",
                 },
             },
         }
     )
-    assert reg.app.next_changespec == "j"  # default
-    assert reg.app.prev_changespec == "k"  # default
+    assert reg.app.next_patch == "j"  # default
+    assert reg.app.prev_patch == "k"  # default
 
 
 def test_jump_forward_and_metadata_section_remain_independently_configurable() -> None:
@@ -162,9 +158,9 @@ def test_jump_forward_and_metadata_section_remain_independently_configurable() -
 
 def test_compound_key_conflict_reverts_override() -> None:
     """A key inside a compound binding conflicts like a normal app key."""
-    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "semicolon"}}})
+    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "semicolon"}}})
     assert reg.app.open_command_palette == "colon,semicolon"
-    assert reg.app.next_changespec == "j"
+    assert reg.app.next_patch == "j"
 
 
 def test_compound_key_conflict_logs_warning(
@@ -172,7 +168,7 @@ def test_compound_key_conflict_logs_warning(
 ) -> None:
     """Compound-key duplicate conflicts emit the existing duplicate warning."""
     with caplog.at_level(logging.WARNING):
-        load_keymap_registry({"keymaps": {"app": {"next_changespec": "semicolon"}}})
+        load_keymap_registry({"keymaps": {"app": {"next_patch": "semicolon"}}})
     assert any("Duplicate key" in r.message for r in caplog.records)
 
 

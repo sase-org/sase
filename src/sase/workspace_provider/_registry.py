@@ -164,7 +164,7 @@ def detect_workflow_type(project_file: str) -> str:
 def get_change_label(project_file: str) -> str:
     """Return the provider's review field label for legacy plugin callers.
 
-    New ChangeSpec writers always emit ``PR:``. This hook remains so older
+    New Patch writers always emit ``PR:``. This hook remains so older
     plugin implementations can be loaded during the rollout.
     For archive files, retries with the corresponding main project file.
     """
@@ -240,7 +240,7 @@ def list_ref_namespaces(workflow_type: str) -> VcsRefNamespaces:
     """List namespace candidates via workspace provider plugins.
 
     Namespace completion is an interactive local-only path. Provider failures
-    degrade to no namespace rows so project/ChangeSpec completion can continue.
+    degrade to no namespace rows so project/Patch completion can continue.
     """
     try:
         result = _get_manager().list_ref_namespaces(workflow_type)
@@ -337,7 +337,7 @@ def create_sdd_remote(
 
 def prepare_mail(
     changespec_name: str,
-    changespec_parent: str | None,
+    patch_parent: str | None,
     project_basename: str,
     project_file: str,
     target_dir: str,
@@ -351,7 +351,7 @@ def prepare_mail(
     """
     return _get_manager().prepare_mail(
         changespec_name=changespec_name,
-        changespec_parent=changespec_parent,
+        patch_parent=patch_parent,
         project_basename=project_basename,
         project_file=project_file,
         target_dir=target_dir,
@@ -390,18 +390,18 @@ def get_workspace_name(cwd: str) -> str | None:
     return _get_manager().get_workspace_name(cwd)
 
 
-def submit_changespec(
-    changespec_file: str,
+def submit_patch(
+    patch_file: str,
     changespec_name: str,
     project_basename: str,
     console: Console | None = None,
 ) -> tuple[bool, str | None]:
-    """Submit a changespec via plugins.
+    """Submit a patch via plugins.
 
     Falls back to legacy submission when no plugin handles the project.
     """
     result = _get_manager().submit(
-        changespec_file, changespec_name, project_basename, console
+        patch_file, changespec_name, project_basename, console
     )
     if result is not None:
         return result

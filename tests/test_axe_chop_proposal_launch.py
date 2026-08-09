@@ -74,7 +74,7 @@ def test_clan_partial_launch_keeps_started_member_recorded(
         )
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agents_from_cwd", side_effect=_fail_batch),
     ):
         outcome = run_configured_chop_once(
@@ -136,7 +136,7 @@ def test_runner_launches_proposals_in_order_with_wait_directive(
         )
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agent_from_cwd", side_effect=_launch),
     ):
         outcome = run_configured_chop_once(
@@ -218,7 +218,7 @@ def test_runner_launches_with_wait_relinked_across_duplicate(
         )
 
     with (
-        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agent_from_cwd", side_effect=_launch),
     ):
         outcome = run_configured_chop_once(
@@ -246,7 +246,7 @@ def test_verbose_flag_reaches_script_environment(
     tmp_path: Path,
 ) -> None:
     make_script(tmp_path, "verbose", "printf '%s' \"$SASE_CHOP_VERBOSE\"\n")
-    with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
         outcome = run_configured_chop_once(
             lumberjack_name="checks",
             chop=ChopConfig(name="verbose", description=""),

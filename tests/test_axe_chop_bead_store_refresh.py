@@ -27,8 +27,8 @@ def _runtime(tmp_path: Path) -> BuiltinChopRuntime:
             query="",
             lumberjack_name="waits",
             state_dir=str(tmp_path / "state"),
-            all_changespecs_file=str(tmp_path / "all.json"),
-            filtered_changespecs_file=str(tmp_path / "filtered.json"),
+            all_patches_file=str(tmp_path / "all.json"),
+            filtered_patches_file=str(tmp_path / "filtered.json"),
         ),
         log=ChopLogger(stdout=StringIO(), stderr=StringIO()),
     )

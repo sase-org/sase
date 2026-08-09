@@ -66,8 +66,8 @@ def test_pre_is_ready_to_work_schema_defaults_flag_false(tmp_path: Path) -> None
     assert issue.is_ready_to_work is False
 
 
-def test_pre_changespec_metadata_schema_defaults_metadata_empty(tmp_path: Path) -> None:
-    conn = _import_fixture(tmp_path, "pre_changespec_metadata_schema.jsonl")
+def test_pre_patch_metadata_schema_defaults_metadata_empty(tmp_path: Path) -> None:
+    conn = _import_fixture(tmp_path, "pre_patch_metadata_schema.jsonl")
     try:
         issue = get_issue(conn, "legacy-meta-1")
     finally:

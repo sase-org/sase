@@ -109,7 +109,7 @@ def log_event(
     """Append a lightweight event record to ``~/.sase/logs/events.jsonl``.
 
     Common events: ``hook_completed``, ``commit_created``, ``amend_created``,
-    ``changespec_reverted``, ``changespec_restored``.
+    ``patch_reverted``, ``patch_restored``.
     """
     now = datetime.now(get_timezone())
     record: dict[str, Any] = {

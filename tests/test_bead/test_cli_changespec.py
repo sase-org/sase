@@ -1,4 +1,4 @@
-"""CLI coverage for ChangeSpec metadata on bead plan creation."""
+"""CLI coverage for Patch metadata on bead plan creation."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def _create_args(
     title: str,
     type_value: str,
     tier: str | None = None,
-    changespec: str | None = None,
+    patch: str | None = None,
     bug_id: str | None = None,
     model: str | None = None,
     size: str | None = None,
@@ -39,14 +39,14 @@ def _create_args(
         description=None,
         assignee=None,
         tier=tier,
-        changespec=changespec,
+        patch=patch,
         bug_id=bug_id,
         model=model,
         size=size,
     )
 
 
-def test_create_plan_accepts_changespec_and_bug(
+def test_create_plan_accepts_patch_and_bug(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -55,7 +55,7 @@ def test_create_plan_accepts_changespec_and_bug(
     args = _create_args(
         title="Epic",
         type_value=f"plan({plan})",
-        changespec="feature_epic",
+        patch="feature_epic",
         bug_id="12345",
     )
 
@@ -145,7 +145,7 @@ def test_create_plan_preserves_external_absolute_plan_path(
     assert "Created plan" in capsys.readouterr().out
 
 
-def test_show_displays_changespec_metadata(
+def test_show_displays_patch_metadata(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -161,7 +161,7 @@ def test_show_displays_changespec_metadata(
     bead_cli.handle_bead_show(args)
 
     out = capsys.readouterr().out
-    assert "CHANGESPEC" in out
+    assert "PATCH" in out
     assert "Name: feature_epic" in out
     assert "Bug ID: 12345" in out
 
@@ -192,7 +192,7 @@ def test_show_phase_omits_parent_plan_when_parent_has_no_design(
     assert "From parent" not in out
 
 
-def test_create_phase_rejects_changespec_metadata(
+def test_create_phase_rejects_patch_metadata(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -202,7 +202,7 @@ def test_create_phase_rejects_changespec_metadata(
     args = _create_args(
         title="Phase",
         type_value=f"phase({epic.id})",
-        changespec="feature_epic",
+        patch="feature_epic",
     )
 
     with pytest.raises(SystemExit) as excinfo:
@@ -212,7 +212,7 @@ def test_create_phase_rejects_changespec_metadata(
     assert "only be attached to plan beads" in capsys.readouterr().err
 
 
-def test_create_rejects_bug_id_without_changespec(
+def test_create_rejects_bug_id_without_patch(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:

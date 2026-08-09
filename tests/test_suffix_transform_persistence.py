@@ -1,17 +1,17 @@
-"""Persistence regressions for suffix transforms using stale ChangeSpec snapshots."""
+"""Persistence regressions for suffix transforms using stale Patch snapshots."""
 
 from dataclasses import replace
 from pathlib import Path
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     CommentEntry,
     HookEntry,
     HookStatusLine,
     parse_project_file,
 )
-from sase.ace.comments import transform_changespec_comments_field
+from sase.ace.comments import transform_patch_comments_field
 from sase.ace.hooks import (
-    transform_changespec_hooks_field,
+    transform_patch_hooks_field,
     update_hook_status_line_suffix_type,
 )
 from sase.ace.scheduler.suffix_transforms import (
@@ -53,16 +53,16 @@ def test_hook_transform_writes_only_for_material_change(tmp_path: Path) -> None:
             for hook in hooks
         ]
 
-    assert transform_changespec_hooks_field(
+    assert transform_patch_hooks_field(
         str(project_file), "terminal_change", strip_errors
     )
     inode_after_change = project_file.stat().st_ino
 
-    assert not transform_changespec_hooks_field(
+    assert not transform_patch_hooks_field(
         str(project_file), "terminal_change", strip_errors
     )
     assert project_file.stat().st_ino == inode_after_change
-    assert not transform_changespec_hooks_field(
+    assert not transform_patch_hooks_field(
         str(project_file), "missing_change", strip_errors
     )
 
@@ -99,7 +99,7 @@ def test_terminal_hook_cleanup_does_not_restore_old_entry_marker(
         "      | (1) [260720_120000] FAILED - (!: ZOMBIE)\n"
         "      | (2) [260720_130000] FAILED - (!: Hook Command Failed)\n",
     )
-    stale_changespec = parse_project_file(str(project_file))[0]
+    stale_patch = parse_project_file(str(project_file))[0]
 
     concurrent_hook = HookEntry(
         command="current_hook",
@@ -113,17 +113,17 @@ def test_terminal_hook_cleanup_does_not_restore_old_entry_marker(
             )
         ],
     )
-    assert transform_changespec_hooks_field(
+    assert transform_patch_hooks_field(
         str(project_file),
         "terminal_change",
         lambda hooks: [*hooks, concurrent_hook],
     )
 
-    old_entry_updates = strip_old_entry_error_markers(stale_changespec)
+    old_entry_updates = strip_old_entry_error_markers(stale_patch)
     assert len(old_entry_updates) == 1
     assert "(1)" in old_entry_updates[0]
 
-    terminal_updates = strip_terminal_status_markers(stale_changespec)
+    terminal_updates = strip_terminal_status_markers(stale_patch)
     assert len(terminal_updates) == 1
     assert "(2)" in terminal_updates[0]
 
@@ -137,7 +137,7 @@ def test_terminal_hook_cleanup_does_not_restore_old_entry_marker(
     assert current_hook.status_lines[0].suffix == "current data"
 
     inode_after_cleanup = project_file.stat().st_ino
-    assert strip_terminal_status_markers(stale_changespec) == []
+    assert strip_terminal_status_markers(stale_patch) == []
     assert project_file.stat().st_ino == inode_after_cleanup
 
 
@@ -150,9 +150,9 @@ def test_terminal_running_hook_becomes_killed_agent(tmp_path: Path) -> None:
         "      | (1) [260720_120000] RUNNING "
         "- (@: fix_hook-12345-260720_120000)\n",
     )
-    stale_changespec = parse_project_file(str(project_file))[0]
+    stale_patch = parse_project_file(str(project_file))[0]
 
-    updates = strip_terminal_status_markers(stale_changespec)
+    updates = strip_terminal_status_markers(stale_patch)
 
     assert len(updates) == 1
     current_line = parse_project_file(str(project_file))[0].hooks[0].status_lines[0]
@@ -168,7 +168,7 @@ def test_terminal_comment_cleanup_preserves_concurrent_changes(
         project_file,
         "COMMENTS:\n  [alice] /alice.json - (!: ZOMBIE)\n  [bob] /bob-old.json - (2)\n",
     )
-    stale_changespec = parse_project_file(str(project_file))[0]
+    stale_patch = parse_project_file(str(project_file))[0]
 
     concurrent_comment = CommentEntry(reviewer="carol", file_path="/carol.json")
 
@@ -182,13 +182,13 @@ def test_terminal_comment_cleanup_preserves_concurrent_changes(
             for comment in comments
         ] + [concurrent_comment]
 
-    assert transform_changespec_comments_field(
+    assert transform_patch_comments_field(
         str(project_file),
         "terminal_change",
         mutate_unrelated_comment,
     )
 
-    updates = strip_terminal_status_markers(stale_changespec)
+    updates = strip_terminal_status_markers(stale_patch)
     assert updates == ["Cleared COMMENT [alice] suffix: ZOMBIE"]
 
     current_comments = parse_project_file(str(project_file))[0].comments or []
@@ -199,5 +199,5 @@ def test_terminal_comment_cleanup_preserves_concurrent_changes(
     assert comments_by_reviewer["carol"] == concurrent_comment
 
     inode_after_cleanup = project_file.stat().st_ino
-    assert strip_terminal_status_markers(stale_changespec) == []
+    assert strip_terminal_status_markers(stale_patch) == []
     assert project_file.stat().st_ino == inode_after_cleanup

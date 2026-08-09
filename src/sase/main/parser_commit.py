@@ -31,7 +31,7 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
     commit_parser.add_argument(
         "-n",
         "--name",
-        help="Branch/ChangeSpec name (required for create_pull_request)",
+        help="Branch/Patch name (required for create_pull_request)",
     )
     commit_parser.add_argument(
         "-B",
@@ -49,14 +49,14 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
     commit_parser.add_argument(
         "-p",
         "--parent",
-        help="Parent ChangeSpec name (overrides auto-detection from current branch)",
+        help="Parent Patch name (overrides auto-detection from current branch)",
     )
     commit_parser.add_argument(
         "-s",
         "--status",
         type=str.lower,
         choices=["wip", "draft", "ready"],
-        help="ChangeSpec status (overrides $SASE_PR_STATUS; default: draft)",
+        help="Patch status (overrides $SASE_PR_STATUS; default: draft)",
     )
     from sase.workflows.commit.workflow import METHOD_ALIASES, VALID_METHODS
 
@@ -82,19 +82,19 @@ def register_restore_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'restore' subcommand parser."""
     restore_parser = subparsers.add_parser(
         "restore",
-        help="Restore a reverted ChangeSpec by re-applying its diff and creating a new PR",
+        help="Restore a reverted Patch by re-applying its diff and creating a new PR",
     )
     restore_parser.add_argument(
         "name",
         nargs="?",
-        help="NAME of the reverted ChangeSpec to restore (e.g., 'foobar_feature__2')",
+        help="NAME of the reverted Patch to restore (e.g., 'foobar_feature__2')",
     )
     # Options for 'restore' (keep sorted alphabetically by long option name)
     restore_parser.add_argument(
         "-l",
         "--list",
         action="store_true",
-        help="List all reverted ChangeSpecs",
+        help="List all reverted Patches",
     )
 
 
@@ -102,9 +102,9 @@ def register_revert_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'revert' subcommand parser."""
     revert_parser = subparsers.add_parser(
         "revert",
-        help="Revert a ChangeSpec by pruning its PR and archiving the diff",
+        help="Revert a Patch by pruning its PR and archiving the diff",
     )
     revert_parser.add_argument(
         "name",
-        help="NAME of the ChangeSpec to revert",
+        help="NAME of the Patch to revert",
     )

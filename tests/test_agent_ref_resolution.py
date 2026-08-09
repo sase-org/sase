@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.agent.names import AgentRefError, NamedAgent, resolve_agent_changespec
+from sase.agent.names import AgentRefError, NamedAgent, resolve_agent_patch
 from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
 
 _MOCK_WORKFLOW_NAMES = MagicMock(return_value={"gh", "git", "spy"})
@@ -28,15 +28,15 @@ def _mock_vcs_names():
 
 
 # ---------------------------------------------------------------------------
-# resolve_agent_changespec() tests
+# resolve_agent_patch() tests
 # ---------------------------------------------------------------------------
 
 
-class TestResolveAgentChangespec:
+class TestResolveAgentPatch:
     def test_agent_not_found(self) -> None:
         with patch("sase.agent.names.find_named_agent", return_value=None):
             with pytest.raises(AgentRefError, match="No agent found with name 'x'"):
-                resolve_agent_changespec("x")
+                resolve_agent_patch("x")
 
     def test_agent_still_running(self) -> None:
         agent = NamedAgent(
@@ -44,7 +44,7 @@ class TestResolveAgentChangespec:
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
             with pytest.raises(AgentRefError, match="still running"):
-                resolve_agent_changespec("a")
+                resolve_agent_patch("a")
 
     def test_agent_failed(self) -> None:
         agent = NamedAgent(
@@ -52,7 +52,7 @@ class TestResolveAgentChangespec:
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
             with pytest.raises(AgentRefError, match="failed"):
-                resolve_agent_changespec("a")
+                resolve_agent_patch("a")
 
     def test_no_step_output(self, tmp_path: Path) -> None:
         art = tmp_path / "art"
@@ -63,7 +63,7 @@ class TestResolveAgentChangespec:
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
             with pytest.raises(AgentRefError, match="no step output"):
-                resolve_agent_changespec("a")
+                resolve_agent_patch("a")
 
     def test_no_meta_changespec(self, tmp_path: Path) -> None:
         art = tmp_path / "art"
@@ -75,9 +75,9 @@ class TestResolveAgentChangespec:
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
             with pytest.raises(AgentRefError, match="did not create a PR"):
-                resolve_agent_changespec("a")
+                resolve_agent_patch("a")
 
-    def test_returns_changespec(self, tmp_path: Path) -> None:
+    def test_returns_patch(self, tmp_path: Path) -> None:
         art = tmp_path / "art"
         art.mkdir()
         done = {
@@ -89,7 +89,7 @@ class TestResolveAgentChangespec:
             name="a", artifacts_dir=str(art), is_done=True, outcome="completed"
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
-            assert resolve_agent_changespec("a") == "feature/branch"
+            assert resolve_agent_patch("a") == "feature/branch"
 
     def test_legacy_meta_new_cl(self, tmp_path: Path) -> None:
         art = tmp_path / "art"
@@ -103,7 +103,7 @@ class TestResolveAgentChangespec:
             name="a", artifacts_dir=str(art), is_done=True, outcome="completed"
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
-            assert resolve_agent_changespec("a") == "my-branch"
+            assert resolve_agent_patch("a") == "my-branch"
 
     def test_done_json_unreadable(self, tmp_path: Path) -> None:
         art = tmp_path / "art"
@@ -114,7 +114,7 @@ class TestResolveAgentChangespec:
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
             with pytest.raises(AgentRefError, match="Cannot read done marker"):
-                resolve_agent_changespec("a")
+                resolve_agent_patch("a")
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ class TestResolveAgentRefsInPrompt:
 
     def test_gh_colon_at_name(self) -> None:
         with patch(
-            "sase.agent.names.resolve_agent_changespec", return_value="feature/branch"
+            "sase.agent.names.resolve_agent_patch", return_value="feature/branch"
         ):
             result, tag = resolve_agent_refs_in_prompt("#gh:@a Fix tests")
         assert "feature/branch" in result
@@ -146,7 +146,7 @@ class TestResolveAgentRefsInPrompt:
 
     def test_gh_underscore_at_name(self) -> None:
         with patch(
-            "sase.agent.names.resolve_agent_changespec", return_value="feature/branch"
+            "sase.agent.names.resolve_agent_patch", return_value="feature/branch"
         ):
             result, _tag = resolve_agent_refs_in_prompt("#gh_@a Fix tests")
         assert "feature/branch" in result
@@ -154,7 +154,7 @@ class TestResolveAgentRefsInPrompt:
 
     def test_gh_hitl_bang_at_name(self) -> None:
         with patch(
-            "sase.agent.names.resolve_agent_changespec", return_value="feature/branch"
+            "sase.agent.names.resolve_agent_patch", return_value="feature/branch"
         ):
             result, _tag = resolve_agent_refs_in_prompt("#gh!!:@a Fix tests")
         assert "feature/branch" in result
@@ -163,7 +163,7 @@ class TestResolveAgentRefsInPrompt:
 
     def test_gh_hitl_question_at_name(self) -> None:
         with patch(
-            "sase.agent.names.resolve_agent_changespec", return_value="feature/branch"
+            "sase.agent.names.resolve_agent_patch", return_value="feature/branch"
         ):
             result, _tag = resolve_agent_refs_in_prompt("#gh??:@a Fix tests")
         assert "feature/branch" in result
@@ -172,7 +172,7 @@ class TestResolveAgentRefsInPrompt:
 
     def test_gh_paren_at_name(self) -> None:
         with patch(
-            "sase.agent.names.resolve_agent_changespec", return_value="feature/branch"
+            "sase.agent.names.resolve_agent_patch", return_value="feature/branch"
         ):
             result, _tag = resolve_agent_refs_in_prompt("#gh(@a) Fix tests")
         assert "feature/branch" in result
@@ -180,7 +180,7 @@ class TestResolveAgentRefsInPrompt:
 
     def test_with_wait_directive(self) -> None:
         with patch(
-            "sase.agent.names.resolve_agent_changespec", return_value="feature/branch"
+            "sase.agent.names.resolve_agent_patch", return_value="feature/branch"
         ):
             result, _tag = resolve_agent_refs_in_prompt("%wait:a #gh:@a Fix tests")
         assert "feature/branch" in result
@@ -189,7 +189,7 @@ class TestResolveAgentRefsInPrompt:
 
     def test_at_mention_in_body_unchanged(self) -> None:
         with patch(
-            "sase.agent.names.resolve_agent_changespec", return_value="feature/branch"
+            "sase.agent.names.resolve_agent_patch", return_value="feature/branch"
         ):
             result, _tag = resolve_agent_refs_in_prompt("#gh:@a Fix tests cc @someone")
         assert "@someone" in result

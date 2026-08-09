@@ -25,6 +25,10 @@ from ..hooks import (
 )
 from ..mentors import update_changespec_mentors_field
 
+transform_patch_comments_field = transform_changespec_comments_field
+transform_patch_hooks_field = transform_changespec_hooks_field
+update_patch_mentors_field = update_changespec_mentors_field
+
 
 def transform_old_proposal_suffixes(changespec: ChangeSpec) -> list[str]:
     """Remove suffixes from old proposal COMMITS entries.
@@ -250,7 +254,7 @@ def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
         hook_updates.extend(current_updates)
         return updated_hooks
 
-    if transform_changespec_hooks_field(
+    if transform_patch_hooks_field(
         changespec.file_path,
         changespec.name,
         transform_hooks,
@@ -268,7 +272,7 @@ def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
         comment_updates.extend(current_updates)
         return updated_comments
 
-    if transform_changespec_comments_field(
+    if transform_patch_comments_field(
         changespec.file_path,
         changespec.name,
         transform_comments,
@@ -314,7 +318,7 @@ def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
                 mentors_to_update.append(mentor_entry)
 
         if mentor_updates:
-            success = update_changespec_mentors_field(
+            success = update_patch_mentors_field(
                 changespec.file_path,
                 changespec.name,
                 mentors_to_update,

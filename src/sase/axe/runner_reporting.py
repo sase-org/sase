@@ -4,7 +4,7 @@ import json
 import os
 from collections.abc import Callable, Mapping
 
-from sase.ace.patch import ChangeSpec, parse_project_file
+from sase.ace.patch import Patch, parse_project_file
 
 
 def _commit_finalizer_verdict(artifacts_dir: str) -> str:
@@ -139,7 +139,7 @@ def write_error_report(
         summary_rows = [
             ("Model", label),
             ("Workflow", workflow_name),
-            ("ChangeSpec", cl_name),
+            ("Patch", cl_name),
             ("Duration", duration),
             ("Agent name", agent_name),
             ("Artifact directory", artifacts_dir),
@@ -223,12 +223,12 @@ def finalize_axe_runner(
     changespec_name: str,
     proposal_id: str | None,
     exit_code: int,
-    update_suffix_fn: Callable[[ChangeSpec, str, str | None, int], None],
+    update_suffix_fn: Callable[[Patch, str, str | None, int], None],
 ) -> None:
     """Run common finalization logic for axe runners."""
     try:
-        changespecs = parse_project_file(project_file)
-        for cs in changespecs:
+        patches = parse_project_file(project_file)
+        for cs in patches:
             if cs.name == changespec_name:
                 update_suffix_fn(cs, project_file, proposal_id, exit_code)
                 break

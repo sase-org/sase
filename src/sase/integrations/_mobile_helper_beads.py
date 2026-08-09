@@ -275,7 +275,7 @@ def _bead_summary_wire(
         "changespec_name": issue.changespec_name or None,
         "patch_bug_id": issue.patch_bug_id or None,
         "changespec_bug_id": issue.changespec_bug_id or None,
-        "changespec_status": None,
+        "patch_status": None,
     }
 
 

@@ -275,7 +275,7 @@ def test_canonicalize_project_aliases_in_prompt_rewrites_generated_github_aliase
     )
 
 
-def test_canonicalize_preserves_literal_display_prefixed_changespec(
+def test_canonicalize_preserves_literal_display_prefixed_patch(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -310,7 +310,7 @@ def test_canonicalize_keeps_legacy_prefix_rewrite_without_literal_changespec(
     )
 
 
-def test_canonicalize_preserves_literal_archived_changespec(
+def test_canonicalize_preserves_literal_archived_patch(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -332,7 +332,7 @@ def test_canonicalize_preserves_literal_archived_changespec(
     )
 
 
-def test_canonicalize_repairs_previously_mangled_changespec_ref(
+def test_canonicalize_repairs_previously_mangled_patch_ref(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:

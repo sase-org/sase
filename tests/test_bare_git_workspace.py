@@ -29,8 +29,8 @@ class TestSetBareRepoDir:
             assert set_bare_repo_dir(gp, "/repos/proj.git")
             assert os.path.exists(gp)
 
-    @patch(f"{_REF_MOD}.write_changespec_atomic")
-    @patch(f"{_REF_MOD}.changespec_lock")
+    @patch(f"{_REF_MOD}.write_patch_atomic")
+    @patch(f"{_REF_MOD}.patch_lock")
     def test_updates_existing(
         self, mock_lock: MagicMock, mock_write: MagicMock, tmp_path: Path
     ) -> None:
@@ -48,8 +48,8 @@ class TestSetBareRepoDir:
             assert "/old/repo.git" not in written
             os.unlink(f.name)
 
-    @patch(f"{_REF_MOD}.write_changespec_atomic")
-    @patch(f"{_REF_MOD}.changespec_lock")
+    @patch(f"{_REF_MOD}.write_patch_atomic")
+    @patch(f"{_REF_MOD}.patch_lock")
     def test_inserts_before_running(
         self, mock_lock: MagicMock, mock_write: MagicMock, tmp_path: Path
     ) -> None:
@@ -98,8 +98,8 @@ class TestResolveGitRef:
 
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
     @patch(f"{_INIT_MOD}.init_bare_git_project")
-    @patch(f"{_REF_MOD}.find_all_changespecs")
-    def test_changespec_name(
+    @patch(f"{_REF_MOD}.find_all_patches")
+    def test_patch_name(
         self,
         mock_find: MagicMock,
         mock_init: MagicMock,
@@ -130,7 +130,7 @@ class TestResolveGitRef:
                 assert result.bare_repo_dir == "/repos/proj.git"
                 mock_init.assert_not_called()
 
-    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
     def test_empty_project_name_not_initialized(self, mock_find: MagicMock) -> None:
         with patch(
             f"{_REF_MOD}.Path.home",
@@ -139,7 +139,7 @@ class TestResolveGitRef:
             with pytest.raises(ValueError, match="empty ref"):
                 resolve_git_ref("")
 
-    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")
     def test_hidden_project_name_not_auto_initialized(
         self,
@@ -160,7 +160,7 @@ class TestResolveGitRef:
         mock_init.assert_not_called()
 
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
-    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")
     def test_home_project_without_bare_repo_auto_initializes(
         self,
@@ -201,7 +201,7 @@ class TestResolveGitRef:
             mock_branch.assert_called_once_with(workspace_dir)
 
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
-    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")
     def test_missing_project_name_auto_initializes(
         self,
@@ -253,7 +253,7 @@ class TestResolveGitRef:
             assert records[0].vcs_kind == "git"
 
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
-    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")
     def test_existing_project_without_bare_repo_auto_initializes(
         self,
@@ -298,7 +298,7 @@ class TestResolveGitRef:
             mock_init.assert_called_once_with("plainproj")
             mock_branch.assert_called_once_with(workspace_dir)
 
-    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")
     def test_project_with_bare_repo_without_workspace_is_not_initialized(
         self,

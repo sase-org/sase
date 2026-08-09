@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.ace.patch import changespec_lock, write_changespec_atomic
+from sase.ace.patch import patch_lock, write_patch_atomic
 from sase.core.paths import is_valid_sase_project_name
 from sase.workflows.utils import get_project_file_path
 from sase.workspace_provider.store import WorkspaceStore
@@ -404,7 +404,7 @@ def _ensure_sibling_project_spec(
 ) -> None:
     path = Path(project_file).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
-    with changespec_lock(str(path)):
+    with patch_lock(str(path)):
         try:
             content = path.read_text(encoding="utf-8")
         except FileNotFoundError:
@@ -423,7 +423,7 @@ def _ensure_sibling_project_spec(
         for key, value in metadata.items():
             updated = _ensure_header_metadata(updated, key, value)
 
-        write_changespec_atomic(
+        write_patch_atomic(
             str(path),
             updated,
             "Materialize sibling ProjectSpec metadata",

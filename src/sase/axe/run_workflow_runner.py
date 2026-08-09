@@ -70,7 +70,7 @@ def _write_workflow_state(
     Args:
         artifacts_dir: Directory for workflow artifacts.
         workflow_name: Name of the workflow being run.
-        cl_name: ChangeSpec name for context.
+        cl_name: Patch name for context.
         status: Workflow status ("running" or "failed").
         error: Optional error message (for "failed" status).
         traceback_str: Optional traceback string (for "failed" status).
@@ -133,7 +133,7 @@ def main() -> None:
     if len(sys.argv) == 11 and sys.argv[10]:
         hitl_override = sys.argv[10] == "1"
 
-    # Get ChangeSpec name: prefer named_args (injected by launcher with the display
+    # Get Patch name: prefer named_args (injected by launcher with the display
     # name), fall back to update_target, then generic "workflow" sentinel.
     cl_name = named_args.get("cl_name", "") or update_target or "workflow"
 

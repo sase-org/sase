@@ -266,8 +266,8 @@ def test_finalize_axe_runner_success() -> None:
         assert update_suffix_calls[0] == (mock_cs, "/path/project.sase", "abc123", 0)
 
 
-def test_finalize_axe_runner_no_matching_changespec() -> None:
-    """Test finalize_axe_runner skips suffix update when changespec not found."""
+def test_finalize_axe_runner_no_matching_patch() -> None:
+    """Test finalize_axe_runner skips suffix update when patch not found."""
     mock_cs = MagicMock()
     mock_cs.name = "other_cl"
 
@@ -288,7 +288,7 @@ def test_finalize_axe_runner_no_matching_changespec() -> None:
             update_suffix_fn=mock_update_suffix,
         )
 
-        # update_suffix should not be called - no matching changespec
+        # update_suffix should not be called - no matching patch
         assert len(update_suffix_calls) == 0
 
 

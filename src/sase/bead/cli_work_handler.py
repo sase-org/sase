@@ -24,7 +24,7 @@ from sase.bead.cli_work_commit import (
 )
 from sase.bead.cli_work_context import (
     resolve_vcs_launch_context,
-    resolve_changespec_launch_context,
+    resolve_patch_launch_context,
 )
 from sase.bead.cli_work_launch import launch_bead_work_agents
 from sase.bead.cli_work_plan import (
@@ -53,7 +53,7 @@ if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.bead.project import EpicPreclaimRollback
     from sase.bead.work import (
-        ChangeSpecLaunchContext,
+        PatchLaunchContext,
         VCSLaunchContext,
     )
 
@@ -202,11 +202,11 @@ def launch_epic_bead_work(
             raise BeadWorkError(str(e)) from e
 
     vcs_context: VCSLaunchContext | None = None
-    changespec_context: ChangeSpecLaunchContext | None = None
+    patch_context: PatchLaunchContext | None = None
     with timer.stage("vcs_context"):
         if issue.changespec_name:
             try:
-                changespec_context = resolve_changespec_launch_context(
+                patch_context = resolve_patch_launch_context(
                     changespec_name=issue.changespec_name,
                     bug_id=issue.changespec_bug_id,
                 )
@@ -223,7 +223,7 @@ def launch_epic_bead_work(
             work_phase_xprompt=work_phase_xprompt,
             land_epic_xprompt=land_epic_xprompt,
             vcs_context=vcs_context,
-            changespec_context=changespec_context,
+            patch_context=patch_context,
             declare_clan=plan.epic_id not in get_reserved_clan_names(),
         )
 
@@ -286,7 +286,7 @@ def launch_epic_bead_work(
             proj,
             epic_id,
             plan_ref=issue.design,
-            launch_context=changespec_context or vcs_context,
+            launch_context=patch_context or vcs_context,
         )
 
     phase_assignments = [
@@ -384,7 +384,7 @@ def launch_epic_bead_work(
                     plan_snapshot=plan_snapshot,
                 ),
                 expected_names=expected_agent_names(plan),
-                launch_context=changespec_context or vcs_context,
+                launch_context=patch_context or vcs_context,
             )
     except Exception as e:
         launched_results = list(getattr(e, "results", []))

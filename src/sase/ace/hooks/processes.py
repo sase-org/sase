@@ -462,10 +462,10 @@ def kill_and_persist_all_running_processes(
     # Lazy imports to avoid circular dependencies
     from ..comments.operations import (
         mark_comment_agents_as_killed,
-        update_changespec_comments_field,
+        update_patch_comments_field,
     )
-    from ..mentors import update_changespec_mentors_field
-    from .persistence import update_changespec_hooks_field
+    from ..mentors import update_patch_mentors_field
+    from .persistence import update_patch_hooks_field
 
     # Kill running hook processes
     killed_processes = kill_running_hook_processes(changespec)
@@ -476,7 +476,7 @@ def kill_and_persist_all_running_processes(
             updated_hooks = mark_hooks_as_killed(
                 changespec.hooks, killed_processes, kill_reason
             )
-            update_changespec_hooks_field(project_file, cl_name, updated_hooks)
+            update_patch_hooks_field(project_file, cl_name, updated_hooks)
 
     # Kill running agent processes
     killed_hook_agents, killed_comment_agents = kill_running_agent_processes(changespec)
@@ -488,12 +488,12 @@ def kill_and_persist_all_running_processes(
             updated_hooks = mark_hook_agents_as_killed(
                 changespec.hooks, killed_hook_agents
             )
-            update_changespec_hooks_field(project_file, cl_name, updated_hooks)
+            update_patch_hooks_field(project_file, cl_name, updated_hooks)
         if killed_comment_agents and changespec.comments:
             updated_comments = mark_comment_agents_as_killed(
                 changespec.comments, killed_comment_agents
             )
-            update_changespec_comments_field(project_file, cl_name, updated_comments)
+            update_patch_comments_field(project_file, cl_name, updated_comments)
 
     # Kill running mentor processes
     killed_mentors = kill_running_mentor_processes(changespec)
@@ -504,7 +504,7 @@ def kill_and_persist_all_running_processes(
             updated_mentors = mark_mentor_agents_as_killed(
                 changespec.mentors, killed_mentors
             )
-            update_changespec_mentors_field(project_file, cl_name, updated_mentors)
+            update_patch_mentors_field(project_file, cl_name, updated_mentors)
 
         # Release workspaces claimed by killed mentor processes
         from sase.running_field import get_claimed_workspaces, release_workspace

@@ -199,7 +199,7 @@ def publish_review_agent_env(
     cl_name: str,
     project_file: str,
 ) -> None:
-    """Publish the shared agent phase and ChangeSpec environment.
+    """Publish the shared agent phase and Patch environment.
 
     Standalone review runners do not pass through ``run_execution_loop``, so
     they must publish this environment themselves before invoking a provider.
@@ -232,7 +232,7 @@ def write_done_marker(
 
     Args:
         artifacts_dir: Path to the artifacts directory.
-        cl_name: Name of the ChangeSpec.
+        cl_name: Name of the Patch.
         project_file: Path to the project file.
         timestamp: Timestamp in YYmmdd_HHMMSS format.
         exit_code: Exit code (0 for success).

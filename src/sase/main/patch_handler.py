@@ -14,7 +14,7 @@ from pathlib import Path
 
 from sase.ace.patch import Patch, find_all_patches
 from sase.ace.patch.refs_persistence import update_patch_refs_field
-from sase.ace.deltas import refresh_deltas_for_changespec
+from sase.ace.deltas import refresh_deltas_for_patch
 from sase.artifact_ref_lists import (
     ArtifactRefListEntry,
     artifact_ref_list_display_lines,
@@ -31,7 +31,7 @@ from sase.project_display_names import humanize_cl_name, project_display_name_fo
 from sase.vcs_provider import VCSProvider, get_vcs_provider
 from sase.workflows.utils import get_project_file_path, get_project_from_workspace
 
-find_all_changespecs = find_all_patches
+find_all_patches = find_all_patches
 
 
 @dataclass(frozen=True)
@@ -62,12 +62,12 @@ def _project_from_project_file(project_file: str | None) -> str | None:
     return stem
 
 
-ChangeSpec = Patch
+Patch = Patch
 
 
 def _command_name(args: argparse.Namespace) -> str:
     command = getattr(args, "command", "patch")
-    return "changespec" if command == "changespec" else "patch"
+    return "patch" if command == "patch" else "patch"
 
 
 def _command_prefix(args: argparse.Namespace, subcommand: str) -> str:
@@ -79,7 +79,7 @@ def _target_option(args: argparse.Namespace) -> str:
 
 
 def _patch_target(args: argparse.Namespace) -> str | None:
-    return getattr(args, "patch", None) or getattr(args, "changespec", None)
+    return getattr(args, "patch", None) or getattr(args, "patch", None)
 
 
 def _resolve_project_context(explicit: str | None) -> tuple[str | None, str | None]:
@@ -137,9 +137,7 @@ def _add_if_present(values: set[str], value: str | None) -> None:
         values.add(value)
 
 
-def _branch_candidates_for_changespec(
-    cs: ChangeSpec, provider: VCSProvider | None
-) -> set[str]:
+def _branch_candidates_for_patch(cs: Patch, provider: VCSProvider | None) -> set[str]:
     """Build branch/name spellings that can identify ``cs``."""
     project = cs.project_basename
     prefix = f"{project}_"
@@ -179,20 +177,18 @@ def _branch_candidates_for_changespec(
     return normalized
 
 
-def _scoped_changespecs(
-    changespecs: list[ChangeSpec], project: str | None
-) -> list[ChangeSpec]:
-    """Limit ChangeSpecs to the current project when one is known."""
+def _scoped_patches(patches: list[Patch], project: str | None) -> list[Patch]:
+    """Limit Patches to the current project when one is known."""
     if not project:
-        return changespecs
-    return [cs for cs in changespecs if cs.project_basename == project]
+        return patches
+    return [cs for cs in patches if cs.project_basename == project]
 
 
-def _dedupe_changespecs(changespecs: list[ChangeSpec]) -> list[ChangeSpec]:
-    """Deduplicate matched ChangeSpecs without changing order."""
+def _dedupe_patches(patches: list[Patch]) -> list[Patch]:
+    """Deduplicate matched Patches without changing order."""
     seen: set[tuple[str, str, int]] = set()
-    deduped: list[ChangeSpec] = []
-    for cs in changespecs:
+    deduped: list[Patch] = []
+    for cs in patches:
         key = (cs.name, cs.file_path, cs.line_number)
         if key in seen:
             continue
@@ -201,39 +197,37 @@ def _dedupe_changespecs(changespecs: list[ChangeSpec]) -> list[ChangeSpec]:
     return deduped
 
 
-def _find_current_changespec(
-    changespecs: list[ChangeSpec],
+def _find_current_patch(
+    patches: list[Patch],
     context: _CurrentContext,
     provider: VCSProvider | None,
-) -> list[ChangeSpec]:
-    """Resolve the current checkout to matching ChangeSpecs."""
-    scoped = _scoped_changespecs(changespecs, context.project)
+) -> list[Patch]:
+    """Resolve the current checkout to matching Patches."""
+    scoped = _scoped_patches(patches, context.project)
 
     if context.change_url:
         url_matches = [cs for cs in scoped if cs.pr_url == context.change_url]
         if url_matches:
-            return _dedupe_changespecs(url_matches)
+            return _dedupe_patches(url_matches)
 
     if context.branch:
         branch = _normalize_branch_name(context.branch)
         branch_matches = [
-            cs
-            for cs in scoped
-            if branch in _branch_candidates_for_changespec(cs, provider)
+            cs for cs in scoped if branch in _branch_candidates_for_patch(cs, provider)
         ]
         if branch_matches:
-            return _dedupe_changespecs(branch_matches)
+            return _dedupe_patches(branch_matches)
 
     return []
 
 
-def _file_location(cs: ChangeSpec) -> str:
+def _file_location(cs: Patch) -> str:
     """Return a user-facing file:line location."""
     file_path = cs.file_path.replace(str(Path.home()), "~")
     return f"{file_path}:{cs.line_number}"
 
 
-def _changespec_payload(cs: ChangeSpec) -> dict[str, object]:
+def _patch_payload(cs: Patch) -> dict[str, object]:
     """Stable JSON-serializable representation for ``patch current``."""
     return {
         "name": cs.name,
@@ -247,7 +241,7 @@ def _changespec_payload(cs: ChangeSpec) -> dict[str, object]:
     }
 
 
-def _display_current_markdown(cs: ChangeSpec) -> None:
+def _display_current_markdown(cs: Patch) -> None:
     """Print one Patch in compact agent-friendly markdown."""
     print("# Current Patch")
     print("")
@@ -266,8 +260,8 @@ def _display_current_markdown(cs: ChangeSpec) -> None:
             print(f"- `{reference}`")
 
 
-def _display_current_plain(cs: ChangeSpec) -> None:
-    """Print one ChangeSpec as stable key/value lines."""
+def _display_current_plain(cs: Patch) -> None:
+    """Print one Patch as stable key/value lines."""
     print(f"NAME: {humanize_cl_name(cs.name)}")
     print(f"PROJECT: {project_display_name_for(cs.project_basename)}")
     print(f"STATUS: {cs.status}")
@@ -281,9 +275,9 @@ def _display_current_plain(cs: ChangeSpec) -> None:
     print(f"LINE: {cs.line_number}")
 
 
-def _display_current_json(cs: ChangeSpec) -> None:
+def _display_current_json(cs: Patch) -> None:
     """Print one Patch as JSON."""
-    print(json.dumps(_changespec_payload(cs), sort_keys=True))
+    print(json.dumps(_patch_payload(cs), sort_keys=True))
 
 
 def _diagnostic_lines(context: _CurrentContext) -> list[str]:
@@ -307,7 +301,7 @@ def _handle_current(args: argparse.Namespace) -> int:
         change_url=_get_current_change_url(provider, cwd),
     )
 
-    matches = _find_current_changespec(find_all_changespecs(), context, provider)
+    matches = _find_current_patch(find_all_patches(), context, provider)
     if not matches:
         print(
             f"[{_command_prefix(args, 'current')}] could not find a Patch "
@@ -342,14 +336,12 @@ def _handle_current(args: argparse.Namespace) -> int:
     return 0
 
 
-def _resolve_ref_changespec(
-    name: str | None, args: argparse.Namespace
-) -> ChangeSpec | None:
+def _resolve_ref_patch(name: str | None, args: argparse.Namespace) -> Patch | None:
     """Resolve an explicit name or the current checkout to one Patch."""
 
-    changespecs = find_all_changespecs()
+    patches = find_all_patches()
     if name:
-        matches = [changespec for changespec in changespecs if changespec.name == name]
+        matches = [patch for patch in patches if patch.name == name]
         if not matches:
             print(
                 f"[{_command_prefix(args, 'ref')}] Patch not found: {name}",
@@ -361,8 +353,8 @@ def _resolve_ref_changespec(
                 f"[{_command_prefix(args, 'ref')}] multiple Patches are named {name}:",
                 file=sys.stderr,
             )
-            for changespec in matches:
-                print(f"  {_file_location(changespec)}", file=sys.stderr)
+            for patch in matches:
+                print(f"  {_file_location(patch)}", file=sys.stderr)
             return None
         return matches[0]
 
@@ -375,7 +367,7 @@ def _resolve_ref_changespec(
         branch=_get_current_branch(provider, cwd),
         change_url=_get_current_change_url(provider, cwd),
     )
-    matches = _find_current_changespec(changespecs, context, provider)
+    matches = _find_current_patch(patches, context, provider)
     if len(matches) == 1:
         return matches[0]
     if not matches:
@@ -406,11 +398,11 @@ def _artifact_reference_context(project: str) -> ArtifactRefContext | None:
         return None
 
 
-def _render_ref_list(changespec: ChangeSpec, *, resolve: bool, as_json: bool) -> int:
-    refs = tuple(changespec.refs or ())
+def _render_ref_list(patch: Patch, *, resolve: bool, as_json: bool) -> int:
+    refs = tuple(patch.refs or ())
     entries: tuple[ArtifactRefListEntry | str, ...]
     if resolve and refs:
-        context = _artifact_reference_context(changespec.project_basename)
+        context = _artifact_reference_context(patch.project_basename)
         entries = (
             resolve_artifact_ref_list(refs, context=context)
             if context is not None
@@ -438,7 +430,7 @@ def _render_ref_list(changespec: ChangeSpec, *, resolve: bool, as_json: bool) ->
                     "count": len(entries),
                     "results": [
                         {
-                            "changespec": changespec.name,
+                            "patch": patch.name,
                             "refs": rendered_entries,
                         }
                     ],
@@ -458,18 +450,18 @@ def _render_ref_list(changespec: ChangeSpec, *, resolve: bool, as_json: bool) ->
 
 
 def _handle_ref(args: argparse.Namespace) -> int:
-    changespec = _resolve_ref_changespec(_patch_target(args), args)
-    if changespec is None:
+    patch = _resolve_ref_patch(_patch_target(args), args)
+    if patch is None:
         return 1
 
     if args.ref_action == "list":
         return _render_ref_list(
-            changespec,
+            patch,
             resolve=bool(args.resolve),
             as_json=bool(args.json),
         )
 
-    existing = tuple(changespec.refs or ())
+    existing = tuple(patch.refs or ())
     try:
         requested = normalize_artifact_ref_list(args.refs)
         if args.ref_action == "add":
@@ -488,12 +480,12 @@ def _handle_ref(args: argparse.Namespace) -> int:
         return 1
 
     if not update_patch_refs_field(
-        changespec.file_path,
-        changespec.name,
+        patch.file_path,
+        patch.name,
         updated,
     ):
         print(
-            f"[{_command_prefix(args, 'ref')}] failed to update {changespec.name}",
+            f"[{_command_prefix(args, 'ref')}] failed to update {patch.name}",
             file=sys.stderr,
         )
         return 1
@@ -501,7 +493,7 @@ def _handle_ref(args: argparse.Namespace) -> int:
     print(
         f"{verb} {len(changed)} artifact reference"
         f"{'' if len(changed) == 1 else 's'} "
-        f"{'to' if args.ref_action == 'add' else 'from'} {changespec.name}."
+        f"{'to' if args.ref_action == 'add' else 'from'} {patch.name}."
     )
     return 0
 
@@ -524,7 +516,7 @@ def _handle_sync_deltas(args: argparse.Namespace) -> int:
         return 1
 
     workspace_dir = args.workspace_dir or os.getcwd()
-    ok = refresh_deltas_for_changespec(project_file, args.cl_name, workspace_dir)
+    ok = refresh_deltas_for_patch(project_file, args.cl_name, workspace_dir)
     if ok:
         print(f"DELTAS refreshed for {args.cl_name} in {project_file}")
         return 0
@@ -587,13 +579,13 @@ def handle_patch_command(args: argparse.Namespace) -> None:
     sys.exit(1)
 
 
-handle_changespec_command = handle_patch_command
+handle_patch_command = handle_patch_command
 
 
 __all__ = [
     "_artifact_reference_context",
     "_handle_current",
     "_handle_ref",
-    "handle_changespec_command",
+    "handle_patch_command",
     "handle_patch_command",
 ]

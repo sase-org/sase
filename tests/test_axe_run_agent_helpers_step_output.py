@@ -94,7 +94,7 @@ def test_extract_diff_path_from_non_last_step(tmp_path: Path) -> None:
     """diff_path found in a middle step when later steps have no diff_path.
 
     Simulates #gh + #pr embedded workflows where gh.diff produces
-    diff_path but the pr post-steps (create_changespec, create_pr,
+    diff_path but the pr post-steps (create_patch, create_pr,
     update_cl) come after it.
     """
     state_data = {
@@ -111,7 +111,7 @@ def test_extract_diff_path_from_non_last_step(tmp_path: Path) -> None:
                 "output_types": {"diff_path": "path", "meta_commit_message": "text"},
             },
             {
-                "name": "pr.create_changespec",
+                "name": "pr.create_patch",
                 "status": "completed",
                 "output": {
                     "success": True,

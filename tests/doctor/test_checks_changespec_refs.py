@@ -1,4 +1,4 @@
-"""Tests for ``project.changespec_refs`` diagnostics."""
+"""Tests for ``project.patch_refs`` diagnostics."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
 )
-from sase.doctor.checks_changespec_refs import _check_changespec_refs
+from sase.doctor.checks_changespec_refs import _check_patch_refs
 from sase.doctor.runner import DoctorContext
 from tests.artifact_refs.helpers import context as make_context
 
@@ -50,12 +50,12 @@ def _record(tmp_path: Path, *refs: str) -> ProjectRecordWire:
 
 def _select_record(monkeypatch, record: ProjectRecordWire) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_changespec_refs.resolve_current_project_record",
+        "sase.doctor.checks_changespec_refs.resolve_current_project_record",  # legacy module path
         lambda _context: SimpleNamespace(record=record),
     )
 
 
-def test_changespec_refs_reports_healthy_batch(
+def test_patch_refs_reports_healthy_batch(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -66,18 +66,18 @@ def test_changespec_refs_reports_healthy_batch(
     plan.write_text("# Resolved\n", encoding="utf-8")
     _select_record(monkeypatch, record)
     monkeypatch.setattr(
-        "sase.doctor.checks_changespec_refs._reference_context",
+        "sase.doctor.checks_changespec_refs._reference_context",  # legacy module path
         lambda _record: context,
     )
 
-    check = _check_changespec_refs(_context(tmp_path))
+    check = _check_patch_refs(_context(tmp_path))
 
     assert check.status == "OK"
     assert "all 1" in check.summary
     assert check.data["findings"] == ()
 
 
-def test_changespec_refs_groups_unresolvable_entries(
+def test_patch_refs_groups_unresolvable_entries(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -85,11 +85,11 @@ def test_changespec_refs_groups_unresolvable_entries(
     context = make_context(tmp_path)
     _select_record(monkeypatch, record)
     monkeypatch.setattr(
-        "sase.doctor.checks_changespec_refs._reference_context",
+        "sase.doctor.checks_changespec_refs._reference_context",  # legacy module path
         lambda _record: context,
     )
 
-    check = _check_changespec_refs(_context(tmp_path))
+    check = _check_patch_refs(_context(tmp_path))
 
     assert check.status == "WARN"
     assert check.details == (
@@ -99,18 +99,18 @@ def test_changespec_refs_groups_unresolvable_entries(
     assert check.data["findings"][0]["status"] == "missing"
 
 
-def test_changespec_refs_skips_when_reference_context_is_unavailable(
+def test_patch_refs_skips_when_reference_context_is_unavailable(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
     record = _record(tmp_path, "plans:missing.md")
     _select_record(monkeypatch, record)
     monkeypatch.setattr(
-        "sase.doctor.checks_changespec_refs._reference_context",
+        "sase.doctor.checks_changespec_refs._reference_context",  # legacy module path
         lambda _record: None,
     )
 
-    check = _check_changespec_refs(_context(tmp_path))
+    check = _check_patch_refs(_context(tmp_path))
 
     assert check.status == "SKIP"
     assert "context is unavailable" in check.summary

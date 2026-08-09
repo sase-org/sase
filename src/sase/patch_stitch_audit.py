@@ -164,11 +164,30 @@ def _parse_repo_spec(value: str) -> _RepoSpec:
 
 def _tracked_files(root: Path) -> tuple[Path, ...]:
     proc = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "-z"],
+        [
+            "git",
+            "-C",
+            str(root),
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ],
         check=True,
         capture_output=True,
     )
-    return tuple(root / raw.decode("utf-8") for raw in proc.stdout.split(b"\0") if raw)
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    for raw in proc.stdout.split(b"\0"):
+        if not raw:
+            continue
+        path = root / raw.decode("utf-8")
+        if path in seen or not path.is_file():
+            continue
+        seen.add(path)
+        paths.append(path)
+    return tuple(paths)
 
 
 def _text_lines(path: Path) -> tuple[str, ...] | None:

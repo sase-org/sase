@@ -32,11 +32,11 @@ _PROJECT_LINES = [
 ]
 
 
-def test_read_status_from_lines_matches_first_changespec() -> None:
+def test_read_status_from_lines_matches_first_patch() -> None:
     assert read_status_from_lines(_PROJECT_LINES, "alpha") == "Ready"
 
 
-def test_read_status_from_lines_matches_second_changespec() -> None:
+def test_read_status_from_lines_matches_second_patch() -> None:
     assert read_status_from_lines(_PROJECT_LINES, "beta") == "Draft"
 
 
@@ -55,7 +55,7 @@ def test_read_status_preserves_workspace_suffix() -> None:
 def test_apply_status_update_replaces_only_target_status() -> None:
     updated = apply_status_update(_PROJECT_LINES, "alpha", "Mailed")
     assert "STATUS: Mailed\n" in updated
-    # The other ChangeSpec's STATUS must be untouched.
+    # The other Patch's STATUS must be untouched.
     assert "STATUS: Draft\n" in updated
     # The replaced original must be gone.
     assert "STATUS: Ready\n" not in updated
@@ -70,7 +70,7 @@ def test_apply_status_update_preserves_unrelated_lines() -> None:
     assert "---\n" in updated
 
 
-def test_apply_status_update_no_matching_changespec_is_noop() -> None:
+def test_apply_status_update_no_matching_patch_is_noop() -> None:
     updated = apply_status_update(_PROJECT_LINES, "gamma", "Mailed")
     assert updated == "".join(_PROJECT_LINES)
 

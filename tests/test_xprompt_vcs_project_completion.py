@@ -367,17 +367,17 @@ def test_builder_dedupes_by_name() -> None:
     assert len(entries) == 1
 
 
-def _changespec(name: str, project: str, status: str):
+def _patch(name: str, project: str, status: str):
     return SimpleNamespace(name=name, project_basename=project, status=status)
 
 
-def test_builder_appends_active_changespecs_after_projects() -> None:
+def test_builder_appends_active_patches_after_projects() -> None:
     records = [_record("sase"), _record("bob")]
     workflow_types = {"sase": "gh", "bob": "git"}
     display_names = {"gh": "GitHub", "git": "Git"}
-    changespecs = [
-        _changespec("ship-z", "sase", "Ready"),
-        _changespec("draft-b", "bob", "Draft (bob_2)"),
+    patches = [
+        _patch("ship-z", "sase", "Ready"),
+        _patch("draft-b", "bob", "Draft (bob_2)"),
     ]
     list_p, detect_p, display_p = _patch_catalog(records, workflow_types, display_names)
 
@@ -385,9 +385,7 @@ def test_builder_appends_active_changespecs_after_projects() -> None:
         list_p,
         detect_p,
         display_p,
-        patch.object(
-            vpc, "_iter_enabled_project_changespecs", return_value=changespecs
-        ),
+        patch.object(vpc, "_iter_enabled_project_patches", return_value=patches),
     ):
         entries = build_vcs_project_completion_entries(
             projects_dir="/tmp/projects", use_cache=False
@@ -404,14 +402,14 @@ def test_builder_appends_active_changespecs_after_projects() -> None:
     assert draft.status == "Draft"
 
 
-def test_builder_projects_changespec_rows_but_keeps_canonical_search_identity(
+def test_builder_projects_patch_rows_but_keeps_canonical_search_identity(
     project_display_case: ProjectDisplayCase,
 ) -> None:
     records = [project_display_case.project_record()]
     workflow_types = {project_display_case.project_key: "gh"}
-    changespecs = [
-        _changespec(
-            project_display_case.changespec_key,
+    patches = [
+        _patch(
+            project_display_case.patch_key,
             project_display_case.project_key,
             "Ready",
         )
@@ -424,8 +422,8 @@ def test_builder_projects_changespec_rows_but_keeps_canonical_search_identity(
         display_p,
         patch.object(
             vpc,
-            "_iter_enabled_project_changespecs",
-            return_value=changespecs,
+            "_iter_enabled_project_patches",
+            return_value=patches,
         ),
     ):
         entries = build_vcs_project_completion_entries(
@@ -433,24 +431,24 @@ def test_builder_projects_changespec_rows_but_keeps_canonical_search_identity(
             use_cache=False,
         )
 
-    changespec = next(entry for entry in entries if entry.kind == "patch")
-    assert changespec.name == project_display_case.changespec_label
-    assert changespec.display_tag == f"#gh:{project_display_case.changespec_label}"
-    assert changespec.project == project_display_case.project_key
-    assert changespec.aliases == (project_display_case.changespec_key,)
+    patch_entry = next(entry for entry in entries if entry.kind == "patch")
+    assert patch_entry.name == project_display_case.patch_label
+    assert patch_entry.display_tag == f"#gh:{project_display_case.patch_label}"
+    assert patch_entry.project == project_display_case.project_key
+    assert patch_entry.aliases == (project_display_case.patch_key,)
     assert filter_vcs_project_entries(
         entries,
-        project_display_case.changespec_key,
-    ) == [changespec]
+        project_display_case.patch_key,
+    ) == [patch_entry]
 
 
-def test_builder_filters_changespec_status_and_missing_project() -> None:
+def test_builder_filters_patch_status_and_missing_project() -> None:
     records = [_record("sase")]
     workflow_types = {"sase": "gh"}
-    changespecs = [
-        _changespec("active", "sase", "Mailed"),
-        _changespec("done", "sase", "Submitted"),
-        _changespec("other", "missing", "Ready"),
+    patches = [
+        _patch("active", "sase", "Mailed"),
+        _patch("done", "sase", "Submitted"),
+        _patch("other", "missing", "Ready"),
     ]
     list_p, detect_p, display_p = _patch_catalog(records, workflow_types)
 
@@ -458,9 +456,7 @@ def test_builder_filters_changespec_status_and_missing_project() -> None:
         list_p,
         detect_p,
         display_p,
-        patch.object(
-            vpc, "_iter_enabled_project_changespecs", return_value=changespecs
-        ),
+        patch.object(vpc, "_iter_enabled_project_patches", return_value=patches),
     ):
         entries = build_vcs_project_completion_entries(
             projects_dir="/tmp/projects", use_cache=False
@@ -475,16 +471,14 @@ def test_builder_filters_changespec_status_and_missing_project() -> None:
 def test_builder_allows_changespec_name_to_match_project_name() -> None:
     records = [_record("sase")]
     workflow_types = {"sase": "gh"}
-    changespecs = [_changespec("sase", "sase", "WIP")]
+    patches = [_patch("sase", "sase", "WIP")]
     list_p, detect_p, display_p = _patch_catalog(records, workflow_types)
 
     with (
         list_p,
         detect_p,
         display_p,
-        patch.object(
-            vpc, "_iter_enabled_project_changespecs", return_value=changespecs
-        ),
+        patch.object(vpc, "_iter_enabled_project_patches", return_value=patches),
     ):
         entries = build_vcs_project_completion_entries(
             projects_dir="/tmp/projects", use_cache=False
@@ -556,9 +550,9 @@ def test_cache_invalidates_when_project_spec_mtime_changes(tmp_path) -> None:
     spec_file.write_text("NAME: first\nSTATUS: WIP\n", encoding="utf-8")
     records = [_record("sase")]
     workflow_types = {"sase": "gh"}
-    changespec_versions = [
-        [_changespec("first", "sase", "WIP")],
-        [_changespec("second", "sase", "Ready")],
+    patch_versions = [
+        [_patch("first", "sase", "WIP")],
+        [_patch("second", "sase", "Ready")],
     ]
     list_p, detect_p, display_p = _patch_catalog(records, workflow_types)
 
@@ -566,10 +560,10 @@ def test_cache_invalidates_when_project_spec_mtime_changes(tmp_path) -> None:
         list_p as list_mock,
         detect_p,
         display_p,
-        patch.object(vpc, "iter_changespec_project_files", return_value=[spec_file]),
+        patch.object(vpc, "iter_patch_project_files", return_value=[spec_file]),
         patch.object(
-            vpc, "_iter_enabled_project_changespecs", side_effect=changespec_versions
-        ) as changespec_mock,
+            vpc, "_iter_enabled_project_patches", side_effect=patch_versions
+        ) as patch_mock,
     ):
         first = build_vcs_project_completion_entries(projects_dir=tmp_path)
         second = build_vcs_project_completion_entries(projects_dir=tmp_path)
@@ -584,7 +578,7 @@ def test_cache_invalidates_when_project_spec_mtime_changes(tmp_path) -> None:
     assert second == first
     assert [entry.name for entry in third if entry.kind == "patch"] == ["second"]
     assert list_mock.call_count == 2
-    assert changespec_mock.call_count == 2
+    assert patch_mock.call_count == 2
 
 
 # --- Catalog payload (the LSP materialization contract) --------------------

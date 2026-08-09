@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.integrations.chat_install import (
     ChatInstallLaunchResult,
     ChatInstallStatusResult,
@@ -18,7 +18,7 @@ from tests._mobile_helper_bridge_helpers import (
     run_bridge,
     seed_bead_project,
     seed_known_projects,
-    stub_changespecs,
+    stub_patches,
 )
 
 
@@ -30,10 +30,10 @@ def test_mobile_helper_bridge_smoke_all_helpers_with_temp_project_and_update(
     seed_known_projects(tmp_path, {"alpha": alpha_dir})
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     project_file = tmp_path / ".sase/projects/alpha/alpha.sase"
-    stub_changespecs(
+    stub_patches(
         monkeypatch,
         [
-            ChangeSpec(
+            Patch(
                 name="mobile_helper",
                 description="",
                 parent=None,
@@ -45,7 +45,7 @@ def test_mobile_helper_bridge_smoke_all_helpers_with_temp_project_and_update(
         ],
     )
     monkeypatch.setattr(
-        "sase.integrations.changespec_tags.detect_workflow_type",
+        "sase.integrations.patch_tags.detect_workflow_type",
         lambda _project_file: "gh",
     )
     monkeypatch.setattr(

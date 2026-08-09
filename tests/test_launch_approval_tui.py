@@ -292,7 +292,7 @@ def test_tui_launch_approval_projects_completed_task_label_only(
     project_display_case: ProjectDisplayCase,
 ) -> None:
     canonical = project_display_case.project_key
-    canonical_cl = project_display_case.changespec_key
+    canonical_cl = project_display_case.patch_key
     response_dir = tmp_path / "launch"
     launch_cwd = tmp_path / "workspace"
     _write_tui_launch_request(
@@ -335,8 +335,7 @@ def test_tui_launch_approval_projects_completed_task_label_only(
 
     task_info = app.tracked_tasks[0]["task_info"]
     assert (
-        task_info.display_name
-        == f"approve launch {project_display_case.changespec_label}"
+        task_info.display_name == f"approve launch {project_display_case.patch_label}"
     )
     assert task_info.cl_name == canonical_cl
     assert task_info.project_file == str(launch_cwd / f"{canonical}.sase")

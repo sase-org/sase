@@ -190,7 +190,7 @@ def test_runner_threads_lumberjack_threshold_into_dry_run_preview(
         f"printf '%s' '{payload}' > \"$SASE_CHOP_RESULT_FILE\"\n",
     )
 
-    with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
         outcome = run_configured_chop_once(
             lumberjack_name="audits",
             chop=ChopConfig(name="audit", description=""),

@@ -18,7 +18,7 @@ import sys
 import time
 import traceback as tb_mod
 
-from sase.ace.patch import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.comments import set_comment_suffix
 from sase.ace.hooks import format_duration
 from sase.axe.runner_artifacts import (
@@ -41,7 +41,7 @@ from sase.artifacts import create_artifacts_directory
 
 
 def _update_comment_suffix(
-    cs: ChangeSpec,
+    cs: Patch,
     project_file: str,
     proposal_id: str | None,
     exit_code: int,
@@ -242,7 +242,7 @@ def main() -> int:
                 "cl_name": changespec_name,
             }
         else:
-            action = "JumpToChangeSpec"
+            action = "JumpToChangeSpec"  # legacy notification action
             action_data = {
                 "patch_name": changespec_name,
                 "changespec_name": changespec_name,

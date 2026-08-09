@@ -55,7 +55,7 @@ def test_embedded_vcs_removed_by_axe_pid() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(
@@ -137,7 +137,7 @@ def test_embedded_vcs_fields_merged_into_axe_agent() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(
@@ -218,7 +218,7 @@ def test_embedded_vcs_removed_by_workflow_axe_pid() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(
@@ -296,7 +296,7 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(
@@ -335,18 +335,18 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
     assert result[0].workflow == "fix-hook"
 
 
-def test_embedded_vcs_removed_when_changespec_fix_hook_is_in_review_tribe() -> None:
-    """Test VCS workspace removed when fix-hook agent comes from ChangeSpec.
+def test_embedded_vcs_removed_when_patch_fix_hook_is_in_review_tribe() -> None:
+    """Test VCS workspace removed when fix-hook agent comes from Patch.
 
     This reproduces the exact scenario: the fix-hook runner doesn't claim a workspace
-    in the RUNNING field, so the fix-hook agent only exists as a ChangeSpec entry
-    (with tribe=review, _from_changespec=True). The embedded #spy workspace shares
+    in the RUNNING field, so the fix-hook agent only exists as a Patch entry
+    (with tribe=review, _from_patch=True). The embedded #spy workspace shares
     the same PID. The VCS workspace should be removed entirely.
     """
     from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE
-    from sase.ace.changespec import ChangeSpec, HookEntry, HookStatusLine
+    from sase.ace.patch import Patch, HookEntry, HookStatusLine
 
-    # ChangeSpec HOOKS entry for the fix-hook agent.
+    # Patch HOOKS entry for the fix-hook agent.
     mock_status_line = HookStatusLine(
         commit_entry_num="1",
         timestamp="260310_175213",
@@ -359,7 +359,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_is_in_review_tribe() -> N
         command="bb_test :MediumTests", status_lines=[mock_status_line]
     )
 
-    mock_cs = ChangeSpec(
+    mock_cs = Patch(
         name="yserve_15_yp_fields",
         description="Test",
         parent=None,
@@ -389,7 +389,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_is_in_review_tribe() -> N
             return_value=["/tmp/test.sase"],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
@@ -423,7 +423,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_is_in_review_tribe() -> N
     ):
         result = load_all_agents()
 
-    # Only the fix-hook ChangeSpec agent should remain — VCS workspace is removed
+    # Only the fix-hook Patch agent should remain — VCS workspace is removed
     assert len(result) == 1
     assert result[0].workflow == "fix-hook"
     assert result[0].hidden is False

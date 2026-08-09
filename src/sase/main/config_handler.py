@@ -40,14 +40,14 @@ def handle_config_command(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     elif config_sub == "mentor-match":
-        from sase.ace.patch import find_all_changespecs
+        from sase.ace.patch import find_all_patches
         from sase.ace.scheduler.mentor_profile_matching import (
             trace_profile_matching,
         )
 
-        all_changespecs = find_all_changespecs()
+        all_patches = find_all_patches()
         target = None
-        for cs in all_changespecs:
+        for cs in all_patches:
             if cs.name == args.changespec_name:
                 target = cs
                 break

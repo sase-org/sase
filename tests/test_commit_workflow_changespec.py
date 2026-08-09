@@ -1,17 +1,17 @@
-"""Tests for CommitWorkflow changespec creation and related helpers."""
+"""Tests for CommitWorkflow patch creation and related helpers."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.workflows.commit.commit_tracking import create_changespec
+from sase.workflows.commit.commit_tracking import create_patch
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 from tests._commit_workflow_fixtures import (
     no_commit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
 )
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
-_CHANGESPEC_TARGET = "sase.workspace_provider.patch.create_changespec_for_workflow"
+_PATCH_TARGET = "sase.workspace_provider.patch.create_patch_for_workflow"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 _PROJECT_FILE_TARGET = "sase.workflows.utils.get_project_file_path"
 _SUFFIXED_CL_TARGET = "sase.workflows.commit.patch_operations.compute_suffixed_cl_name"
@@ -35,15 +35,15 @@ def mock_provider() -> MagicMock:
     return provider
 
 
-class TestCommitWorkflowChangeSpec:
-    """Verify ChangeSpec creation after create_pull_request."""
+class TestCommitWorkflowPatch:
+    """Verify Patch creation after create_pull_request."""
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
-    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PATCH_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
-    def test_creates_changespec_on_pr_success(
+    def test_creates_patch_on_pr_success(
         self,
         mock_get: MagicMock,
         mock_proj_name: MagicMock,
@@ -78,7 +78,7 @@ class TestCommitWorkflowChangeSpec:
             status="Draft",
         )
 
-    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PATCH_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
@@ -109,7 +109,7 @@ class TestCommitWorkflowChangeSpec:
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
-    def test_skips_changespec_when_no_project(
+    def test_skips_patch_when_no_project(
         self,
         mock_get: MagicMock,
         mock_proj_name: MagicMock,
@@ -118,7 +118,7 @@ class TestCommitWorkflowChangeSpec:
         """No crash when project name can't be detected."""
         mock_get.return_value = mock_provider
         wf = CommitWorkflow(
-            {"name": "feat-x", "message": "test: skip changespec", "files": []},
+            {"name": "feat-x", "message": "test: skip patch", "files": []},
             "create_pull_request",
         )
 
@@ -126,29 +126,27 @@ class TestCommitWorkflowChangeSpec:
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
-    def test_no_changespec_for_create_commit(
+    def test_no_patch_for_create_commit(
         self, mock_get: MagicMock, mock_proj: MagicMock, mock_provider: MagicMock
     ) -> None:
-        """ChangeSpec is only created for create_pull_request, not create_commit."""
+        """Patch is only created for create_pull_request, not create_commit."""
         mock_get.return_value = mock_provider
-        wf = CommitWorkflow(
-            {"message": "test: no changespec", "files": []}, "create_commit"
-        )
+        wf = CommitWorkflow({"message": "test: no patch", "files": []}, "create_commit")
 
-        with patch(_CHANGESPEC_TARGET) as mock_cs:
+        with patch(_PATCH_TARGET) as mock_cs:
             wf.run()
             mock_cs.assert_not_called()
 
 
 class TestCommitWorkflowBugId:
-    """Verify SASE_BUG_ID env var propagation to ChangeSpec."""
+    """Verify SASE_BUG_ID env var propagation to Patch."""
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
-    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PATCH_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
-    def test_bug_id_propagated_to_changespec(
+    def test_bug_id_propagated_to_patch(
         self,
         mock_get: MagicMock,
         mock_proj_name: MagicMock,
@@ -158,7 +156,7 @@ class TestCommitWorkflowBugId:
         mock_provider: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """When SASE_BUG_ID is set, bug=http://b/<id> is passed to create_changespec_for_workflow."""
+        """When SASE_BUG_ID is set, bug=http://b/<id> is passed to create_patch_for_workflow."""
         monkeypatch.setenv("SASE_BUG_ID", "12345")
         mock_provider.create_pull_request.return_value = (
             True,
@@ -173,7 +171,7 @@ class TestCommitWorkflowBugId:
         assert mock_cs.call_args.kwargs["bug"] == "http://b/12345"
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
-    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PATCH_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
@@ -187,7 +185,7 @@ class TestCommitWorkflowBugId:
         mock_provider: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """When bug_id is in the payload, bug=http://b/<id> is passed to create_changespec_for_workflow."""
+        """When bug_id is in the payload, bug=http://b/<id> is passed to create_patch_for_workflow."""
         monkeypatch.delenv("SASE_BUG_ID", raising=False)
         mock_provider.create_pull_request.return_value = (
             True,
@@ -207,7 +205,7 @@ class TestCommitWorkflowBugId:
         assert mock_cs.call_args.kwargs["bug"] == "http://b/99999"
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
-    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PATCH_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
@@ -241,7 +239,7 @@ class TestCommitWorkflowBugId:
         assert mock_cs.call_args.kwargs["bug"] == "http://b/111"
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
-    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PATCH_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
@@ -270,7 +268,7 @@ class TestCommitWorkflowBugId:
         assert mock_cs.call_args.kwargs["bug"] is None
 
     @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
-    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PATCH_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
@@ -299,20 +297,20 @@ class TestCommitWorkflowBugId:
         assert mock_cs.call_args.kwargs["bug"] is None
 
 
-class TestCommitWorkflowChangeSpecErrorHandling:
-    """Verify that _create_changespec exceptions don't fail the workflow."""
+class TestCommitWorkflowPatchErrorHandling:
+    """Verify that _create_patch exceptions don't fail the workflow."""
 
     @patch(_PROJECT_FILE_TARGET, side_effect=RuntimeError("boom"))
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
-    def test_changespec_exception_does_not_fail_workflow(
+    def test_patch_exception_does_not_fail_workflow(
         self,
         mock_get: MagicMock,
         mock_proj_name: MagicMock,
         mock_proj_file: MagicMock,
         mock_provider: MagicMock,
     ) -> None:
-        """An exception in _create_changespec must not cause run() to fail."""
+        """An exception in _create_patch must not cause run() to fail."""
         mock_provider.create_pull_request.return_value = (
             True,
             "https://github.com/org/repo/pull/1",
@@ -353,10 +351,10 @@ class TestCommitWorkflowChangeSpecErrorHandling:
         assert wf.run() == RunResult.OK
 
 
-class TestCreateChangespecReturn:
-    """Verify create_changespec returns cs_name."""
+class TestCreatePatchReturn:
+    """Verify create_patch returns cs_name."""
 
-    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PATCH_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     def test_returns_cs_name_on_success(
@@ -366,12 +364,12 @@ class TestCreateChangespecReturn:
         mock_cs: MagicMock,
     ) -> None:
         payload = {"name": "feat-x", "message": "add feature"}
-        result = create_changespec(
+        result = create_patch(
             payload, None, None, None, pr_url="https://github.com/org/repo/pull/1"
         )
         assert result == "proj_feat_1"
 
-    @patch(_CHANGESPEC_TARGET, return_value=None)
+    @patch(_PATCH_TARGET, return_value=None)
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     def test_returns_none_when_no_commits(
@@ -381,13 +379,13 @@ class TestCreateChangespecReturn:
         mock_cs: MagicMock,
     ) -> None:
         payload = {"name": "feat-x", "message": "test"}
-        result = create_changespec(payload, None, None, None, pr_url=None)
+        result = create_patch(payload, None, None, None, pr_url=None)
         assert result is None
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     def test_returns_none_when_no_project(self, mock_proj_name: MagicMock) -> None:
         payload = {"name": "feat-x", "message": "test"}
-        result = create_changespec(payload, None, None, None, pr_url=None)
+        result = create_patch(payload, None, None, None, pr_url=None)
         assert result is None
 
     @patch(_PROJECT_FILE_TARGET, side_effect=RuntimeError("boom"))
@@ -398,7 +396,7 @@ class TestCreateChangespecReturn:
         mock_proj_file: MagicMock,
     ) -> None:
         payload = {"name": "feat-x", "message": "test"}
-        result = create_changespec(payload, None, None, None, pr_url=None)
+        result = create_patch(payload, None, None, None, pr_url=None)
         assert result is None
 
 

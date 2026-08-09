@@ -1,12 +1,12 @@
-"""Tests for external bug cross-links to epics and ChangeSpecs."""
+"""Tests for external bug cross-links to epics and Patches."""
 
-from sase.ace.changespec.models import ChangeSpec
+from sase.ace.patch.models import Patch
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bug_links import _normalize_bug_id, find_bug_links
 
 
-def _changespec(name: str, bug: str | None) -> ChangeSpec:
-    return ChangeSpec(
+def _patch(name: str, bug: str | None) -> Patch:
+    return Patch(
         name=name,
         description="",
         parent=None,
@@ -47,7 +47,7 @@ def test_normalize_bug_id_accepts_tags_urls_and_shorthand() -> None:
     assert _normalize_bug_id(None) == ""
 
 
-def test_find_bug_links_filters_to_epics_and_matching_changespecs() -> None:
+def test_find_bug_links_filters_to_epics_and_matching_patches() -> None:
     matching_epic = _plan("sase-1", "42")
     other_epic = _plan("sase-2", "99")
     non_epic_plan = _plan("sase-3", "42", tier=BeadTier.PLAN)
@@ -57,8 +57,8 @@ def test_find_bug_links_filters_to_epics_and_matching_changespecs() -> None:
         issue_type=IssueType.PHASE,
         parent_id="sase-1",
     )
-    matching_pr = _changespec("sase_feature", "https://github.test/issues/42")
-    other_pr = _changespec("sase_other", "99")
+    matching_pr = _patch("sase_feature", "https://github.test/issues/42")
+    other_pr = _patch("sase_other", "99")
 
     links = find_bug_links(
         42,
@@ -69,13 +69,13 @@ def test_find_bug_links_filters_to_epics_and_matching_changespecs() -> None:
     assert links.bug_id == "42"
     assert links.epics == (matching_epic,)
     assert links.epic_beads == links.epics
-    assert links.changespecs == (matching_pr,)
-    assert links.prs == links.changespecs
+    assert links.patches == (matching_pr,)
+    assert links.prs == links.patches
 
 
 def test_find_bug_links_empty_id_never_matches_blank_fields() -> None:
-    links = find_bug_links("  ", [_plan("sase-1", "")], [_changespec("x", None)])
+    links = find_bug_links("  ", [_plan("sase-1", "")], [_patch("x", None)])
 
     assert links.bug_id == ""
     assert links.epics == ()
-    assert links.changespecs == ()
+    assert links.patches == ()

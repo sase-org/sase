@@ -18,27 +18,27 @@ from tests.axe_chop_runner_helpers import make_script
 pytest_plugins = ["tests.axe_chop_runner_fixtures"]
 
 
-def _context_with_changespecs(
+def _context_with_patches(
     tmp_path: Path,
     rows: list[dict[str, str]],
 ) -> Path:
-    changespecs = tmp_path / "changespecs.json"
-    changespecs.write_text(json.dumps(rows), encoding="utf-8")
+    patches = tmp_path / "patches.json"
+    patches.write_text(json.dumps(rows), encoding="utf-8")
     context = tmp_path / "context.json"
     context.write_text(
-        json.dumps({"all_changespecs_file": str(changespecs)}),
+        json.dumps({"all_patches_file": str(patches)}),
         encoding="utf-8",
     )
     return context
 
 
-def test_changespec_guard_skips_scheduled_run_and_force_bypasses_it(
+def test_patch_guard_skips_scheduled_run_and_force_bypasses_it(
     temp_state_dir: Path,
     tmp_path: Path,
 ) -> None:
     marker = tmp_path / "executed"
     make_script(tmp_path, "guarded", f"touch '{marker}'\n")
-    context = _context_with_changespecs(
+    context = _context_with_patches(
         tmp_path,
         [{"name": "fix_just_rollout", "status": "WIP"}],
     )
@@ -47,7 +47,7 @@ def test_changespec_guard_skips_scheduled_run_and_force_bypasses_it(
         description="",
         inhibit_if=[
             {
-                "provider": "changespec",
+                "provider": "patch",
                 "name_prefix": "fix_just",
                 "statuses": ["WIP"],
             }
@@ -247,7 +247,7 @@ def test_manual_run_bypasses_configured_git_trigger(
         },
     )
 
-    with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
         outcome = run_configured_chop_once(
             lumberjack_name="checks",
             chop=chop,

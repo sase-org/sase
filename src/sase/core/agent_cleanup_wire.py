@@ -79,7 +79,7 @@ class AgentCleanupTargetWire:
     raw_suffix: str | None = None
     project_file: str | None = None
     artifacts_dir: str | None = None
-    from_changespec: bool = False
+    from_patch: bool = False
     workspace: int | None = None
     tribe: str | None = None
     agent_clan: str | None = None
@@ -266,7 +266,7 @@ def cleanup_target_from_dict(data: dict[str, Any]) -> AgentCleanupTargetWire:
         artifacts_dir=(
             None if data.get("artifacts_dir") is None else str(data["artifacts_dir"])
         ),
-        from_changespec=bool(data.get("from_changespec", False)),
+        from_patch=bool(data.get("from_patch", False)),
         workspace=None if data.get("workspace") is None else int(data["workspace"]),
         tribe=(None if data.get("tribe") is None else str(data["tribe"])),
         agent_clan=(

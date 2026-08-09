@@ -74,7 +74,7 @@ def test_off_tab_finalize_keeps_last_idx_and_identity_consistent() -> None:
     a = _make_agent(cl_name="alpha", status="RUNNING")
     b = _make_agent(cl_name="beta", status="RUNNING")
     app = FakeAgentApp()
-    app.current_tab = "changespecs"
+    app.current_tab = "changespecs"  # legacy tab id
     app._agents_last_idx = 0
     app._agents_last_identity = a.identity
 

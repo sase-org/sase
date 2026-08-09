@@ -96,11 +96,11 @@ class VCSProvider(ABC):
     # --- Optional core methods (default raises NotImplementedError) ---
 
     def derive_branch_name(self, changespec_name: str, project_basename: str) -> str:
-        """Derive the branch name for a suffix-stripped ChangeSpec (Ready form).
+        """Derive the branch name for a suffix-stripped Patch (Ready form).
 
         The default implementation calls ``patch_name_to_branch()`` which
         strips the project prefix, removes the suffix, and converts underscores
-        to hyphens.  Git providers override this to keep the ChangeSpec name
+        to hyphens.  Git providers override this to keep the Patch name
         as-is (only stripping the suffix).
         """
         from sase.core.patch import patch_name_to_branch
@@ -114,7 +114,7 @@ class VCSProvider(ABC):
 
         The default implementation calls ``patch_name_to_branch_with_suffix()``
         which strips the project prefix and converts underscores to hyphens while
-        keeping the suffix.  Git providers override this to return the ChangeSpec
+        keeping the suffix.  Git providers override this to return the Patch
         name unchanged.
         """
         from sase.core.patch import patch_name_to_branch_with_suffix
@@ -134,8 +134,8 @@ class VCSProvider(ABC):
 
         Returns the set of integers ``N`` for which a remote branch named
         ``<base_name>_<N>`` exists.  The commit workflow unions this with the
-        ChangeSpec namespace when picking the next PR-branch suffix so the
-        reserved ChangeSpec name never collides with an already-pushed branch.
+        Patch namespace when picking the next PR-branch suffix so the
+        reserved Patch name never collides with an already-pushed branch.
 
         The default implementation returns an empty set (no remote namespace
         to consult).
@@ -145,11 +145,11 @@ class VCSProvider(ABC):
     def resolve_revision(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:
-        """Resolve a ChangeSpec name to a valid VCS revision.
+        """Resolve a Patch name to a valid VCS revision.
 
         The default implementation returns *changespec_name* unchanged,
         which is correct for VCS backends (like hg) where the bookmark
-        name matches the ChangeSpec name.
+        name matches the Patch name.
         """
         return changespec_name
 
@@ -162,13 +162,13 @@ class VCSProvider(ABC):
 
         return revision
 
-    def resolve_current_changespec_head_ref(
+    def resolve_current_patch_head_ref(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:
         """Resolve the current remote-visible head for DELTAS computation.
 
         DELTAS refreshes may run from a workspace that is not checked out on the
-        target ChangeSpec branch.  Providers can override this to prefer a
+        target Patch branch.  Providers can override this to prefer a
         freshly fetched remote-tracking ref over a stale local branch, while
         still returning the checked-out branch when it is the requested branch.
         """
@@ -500,11 +500,11 @@ class VCSProvider(ABC):
     def abandon_change(
         self, cl: str, revision: str, cwd: str
     ) -> tuple[bool, str | None]:
-        """Abandon/close the remote change (PR, ChangeSpec) associated with a revision.
+        """Abandon/close the remote change (PR, Patch) associated with a revision.
 
         Called during revert/archive before the local revision is pruned.
         The default implementation is a no-op — providers that manage remote
-        changes (PRs, ChangeSpecs) should override this.
+        changes (PRs, Patches) should override this.
 
         Returns ``(True, None)`` on success or no-op.
         """
@@ -520,7 +520,7 @@ class VCSProvider(ABC):
         return description
 
     def normalize_bug_value(self, tag_value: str) -> str:
-        """Normalize a BUG tag value for storage in a ChangeSpec.
+        """Normalize a BUG tag value for storage in a Patch.
 
         The default implementation returns the value unchanged.
         Providers with a canonical bug URL format (e.g. ``http://b/<id>``)

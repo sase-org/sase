@@ -1,11 +1,11 @@
 """Tests for HookEntry dataclass, HOOKS field parsing, and utility functions."""
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     HookEntry,
     HookStatusLine,
     parse_commit_entry_id,
 )
-from sase.ace.changespec.parser import _parse_changespec_from_lines
+from sase.ace.patch.parser import _parse_patch_from_lines
 from sase.ace.hooks import (
     calculate_duration_from_timestamps,
     format_duration,
@@ -33,7 +33,7 @@ def _make_hook(
 
 # Tests for HookEntry dataclass
 # Tests for HOOKS field parsing
-def test_parse_changespec_hooks_with_dead_status() -> None:
+def test_parse_patch_hooks_with_dead_status() -> None:
     """Test parsing HOOKS with DEAD status."""
     lines = [
         "NAME: test_cl\n",
@@ -45,18 +45,18 @@ def test_parse_changespec_hooks_with_dead_status() -> None:
         "      | (1) [240601_123456] DEAD (24h0m)\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
-    assert changespec is not None
-    assert changespec.hooks is not None
-    assert len(changespec.hooks) == 1
-    assert changespec.hooks[0].command == "pytest src"
-    sl = changespec.hooks[0].latest_status_line
+    patch, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
+    assert patch is not None
+    assert patch.hooks is not None
+    assert len(patch.hooks) == 1
+    assert patch.hooks[0].command == "pytest src"
+    sl = patch.hooks[0].latest_status_line
     assert sl is not None
     assert sl.status == "DEAD"
     assert sl.duration == "24h0m"
 
 
-def test_parse_changespec_hooks_suffix_with_closing_paren() -> None:
+def test_parse_patch_hooks_suffix_with_closing_paren() -> None:
     """Test parsing HOOKS where suffix text contains ')' characters.
 
     AI-generated summaries can contain parentheses (e.g., "Exit 3)"),
@@ -76,11 +76,11 @@ def test_parse_changespec_hooks_suffix_with_closing_paren() -> None:
         " | deal_check_line_chart_test failed remotely (Exit 3).)\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
-    assert changespec is not None
-    assert changespec.hooks is not None
-    assert len(changespec.hooks) == 1
-    sl = changespec.hooks[0].latest_status_line
+    patch, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
+    assert patch is not None
+    assert patch.hooks is not None
+    assert len(patch.hooks) == 1
+    sl = patch.hooks[0].latest_status_line
     assert sl is not None
     assert sl.status == "FAILED"
     assert sl.duration == "1m30s"

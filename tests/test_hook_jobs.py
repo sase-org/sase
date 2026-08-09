@@ -6,13 +6,13 @@ import pytest
 
 from sase.axe.hook_jobs import HookJobRunner
 from sase.axe.state import AxeMetrics
-from test_utils import build_changespec, make_mentor_config
+from test_utils import build_patch, make_mentor_config
 
 
 def test_run_mentor_checks_reuses_loaded_profiles(monkeypatch: Any) -> None:
     """Hook runner should load mentor profiles once per mentor-check pass."""
-    cs_one = build_changespec(name="one")
-    cs_two = build_changespec(name="two")
+    cs_one = build_patch(name="one")
+    cs_two = build_patch(name="two")
     profile = [make_mentor_config()]
     profile_loads = 0
     check_calls = 0
@@ -23,7 +23,7 @@ def test_run_mentor_checks_reuses_loaded_profiles(monkeypatch: Any) -> None:
         return profile
 
     def _check_mentors(
-        _changespec: Any,
+        _patch: Any,
         _log: Any,
         _zombie_timeout: int,
         _max_runners: int,
@@ -54,7 +54,7 @@ def test_run_mentor_checks_reuses_loaded_profiles(monkeypatch: Any) -> None:
 
 
 def test_run_hook_checks_emits_noop_summary(monkeypatch: pytest.MonkeyPatch) -> None:
-    cs = build_changespec(name="one", hooks=[object()])
+    cs = build_patch(name="one", hooks=[object()])
     logs: list[str] = []
 
     monkeypatch.setattr(
@@ -72,7 +72,7 @@ def test_run_hook_checks_emits_noop_summary(monkeypatch: pytest.MonkeyPatch) -> 
     runner.run_hook_checks([cs])
 
     assert logs[-1] == (
-        "hook_checks: changespecs=1 hooks=1 updates=0 started=0 "
+        "hook_checks: patches=1 hooks=1 updates=0 started=0 "
         "reason=no_updates_or_launches"
     )
 
@@ -80,7 +80,7 @@ def test_run_hook_checks_emits_noop_summary(monkeypatch: pytest.MonkeyPatch) -> 
 def test_run_mentor_checks_emits_action_summary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    cs = build_changespec(name="one", mentors=[object()])
+    cs = build_patch(name="one", mentors=[object()])
     logs: list[str] = []
 
     monkeypatch.setattr("sase.axe.hook_jobs.get_all_mentor_profiles", lambda: [])
@@ -100,5 +100,5 @@ def test_run_mentor_checks_emits_action_summary(
 
     assert "* one: Started mentor" in logs
     assert logs[-1] == (
-        "mentor_checks: changespecs=1 mentors=1 profiles=0 updates=1 started=1"
+        "mentor_checks: patches=1 mentors=1 profiles=0 updates=1 started=1"
     )

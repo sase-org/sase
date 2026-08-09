@@ -1,4 +1,4 @@
-"""Utility functions for managing COMMITS entries in ChangeSpecs.
+"""Utility functions for managing COMMITS entries in Patches.
 
 This package provides functions for:
 - Adding commit entries (entries.py)

@@ -119,7 +119,7 @@ tier: tale
 goal: Small outcome
 title: Ignored
 phases: nonsense
-changespec: ''
+changespec: ''  # legacy frontmatter key
 bug_id: nope
 ---
 body
@@ -133,7 +133,7 @@ body
 tier: epic
 goal: outcome
 title: 42
-changespec: ''
+changespec: ''  # legacy frontmatter key
 bug_id: nope
 phases: []
 ---

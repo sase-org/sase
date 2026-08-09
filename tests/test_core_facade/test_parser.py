@@ -18,11 +18,14 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.changespec.models import ChangeSpec
-from sase.ace.changespec.parser import parse_project_file as raw_parse_project_file
+from sase.ace.patch.models import Patch
+from sase.ace.patch.parser import parse_project_file as raw_parse_project_file
 from sase.core import parser_facade
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
-from sase.core.wire import CHANGESPEC_WIRE_SCHEMA_VERSION, ChangeSpecWire
+from sase.core.wire import (
+    CHANGESPEC_WIRE_SCHEMA_VERSION,  # legacy wire schema
+    ChangeSpecWire,  # legacy wire type
+)
 
 from tests._rust_extension_module_helpers import (
     evict_rust_extension,
@@ -39,13 +42,13 @@ def test_parse_project_file_matches_python_impl(sample_project: Path) -> None:
     via_facade = parser_facade.parse_project_file(str(sample_project))
     direct = raw_parse_project_file(str(sample_project))
     assert [cs.name for cs in via_facade] == [cs.name for cs in direct]
-    assert all(isinstance(cs, ChangeSpec) for cs in via_facade)
+    assert all(isinstance(cs, Patch) for cs in via_facade)
 
 
 def test_parse_project_bytes_returns_wire_records(sample_project: Path) -> None:
     raw_bytes = sample_project.read_bytes()
     wires = parser_facade.parse_project_bytes(str(sample_project), raw_bytes)
-    assert all(isinstance(w, ChangeSpecWire) for w in wires)
+    assert all(isinstance(w, ChangeSpecWire) for w in wires)  # legacy wire type
     assert [w.name for w in wires] == ["example", "child"]
     # File path on each record reflects the caller-supplied path; the Rust
     # binding sets it from the ``file_path`` argument it receives.
@@ -77,9 +80,9 @@ def test_python_parser_preserves_refs_verbatim(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    changespecs = raw_parse_project_file(str(project))
+    patches = raw_parse_project_file(str(project))
 
-    assert changespecs[0].refs == [
+    assert patches[0].refs == [
         "research:202607/report.md",
         "definitely not a reference",
     ]
@@ -92,7 +95,7 @@ def test_parse_project_bytes_uses_rust_binding(
 
     Replaces the real Rust binding with a fake that records arguments and
     returns parity output through the Python parser, exercising the
-    dict -> :class:`ChangeSpecWire` rehydration code path the facade owns
+    dict -> :class:`PatchWire` rehydration code path the facade owns
     after Phase 8D.
     """
     calls: list[tuple[str, bytes]] = []
@@ -110,9 +113,11 @@ def test_parse_project_bytes_uses_rust_binding(
     assert calls[0][0] == str(sample_project)
     assert calls[0][1] == raw_bytes
     assert [w.name for w in wires] == ["example", "child"]
-    assert all(isinstance(w, ChangeSpecWire) for w in wires)
+    assert all(isinstance(w, ChangeSpecWire) for w in wires)  # legacy wire type
     # The schema version round-trips through the dict adapter unchanged.
-    assert all(w.schema_version == CHANGESPEC_WIRE_SCHEMA_VERSION for w in wires)
+    assert all(  # legacy wire schema
+        w.schema_version == CHANGESPEC_WIRE_SCHEMA_VERSION for w in wires
+    )
 
 
 def test_parse_project_bytes_missing_extension_raises_importerror(

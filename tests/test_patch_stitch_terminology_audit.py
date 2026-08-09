@@ -141,21 +141,28 @@ def test_real_repositories_keep_required_retained_categories() -> None:
     assert report.counts_by_classification["stable-public-path"] > 0
 
 
-def test_audit_scans_tracked_text_only(tmp_path: Path) -> None:
+def test_audit_scans_existing_worktree_text_files(tmp_path: Path) -> None:
     root = tmp_path / "repo"
     root.mkdir()
     (root / "tracked.py").write_text(
         "ChangeSpec remains accepted as a legacy alias.\n",
         encoding="utf-8",
     )
+    (root / "deleted.py").write_text("Current ChangeSpec prose\n", encoding="utf-8")
     (root / "untracked.py").write_text("Current ChangeSpec prose\n", encoding="utf-8")
 
     import subprocess
 
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "add", "tracked.py"], cwd=root, check=True)
+    subprocess.run(["git", "add", "tracked.py", "deleted.py"], cwd=root, check=True)
+    (root / "deleted.py").unlink()
 
     report = _audit_repositories((_RepoSpec("fixture", root),))
 
-    assert report.defects == ()
-    assert report.counts_by_rule == {"legacy_compatibility_boundary": 1}
+    assert [(defect.path, defect.matched) for defect in report.defects] == [
+        ("untracked.py", "ChangeSpec")
+    ]
+    assert report.counts_by_rule == {
+        "legacy_compatibility_boundary": 1,
+        "unclassified": 1,
+    }

@@ -9,14 +9,14 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'ace' subcommand parser."""
     ace_parser = subparsers.add_parser(
         "ace",
-        help="Interactively navigate through ChangeSpecs matching a query",
+        help="Interactively navigate through Patches matching a query",
     )
     # Optional positional argument with default
     ace_parser.add_argument(
         "query",
         nargs="?",
         default=load_last_query() or load_first_saved_query() or "!!!",
-        help="Query string for filtering ChangeSpecs (default: first saved query, "
+        help="Query string for filtering Patches (default: first saved query, "
         "or '!!!' for error suffixes). "
         'Examples: \'"feature" AND "Ready"\', \'"myproject" OR "bugfix"\', '
         "'!!! AND @myproject'",
@@ -61,7 +61,13 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
     ace_parser.add_argument(
         "-t",
         "--tab",
-        choices=["artifacts", "changespecs", "patches", "agents", "axe"],
+        choices=[
+            "artifacts",
+            "changespecs",  # legacy tab id
+            "patches",
+            "agents",
+            "axe",
+        ],
         default="agents",
         help="Tab to focus on startup; 'changespecs' and 'patches' remain legacy "
         "aliases for 'artifacts' (default: agents)",
@@ -94,7 +100,7 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'axe' subcommand parser."""
     axe_parser = subparsers.add_parser(
         "axe",
-        help="Schedule-based daemon for continuous ChangeSpec status updates",
+        help="Schedule-based daemon for continuous Patch status updates",
     )
     # Only --vcs-provider lives on the root axe parser (applies globally)
     axe_parser.add_argument(
@@ -230,7 +236,7 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         "-q",
         "--query",
         default="",
-        help="Query string for filtering ChangeSpecs",
+        help="Query string for filtering Patches",
     )
     axe_lumberjack_run_parser.add_argument(
         "-H",
@@ -314,7 +320,7 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         "-q",
         "--query",
         default="",
-        help="Query string for filtering ChangeSpecs (empty = all ChangeSpecs). "
+        help="Query string for filtering Patches (empty = all Patches). "
         "Examples: '\"feature\" AND %%d', '+myproject', '!!! OR @@@'",
     )
     axe_start_parser.add_argument(

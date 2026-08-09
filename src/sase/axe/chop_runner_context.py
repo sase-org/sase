@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from sase.ace.patch import ChangeSpec, find_all_changespecs
+from sase.ace.patch import Patch, find_all_patches
 from sase.core.query_facade import evaluate_query_many
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 from .chop_script_context import (
     ChopScriptContext,
-    serialize_changespecs,
+    serialize_patches,
     write_chop_context,
 )
 from .config import AxeConfig
@@ -24,16 +24,16 @@ def build_oneshot_context(
     lumberjack_name: str,
     axe_config: AxeConfig,
     *,
-    find_all_changespecs_fn: Callable[[], list[ChangeSpec]] = find_all_changespecs,
+    find_all_patches_fn: Callable[[], list[Patch]] = find_all_patches,
     evaluate_query_many_fn: Callable[
-        [str, list[ChangeSpec]], list[bool]
+        [str, list[Patch]], list[bool]
     ] = evaluate_query_many,
 ) -> str:
     """Serialize a single-chop context.json under the lumberjack's tick dir.
 
     Mirrors what :class:`Lumberjack` writes once per tick so chop scripts see
     identical context regardless of whether the run was scheduled, kicked off
-    by the ChangeSpecI, or triggered from the TUI.
+    by the CLI, or triggered from the TUI.
     """
     state_dir = ensure_lumberjack_dirs(lumberjack_name)
     tick_dir = state_dir / "tick"
@@ -45,16 +45,16 @@ def build_oneshot_context(
     filtered_cs_file = str(tick_dir / "filtered_changespecs.json")
     context_file = str(tick_dir / "context.json")
 
-    all_changespecs = find_all_changespecs_fn()
-    filtered_changespecs = all_changespecs
+    all_patches = find_all_patches_fn()
+    filtered_patches = all_patches
     if axe_config.query:
-        mask = evaluate_query_many_fn(axe_config.query, all_changespecs)
-        filtered_changespecs = [
-            cs for cs, keep in zip(all_changespecs, mask, strict=True) if keep
+        mask = evaluate_query_many_fn(axe_config.query, all_patches)
+        filtered_patches = [
+            cs for cs, keep in zip(all_patches, mask, strict=True) if keep
         ]
 
-    serialize_changespecs(all_changespecs, all_cs_file)
-    serialize_changespecs(filtered_changespecs, filtered_cs_file)
+    serialize_patches(all_patches, all_cs_file)
+    serialize_patches(filtered_patches, filtered_cs_file)
 
     ctx = ChopScriptContext(
         max_hook_runners=axe_config.max_hook_runners,
@@ -63,8 +63,8 @@ def build_oneshot_context(
         query=axe_config.query,
         lumberjack_name=lumberjack_name,
         state_dir=str(state_dir),
-        all_changespecs_file=all_cs_file,
-        filtered_changespecs_file=filtered_cs_file,
+        all_patches_file=all_cs_file,
+        filtered_patches_file=filtered_cs_file,
     )
     write_chop_context(ctx, context_file)
     return context_file

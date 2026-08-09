@@ -89,7 +89,7 @@ def plan_update(
     :class:`UpdateUnknown`) or an :class:`UpdateReady` carrying the exact ``uv``
     argv. Raises :class:`~sase.plugins.catalog.PluginCatalogError` /
     :class:`~sase.uv_tool.errors.ReceiptError` for those failure modes, exactly
-    as the ChangeSpecI did before.
+    as the CLI did before.
 
     Caller contract: when *all_plugins* is false, *query* must be non-empty
     (CLI usage validation lives in the handler, not here).

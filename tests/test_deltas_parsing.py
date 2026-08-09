@@ -1,8 +1,8 @@
 """Tests for DELTAS field parsing, formatting, and round-trip."""
 
-from sase.ace.changespec import DeltaEntry, DeltaLineStats
+from sase.ace.patch import DeltaEntry, DeltaLineStats
 from sase.ace.changespec.deltas_format import format_deltas_field
-from sase.ace.changespec.parser import _parse_changespec_from_lines
+from sase.ace.patch.parser import _parse_patch_from_lines
 
 
 def _base_lines() -> list[str]:
@@ -19,26 +19,26 @@ def test_parse_deltas_all_three_change_types() -> None:
     """Parse a DELTAS section with added, modified, and deleted entries."""
     lines = _base_lines() + [
         "DELTAS:\n",
-        "  + src/sase/ace/changespec/deltas.py\n",
+        "  + src/sase/ace/patch/deltas.py\n",
         "  + tests/test_deltas_parsing.py\n",
-        "  ~ src/sase/ace/changespec/models.py\n",
-        "  ~ src/sase/ace/changespec/parser.py\n",
+        "  ~ src/sase/ace/patch/models.py\n",
+        "  ~ src/sase/ace/patch/parser.py\n",
         "  - src/sase/legacy/old_deltas.py\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
-    assert changespec is not None
-    assert changespec.deltas is not None
-    assert len(changespec.deltas) == 5
-    assert changespec.deltas[0] == DeltaEntry(
-        path="src/sase/ace/changespec/deltas.py", change_type="A"
+    patch, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
+    assert patch is not None
+    assert patch.deltas is not None
+    assert len(patch.deltas) == 5
+    assert patch.deltas[0] == DeltaEntry(
+        path="src/sase/ace/patch/deltas.py", change_type="A"
     )
-    assert changespec.deltas[1] == DeltaEntry(
+    assert patch.deltas[1] == DeltaEntry(
         path="tests/test_deltas_parsing.py", change_type="A"
     )
-    assert changespec.deltas[2].change_type == "M"
-    assert changespec.deltas[3].change_type == "M"
-    assert changespec.deltas[4] == DeltaEntry(
+    assert patch.deltas[2].change_type == "M"
+    assert patch.deltas[3].change_type == "M"
+    assert patch.deltas[4] == DeltaEntry(
         path="src/sase/legacy/old_deltas.py", change_type="D"
     )
 
@@ -50,9 +50,9 @@ def test_parse_no_deltas_section_yields_none() -> None:
         "  (1) Manual commit\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
-    assert changespec is not None
-    assert changespec.deltas is None
+    patch, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
+    assert patch is not None
+    assert patch.deltas is None
 
 
 def test_parse_deltas_path_with_spaces() -> None:
@@ -63,13 +63,13 @@ def test_parse_deltas_path_with_spaces() -> None:
         "  ~ another path/with spaces.txt\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
-    assert changespec is not None
-    assert changespec.deltas is not None
-    assert changespec.deltas[0].path == "path/with spaces/file name.py"
-    assert changespec.deltas[0].change_type == "A"
-    assert changespec.deltas[1].path == "another path/with spaces.txt"
-    assert changespec.deltas[1].change_type == "M"
+    patch, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
+    assert patch is not None
+    assert patch.deltas is not None
+    assert patch.deltas[0].path == "path/with spaces/file name.py"
+    assert patch.deltas[0].change_type == "A"
+    assert patch.deltas[1].path == "another path/with spaces.txt"
+    assert patch.deltas[1].change_type == "M"
 
 
 def test_format_deltas_empty_list_emits_nothing() -> None:
@@ -104,9 +104,9 @@ def test_parse_deltas_line_stats_drawers() -> None:
         "      | LINES: binary\n",
         "\n",
     ]
-    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
-    assert changespec is not None
-    assert changespec.deltas == [
+    patch, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
+    assert patch is not None
+    assert patch.deltas == [
         DeltaEntry(
             path="src/new.py",
             change_type="A",
@@ -155,17 +155,17 @@ def test_deltas_round_trip_parse_then_format() -> None:
     # Already alphabetical by path so format() preserves the order.
     deltas_lines = [
         "DELTAS:\n",
-        "  + src/sase/ace/changespec/deltas.py\n",
-        "  ~ src/sase/ace/changespec/models.py\n",
-        "  ~ src/sase/ace/changespec/parser.py\n",
+        "  + src/sase/ace/patch/deltas.py\n",
+        "  ~ src/sase/ace/patch/models.py\n",
+        "  ~ src/sase/ace/patch/parser.py\n",
         "  - src/sase/legacy/old_deltas.py\n",
         "  + tests/test_deltas_parsing.py\n",
     ]
     full = _base_lines() + deltas_lines + ["\n"]
-    changespec, _ = _parse_changespec_from_lines(full, 0, "/test/file.sase")
-    assert changespec is not None
-    assert changespec.deltas is not None
-    formatted = format_deltas_field(changespec.deltas)
+    patch, _ = _parse_patch_from_lines(full, 0, "/test/file.sase")
+    assert patch is not None
+    assert patch.deltas is not None
+    formatted = format_deltas_field(patch.deltas)
     assert formatted == deltas_lines
 
 
@@ -180,7 +180,7 @@ def test_deltas_round_trip_with_line_stats() -> None:
         "      | LINES: binary\n",
     ]
     full = _base_lines() + deltas_lines + ["\n"]
-    changespec, _ = _parse_changespec_from_lines(full, 0, "/test/file.sase")
-    assert changespec is not None
-    assert changespec.deltas is not None
-    assert format_deltas_field(changespec.deltas) == deltas_lines
+    patch, _ = _parse_patch_from_lines(full, 0, "/test/file.sase")
+    assert patch is not None
+    assert patch.deltas is not None
+    assert format_deltas_field(patch.deltas) == deltas_lines

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from sase.ace.changespec.models import (
-    ChangeSpec,
+from sase.ace.patch.models import (
+    Patch,
     CommentEntry,
     CommitEntry,
     DeltaEntry,
@@ -15,10 +15,11 @@ from sase.ace.changespec.models import (
     MentorStatusLine,
     TimestampEntry,
 )
-from sase.ace.changespec.parser import parse_project_file
+from sase.ace.patch.parser import parse_project_file
 from sase.core.wire import (
-    CHANGESPEC_WIRE_SCHEMA_VERSION,
-    ChangeSpecWire,
+    CHANGESPEC_WIRE_SCHEMA_VERSION,  # legacy wire schema
+    ChangeSpecWire,  # legacy wire type
+    PATCH_WIRE_SCHEMA_VERSION,
     CommitWire,
     ParseErrorWire,
     SourceSpanWire,
@@ -26,8 +27,8 @@ from sase.core.wire import (
     to_json_dict,
 )
 from sase.core.wire_conversion import (
-    changespec_to_wire,
-    changespec_wire_from_dict,
+    changespec_to_wire,  # legacy Python compat symbol
+    changespec_wire_from_dict,  # legacy wire parser
     comment_entry_to_wire,
     _commit_entry_to_wire,
     _mentor_status_line_to_wire,
@@ -37,8 +38,8 @@ from sase.core.wire_conversion import (
 )
 
 
-def _full_changespec() -> ChangeSpec:
-    return ChangeSpec(
+def _full_patch() -> Patch:
+    return Patch(
         name="my_feature",
         description="A short description.",
         parent="parent_feature",
@@ -135,12 +136,12 @@ def test_commit_entry_with_no_body_yields_empty_list() -> None:
     assert wire.body == []
 
 
-def test_changespec_to_wire_full_round_trip() -> None:
-    cs = _full_changespec()
-    wire = changespec_to_wire(cs, end_line=42)
+def test_changespec_to_wire_full_round_trip() -> None:  # legacy Python compat symbol
+    cs = _full_patch()
+    wire = changespec_to_wire(cs, end_line=42)  # legacy Python compat symbol
 
-    assert isinstance(wire, ChangeSpecWire)
-    assert wire.schema_version == CHANGESPEC_WIRE_SCHEMA_VERSION
+    assert isinstance(wire, ChangeSpecWire)  # legacy wire type
+    assert wire.schema_version == CHANGESPEC_WIRE_SCHEMA_VERSION  # legacy wire schema
     assert wire.name == "my_feature"
     assert wire.project_basename == "myproj"
     assert wire.project_display_name == "widgets"
@@ -178,7 +179,7 @@ MENTORS:
     )
 
     cs = parse_project_file(str(project))[0]
-    wire = changespec_to_wire(cs)
+    wire = changespec_to_wire(cs)  # legacy Python compat symbol
     payload = to_json_dict(wire)
 
     assert cs.mentors is not None
@@ -189,8 +190,9 @@ MENTORS:
     assert payload["mentors"][0]["status_lines"][0]["timestamp"] is None
 
 
+# Legacy Python compatibility symbol.
 def test_changespec_to_wire_default_end_line_equals_start() -> None:
-    cs = ChangeSpec(
+    cs = Patch(
         name="a",
         description="",
         parent=None,
@@ -199,20 +201,22 @@ def test_changespec_to_wire_default_end_line_equals_start() -> None:
         file_path="/p/proj.sase",
         line_number=7,
     )
-    wire = changespec_to_wire(cs)
+    wire = changespec_to_wire(cs)  # legacy Python compat symbol
     assert wire.source_span.start_line == 7
     assert wire.source_span.end_line == 7
 
 
 def test_to_json_dict_is_json_serializable() -> None:
-    cs = _full_changespec()
-    wire = changespec_to_wire(cs, end_line=20)
+    cs = _full_patch()
+    wire = changespec_to_wire(cs, end_line=20)  # legacy Python compat symbol
     payload = to_json_dict(wire)
     # Must round-trip through json.dumps without TypeError:
     text = json.dumps(payload, sort_keys=True)
     reloaded = json.loads(text)
     assert reloaded["name"] == "my_feature"
-    assert reloaded["schema_version"] == CHANGESPEC_WIRE_SCHEMA_VERSION
+    assert (
+        reloaded["schema_version"] == CHANGESPEC_WIRE_SCHEMA_VERSION
+    )  # legacy wire schema
     assert reloaded["source_span"]["start_line"] == 10
     assert reloaded["source_span"]["end_line"] == 20
     assert reloaded["deltas"][0]["change_type"] == "A"
@@ -226,7 +230,7 @@ def test_to_json_dict_handles_lists_and_primitives() -> None:
 
 
 def test_individual_to_wire_helpers() -> None:
-    cs = _full_changespec()
+    cs = _full_patch()
     assert _hook_status_line_to_wire(cs.hooks[0].status_lines[0]).status == "PASSED"
     assert hook_entry_to_wire(cs.hooks[0]).command == "!sase_lint"
     assert comment_entry_to_wire(cs.comments[0]).reviewer == "critique"
@@ -249,24 +253,24 @@ def test_parse_error_wire_optional_position() -> None:
     assert payload["kind"] == "invalid-status"
 
 
-def test_changespec_wire_from_dict_round_trips_full_record() -> None:
-    """Rust emits dicts; ``changespec_wire_from_dict`` rehydrates them.
+def test_patch_wire_from_dict_round_trips_full_record() -> None:
+    """Rust emits dicts; ``patch_wire_from_dict`` rehydrates them.
 
     Round-trip a fully populated wire record through ``to_json_dict`` and
     back: the result must equal the original dataclass tree.
     """
-    cs = _full_changespec()
-    wire = changespec_to_wire(cs, end_line=99)
+    cs = _full_patch()
+    wire = changespec_to_wire(cs, end_line=99)  # legacy Python compat symbol
     payload = to_json_dict(wire)
 
-    rehydrated = changespec_wire_from_dict(payload)
+    rehydrated = changespec_wire_from_dict(payload)  # legacy wire parser
     assert rehydrated == wire
 
 
-def test_changespec_wire_from_dict_rejects_unknown_schema_version() -> None:
+def test_patch_wire_from_dict_rejects_unknown_schema_version() -> None:
     """Unsupported schema versions are explicit errors, not silent drift."""
     payload = {
-        "schema_version": CHANGESPEC_WIRE_SCHEMA_VERSION + 1,
+        "schema_version": CHANGESPEC_WIRE_SCHEMA_VERSION + 1,  # legacy wire schema
         "name": "x",
         "project_basename": "p",
         "file_path": "p.sase",
@@ -278,17 +282,17 @@ def test_changespec_wire_from_dict_rejects_unknown_schema_version() -> None:
         "description": "",
     }
     try:
-        changespec_wire_from_dict(payload)
+        changespec_wire_from_dict(payload)  # legacy wire parser
     except ValueError as exc:
         assert "schema_version" in str(exc)
     else:
         raise AssertionError("expected ValueError on bumped schema_version")
 
 
-def test_changespec_wire_from_dict_treats_missing_lists_as_empty() -> None:
+def test_patch_wire_from_dict_treats_missing_lists_as_empty() -> None:
     """Rust may serialize empty lists implicitly (None); accept either form."""
     payload = {
-        "schema_version": CHANGESPEC_WIRE_SCHEMA_VERSION,
+        "schema_version": CHANGESPEC_WIRE_SCHEMA_VERSION,  # legacy wire schema
         "name": "x",
         "project_basename": "p",
         "file_path": "p.sase",
@@ -299,13 +303,13 @@ def test_changespec_wire_from_dict_treats_missing_lists_as_empty() -> None:
         "bug": None,
         "description": "",
     }
-    wire = changespec_wire_from_dict(payload)
+    wire = changespec_wire_from_dict(payload)  # legacy wire parser
     assert wire.refs == []
     assert wire.commits == []
     assert wire.deltas == []
 
 
-def test_changespec_wire_from_schema_four_defaults_refs() -> None:
+def test_patch_wire_from_schema_four_defaults_refs() -> None:
     """Version 4 records predate the REFS section."""
     payload = {
         "schema_version": 4,
@@ -323,10 +327,10 @@ def test_changespec_wire_from_schema_four_defaults_refs() -> None:
         "bug": None,
         "description": "",
     }
-    assert changespec_wire_from_dict(payload).refs == []
+    assert changespec_wire_from_dict(payload).refs == []  # legacy wire parser
 
 
-def test_changespec_wire_from_older_dict_defaults_project_name_metadata() -> None:
+def test_patch_wire_from_older_dict_defaults_project_name_metadata() -> None:
     """Version 3 records predate configured project query metadata."""
     payload = {
         "schema_version": 3,
@@ -344,7 +348,7 @@ def test_changespec_wire_from_older_dict_defaults_project_name_metadata() -> Non
         "bug": None,
         "description": "",
     }
-    wire = changespec_wire_from_dict(payload)
+    wire = changespec_wire_from_dict(payload)  # legacy wire parser
     assert wire.project_display_name is None
 
 
@@ -362,8 +366,8 @@ def test_known_field_kwargs_drops_unknown_keys_and_keeps_known() -> None:
     assert span.start_line == 3
 
 
-def test_empty_changespec_collections_become_empty_lists() -> None:
-    cs = ChangeSpec(
+def test_empty_patch_collections_become_empty_lists() -> None:
+    cs = Patch(
         name="empty",
         description="",
         parent=None,
@@ -372,7 +376,7 @@ def test_empty_changespec_collections_become_empty_lists() -> None:
         file_path="/p/proj.sase",
         line_number=1,
     )
-    wire = changespec_to_wire(cs)
+    wire = changespec_to_wire(cs)  # legacy Python compat symbol
     assert wire.commits == []
     assert wire.hooks == []
     assert wire.comments == []

@@ -83,14 +83,14 @@ def _mutate_project_aliases_locked(
     list_project_records: ListProjectRecords,
     apply_project_aliases_update: ApplyAliasesUpdate,
 ) -> ProjectRecordWire:
-    from sase.ace.patch import changespec_lock, write_changespec_atomic
+    from sase.ace.patch import patch_lock, write_patch_atomic
 
     project, project_file = _resolve_mutable_project_file(
         project,
         projects_root=projects_root,
         resolve_project_ref=resolve_project_ref,
     )
-    with changespec_lock(str(project_file)):
+    with patch_lock(str(project_file)):
         records = list_project_records(
             projects_root,
             list(_ALL_STATES),
@@ -105,7 +105,7 @@ def _mutate_project_aliases_locked(
         )
         content = project_file.read_text(encoding="utf-8")
         updated = apply_project_aliases_update(content, aliases)
-        write_changespec_atomic(str(project_file), updated, commit_msg)
+        write_patch_atomic(str(project_file), updated, commit_msg)
 
     return _get_project_record_from_records(
         list_project_records(projects_root, list(_ALL_STATES), include_home=True),
@@ -123,14 +123,14 @@ def _mutate_project_name_locked(
     list_project_records: ListProjectRecords,
     apply_project_name_update: ApplyNameUpdate,
 ) -> ProjectRecordWire:
-    from sase.ace.patch import changespec_lock, write_changespec_atomic
+    from sase.ace.patch import patch_lock, write_patch_atomic
 
     project, project_file = _resolve_mutable_project_file(
         project,
         projects_root=projects_root,
         resolve_project_ref=resolve_project_ref,
     )
-    with changespec_lock(str(project_file)):
+    with patch_lock(str(project_file)):
         records = list_project_records(
             projects_root,
             list(_ALL_STATES),
@@ -145,7 +145,7 @@ def _mutate_project_name_locked(
         )
         content = project_file.read_text(encoding="utf-8")
         updated = apply_project_name_update(content, name)
-        write_changespec_atomic(str(project_file), updated, commit_msg)
+        write_patch_atomic(str(project_file), updated, commit_msg)
 
     return _get_project_record_from_records(
         list_project_records(projects_root, list(_ALL_STATES), include_home=True),

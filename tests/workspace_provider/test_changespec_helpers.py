@@ -1,4 +1,4 @@
-"""Tests for changespec helper functions."""
+"""Tests for patch helper functions."""
 
 from unittest.mock import MagicMock, patch
 

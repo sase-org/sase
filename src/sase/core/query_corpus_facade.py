@@ -1,7 +1,7 @@
 """Persistent-corpus query facade for Rust-backed batch evaluation.
 
 This module exposes the handle-oriented Rust API so callers can compile a
-corpus once for a stable ``list[ChangeSpec]`` object and evaluate many query
+corpus once for a stable ``list[Patch]`` object and evaluate many query
 strings against it without rebuilding ChangeSpec wire records per keystroke.
 The public :func:`sase.core.query_facade.evaluate_query_many` compatibility
 entry point uses this same path with a temporary corpus.
@@ -34,18 +34,18 @@ class QueryCorpus:
                 "stale query corpus wrapper: expected "
                 f"{self.expected_length} specs but Rust handle contains "
                 f"{actual_length}; rebuild the corpus for the current "
-                "ChangeSpec list before evaluating"
+                "Patch list before evaluating"
             )
 
 
-def compile_query_corpus(changespecs: list[Patch]) -> QueryCorpus:
-    """Compile ``changespecs`` into a persistent Rust query corpus handle."""
+def compile_query_corpus(patches: list[Patch]) -> QueryCorpus:
+    """Compile ``patches`` into a persistent Rust query corpus handle."""
     compile_corpus = require_rust_binding("compile_corpus")
-    spec_dicts = [to_json_dict(patch_to_wire(cs)) for cs in changespecs]
+    spec_dicts = [to_json_dict(patch_to_wire(cs)) for cs in patches]
     rust_handle = compile_corpus(spec_dicts)
     corpus = QueryCorpus(
-        source_list_id=id(changespecs),
-        expected_length=len(changespecs),
+        source_list_id=id(patches),
+        expected_length=len(patches),
         rust_handle=rust_handle,
     )
     corpus.validate()

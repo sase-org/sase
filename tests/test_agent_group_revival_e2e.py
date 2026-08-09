@@ -12,7 +12,7 @@ import pytest
 from textual.widgets import Static
 
 from sase.ace import dismissed_agents
-from sase.ace.testing import AcePage, make_changespec, wait_for
+from sase.ace.testing import AcePage, make_patch, wait_for
 from sase.ace.tui import AceApp
 from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
 from sase.ace.tui.modals.save_agent_group_modal import SaveAgentGroupModal
@@ -66,7 +66,7 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
 
     async with AcePage(
         query='"visual"',
-        changespecs=[make_changespec(name="visual-polish")],
+        patches=[make_patch(name="visual-polish")],
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
@@ -127,9 +127,7 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tribe_real_load
 
     async with AcePage(
         query='"visual"',
-        changespecs=[
-            make_changespec(name="visual-polish", file_path=str(project_file))
-        ],
+        patches=[make_patch(name="visual-polish", file_path=str(project_file))],
         initial_tab="agents",
         startup_policy="real",
     ) as page:
@@ -190,7 +188,7 @@ async def test_agents_command_palette_exposes_save_marked_group(
 
     async with AcePage(
         query='"visual"',
-        changespecs=[make_changespec(name="visual-polish")],
+        patches=[make_patch(name="visual-polish")],
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
@@ -217,7 +215,7 @@ async def test_lowercase_s_dispatches_by_active_tab(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lowercase s remains PR status on ChangeSpecs and saves marked agents on Agents."""
+    """Lowercase s remains PR status on Patches and saves marked agents on Agents."""
 
     agent = _agent(raw_suffix="20260527122000")
     patch_startup_loaders(monkeypatch, agents=[agent])
@@ -229,8 +227,8 @@ async def test_lowercase_s_dispatches_by_active_tab(
 
     async with AcePage(
         query='"visual"',
-        changespecs=[make_changespec(name="visual-polish", status="WIP")],
-        initial_tab="changespecs",
+        patches=[make_patch(name="visual-polish", status="WIP")],
+        initial_tab="changespecs",  # legacy tab id
     ) as page:
         await wait_for_startup(page)
         await page.press("4")
@@ -240,7 +238,7 @@ async def test_lowercase_s_dispatches_by_active_tab(
 
     async with AcePage(
         query='"visual"',
-        changespecs=[make_changespec(name="visual-polish")],
+        patches=[make_patch(name="visual-polish")],
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
@@ -348,7 +346,7 @@ def _patch_non_agent_startup(monkeypatch: pytest.MonkeyPatch) -> None:
     import sase.notifications as notifications
     from sase.ace import grouping_strategy
     from sase.ace.tui.models.agent_groups import GroupingMode
-    from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
+    from sase.ace.tui.models.patch_groups import PatchGroupingMode
     from sase.ace.tui.widgets import llm_override_indicator
     from sase.llm_provider import temporary_override
 
@@ -380,8 +378,8 @@ def _patch_non_agent_startup(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         grouping_strategy,
-        "load_changespec_grouping_mode",
-        lambda *_args, **_kwargs: ChangeSpecGroupingMode.BY_PROJECT,
+        "load_patch_grouping_mode",
+        lambda *_args, **_kwargs: PatchGroupingMode.BY_PROJECT,
     )
     monkeypatch.setattr(
         temporary_override,

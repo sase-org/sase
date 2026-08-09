@@ -267,7 +267,7 @@ class GitCommitDispatchMixin(CommandRunner):
         Handles the residual race where another agent pushes ``<base>_<N>``
         between suffix reservation and this push.  On success the new name is
         written back into ``payload["name"]`` and ``payload["_resuffixed"]`` is
-        set so the commit workflow re-points the ChangeSpec reservation to the
+        set so the commit workflow re-points the Patch reservation to the
         branch that was actually pushed (keeping NAME and branch consistent).
 
         Returns ``(True, None)`` once a free branch is pushed, or
@@ -424,7 +424,7 @@ class GitCommitDispatchMixin(CommandRunner):
             # reservation and now (a namespace race that remote-aware
             # reservation narrows but cannot fully close). Recover by renaming
             # to the next free remote suffix and retrying, so the workflow
-            # still records a ChangeSpec instead of leaving the agent to
+            # still records a Patch instead of leaving the agent to
             # hand-roll an orphaned PR.
             if self._remote_branch_exists(name, cwd):
                 ok, err = self._resuffix_and_push(payload, cwd, name)

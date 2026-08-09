@@ -521,7 +521,7 @@ def get_default_provider_name() -> str:
     ``llm_autodetect_priority`` order (ascending) and picks the first
     whose ``llm_autodetect_cli_name`` is on ``PATH``.  A plugin returning
     ``None`` from ``llm_autodetect_cli_name`` is always eligible, which is
-    intended for non-CLI providers; built-in CLI providers declare a ChangeSpecI name.
+    intended for non-CLI providers; built-in CLI providers declare a CLI name.
 
     Raises:
         RuntimeError: If no plugin declares an autodetect priority.

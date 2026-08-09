@@ -80,7 +80,7 @@ class TestSortHookStatusLines:
             ]
         )
 
-    def test_ignores_other_changespecs(self) -> None:
+    def test_ignores_other_patches(self) -> None:
         lines = [
             "NAME: other_cl\n",
             "HOOKS:\n",
@@ -306,7 +306,7 @@ class TestFindCommitsSection:
         start, end = find_commits_section(lines, "test_cl")
         assert (start, end) == snapshot((2, 5))
 
-    def test_section_bounded_by_next_changespec(self) -> None:
+    def test_section_bounded_by_next_patch(self) -> None:
         lines = [
             "NAME: test_cl\n",
             "COMMITS:\n",

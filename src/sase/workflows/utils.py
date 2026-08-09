@@ -3,7 +3,7 @@
 import os
 import subprocess
 
-from sase.ace.patch import ChangeSpec, parse_project_file
+from sase.ace.patch import Patch, parse_project_file
 from sase.core.paths import sase_projects_dir
 from sase.vcs_provider import get_vcs_provider
 
@@ -23,10 +23,10 @@ def get_project_file_path(project: str) -> str:
 
 
 def get_cl_name_from_branch() -> str | None:
-    """Get the current ChangeSpec name from branch_name command.
+    """Get the current Patch name from branch_name command.
 
     Returns:
-        The ChangeSpec name, or None if not on a branch.
+        The Patch name, or None if not on a branch.
     """
     cwd = os.getcwd()
     provider = get_vcs_provider(cwd)
@@ -107,8 +107,8 @@ def _get_changed_test_targets(verbose: bool = False) -> str | None:
     return None
 
 
-def get_initial_hooks_for_changespec(verbose: bool = True) -> list[str]:
-    """Get all hooks to include in a new ChangeSpec.
+def get_initial_hooks_for_patch(verbose: bool = True) -> list[str]:
+    """Get all hooks to include in a new Patch.
 
     Returns required hooks (configurable via sase.yml, defaults to
     sase_hg_presubmit/sase_hg_lint for hg repos, empty for git repos)
@@ -120,10 +120,10 @@ def get_initial_hooks_for_changespec(verbose: bool = True) -> list[str]:
     Returns:
         List of hook command strings in order (required hooks first, then test targets).
     """
-    from sase.ace.hooks.defaults import get_required_changespec_hooks
+    from sase.ace.hooks.defaults import get_required_patch_hooks
     from sase.ace.hooks.test_targets import TEST_TARGET_HOOK_PREFIX
 
-    hooks: list[str] = list(get_required_changespec_hooks())
+    hooks: list[str] = list(get_required_patch_hooks())
 
     test_targets = _get_changed_test_targets(verbose=verbose)
     if test_targets:
@@ -133,21 +133,24 @@ def get_initial_hooks_for_changespec(verbose: bool = True) -> list[str]:
     return hooks
 
 
-def get_changespec_from_file(project_file: str, cl_name: str) -> ChangeSpec | None:
-    """Get a ChangeSpec from a project file by name.
+def get_patch_from_file(project_file: str, cl_name: str) -> Patch | None:
+    """Get a Patch from a project file by name.
 
     Args:
         project_file: Path to the project file.
-        cl_name: The ChangeSpec name to look for.
+        cl_name: The Patch name to look for.
 
     Returns:
-        The ChangeSpec if found, None otherwise.
+        The Patch if found, None otherwise.
     """
-    changespecs = parse_project_file(project_file)
-    for cs in changespecs:
+    patches = parse_project_file(project_file)
+    for cs in patches:
         if cs.name == cl_name:
             return cs
     return None
+
+
+get_changespec_from_file = get_patch_from_file  # legacy workflow API alias
 
 
 def add_test_hooks_if_available(
@@ -166,7 +169,7 @@ def add_test_hooks_if_available(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         workspace_dir: Optional workspace directory to run the command in.
                        If provided, changes to this directory before running
                        changed_test_targets, then restores the original directory.
@@ -175,7 +178,7 @@ def add_test_hooks_if_available(
     Returns:
         True if test hooks were added or none were needed, False on error.
     """
-    from sase.ace.hooks import add_test_target_hooks_to_changespec
+    from sase.ace.hooks import add_test_target_hooks_to_patch
     from sase.output import print_status
 
     # Run changed_test_targets in the specified directory if provided
@@ -198,9 +201,9 @@ def add_test_hooks_if_available(
 
     target_list = test_targets.split()
 
-    # Don't pass existing_hooks - let add_test_target_hooks_to_changespec read
+    # Don't pass existing_hooks - let add_test_target_hooks_to_patch read
     # fresh state inside the lock to avoid race conditions with sase axe
-    if add_test_target_hooks_to_changespec(project_file, cl_name, target_list):
+    if add_test_target_hooks_to_patch(project_file, cl_name, target_list):
         if verbose:
             print_status(f"Added {len(target_list)} test target hook(s).", "success")
         return True

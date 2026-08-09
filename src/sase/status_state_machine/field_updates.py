@@ -1,5 +1,5 @@
 """
-Field update functions for ChangeSpec files.
+Field update functions for Patch files.
 
 This module provides atomic update operations for STATUS, PR, PARENT, and
 DESCRIPTION fields.
@@ -7,7 +7,7 @@ DESCRIPTION fields.
 
 import logging
 
-from sase.ace.patch import changespec_lock, write_changespec_atomic
+from sase.ace.patch import patch_lock, write_patch_atomic
 from sase.ace.patch.section_order import PROJECT_SPEC_SECTION_HEADERS
 from sase.ace.patch.review_field import (
     REVIEW_URL_PREFIXES,
@@ -45,19 +45,19 @@ def _apply_status_update_python(
         Updated file content as a string.
     """
     updated_lines = []
-    in_target_changespec = False
+    in_target_patch = False
 
     for line in lines:
         # Check if this is a NAME field
         if line.startswith("NAME:"):
             current_name = line.split(":", 1)[1].strip()
-            in_target_changespec = current_name == changespec_name
+            in_target_patch = current_name == changespec_name
 
-        # Update STATUS if we're in the target ChangeSpec
-        if in_target_changespec and line.startswith("STATUS:"):
+        # Update STATUS if we're in the target Patch
+        if in_target_patch and line.startswith("STATUS:"):
             # Replace the STATUS line
             updated_lines.append(f"STATUS: {new_status}\n")
-            in_target_changespec = False  # Done updating this ChangeSpec
+            in_target_patch = False  # Done updating this Patch
         else:
             updated_lines.append(line)
 
@@ -79,7 +79,7 @@ def _apply_pr_url_update(
         Updated file content as a string.
     """
     updated_lines = []
-    in_target_changespec = False
+    in_target_patch = False
     found_pr_url_line = False
     del project_file
 
@@ -87,21 +87,17 @@ def _apply_pr_url_update(
         # Check if this is a NAME field
         if line.startswith("NAME:"):
             current_name = line.split(":", 1)[1].strip()
-            in_target_changespec = current_name == changespec_name
-            found_pr_url_line = False  # Reset for new ChangeSpec
+            in_target_patch = current_name == changespec_name
+            found_pr_url_line = False  # Reset for new Patch
 
-        # Update PR URL if we're in the target ChangeSpec.
-        if in_target_changespec and is_review_url_line(line):
+        # Update PR URL if we're in the target Patch.
+        if in_target_patch and is_review_url_line(line):
             found_pr_url_line = True
             # Replace the review URL line, or skip it entirely if resetting.
             if new_pr_url is not None:
                 updated_lines.append(format_review_url_line(new_pr_url))
             # When new_pr_url is None, we simply skip this line (don't append it)
-        elif (
-            in_target_changespec
-            and line.startswith("STATUS:")
-            and not found_pr_url_line
-        ):
+        elif in_target_patch and line.startswith("STATUS:") and not found_pr_url_line:
             # PR URL field doesn't exist - add it before STATUS if we have a new value.
             if new_pr_url is not None:
                 updated_lines.append(format_review_url_line(new_pr_url))
@@ -113,10 +109,10 @@ def _apply_pr_url_update(
     return "".join(updated_lines)
 
 
-def update_changespec_pr_url_atomic(
+def update_patch_pr_url_atomic(
     project_file: str, changespec_name: str, new_pr_url: str | None
 ) -> None:
-    """Update the PR URL field of a specific ChangeSpec in the project file.
+    """Update the PR URL field of a specific Patch in the project file.
 
     Acquires a lock for the entire read-modify-write cycle.
     If the PR field doesn't exist and new_pr_url is not None, it will be
@@ -133,7 +129,7 @@ def update_changespec_pr_url_atomic(
         else f"Remove PR for {changespec_name}"
     )
 
-    with changespec_lock(project_file):
+    with patch_lock(project_file):
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
@@ -141,19 +137,22 @@ def update_changespec_pr_url_atomic(
             lines, changespec_name, new_pr_url, project_file
         )
 
-        write_changespec_atomic(project_file, updated_content, commit_msg)
+        write_patch_atomic(project_file, updated_content, commit_msg)
 
 
-def update_changespec_cl_atomic(
+def update_patch_cl_atomic(
     project_file: str, changespec_name: str, new_cl: str | None
 ) -> None:
-    """Legacy alias for :func:`update_changespec_pr_url_atomic`."""
-    update_changespec_pr_url_atomic(project_file, changespec_name, new_cl)
+    """Legacy alias for :func:`update_patch_pr_url_atomic`."""
+    update_patch_pr_url_atomic(project_file, changespec_name, new_cl)
 
 
-def reset_changespec_pr_url(project_file: str, changespec_name: str) -> bool:
+update_changespec_pr_url_atomic = update_patch_pr_url_atomic  # legacy API alias
+
+
+def reset_patch_pr_url(project_file: str, changespec_name: str) -> bool:
     """
-    Remove the PR URL field from a ChangeSpec.
+    Remove the PR URL field from a Patch.
 
     Args:
         project_file: Path to the ProjectSpec file
@@ -163,7 +162,7 @@ def reset_changespec_pr_url(project_file: str, changespec_name: str) -> bool:
         True if reset succeeded, False otherwise
     """
     try:
-        update_changespec_pr_url_atomic(project_file, changespec_name, None)
+        update_patch_pr_url_atomic(project_file, changespec_name, None)
         logger.info(f"Removed PR field for {changespec_name}")
         return True
     except Exception as e:
@@ -171,9 +170,13 @@ def reset_changespec_pr_url(project_file: str, changespec_name: str) -> bool:
         return False
 
 
-def reset_changespec_cl(project_file: str, changespec_name: str) -> bool:
-    """Legacy alias for :func:`reset_changespec_pr_url`."""
-    return reset_changespec_pr_url(project_file, changespec_name)
+def reset_patch_cl(project_file: str, changespec_name: str) -> bool:
+    """Legacy CL alias for :func:`reset_patch_pr_url`."""
+    return reset_patch_pr_url(project_file, changespec_name)
+
+
+reset_changespec_pr_url = reset_patch_pr_url  # legacy API alias
+reset_changespec_cl = reset_patch_cl  # legacy API alias
 
 
 def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None:
@@ -202,12 +205,12 @@ def _read_status_from_lines_python(
     Returns:
         Current STATUS value, or None if not found.
     """
-    in_target_changespec = False
+    in_target_patch = False
     for line in lines:
         if line.startswith("NAME:"):
             current_name = line.split(":", 1)[1].strip()
-            in_target_changespec = current_name == changespec_name
-        if in_target_changespec and line.startswith("STATUS:"):
+            in_target_patch = current_name == changespec_name
+        if in_target_patch and line.startswith("STATUS:"):
             return line.split(":", 1)[1].strip()
     return None
 
@@ -226,7 +229,7 @@ def _apply_parent_update(
         Updated file content as a string.
     """
     updated_lines = []
-    in_target_changespec = False
+    in_target_patch = False
     found_parent_line = False
     in_description = False
 
@@ -234,23 +237,23 @@ def _apply_parent_update(
         # Check if this is a NAME field
         if line.startswith("NAME:"):
             current_name = line.split(":", 1)[1].strip()
-            in_target_changespec = current_name == changespec_name
+            in_target_patch = current_name == changespec_name
             found_parent_line = False
             in_description = False
 
         # Track when we're in the DESCRIPTION field
-        if in_target_changespec and line.startswith("DESCRIPTION:"):
+        if in_target_patch and line.startswith("DESCRIPTION:"):
             in_description = True
 
-        # Update PARENT if we're in the target ChangeSpec
-        if in_target_changespec and line.startswith("PARENT:"):
+        # Update PARENT if we're in the target Patch
+        if in_target_patch and line.startswith("PARENT:"):
             found_parent_line = True
             # Replace the PARENT line, or skip it entirely if resetting to None
             if new_parent is not None:
                 updated_lines.append(f"PARENT: {new_parent}\n")
             # When new_parent is None, we simply skip this line (don't append it)
         elif (
-            in_target_changespec
+            in_target_patch
             and in_description
             and (is_review_url_line(line) or line.startswith("STATUS:"))
             and not found_parent_line
@@ -264,7 +267,7 @@ def _apply_parent_update(
         else:
             # End description section when we hit another field
             if (
-                in_target_changespec
+                in_target_patch
                 and in_description
                 and line.startswith(("PARENT:", *REVIEW_URL_PREFIXES, "STATUS:"))
             ):
@@ -274,10 +277,10 @@ def _apply_parent_update(
     return "".join(updated_lines)
 
 
-def update_changespec_parent_atomic(
+def update_patch_parent_atomic(
     project_file: str, changespec_name: str, new_parent: str | None
 ) -> None:
-    """Update the PARENT field of a specific ChangeSpec in the project file.
+    """Update the PARENT field of a specific Patch in the project file.
 
     Acquires a lock for the entire read-modify-write cycle.
     If the PARENT field doesn't exist and new_parent is not None, it will be
@@ -294,13 +297,13 @@ def update_changespec_parent_atomic(
         else f"Remove PARENT for {changespec_name}"
     )
 
-    with changespec_lock(project_file):
+    with patch_lock(project_file):
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
         updated_content = _apply_parent_update(lines, changespec_name, new_parent)
 
-        write_changespec_atomic(project_file, updated_content, commit_msg)
+        write_patch_atomic(project_file, updated_content, commit_msg)
 
 
 def update_parent_references_atomic(
@@ -315,7 +318,7 @@ def update_parent_references_atomic(
         old_name: The old name to replace in PARENT fields
         new_name: The new name to use in PARENT fields
     """
-    with changespec_lock(project_file):
+    with patch_lock(project_file):
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
@@ -328,7 +331,7 @@ def update_parent_references_atomic(
                     continue
             updated_lines.append(line)
 
-        write_changespec_atomic(
+        write_patch_atomic(
             project_file,
             "".join(updated_lines),
             f"Update PARENT references from {old_name} to {new_name}",
@@ -339,7 +342,7 @@ _FIELD_HEADERS = PROJECT_SPEC_SECTION_HEADERS
 
 
 def _is_field_or_section_header(line: str) -> bool:
-    """Check if a line starts with a known ChangeSpec field/section header."""
+    """Check if a line starts with a known Patch field/section header."""
     return line.startswith(_FIELD_HEADERS)
 
 
@@ -369,7 +372,7 @@ def _apply_description_update(
 ) -> str:
     """Apply DESCRIPTION field update to file lines.
 
-    Finds the target ChangeSpec by NAME, then replaces the DESCRIPTION header
+    Finds the target Patch by NAME, then replaces the DESCRIPTION header
     and all its continuation lines (2-space-indented and blank lines) with
     the newly formatted description.  Stops consuming old description lines
     when it hits a known field header.
@@ -383,14 +386,14 @@ def _apply_description_update(
         Updated file content as a string.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     skipping_old_description = False
 
     for line in lines:
-        # Track which ChangeSpec we're in
+        # Track which Patch we're in
         if line.startswith("NAME:"):
             current_name = line.split(":", 1)[1].strip()
-            in_target_changespec = current_name == changespec_name
+            in_target_patch = current_name == changespec_name
 
         # When skipping old description lines, check for end of description
         if skipping_old_description:
@@ -401,8 +404,8 @@ def _apply_description_update(
             # Otherwise it's a continuation line (2-space-indented or blank) — skip it
             continue
 
-        # Replace DESCRIPTION header in the target ChangeSpec
-        if in_target_changespec and line.startswith("DESCRIPTION:"):
+        # Replace DESCRIPTION header in the target Patch
+        if in_target_patch and line.startswith("DESCRIPTION:"):
             updated_lines.extend(_format_description_field(new_description))
             skipping_old_description = True
             continue
@@ -426,21 +429,21 @@ def _apply_bug_update(
         Updated file content as a string.
     """
     updated_lines = []
-    in_target_changespec = False
+    in_target_patch = False
     found_bug_line = False
 
     for line in lines:
         if line.startswith("NAME:"):
             current_name = line.split(":", 1)[1].strip()
-            in_target_changespec = current_name == changespec_name
+            in_target_patch = current_name == changespec_name
             found_bug_line = False
 
-        if in_target_changespec and line.startswith("BUG:"):
+        if in_target_patch and line.startswith("BUG:"):
             found_bug_line = True
             if new_bug is not None:
                 updated_lines.append(f"BUG: {new_bug}\n")
             # When new_bug is None, skip this line (remove it)
-        elif in_target_changespec and line.startswith("STATUS:") and not found_bug_line:
+        elif in_target_patch and line.startswith("STATUS:") and not found_bug_line:
             # BUG field doesn't exist — insert before STATUS if we have a value
             if new_bug is not None:
                 updated_lines.append(f"BUG: {new_bug}\n")
@@ -452,10 +455,10 @@ def _apply_bug_update(
     return "".join(updated_lines)
 
 
-def update_changespec_bug_atomic(
+def update_patch_bug_atomic(
     project_file: str, changespec_name: str, new_bug: str | None
 ) -> None:
-    """Update the BUG field of a specific ChangeSpec in the project file.
+    """Update the BUG field of a specific Patch in the project file.
 
     Acquires a lock for the entire read-modify-write cycle.
     If the BUG field doesn't exist and new_bug is not None, it will be
@@ -472,19 +475,22 @@ def update_changespec_bug_atomic(
         else f"Remove BUG for {changespec_name}"
     )
 
-    with changespec_lock(project_file):
+    with patch_lock(project_file):
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
         updated_content = _apply_bug_update(lines, changespec_name, new_bug)
 
-        write_changespec_atomic(project_file, updated_content, commit_msg)
+        write_patch_atomic(project_file, updated_content, commit_msg)
 
 
-def update_changespec_description_atomic(
+update_changespec_bug_atomic = update_patch_bug_atomic  # legacy API alias
+
+
+def update_patch_description_atomic(
     project_file: str, changespec_name: str, new_description: str
 ) -> bool:
-    """Update the DESCRIPTION field of a specific ChangeSpec atomically.
+    """Update the DESCRIPTION field of a specific Patch atomically.
 
     Acquires a lock for the entire read-modify-write cycle.
 
@@ -497,7 +503,7 @@ def update_changespec_description_atomic(
         True if update succeeded, False otherwise.
     """
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
@@ -505,7 +511,7 @@ def update_changespec_description_atomic(
                 lines, changespec_name, new_description
             )
 
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 updated_content,
                 f"Update DESCRIPTION for {changespec_name}",
@@ -514,3 +520,8 @@ def update_changespec_description_atomic(
     except Exception:
         logger.exception("Error updating DESCRIPTION for %s", changespec_name)
         return False
+
+
+update_changespec_description_atomic = (
+    update_patch_description_atomic  # legacy API alias
+)

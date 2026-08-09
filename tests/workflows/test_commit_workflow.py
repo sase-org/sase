@@ -11,15 +11,15 @@ import pytest
 
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.workflows.commit.patch_operations import (
-    _find_changespec_end_line,
+    _find_patch_end_line,
 )
-from sase.workflows.commit.patch_queries import changespec_exists
+from sase.workflows.commit.patch_queries import patch_exists
 from sase.workflows.commit.commit_tracking import (
     append_commits_entry,
     capture_pre_commit_diff,
 )
 from sase.workflows.commit.editor_utils import get_editor
-from sase.workflows.commit.pr_operations import detect_parent_changespec
+from sase.workflows.commit.pr_operations import detect_parent_patch
 from sase.workflows.commit.workflow import CommitWorkflow
 
 
@@ -31,13 +31,13 @@ def _configured_owner(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_changespec_exists_no_project_file() -> None:
-    """Test changespec_exists returns False when project file doesn't exist."""
-    assert changespec_exists("nonexistent_project_xyz123", "some_cl") is False
+def test_patch_exists_no_project_file() -> None:
+    """Test patch_exists returns False when project file doesn't exist."""
+    assert patch_exists("nonexistent_project_xyz123", "some_cl") is False
 
 
-def test_changespec_exists_multiple_changespecs(tmp_path: Path) -> None:
-    """Test changespec_exists finds NAME among multiple ChangeSpecs."""
+def test_patch_exists_multiple_patches(tmp_path: Path) -> None:
+    """Test patch_exists finds NAME among multiple Patches."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", delete=False, suffix=".sase"
     ) as f:
@@ -59,9 +59,9 @@ def test_changespec_exists_multiple_changespecs(tmp_path: Path) -> None:
             "sase.workflows.commit.patch_queries.get_project_file_path",
             return_value=project_file,
         ):
-            assert changespec_exists("testproj", "feature_a") is True
-            assert changespec_exists("testproj", "feature_b") is True
-            assert changespec_exists("testproj", "feature_c") is False
+            assert patch_exists("testproj", "feature_a") is True
+            assert patch_exists("testproj", "feature_b") is True
+            assert patch_exists("testproj", "feature_c") is False
     finally:
         Path(project_file).unlink()
 
@@ -108,8 +108,8 @@ def test_get_editor_falls_back_to_vim() -> None:
         assert get_editor() == "vim"
 
 
-def test_find_changespec_end_line_multiple_changespecs() -> None:
-    """Test finding end of ChangeSpec when multiple exist."""
+def test_find_patch_end_line_multiple_patches() -> None:
+    """Test finding end of Patch when multiple exist."""
     lines = [
         "# Project file\n",
         "\n",
@@ -129,20 +129,20 @@ def test_find_changespec_end_line_multiple_changespecs() -> None:
         "STATUS: Mailed\n",
     ]
     # feature_a ends at line 7 (STATUS: Unstarted)
-    assert _find_changespec_end_line(lines, "feature_a") == 7
+    assert _find_patch_end_line(lines, "feature_a") == 7
     # feature_b ends at line 15 (STATUS: Mailed)
-    assert _find_changespec_end_line(lines, "feature_b") == 15
+    assert _find_patch_end_line(lines, "feature_b") == 15
 
 
-def test_find_changespec_end_line_not_found() -> None:
-    """Test when ChangeSpec is not found."""
+def test_find_patch_end_line_not_found() -> None:
+    """Test when Patch is not found."""
     lines = [
         "# Project file\n",
         "\n",
         "NAME: feature_a\n",
         "STATUS: Unstarted\n",
     ]
-    assert _find_changespec_end_line(lines, "nonexistent") is None
+    assert _find_patch_end_line(lines, "nonexistent") is None
 
 
 # --- Tests for _get_cl_description from sase_cl_workflow ---
@@ -224,11 +224,11 @@ def test_get_cl_description_empty_file_falls_back(tmp_path: Path) -> None:
         Path(desc_file).unlink()
 
 
-# --- _detect_parent_changespec ---
+# --- _detect_parent_patch ---
 
 
-def test_detect_parent_returns_branch_cl_when_changespec_exists() -> None:
-    """Returns branch name when it matches an existing ChangeSpec."""
+def test_detect_parent_returns_branch_cl_when_patch_exists() -> None:
+    """Returns branch name when it matches an existing Patch."""
     mock_cs = MagicMock()
     mock_cs.name = "parent_feature"
     with (
@@ -245,14 +245,11 @@ def test_detect_parent_returns_branch_cl_when_changespec_exists() -> None:
             return_value="/fake/proj.sase",
         ),
         patch(
-            "sase.workflows.utils.get_changespec_from_file",
+            "sase.workflows.utils.get_patch_from_file",
             return_value=mock_cs,
         ),
     ):
-        assert (
-            detect_parent_changespec("child_cl", {"name": "child_cl"})
-            == "parent_feature"
-        )
+        assert detect_parent_patch("child_cl", {"name": "child_cl"}) == "parent_feature"
 
 
 def test_detect_parent_returns_none_when_no_branch() -> None:
@@ -261,11 +258,11 @@ def test_detect_parent_returns_none_when_no_branch() -> None:
         "sase.workflows.utils.get_cl_name_from_branch",
         return_value=None,
     ):
-        assert detect_parent_changespec("child_cl", {"name": "child_cl"}) is None
+        assert detect_parent_patch("child_cl", {"name": "child_cl"}) is None
 
 
-def test_detect_parent_returns_none_when_no_changespec() -> None:
-    """Returns None when branch has no ChangeSpec."""
+def test_detect_parent_returns_none_when_no_patch() -> None:
+    """Returns None when branch has no Patch."""
     with (
         patch(
             "sase.workflows.utils.get_cl_name_from_branch",
@@ -280,20 +277,20 @@ def test_detect_parent_returns_none_when_no_changespec() -> None:
             return_value="/fake/proj.sase",
         ),
         patch(
-            "sase.workflows.utils.get_changespec_from_file",
+            "sase.workflows.utils.get_patch_from_file",
             return_value=None,
         ),
     ):
-        assert detect_parent_changespec("child_cl", {"name": "child_cl"}) is None
+        assert detect_parent_patch("child_cl", {"name": "child_cl"}) is None
 
 
 def test_detect_parent_returns_none_when_self_parent() -> None:
-    """Returns None when branch name matches the new ChangeSpec name."""
+    """Returns None when branch name matches the new Patch name."""
     with patch(
         "sase.workflows.utils.get_cl_name_from_branch",
         return_value="same_name",
     ):
-        assert detect_parent_changespec("same_name", {"name": "same_name"}) is None
+        assert detect_parent_patch("same_name", {"name": "same_name"}) is None
 
 
 def test_explicit_parent_overrides_auto_detect() -> None:
@@ -337,7 +334,7 @@ def test_explicit_parent_overrides_auto_detect() -> None:
 
 
 def test_explicit_parent_skips_auto_detect() -> None:
-    """When parent is in payload, detect_parent_changespec is not called."""
+    """When parent is in payload, detect_parent_patch is not called."""
     wf = CommitWorkflow(
         payload={
             "name": "child_cl",
@@ -368,7 +365,7 @@ def test_explicit_parent_skips_auto_detect() -> None:
             "sase.workflows.utils.get_project_from_workspace",
             return_value=None,
         ),
-        patch("sase.workflows.commit.workflow.detect_parent_changespec") as mock_detect,
+        patch("sase.workflows.commit.workflow.detect_parent_patch") as mock_detect,
     ):
         wf.run()
     mock_detect.assert_not_called()
@@ -377,7 +374,7 @@ def test_explicit_parent_skips_auto_detect() -> None:
 def test_unresolvable_explicit_parent_is_dropped() -> None:
     """Bogus ``-p`` values (e.g., a VCS ref like ``p4head``) get dropped early.
 
-    Regression: previously the string was threaded through to the ChangeSpec
+    Regression: previously the string was threaded through to the Patch
     PARENT field verbatim. Now the workflow verifies the parent resolves and
     warns + clears it when it does not.
     """
@@ -489,7 +486,7 @@ def test_append_commits_entry_returns_none_without_project_file() -> None:
 
 
 def test_append_commits_entry_returns_none_without_cl_name(tmp_path: Path) -> None:
-    """Returns None when ChangeSpec name cannot be resolved."""
+    """Returns None when Patch name cannot be resolved."""
     project_file = tmp_path / "proj.sase"
     project_file.write_text("NAME: x\nSTATUS: Pending\n")
 

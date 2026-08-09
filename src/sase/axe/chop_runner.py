@@ -14,7 +14,7 @@ code, TUI notification, scheduler bookkeeping).
 
 from __future__ import annotations
 
-from sase.ace.patch import ChangeSpec, find_all_changespecs
+from sase.ace.patch import Patch, find_all_patches
 from sase.ace.hooks.processes import is_process_running
 from sase.agent.launcher import launch_agent_from_cwd, launch_agents_from_cwd
 from sase.core.query_facade import evaluate_query_many
@@ -60,15 +60,13 @@ def _build_oneshot_context(lumberjack_name: str, axe_config: AxeConfig) -> str:
     return build_oneshot_context(
         lumberjack_name,
         axe_config,
-        find_all_changespecs_fn=find_all_changespecs,
+        find_all_patches_fn=find_all_patches,
         evaluate_query_many_fn=_evaluate_query_many_compat,
     )
 
 
-def _evaluate_query_many_compat(
-    query: str, changespecs: list[ChangeSpec]
-) -> list[bool]:
-    return evaluate_query_many(query, changespecs)
+def _evaluate_query_many_compat(query: str, patches: list[Patch]) -> list[bool]:
+    return evaluate_query_many(query, patches)
 
 
 def _active_script_chop_run(
@@ -183,7 +181,7 @@ __all__ = [
     "_compact_preview",
     "_run_script_chop_once",
     "discover_chop_script",
-    "find_all_changespecs",
+    "find_all_patches",
     "find_configured_chop",
     "is_process_running",
     "launch_agent_from_cwd",

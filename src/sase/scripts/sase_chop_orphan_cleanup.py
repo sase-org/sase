@@ -6,7 +6,7 @@ from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_cho
 
 @builtin_chop("orphan_cleanup")
 def _run(runtime: BuiltinChopRuntime) -> None:
-    runtime.hook_runner.run_orphan_cleanup(runtime.all_changespecs)
+    runtime.hook_runner.run_orphan_cleanup(runtime.all_patches)
 
 
 def main() -> None:

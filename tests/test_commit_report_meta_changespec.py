@@ -40,7 +40,7 @@ def _run_report_python(commit_result: dict) -> dict[str, str]:
         return json.loads(proc.stdout.strip())
 
 
-class TestCommitReportMetaChangespec:
+class TestCommitReportMetaPatch:
     """Verify meta_changespec is emitted from commit_result.json."""
 
     def test_emits_changespec_from_changespec_name(self) -> None:

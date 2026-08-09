@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.ace.changespec import DeltaEntry, DeltaLineStats
-from sase.ace.deltas.persistence import update_changespec_deltas_field
+from sase.ace.patch import DeltaEntry, DeltaLineStats
+from sase.ace.deltas.persistence import update_patch_deltas_field
 from sase.workflows.commit_utils import (
     add_commit_entry,
     add_commit_entry_with_id,
@@ -22,8 +22,8 @@ from sase.workflows.commit_utils.entries import (
 
 
 # Tests for get_next_commit_number
-def test_get_next_commit_number_wrong_changespec() -> None:
-    """Test getting next history number for non-existent changespec."""
+def test_get_next_commit_number_wrong_patch() -> None:
+    """Test getting next history number for non-existent patch."""
     lines = [
         "NAME: other_cl\n",
         "DESCRIPTION:\n",
@@ -130,7 +130,7 @@ def test_add_commit_entry_refreshes_deltas_with_line_counts_after_write(
         assert path == str(project_file)
         assert cl_name == "test_cl"
         assert "  (1) Initial Commit\n" in project_file.read_text()
-        return update_changespec_deltas_field(
+        return update_patch_deltas_field(
             path,
             cl_name,
             [

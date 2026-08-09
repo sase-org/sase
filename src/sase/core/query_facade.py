@@ -38,38 +38,38 @@ def parse_query(query: str) -> QueryExpr:
     return query_expr_from_wire(query_expr_wire_from_dict(record))
 
 
-def build_query_context(changespecs: list[Patch]) -> QueryEvaluationContext:
+def build_query_context(patches: list[Patch]) -> QueryEvaluationContext:
     """Build a :class:`QueryEvaluationContext` (Python-owned host logic)."""
-    return build_query_context_python(changespecs)
+    return build_query_context_python(patches)
 
 
 def evaluate_query(
     query: QueryExpr,
-    changespec: Patch,
-    all_changespecs: list[Patch] | None = None,
+    patch: Patch,
+    all_patches: list[Patch] | None = None,
 ) -> bool:
-    """Evaluate ``query`` against ``changespec`` (Python-owned host logic)."""
-    return evaluate_query_python(query, changespec, all_changespecs)
+    """Evaluate ``query`` against ``patch`` (Python-owned host logic)."""
+    return evaluate_query_python(query, patch, all_patches)
 
 
 def evaluate_query_with_context(
     query: QueryExpr,
-    changespec: Patch,
+    patch: Patch,
     ctx: QueryEvaluationContext,
 ) -> bool:
     """Evaluate ``query`` using a shared context (Python-owned host logic)."""
-    return evaluate_query_with_context_python(query, changespec, ctx)
+    return evaluate_query_with_context_python(query, patch, ctx)
 
 
 def evaluate_query_many(
     query: str,
-    changespecs: list[Patch],
+    patches: list[Patch],
 ) -> list[bool]:
-    """Evaluate ``query`` against every ChangeSpec in one batch call.
+    """Evaluate ``query`` against every Patch in one batch call.
 
     Compatibility API for callers that do not own a reusable corpus. Hot paths
     should call :func:`sase.core.query_corpus_facade.compile_query_corpus` once
-    per stable ``list[ChangeSpec]`` identity and then use
+    per stable ``list[Patch]`` identity and then use
     :func:`sase.core.query_corpus_facade.evaluate_query_many_with_corpus`.
     """
     from sase.core.query_corpus_facade import (
@@ -77,5 +77,5 @@ def evaluate_query_many(
         evaluate_query_many_with_corpus,
     )
 
-    corpus = compile_query_corpus(changespecs)
+    corpus = compile_query_corpus(patches)
     return evaluate_query_many_with_corpus(query, corpus)

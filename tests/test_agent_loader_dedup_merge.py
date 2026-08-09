@@ -36,9 +36,9 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
     """Test that workspace_num from RUNNING entry is preserved after dedup.
 
     When deduplicating by timestamp, the workspace_num from the RUNNING entry
-    should be copied to the matched ChangeSpec entry.
+    should be copied to the matched Patch entry.
     """
-    from sase.ace.changespec import ChangeSpec, HookEntry, HookStatusLine
+    from sase.ace.patch import Patch, HookEntry, HookStatusLine
 
     # Create RUNNING entry with axe PID 11111 and workspace_num=5
     mock_claim = MagicMock()
@@ -59,7 +59,7 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
 
     mock_hook = HookEntry(command="bb_test", status_lines=[mock_status_line])
 
-    mock_cs = ChangeSpec(
+    mock_cs = Patch(
         name="my_feature",
         description="Test",
         parent=None,
@@ -80,7 +80,7 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
             return_value=[mock_claim],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
@@ -114,10 +114,10 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
     ):
         agents = load_all_agents()
         assert len(agents) == 1
-        # Should keep RUNNING type (preferred over ChangeSpec) with metadata merged
+        # Should keep RUNNING type (preferred over Patch) with metadata merged
         assert agents[0].agent_type == AgentType.RUNNING
         assert agents[0].workspace_num == 5
-        # hook_command should be merged from the ChangeSpec entry
+        # hook_command should be merged from the Patch entry
         assert agents[0].hook_command == "bb_test"
 
 
@@ -153,7 +153,7 @@ def test_workflow_dedup_propagates_failed_status() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(
@@ -237,7 +237,7 @@ def test_running_workflow_dedup_ace_run() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(
@@ -284,14 +284,14 @@ def test_running_workflow_dedup_ace_run() -> None:
     assert result[0].pid == 55555
 
 
-def test_done_json_dedup_with_changespec() -> None:
-    """Test that done.json RUNNING agents are preferred over ChangeSpec entries.
+def test_done_json_dedup_with_patch() -> None:
+    """Test that done.json RUNNING agents are preferred over Patch entries.
 
     When a completed axe agent has both a done.json (RUNNING type) and a
-    ChangeSpec entry (CRS type), the RUNNING entry should be kept and
+    Patch entry (CRS type), the RUNNING entry should be kept and
     type-specific metadata (reviewer) merged from the CRS entry.
     """
-    from sase.ace.changespec import ChangeSpec, CommentEntry
+    from sase.ace.patch import Patch, CommentEntry
 
     # done.json RUNNING agent (status=DONE, workflow="crs", 14-digit raw_suffix)
     done_agent = Agent(
@@ -305,7 +305,7 @@ def test_done_json_dedup_with_changespec() -> None:
         hidden=True,
     )
 
-    # ChangeSpec CRS entry with matching timestamp (13-char format in suffix)
+    # Patch CRS entry with matching timestamp (13-char format in suffix)
     mock_comment = CommentEntry(
         reviewer="critique",
         file_path="/tmp/comments.json",
@@ -313,7 +313,7 @@ def test_done_json_dedup_with_changespec() -> None:
         suffix_type="running_agent",
     )
 
-    mock_cs = ChangeSpec(
+    mock_cs = Patch(
         name="my_feature",
         description="Test",
         parent=None,
@@ -330,7 +330,7 @@ def test_done_json_dedup_with_changespec() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
@@ -368,19 +368,19 @@ def test_done_json_dedup_with_changespec() -> None:
     assert len(result) == 1
     assert result[0].agent_type == AgentType.RUNNING
     assert result[0].status == "DONE"
-    # reviewer should be merged from the CRS ChangeSpec entry
+    # reviewer should be merged from the CRS Patch entry
     assert result[0].reviewer == "critique"
     assert result[0].hidden is True
 
 
-def test_mentor_workflow_dedup_with_changespec() -> None:
-    """Test that mentor( workflow agents are deduped with ChangeSpec MENTORS entries.
+def test_mentor_workflow_dedup_with_patch() -> None:
+    """Test that mentor( workflow agents are deduped with Patch MENTORS entries.
 
     mentor( workflows (e.g. "mentor(code_quality)") don't embed timestamps in
     their workflow name. The dedup should fall back to using raw_suffix (14-digit
-    timestamp) to match against ChangeSpec entries.
+    timestamp) to match against Patch entries.
     """
-    from sase.ace.changespec import ChangeSpec, MentorEntry, MentorStatusLine
+    from sase.ace.patch import Patch, MentorEntry, MentorStatusLine
 
     # RUNNING field entry: mentor(code_quality) workflow with 14-digit raw_suffix
     mentor_running = Agent(
@@ -396,7 +396,7 @@ def test_mentor_workflow_dedup_with_changespec() -> None:
         hidden=True,
     )
 
-    # ChangeSpec MENTORS entry with matching timestamp (13-char format in suffix)
+    # Patch MENTORS entry with matching timestamp (13-char format in suffix)
     mock_mentor_status = MentorStatusLine(
         timestamp="260310_163936",
         status="RUNNING",
@@ -412,7 +412,7 @@ def test_mentor_workflow_dedup_with_changespec() -> None:
         status_lines=[mock_mentor_status],
     )
 
-    mock_cs = ChangeSpec(
+    mock_cs = Patch(
         name="my_feature",
         description="Test",
         parent=None,
@@ -429,7 +429,7 @@ def test_mentor_workflow_dedup_with_changespec() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
@@ -468,7 +468,7 @@ def test_mentor_workflow_dedup_with_changespec() -> None:
     assert result[0].agent_type == AgentType.RUNNING
     assert result[0].workflow == "mentor(code_quality)"
     assert result[0].workspace_num == 104
-    # mentor_profile and mentor_name should be merged from ChangeSpec
+    # mentor_profile and mentor_name should be merged from Patch
     assert result[0].mentor_profile == "code_quality"
     assert result[0].mentor_name == "quality_mentor"
     assert result[0].hidden is True

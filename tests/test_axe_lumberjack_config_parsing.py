@@ -122,7 +122,7 @@ def test_parse_lumberjacks_normalizes_declarative_chop_policy() -> None:
                     "name": "audit",
                     "description": "Audit configured changes",
                     "inhibit_if": {
-                        "changespec": {"name_prefix": "audit_"},
+                        "patch": {"name_prefix": "audit_"},
                         "agent_hood": [{"hood": "audit"}],
                         "agent_clan": {"name_prefix": "toobig-"},
                     },
@@ -142,7 +142,7 @@ def test_parse_lumberjacks_normalizes_declarative_chop_policy() -> None:
     chop = _parse_lumberjacks(raw)["checks"].chops[0]
 
     assert chop.inhibit_if == [
-        {"provider": "changespec", "name_prefix": "audit_"},
+        {"provider": "patch", "name_prefix": "audit_"},
         {"provider": "agent_hood", "hood": "audit"},
         {"provider": "agent_clan", "name_prefix": "toobig-"},
     ]

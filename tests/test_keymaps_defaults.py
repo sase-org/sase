@@ -126,14 +126,14 @@ def test_fold_mode_direct_level_overrides_and_prefix_reach_help() -> None:
         for _section, bindings in agents_bindings(reg)
         for key, label in bindings
     }
-    changespec_pairs = {
+    patch_pairs = {
         (key, label)
         for _section, bindings in cls_bindings(reg)
         for key, label in bindings
     }
     assert ("f1 / f2 / f3 / fx", "Set selected tribe level 1-4") in agent_pairs
     assert ("fv", "Toggle all metadata folds") in agent_pairs
-    assert ("f1 / fw / f3", "Set all folds to level 1-3") in changespec_pairs
+    assert ("f1 / fw / f3", "Set all folds to level 1-3") in patch_pairs
 
 
 def test_idle_keymap_defaults_are_removed() -> None:

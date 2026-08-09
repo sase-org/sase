@@ -152,10 +152,10 @@ class GitRevisionOpsMixin(CommandRunner):
             if out.success:
                 return remote_ref
 
-        # Last resort: if the changespec is a base name (no __N suffix),
+        # Last resort: if the patch is a base name (no __N suffix),
         # look for a unique suffixed remote branch. This handles the case
-        # where a Ready changespec's branch was previously renamed with a
-        # suffix (e.g. "feature-1") but the changespec name lost the suffix.
+        # where a Ready patch's branch was previously renamed with a
+        # suffix (e.g. "feature-1") but the patch name lost the suffix.
         if old_branch_without_suffix == old_branch_with_suffix:
             pattern = f"refs/remotes/origin/{old_branch_without_suffix}-*"
             ref_out = self._run(
@@ -179,7 +179,7 @@ class GitRevisionOpsMixin(CommandRunner):
         return self.vcs_derive_branch_name(changespec_name, project_basename)
 
     @hookimpl
-    def vcs_resolve_current_changespec_head_ref(
+    def vcs_resolve_current_patch_head_ref(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:
         """Resolve DELTAS head with current-PR semantics.
@@ -204,7 +204,7 @@ class GitRevisionOpsMixin(CommandRunner):
         fetch_out = self._run(["git", "fetch", "origin"], cwd, timeout=600)
         if not fetch_out.success:
             raise VCSOperationError(
-                "resolve_current_changespec_head_ref",
+                "resolve_current_patch_head_ref",
                 fetch_out.stderr.strip() or "git fetch origin failed",
             )
 

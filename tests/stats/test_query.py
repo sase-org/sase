@@ -139,7 +139,7 @@ def test_query_run_stats_passes_new_runtime_groups_and_default_work_controls(
 
     monkeypatch.setattr("sase.stats.query.require_rust_binding", lambda _name: binding)
 
-    for group_by in ("project", "changespec"):
+    for group_by in ("project", "patch"):
         query_run_stats(
             start_ts=0,
             end_ts=100,
@@ -149,7 +149,7 @@ def test_query_run_stats_passes_new_runtime_groups_and_default_work_controls(
 
     assert [request["runtime_group_by"] for request in requests] == [
         "project",
-        "changespec",
+        "patch",
     ]
     assert all(request["project"] is None for request in requests)
     assert all(request["work_top_n"] == 50 for request in requests)

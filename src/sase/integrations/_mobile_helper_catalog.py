@@ -1,10 +1,10 @@
-"""Mobile helper bridge operations for ChangeSpec tags and xprompt catalog."""
+"""Mobile helper bridge operations for Patch tags and xprompt catalog."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from sase.integrations.changespec_tags import list_changespec_xprompt_tags
+from sase.integrations.changespec_tags import list_patch_xprompt_tags
 from sase.xprompt.loader import inactive_project_message_for_ref
 from sase.xprompt.catalog import build_structured_xprompts_catalog
 from sase.project_display_names import project_display_name_for
@@ -17,10 +17,10 @@ from ._mobile_helper_common import (
 )
 
 
-def changespec_tags_response(request: dict[str, Any]) -> dict[str, Any]:
+def patch_tags_response(request: dict[str, Any]) -> dict[str, Any]:
     project = optional_string(request.get("project"), "project")
     limit = optional_limit(request.get("limit"))
-    listing = list_changespec_xprompt_tags(project)
+    listing = list_patch_xprompt_tags(project)
     entries = listing.entries
     total_count = len(entries)
     if limit is not None:
@@ -38,7 +38,7 @@ def changespec_tags_response(request: dict[str, Any]) -> dict[str, Any]:
         "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
         "result": {
             "status": "partial_success" if skipped else "success",
-            "message": _changespec_tags_message(len(entries), len(skipped)),
+            "message": _patch_tags_message(len(entries), len(skipped)),
             "warnings": warnings,
             "skipped": skipped,
             "partial_failure_count": len(skipped) if skipped else None,
@@ -51,7 +51,7 @@ def changespec_tags_response(request: dict[str, Any]) -> dict[str, Any]:
             {
                 "tag": entry.tag,
                 "project": project_display_name_for(entry.project),
-                "changespec": entry.name,
+                "patch": entry.name,
                 "title": None,
                 "status": entry.status,
                 "workflow": entry.workflow_type,
@@ -170,10 +170,10 @@ def _skipped_wire(row: str) -> dict[str, str | None]:
     return {"target": target, "reason": reason}
 
 
-def _changespec_tags_message(count: int, skipped_count: int) -> str:
+def _patch_tags_message(count: int, skipped_count: int) -> str:
     if skipped_count:
-        return f"loaded {count} ChangeSpec tag(s), skipped {skipped_count}"
-    return f"loaded {count} ChangeSpec tag(s)"
+        return f"loaded {count} Patch tag(s), skipped {skipped_count}"
+    return f"loaded {count} Patch tag(s)"
 
 
 def _xprompt_catalog_message(count: int, skipped_count: int) -> str:

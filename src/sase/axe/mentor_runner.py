@@ -232,7 +232,7 @@ def main() -> None:
                 "cl_name": cl_name,
             }
         else:
-            action = "JumpToChangeSpec"
+            action = "JumpToChangeSpec"  # legacy notification action
             action_data = {
                 "patch_name": cl_name,
                 "changespec_name": cl_name,

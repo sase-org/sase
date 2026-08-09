@@ -1,18 +1,18 @@
-"""Functions for manipulating ChangeSpec files."""
+"""Functions for manipulating Patch files."""
 
 import os
 
-from sase.ace.patch import changespec_lock, write_changespec_atomic
+from sase.ace.patch import patch_lock, write_patch_atomic
 from sase.ace.patch.review_field import format_review_url_line
 from sase.ace.patch.storage import DEFAULT_STITCH_SECTION_HEADER
 from sase.output import print_status
 from sase.workflows.utils import get_project_file_path
 
 
-def _find_changespec_end_line(lines: list[str], changespec_name: str) -> int | None:
-    """Find the line number where a ChangeSpec ends.
+def _find_patch_end_line(lines: list[str], changespec_name: str) -> int | None:
+    """Find the line number where a Patch ends.
 
-    A ChangeSpec ends at the last non-empty line before either:
+    A Patch ends at the last non-empty line before either:
     - The next NAME: field
     - The end of the file
 
@@ -21,40 +21,40 @@ def _find_changespec_end_line(lines: list[str], changespec_name: str) -> int | N
         changespec_name: NAME of the ChangeSpec to find.
 
     Returns:
-        The line index (0-based) of the last line of the ChangeSpec,
-        or None if the ChangeSpec is not found.
+        The line index (0-based) of the last line of the Patch,
+        or None if the Patch is not found.
     """
-    in_target_changespec = False
-    changespec_end = None
+    in_target_patch = False
+    patch_end = None
 
     for i, line in enumerate(lines):
         if line.startswith("NAME: "):
-            if in_target_changespec:
-                # We hit the next ChangeSpec, so the previous one ended
+            if in_target_patch:
+                # We hit the next Patch, so the previous one ended
                 # Find the last non-empty line before this
                 for j in range(i - 1, -1, -1):
                     if lines[j].strip():
                         return j
                 return i - 1
 
-            # Check if this is the target ChangeSpec
+            # Check if this is the target Patch
             current_name = line[6:].strip()
             if current_name == changespec_name:
-                in_target_changespec = True
-                changespec_end = i
+                in_target_patch = True
+                patch_end = i
 
-        elif in_target_changespec and line.strip():
-            # Track the last non-empty line in the target ChangeSpec
-            changespec_end = i
+        elif in_target_patch and line.strip():
+            # Track the last non-empty line in the target Patch
+            patch_end = i
 
-    # If we're still in the target ChangeSpec at the end of file
-    if in_target_changespec:
-        return changespec_end
+    # If we're still in the target Patch at the end of file
+    if in_target_patch:
+        return patch_end
 
     return None
 
 
-def _changespec_in_archive(project_file: str, changespec_name: str) -> bool:
+def _patch_in_archive(project_file: str, changespec_name: str) -> bool:
     """Return True when ``changespec_name`` appears in the archive file."""
     from sase.ace.patch.archive import get_archive_file_path
 
@@ -72,7 +72,7 @@ def _changespec_in_archive(project_file: str, changespec_name: str) -> bool:
 
 
 def _remove_reservation_lines(lines: list[str], reserved_name: str) -> list[str]:
-    """Remove a ``Reserved`` ChangeSpec stub from a list of file lines.
+    """Remove a ``Reserved`` Patch stub from a list of file lines.
 
     Returns a new list with the reservation block (NAME + STATUS lines and
     surrounding blank lines) stripped out.
@@ -103,7 +103,7 @@ def _remove_reservation_lines(lines: list[str], reserved_name: str) -> list[str]
 
 
 def remove_reservation(project: str, reserved_name: str) -> None:
-    """Remove a ``Reserved`` ChangeSpec entry from the project file.
+    """Remove a ``Reserved`` Patch entry from the project file.
 
     Called when the VCS push fails so stale reservations don't accumulate.
 
@@ -116,13 +116,13 @@ def remove_reservation(project: str, reserved_name: str) -> None:
         return
 
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
             new_lines = _remove_reservation_lines(lines, reserved_name)
             if len(new_lines) != len(lines):
-                write_changespec_atomic(
+                write_patch_atomic(
                     project_file,
                     "".join(new_lines),
                     f"Remove reservation {reserved_name}",
@@ -134,10 +134,10 @@ def remove_reservation(project: str, reserved_name: str) -> None:
 def _remote_taken_suffix_names(base_name: str, cwd: str) -> set[str]:
     """Return ``<base_name>_<N>`` names whose branch already exists on the remote.
 
-    Consulted so the reserved ChangeSpec name stays consistent with the remote
+    Consulted so the reserved Patch name stays consistent with the remote
     branch namespace.  Best-effort: any failure (no provider, no remote,
     network error) yields an empty set so suffix allocation degrades to the
-    ChangeSpec-only behaviour.
+    Patch-only behaviour.
     """
     try:
         from sase.vcs_provider import get_vcs_provider
@@ -152,25 +152,25 @@ def _remote_taken_suffix_names(base_name: str, cwd: str) -> set[str]:
 def compute_suffixed_cl_name(
     project: str, cl_name: str, cwd: str | None = None
 ) -> str | None:
-    """Compute the suffixed ChangeSpec name and write a reservation.
+    """Compute the suffixed Patch name and write a reservation.
 
-    Reads existing ChangeSpec names from the project file and archive to find
+    Reads existing Patch names from the project file and archive to find
     the next available ``_<N>`` suffix, then writes a minimal ``Reserved``
-    ChangeSpec entry **within the same lock** to prevent concurrent agents from
+    Patch entry **within the same lock** to prevent concurrent agents from
     picking the same suffix (TOCTOU race).
 
     When *cwd* is provided, the remote branch namespace is also consulted (via
     the VCS provider) and any ``_<N>`` whose branch already exists on the remote
-    is excluded.  This keeps the reserved ChangeSpec name consistent with the
+    is excluded.  This keeps the reserved Patch name consistent with the
     branch that will be pushed, preventing the orphaned-PR bug where a low
-    suffix is reserved in the (nearly empty) ChangeSpec namespace but collides
+    suffix is reserved in the (nearly empty) Patch namespace but collides
     with a long-lived remote branch at push time.
 
     Args:
         project: Project name.
-        cl_name: Base ChangeSpec/branch name to suffix.
+        cl_name: Base Patch/branch name to suffix.
         cwd: Working directory of the repo. When given, remote branch suffixes
-            are unioned into the taken-name set. When None, only the ChangeSpec
+            are unioned into the taken-name set. When None, only the Patch
             namespace is consulted.
 
     Returns:
@@ -195,7 +195,7 @@ def compute_suffixed_cl_name(
         display_project = project_display_name_for(project)
         cl_name = ensure_project_prefix(display_project, humanize_cl_name(cl_name))
 
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
@@ -227,7 +227,7 @@ def compute_suffixed_cl_name(
             # name as taken before the lock is released.
             reservation_block = f"\n\nNAME: {suffixed_name}\nSTATUS: Reserved\n"
             lines.append(reservation_block)
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "".join(lines),
                 f"Reserve {suffixed_name}",
@@ -235,11 +235,11 @@ def compute_suffixed_cl_name(
 
             return suffixed_name
     except Exception as e:
-        print_status(f"Failed to compute suffixed ChangeSpec name: {e}", "warning")
+        print_status(f"Failed to compute suffixed Patch name: {e}", "warning")
         return None
 
 
-def add_changespec_to_project_file(
+def add_patch_to_project_file(
     project: str,
     cl_name: str,
     description: str,
@@ -252,10 +252,10 @@ def add_changespec_to_project_file(
     reserved_name: str | None = None,
     **legacy_kwargs: object,
 ) -> str | None:
-    """Add a new ChangeSpec to the project file.
+    """Add a new Patch to the project file.
 
-    The ChangeSpec is placed:
-    - Directly after the parent ChangeSpec if parent is specified
+    The Patch is placed:
+    - Directly after the parent Patch if parent is specified
     - At the top of the file (after BUG: header) if no parent
 
     Acquires a lock for the entire read-modify-write cycle.
@@ -266,7 +266,7 @@ def add_changespec_to_project_file(
         description: DESCRIPTION field value (raw, will be indented).
         parent: PARENT field value (or None for "None").
         pr_url: PR/review URL. If None, the PR line is omitted from the
-            ChangeSpec.
+            Patch.
         initial_hooks: List of hook commands to include in the HOOKS field.
             If None or empty, no HOOKS field is added.
         initial_commits: List of tuples for the COMMITS field. Tuple shape is
@@ -278,7 +278,7 @@ def add_changespec_to_project_file(
         status: STATUS field value (e.g., "Draft", "WIP"). Defaults to "Draft".
         reserved_name: Pre-computed suffixed name from a prior reservation.
             When provided, the existing ``Reserved`` entry for this name is
-            replaced in-place with the full ChangeSpec, skipping suffix
+            replaced in-place with the full Patch, skipping suffix
             recomputation.
 
     Returns:
@@ -295,7 +295,7 @@ def add_changespec_to_project_file(
 
     project_file = get_project_file_path(project)
 
-    # Ensure project file exists before trying to add a ChangeSpec
+    # Ensure project file exists before trying to add a Patch
     if not os.path.isfile(project_file):
         from sase.workflows.commit.project_file_utils import create_project_file
 
@@ -342,7 +342,7 @@ def add_changespec_to_project_file(
         timestamps_block = "".join(timestamps_lines)
 
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
@@ -368,7 +368,7 @@ def add_changespec_to_project_file(
                             if line.startswith("NAME: "):
                                 existing_names.add(line[6:].strip())
 
-                # Add _<N> suffix to make name unique (for WIP ChangeSpecs)
+                # Add _<N> suffix to make name unique (for WIP Patches)
                 from sase.core.patch import get_next_suffix_number
 
                 suffix_num = get_next_suffix_number(cl_name, existing_names)
@@ -377,17 +377,17 @@ def add_changespec_to_project_file(
             # Determine insertion point and collect parent hooks
             parent_hooks_to_add: list[str] = []
             if parent:
-                # Find the end of the parent ChangeSpec
-                parent_end = _find_changespec_end_line(lines, parent)
+                # Find the end of the parent Patch
+                parent_end = _find_patch_end_line(lines, parent)
                 if parent_end is not None:
-                    # Insert after parent ChangeSpec
+                    # Insert after parent Patch
                     insert_index = parent_end + 1
 
                     # Get parent hooks and BUG to inherit
                     from sase.ace.patch import parse_project_file
 
-                    changespecs = parse_project_file(project_file)
-                    for cs in changespecs:
+                    patches = parse_project_file(project_file)
+                    for cs in patches:
                         if cs.name == parent:
                             # Inherit hooks from parent
                             if cs.hooks:
@@ -402,7 +402,7 @@ def add_changespec_to_project_file(
                             if not bug and cs.bug:
                                 bug = cs.bug
                             break
-                elif _changespec_in_archive(project_file, parent):
+                elif _patch_in_archive(project_file, parent):
                     # Parent is a terminal CS (submitted / reverted / archived);
                     # keep the PARENT reference but append to end of file.
                     insert_index = len(lines)
@@ -412,7 +412,7 @@ def add_changespec_to_project_file(
                     # ``origin/main``) leaking into the PARENT field by
                     # dropping it and warning loudly.
                     print_status(
-                        f"Parent ChangeSpec '{parent}' does not exist — "
+                        f"Parent Patch '{parent}' does not exist — "
                         "omitting PARENT field.",
                         "warning",
                     )
@@ -436,9 +436,9 @@ def add_changespec_to_project_file(
                     hooks_lines.append(f"  {hook_cmd}\n")
                 hooks_block = "".join(hooks_lines)
 
-            # Build the ChangeSpec block with the suffixed name
+            # Build the Patch block with the suffixed name
             pr_line = format_review_url_line(pr_url) if pr_url else ""
-            changespec_block = f"""
+            patch_block = f"""
 
 NAME: {cl_name}
 DESCRIPTION:
@@ -446,28 +446,28 @@ DESCRIPTION:
 {parent_line}{bug_line}{pr_line}STATUS: {status}
 {commits_block}{hooks_block}{timestamps_block}"""
 
-            # Insert the new ChangeSpec
-            lines.insert(insert_index, changespec_block)
+            # Insert the new Patch
+            lines.insert(insert_index, patch_block)
 
             # Write atomically
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "".join(lines),
-                f"Add ChangeSpec {cl_name}",
+                f"Add Patch {cl_name}",
             )
 
         return cl_name
     except Exception as e:
-        print_status(f"Failed to add ChangeSpec to project file: {e}", "warning")
+        print_status(f"Failed to add Patch to project file: {e}", "warning")
         return None
 
 
 compute_suffixed_patch_name = compute_suffixed_cl_name
-add_patch_to_project_file = add_changespec_to_project_file
+add_patch_to_project_file = add_patch_to_project_file
 
 
 __all__ = [
-    "add_changespec_to_project_file",
+    "add_patch_to_project_file",
     "add_patch_to_project_file",
     "compute_suffixed_cl_name",
     "compute_suffixed_patch_name",

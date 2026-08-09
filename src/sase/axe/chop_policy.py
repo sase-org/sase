@@ -116,10 +116,12 @@ def evaluate_chop_preflight(
     timestamp = (now or datetime.now(get_timezone())).isoformat()
     try:
         checkpoint = _read_checkpoint_document(lumberjack_name, chop.name)
-        changespecs = (
-            _changespec_snapshots(context_file)
+        patches = (
+            _patch_snapshots(context_file)
             if any(
-                guard.get("provider") in {"patch", "changespec"}
+                # Legacy compatibility: persisted chop policies may still use
+                # the old provider name.
+                guard.get("provider") in {"patch", "changespec"}  # legacy provider name
                 for guard in chop.inhibit_if
             )
             else []
@@ -149,7 +151,7 @@ def evaluate_chop_preflight(
                 "schema_version": CHOP_ENGINE_SCHEMA_VERSION,
                 "inhibit_if": chop.inhibit_if,
                 "trigger": trigger,
-                "changespecs": changespecs,
+                "changespecs": patches,  # legacy engine wire key
                 "agents": agents,
                 "git": git,
                 "checkpoint": checkpoint_for_decision,
@@ -475,13 +477,13 @@ def _git_snapshot(
     )
 
 
-def _changespec_snapshots(context_file: str | None) -> list[dict[str, str]]:
+def _patch_snapshots(context_file: str | None) -> list[dict[str, str]]:
     if not context_file:
         raise ValueError("patch guard requires a chop context file")
     try:
         context = json.loads(Path(context_file).read_text(encoding="utf-8"))
-        changespec_path = Path(str(context["all_changespecs_file"]))
-        rows = json.loads(changespec_path.read_text(encoding="utf-8"))
+        patch_path = Path(str(context["all_patches_file"]))
+        rows = json.loads(patch_path.read_text(encoding="utf-8"))
     except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
         raise ValueError(f"could not load Patch guard snapshot: {exc}") from exc
     if not isinstance(rows, list):

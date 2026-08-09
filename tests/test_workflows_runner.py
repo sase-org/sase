@@ -4,8 +4,8 @@ import os
 import tempfile
 
 import sase.ace.scheduler.workflows_runner.starter as starter_module
-from sase.ace.changespec import (
-    ChangeSpec,
+from sase.ace.patch import (
+    Patch,
     CommentEntry,
     CommitEntry,
     HookEntry,
@@ -27,15 +27,15 @@ from sase.ace.scheduler.workflows_runner.starter import (
 )
 
 
-def _make_changespec(
+def _make_patch(
     name: str = "test_cl",
     file_path: str = "/path/to/test.sase",
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
     commits: list[CommitEntry] | None = None,
-) -> ChangeSpec:
-    """Create a test ChangeSpec with minimal required fields."""
-    return ChangeSpec(
+) -> Patch:
+    """Create a test Patch with minimal required fields."""
+    return Patch(
         name=name,
         file_path=file_path,
         description="test description",
@@ -58,7 +58,7 @@ def testget_workflow_output_path() -> None:
 
 def test_crs_workflow_eligible_no_comments() -> None:
     """Test CRS not eligible when no comments."""
-    cs = _make_changespec(comments=None)
+    cs = _make_patch(comments=None)
     result = _crs_workflow_eligible(cs)
     assert len(result) == 0
 
@@ -73,14 +73,14 @@ def test_fix_hook_workflow_eligible_passed_not_eligible() -> None:
         suffix=None,
     )
     hook = HookEntry(command="make test", status_lines=[status_line])
-    cs = _make_changespec(hooks=[hook])
+    cs = _make_patch(hooks=[hook])
     result = _fix_hook_workflow_eligible(cs)
     assert len(result) == 0
 
 
 def test_fix_hook_workflow_eligible_no_hooks() -> None:
     """Test fix-hook not eligible when no hooks."""
-    cs = _make_changespec(hooks=None)
+    cs = _make_patch(hooks=None)
     result = _fix_hook_workflow_eligible(cs)
     assert len(result) == 0
 
@@ -89,7 +89,7 @@ def test_start_stale_workflows_no_eligible_work_skips_global_runner_count(
     monkeypatch,
 ) -> None:
     """No-op workflow ticks should avoid the expensive global runner scan."""
-    cs = _make_changespec(hooks=None, comments=None)
+    cs = _make_patch(hooks=None, comments=None)
 
     def fail_count_agent_runners_global() -> int:
         raise AssertionError("global runner count should not be called")
@@ -152,7 +152,7 @@ def testget_running_crs_workflows_with_timestamp_suffix() -> None:
         file_path="~/.sase/comments/test.json",
         suffix="crs-12345-251227_123456",
     )
-    cs = _make_changespec(comments=[comment])
+    cs = _make_patch(comments=[comment])
     result = get_running_crs_workflows(cs)
     assert len(result) == 1
     assert result[0] == ("critique", "crs-12345-251227_123456")
@@ -160,7 +160,7 @@ def testget_running_crs_workflows_with_timestamp_suffix() -> None:
 
 def testget_running_crs_workflows_no_comments() -> None:
     """Test running CRS workflows when no comments."""
-    cs = _make_changespec(comments=None)
+    cs = _make_patch(comments=None)
     result = get_running_crs_workflows(cs)
     assert len(result) == 0
 
@@ -176,7 +176,7 @@ def testget_running_fix_hook_workflows_with_timestamp_suffix() -> None:
         suffix_type="running_agent",
     )
     hook = HookEntry(command="make test", status_lines=[status_line])
-    cs = _make_changespec(hooks=[hook])
+    cs = _make_patch(hooks=[hook])
     result = get_running_fix_hook_workflows(cs)
     assert len(result) == 1
     assert result[0] == ("make test", "251227_123456", "1", None)
@@ -192,14 +192,14 @@ def testget_running_fix_hook_workflows_with_non_timestamp_suffix() -> None:
         suffix="2a",  # This is a proposal ID, not a timestamp
     )
     hook = HookEntry(command="make test", status_lines=[status_line])
-    cs = _make_changespec(hooks=[hook])
+    cs = _make_patch(hooks=[hook])
     result = get_running_fix_hook_workflows(cs)
     assert len(result) == 0
 
 
 def testget_running_fix_hook_workflows_no_hooks() -> None:
     """Test running fix-hook workflows when no hooks."""
-    cs = _make_changespec(hooks=None)
+    cs = _make_patch(hooks=None)
     result = get_running_fix_hook_workflows(cs)
     assert len(result) == 0
 
@@ -236,7 +236,7 @@ def test_crs_workflow_eligible_multiple_comments_mixed() -> None:
             suffix=None,  # Not eligible - wrong reviewer
         ),
     ]
-    cs = _make_changespec(comments=comments)
+    cs = _make_patch(comments=comments)
     result = _crs_workflow_eligible(cs)
     assert len(result) == 1
     assert result[0].reviewer == "critique"
@@ -249,7 +249,7 @@ def testget_running_crs_workflows_other_reviewer_ignored() -> None:
         file_path="~/.sase/comments/test.json",
         suffix="251227123456",  # Has timestamp but wrong reviewer
     )
-    cs = _make_changespec(comments=[comment])
+    cs = _make_patch(comments=[comment])
     result = get_running_crs_workflows(cs)
     assert len(result) == 0
 
@@ -257,14 +257,14 @@ def testget_running_crs_workflows_other_reviewer_ignored() -> None:
 def testget_running_fix_hook_workflows_no_status_line() -> None:
     """Test running fix-hook workflows when hook has no status lines."""
     hook = HookEntry(command="make test", status_lines=[])
-    cs = _make_changespec(hooks=[hook])
+    cs = _make_patch(hooks=[hook])
     result = get_running_fix_hook_workflows(cs)
     assert len(result) == 0
 
 
 def testget_project_basename_complex_path() -> None:
     """Test extracting project basename from complex path."""
-    cs = _make_changespec(file_path="/home/user/.sase/projects/my-project.sase")
+    cs = _make_patch(file_path="/home/user/.sase/projects/my-project.sase")
     assert get_project_basename(cs) == "my-project"
 
 
@@ -281,7 +281,7 @@ def test_find_fix_hook_proposal_returns_display_number() -> None:
             proposal_letter="a",
         ),
     ]
-    cs = _make_changespec(commits=commits)
+    cs = _make_patch(commits=commits)
     result = _find_fix_hook_proposal(cs, "1")
     assert result == "1a"
 
@@ -292,6 +292,6 @@ def test_find_fix_hook_proposal_returns_none_when_note_wrong_prefix() -> None:
         CommitEntry(number=1, note="Initial commit"),
         CommitEntry(number=1, note="Manual fix for test", proposal_letter="a"),
     ]
-    cs = _make_changespec(commits=commits)
+    cs = _make_patch(commits=commits)
     result = _find_fix_hook_proposal(cs, "1")
     assert result is None

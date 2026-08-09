@@ -1,4 +1,4 @@
-"""Tests for load_all_agents agents derived from ChangeSpec entries."""
+"""Tests for load_all_agents agents derived from Patch entries."""
 
 from unittest.mock import patch
 
@@ -10,7 +10,7 @@ from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 def test_load_all_agents_with_summarize_agents() -> None:
     """Test load_all_agents identifies summarize agents correctly."""
-    from sase.ace.changespec import ChangeSpec, HookEntry, HookStatusLine
+    from sase.ace.patch import Patch, HookEntry, HookStatusLine
 
     mock_status_line = HookStatusLine(
         commit_entry_num="1",
@@ -22,7 +22,7 @@ def test_load_all_agents_with_summarize_agents() -> None:
 
     mock_hook = HookEntry(command="bb_test", status_lines=[mock_status_line])
 
-    mock_cs = ChangeSpec(
+    mock_cs = Patch(
         name="my_feature",
         description="Test",
         parent=None,
@@ -39,7 +39,7 @@ def test_load_all_agents_with_summarize_agents() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
@@ -76,8 +76,8 @@ def test_load_all_agents_with_summarize_agents() -> None:
 
 
 def test_load_all_agents_with_fix_hook_review_agent() -> None:
-    """ChangeSpec fix-hook agents are visible in the review tribe."""
-    from sase.ace.changespec import ChangeSpec, HookEntry, HookStatusLine
+    """Patch fix-hook agents are visible in the review tribe."""
+    from sase.ace.patch import Patch, HookEntry, HookStatusLine
 
     mock_status_line = HookStatusLine(
         commit_entry_num="1",
@@ -89,7 +89,7 @@ def test_load_all_agents_with_fix_hook_review_agent() -> None:
 
     mock_hook = HookEntry(command="bb_test", status_lines=[mock_status_line])
 
-    mock_cs = ChangeSpec(
+    mock_cs = Patch(
         name="my_feature",
         description="Test",
         parent=None,
@@ -106,7 +106,7 @@ def test_load_all_agents_with_fix_hook_review_agent() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
@@ -143,8 +143,8 @@ def test_load_all_agents_with_fix_hook_review_agent() -> None:
 
 
 def test_load_all_agents_with_mentor_agents() -> None:
-    """Test load_all_agents with mentor agents from ChangeSpec."""
-    from sase.ace.changespec import ChangeSpec, MentorEntry, MentorStatusLine
+    """Test load_all_agents with mentor agents from Patch."""
+    from sase.ace.patch import Patch, MentorEntry, MentorStatusLine
 
     mock_status_line = MentorStatusLine(
         timestamp="251231_120000",
@@ -159,7 +159,7 @@ def test_load_all_agents_with_mentor_agents() -> None:
         entry_id="1", profiles=["profile1"], status_lines=[mock_status_line]
     )
 
-    mock_cs = ChangeSpec(
+    mock_cs = Patch(
         name="my_feature",
         description="Test",
         parent=None,
@@ -176,7 +176,7 @@ def test_load_all_agents_with_mentor_agents() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
@@ -215,8 +215,8 @@ def test_load_all_agents_with_mentor_agents() -> None:
 
 
 def test_load_all_agents_with_crs_agents() -> None:
-    """Test load_all_agents with CRS agents from ChangeSpec."""
-    from sase.ace.changespec import ChangeSpec, CommentEntry
+    """Test load_all_agents with CRS agents from Patch."""
+    from sase.ace.patch import Patch, CommentEntry
 
     mock_comment = CommentEntry(
         reviewer="critique",
@@ -225,7 +225,7 @@ def test_load_all_agents_with_crs_agents() -> None:
         suffix_type="running_agent",
     )
 
-    mock_cs = ChangeSpec(
+    mock_cs = Patch(
         name="my_feature",
         description="Test",
         parent=None,
@@ -242,7 +242,7 @@ def test_load_all_agents_with_crs_agents() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(

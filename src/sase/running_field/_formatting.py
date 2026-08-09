@@ -5,7 +5,7 @@ def normalize_running_field_spacing(content: str) -> str:
     """Normalize blank lines around the RUNNING field.
 
     Ensures exactly two blank lines between:
-    - The last RUNNING entry and the first ChangeSpec (NAME field)
+    - The last RUNNING entry and the first Patch (NAME field)
     - If there's no RUNNING field, clean up any orphaned blank lines at the start
 
     Args:
@@ -62,7 +62,7 @@ def clean_orphaned_blank_lines(content: str) -> str:
     Returns:
         The content with consecutive blank lines reduced to at most two.
         Two blank lines are preserved because they serve as boundaries
-        between ChangeSpecs.
+        between Patches.
     """
     lines = content.split("\n")
     result_lines: list[str] = []
@@ -73,7 +73,7 @@ def clean_orphaned_blank_lines(content: str) -> str:
 
         if is_blank:
             consecutive_blank_count += 1
-            # Allow at most 2 consecutive blank lines (ChangeSpec boundary)
+            # Allow at most 2 consecutive blank lines (Patch boundary)
             if consecutive_blank_count > 2:
                 continue
         else:

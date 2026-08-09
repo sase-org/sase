@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.patch import (
-    changespec_lock,
-    write_changespec_atomic,
+    patch_lock,
+    write_patch_atomic,
 )
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.store import WorkspacePath, WorkspaceStore
@@ -169,7 +169,7 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
             _invalidate_project_identity()
             return True
 
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
 
@@ -180,7 +180,7 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
             for i, line in enumerate(lines):
                 if line.startswith("WORKSPACE_DIR:"):
                     lines[i] = new_line
-                    write_changespec_atomic(
+                    write_patch_atomic(
                         project_file,
                         "".join(lines),
                         f"Update WORKSPACE_DIR to {workspace_dir}",
@@ -196,7 +196,7 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
                     break
 
             lines.insert(insert_idx, new_line)
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "".join(lines),
                 f"Set WORKSPACE_DIR to {workspace_dir}",

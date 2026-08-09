@@ -114,13 +114,13 @@ def test_evaluate_query_many_compatibility_api_uses_temporary_corpus(
     calls: list[tuple[str, object]] = []
 
     def compile_query_corpus(
-        changespecs: list[object],
+        patches: list[object],
     ) -> query_corpus_facade.QueryCorpus:
-        calls.append(("compile", changespecs))
+        calls.append(("compile", patches))
         return query_corpus_facade.QueryCorpus(
-            source_list_id=id(changespecs),
-            expected_length=len(changespecs),
-            rust_handle=_FakeRustCorpus(len(changespecs)),
+            source_list_id=id(patches),
+            expected_length=len(patches),
+            rust_handle=_FakeRustCorpus(len(patches)),
         )
 
     def evaluate_query_many_with_corpus(
@@ -150,7 +150,7 @@ def test_compile_query_corpus_converts_specs_once(
     sample_project: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Corpus compilation converts each ChangeSpec once before crossing FFI."""
+    """Corpus compilation converts each Patch once before crossing FFI."""
     specs = parser_facade.parse_project_file(str(sample_project))
     converted_names: list[str] = []
     compiled_batches: list[list[dict]] = []

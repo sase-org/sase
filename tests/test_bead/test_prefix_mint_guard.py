@@ -107,7 +107,7 @@ def test_bead_create_reports_auto_prefix_repair(
     cli_crud.handle_bead_create(
         argparse.Namespace(
             type=f"plan({plan})",
-            changespec=None,
+            changespec=None,  # legacy context field
             bug_id=None,
             tier=None,
             title="Created",

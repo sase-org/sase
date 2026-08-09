@@ -2,8 +2,8 @@
 
 from rich.text import Text
 
-from sase.ace.changespec import ChangeSpec, CommitEntry
-from sase.ace.changespec.parser import _parse_changespec_from_lines
+from sase.ace.patch import Patch, CommitEntry
+from sase.ace.patch.parser import _parse_patch_from_lines
 from sase.ace.changespec.section_parsers import CommitEntryDict, build_commit_entry
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.commits_builder import (
@@ -102,7 +102,7 @@ class TestParseCommitsLineBody:
             "      | CHAT: /tmp/chat.md\n",
             "\n",
         ]
-        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
+        cs, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
         assert cs is not None
         assert cs.commits is not None
         assert len(cs.commits) == 1
@@ -124,7 +124,7 @@ class TestParseCommitsLineBody:
             "      Para two.\n",
             "\n",
         ]
-        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
+        cs, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
         assert cs is not None
         commits = cs.commits
         assert commits is not None
@@ -141,7 +141,7 @@ class TestParseCommitsLineBody:
             "  (1) Single line note\n",
             "\n",
         ]
-        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
+        cs, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
         assert cs is not None
         commits = cs.commits
         assert commits is not None
@@ -162,7 +162,7 @@ class TestParseCommitsLineBody:
             "      | DIFF: /tmp/d.diff\n",
             "\n",
         ]
-        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
+        cs, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
         assert cs is not None
         commits = cs.commits
         assert commits is not None
@@ -185,7 +185,7 @@ class TestParseCommitsLineBody:
             "      Second body.\n",
             "\n",
         ]
-        cs, _ = _parse_changespec_from_lines(lines, 0, "/test/file.sase")
+        cs, _ = _parse_patch_from_lines(lines, 0, "/test/file.sase")
         assert cs is not None
         commits = cs.commits
         assert commits is not None
@@ -390,10 +390,10 @@ class TestTruncateNote:
 # ---------------------------------------------------------------------------
 
 
-def _make_changespec(
+def _make_patch(
     commits: list[CommitEntry] | None = None,
-) -> ChangeSpec:
-    return ChangeSpec(
+) -> Patch:
+    return Patch(
         name="test",
         description="Test",
         parent=None,
@@ -414,7 +414,7 @@ class TestBodyFolding:
         fold: FoldLevel,
         max_width: int | None = None,
     ) -> str:
-        cs = _make_changespec(commits=[entry])
+        cs = _make_patch(commits=[entry])
         text = Text()
         build_commits_section(
             text,

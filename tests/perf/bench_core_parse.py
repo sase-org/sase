@@ -10,7 +10,7 @@ production callers might touch:
   PyO3 extension is importable.
 - Rust facade: `sase.core.parser_facade.parse_project_bytes(path, data)`
   — the only ported path post-Phase-8 (PyO3 call + dict rehydration into
-  `ChangeSpecWire` dataclasses on the Python side).
+  `PatchWire` dataclasses on the Python side).
 
 Workloads:
 
@@ -47,7 +47,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace.changespec.parser import parse_project_file_python
+from sase.ace.patch.parser import parse_project_file_python
 from sase.core import parser_facade
 
 

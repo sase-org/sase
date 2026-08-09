@@ -1,15 +1,15 @@
-"""Tests for get_raw_changespec_text() function."""
+"""Tests for get_raw_patch_text() function."""
 
 import tempfile
 from pathlib import Path
 
-from sase.ace.changespec import ChangeSpec, get_raw_changespec_text
+from sase.ace.patch import Patch, get_raw_patch_text
 
 
-def test_get_raw_changespec_text_with_changespec_header_delimiter(
+def test_get_raw_patch_text_with_legacy_patch_header_delimiter(
     tmp_path: Path,
 ) -> None:
-    """Test extraction stops at ## ChangeSpec header."""
+    """Test extraction stops at a legacy ## ChangeSpec header."""
     content = """\
 ## ChangeSpec
 NAME: first_cl
@@ -27,7 +27,7 @@ STATUS: Draft
         f.write(content)
         f.flush()
 
-        cs = ChangeSpec(
+        cs = Patch(
             name="first_cl",
             description="First CL",
             status="Ready",
@@ -36,7 +36,7 @@ STATUS: Draft
             file_path=f.name,
             line_number=2,  # Line after the header
         )
-        result = get_raw_changespec_text(cs)
+        result = get_raw_patch_text(cs)
         assert result is not None
         assert "NAME: first_cl" in result
         assert "NAME: second_cl" not in result
@@ -44,7 +44,7 @@ STATUS: Draft
     Path(f.name).unlink()
 
 
-def test_get_raw_changespec_text_with_two_blank_lines_delimiter(tmp_path: Path) -> None:
+def test_get_raw_patch_text_with_two_blank_lines_delimiter(tmp_path: Path) -> None:
     """Test extraction stops at two consecutive blank lines."""
     content = """\
 NAME: first_cl
@@ -62,7 +62,7 @@ STATUS: Draft
         f.write(content)
         f.flush()
 
-        cs = ChangeSpec(
+        cs = Patch(
             name="first_cl",
             description="First CL",
             status="Ready",
@@ -71,7 +71,7 @@ STATUS: Draft
             file_path=f.name,
             line_number=1,
         )
-        result = get_raw_changespec_text(cs)
+        result = get_raw_patch_text(cs)
         assert result is not None
         assert "NAME: first_cl" in result
         assert "NAME: second_cl" not in result
@@ -79,8 +79,8 @@ STATUS: Draft
     Path(f.name).unlink()
 
 
-def test_get_raw_changespec_text_with_name_delimiter(tmp_path: Path) -> None:
-    """Test extraction stops at NAME: line (ChangeSpec without header)."""
+def test_get_raw_patch_text_with_name_delimiter(tmp_path: Path) -> None:
+    """Test extraction stops at NAME: line (Patch without header)."""
     content = """\
 NAME: first_cl
 DESCRIPTION: First CL
@@ -95,7 +95,7 @@ STATUS: Draft
         f.write(content)
         f.flush()
 
-        cs = ChangeSpec(
+        cs = Patch(
             name="first_cl",
             description="First CL",
             status="Ready",
@@ -104,7 +104,7 @@ STATUS: Draft
             file_path=f.name,
             line_number=1,
         )
-        result = get_raw_changespec_text(cs)
+        result = get_raw_patch_text(cs)
         assert result is not None
         assert "NAME: first_cl" in result
         assert "NAME: second_cl" not in result
@@ -112,7 +112,7 @@ STATUS: Draft
     Path(f.name).unlink()
 
 
-def test_get_raw_changespec_text_eof(tmp_path: Path) -> None:
+def test_get_raw_patch_text_eof(tmp_path: Path) -> None:
     """Test extraction handles end of file properly."""
     content = """\
 NAME: last_cl
@@ -124,7 +124,7 @@ STATUS: Ready"""
         f.write(content)
         f.flush()
 
-        cs = ChangeSpec(
+        cs = Patch(
             name="last_cl",
             description="Last CL",
             status="Ready",
@@ -133,7 +133,7 @@ STATUS: Ready"""
             file_path=f.name,
             line_number=1,
         )
-        result = get_raw_changespec_text(cs)
+        result = get_raw_patch_text(cs)
         assert result is not None
         assert "NAME: last_cl" in result
         assert "DESCRIPTION: Last CL" in result
@@ -142,9 +142,9 @@ STATUS: Ready"""
     Path(f.name).unlink()
 
 
-def test_get_raw_changespec_text_file_not_found() -> None:
+def test_get_raw_patch_text_file_not_found() -> None:
     """Test returns None when file doesn't exist."""
-    cs = ChangeSpec(
+    cs = Patch(
         name="test_cl",
         description="Test description",
         status="Ready",
@@ -153,11 +153,11 @@ def test_get_raw_changespec_text_file_not_found() -> None:
         file_path="/nonexistent/path/file.sase",
         line_number=1,
     )
-    result = get_raw_changespec_text(cs)
+    result = get_raw_patch_text(cs)
     assert result is None
 
 
-def test_get_raw_changespec_text_invalid_line_number(tmp_path: Path) -> None:
+def test_get_raw_patch_text_invalid_line_number(tmp_path: Path) -> None:
     """Test returns None when line number is out of range."""
     content = "NAME: test_cl\n"
     with tempfile.NamedTemporaryFile(
@@ -166,7 +166,7 @@ def test_get_raw_changespec_text_invalid_line_number(tmp_path: Path) -> None:
         f.write(content)
         f.flush()
 
-        cs = ChangeSpec(
+        cs = Patch(
             name="test_cl",
             description="Test description",
             status="Ready",
@@ -175,7 +175,7 @@ def test_get_raw_changespec_text_invalid_line_number(tmp_path: Path) -> None:
             file_path=f.name,
             line_number=100,  # Way beyond file length
         )
-        result = get_raw_changespec_text(cs)
+        result = get_raw_patch_text(cs)
         assert result is None
 
     Path(f.name).unlink()

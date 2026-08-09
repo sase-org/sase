@@ -1,6 +1,6 @@
 """CLI rendering for ``sase plugin install <plugin>``.
 
-This is the ChangeSpecI-facing seam that delegates all *resolution* and *orchestration*
+This is the PatchI-facing seam that delegates all *resolution* and *orchestration*
 to the console-free :mod:`sase.plugins.operations` layer and keeps only the
 presentation concerns: a spinner, the Rich result panels, the stable
 ``-j|--json`` payloads, and the process exit codes. The flow follows the epic's

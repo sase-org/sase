@@ -1,6 +1,6 @@
 """Axe scheduler package for sase.
 
-This package provides schedule-based ChangeSpec monitoring for automatically
+This package provides schedule-based Patch monitoring for automatically
 running hooks, managing workflows, and checking PR status.
 """
 

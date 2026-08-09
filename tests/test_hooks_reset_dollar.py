@@ -2,8 +2,8 @@
 
 from unittest.mock import patch
 
-from sase.ace.changespec import (
-    ChangeSpec,
+from sase.ace.patch import (
+    Patch,
     CommitEntry,
     HookEntry,
     HookStatusLine,
@@ -17,13 +17,13 @@ _PATCH_KILL = "sase.ace.hooks.processes.kill_running_processes_for_hooks"
 _PATCH_RERUN = "sase.ace.hooks.mutations.rerun_delete_hooks_by_command"
 
 
-def _make_changespec(
+def _make_patch(
     name: str = "test_feature",
     hooks: list[HookEntry] | None = None,
     commits: list[CommitEntry] | None = None,
-) -> ChangeSpec:
-    """Create a ChangeSpec for testing."""
-    return ChangeSpec(
+) -> Patch:
+    """Create a Patch for testing."""
+    return Patch(
         name=name,
         description="Test",
         parent=None,
@@ -68,7 +68,7 @@ def _make_hook(
 def test_no_dollar_hooks_is_noop() -> None:
     """Only non-$ hooks -> returns True without modifying anything."""
     hooks = [_make_hook("flake8 src", "1", "PASSED")]
-    cs = _make_changespec(hooks=hooks, commits=[_make_commit(1)])
+    cs = _make_patch(hooks=hooks, commits=[_make_commit(1)])
     with patch(_PATCH_PARSE, return_value=[cs]):
         assert reset_dollar_hooks("/tmp/test.sase", "test_feature") is True
 
@@ -76,7 +76,7 @@ def test_no_dollar_hooks_is_noop() -> None:
 def test_no_commits_history_is_noop() -> None:
     """No COMMITS entries -> returns True without modifying anything."""
     hooks = [_make_hook("$bb_presubmit", "1", "PASSED")]
-    cs = _make_changespec(hooks=hooks, commits=None)
+    cs = _make_patch(hooks=hooks, commits=None)
     with patch(_PATCH_PARSE, return_value=[cs]):
         assert reset_dollar_hooks("/tmp/test.sase", "test_feature") is True
 
@@ -87,7 +87,7 @@ def test_log_fn_receives_messages() -> None:
         _make_hook("$bb_presubmit", "1", "PASSED"),
         _make_hook("$bb_lint", "1", "FAILED"),
     ]
-    cs = _make_changespec(hooks=hooks, commits=[_make_commit(1)])
+    cs = _make_patch(hooks=hooks, commits=[_make_commit(1)])
     logged: list[str] = []
 
     with (
@@ -110,7 +110,7 @@ def test_mix_dollar_and_non_dollar_hooks() -> None:
         _make_hook("pytest tests", "1", "FAILED"),
         _make_hook("$bb_lint", "1", "PASSED"),
     ]
-    cs = _make_changespec(hooks=hooks, commits=[_make_commit(1)])
+    cs = _make_patch(hooks=hooks, commits=[_make_commit(1)])
 
     with (
         patch(_PATCH_PARSE, return_value=[cs]),
@@ -129,9 +129,9 @@ def test_mix_dollar_and_non_dollar_hooks() -> None:
     }
 
 
-def test_changespec_not_found_returns_true() -> None:
-    """If the changespec name doesn't match, return True (no-op)."""
-    cs = _make_changespec(
+def test_patch_not_found_returns_true() -> None:
+    """If the patch name doesn't match, return True (no-op)."""
+    cs = _make_patch(
         name="other_feature",
         hooks=[_make_hook("$bb_presubmit", "1")],
         commits=[_make_commit(1)],

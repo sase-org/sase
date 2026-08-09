@@ -15,14 +15,14 @@ from sase.ace.tui.models.patch_graph_index import (
     build_patch_graph_index_python,
 )
 
-ChangeSpecGraphIndex = PatchGraphIndex
+PatchGraphIndex = PatchGraphIndex
 
 
 def build_patch_graph_index(
     patches: list[Patch],
-) -> ChangeSpecGraphIndex:
+) -> PatchGraphIndex:
     """Build a :class:`PatchGraphIndex`."""
     return build_patch_graph_index_python(patches)
 
 
-build_changespec_graph_index = build_patch_graph_index
+build_patch_graph_index = build_patch_graph_index

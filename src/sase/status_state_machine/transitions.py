@@ -1,4 +1,4 @@
-"""Main status transition logic for ChangeSpecs.
+"""Main status transition logic for Patches.
 
 The Python entry point separates three concerns explicitly so the pure
 decision step runs in Rust while every side effect remains on the host:
@@ -24,7 +24,7 @@ timestamp recording — run after the lock releases.
 import logging
 from typing import TYPE_CHECKING
 
-from sase.ace.patch import changespec_lock
+from sase.ace.patch import patch_lock
 from sase.core.status_wire import (
     ARCHIVE_ACTION_FROM_ARCHIVE,
     ARCHIVE_ACTION_NONE,
@@ -48,31 +48,34 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def transition_changespec_status(
+def transition_patch_status(
     project_file: str,
     changespec_name: str,
     new_status: str,
     validate: bool = True,
     console: "Console | None" = None,
 ) -> tuple[bool, str | None, str | None, list[SiblingRevertResult]]:
-    """Transition a ChangeSpec to a new STATUS.
+    """Transition a Patch to a new STATUS.
 
     Public entry point — routes through :mod:`sase.core.status_facade`,
-    which calls :func:`transition_changespec_status_python` below.
+    which calls :func:`transition_patch_status_python` below.
     """
-    from sase.core.status_facade import transition_changespec_status as _facade
+    from sase.core.status_facade import transition_patch_status as _facade
 
     return _facade(project_file, changespec_name, new_status, validate, console)
 
 
-def transition_changespec_status_python(
+transition_changespec_status = transition_patch_status  # legacy API alias
+
+
+def transition_patch_status_python(
     project_file: str,
     changespec_name: str,
     new_status: str,
     validate: bool = True,
     console: "Console | None" = None,
 ) -> tuple[bool, str | None, str | None, list[SiblingRevertResult]]:
-    """Python implementation of :func:`transition_changespec_status`.
+    """Python implementation of :func:`transition_patch_status`.
 
     Acquires a lock for the read-validate-write cycle, then runs the
     out-of-lock side effects (suffix renames, archive moves, timestamp).
@@ -95,7 +98,7 @@ def transition_changespec_status_python(
 
     sibling_results: list[SiblingRevertResult] = []
 
-    with changespec_lock(project_file):
+    with patch_lock(project_file):
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
@@ -131,13 +134,13 @@ def transition_changespec_status_python(
             log_msg += " (validation skipped)"
         logger.info(log_msg)
 
-        from sase.ace.patch import write_changespec_atomic
+        from sase.ace.patch import write_patch_atomic
 
         assert plan.status_update_target is not None
         updated_content = apply_status_update(
             lines, changespec_name, plan.status_update_target
         )
-        write_changespec_atomic(
+        write_patch_atomic(
             project_file,
             updated_content,
             f"Update STATUS to {plan.status_update_target} for {changespec_name}",
@@ -178,7 +181,7 @@ def transition_changespec_status_python(
             get_archive_file_path,
             get_main_file_path,
             is_archive_file,
-            move_changespec_to_file,
+            move_patch_to_file,
         )
 
         if is_archive_file(project_file):
@@ -189,10 +192,10 @@ def transition_changespec_status_python(
             archive_file = get_archive_file_path(project_file)
 
         if plan.archive_action == ARCHIVE_ACTION_TO_ARCHIVE:
-            if move_changespec_to_file(main_file, archive_file, changespec_name):
+            if move_patch_to_file(main_file, archive_file, changespec_name):
                 timestamp_project_file = archive_file
         elif plan.archive_action == ARCHIVE_ACTION_FROM_ARCHIVE:
-            if move_changespec_to_file(archive_file, main_file, changespec_name):
+            if move_patch_to_file(archive_file, main_file, changespec_name):
                 timestamp_project_file = main_file
         else:
             raise ValueError(f"unexpected archive_action: {plan.archive_action!r}")

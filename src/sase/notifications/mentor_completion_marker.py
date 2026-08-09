@@ -3,7 +3,7 @@
 Tracks which (project_file, changespec_name, entry_id) tuples have already
 received a mentors-complete notification, so the polling loop in
 ``mentor_checks`` doesn't re-emit on every cycle. Lives outside the
-ChangeSpec ``.gp`` files so it survives archival without polluting display.
+Patch ``.gp`` files so it survives archival without polluting display.
 """
 
 from __future__ import annotations

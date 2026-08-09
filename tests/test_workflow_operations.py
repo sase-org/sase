@@ -1,6 +1,6 @@
 """Tests for workflow operations and available workflows."""
 
-from sase.ace.changespec import ChangeSpec, CommentEntry, HookEntry, HookStatusLine
+from sase.ace.patch import Patch, CommentEntry, HookEntry, HookStatusLine
 from sase.ace.operations import get_available_workflows
 
 
@@ -25,7 +25,7 @@ def _make_hook(
 
 def test_get_available_workflows_with_comments_entry() -> None:
     """Test that COMMENTS entry without suffix returns crs workflow."""
-    cs = ChangeSpec(
+    cs = Patch(
         name="Test",
         description="Test",
         parent="None",
@@ -47,7 +47,7 @@ def test_get_available_workflows_with_comments_entry() -> None:
 
 def test_get_available_workflows_with_non_test_target_failed_hook() -> None:
     """Test that failing non-test hooks trigger fix-hook workflow."""
-    cs = ChangeSpec(
+    cs = Patch(
         name="Test",
         description="Test",
         parent="None",
@@ -66,7 +66,7 @@ def test_get_available_workflows_with_non_test_target_failed_hook() -> None:
 
 def test_get_available_workflows_all_hooks_passing() -> None:
     """Test that no fix-hook workflow when all hooks passing."""
-    cs = ChangeSpec(
+    cs = Patch(
         name="Test",
         description="Test",
         parent="None",

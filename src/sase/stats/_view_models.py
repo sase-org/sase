@@ -75,11 +75,11 @@ class RuntimeRow:
 
 
 @dataclass(frozen=True, slots=True)
-class ChangeSpecWorkRow:
+class PatchWorkRow:
     project_key: str
     project_label: str
-    changespec_key: str
-    changespec_label: str
+    patch_key: str
+    patch_label: str
     status: str
     has_pr: bool
     runs: int
@@ -90,12 +90,15 @@ class ChangeSpecWorkRow:
     last_run_ts: float
 
     @property
-    def patch_key(self) -> str:
-        return self.changespec_key
+    def changespec_key(self) -> str:  # legacy stats view alias
+        return self.patch_key
 
     @property
-    def patch_label(self) -> str:
-        return self.changespec_label
+    def changespec_label(self) -> str:  # legacy stats view alias
+        return self.patch_label
+
+
+ChangeSpecWorkRow = PatchWorkRow  # legacy stats view alias
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,19 +113,19 @@ class ProjectWorkRow:
     waiting: int
     success_rate: float
     commits: int
-    distinct_changespecs: int
+    distinct_patches: int
     unattributed_runs: int
     total_runtime_seconds: float
     last_run_ts: float
-    changespecs: tuple[ChangeSpecWorkRow, ...]
+    patches: tuple[PatchWorkRow, ...]
 
     @property
-    def distinct_patches(self) -> int:
-        return self.distinct_changespecs
+    def distinct_changespecs(self) -> int:  # legacy stats view alias
+        return self.distinct_patches
 
     @property
-    def patches(self) -> tuple[ChangeSpecWorkRow, ...]:
-        return self.changespecs
+    def changespecs(self) -> tuple[PatchWorkRow, ...]:  # legacy stats view alias
+        return self.patches
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,24 +167,24 @@ class RunsView:
 @dataclass(frozen=True, slots=True)
 class ProjectsView:
     projects: tuple[ProjectWorkRow, ...]
-    changespecs: tuple[ChangeSpecWorkRow, ...]
+    patches: tuple[PatchWorkRow, ...]
     project_count: int
-    changespec_count: int
+    patch_count: int
     unattributed_runs: int
-    truncated_changespec_rows: int
+    truncated_patch_rows: int
     malformed_spec_files_skipped: int
 
     @property
-    def patches(self) -> tuple[ChangeSpecWorkRow, ...]:
-        return self.changespecs
+    def changespecs(self) -> tuple[PatchWorkRow, ...]:  # legacy stats view alias
+        return self.patches
 
     @property
-    def patch_count(self) -> int:
-        return self.changespec_count
+    def changespec_count(self) -> int:  # legacy stats view alias
+        return self.patch_count
 
     @property
-    def truncated_patch_rows(self) -> int:
-        return self.truncated_changespec_rows
+    def truncated_changespec_rows(self) -> int:  # legacy stats view alias
+        return self.truncated_patch_rows
 
 
 @dataclass(frozen=True, slots=True)

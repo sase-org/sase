@@ -7,25 +7,25 @@ import pytest
 
 from sase.integrations.mobile_helpers import handle_mobile_helper_bridge
 from tests._mobile_helper_bridge_helpers import (
-    create_changespec,
+    create_patch,
     run_bridge,
-    stub_changespecs,
+    stub_patches,
 )
 
 
-def test_changespec_tags_bridge_projects_wire_shape_and_limit(
+def test_patch_tags_bridge_projects_wire_shape_and_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    stub_changespecs(
+    stub_patches(
         monkeypatch,
         [
-            create_changespec("zeta", "Ready", "sase"),
-            create_changespec("alpha", "WIP (sase_1)", "sase"),
-            create_changespec("other", "Ready", "other"),
+            create_patch("zeta", "Ready", "sase"),
+            create_patch("alpha", "WIP (sase_1)", "sase"),
+            create_patch("other", "Ready", "other"),
         ],
     )
     monkeypatch.setattr(
-        "sase.integrations.changespec_tags.detect_workflow_type",
+        "sase.integrations.patch_tags.detect_workflow_type",
         lambda project_file: "gh",
     )
 
@@ -43,7 +43,7 @@ def test_changespec_tags_bridge_projects_wire_shape_and_limit(
         {
             "tag": "#gh:alpha",
             "project": "sase",
-            "changespec": "alpha",
+            "patch": "alpha",
             "title": None,
             "status": "WIP",
             "workflow": "gh",
@@ -52,14 +52,14 @@ def test_changespec_tags_bridge_projects_wire_shape_and_limit(
     ]
 
 
-def test_changespec_tags_bridge_returns_skipped_structurally(
+def test_patch_tags_bridge_returns_skipped_structurally(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    stub_changespecs(
+    stub_patches(
         monkeypatch,
         [
-            create_changespec("bad", "Ready", "sase"),
-            create_changespec("good", "Ready", "sase"),
+            create_patch("bad", "Ready", "sase"),
+            create_patch("good", "Ready", "sase"),
         ],
     )
 
@@ -68,9 +68,7 @@ def test_changespec_tags_bridge_returns_skipped_structurally(
             raise ValueError("workflow missing")
         return "gh"
 
-    monkeypatch.setattr(
-        "sase.integrations.changespec_tags.detect_workflow_type", detect
-    )
+    monkeypatch.setattr("sase.integrations.patch_tags.detect_workflow_type", detect)
 
     code, data, stderr = run_bridge({"schema_version": 1})
 
@@ -90,7 +88,7 @@ def test_changespec_tags_bridge_returns_skipped_structurally(
     ]
 
 
-def test_changespec_tags_bridge_rejects_invalid_json() -> None:
+def test_patch_tags_bridge_rejects_invalid_json() -> None:
     stdout = io.StringIO()
     stderr = io.StringIO()
 
@@ -106,7 +104,7 @@ def test_changespec_tags_bridge_rejects_invalid_json() -> None:
     assert "invalid JSON request" in stderr.getvalue()
 
 
-def test_changespec_tags_bridge_rejects_invalid_limit() -> None:
+def test_patch_tags_bridge_rejects_invalid_limit() -> None:
     code, data, stderr = run_bridge({"schema_version": 1, "limit": "10"})
 
     assert code == 2

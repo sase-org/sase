@@ -28,8 +28,8 @@ from pathlib import Path
 from typing import Literal
 
 from sase.ace.patch import (
-    ChangeSpec as Patch,
-    iter_changespec_project_files,
+    Patch as Patch,
+    iter_patch_project_files,
     parse_project_file,
 )
 from sase.core.paths import sase_projects_dir
@@ -53,12 +53,12 @@ _ACTIVE_PATCH_STATUSES = frozenset({"WIP", "Draft", "Ready", "Mailed"})
 # when the on-disk shape changes; the Rust loader tolerates unknown extra keys.
 VCS_PROJECT_CATALOG_SCHEMA_VERSION = 4
 
-VcsProjectEntryKind = Literal["project", "patch", "changespec"]
+VcsProjectEntryKind = Literal["project", "patch", "changespec"]  # legacy catalog kind
 
 
 def _canonical_vcs_project_entry_kind(kind: str) -> str:
     """Return the canonical entry discriminator for current in-process code."""
-    return "patch" if kind == "changespec" else kind
+    return "patch" if kind in {"patch", "changespec"} else kind  # legacy catalog kind
 
 
 def _legacy_vcs_project_entry_kind(kind: str) -> str:
@@ -142,7 +142,7 @@ def _catalog_signature(projects_dir: Path) -> object | None:
     lifecycle-selected ProjectSpec files themselves as the cache key.
     """
     try:
-        project_files = iter_changespec_project_files(
+        project_files = iter_patch_project_files(
             projects_dir=projects_dir,
             include_states=("enabled",),
             include_home=False,
@@ -165,19 +165,14 @@ def vcs_project_catalog_signature(projects_dir: Path) -> object | None:
     return _catalog_signature(projects_dir)
 
 
-def _iter_enabled_project_changespecs(projects_dir: Path) -> Iterator[Patch]:
+def _iter_enabled_project_patches(projects_dir: Path) -> Iterator[Patch]:
     """Yield patches from enabled projects' ProjectSpec files."""
-    for project_file in iter_changespec_project_files(
+    for project_file in iter_patch_project_files(
         projects_dir=projects_dir,
         include_states=("enabled",),
         include_home=False,
     ):
         yield from parse_project_file(str(project_file))
-
-
-def _iter_enabled_project_patches(projects_dir: Path) -> Iterator[Patch]:
-    """Yield patches from enabled projects' ProjectSpec files."""
-    yield from _iter_enabled_project_changespecs(projects_dir)
 
 
 def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:

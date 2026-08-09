@@ -5,11 +5,11 @@ This package also hosts the Rust-bindable facade layer (see
 
 - :mod:`sase.core.rust` — strict ``sase_core_rs`` loader for ported facades.
 - :mod:`sase.core.wire` — stable wire records the Rust impl produces/consumes.
-- :mod:`sase.core.wire_conversion` — Python ``ChangeSpec`` -> wire records.
+- :mod:`sase.core.wire_conversion` — Python ``Patch`` -> wire records.
 - :mod:`sase.core.parser_facade` — :func:`parse_project_file` / :func:`parse_project_bytes`.
 - :mod:`sase.core.query_facade` — query parse / build context / evaluate.
 - :mod:`sase.core.query_corpus_facade` — persistent Rust query corpus handles.
-- :mod:`sase.core.graph_index_facade` — :func:`build_changespec_graph_index`.
+- :mod:`sase.core.graph_index_facade` — :func:`build_patch_graph_index`.
 - :mod:`sase.core.status_facade` — status transitions + pure status helpers.
 - :mod:`sase.core.git_query_facade` — Git query parsers.
 - :mod:`sase.core.glossary_facade` — glossary validation and matching.
@@ -27,7 +27,7 @@ host logic, not backend fallbacks.
 from sase.core.changespec import (
     changespec_name_to_branch,
     changespec_name_to_branch_with_suffix,
-    get_workspace_directory_for_changespec,
+    get_workspace_directory_for_changespec as get_workspace_directory_for_changespec,  # legacy export
 )
 from sase.core.patch import (
     get_next_suffix_number,
@@ -86,7 +86,7 @@ __all__ = [
     "get_timezone",
     "get_vendored_tool",
     "get_workspace_directory_for_patch",
-    "get_workspace_directory_for_changespec",
+    "get_workspace_directory_for_patch",
     "has_suffix",
     "make_safe_filename",
     "patch_name_to_branch",

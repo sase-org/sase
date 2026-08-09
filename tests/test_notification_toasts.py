@@ -155,14 +155,18 @@ class TestFormatNotificationToast:
         assert msg == "Report available"
         assert sev == "information"
 
-    def test_jump_to_changespec_success(self) -> None:
-        n = _make(action="JumpToChangeSpec", notes=["Sync success for bar"])
+    def test_jump_to_patch_success(self) -> None:
+        n = _make(
+            action="JumpToChangeSpec", notes=["Sync success for bar"]
+        )  # legacy notification action
         msg, sev = _format_notification_toast(n)
         assert msg == "Sync success for bar"
         assert sev == "information"
 
-    def test_jump_to_changespec_failure(self) -> None:
-        n = _make(action="JumpToChangeSpec", notes=["Sync fail for feature/bar"])
+    def test_jump_to_patch_failure(self) -> None:
+        n = _make(
+            action="JumpToChangeSpec", notes=["Sync fail for feature/bar"]
+        )  # legacy notification action
         msg, sev = _format_notification_toast(n)
         assert msg == "Sync fail for feature/bar"
         assert sev == "error"
@@ -229,7 +233,9 @@ class TestFormatBatchToasts:
         notifs = [
             _make(action="PlanApproval", notes=["Plan ready for review: a.md"]),
             _make(action="UserQuestion", notes=["What?"]),
-            _make(action="JumpToChangeSpec", notes=["Sync success for x"]),
+            _make(
+                action="JumpToChangeSpec", notes=["Sync success for x"]
+            ),  # legacy notification action
         ]
         toasts = format_batch_toasts(notifs)
         assert len(toasts) == 3
@@ -240,7 +246,9 @@ class TestFormatBatchToasts:
             _make(action="PlanApproval", notes=["Plan ready for review: b.md"]),
             _make(action="UserQuestion", notes=["What?"]),
             _make(action="ViewErrorReport", notes=["1 error"]),
-            _make(action="JumpToChangeSpec", notes=["Sync success for x"]),
+            _make(
+                action="JumpToChangeSpec", notes=["Sync success for x"]
+            ),  # legacy notification action
         ]
         toasts = format_batch_toasts(notifs)
         # One per severity bucket that has entries: error, warning, information.

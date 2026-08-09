@@ -162,10 +162,10 @@ class VCSPluginManager(VCSProvider):
             return revision
         return result  # type: ignore[return-value]
 
-    def resolve_current_changespec_head_ref(
+    def resolve_current_patch_head_ref(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:
-        result = self._pm.hook.vcs_resolve_current_changespec_head_ref(
+        result = self._pm.hook.vcs_resolve_current_patch_head_ref(
             changespec_name=changespec_name,
             project_basename=project_basename,
             cwd=cwd,
@@ -173,6 +173,15 @@ class VCSPluginManager(VCSProvider):
         if result is None:
             return self.resolve_revision(changespec_name, project_basename, cwd)
         return result  # type: ignore[return-value]
+
+    def resolve_current_changespec_head_ref(  # legacy provider API alias
+        self, changespec_name: str, project_basename: str, cwd: str
+    ) -> str:
+        return self.resolve_current_patch_head_ref(
+            changespec_name,
+            project_basename,
+            cwd,
+        )
 
     def show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_show_revision", revision=revision, cwd=cwd)

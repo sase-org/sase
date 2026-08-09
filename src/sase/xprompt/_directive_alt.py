@@ -22,7 +22,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from ._directive_alt_naming import (
-    apply_fanout_naming,
+    apply_fanout_naming as apply_fanout_naming,  # compatibility re-export
     apply_fanout_naming_with_metadata,
 )
 from ._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
@@ -83,7 +83,7 @@ def has_alt_directive(prompt: str) -> bool:
     """Quick check whether a prompt contains a ``%alt(``, ``%(`` or ``%{`` directive.
 
     This avoids the overhead of full splitting and is suitable for
-    early detection in the ChangeSpecI auto-daemon routing.
+    early detection in the CLI auto-daemon routing.
     """
     if "%" not in prompt:
         return False

@@ -182,10 +182,10 @@ def build_dangling_refs() -> tuple[dict[str, Issue], str]:
     return {issue.id: issue}, issue.id
 
 
-def build_changespec() -> tuple[dict[str, Issue], str]:
+def build_patch() -> tuple[dict[str, Issue], str]:
     issue = Issue(
         id="bd-plan",
-        title="Plan With ChangeSpec",
+        title="Plan With Patch",
         issue_type=IssueType.PLAN,
         changespec_name="my_changespec",
         changespec_bug_id="BUG-42",
@@ -286,7 +286,7 @@ CORPUS: list[tuple[str, CorpusBuilder]] = [
     ("legacy_closed_without_resolution", build_legacy_closed_without_resolution),
     ("deps_and_blockers", build_deps_and_blockers),
     ("dangling_refs", build_dangling_refs),
-    ("changespec", build_changespec),
+    ("patch", build_patch),
     ("with_refs", build_with_refs),
     ("markdown_description", build_markdown_description),
     ("cjk_emoji_title", build_cjk_emoji_title),

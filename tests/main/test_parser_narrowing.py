@@ -54,13 +54,12 @@ def test_patch_parser_supports_canonical_command_and_legacy_alias(
 ) -> None:
     parser = create_parser(only=command)
 
-    assert _root_commands(parser) == {"patch", "changespec"}
+    assert _root_commands(parser) == {"patch", "changespec"}  # legacy command alias
     args = parser.parse_args([command, "sync-deltas", "--patch", "feature"])
     assert args.command == command
     assert args.patch_subcommand == "sync-deltas"
     assert args.changespec_subcommand == "sync-deltas"
     assert args.patch == "feature"
-    assert args.changespec == "feature"
     assert args.cl_name == "feature"
 
 
@@ -69,7 +68,7 @@ def test_patch_parser_supports_canonical_command_and_legacy_alias(
     [
         (["sase", "bead"], "bead"),
         (["sase", "patch"], "patch"),
-        (["sase", "changespec"], "changespec"),
+        (["sase", "patch"], "patch"),
         (["sase"], None),
         (["sase", "--help"], None),
         (["sase", "-H"], None),

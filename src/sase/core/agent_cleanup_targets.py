@@ -45,7 +45,7 @@ def agent_to_cleanup_target(agent: Any) -> AgentCleanupTargetWire:
         raw_suffix=raw_suffix,
         project_file=agent.project_file,
         artifacts_dir=artifacts_dir,
-        from_changespec=bool(getattr(agent, "_from_changespec", False)),
+        from_patch=bool(getattr(agent, "_from_patch", False)),
         workspace=agent.effective_workspace_num,
         tribe=agent.tribe,
         agent_clan=agent.agent_clan,

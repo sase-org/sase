@@ -23,7 +23,7 @@ _PATCHES = {
     "parent_refs": "sase.status_state_machine.field_updates.update_parent_references_atomic",
     # Module-level imports in suffix.py — safe to patch directly.
     "provider_fn": "sase.status_state_machine.suffix.get_vcs_provider",
-    "revert": "sase.status_state_machine.suffix.revert_sibling_draft_changespecs",
+    "revert": "sase.status_state_machine.suffix.revert_sibling_draft_patches",
     "push": "sase.status_state_machine.suffix._push_branch_rename",
     # Branch map utilities
     "write_alias": "sase.core.branch_map.write_branch_alias",

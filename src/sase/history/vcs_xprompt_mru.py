@@ -50,8 +50,8 @@ def load_launchable_vcs_xprompt_mru(
     - prefixes for a known but non-launchable project
       (:func:`_is_stale_known_project_prefix`), and
     - prefixes whose ref no longer resolves to any launch target at all
-      (:func:`_vcs_prefix_ref_is_gone`), e.g. a ``#gh:<changespec>`` whose
-      ChangeSpec has since been submitted/archived.
+      (:func:`_vcs_prefix_ref_is_gone`), e.g. a ``#gh:<patch>`` whose
+      Patch has since been submitted/archived.
     """
     entries = _load_vcs_xprompt_mru()
     if not entries:
@@ -227,7 +227,7 @@ def _resolvable_vcs_ref_index() -> (
 ):
     """Snapshot the offline data needed to judge ref resolvability.
 
-    Returns ``(known_projects, active_changespec_names, alias_map)`` computed
+    Returns ``(known_projects, active_patch_names, alias_map)`` computed
     once per load (cheap, cached, offline), or ``None`` when the snapshot can't
     be built — in which case callers keep every entry rather than risk nuking
     the MRU on a transient error. ``alias_map`` maps alias/``PROJECT_NAME`` refs
@@ -235,13 +235,13 @@ def _resolvable_vcs_ref_index() -> (
     project-records read.
     """
     try:
-        from sase.ace.patch.cache import find_all_changespecs_cached
+        from sase.ace.patch.cache import find_all_patches_cached
         from sase.xprompt.loader import get_known_project_workspaces
 
         known_projects = get_known_project_workspaces()
-        changespec_names = {cs.name for cs in find_all_changespecs_cached()}
+        patch_names = {patch.name for patch in find_all_patches_cached()}
         alias_map = _project_alias_map_or_empty(None)
-        return known_projects, changespec_names, alias_map
+        return known_projects, patch_names, alias_map
     except Exception:
         log.debug("VCS MRU resolvability index unavailable", exc_info=True)
         return None
@@ -273,7 +273,7 @@ def _vcs_prefix_ref_is_gone(
     """Return whether *prefix*'s ref no longer resolves to any launch target.
 
     Side-effect-free and offline. It mirrors the read-only resolution modes
-    the workspace providers use (known-project shorthand + active ChangeSpec
+    the workspace providers use (known-project shorthand + active Patch
     name) WITHOUT calling ``resolve_ref`` itself: the bare-git provider's
     resolve path *creates* a project for a missing shorthand, so invoking it
     here (on every ``<ctrl+p>``) would resurrect the very stale entries we
@@ -294,7 +294,7 @@ def _vcs_prefix_ref_is_gone(
         if "/" in ref or ref.startswith("~") or ref == "home":
             return False
 
-        known_projects, changespec_names, alias_map = index
+        known_projects, patch_names, alias_map = index
         # Resolve an alias/display-form ref (e.g. ``#gh:widgets``) to its
         # directory key so it is judged by its real project and not wrongly
         # pruned as gone. Canonical refs pass through unchanged.
@@ -304,7 +304,7 @@ def _vcs_prefix_ref_is_gone(
 
         if resolve_known_project_ref(canonical_ref, known_projects) is not None:
             return False
-        return canonical_ref not in changespec_names
+        return canonical_ref not in patch_names
     except Exception:
         log.debug("VCS MRU resolvability check failed for %r", prefix, exc_info=True)
         return False

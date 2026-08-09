@@ -277,7 +277,7 @@ def main() -> int:
             "cl_name": changespec_name,
         }
     else:
-        action = "JumpToChangeSpec"
+        action = "JumpToChangeSpec"  # legacy notification action
         action_data = {
             "patch_name": changespec_name,
             "changespec_name": changespec_name,

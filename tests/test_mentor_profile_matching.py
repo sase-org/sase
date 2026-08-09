@@ -3,7 +3,7 @@
 from typing import Any
 from unittest.mock import MagicMock
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     CommitEntry,
     MentorEntry,
 )
@@ -17,7 +17,7 @@ from sase.ace.scheduler.mentor_profile_matching import (
     profile_matches_any_commit,
 )
 from sase.config.mentor import MentorProfileConfig
-from test_utils import build_changespec, make_mentor_config
+from test_utils import build_patch, make_mentor_config
 
 
 # Tests for extract_changed_files_from_diff
@@ -108,7 +108,7 @@ diff -r 123:ABCDEF+ -r tip tests/test_feature.py
 
 def testget_commits_since_last_mentors_excludes_earlier() -> None:
     """Test that commits before last mentor entry are excluded."""
-    cs = build_changespec(
+    cs = build_patch(
         commits=[
             CommitEntry(number=1, note="First"),
             CommitEntry(number=2, note="Second"),
@@ -127,7 +127,7 @@ def testget_commits_since_last_mentors_excludes_earlier() -> None:
 
 def testget_commits_since_last_mentors_skips_proposals() -> None:
     """Test that proposals (entries like 1a, 2b) are skipped."""
-    cs = build_changespec(
+    cs = build_patch(
         commits=[
             CommitEntry(number=1, note="First"),
             CommitEntry(number=1, proposal_letter="a", note="Fix from hook"),
@@ -143,7 +143,7 @@ def testget_commits_since_last_mentors_skips_proposals() -> None:
 
 def testget_commits_since_last_mentors_no_commits() -> None:
     """Test with no commits returns empty list."""
-    cs = build_changespec(commits=None)
+    cs = build_patch(commits=None)
     result = get_commits_since_last_mentors(cs)
     assert result == []
 
@@ -153,7 +153,7 @@ def testget_commits_since_last_mentors_no_commits() -> None:
 
 def testget_profiles_registered_for_entry_no_mentors() -> None:
     """Test with no MENTORS returns empty set."""
-    cs = build_changespec(mentors=None)
+    cs = build_patch(mentors=None)
     result = get_profiles_registered_for_entry(cs, "1")
     assert result == set()
 
@@ -188,7 +188,7 @@ def testget_matching_profiles_for_entry_excludes_old_mentored_commits(
     # Scenario: commits 3, 4, 5 exist, MENTORS entry for 3 exists
     # Commit 3 has note that matches "[mentor:complete]"
     # Commits 4 and 5 do NOT match
-    cs = build_changespec(
+    cs = build_patch(
         commits=[
             CommitEntry(number=3, note="[mentor:complete] Added feature"),
             CommitEntry(number=4, note="[fix-hook] Fixed lint"),
@@ -241,7 +241,7 @@ def testget_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     # Scenario: single commit 1 with "Initial Commit" note
     # MENTORS entry exists with only "code" profile (partial coverage)
     # "feature" profile should still be detected
-    cs = build_changespec(
+    cs = build_patch(
         commits=[
             CommitEntry(number=1, note="Initial Commit"),
         ],
@@ -291,7 +291,7 @@ def testget_matching_profiles_for_entry_falls_back_to_vcs_diff(
         lambda _cwd: mock_provider,
     )
 
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/home/user/.sase/projects/sase/sase.sase",
         commits=[
             CommitEntry(
@@ -334,7 +334,7 @@ def test_profile_fallback_applies_only_to_latest_commit(monkeypatch: Any) -> Non
         lambda _cwd: mock_provider,
     )
 
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/home/user/.sase/projects/sase/sase.sase",
     )
     commits = [
@@ -396,7 +396,7 @@ def test_first_commit_matches_later_via_amend_note_regexes() -> None:
 
 
 def test_get_matching_profiles_skips_wrong_project(monkeypatch: Any) -> None:
-    """Test that profiles scoped to a project skip changespecs from other projects."""
+    """Test that profiles scoped to a project skip patches from other projects."""
     mock_profile = MagicMock()
     mock_profile.profile_name = "gotchas"
     mock_profile.mentors = [make_mentor_config(mentor_name="gotcha")]
@@ -411,8 +411,8 @@ def test_get_matching_profiles_skips_wrong_project(monkeypatch: Any) -> None:
         lambda: [mock_profile],
     )
 
-    # ChangeSpec from the "bug" project
-    cs = build_changespec(
+    # Patch from the "bug" project
+    cs = build_patch(
         file_path="/home/user/.sase/projects/bug/bug.sase",
         commits=[CommitEntry(number=1, note="Fix something")],
     )
@@ -422,7 +422,7 @@ def test_get_matching_profiles_skips_wrong_project(monkeypatch: Any) -> None:
 
 
 def test_get_matching_profiles_matches_correct_project(monkeypatch: Any) -> None:
-    """Test that profiles scoped to a project match changespecs from that project."""
+    """Test that profiles scoped to a project match patches from that project."""
     mock_profile = MagicMock()
     mock_profile.profile_name = "gotchas"
     mock_profile.mentors = [make_mentor_config(mentor_name="gotcha")]
@@ -437,8 +437,8 @@ def test_get_matching_profiles_matches_correct_project(monkeypatch: Any) -> None
         lambda: [mock_profile],
     )
 
-    # ChangeSpec from the "sase" project
-    cs = build_changespec(
+    # Patch from the "sase" project
+    cs = build_patch(
         file_path="/home/user/.sase/projects/sase/sase.sase",
         commits=[CommitEntry(number=1, note="Add feature")],
     )
@@ -464,7 +464,7 @@ def test_get_matching_profiles_none_projects_matches_any(monkeypatch: Any) -> No
         lambda: [mock_profile],
     )
 
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/home/user/.sase/projects/bug/bug.sase",
         commits=[CommitEntry(number=1, note="Fix bug")],
     )
@@ -506,7 +506,7 @@ def test_get_matching_profiles_reads_diff_once_per_invocation(
         lambda _changespec, _commits: None,
     )
 
-    cs = build_changespec(
+    cs = build_patch(
         commits=[CommitEntry(number=1, note="n", diff="~/.sase/diffs/sample.diff")]
     )
 
@@ -543,7 +543,7 @@ def test_add_matching_profiles_upfront_returns_newly_matched(
         lambda _file, _name, _entry, _profiles: True,
     )
 
-    cs = build_changespec(
+    cs = build_patch(
         commits=[CommitEntry(number=1, note="Initial commit")],
     )
 
@@ -566,7 +566,7 @@ def test_add_matching_profiles_upfront_no_match_returns_empty(
         lambda: [],
     )
 
-    cs = build_changespec(
+    cs = build_patch(
         commits=[CommitEntry(number=1, note="Initial commit")],
     )
 
@@ -578,7 +578,7 @@ def test_add_matching_profiles_upfront_no_match_returns_empty(
 
 def test_add_matching_profiles_upfront_skips_for_draft_status() -> None:
     """Draft status short-circuits and yields an empty _UpfrontMatchResult."""
-    cs = build_changespec(
+    cs = build_patch(
         status="Draft",
         commits=[CommitEntry(number=1, note="Initial commit")],
     )

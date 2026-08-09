@@ -113,8 +113,8 @@ sase patch ref rm --patch <name> research:202607/report.md
 
 Omit `--patch` to target the Patch for the current checkout. `add` normalizes and
 deduplicates entries; `rm` detaches normalized entries; `list --json` emits
-machine-readable reference data. Use `sase doctor -C project.changespec_refs` when you
-need to audit malformed, unresolvable, or ambiguous `REFS` entries.
+machine-readable reference data. Use `sase doctor -C project.patch_refs` when you need
+to audit malformed, unresolvable, or ambiguous `REFS` entries.
 
 ### Find Children Or Descendants Of A Patch
 

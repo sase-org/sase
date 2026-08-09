@@ -17,6 +17,7 @@ class Notification:
     notes: list[str] = field(default_factory=list)  # Human-readable lines
     files: list[str] = field(default_factory=list)  # File paths
     tags: list[str] = field(default_factory=list)  # Display/filter labels
+    # Legacy notification action string stays serialized for mixed-version clients.
     action: str | None = None  # "HITL" | "JumpToChangeSpec" | "Tmux" | None
     action_data: dict[str, str] = field(default_factory=dict)
     read: bool = False

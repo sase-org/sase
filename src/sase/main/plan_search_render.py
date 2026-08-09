@@ -10,7 +10,7 @@ the three human/agent formats the design promises beyond ``json``:
 * ``full`` — one ``rich`` panel per plan: a frontmatter/metadata table, a body
   excerpt, and the path, bordered by the plan's status color.
 * ``markdown`` — agent-friendly grouped headings + a table per source, mirroring
-  ``search_handler.py``'s changespec markdown.
+  ``search_handler.py``'s patch markdown.
 
 Color is wired through :func:`_make_console`: ``-c/--color {auto,always,never}``
 honoring ``NO_COLOR`` and TTY detection (``rich`` handles both natively in

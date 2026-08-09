@@ -41,7 +41,7 @@ def agent_scan_wire_to_json_dict(record: Any) -> Any:
     """Project an agent-scan wire record (or list of them) to a JSON-safe shape.
 
     Mirrors :func:`sase.core.wire.to_json_dict` but is local to this module
-    so the agent-scan wire stays independent of the changespec wire's
+    so the agent-scan wire stays independent of the patch wire's
     schema bumps.
     """
     if isinstance(record, (list, tuple)):

@@ -15,7 +15,6 @@ from tests._axe_lumberjack_fixtures import (
     single_chop_run_id,
     streamed_fail,
     streamed_ok,
-    streamed_seq,
     streamed_timeout,
 )
 
@@ -24,7 +23,7 @@ pytest_plugins = ("tests._axe_lumberjack_fixtures",)
 
 @patch("sase.axe.chop_runner.stream_chop_script")
 @patch("sase.axe.chop_runner.discover_chop_script")
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
 def test_successful_chop_records_run_history(
     mock_find: MagicMock,
     mock_discover: MagicMock,
@@ -54,7 +53,7 @@ def test_successful_chop_records_run_history(
 
 @patch("sase.axe.chop_runner.stream_chop_script")
 @patch("sase.axe.chop_runner.discover_chop_script")
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
 def test_failed_chop_records_failure_history(
     mock_find: MagicMock,
     mock_discover: MagicMock,
@@ -82,7 +81,7 @@ def test_failed_chop_records_failure_history(
 
 @patch("sase.axe.chop_runner.stream_chop_script")
 @patch("sase.axe.chop_runner.discover_chop_script")
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
 def test_timed_out_chop_records_timeout_history(
     mock_find: MagicMock,
     mock_discover: MagicMock,
@@ -107,7 +106,7 @@ def test_timed_out_chop_records_timeout_history(
 
 
 @patch("sase.axe.chop_runner.discover_chop_script")
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
 def test_missing_script_records_missing_script_history(
     mock_find: MagicMock,
     mock_discover: MagicMock,
@@ -132,7 +131,7 @@ def test_missing_script_records_missing_script_history(
 
 @patch("sase.axe.chop_runner.stream_chop_script")
 @patch("sase.axe.chop_runner.discover_chop_script")
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
 def test_run_every_skip_does_not_record_history(
     mock_find: MagicMock,
     mock_discover: MagicMock,
@@ -161,7 +160,7 @@ def test_run_every_skip_does_not_record_history(
 
 @patch("sase.axe.chop_runner.stream_chop_script")
 @patch("sase.axe.chop_runner.discover_chop_script")
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
 def test_chop_history_is_pruned_to_max(
     mock_find: MagicMock,
     mock_discover: MagicMock,

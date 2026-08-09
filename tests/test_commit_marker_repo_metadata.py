@@ -262,7 +262,7 @@ class TestWriteResultMarkerRepoMetadata:
         assert persisted["commit_diff_path"] == "/tmp/primary.diff"
         assert persisted["commit_changespec_name"] == "primary_spec"
 
-    def test_persists_changespec_without_diff_path(self) -> None:
+    def test_persists_patch_without_diff_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "agent_meta.json"
             meta_path.write_text(json.dumps({"name": "agent-alpha"}))

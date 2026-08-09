@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     CommitEntry,
     HookEntry,
     HookStatusLine,
@@ -21,7 +21,7 @@ from sase.ace.scheduler.mentor_checks import (
 )
 from sase.notifications import load_notifications
 from sase.notifications.mentor_completion_marker import is_notified
-from test_utils import build_changespec
+from test_utils import build_patch
 
 
 @pytest.fixture()
@@ -83,13 +83,13 @@ def _hook_passed(entry_id: str) -> HookEntry:
 
 def test_get_started_mentors_empty_mentors() -> None:
     """Test with empty MENTORS list returns empty set."""
-    cs = build_changespec(mentors=[])
+    cs = build_patch(mentors=[])
     assert _get_started_mentors_for_entry(cs, "1") == set()
 
 
 def test_get_started_mentors_different_entry_id() -> None:
     """Test that only mentors for the specified entry_id are returned."""
-    cs = build_changespec(
+    cs = build_patch(
         mentors=[
             MentorEntry(
                 entry_id="1",
@@ -111,7 +111,7 @@ def test_get_started_mentors_different_entry_id() -> None:
 
 def test_get_started_mentors_multiple() -> None:
     """Test with multiple started mentors from same profile."""
-    cs = build_changespec(
+    cs = build_patch(
         mentors=[
             MentorEntry(
                 entry_id="1",
@@ -168,13 +168,13 @@ def _make_hook(
 
 def test_all_non_skip_hooks_ready_empty_hooks() -> None:
     """Test that empty hooks list blocks mentors (hooks not yet added)."""
-    cs = build_changespec(hooks=[])
+    cs = build_patch(hooks=[])
     assert _all_non_skip_hooks_ready(cs, "1") is False
 
 
 def test_all_non_skip_hooks_ready_hook_running() -> None:
     """Test mentors blocked when hook is RUNNING for latest entry."""
-    cs = build_changespec(
+    cs = build_patch(
         hooks=[
             _make_hook("make test", "1", "RUNNING"),
         ]
@@ -184,7 +184,7 @@ def test_all_non_skip_hooks_ready_hook_running() -> None:
 
 def test_all_non_skip_hooks_ready_failed_with_plain_entry_id() -> None:
     """Test mentors allowed when FAILED hook has plain entry ID suffix."""
-    cs = build_changespec(
+    cs = build_patch(
         hooks=[
             _make_hook("make test", "1", "FAILED", suffix="2"),
         ]
@@ -194,7 +194,7 @@ def test_all_non_skip_hooks_ready_failed_with_plain_entry_id() -> None:
 
 def test_all_non_skip_hooks_ready_failed_with_running_agent() -> None:
     """Test mentors allowed when FAILED hook has running_agent suffix_type."""
-    cs = build_changespec(
+    cs = build_patch(
         hooks=[
             _make_hook(
                 "make test",
@@ -210,7 +210,7 @@ def test_all_non_skip_hooks_ready_failed_with_running_agent() -> None:
 
 def test_all_non_skip_hooks_ready_only_skip_hooks() -> None:
     """Test only !-prefixed hooks blocks mentors (non-! hooks not yet added)."""
-    cs = build_changespec(
+    cs = build_patch(
         hooks=[
             _make_hook("!$sase_hg_presubmit", "1", "PASSED"),
         ]
@@ -221,7 +221,7 @@ def test_all_non_skip_hooks_ready_only_skip_hooks() -> None:
 
 def test_all_non_skip_hooks_ready_status_for_different_entry() -> None:
     """Test hook that only has status for a different entry blocks mentors."""
-    cs = build_changespec(
+    cs = build_patch(
         hooks=[
             _make_hook("make test", "1", "PASSED"),  # Passed on entry 1
         ]
@@ -232,7 +232,7 @@ def test_all_non_skip_hooks_ready_status_for_different_entry() -> None:
 
 def test_all_non_skip_hooks_ready_one_blocking() -> None:
     """Test that one non-ready hook blocks mentors."""
-    cs = build_changespec(
+    cs = build_patch(
         hooks=[
             _make_hook("make test", "1", "PASSED"),
             _make_hook("make lint", "1", "FAILED", suffix=None),  # No proposal yet
@@ -249,7 +249,7 @@ def test_completion_notify_all_terminal_fires_once(
 ) -> None:
     del isolated_notifications_store
     """All mentor status_lines terminal -> one notification, no re-fire."""
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
@@ -287,7 +287,7 @@ def test_completion_notify_no_profiles_matched_fires_once(
 ) -> None:
     del isolated_notifications_store
     """Hooks ready and no MentorEntry exists -> no-match notification."""
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
@@ -313,7 +313,7 @@ def test_completion_notify_no_match_skipped_when_hooks_not_ready(
 ) -> None:
     del isolated_notifications_store
     """No MentorEntry but hooks not ready -> no notification yet."""
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
@@ -343,7 +343,7 @@ def test_completion_notify_skipped_while_mentors_running(
 ) -> None:
     del isolated_notifications_store
     """Some mentors still RUNNING -> no notification."""
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
@@ -371,14 +371,14 @@ def test_completion_notify_skipped_while_mentors_running(
     assert is_notified("/proj.sase", "cl-1", "1") is False
 
 
-def test_noop_mentor_checks_do_not_log_per_changespec_zero_matches(
+def test_noop_mentor_checks_do_not_log_per_patch_zero_matches(
     isolated_notifications_store: None,
 ) -> None:
-    """Default mentor diagnostics avoid per-ChangeSpec no-op chatter."""
+    """Default mentor diagnostics avoid per-Patch no-op chatter."""
     logs: list[str] = []
 
     for i in range(5):
-        cs = build_changespec(
+        cs = build_patch(
             name=f"test-cl-{i}",
             commits=[_commit(1)],
             hooks=[_hook_passed("1")],
@@ -401,7 +401,7 @@ def test_completion_notify_skipped_when_profiles_registered_but_not_started(
 ) -> None:
     del isolated_notifications_store
     """MentorEntry exists with profiles but no status_lines -> wait."""
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
@@ -425,7 +425,7 @@ def test_completion_notify_summary_includes_commented_count(
 ) -> None:
     del isolated_notifications_store
     """COMMENTED count surfaces in the notification summary line."""
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
@@ -452,13 +452,13 @@ def test_completion_notify_summary_includes_commented_count(
 
 
 # Cause A: Phase 2 just wrote MENTORS for the latest entry on this cycle, so
-# the in-memory ChangeSpec is stale. The no-match branch must be skipped.
+# the in-memory Patch is stale. The no-match branch must be skipped.
 def test_completion_notify_skipped_when_just_matched_for_latest(
     isolated_notifications_store: None,
 ) -> None:
     del isolated_notifications_store
     """just_matched_for_latest=True suppresses the no-match notification."""
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
@@ -480,7 +480,7 @@ def test_completion_notify_deferred_when_rematch_finds_profiles(
     isolated_notifications_store: None,
 ) -> None:
     del isolated_notifications_store
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],
@@ -505,7 +505,7 @@ def test_completion_notify_fires_when_rematch_confirms_no_match(
 ) -> None:
     """Re-evaluation also returns empty -> the no-match notification fires."""
     del isolated_notifications_store
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase",
         name="cl-1",
         commits=[_commit(1)],

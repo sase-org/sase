@@ -1,6 +1,6 @@
 """``sase prompt search`` — canonical archive and local-history search.
 
-This is the ChangeSpecI surface: argument validation, color resolution, the call into
+This is the CLI surface: argument validation, color resolution, the call into
 the pure :func:`~sase.prompt.search.engine.search_prompts` engine, and the three
 renderers that mirror ``sase bead search`` — ``compact``, ``json``, ``full``.
 

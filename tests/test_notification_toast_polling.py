@@ -142,7 +142,9 @@ class TestPollingDelta:
             _make(action="PlanApproval", notes=["Plan ready for review: b.md"]),
             _make(action="UserQuestion", notes=["q?"]),
             _make(action="ViewErrorReport", notes=["1 error"]),
-            _make(action="JumpToChangeSpec", notes=["Sync success for x"]),
+            _make(
+                action="JumpToChangeSpec", notes=["Sync success for x"]
+            ),  # legacy notification action
         ]
         with _patch_snapshot(notifs):
             saw_new = asyncio.run(app._poll_agent_completions())

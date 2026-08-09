@@ -32,7 +32,7 @@ class AlreadyAbsent:
     """The plugin is known but not injected — uninstall is a no-op success.
 
     Removing something that is already gone is idempotent, so this is reported as
-    a success (the ChangeSpecI exits 0 and the TUI toasts neutrally), unlike update's
+    a success (the CLI exits 0 and the TUI toasts neutrally), unlike update's
     :class:`NotInstalled`, which is an error.
     """
 

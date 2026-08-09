@@ -377,7 +377,7 @@ def test_vcs_create_pull_request_resuffixes_on_branch_collision(
 
     Regression for the orphaned-PR bug: when the reserved branch ``feat_2``
     races with a concurrent push, the dispatch must re-suffix to ``feat_3`` and
-    push successfully (so the workflow still records a ChangeSpec) rather than
+    push successfully (so the workflow still records a Patch) rather than
     failing and leaving the agent to hand-roll an orphaned PR.
     """
     from typing import Any

@@ -59,7 +59,7 @@ def format_sase_plan_tag_value(
     Plans in an SDD store are relative to that store's repository root.  The
     ``.sase/sdd`` fallback preserves that form when *raw_plan* points at a
     different workspace's clone of the same store.  Other paths retain the
-    portable display formatting used by ChangeSpec metadata.
+    portable display formatting used by Patch metadata.
     """
     if not raw_plan:
         return None

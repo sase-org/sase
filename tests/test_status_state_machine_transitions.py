@@ -5,10 +5,10 @@ import tempfile
 from pathlib import Path
 
 from sase.status_state_machine import (
-    transition_changespec_status,
+    transition_patch_status,
 )
 
-_CHANGESPEC_TEMPLATE = """# Test Project
+_PATCH_TEMPLATE = """# Test Project
 
 ## ChangeSpec
 
@@ -28,20 +28,20 @@ def _create_test_project_file(
     status: str = "Ready",
     suffix: str = ".sase",
 ) -> str:
-    """Create a temporary project file with a test ChangeSpec."""
+    """Create a temporary project file with a test Patch."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", delete=False, suffix=suffix
     ) as f:
-        f.write(_CHANGESPEC_TEMPLATE.format(status=status))
+        f.write(_PATCH_TEMPLATE.format(status=status))
         return f.name
 
 
-def test_transition_changespec_status_invalid_transition(tmp_path: Path) -> None:
+def test_transition_patch_status_invalid_transition(tmp_path: Path) -> None:
     """Test that invalid transition is rejected."""
     project_file = _create_test_project_file(tmp_path, "Ready")
 
     try:
-        success, old_status, error, _ = transition_changespec_status(
+        success, old_status, error, _ = transition_patch_status(
             project_file, "Test Feature", "Submitted", validate=True
         )
 
@@ -60,8 +60,8 @@ def test_transition_changespec_status_invalid_transition(tmp_path: Path) -> None
         Path(project_file).unlink()
 
 
-def test_transition_changespec_status_skip_validation(tmp_path: Path) -> None:
-    """Test that validation can be skipped and ChangeSpec moves to archive."""
+def test_transition_patch_status_skip_validation(tmp_path: Path) -> None:
+    """Test that validation can be skipped and Patch moves to archive."""
     from sase.ace.changespec.archive import get_archive_file_path
 
     project_file = _create_test_project_file(tmp_path, "Ready")
@@ -69,7 +69,7 @@ def test_transition_changespec_status_skip_validation(tmp_path: Path) -> None:
 
     try:
         # This transition (Ready→Submitted) would normally be invalid
-        success, old_status, error, _ = transition_changespec_status(
+        success, old_status, error, _ = transition_patch_status(
             project_file, "Test Feature", "Submitted", validate=False
         )
 
@@ -77,12 +77,12 @@ def test_transition_changespec_status_skip_validation(tmp_path: Path) -> None:
         assert old_status == "Ready"
         assert error is None
 
-        # ChangeSpec should have been moved to the archive file
+        # Patch should have been moved to the archive file
         assert os.path.isfile(archive_file)
         with open(archive_file) as f:
             assert "STATUS: Submitted" in f.read()
 
-        # ChangeSpec should NOT be in the main file
+        # Patch should NOT be in the main file
         with open(project_file) as f:
             assert "NAME: Test Feature" not in f.read()
 
@@ -102,7 +102,7 @@ def test_mailed_to_submitted_records_status_timestamp_in_archive(
     archive_file = get_archive_file_path(project_file)
 
     try:
-        success, old_status, error, _ = transition_changespec_status(
+        success, old_status, error, _ = transition_patch_status(
             project_file, "Test Feature", "Submitted", validate=True
         )
 
@@ -137,9 +137,9 @@ def test_submitted_to_wip_records_status_timestamp_in_main_file() -> None:
         with open(main_file, "w") as f:
             f.write("# Test Project\n")
         with open(archive_file, "w") as f:
-            f.write(_CHANGESPEC_TEMPLATE.format(status="Submitted"))
+            f.write(_PATCH_TEMPLATE.format(status="Submitted"))
 
-        success, old_status, error, _ = transition_changespec_status(
+        success, old_status, error, _ = transition_patch_status(
             archive_file, "Test Feature", "WIP", validate=False
         )
 
@@ -161,19 +161,19 @@ def test_submitted_to_wip_records_status_timestamp_in_main_file() -> None:
 
 
 def test_transition_from_archive_to_main() -> None:
-    """Test moving a ChangeSpec from archive back to main file (validate=False)."""
+    """Test moving a Patch from archive back to main file (validate=False)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         main_file = os.path.join(tmpdir, "test.sase")
         archive_file = os.path.join(tmpdir, "test-archive.sase")
 
-        # Set up: main file is empty, ChangeSpec is in the archive with Submitted status
+        # Set up: main file is empty, Patch is in the archive with Submitted status
         with open(main_file, "w") as f:
             f.write("# Test Project\n")
         with open(archive_file, "w") as f:
-            f.write(_CHANGESPEC_TEMPLATE.format(status="Submitted"))
+            f.write(_PATCH_TEMPLATE.format(status="Submitted"))
 
         # Transition from Submitted→WIP (via validate=False) on the archive file
-        success, old_status, error, _ = transition_changespec_status(
+        success, old_status, error, _ = transition_patch_status(
             archive_file, "Test Feature", "WIP", validate=False
         )
 
@@ -181,21 +181,21 @@ def test_transition_from_archive_to_main() -> None:
         assert old_status == "Submitted"
         assert error is None
 
-        # ChangeSpec should have been moved to the main file
+        # Patch should have been moved to the main file
         with open(main_file) as f:
             assert "NAME: Test Feature" in f.read()
 
-        # ChangeSpec should NOT be in the archive file
+        # Patch should NOT be in the archive file
         with open(archive_file) as f:
             assert "NAME: Test Feature" not in f.read()
 
 
-def test_transition_changespec_status_nonexistent_changespec(tmp_path: Path) -> None:
-    """Test handling of nonexistent ChangeSpec."""
+def test_transition_patch_status_nonexistent_patch(tmp_path: Path) -> None:
+    """Test handling of nonexistent Patch."""
     project_file = _create_test_project_file(tmp_path, "Ready")
 
     try:
-        success, old_status, error, _ = transition_changespec_status(
+        success, old_status, error, _ = transition_patch_status(
             project_file, "Nonexistent Feature", "Mailed", validate=True
         )
 
@@ -208,14 +208,14 @@ def test_transition_changespec_status_nonexistent_changespec(tmp_path: Path) -> 
         Path(project_file).unlink()
 
 
-def _create_project_file_with_multiple_changespecs(
+def _create_project_file_with_multiple_patches(
     tmp_path: Path,
-    changespecs: list[tuple[str, str, str | None]],
+    patches: list[tuple[str, str, str | None]],
 ) -> str:
-    """Create a project file with multiple ChangeSpecs.
+    """Create a project file with multiple Patches.
 
     Args:
-        changespecs: List of (name, status, parent) tuples.
+        patches: List of (name, status, parent) tuples.
 
     Returns:
         Path to the created project file.
@@ -224,7 +224,7 @@ def _create_project_file_with_multiple_changespecs(
         dir=tmp_path, mode="w", delete=False, suffix=".sase"
     ) as f:
         f.write("# Test Project\n\n")
-        for name, status, parent in changespecs:
+        for name, status, parent in patches:
             parent_val = parent if parent else "None"
             f.write(f"""## ChangeSpec
 
@@ -245,14 +245,14 @@ def test_draft_to_ready_records_timestamp_with_base_name(tmp_path: Path) -> None
     """Draft→Ready transition records STATUS timestamp using the base name."""
     from unittest.mock import call, patch
 
-    project_file = _create_project_file_with_multiple_changespecs(
+    project_file = _create_project_file_with_multiple_patches(
         tmp_path, [("foo__1", "Draft", None)]
     )
 
     try:
         with (
             patch(
-                "sase.ace.patch.find_all_changespecs",
+                "sase.ace.patch.find_all_patches",
                 return_value=[],
             ),
             patch("sase.ace.mentors.clear_mentor_draft_flags"),
@@ -265,7 +265,7 @@ def test_draft_to_ready_records_timestamp_with_base_name(tmp_path: Path) -> None
                 return_value=True,
             ) as mock_ts,
         ):
-            success, old_status, _, _ = transition_changespec_status(
+            success, old_status, _, _ = transition_patch_status(
                 project_file, "foo__1", "Ready", validate=True
             )
 
@@ -282,14 +282,14 @@ def test_draft_to_ready_records_timestamp_with_base_name(tmp_path: Path) -> None
 
 
 def test_draft_to_ready_blocked_when_sibling_has_children(tmp_path: Path) -> None:
-    """Test Draft->Ready blocked when sibling Draft ChangeSpec has unreverted children."""
+    """Test Draft->Ready blocked when sibling Draft Patch has unreverted children."""
     from unittest.mock import patch
 
     # Create project file with:
     # - foo_bar__1 (Draft) - the one we're transitioning
     # - foo_bar__2 (Draft) - sibling that has a child
     # - child_of_2 (Ready) - child of foo_bar__2
-    project_file = _create_project_file_with_multiple_changespecs(
+    project_file = _create_project_file_with_multiple_patches(
         tmp_path,
         [
             ("foo_bar__1", "Draft", None),
@@ -299,11 +299,11 @@ def test_draft_to_ready_blocked_when_sibling_has_children(tmp_path: Path) -> Non
     )
 
     try:
-        # Mock find_all_changespecs to return our test ChangeSpecs
-        from sase.ace.changespec import ChangeSpec
+        # Mock find_all_patches to return our test Patches
+        from sase.ace.patch import Patch
 
-        mock_changespecs = [
-            ChangeSpec(
+        mock_patches = [
+            Patch(
                 name="foo_bar__1",
                 description="Test",
                 parent=None,
@@ -312,7 +312,7 @@ def test_draft_to_ready_blocked_when_sibling_has_children(tmp_path: Path) -> Non
                 file_path=project_file,
                 line_number=6,
             ),
-            ChangeSpec(
+            Patch(
                 name="foo_bar__2",
                 description="Test",
                 parent=None,
@@ -321,7 +321,7 @@ def test_draft_to_ready_blocked_when_sibling_has_children(tmp_path: Path) -> Non
                 file_path=project_file,
                 line_number=18,
             ),
-            ChangeSpec(
+            Patch(
                 name="child_of_2",
                 description="Test",
                 parent="foo_bar__2",
@@ -333,10 +333,10 @@ def test_draft_to_ready_blocked_when_sibling_has_children(tmp_path: Path) -> Non
         ]
 
         with patch(
-            "sase.ace.patch.find_all_changespecs",
-            return_value=mock_changespecs,
+            "sase.ace.patch.find_all_patches",
+            return_value=mock_patches,
         ):
-            success, old_status, error, _ = transition_changespec_status(
+            success, old_status, error, _ = transition_patch_status(
                 project_file, "foo_bar__1", "Ready", validate=True
             )
 
@@ -363,7 +363,7 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted(tmp_path: Path) -
     # - foo_bar__1 (Draft) - the one we're transitioning
     # - foo_bar__2 (Draft) - sibling
     # - child_of_2 (Reverted) - child of foo_bar__2 that is reverted
-    project_file = _create_project_file_with_multiple_changespecs(
+    project_file = _create_project_file_with_multiple_patches(
         tmp_path,
         [
             ("foo_bar__1", "Draft", None),
@@ -373,10 +373,10 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted(tmp_path: Path) -
     )
 
     try:
-        from sase.ace.changespec import ChangeSpec
+        from sase.ace.patch import Patch
 
-        mock_changespecs = [
-            ChangeSpec(
+        mock_patches = [
+            Patch(
                 name="foo_bar__1",
                 description="Test",
                 parent=None,
@@ -385,7 +385,7 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted(tmp_path: Path) -
                 file_path=project_file,
                 line_number=6,
             ),
-            ChangeSpec(
+            Patch(
                 name="foo_bar__2",
                 description="Test",
                 parent=None,
@@ -394,7 +394,7 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted(tmp_path: Path) -
                 file_path=project_file,
                 line_number=18,
             ),
-            ChangeSpec(
+            Patch(
                 name="child_of_2",
                 description="Test",
                 parent="foo_bar__2",
@@ -406,8 +406,8 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted(tmp_path: Path) -
         ]
 
         with patch(
-            "sase.ace.patch.find_all_changespecs",
-            return_value=mock_changespecs,
+            "sase.ace.patch.find_all_patches",
+            return_value=mock_patches,
         ):
             # Also need to mock the functions called after successful transition
             with patch("sase.ace.mentors.clear_mentor_draft_flags"):
@@ -415,7 +415,7 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted(tmp_path: Path) -
                     "sase.status_state_machine.transitions.handle_suffix_strip",
                     return_value=[],
                 ):
-                    success, old_status, error, _ = transition_changespec_status(
+                    success, old_status, error, _ = transition_patch_status(
                         project_file, "foo_bar__1", "Ready", validate=True
                     )
 

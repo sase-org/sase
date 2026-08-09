@@ -67,11 +67,11 @@ from ._registry import (
     preflight_sdd_sidecar,
     prepare_mail,
     resolve_ref,
-    submit_changespec,
+    submit_patch,
     supports_reviewer_comments,
 )
 
-submit_patch = submit_changespec
+submit_patch = submit_patch
 
 __all__ = [
     "CheckoutMarker",
@@ -125,7 +125,7 @@ __all__ = [
     "remove_workspace",
     "resolve_ref",
     "save_registry",
-    "submit_changespec",
+    "submit_patch",
     "submit_patch",
     "supports_reviewer_comments",
     "write_marker",

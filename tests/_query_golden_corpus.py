@@ -24,7 +24,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
-from sase.ace.changespec.models import ChangeSpec
+from sase.ace.patch.models import Patch
 from sase.ace.query.parser import _parse_query_python
 from sase.ace.query.tokenizer import tokenize
 from sase.ace.query.types import to_canonical_string
@@ -121,7 +121,7 @@ MALFORMED_QUERIES: list[str] = [
 ]
 
 
-def load_specs() -> list[ChangeSpec]:
+def load_specs() -> list[Patch]:
     return parser_facade.parse_project_file(str(PROJECT_GP))
 
 
@@ -142,5 +142,5 @@ def canonical(query: str) -> str:
     return to_canonical_string(_parse_query_python(query))
 
 
-def names(matched: Iterable[ChangeSpec]) -> list[str]:
+def names(matched: Iterable[Patch]) -> list[str]:
     return [cs.name for cs in matched]

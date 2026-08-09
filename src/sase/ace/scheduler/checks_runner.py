@@ -19,7 +19,7 @@ from sase.core.time import generate_timestamp
 from sase.status_state_machine import (
     ARCHIVE_STATUSES,
     remove_workspace_suffix,
-    transition_changespec_status,
+    transition_patch_status,
 )
 from sase.workspace_provider import SUBMITTED_CHECK_EXIT_CODE_CLOSED
 
@@ -28,7 +28,7 @@ from ..pr_status import is_parent_submitted
 from ..comments import (
     get_comments_file_path,
     remove_comment_entry,
-    update_changespec_comments_field,
+    update_patch_comments_field,
 )
 from ..sync_cache import update_last_checked
 
@@ -421,7 +421,7 @@ def _handle_cl_submitted_completion(
         if base_status not in ARCHIVE_STATUSES:
             from ..sync_cache import clear_cache_entry
 
-            success, old_status, _, _ = transition_changespec_status(
+            success, old_status, _, _ = transition_patch_status(
                 changespec.file_path,
                 changespec.name,
                 "Archived",
@@ -441,7 +441,7 @@ def _handle_cl_submitted_completion(
     ):
         from ..sync_cache import clear_cache_entry
 
-        success, old_status, _, _ = transition_changespec_status(
+        success, old_status, _, _ = transition_patch_status(
             changespec.file_path,
             changespec.name,
             "Submitted",
@@ -513,7 +513,7 @@ def _handle_reviewer_comments_completion(
             )
             new_comments = list(changespec.comments) if changespec.comments else []
             new_comments.append(new_entry)
-            update_changespec_comments_field(
+            update_patch_comments_field(
                 changespec.file_path,
                 changespec.name,
                 new_comments,

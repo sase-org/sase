@@ -236,7 +236,7 @@ class TestProposalSkipsBeadsAndPlan:
 
 
 class TestCreatePullRequestValidation:
-    """Verify create_pull_request dispatch and ChangeSpec creation."""
+    """Verify create_pull_request dispatch and Patch creation."""
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)

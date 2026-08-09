@@ -11,7 +11,7 @@ from sase.ace.tui.actions.proposal_rebase import (
     _rebase_task,
 )
 from sase.running_field import ClaimResult
-from sase.status_state_machine import update_changespec_parent_atomic
+from sase.status_state_machine import update_patch_parent_atomic
 from sase.status_state_machine.field_updates import _apply_parent_update
 
 
@@ -20,7 +20,7 @@ def _create_test_project_file_with_parent(
     status: str = "Ready",
     parent: str | None = None,
 ) -> str:
-    """Create a temporary project file with a test ChangeSpec."""
+    """Create a temporary project file with a test Patch."""
     parent_line = f"PARENT: {parent}\n" if parent else ""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", delete=False, suffix=".sase"
@@ -40,8 +40,8 @@ STATUS: {status}
         return f.name
 
 
-def _create_multi_changespec_file(tmp_path: Path) -> str:
-    """Create a project file with multiple ChangeSpecs for testing eligible parents."""
+def _create_multi_patch_file(tmp_path: Path) -> str:
+    """Create a project file with multiple Patches for testing eligible parents."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", delete=False, suffix=".sase"
     ) as f:
@@ -110,17 +110,17 @@ def test_apply_parent_update_existing_field() -> None:
     assert "PARENT: OldParent" not in result
 
 
-# === Tests for update_changespec_parent_atomic ===
+# === Tests for update_patch_parent_atomic ===
 
 
-def test_update_changespec_parent_atomic_add_parent(tmp_path: Path) -> None:
+def test_update_patch_parent_atomic_add_parent(tmp_path: Path) -> None:
     """Test adding PARENT when it doesn't exist."""
     project_file = _create_test_project_file_with_parent(
         tmp_path, status="Ready", parent=None
     )
 
     try:
-        update_changespec_parent_atomic(project_file, "Test Feature", "NewParent")
+        update_patch_parent_atomic(project_file, "Test Feature", "NewParent")
 
         with open(project_file, encoding="utf-8") as f:
             content = f.read()
@@ -130,14 +130,14 @@ def test_update_changespec_parent_atomic_add_parent(tmp_path: Path) -> None:
         Path(project_file).unlink()
 
 
-def test_update_changespec_parent_atomic_remove_parent(tmp_path: Path) -> None:
+def test_update_patch_parent_atomic_remove_parent(tmp_path: Path) -> None:
     """Test removing PARENT field."""
     project_file = _create_test_project_file_with_parent(
         tmp_path, status="Ready", parent="OldParent"
     )
 
     try:
-        update_changespec_parent_atomic(project_file, "Test Feature", None)
+        update_patch_parent_atomic(project_file, "Test Feature", None)
 
         with open(project_file, encoding="utf-8") as f:
             content = f.read()
@@ -220,20 +220,18 @@ STATUS: Ready
     )
     monkeypatch.setattr(
         "sase.running_field.claim_workspace",
-        lambda project, workspace_num, workflow, pid, changespec: ClaimResult(
-            success=True
-        ),
+        lambda project, workspace_num, workflow, pid, patch: ClaimResult(success=True),
     )
     monkeypatch.setattr(
         "sase.running_field.release_workspace",
-        lambda project, workspace_num, workflow, changespec: released.append(
-            (project, workspace_num, workflow, changespec)
+        lambda project, workspace_num, workflow, patch: released.append(
+            (project, workspace_num, workflow, patch)
         ),
     )
     monkeypatch.setattr("sase.vcs_provider.get_vcs_provider", lambda _: provider)
     monkeypatch.setattr(
         "sase.ace.deltas.refresh_deltas_after_commits_change",
-        lambda project, changespec, workspace: None,
+        lambda project, patch, workspace: None,
     )
     monkeypatch.setattr(
         "sase.ace.timestamps.recording.generate_timestamp",

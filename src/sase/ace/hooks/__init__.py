@@ -87,6 +87,7 @@ from .workflow_queries import (
 add_hook_to_patch = add_hook_to_changespec
 add_test_target_hooks_to_patch = add_test_target_hooks_to_changespec
 update_patch_hooks_field = update_changespec_hooks_field
+transform_patch_hooks_field = transform_changespec_hooks_field
 
 __all__ = [
     # Constants
@@ -148,6 +149,7 @@ __all__ = [
     "start_hook_background",
     "try_claim_hook_for_fix",
     "transform_changespec_hooks_field",
+    "transform_patch_hooks_field",
     "update_changespec_hooks_field",
     "update_patch_hooks_field",
     "update_hook_status_line_suffix_type",

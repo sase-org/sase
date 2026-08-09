@@ -1,20 +1,20 @@
-"""Tests for ChangeSpec reservation lifecycle operations."""
+"""Tests for Patch reservation lifecycle operations."""
 
 import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.ace.changespec.parser import parse_project_file
+from sase.ace.patch.parser import parse_project_file
 from sase.workflows.commit.patch_operations import (
-    add_changespec_to_project_file,
+    add_patch_to_project_file,
     compute_suffixed_cl_name,
     remove_reservation,
 )
 
 
-def test_reservation_replaced_by_add_changespec(tmp_path: Path) -> None:
-    """Reservation created by compute_suffixed_cl_name is replaced by add_changespec."""
+def test_reservation_replaced_by_add_patch(tmp_path: Path) -> None:
+    """Reservation created by compute_suffixed_cl_name is replaced by add_patch."""
     with tempfile.NamedTemporaryFile(
         dir=tmp_path, mode="w", suffix=".sase", delete=False
     ) as f:
@@ -38,8 +38,8 @@ def test_reservation_replaced_by_add_changespec(tmp_path: Path) -> None:
             assert "NAME: test_project_res_feature_1" in content
             assert "STATUS: Reserved" in content
 
-            # Step 2: add full ChangeSpec with reserved_name
-            result = add_changespec_to_project_file(
+            # Step 2: add full Patch with reserved_name
+            result = add_patch_to_project_file(
                 project="test_project",
                 cl_name="test_project_res_feature",
                 description="Full description",
@@ -50,9 +50,9 @@ def test_reservation_replaced_by_add_changespec(tmp_path: Path) -> None:
 
         assert result == "test_project_res_feature_1"
 
-        # Verify reservation stub is gone and full ChangeSpec exists
-        changespecs = parse_project_file(project_file)
-        cs = next(c for c in changespecs if c.name == "test_project_res_feature_1")
+        # Verify reservation stub is gone and full Patch exists
+        patches = parse_project_file(project_file)
+        cs = next(c for c in patches if c.name == "test_project_res_feature_1")
         assert cs.status == "Draft"
         assert cs.pr_url == "http://cl/44444"
 
@@ -88,7 +88,7 @@ def test_remove_reservation_cleans_up_stub(tmp_path: Path) -> None:
                 content = f.read()
             assert "NAME: test_project_cleanup_feat_1" in content
 
-            # Remove it (simulating ChangeSpec creation failure)
+            # Remove it (simulating Patch creation failure)
             remove_reservation("test_project", "test_project_cleanup_feat_1")
 
         # Verify stub is gone

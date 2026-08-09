@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from sase.ace.changespec import CommentEntry
+from sase.ace.patch import CommentEntry
 from sase.ace.comments import (
     comment_needs_crs,
     get_comments_file_path,
@@ -81,11 +81,11 @@ def test_is_comments_suffix_stale_none() -> None:
     assert is_comments_suffix_stale(None) is False
 
 
-def test_changespec_with_multiple_comments() -> None:
-    """Test ChangeSpec with multiple comment entries."""
-    from sase.ace.changespec import ChangeSpec
+def test_patch_with_multiple_comments() -> None:
+    """Test Patch with multiple comment entries."""
+    from sase.ace.patch import Patch
 
-    cs = ChangeSpec(
+    cs = Patch(
         name="Test",
         description="Test",
         parent=None,
@@ -118,7 +118,7 @@ def test_changespec_with_multiple_comments() -> None:
 
 def test_comments_entry_with_suffix_parsing(tmp_path: Path) -> None:
     """Test that COMMENTS entries with suffix are parsed correctly."""
-    from sase.ace.changespec import parse_project_file
+    from sase.ace.patch import parse_project_file
 
     project_content = """NAME: test_feature
 DESCRIPTION:
@@ -135,9 +135,9 @@ COMMENTS:
         project_file = f.name
 
     try:
-        changespecs = parse_project_file(project_file)
-        assert len(changespecs) == 1
-        cs = changespecs[0]
+        patches = parse_project_file(project_file)
+        assert len(patches) == 1
+        cs = patches[0]
         assert cs.comments is not None
         assert len(cs.comments) == 1
         assert cs.comments[0].reviewer == "reviewer"

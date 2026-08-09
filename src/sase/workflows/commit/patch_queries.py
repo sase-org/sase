@@ -45,13 +45,13 @@ def patch_exists_anywhere(project: str, patch_name: str) -> bool:
     return _name_in_file(get_archive_file_path(project_file), patch_name)
 
 
-changespec_exists = patch_exists
-changespec_exists_anywhere = patch_exists_anywhere
+patch_exists = patch_exists
+patch_exists_anywhere = patch_exists_anywhere
 
 
 __all__ = [
-    "changespec_exists",
-    "changespec_exists_anywhere",
+    "patch_exists",
+    "patch_exists_anywhere",
     "patch_exists",
     "patch_exists_anywhere",
 ]
