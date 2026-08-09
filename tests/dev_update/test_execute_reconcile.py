@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sase.dev_update import prebuild
 from sase.dev_update.execute import execute_dev_update
 from sase.dev_update.models import DevCommandResult, DevReconcileStep, DevUpdatePlan
@@ -93,9 +95,10 @@ def test_execute_dev_update_repairs_failed_core_health_check() -> None:
     ]
 
 
-def test_execute_dev_update_runs_unified_rust_install_before_core_health_check() -> (
-    None
-):
+def test_execute_dev_update_runs_unified_rust_install_before_core_health_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PATH", "/sentinel/bin")
     rust_step = DevReconcileStep(
         kind="rust_dev_install",
         label="Rebuild Rust dev artifacts into the uv-tool venv",
@@ -126,17 +129,49 @@ def test_execute_dev_update_runs_unified_rust_install_before_core_health_check()
         ("Rebuild Rust dev artifacts into the uv-tool venv", "/host", 0),
         ("Verify sase-core-rs imports in the uv-tool venv", None, 0),
     ]
-    assert [
+    just_env_calls = [
         call
         for call in runner.env_calls
         if call[0] == ("just", "rust-dev-install-uv-tool")
-    ] == [
-        (
-            ("just", "rust-dev-install-uv-tool"),
-            Path("/host"),
-            {"SASE_RUST_DEV_PROFILE": "release"},
-        )
     ]
+    assert len(just_env_calls) == 1
+    assert just_env_calls[0][1] == Path("/host")
+    just_env = just_env_calls[0][2]
+    assert just_env is not None
+    assert just_env["SASE_RUST_DEV_PROFILE"] == "release"
+    assert just_env["PATH"] == "/sentinel/bin"
+
+
+def test_execute_dev_update_gives_runner_a_complete_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PATH", "/sentinel/bin")
+    env_step = DevReconcileStep(
+        kind="uv_tool_install",
+        label="Run command with env overlay",
+        command=("env-bearing-command",),
+        env={"SASE_RUST_DEV_PROFILE": "release"},
+    )
+    inherit_step = DevReconcileStep(
+        kind="uv_tool_install",
+        label="Run command with inherited env",
+        command=("inherit-command",),
+    )
+    runner = FakeRunner()
+
+    result = execute_dev_update(
+        plan(reconcile=(env_step, inherit_step)),
+        run=runner,
+    )
+
+    assert result.changed is True
+    assert result.outcomes[0].status == "updated"
+    env_by_command = {command: env for command, _cwd, env in runner.env_calls}
+    overlay_env = env_by_command[("env-bearing-command",)]
+    assert overlay_env is not None
+    assert overlay_env["SASE_RUST_DEV_PROFILE"] == "release"
+    assert overlay_env["PATH"] == "/sentinel/bin"
+    assert env_by_command[("inherit-command",)] is None
 
 
 def test_execute_dev_update_prebuild_hit_skips_slow_rust_build() -> None:

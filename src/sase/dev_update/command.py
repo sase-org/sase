@@ -81,7 +81,7 @@ def run_recorded_command(
     if env is None:
         result = run(argv, cwd=cwd)
     else:
-        result = run(argv, cwd=cwd, env=env)
+        result = run(argv, cwd=cwd, env=_merged_subprocess_env(env))
     duration = max(0.0, clock() - start)
     commands.append(
         DevExecutedCommand(

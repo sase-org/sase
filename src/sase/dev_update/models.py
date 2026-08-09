@@ -123,7 +123,10 @@ class DevUpdateRootPlan:
 
 @dataclass(frozen=True)
 class DevReconcileStep:
-    """A post-fast-forward environment reconciliation command."""
+    """A post-fast-forward environment reconciliation command.
+
+    ``env`` is an overlay applied by the executor over the parent environment.
+    """
 
     kind: DevReconcileStepKind
     label: str
@@ -180,7 +183,9 @@ class DevCommandRunner(Protocol):
         *,
         cwd: Path | None = None,
         env: Mapping[str, str] | None = None,
-    ) -> DevCommandResult: ...
+    ) -> DevCommandResult:
+        """Run ``argv``; a non-``None`` ``env`` is a complete child environment."""
+        ...
 
 
 @dataclass(frozen=True)

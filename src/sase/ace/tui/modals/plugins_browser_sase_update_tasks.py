@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import time
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -335,7 +336,14 @@ def dev_update_reporter_runner(reporter: TaskReporter) -> Any:
 
     def _run(argv: Any, *, cwd: Any = None, env: Any = None) -> DevCommandResult:
         reporter.phase("Running " + " ".join(str(part) for part in argv[:2]))
-        completed = reporter.run(argv, cwd=cwd, env=env)
+        try:
+            completed = reporter.run(argv, cwd=cwd, env=env)
+        except FileNotFoundError as exc:
+            return DevCommandResult(returncode=127, stderr=str(exc))
+        except subprocess.TimeoutExpired:
+            return DevCommandResult(returncode=124, stderr="command timed out")
+        except OSError as exc:
+            return DevCommandResult(returncode=1, stderr=str(exc))
         return DevCommandResult(
             returncode=completed.returncode,
             stdout=completed.stdout,
