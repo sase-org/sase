@@ -16,6 +16,8 @@ memory:
         the original agent with its own suffix and reserves the bare family name as a
         pure container, so a family always has at least two members.
     Agent Hood:
+      aliases:
+        - agent neighborhood
       definition: >-
         An agent hood is a group of agents that are all named with the same `<name>.`
         prefix. For example, agents named `foo.bar`, `foo.baz`, and `foo.bar.1` are all
