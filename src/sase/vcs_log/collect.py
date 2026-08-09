@@ -264,12 +264,14 @@ def _collect_repo_commits(
             since=filters.since,
             until=filters.until,
             authors=filters.authors,
+            merges=filters.merges,
             revs=("HEAD", resolved_ref),
         )
         ahead, behind = provider.partition_commits(  # type: ignore[attr-defined]
             cwd=repo.path,
             local_ref="HEAD",
             remote_ref=resolved_ref,
+            merges=filters.merges,
         )
     except Exception as exc:
         reason = _failure_reason(exc)
@@ -322,6 +324,7 @@ def _local_log(
         since=filters.since,
         until=filters.until,
         authors=filters.authors,
+        merges=filters.merges,
     )
 
 

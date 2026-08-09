@@ -8,6 +8,7 @@ from typing import Literal
 
 from sase.core.vcs_log_wire import AggregatedCommitWire, CommitPresence
 from sase.plan_documents import PlanWorkspace
+from sase.vcs_provider._types import MergeVisibility
 from sase.vcs_log.dates import TimeBound, VcsLogDateError
 
 #: Internal limit sentinel meaning "fetch and aggregate without a row cap".
@@ -29,6 +30,7 @@ class CommitFilters:
     since: int | None = None
     until: int | None = None
     authors: tuple[str, ...] = ()
+    merges: MergeVisibility = "hide"
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,7 @@ class CommitFilterSpec:
     since: TimeBound | None = None
     until: TimeBound | None = None
     authors: tuple[str, ...] = ()
+    merges: MergeVisibility = "hide"
 
     def resolve(self, *, now: datetime) -> CommitFilters:
         """Resolve both date bounds against the same operation reference."""
@@ -55,7 +58,12 @@ class CommitFilterSpec:
             raise VcsLogDateError(
                 "--since/--after must be at or before --until/--before"
             )
-        return CommitFilters(since=since, until=until, authors=self.authors)
+        return CommitFilters(
+            since=since,
+            until=until,
+            authors=self.authors,
+            merges=self.merges,
+        )
 
 
 @dataclass(frozen=True)

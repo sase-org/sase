@@ -43,12 +43,14 @@ class CommitFilterBar(FilterBar):
         ("since", "from an instant or the start of a named day"),
         ("until", "through an instant or the full named day"),
         ("sidecar", "include sidecar repositories"),
+        ("merges", "merge-commit visibility: hide, show, or only"),
         ("limit", "row cap; all removes it"),
     )
     STATIC_VALUE_COMPLETIONS = {
         "since": _DATE_COMPLETIONS,
         "until": _DATE_COMPLETIONS,
         "sidecar": ("true", "false"),
+        "merges": ("hide", "show", "only"),
         "limit": ("40", "100", "200", "all"),
     }
     VALUE_HINTS = {
@@ -58,6 +60,7 @@ class CommitFilterBar(FilterBar):
         "since": "date bound",
         "until": "named days include the full day",
         "sidecar": "true or false",
+        "merges": "hide, show, or only",
         "limit": "row cap or all",
     }
     REPEATABLE_VALUE_KINDS = frozenset(("repo", "author"))

@@ -294,7 +294,7 @@ class CommitsCollectionMixin(_MixinBase):
 
 def _snapshot_breadth(
     snapshot: AuthoritativeCommitSnapshot,
-) -> tuple[int, int, int, int]:
+) -> tuple[int, int, int, int, int]:
     filters = snapshot.filters
     constraints = (
         len(filters.repos)
@@ -305,7 +305,8 @@ def _snapshot_breadth(
     )
     unlimited = int(snapshot.collection_limit == 0)
     limit = snapshot.collection_limit if snapshot.collection_limit > 0 else 2**31
-    return (-constraints, int(filters.sidecar), unlimited, limit)
+    merge_breadth = 1 if filters.merges == "show" else 0
+    return (-constraints, int(filters.sidecar), merge_breadth, unlimited, limit)
 
 
 def snapshot_covers(
@@ -321,6 +322,10 @@ def snapshot_covers(
     base = snapshot.filters
     if values.sidecar and not base.sidecar:
         return False
+    if base.merges != "show" and base.merges != values.merges:
+        return False
+    if _same_backend_constraints(base, values):
+        return True
     backend_unfiltered = not (
         base.repos
         or base.excluded_repos
@@ -329,6 +334,20 @@ def snapshot_covers(
         or base.until is not None
     )
     return backend_unfiltered
+
+
+def _same_backend_constraints(
+    base: CommitLogFilterValues,
+    values: CommitLogFilterValues,
+) -> bool:
+    return (
+        base.project == values.project
+        and base.repos == values.repos
+        and base.excluded_repos == values.excluded_repos
+        and base.authors == values.authors
+        and base.since == values.since
+        and base.until == values.until
+    )
 
 
 def _backend_collection_limit(values: CommitLogFilterValues) -> int:

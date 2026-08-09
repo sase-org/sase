@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.core.vcs_log_wire import VcsCommitWire
 from sase.vcs_log.models import CommitFilters
+from sase.vcs_provider._types import MergeVisibility
 
 
 def commit(full: str, ts: int, subject: str = "s") -> VcsCommitWire:
@@ -30,8 +31,9 @@ class FakeProvider:
         since: int | None = None,
         until: int | None = None,
         authors: tuple[str, ...] = (),
+        merges: MergeVisibility = "hide",
     ) -> list[VcsCommitWire]:
-        del cwd, since, until, authors
+        del cwd, since, until, authors, merges
         return self._commits if limit < 0 else self._commits[:limit]
 
 
@@ -44,8 +46,9 @@ class FailProvider:
         since: int | None = None,
         until: int | None = None,
         authors: tuple[str, ...] = (),
+        merges: MergeVisibility = "hide",
     ) -> list[VcsCommitWire]:
-        del cwd, limit, since, until, authors
+        del cwd, limit, since, until, authors, merges
         raise RuntimeError("no such checkout")
 
 
@@ -68,6 +71,7 @@ class RemoteProvider:
         self.log_revs: tuple[str, ...] | None = None
         self.log_limit: int | None = None
         self.log_filters: CommitFilters | None = None
+        self.partition_merges: MergeVisibility | None = None
 
     def resolve_remote_log_ref(
         self, cwd: str, ref_name: str | None = None
@@ -87,9 +91,15 @@ class RemoteProvider:
         return (True, None)
 
     def partition_commits(
-        self, cwd: str, *, local_ref: str, remote_ref: str
+        self,
+        cwd: str,
+        *,
+        local_ref: str,
+        remote_ref: str,
+        merges: MergeVisibility = "hide",
     ) -> tuple[set[str], set[str]]:
         del cwd, local_ref, remote_ref
+        self.partition_merges = merges
         return (self._ahead, self._behind)
 
     def log(
@@ -100,12 +110,13 @@ class RemoteProvider:
         since: int | None = None,
         until: int | None = None,
         authors: tuple[str, ...] = (),
+        merges: MergeVisibility = "hide",
         revs: tuple[str, ...] = ("HEAD",),
     ) -> list[VcsCommitWire]:
         del cwd
         self.log_revs = revs
         self.log_limit = limit
-        self.log_filters = CommitFilters(since, until, authors)
+        self.log_filters = CommitFilters(since, until, authors, merges)
         return self._commits if limit < 0 else self._commits[:limit]
 
 

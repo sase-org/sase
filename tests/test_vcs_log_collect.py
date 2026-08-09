@@ -18,6 +18,7 @@ from sase.vcs_log import collect as collect_module
 from sase.vcs_log.collect import collect_vcs_log
 from sase.vcs_log.dates import parse_time_bound
 from sase.vcs_log.models import CommitFilterSpec, CommitFilters, LogRepo, UNLIMITED
+from sase.vcs_provider._types import MergeVisibility
 
 
 def test_collect_isolates_failing_repo_and_interleaves() -> None:
@@ -73,8 +74,9 @@ def test_collect_fetches_limit_per_repo() -> None:
             since: int | None = None,
             until: int | None = None,
             authors: tuple[str, ...] = (),
+            merges: MergeVisibility = "hide",
         ) -> list[VcsCommitWire]:
-            del cwd, since, until, authors
+            del cwd, since, until, authors, merges
             seen[self.path] = limit
             return [_commit("x", 1)]
 
@@ -202,6 +204,7 @@ def test_collect_resolves_relative_bounds_once_against_operation_time(
         since=parse_time_bound("2h"),
         until=parse_time_bound("today"),
         authors=("bryan",),
+        merges="only",
     )
 
     result = collect_vcs_log(
@@ -215,6 +218,7 @@ def test_collect_resolves_relative_bounds_once_against_operation_time(
 
     expected = filter_spec.resolve(now=reference)
     assert provider.log_filters == expected
+    assert provider.partition_merges == "only"
     assert result.resolved_filters == expected
     assert result.filter_spec == filter_spec
     assert result.remote_states[0].fetched_at == reference.timestamp()
@@ -272,19 +276,26 @@ def test_collect_threads_filters_and_unlimited_sentinel() -> None:
             since: int | None = None,
             until: int | None = None,
             authors: tuple[str, ...] = (),
+            merges: MergeVisibility = "hide",
         ) -> list[VcsCommitWire]:
             seen["cwd"] = cwd
             seen["limit"] = limit
             seen["since"] = since
             seen["until"] = until
             seen["authors"] = authors
+            seen["merges"] = merges
             return [_commit("x", 1)]
 
     repos = [LogRepo("a", "/a", "primary")]
     collect_vcs_log(
         repos,
         limit=0,
-        filters=CommitFilters(since=10, until=20, authors=("bryan", "amy")),
+        filters=CommitFilters(
+            since=10,
+            until=20,
+            authors=("bryan", "amy"),
+            merges="show",
+        ),
         provider_factory=_Recorder,
     )
 
@@ -294,4 +305,5 @@ def test_collect_threads_filters_and_unlimited_sentinel() -> None:
         "since": 10,
         "until": 20,
         "authors": ("bryan", "amy"),
+        "merges": "show",
     }

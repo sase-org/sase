@@ -103,14 +103,19 @@ def filter_summary(filters: CommitFilters) -> str:
         parts.append(f"until {_format_bound(filters.until)}")
     if filters.authors:
         parts.append(f"author {' or '.join(filters.authors)}")
+    if filters.merges == "only":
+        parts.append("merges only")
+    elif filters.merges == "show":
+        parts.append("with merges")
     return " · ".join(parts)
 
 
 def empty_message(filters: CommitFilters) -> str:
     summary = filter_summary(filters).replace(" · ", ", ")
+    label = "No merge commits found" if filters.merges == "only" else "No commits found"
     if not summary:
-        return "No commits found"
-    return f"No commits found ({summary})"
+        return label
+    return f"{label} ({summary})"
 
 
 def _format_bound(timestamp: int) -> str:

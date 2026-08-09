@@ -13,7 +13,7 @@ from sase.vcs_log.filter_query import (
 )
 
 
-BUNDLED_COMMITS_DEFAULT_QUERY = "sidecar:false since:24h"
+BUNDLED_COMMITS_DEFAULT_QUERY = "sidecar:false merges:hide since:24h"
 _CONFIG_PATH = "ace.artifacts.commits.default_query"
 
 

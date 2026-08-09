@@ -117,7 +117,7 @@ async def test_commits_timeline_and_detail_png_snapshot(
         await page.wait_for(lambda _state: pane.result is result)
         assert (
             pane.query_one("#commit-filter-input", SingleLineVimTextArea).text
-            == "project:sase sidecar:false since:24h"
+            == "project:sase sidecar:false merges:hide since:24h"
         )
         await wait_for_svg_contains(page, "feat(artifacts): keep every commit")
         await wait_for_svg_contains(page, "Changes:")
@@ -202,7 +202,7 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
         pane, bar = await _open_commits(page, result)
         assert (
             bar.query_one("#commit-filter-input", SingleLineVimTextArea).text
-            == "project:sase sidecar:false since:24h limit:40"
+            == "project:sase sidecar:false merges:hide since:24h limit:40"
         )
         assert bar.query_one("#commit-filter-status").content.plain == "capped"
         assert pane.query_one("#commits-position").content.plain == "[1/2+]  ·  "

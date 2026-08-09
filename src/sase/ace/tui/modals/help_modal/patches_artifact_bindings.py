@@ -75,6 +75,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("repo: / author:", "Filter repository / author substring"),
                 ("since: / until:", "until:DAY includes the full day"),
                 ("sidecar:true / false", "Include / exclude sidecars"),
+                ("merges:hide / show / only", "Merge-commit visibility"),
                 ("limit:N / limit:all", "N caps; omitted/all unlimited"),
                 (
                     "[P/N] / [P/N+]",

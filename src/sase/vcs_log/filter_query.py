@@ -26,6 +26,7 @@ from sase.vcs_log.dates import (
     normalize_reference_time,
     parse_time_bound,
 )
+from sase.vcs_provider._types import MergeVisibility
 from sase.vcs_log.models import CommitFilterSpec, CommitFilters
 
 #: Query-level sentinel meaning "do not apply a final row cap". The collection
@@ -41,12 +42,22 @@ CompletionKind = Literal[
     "since",
     "until",
     "sidecar",
+    "merges",
     "limit",
     "text",
 ]
 RepoAliases = Mapping[str, Iterable[str]]
 
-_FILTER_KEYS = ("project", "repo", "author", "since", "until", "sidecar", "limit")
+_FILTER_KEYS = (
+    "project",
+    "repo",
+    "author",
+    "since",
+    "until",
+    "sidecar",
+    "merges",
+    "limit",
+)
 _REPEATABLE_KEYS = frozenset(("repo", "author"))
 _NEGATABLE_KEYS = frozenset(("repo", "author"))
 _NON_NEGATIVE_INTEGER_RE = re.compile(r"^\d+$")
@@ -70,6 +81,7 @@ class CommitLogFilterValues:
     repos: tuple[str, ...] = ()
     excluded_repos: tuple[str, ...] = ()
     sidecar: bool = True
+    merges: MergeVisibility = "hide"
     limit: int = UNLIMITED_COMMIT_LOG_LIMIT
     text: tuple[str, ...] = ()
     excluded_text: tuple[str, ...] = ()
@@ -81,6 +93,7 @@ class CommitLogFilterValues:
             since=since,
             until=until,
             authors=self.authors,
+            merges=self.merges,
         )
 
     def backend_filter_spec(self) -> CommitFilterSpec:
@@ -89,6 +102,7 @@ class CommitLogFilterValues:
             since=self.since,
             until=self.until,
             authors=self.authors,
+            merges=self.merges,
         )
 
 
@@ -180,6 +194,11 @@ def parse_commit_filter_query(
             raise _error("sidecar: must be 'true' or 'false'", sidecar_token)
         sidecar = folded == "true"
 
+    merges: MergeVisibility = "hide"
+    if "merges" in singles:
+        merges_text, merges_token = singles["merges"]
+        merges = _parse_merges_value(merges_text, merges_token)
+
     project = singles["project"][0] if "project" in singles else None
 
     return CommitLogFilterValues(
@@ -193,6 +212,7 @@ def parse_commit_filter_query(
         repos=tuple(repos),
         excluded_repos=tuple(excluded_repos),
         sidecar=sidecar,
+        merges=merges,
         limit=limit,
         text=tuple(text_terms),
         excluded_text=tuple(excluded_text_terms),
@@ -217,6 +237,7 @@ def to_query_tokens(
         f"-author:{quote_value(value, keyed=True)}" for value in values.excluded_authors
     )
     tokens.append(f"sidecar:{str(values.sidecar).lower()}")
+    tokens.append(f"merges:{values.merges}")
     if values.since_text:
         tokens.append(f"since:{quote_value(values.since_text, keyed=True)}")
     if values.until_text:
@@ -283,6 +304,10 @@ def compile_commit_matcher(
         if since is not None and commit.timestamp < since:
             return False
         if until is not None and commit.timestamp > until:
+            return False
+        if values.merges == "hide" and commit.is_merge:
+            return False
+        if values.merges == "only" and not commit.is_merge:
             return False
         subject = commit.subject.casefold()
         return all(term in subject for term in wanted_text) and not any(
@@ -352,6 +377,20 @@ def _resolve_bounds(
         else None
     )
     return (since, until)
+
+
+def _parse_merges_value(
+    value: str,
+    token: FilterToken,
+) -> MergeVisibility:
+    folded = value.casefold()
+    if folded == "hide":
+        return "hide"
+    if folded == "show":
+        return "show"
+    if folded == "only":
+        return "only"
+    raise _error("merges: must be 'hide', 'show', or 'only'", token)
 
 
 def _error(message: str, token: FilterToken) -> CommitFilterQueryError:

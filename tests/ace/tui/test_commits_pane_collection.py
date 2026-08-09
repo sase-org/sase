@@ -65,6 +65,32 @@ def test_sidecar_snapshot_coverage_is_directional() -> None:
     assert snapshot_covers(broad, narrow_values) is True
 
 
+def test_show_merges_snapshot_covers_every_merge_visibility_mode() -> None:
+    scope = (None, True)
+    hide_values = CommitLogFilterValues(merges="hide")
+    show_values = CommitLogFilterValues(merges="show")
+    only_values = CommitLogFilterValues(merges="only")
+    author_show_values = CommitLogFilterValues(authors=("Ada",), merges="show")
+    author_only_values = CommitLogFilterValues(authors=("Ada",), merges="only")
+    hide_snapshot = AuthoritativeCommitSnapshot(scope, hide_values, 0, _result())
+    show_snapshot = AuthoritativeCommitSnapshot(scope, show_values, 0, _result())
+    only_snapshot = AuthoritativeCommitSnapshot(scope, only_values, 0, _result())
+    author_show_snapshot = AuthoritativeCommitSnapshot(
+        scope,
+        author_show_values,
+        0,
+        _result(),
+    )
+
+    assert snapshot_covers(show_snapshot, hide_values) is True
+    assert snapshot_covers(show_snapshot, show_values) is True
+    assert snapshot_covers(show_snapshot, only_values) is True
+    assert snapshot_covers(author_show_snapshot, author_only_values) is True
+    assert snapshot_covers(hide_snapshot, show_values) is False
+    assert snapshot_covers(hide_snapshot, only_values) is False
+    assert snapshot_covers(only_snapshot, hide_values) is False
+
+
 def test_snapshot_coverage_trusts_truncation_metadata_not_row_count() -> None:
     scope = (None, True)
     values = CommitLogFilterValues()
@@ -183,7 +209,7 @@ async def test_explicit_limit_truncates_and_remains_visible(
         assert pane.query_one("#commits-position", Static).content.plain == (
             "[1/40+]  ·  "
         )
-        assert editor.text == "sidecar:false since:24h limit:40"
+        assert editor.text == "sidecar:false merges:hide since:24h limit:40"
         assert "limit:40" in pane._build_info().plain
         assert "limit:40" in pane._filter_chips()
 
@@ -372,7 +398,7 @@ async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(
         assert pane._selected_entry() is not None
         assert pane._selected_entry().commit.full_id == selected_sha
         assert "sidecar:false" in pane._filter_chips()
-        assert editor.text == "sidecar:false"
+        assert editor.text == "sidecar:false merges:hide"
 
         await page.press("slash")
         editor.load_text("repo:plans sidecar:false")

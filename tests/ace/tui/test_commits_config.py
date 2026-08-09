@@ -42,7 +42,7 @@ def test_valid_custom_commits_query_is_parsed_once_for_startup() -> None:
         {"artifacts": {"commits": {"default_query": "repo:sase sidecar:true"}}}
     )
 
-    assert to_query_string(resolved.values) == "repo:sase sidecar:true"
+    assert to_query_string(resolved.values) == "repo:sase sidecar:true merges:hide"
     assert resolved.diagnostic is None
 
 
@@ -174,7 +174,8 @@ async def test_known_startup_project_is_displayed_before_first_collection(
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         editor = pane.query_one("#commit-filter-input", SingleLineVimTextArea)
         assert (
-            editor.text == f"project:{project_display_case.project_label} sidecar:false"
+            editor.text
+            == f"project:{project_display_case.project_label} sidecar:false merges:hide"
         )
         await page.wait_for(lambda _state: bool(collection_calls))
 

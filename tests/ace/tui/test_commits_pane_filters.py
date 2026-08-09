@@ -54,7 +54,9 @@ async def test_custom_default_query_controls_first_collection(
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
         assert bar.display is True
-        assert editor.text == "project:alpha repo:plans sidecar:true limit:5"
+        assert editor.text == (
+            "project:alpha repo:plans sidecar:true merges:hide limit:5"
+        )
         await page.wait_for(lambda _state: bool(calls) and pane.result is not None)
 
         assert calls[0]["project_scope"] == "alpha"
@@ -98,7 +100,7 @@ async def test_ace_query_project_overrides_config_and_cwd_before_first_collectio
             "#commit-filter-input",
             SingleLineVimTextArea,
         )
-        assert editor.text == "project:ace-query sidecar:false"
+        assert editor.text == "project:ace-query sidecar:false merges:hide"
         await page.wait_for(lambda _state: bool(calls))
 
         assert calls[0]["project_scope"] == "ace-query"
@@ -134,7 +136,9 @@ async def test_inferred_project_is_visible_before_first_collection(
             "#commit-filter-input",
             SingleLineVimTextArea,
         )
-        assert editor.text == "project:cwd-project sidecar:false since:24h"
+        assert editor.text == (
+            "project:cwd-project sidecar:false merges:hide since:24h"
+        )
         await page.wait_for(lambda _state: bool(calls))
 
         assert calls[0]["project_scope"] == "cwd-project"
@@ -319,7 +323,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
         )
         assert bar.display is True
         assert pane.filters.excluded_repos == ("sase-core-foundation",)
-        assert editor.text == f"{query} sidecar:true"
+        assert editor.text == f"{query} sidecar:true merges:hide"
         assert query not in pane._build_info().plain
 
         await page.press("slash")

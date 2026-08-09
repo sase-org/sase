@@ -21,6 +21,7 @@ from sase.vcs_log.filter_query import (
     to_query_string,
 )
 from sase.vcs_log.models import CommitFilterSpec, CommitFilters
+from sase.vcs_provider._types import MergeVisibility
 
 
 def _entry(
@@ -30,6 +31,7 @@ def _entry(
     author_email: str = "ada@example.com",
     timestamp: int = 200,
     subject: str = "Fix live commit timeline preview",
+    parent_ids: tuple[str, ...] = (),
 ) -> AggregatedCommitWire:
     return AggregatedCommitWire(
         repo=repo,
@@ -39,6 +41,7 @@ def _entry(
             author_name=author_name,
             author_email=author_email,
             timestamp=timestamp,
+            parent_ids=parent_ids,
             subject=subject,
             body="",
         ),
@@ -50,22 +53,24 @@ def test_parse_empty_query_includes_sidecars() -> None:
 
     assert values == CommitLogFilterValues()
     assert values.sidecar is True
+    assert values.merges == "hide"
     assert values.limit == UNLIMITED_COMMIT_LOG_LIMIT
-    assert to_query_string(values) == "sidecar:true"
+    assert to_query_string(values) == "sidecar:true merges:hide"
 
 
 def test_bundled_query_is_unlimited_without_a_canonical_limit_token() -> None:
     values = parse_commit_filter_query("sidecar:false since:24h")
 
     assert values.limit == UNLIMITED_COMMIT_LOG_LIMIT
-    assert to_query_string(values) == "sidecar:false since:24h"
+    assert to_query_string(values) == "sidecar:false merges:hide since:24h"
 
 
 def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
     values = parse_commit_filter_query(
         'PROJECT:"SASE Org" REPO:sase,sase-core repo:"SASE docs" '
         'Author:Ada author:"Grace Hopper",@example.com '
-        "since:2026-07-01 until:2026-07-18T08:30 SIDECAR:TrUe limit:all "
+        "since:2026-07-01 until:2026-07-18T08:30 SIDECAR:TrUe "
+        "MERGES:ShOw limit:all "
         'fix "live preview"'
     )
 
@@ -77,15 +82,24 @@ def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
     assert values.until_text == "2026-07-18T08:30"
     assert values.until == parse_time_bound("2026-07-18T08:30")
     assert values.sidecar is True
+    assert values.merges == "show"
     assert values.limit == 0
     assert values.text == ("fix", "live preview")
+
+
+@pytest.mark.parametrize("mode", ["hide", "show", "only"])
+def test_parse_merge_visibility_modes(mode: MergeVisibility) -> None:
+    values = parse_commit_filter_query(f"merges:{mode}")
+
+    assert values.merges == mode
+    assert to_query_string(values) == f"sidecar:true merges:{mode}"
 
 
 def test_relative_query_values_are_stable_across_delayed_reparses() -> None:
     tz = get_timezone()
     first_now = datetime(2026, 7, 8, 15, 30, tzinfo=tz)
     later_now = first_now + timedelta(days=1, hours=2)
-    query = "sidecar:false since:24h until:today"
+    query = "sidecar:false merges:hide since:24h until:today"
 
     first = parse_commit_filter_query(query, now=first_now)
     reparsed = parse_commit_filter_query(query, now=later_now)
@@ -163,6 +177,20 @@ def test_parse_mixed_positive_and_negative_terms() -> None:
             "sidecar:false",
             (13, 26),
         ),
+        ("merges:", "requires a value", "merges:", (0, 7)),
+        (
+            "merges:both",
+            "must be 'hide', 'show', or 'only'",
+            "merges:both",
+            (0, 11),
+        ),
+        ("-merges:show", "may not be negated", "-merges:show", (0, 12)),
+        (
+            "merges:hide merges:show",
+            "only appear once",
+            "merges:show",
+            (12, 23),
+        ),
     ),
 )
 def test_parse_errors_carry_bad_token_and_exact_span(
@@ -238,12 +266,12 @@ def test_canonical_query_has_stable_order_and_omits_unlimited_limit() -> None:
     )
 
     assert to_query_string(values) == (
-        'project:"SASE Org" repo:sase author:"Ada Lovelace" sidecar:true since:7d '
-        "until:2026-07-18 preview timeline"
+        'project:"SASE Org" repo:sase author:"Ada Lovelace" sidecar:true '
+        "merges:hide since:7d until:2026-07-18 preview timeline"
     )
-    assert to_query_string(CommitLogFilterValues()) == "sidecar:true"
+    assert to_query_string(CommitLogFilterValues()) == "sidecar:true merges:hide"
     assert to_query_string(parse_commit_filter_query("sidecar:false")) == (
-        "sidecar:false"
+        "sidecar:false merges:hide"
     )
 
 
@@ -252,7 +280,7 @@ def test_explicit_unlimited_limit_normalizes_to_omission(query: str) -> None:
     values = parse_commit_filter_query(query)
 
     assert values.limit == UNLIMITED_COMMIT_LOG_LIMIT
-    assert to_query_string(values) == "sidecar:true"
+    assert to_query_string(values) == "sidecar:true merges:hide"
     assert parse_commit_filter_query(to_query_string(values)) == values
 
 
@@ -261,7 +289,7 @@ def test_positive_limit_serializes_and_round_trips(limit: int) -> None:
     values = parse_commit_filter_query(f"limit:{limit}")
 
     assert values.limit == limit
-    assert to_query_string(values) == f"sidecar:true limit:{limit}"
+    assert to_query_string(values) == f"sidecar:true merges:hide limit:{limit}"
     assert parse_commit_filter_query(to_query_string(values)) == values
 
 
@@ -273,7 +301,7 @@ def test_canonical_query_serializes_exclusions_and_literal_hyphens() -> None:
 
     assert to_query_string(values) == (
         "repo:sase -repo:plans author:Ada -author:bot "
-        'sidecar:true "-literal" -generated -"generated rollout"'
+        'sidecar:true merges:hide "-literal" -generated -"generated rollout"'
     )
 
 
@@ -293,6 +321,7 @@ _VALUE_TEXT = st.text(
     text_terms=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_text=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     sidecar=st.booleans(),
+    merges=st.sampled_from(("hide", "show", "only")),
     limit=st.sampled_from((0, 1, 40, 100, 999)),
     bounds=st.sampled_from(
         (
@@ -312,6 +341,7 @@ def test_canonical_query_round_trip_property(
     text_terms: tuple[str, ...],
     excluded_text: tuple[str, ...],
     sidecar: bool,
+    merges: MergeVisibility,
     limit: int,
     bounds: tuple[str, str],
 ) -> None:
@@ -327,6 +357,7 @@ def test_canonical_query_round_trip_property(
         repos=repos,
         excluded_repos=excluded_repos,
         sidecar=sidecar,
+        merges=merges,
         limit=limit,
         text=text_terms,
         excluded_text=excluded_text,
@@ -346,6 +377,7 @@ def test_backend_filters_exclude_repo_text_and_limit() -> None:
         until=parse_time_bound("2026-07-18"),
         repos=("sase",),
         excluded_repos=("plans",),
+        merges="show",
         limit=5,
         text=("fix",),
         excluded_text=("generated",),
@@ -355,11 +387,13 @@ def test_backend_filters_exclude_repo_text_and_limit() -> None:
         authors=("Ada",),
         since=int((now - timedelta(hours=24)).timestamp()),
         until=int(datetime(2026, 7, 19, tzinfo=tz).timestamp()) - 1,
+        merges="show",
     )
     assert values.backend_filter_spec() == CommitFilterSpec(
         authors=("Ada",),
         since=parse_time_bound("24h"),
         until=parse_time_bound("2026-07-18"),
+        merges="show",
     )
 
 
@@ -471,6 +505,25 @@ def test_matcher_ignores_limit_for_caller_to_apply() -> None:
 
 
 @pytest.mark.parametrize(
+    ("mode", "ordinary_expected", "merge_expected"),
+    (
+        ("hide", True, False),
+        ("show", True, True),
+        ("only", False, True),
+    ),
+)
+def test_commit_matcher_applies_merge_visibility(
+    mode: MergeVisibility,
+    ordinary_expected: bool,
+    merge_expected: bool,
+) -> None:
+    matcher = compile_commit_matcher(CommitLogFilterValues(merges=mode))
+
+    assert matcher(_entry(parent_ids=("p0",))) is ordinary_expected
+    assert matcher(_entry(parent_ids=("p0", "p1"))) is merge_expected
+
+
+@pytest.mark.parametrize(
     ("text", "cursor", "expected"),
     (
         ("", 0, ("key", "")),
@@ -487,9 +540,11 @@ def test_matcher_ignores_limit_for_caller_to_apply() -> None:
         ("until:today", 10, ("until", "toda")),
         ("limit:al", 7, ("limit", "a")),
         ("sidecar:t", 9, ("sidecar", "t")),
+        ("merges:o", 8, ("merges", "o")),
         ("-repo:plans", 11, ("repo", "plans")),
         ("-author:bo", 10, ("author", "bo")),
         ("-since:7", 8, ("key", "since:7")),
+        ("-merges:o", 9, ("key", "merges:o")),
         ('-"generated ro', 14, ("text", "generated ro")),
         ('"fix live', 9, ("text", "fix live")),
         ("unknown:value", 13, ("key", "unknown:value")),
@@ -519,15 +574,18 @@ def test_filter_chips_use_canonical_query_tokens() -> None:
         "repo:sase",
         'author:"Ada Lovelace"',
         "sidecar:true",
+        "merges:hide",
         '"fix live"',
     )
 
     default = parse_commit_filter_query("sidecar:false since:24h")
     assert commit_filter_chips(default) == (
         "sidecar:false",
+        "merges:hide",
         "since:24h",
     )
     assert commit_filter_chips(parse_commit_filter_query("limit:40")) == (
         "sidecar:true",
+        "merges:hide",
         "limit:40",
     )

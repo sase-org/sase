@@ -200,6 +200,15 @@ def test_pretty_empty_shows_no_commits() -> None:
     assert "No commits found" in text
 
 
+def test_pretty_filter_summary_mentions_non_default_merge_modes() -> None:
+    text = _render(_result(), "pretty", filters=CommitFilters(merges="show"))
+    assert "with merges" in text
+
+    empty = VcsLogResult(repos=(), commits=(), warnings=())
+    text = _render(empty, "pretty", filters=CommitFilters(merges="only"))
+    assert "No merge commits found (merges only)" in text
+
+
 def test_pretty_empty_still_shows_warnings() -> None:
     empty = VcsLogResult(repos=(), commits=(), warnings=("boom",))
     text = _render(empty, "pretty")

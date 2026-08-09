@@ -122,7 +122,7 @@ ace:
     commits:
       # Relative date windows re-anchor whenever the pane refreshes. Queries
       # without an explicit positive limit:N are uncapped.
-      default_query: "sidecar:false since:24h"
+      default_query: "sidecar:false merges:hide since:24h"
   # Per-tribe ACE TUI identity display. Keys are bare tribe names (no "@").
   # The special "default" entry styles the reserved untagged identity.
   # Empty icon strings disable an inherited default icon, while empty color

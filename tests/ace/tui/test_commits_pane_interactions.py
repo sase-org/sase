@@ -82,12 +82,12 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
         assert bar.display is True
         assert editor.read_only is True
-        assert editor.text == "sidecar:false since:24h"
+        assert editor.text == "sidecar:false merges:hide since:24h"
         baseline_calls = len(calls)
         await page.press("slash")
         await page.wait_for(lambda _state: page.app.focused is editor)
         assert editor.read_only is False
-        assert editor.text == "sidecar:false since:24h"
+        assert editor.text == "sidecar:false merges:hide since:24h"
         assert page.app.focused is editor
 
         await page.press("ctrl+u", "f", "i", "x")
@@ -124,7 +124,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert editor.read_only is True
         assert page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
         assert pane.filters.text == ("fix",)
-        assert editor.text == "sidecar:true fix"
+        assert editor.text == "sidecar:true merges:hide fix"
         assert [entry.commit.short_id for entry in pane.result.commits] == ["bbbbbbb"]
         reconciled_calls = len(calls)
         await page.pause()
@@ -134,7 +134,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         # pre-open values and cached authoritative result after a live preview.
         await page.press("f")
         await page.wait_for(lambda _state: page.app.focused is editor)
-        assert editor.text == "sidecar:true fix"
+        assert editor.text == "sidecar:true merges:hide fix"
         await page.press("ctrl+u", "f", "e", "a", "t")
         await page.wait_for(
             lambda _state: (
@@ -152,7 +152,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         )
         assert bar.display is True
         assert pane.filters.text == ("fix",)
-        assert editor.text == "sidecar:true fix"
+        assert editor.text == "sidecar:true merges:hide fix"
         assert [entry.commit.short_id for entry in pane.result.commits] == ["bbbbbbb"]
         assert position.content.plain == "[1/1]  ·  "
 
@@ -165,7 +165,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.press("d")
         await page.wait_for(lambda _state: calls[-1]["include_sidecars"] is False)
         assert pane.filters.sidecar is False
-        assert editor.text == "sidecar:false fix"
+        assert editor.text == "sidecar:false merges:hide fix"
         assert "sidecar:" not in pane._build_info().plain
 
         # With no automatic or picked project, `a` cannot invent hidden cwd
@@ -187,16 +187,16 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
                 and calls[-1]["all_projects"] is False
             )
         )
-        assert editor.text == "project:widgets sidecar:false fix"
+        assert editor.text == "project:widgets sidecar:false merges:hide fix"
 
         await page.press("a")
         await page.wait_for(lambda _state: pane.filters.project is None)
         assert any(call["all_projects"] is True for call in calls)
-        assert editor.text == "sidecar:false fix"
+        assert editor.text == "sidecar:false merges:hide fix"
 
         await page.press("a")
         await page.wait_for(lambda _state: pane.filters.project == "widgets")
-        assert editor.text == "project:widgets sidecar:false fix"
+        assert editor.text == "project:widgets sidecar:false merges:hide fix"
 
         refresh_baseline = len(calls)
         await page.press("R")
@@ -258,6 +258,7 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         help_text = modal._build_left_column().plain
         assert "F / f2" in help_text
         assert "sidecar:true" in help_text
+        assert "merges:hide" in help_text
         assert "project:NAME" in help_text
         assert "Single; omitted = all projects" in help_text
         assert "Sidecars / project: off/on" in help_text

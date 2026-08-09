@@ -296,7 +296,7 @@ async def test_status_renders_coverage_only_and_preserves_parse_error() -> None:
         assert status.has_class("error")
 
 
-async def test_until_and_limit_completion_explain_inclusive_days_and_caps() -> None:
+async def test_static_value_completions_explain_dates_merges_and_caps() -> None:
     app = _FilterBarApp()
     async with app.run_test() as pilot:
         bar = app.query_one(CommitFilterBar)
@@ -314,6 +314,13 @@ async def test_until_and_limit_completion_explain_inclusive_days_and_caps() -> N
         editor.cursor_position = len(editor.text)
         await pilot.pause()
         assert all("row cap or all" in label for label in _option_labels(completion))
+
+        editor.load_text("merges:")
+        editor.cursor_position = len(editor.text)
+        await pilot.pause()
+        labels = _option_labels(completion)
+        assert [label.split()[0] for label in labels] == ["hide", "show", "only"]
+        assert all("hide, show, or only" in label for label in labels)
 
 
 async def test_close_leaves_persistent_bar_visible_and_hides_completion() -> None:
