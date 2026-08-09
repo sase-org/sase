@@ -283,7 +283,7 @@ _lint-changelog: _setup
 
 # Check canonical Patch/stitch terminology (private, extracted for per-stage wrapping)
 _lint-patch-stitch-terminology: _setup
-    {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root .
+    {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root . --allow-missing-linked-repos
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-symvision *args: _setup
@@ -496,7 +496,7 @@ refresh-contract-manifest: _setup
 
 audit-patch-stitch-terminology: _setup
     @printf "\n---------- Auditing Patch/stitch terminology... ----------\n"
-    @just _lint-patch-stitch-terminology
+    {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root .
 
 # Download the newest per-test coverage-contexts baseline published by the CI
 # coverage leg into the host-local cache. Selection itself never touches the
