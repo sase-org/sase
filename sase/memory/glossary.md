@@ -115,7 +115,7 @@ Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/ directory (.
 
 ## Xprompt Memory
 
-ALIASES: sase memory file
+ALIASES: memory file
 
 A flat SASE memory note exposed as a namespaced xprompt: `sase/memory/foo.md` expands
 with `#memory/foo`, and the `memory/` prefix is required.
