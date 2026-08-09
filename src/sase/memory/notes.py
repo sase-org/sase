@@ -60,6 +60,14 @@ class MemoryNote:
 
 
 @dataclass(frozen=True)
+class GeneratedLongMemoryNote:
+    """Metadata for a generated long memory note keyed by root-relative path."""
+
+    description: str
+    parent: str = AGENTS_PARENT
+
+
+@dataclass(frozen=True)
 class _FrontmatterBlock:
     frontmatter: Mapping[str, Any]
     body: str
@@ -364,11 +372,20 @@ def render_children_section(
     references = render_memory_note_references(_children_of(notes, parent))
     if not references:
         return ""
-    return f"## Children\n\n{references}\n"
+    return (
+        "## Children\n\n"
+        "The below files contain detailed reference material. When working in their "
+        "domain, you\n"
+        "MUST use your `/sase_memory_read` skill to review their contents. Do not "
+        "read canonical\n"
+        "memory files directly.\n\n"
+        f"{references}\n"
+    )
 
 
 __all__ = [
     "AGENTS_PARENT",
+    "GeneratedLongMemoryNote",
     "MEMORY_DIR",
     "MemoryNote",
     "MemoryNoteParentSource",

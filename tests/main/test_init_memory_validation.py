@@ -182,6 +182,130 @@ def test_memory_plan_invalid_amd_title_still_blocks(
     )
 
 
+@pytest.mark.parametrize(
+    ("notes", "expected"),
+    [
+        (
+            {
+                "child.md": (
+                    "---\n"
+                    "type: long\n"
+                    "parent: memory/missing.md\n"
+                    "description: Child.\n"
+                    "---\n"
+                    "# Child\n"
+                )
+            },
+            (
+                "invalid memory parent for sase/memory/child.md",
+                "sase/memory/missing.md",
+                "parent target does not exist",
+            ),
+        ),
+        (
+            {
+                "parent.md": "---\ntype: short\nparent: AGENTS.md\n---\n# Parent\n",
+                "child.md": (
+                    "---\n"
+                    "type: long\n"
+                    "parent: sase/memory/parent.md\n"
+                    "description: Child.\n"
+                    "---\n"
+                    "# Child\n"
+                ),
+            },
+            (
+                "invalid memory parent for sase/memory/child.md",
+                "sase/memory/parent.md",
+                "parent target is a short memory note",
+            ),
+        ),
+        (
+            {
+                "self.md": (
+                    "---\n"
+                    "type: long\n"
+                    "parent: sase/memory/self.md\n"
+                    "description: Self.\n"
+                    "---\n"
+                    "# Self\n"
+                )
+            },
+            (
+                "invalid memory parent for sase/memory/self.md",
+                "sase/memory/self.md",
+                "parent points to the note itself",
+            ),
+        ),
+        (
+            {
+                "a.md": (
+                    "---\ntype: long\nparent: sase/memory/b.md\n"
+                    "description: A.\n---\n# A\n"
+                ),
+                "b.md": (
+                    "---\ntype: long\nparent: sase/memory/a.md\n"
+                    "description: B.\n---\n# B\n"
+                ),
+            },
+            (
+                "memory parent cycle detected:",
+                "sase/memory/a.md",
+                "sase/memory/b.md",
+            ),
+        ),
+        (
+            {
+                "a.md": (
+                    "---\ntype: long\nparent: sase/memory/b.md\n"
+                    "description: A.\n---\n# A\n"
+                ),
+                "b.md": (
+                    "---\ntype: long\nparent: sase/memory/c.md\n"
+                    "description: B.\n---\n# B\n"
+                ),
+                "c.md": (
+                    "---\ntype: long\nparent: sase/memory/a.md\n"
+                    "description: C.\n---\n# C\n"
+                ),
+            },
+            (
+                "memory parent cycle detected:",
+                "sase/memory/a.md",
+                "sase/memory/b.md",
+                "sase/memory/c.md",
+            ),
+        ),
+    ],
+)
+def test_memory_plan_blocks_invalid_memory_parents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    notes: dict[str, str],
+    expected: tuple[str, ...],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    for name, content in notes.items():
+        write(project_root / "sase" / "memory" / name, content)
+
+    plan = plan_memory()
+    blockers = "\n".join(plan.blockers)
+
+    for item in expected:
+        assert item in blockers
+    assert "unreferenced memory file" not in blockers
+
+
 def test_run_init_memory_returns_int_and_wrapper_raises_system_exit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

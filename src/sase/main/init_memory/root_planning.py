@@ -13,6 +13,7 @@ from sase.amd.init import (
     plan_amd_memory_sync,
     plan_minimal_agents_sync,
 )
+from sase.memory.notes import GeneratedLongMemoryNote
 from sase.amd.inventory import discover_project_agent_docs
 from sase.memory.paths import (
     CANONICAL_MEMORY_RELATIVE_ROOT,
@@ -20,7 +21,7 @@ from sase.memory.paths import (
     memory_write_root,
 )
 
-from .inventory import unreferenced_memory_files
+from .inventory import memory_parent_blockers, unreferenced_memory_files
 from .models import (
     LinkedRepoMemoryEntry,
     MemoryChangeOperation,
@@ -259,7 +260,7 @@ def _amd_sync_plan(
     enable_amd: bool,
     derive_project_title: bool,
     generated_short_notes: dict[str, str],
-    generated_long_notes: dict[str, str],
+    generated_long_notes: dict[str, GeneratedLongMemoryNote],
     source_memory_root: Path,
     excluded_note_paths: frozenset[str] = frozenset(),
 ) -> AmdMemorySyncPlan | None:
@@ -636,6 +637,16 @@ def plan_memory_root(
         include_bead_memory=include_bead_memory,
     )
     overlay = _validation_overlay_for_expected_files(root, context.expected_files)
+    parent_blockers = (
+        memory_parent_blockers(
+            root,
+            overlay=overlay,
+            source_memory_root=context.source_memory_root,
+            ignored_paths=context.retired_note_paths,
+        )
+        if manage_memory
+        else ()
+    )
     return MemoryRootPlan(
         root=root,
         changes=(
@@ -660,18 +671,19 @@ def plan_memory_root(
             )
         ),
         unreferenced=(
-            unreferenced_memory_files(
+            ()
+            if parent_blockers or not manage_memory
+            else unreferenced_memory_files(
                 root,
                 overlay=overlay,
                 source_memory_root=context.source_memory_root,
                 ignored_paths=context.retired_note_paths,
             )
-            if manage_memory
-            else ()
         ),
         blockers=(
             context.blockers
             + (() if context.amd_sync is None else context.amd_sync.blockers)
+            + parent_blockers
             + context.shim_plan.blockers
             + _provider_shim_plan_blockers(context.additional_shim_plans)
         ),

@@ -301,7 +301,7 @@ def test_init_memory_rejects_short_memory_with_deep_heading(
     assert "deeper than H3" in err
 
 
-def test_init_memory_rejects_unreferenced_memory_files(
+def test_init_memory_rejects_missing_memory_parent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -318,9 +318,6 @@ def test_init_memory_rejects_unreferenced_memory_files(
         config_dir=config_dir,
     )
     write(project_root / "AGENTS.md", "@sase/memory/sase.md\n")
-    # Parented under a memory note that does not exist, so managed instructions
-    # (which only reference short notes and top-level ``parent: AGENTS.md`` long
-    # notes) cannot make it reachable.
     write(
         project_root / "sase" / "memory" / "orphan.md",
         "---\ntype: long\nparent: sase/memory/ghost.md\ndescription: Orphan.\n---\n"
@@ -329,5 +326,7 @@ def test_init_memory_rejects_unreferenced_memory_files(
 
     assert run_handler() == 1
     err = capsys.readouterr().err
-    assert "unreferenced memory files" in err
+    assert "invalid memory parent for sase/memory/orphan.md" in err
+    assert "sase/memory/ghost.md" in err
+    assert "parent target does not exist" in err
     assert "sase/memory/orphan.md" in err

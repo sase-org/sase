@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 from sase.memory.inventory import (
+    memory_parent_blockers_for_init,
     unreferenced_memory_files_for_init,
 )
 
@@ -22,6 +23,21 @@ def unreferenced_memory_files(
     ignored_paths: Iterable[Path] = (),
 ) -> tuple[Path, ...]:
     return unreferenced_memory_files_for_init(
+        root,
+        overlay=overlay,
+        source_memory_root=source_memory_root,
+        ignored_paths=ignored_paths,
+    )
+
+
+def memory_parent_blockers(
+    root: Path,
+    *,
+    overlay: Mapping[Path, str] | None = None,
+    source_memory_root: Path | None = None,
+    ignored_paths: Iterable[Path] = (),
+) -> tuple[str, ...]:
+    return memory_parent_blockers_for_init(
         root,
         overlay=overlay,
         source_memory_root=source_memory_root,

@@ -9,12 +9,18 @@ import pytest
 
 import sase.config.core as config_core
 from sase.amd._agents_doc import parse_amd_agents_document
+from sase.amd.init import plan_amd_memory_sync
 from sase.main import init_memory_handler
 from sase.main.init_memory.root_rendering import (
     generated_long_notes,
     render_generated_beads_memory_content,
 )
-from sase.memory.notes import parse_memory_note_text
+from sase.memory.notes import (
+    GeneratedLongMemoryNote,
+    MemoryNote,
+    parse_memory_note_text,
+    render_children_section,
+)
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -89,9 +95,57 @@ def test_default_beads_template_renders_canonical_long_note() -> None:
     assert note.type == "long"
     assert note.parent == "AGENTS.md"
     assert note.description
-    assert generated_long_notes(content) == {
-        relative_path: note.description,
-    }
+    assert generated_long_notes(content)[relative_path].description == note.description
+    assert generated_long_notes(content)[relative_path].parent == "AGENTS.md"
+
+
+def test_generated_child_long_note_metadata_renders_single_pass(
+    tmp_path: Path,
+) -> None:
+    write(tmp_path / "sase.yml", 'memory:\n  h1_title: "Managed Instructions"\n')
+    write(
+        tmp_path / "sase" / "memory" / "parent.md",
+        "---\ntype: long\nparent: AGENTS.md\ndescription: Parent.\n---\n# Parent\n",
+    )
+    parent = parse_memory_note_text(
+        (tmp_path / "sase" / "memory" / "parent.md").read_text(encoding="utf-8"),
+        "sase/memory/parent.md",
+    )
+    generated = GeneratedLongMemoryNote(
+        description="Generated child.",
+        parent="sase/memory/parent.md",
+    )
+    generated_child = MemoryNote(
+        path=Path("sase/memory/generated_child.md"),
+        type="long",
+        parent=generated.parent,
+        description=generated.description,
+        body="",
+        frontmatter={},
+        type_source="frontmatter",
+        parent_source="frontmatter",
+    )
+
+    plan = plan_amd_memory_sync(
+        tmp_path,
+        generated_short_notes={},
+        generated_long_notes={"sase/memory/generated_child.md": generated},
+    )
+
+    assert plan.blockers == ()
+    assert plan.agents_content is not None
+    assert "**`sase/memory/parent.md`**" in plan.agents_content
+    assert "sase/memory/generated_child.md" not in plan.agents_content
+    assert render_children_section((parent, generated_child), parent) == (
+        "## Children\n\n"
+        "The below files contain detailed reference material. When working in their "
+        "domain, you\n"
+        "MUST use your `/sase_memory_read` skill to review their contents. Do not "
+        "read canonical\n"
+        "memory files directly.\n\n"
+        "**`sase/memory/generated_child.md`**  \n"
+        "Generated child.\n"
+    )
 
 
 def test_root_memory_templates_beat_user_templates(

@@ -345,6 +345,49 @@ def test_approve_memory_proposal_writes_canonical_file_and_event(
     )
 
 
+def test_approve_memory_proposal_preserves_valid_authored_parent(
+    tmp_path: Path,
+) -> None:
+    ledger_path = tmp_path / "state" / "memory_proposals.jsonl"
+    _write(
+        tmp_path / "sase" / "memory" / "hub.md",
+        "---\ntype: long\nparent: AGENTS.md\ndescription: Hub.\n---\n# Hub\n",
+    )
+    proposal = create_memory_proposal(
+        title="Child Memory",
+        body=("---\nparent: memory/hub.md\nreviewer_note: keep\n---\nChild body\n"),
+        evidence_values=["chat:abc"],
+        target="child.md",
+        author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
+        project="demo",
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
+        proposal_id="mem-20260523-120000-44444445",
+        ledger_path=ledger_path,
+    ).state
+
+    result = approve_memory_proposal(
+        proposal.proposal_id,
+        reviewer=ProposalReviewer("bryan", "host-a"),
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 13, 0, tzinfo=UTC),
+        ledger_path=ledger_path,
+    )
+
+    assert result.canonical_path == tmp_path / "sase" / "memory" / "child.md"
+    assert result.canonical_path.read_text(encoding="utf-8") == (
+        "---\n"
+        "type: long\n"
+        "parent: sase/memory/hub.md\n"
+        "description: Child Memory\n"
+        "reviewer_note: keep\n"
+        f"source_candidate: {proposal.proposal_id}\n"
+        "---\n"
+        "\n"
+        "Child body\n"
+    )
+
+
 def test_approve_memory_proposal_refuses_existing_target(tmp_path: Path) -> None:
     ledger_path = tmp_path / "state" / "memory_proposals.jsonl"
     _write(tmp_path / "sase" / "memory" / "memory.md", "existing\n")

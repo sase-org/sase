@@ -9,9 +9,15 @@ from pathlib import Path
 
 from sase.content_layout import LayoutCollisionError
 from sase.memory.locks import locked_file
-from sase.memory.notes import AGENTS_PARENT, apply_memory_frontmatter
+from sase.memory.notes import (
+    AGENTS_PARENT,
+    apply_memory_frontmatter,
+    discover_memory_notes,
+    parse_memory_note_text,
+)
 from sase.memory.paths import (
     CANONICAL_MEMORY_RELATIVE_ROOT,
+    canonical_memory_reference,
     memory_layout,
     memory_write_root,
 )
@@ -168,6 +174,7 @@ def approve_memory_proposal(
             proposal_id=state.proposal_id,
             title=state.title,
             body=body,
+            parent=_memory_proposal_parent(body, cwd=cwd_path),
         )
         canonical_path.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -280,11 +287,39 @@ def _read_required_text(path: Path, *, label: str) -> str:
         ) from exc
 
 
-def _canonical_memory_content(*, proposal_id: str, title: str, body: str) -> str:
+def _memory_proposal_parent(body: str, *, cwd: Path) -> str:
+    note = parse_memory_note_text(body, CANONICAL_MEMORY_RELATIVE_ROOT / "proposal.md")
+    if note.parent_source == "missing":
+        return AGENTS_PARENT
+    if note.parent_source == "invalid":
+        raise MemoryProposalBodyError("memory proposal parent must be a string")
+
+    parent = canonical_memory_reference(note.parent).as_posix()
+    if parent == AGENTS_PARENT:
+        return parent
+
+    existing_notes = {
+        existing.relative_path: existing for existing in discover_memory_notes(cwd)
+    }
+    parent_note = existing_notes.get(parent)
+    if parent_note is None:
+        raise MemoryProposalBodyError(
+            f"memory proposal parent does not exist: {parent}"
+        )
+    if parent_note.type != "long":
+        raise MemoryProposalBodyError(
+            f"memory proposal parent is not a long memory note: {parent}"
+        )
+    return parent
+
+
+def _canonical_memory_content(
+    *, proposal_id: str, title: str, body: str, parent: str = AGENTS_PARENT
+) -> str:
     content = apply_memory_frontmatter(
         body,
         note_type="long",
-        parent=AGENTS_PARENT,
+        parent=parent,
         description=title,
         extra={"source_candidate": proposal_id},
     )

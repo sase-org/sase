@@ -14,6 +14,7 @@ from sase.mdtemplates import render_markdown_template
 from sase.memory.inventory import MemoryStats, stats_for_text
 from sase.memory.notes import (
     AGENTS_PARENT,
+    GeneratedLongMemoryNote,
     MemoryNote,
     apply_memory_frontmatter,
     discover_memory_notes,
@@ -126,38 +127,57 @@ def _generated_sase_memory_content(generated_sase_body: str) -> str:
     )
 
 
-def render_generated_beads_memory_content() -> tuple[str | None, str | None]:
-    """Render the canonical generated ``sase/memory/sase_beads.md`` note."""
+def _render_generated_long_memory_content(
+    *,
+    template_filename: str,
+    relative_path: Path,
+    parent: str,
+) -> tuple[str | None, str | None]:
+    """Render a packaged generated long memory note."""
     rendered, render_error = render_markdown_template(
         package=_MEMORY_TEMPLATE_PACKAGE,
-        filename=f"templates/{MEMORY_SASE_BEADS_TEMPLATE_FILENAME}",
+        filename=f"templates/{template_filename}",
         required_variables=frozenset(),
         context={},
     )
     if render_error is not None or rendered is None:
         return (
             None,
-            render_error or "failed to render sase/memory/sase_beads.md template",
+            render_error or f"failed to render {relative_path.as_posix()} template",
         )
     formatted = format_generated_memory_markdown(rendered)
     note = parse_memory_note_text(
         formatted,
-        _generated_beads_memory_relative_path(),
+        relative_path,
     )
     if note.description is None:
         return (
             None,
-            f"packaged {MEMORY_SASE_BEADS_TEMPLATE_FILENAME}: "
+            f"packaged {template_filename}: "
             "generated long memory note must have a description",
         )
+    canonical_parent = (
+        AGENTS_PARENT
+        if parent == AGENTS_PARENT
+        else canonical_memory_reference(parent).as_posix()
+    )
     return (
         apply_memory_frontmatter(
             formatted,
             note_type="long",
-            parent=AGENTS_PARENT,
+            parent=canonical_parent,
             description=note.description,
         ),
         None,
+    )
+
+
+def render_generated_beads_memory_content() -> tuple[str | None, str | None]:
+    """Render the canonical generated ``sase/memory/sase_beads.md`` note."""
+    return _render_generated_long_memory_content(
+        template_filename=MEMORY_SASE_BEADS_TEMPLATE_FILENAME,
+        relative_path=_generated_beads_memory_relative_path(),
+        parent=AGENTS_PARENT,
     )
 
 
@@ -430,12 +450,19 @@ def generated_short_notes(
     return notes
 
 
-def generated_long_notes(generated_beads_content: str) -> dict[str, str]:
-    """Return generated long-note descriptions keyed by relative path."""
+def generated_long_notes(
+    generated_beads_content: str,
+) -> dict[str, GeneratedLongMemoryNote]:
+    """Return generated long-note metadata keyed by relative path."""
     relative_path = _generated_beads_memory_relative_path().as_posix()
     note = parse_memory_note_text(generated_beads_content, relative_path)
     if note.description is None:
         raise ValueError(
             f"generated long memory note lacks a description: {relative_path}"
         )
-    return {relative_path: note.description}
+    return {
+        relative_path: GeneratedLongMemoryNote(
+            description=note.description,
+            parent=note.parent,
+        )
+    }

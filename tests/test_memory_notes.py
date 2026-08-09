@@ -163,6 +163,11 @@ def test_children_and_reference_rendering_match_agents_shape() -> None:
     )
     assert render_children_section((child_b, hub, short_child, child_a), hub) == (
         "## Children\n\n"
+        "The below files contain detailed reference material. When working in their "
+        "domain, you\n"
+        "MUST use your `/sase_memory_read` skill to review their contents. Do not "
+        "read canonical\n"
+        "memory files directly.\n\n"
         "**`sase/memory/child_a.md`**  \n"
         "Alpha child.\n\n"
         "**`sase/memory/child_b.md`**  \n"

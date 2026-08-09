@@ -165,6 +165,11 @@ def test_memory_read_appends_children_section(
     assert captured.out == (
         "# Hub\n\n"
         "## Children\n\n"
+        "The below files contain detailed reference material. When working in their "
+        "domain, you\n"
+        "MUST use your `/sase_memory_read` skill to review their contents. Do not "
+        "read canonical\n"
+        "memory files directly.\n\n"
         "**`sase/memory/child_a.md`**  \n"
         "Alpha child.\n\n"
         "**`sase/memory/child_b.md`**  \n"

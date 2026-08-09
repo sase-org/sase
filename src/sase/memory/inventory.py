@@ -26,6 +26,7 @@ from sase.memory.inventory_models import (
 )
 from sase.memory.inventory_reachability import (
     inlined_short_memory_files,
+    memory_parent_blockers_for_init,
     unreferenced_memory_files_for_init,
 )
 from sase.memory.inventory_references import (
@@ -55,6 +56,7 @@ __all__ = [
     "ReferenceKind",
     "build_memory_inventory",
     "display_path_for_context",
+    "memory_parent_blockers_for_init",
     "stats_for_text",
     "unreferenced_memory_files_for_init",
 ]

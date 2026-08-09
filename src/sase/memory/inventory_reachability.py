@@ -128,6 +128,120 @@ def _children_by_parent_for_init(
     }
 
 
+def _memory_notes_by_path_for_init(
+    root: Path,
+    *,
+    overlay: Mapping[Path, str],
+    source_memory_root: Path | None = None,
+    ignored_paths: Iterable[Path] = (),
+) -> dict[Path, MemoryNote]:
+    root_resolved = root.resolve(strict=False)
+    memory_files = set(
+        iter_memory_files(
+            root_resolved,
+            overlay=overlay,
+            source_memory_root=source_memory_root,
+        )
+    )
+    ignored_resolved = {path.resolve(strict=False) for path in ignored_paths}
+    memory_files -= ignored_resolved
+    return {
+        path: note
+        for path in memory_files
+        if (note := _memory_note_for_init(root_resolved, path, overlay=overlay))
+        is not None
+    }
+
+
+def _memory_parent_cycle_blockers(edges: Mapping[str, str]) -> tuple[str, ...]:
+    blockers: list[str] = []
+    visited: set[str] = set()
+    reported: set[frozenset[str]] = set()
+    for start in sorted(edges):
+        path: list[str] = []
+        path_indexes: dict[str, int] = {}
+        node = start
+        while node in edges:
+            if node in path_indexes:
+                cycle = path[path_indexes[node] :]
+                key = frozenset(cycle)
+                if key not in reported:
+                    blockers.append(
+                        "memory parent cycle detected: "
+                        + " -> ".join((*cycle, cycle[0]))
+                    )
+                    reported.add(key)
+                break
+            if node in visited:
+                break
+            path_indexes[node] = len(path)
+            path.append(node)
+            node = edges[node]
+        visited.update(path)
+    return tuple(blockers)
+
+
+def memory_parent_blockers_for_init(
+    root: Path,
+    *,
+    overlay: Mapping[Path, str] | None = None,
+    source_memory_root: Path | None = None,
+    ignored_paths: Iterable[Path] = (),
+) -> tuple[str, ...]:
+    """Return blockers for invalid memory-note parent relationships."""
+    root_resolved = root.resolve(strict=False)
+    overlay_files = normalize_overlay(overlay)
+    notes_by_path = _memory_notes_by_path_for_init(
+        root_resolved,
+        overlay=overlay_files,
+        source_memory_root=source_memory_root,
+        ignored_paths=ignored_paths,
+    )
+    path_by_reference = {
+        note.relative_path: path for path, note in notes_by_path.items()
+    }
+    blockers: list[str] = []
+    parent_edges: dict[str, str] = {}
+
+    for _path, note in sorted(
+        notes_by_path.items(), key=lambda item: item[1].relative_path
+    ):
+        if note.parent == AGENTS_PARENT:
+            continue
+        if note.parent == note.relative_path:
+            blockers.append(
+                f"{root_resolved}: invalid memory parent for {note.relative_path}: "
+                f"{note.parent} (parent points to the note itself)"
+            )
+            continue
+
+        parent_path = path_by_reference.get(note.parent)
+        if parent_path is None:
+            blockers.append(
+                f"{root_resolved}: invalid memory parent for {note.relative_path}: "
+                f"{note.parent} (parent target does not exist)"
+            )
+            continue
+
+        parent_note = notes_by_path[parent_path]
+        if parent_note.type == "short":
+            blockers.append(
+                f"{root_resolved}: invalid memory parent for {note.relative_path}: "
+                f"{note.parent} (parent target is a short memory note)"
+            )
+            continue
+        if parent_note.type != "long":
+            blockers.append(
+                f"{root_resolved}: invalid memory parent for {note.relative_path}: "
+                f"{note.parent} (parent target is not a long memory note)"
+            )
+            continue
+
+        parent_edges[note.relative_path] = parent_note.relative_path
+
+    return (*tuple(blockers), *_memory_parent_cycle_blockers(parent_edges))
+
+
 def _reachable_memory_files_for_init(
     root: Path,
     *,

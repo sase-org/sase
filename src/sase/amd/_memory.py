@@ -19,6 +19,7 @@ from .constants import AGENTS_FILENAME
 from .inline_memory import inline_memory_section, validate_short_memory_structure
 from sase.memory.notes import (
     AGENTS_PARENT,
+    GeneratedLongMemoryNote,
     MemoryNote,
     apply_memory_frontmatter,
     discover_memory_notes,
@@ -120,7 +121,7 @@ def _discover_memory_notes_excluding(
 
 def _long_memory_descriptions(
     root: Path,
-    generated_long_notes: Mapping[str, str],
+    generated_long_notes: Mapping[str, GeneratedLongMemoryNote],
     *,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
@@ -142,14 +143,19 @@ def _long_memory_descriptions(
         for note in notes
         if note.type == "long"
     }
-    descriptions.update(generated_long_notes)
+    descriptions.update(
+        {
+            relative_path: generated.description
+            for relative_path, generated in generated_long_notes.items()
+        }
+    )
     return descriptions
 
 
 def _long_memory_description_updates(
     root: Path,
     descriptions: dict[str, str],
-    generated_long_notes: Mapping[str, str],
+    generated_long_notes: Mapping[str, GeneratedLongMemoryNote],
     *,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
@@ -230,7 +236,7 @@ def _render_managed_agents(
     title: str,
     *,
     long_memory_descriptions: dict[str, str] | None = None,
-    generated_long_notes: Mapping[str, str] | None = None,
+    generated_long_notes: Mapping[str, GeneratedLongMemoryNote] | None = None,
     short_memory_bodies: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
@@ -245,15 +251,14 @@ def _render_managed_agents(
             excluded_note_paths=excluded_note_paths,
         )
     }
-    for relative_path, description in (generated_long_notes or {}).items():
-        if relative_path in notes_by_relative_path:
-            continue
+    for relative_path, generated in (generated_long_notes or {}).items():
+        existing = notes_by_relative_path.get(relative_path)
         notes_by_relative_path[relative_path] = MemoryNote(
             path=Path(relative_path),
             type="long",
-            parent=AGENTS_PARENT,
-            description=description,
-            body="",
+            parent=generated.parent,
+            description=generated.description,
+            body="" if existing is None else existing.body,
             frontmatter={},
             type_source="frontmatter",
             parent_source="frontmatter",
@@ -363,7 +368,7 @@ def plan_amd_memory_sync(
     *,
     derive_project_title: bool = False,
     generated_short_notes: Mapping[str, str] | None = None,
-    generated_long_notes: Mapping[str, str] | None = None,
+    generated_long_notes: Mapping[str, GeneratedLongMemoryNote] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
 ) -> AmdMemorySyncPlan:
@@ -372,8 +377,8 @@ def plan_amd_memory_sync(
     *generated_short_notes* maps a root-relative short-note path to its freshly
     generated body so the rendered ``AGENTS.md`` inlines current content (e.g.
     ``sase/memory/sase.md``) in a single pass instead of a stale on-disk copy.
-    *generated_long_notes* maps generated long-note paths to their descriptions
-    so a fresh root lists them in Tier 2 in that same pass.
+    *generated_long_notes* maps generated long-note paths to their metadata so a
+    fresh root lists top-level notes and omits child notes in Tier 2 in that same pass.
     """
     root = root or Path.cwd()
     title, title_error = resolve_amd_h1_title(
@@ -424,7 +429,7 @@ def plan_amd_memory_sync(
         root,
         title,
         long_memory_descriptions=descriptions,
-        generated_long_notes=generated_long_notes,
+        generated_long_notes=generated_long_notes or {},
         short_memory_bodies=short_memory_bodies,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
