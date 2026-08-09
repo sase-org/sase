@@ -8,6 +8,7 @@ from datetime import datetime
 import pytest
 
 import sase.vcs_log._render_console as console_mod
+from sase.core.vcs_log_facade import MergeSummary
 from sase.vcs_log._style import make_console
 from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
 from sase.vcs_log.render import build_timeline_commit
@@ -58,6 +59,24 @@ def test_pretty_day_groups_labels_and_order(
     assert "⚠ sase-telegram: no such checkout" in text
 
 
+def test_pretty_merge_free_output_keeps_existing_spacing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 7, 8, 15, 0)
+    local = {
+        300: datetime(2026, 7, 8, 14, 22),
+        200: datetime(2026, 7, 8, 13, 5),
+        100: datetime(2026, 7, 7, 18, 40),
+    }
+    _patch_clock(monkeypatch, local_now=lambda: now, to_local=lambda ts: local[ts])
+
+    text = _render(_result(), "pretty")
+
+    assert "◆ merge" not in text
+    assert "a1b2c3d  sase       fix(sdd): link store" in text
+    assert "9f8e7d6  sase-core  feat(core): parser" in text
+
+
 def test_pretty_reverse_uses_ascending_day_groups(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -92,6 +111,115 @@ def test_pretty_tags_suffix_before_author(
     assert "plain subject  · bryan" in text
 
 
+def test_pretty_marks_merges_and_condenses_pull_request_headline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry(
+                "sase",
+                "merge000",
+                300,
+                "Merge pull request #123 from org/feature",
+                body="Add the feature title here\n\nmore body",
+                parent_ids=("parent0000", "parent1111"),
+            ),
+            _entry("sase", "plain000", 200, "ordinary subject"),
+        ),
+        warnings=(),
+    )
+    monkeypatch.setattr(
+        console_mod,
+        "merge_summary",
+        lambda _subject, _body: MergeSummary(
+            kind="pull_request",
+            reference="123",
+            source="org/feature",
+            target=None,
+            headline="Add the feature title here",
+        ),
+    )
+    _patch_clock(
+        monkeypatch,
+        local_now=lambda: datetime(2026, 7, 8, 15, 0),
+        to_local=lambda ts: datetime(2026, 7, 8, 14, 22 if ts == 300 else 13, 5),
+    )
+
+    text = _render(result, "pretty")
+
+    assert "◆ merge" in text
+    assert "merge00  sase  ◆ #123  Add the feature title here" in text
+    assert "plain00  sase    ordinary subject" in text
+    assert "Merge pull request #123 from org/feature" not in text
+
+
+def test_pretty_keeps_raw_merge_subject_when_summary_is_not_safe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry(
+                "sase",
+                "merge000",
+                300,
+                "Merge something custom",
+                parent_ids=("parent0000", "parent1111"),
+            ),
+        ),
+        warnings=(),
+    )
+    monkeypatch.setattr(console_mod, "merge_summary", lambda _subject, _body: None)
+    _patch_clock(
+        monkeypatch,
+        local_now=lambda: datetime(2026, 7, 8, 15, 0),
+        to_local=lambda ts: datetime(2026, 7, 8, 14, 22),
+    )
+
+    text = _render(result, "pretty")
+
+    assert "merge00  sase  ◆ Merge something custom" in text
+
+
+def test_pretty_keeps_raw_pull_request_subject_without_headline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry(
+                "sase",
+                "merge000",
+                300,
+                "Merge pull request #123 from org/feature",
+                parent_ids=("parent0000", "parent1111"),
+            ),
+        ),
+        warnings=(),
+    )
+    monkeypatch.setattr(
+        console_mod,
+        "merge_summary",
+        lambda _subject, _body: MergeSummary(
+            kind="pull_request",
+            reference="123",
+            source="org/feature",
+            target=None,
+            headline=None,
+        ),
+    )
+    _patch_clock(
+        monkeypatch,
+        local_now=lambda: datetime(2026, 7, 8, 15, 0),
+        to_local=lambda ts: datetime(2026, 7, 8, 14, 22),
+    )
+
+    text = _render(result, "pretty")
+
+    assert "merge00  sase  ◆ Merge pull request #123 from org/feature" in text
+
+
 def test_pretty_tag_spans_use_semantic_chip_colors() -> None:
     entry = _entry(
         "sase",
@@ -123,6 +251,32 @@ def test_pretty_tag_spans_use_semantic_chip_colors() -> None:
     assert _styles_covering(line, "foo.md") == ["#5FAFFF"]
     assert _styles_covering(line, "#") == ["#FF8787"]
     assert _styles_covering(line, "412") == ["#FF8787"]
+
+
+def test_pretty_merge_marker_spans_use_merge_accent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = _entry(
+        "sase",
+        "merge000",
+        300,
+        "Merge something custom",
+        parent_ids=("parent0000", "parent1111"),
+    )
+    monkeypatch.setattr(console_mod, "merge_summary", lambda _subject, _body: None)
+
+    line = console_mod.commit_line(
+        entry,
+        {"sase": "#87D7FF"},
+        repo_width=len("sase"),
+        sha_width=7,
+        dt_local=datetime(2026, 7, 8, 14, 22),
+        show_tags=False,
+        merge_column=True,
+    )
+
+    assert "◆ Merge something custom" in line.plain
+    assert _styles_covering(line, "◆") == ["#D787FF"]
 
 
 def test_compact_timeline_row_is_one_line_and_ellipsizes(
@@ -169,6 +323,42 @@ def test_compact_timeline_row_is_one_line_and_ellipsizes(
     rendered_lines = out.getvalue().splitlines()
     assert len(rendered_lines) == 1
     assert rendered_lines[0].endswith("…")
+
+
+def test_timeline_row_marks_merge_when_visible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = _entry(
+        "sase",
+        "merge000",
+        300,
+        "Merge pull request #123 from org/feature",
+        body="Add the feature title here",
+        parent_ids=("parent0000", "parent1111"),
+    )
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(entry,),
+        warnings=(),
+    )
+    monkeypatch.setattr(
+        console_mod,
+        "merge_summary",
+        lambda _subject, _body: MergeSummary(
+            kind="pull_request",
+            reference="123",
+            source="org/feature",
+            target=None,
+            headline="Add the feature title here",
+        ),
+    )
+    _patch_clock(monkeypatch, to_local=lambda _ts: datetime(2026, 7, 8, 14, 22))
+
+    row = build_timeline_commit(entry, result, show_tags=False, show_author=False)
+
+    assert "◆ #123  Add the feature title here" in row.plain
+    assert row.no_wrap is True
+    assert row.overflow == "ellipsis"
 
 
 def test_pretty_filter_summary_and_empty_message(

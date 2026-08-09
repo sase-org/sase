@@ -49,6 +49,35 @@ def test_full_format_shows_body_and_metadata(
     assert "a1b2c3d · bryan <b@x> · 14:22 · 38m ago · synced" in text
 
 
+def test_full_format_marks_merge_and_lists_all_parents(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry(
+                "sase",
+                "merge000",
+                300,
+                "Merge pull request #123 from org/feature",
+                parent_ids=("parent0000", "parent1111", "parent2222"),
+            ),
+        ),
+        warnings=(),
+    )
+    _patch_clock(
+        monkeypatch,
+        local_now=lambda: datetime(2026, 7, 8, 15, 0),
+        to_local=lambda ts: datetime(2026, 7, 8, 14, 22),
+        relative_age=lambda dt: "38m ago",
+    )
+
+    text = _render(result, "full")
+
+    assert "◆ ▌ sase  Merge pull request #123 from org/feature" in text
+    assert "parents  parent0  parent1  parent2" in text
+
+
 def test_full_tags_line_and_footer_cleanup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

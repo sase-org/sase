@@ -29,6 +29,7 @@ def _entry(
     author: str = "bryan",
     body: str = "",
     presence: CommitPresence = "synced",
+    parent_ids: tuple[str, ...] = (),
 ) -> AggregatedCommitWire:
     return AggregatedCommitWire(
         repo=repo,
@@ -38,6 +39,7 @@ def _entry(
             author_name=author,
             author_email="b@x",
             timestamp=ts,
+            parent_ids=parent_ids,
             subject=subject,
             body=body,
             presence=presence,

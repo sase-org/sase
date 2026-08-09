@@ -144,6 +144,7 @@ def build_timeline_commit(
         (len(item.commit.short_id) for item in commits),
         default=len(entry.commit.short_id),
     )
+    merge_column = any(item.commit.is_merge for item in commits)
     line = commit_line(
         entry,
         repo_colors(result.repos),
@@ -152,6 +153,7 @@ def build_timeline_commit(
         to_local(entry.commit.timestamp),
         show_tags,
         show_author,
+        merge_column=merge_column,
     )
     line.no_wrap = True
     line.overflow = "ellipsis"

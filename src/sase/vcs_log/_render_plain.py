@@ -6,8 +6,10 @@ redirection and machine consumption.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 import json
 
+from sase.core.vcs_log_facade import merge_summary
 from sase.core.vcs_log_wire import AggregatedCommitWire
 from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
 from sase.vcs_log._render_util import presence_glyph
@@ -38,6 +40,7 @@ def render_json(
             "since": filters.since,
             "until": filters.until,
             "authors": list(filters.authors),
+            "merges": filters.merges,
             "reverse": reverse,
         },
         "warnings": list(result.warnings),
@@ -53,6 +56,9 @@ def _commit_json(entry: AggregatedCommitWire, *, show_tags: bool) -> dict[str, o
         "author_name": entry.commit.author_name,
         "author_email": entry.commit.author_email,
         "timestamp": entry.commit.timestamp,
+        "parent_ids": list(entry.commit.parent_ids),
+        "is_merge": entry.commit.is_merge,
+        "merge": _merge_json(entry),
         "subject": entry.commit.subject,
         "presence": entry.commit.presence,
     }
@@ -87,14 +93,28 @@ def render_oneline(
         return ""
     repo_width = max(len(entry.repo) for entry in commits)
     sha_width = max(len(entry.commit.short_id) for entry in commits)
+    merge_column = any(entry.commit.is_merge for entry in commits)
     lines = [
         f"{presence_glyph(entry.commit.presence)} "
         f"{entry.commit.short_id.ljust(sha_width)} "
-        f"{entry.repo.ljust(repo_width)} {entry.commit.subject}"
+        f"{entry.repo.ljust(repo_width)} "
+        f"{_oneline_merge_marker(entry) if merge_column else ''}"
+        f"{entry.commit.subject}"
         f"{_oneline_tag_suffix(entry) if show_tags else ''}"
         for entry in commits
     ]
     return "\n".join(lines) + "\n"
+
+
+def _merge_json(entry: AggregatedCommitWire) -> dict[str, object] | None:
+    if not entry.commit.is_merge:
+        return None
+    summary = merge_summary(entry.commit.subject, entry.commit.body)
+    return asdict(summary) if summary is not None else None
+
+
+def _oneline_merge_marker(entry: AggregatedCommitWire) -> str:
+    return "◆ " if entry.commit.is_merge else "  "
 
 
 def _oneline_tag_suffix(entry: AggregatedCommitWire) -> str:

@@ -6,6 +6,8 @@ import json
 
 import pytest
 
+import sase.vcs_log._render_plain as plain_mod
+from sase.core.vcs_log_facade import MergeSummary
 from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
 
 from ._vcs_log_render_helpers import (
@@ -22,6 +24,28 @@ def test_oneline_golden() -> None:
         "↑ a1b2c3d sase      fix(sdd): link store\n"
         "↓ 9f8e7d6 sase-core feat(core): parser\n"
         "● 4c5d6e7 sase      docs: notes\n"
+    )
+
+
+def test_oneline_marks_merges_when_present() -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry(
+                "sase",
+                "merge000",
+                300,
+                "Merge pull request #123 from org/feature",
+                parent_ids=("parent0000", "parent1111"),
+            ),
+            _entry("sase", "plain000", 200, "ordinary subject"),
+        ),
+        warnings=(),
+    )
+
+    assert _render(result, "oneline") == (
+        "● merge00 sase ◆ Merge pull request #123 from org/feature\n"
+        "● plain00 sase   ordinary subject\n"
     )
 
 
@@ -57,6 +81,9 @@ def test_json_shape_and_ordering() -> None:
         "author_email": "b@x",
         "author_name": "bryan",
         "full_id": "a1b2c3d4",
+        "is_merge": False,
+        "merge": None,
+        "parent_ids": [],
         "presence": "local_only",
         "repo": "sase",
         "sase_tags": {},
@@ -68,6 +95,7 @@ def test_json_shape_and_ordering() -> None:
         "all": False,
         "authors": [],
         "limit": 40,
+        "merges": "hide",
         "reverse": False,
         "since": None,
         "until": None,
@@ -122,6 +150,7 @@ def test_json_empty_result() -> None:
             "all": False,
             "authors": [],
             "limit": 40,
+            "merges": "hide",
             "reverse": False,
             "since": None,
             "until": None,
@@ -151,9 +180,58 @@ def test_json_reverse_and_query_filters() -> None:
         "all": False,
         "authors": ["bryan"],
         "limit": 0,
+        "merges": "hide",
         "reverse": True,
         "since": 100,
         "until": 300,
+    }
+
+
+def test_json_query_records_merge_mode() -> None:
+    payload = json.loads(
+        _render(_result(), "json", filters=CommitFilters(merges="only"))
+    )
+
+    assert payload["query"]["merges"] == "only"
+
+
+def test_json_includes_merge_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry(
+                "sase",
+                "merge000",
+                300,
+                "Merge pull request #123 from org/feature",
+                body="Add the feature title here",
+                parent_ids=("parent0000", "parent1111"),
+            ),
+        ),
+        warnings=(),
+    )
+    monkeypatch.setattr(
+        plain_mod,
+        "merge_summary",
+        lambda _subject, _body: MergeSummary(
+            kind="pull_request",
+            reference="123",
+            source="org/feature",
+            target=None,
+            headline="Add the feature title here",
+        ),
+    )
+
+    payload = json.loads(_render(result, "json"))
+
+    assert payload["commits"][0]["parent_ids"] == ["parent0000", "parent1111"]
+    assert payload["commits"][0]["is_merge"] is True
+    assert payload["commits"][0]["merge"] == {
+        "headline": "Add the feature title here",
+        "kind": "pull_request",
+        "reference": "123",
+        "source": "org/feature",
+        "target": None,
     }
 
 

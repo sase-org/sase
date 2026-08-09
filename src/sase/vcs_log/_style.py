@@ -16,6 +16,9 @@ GOLD = "#D7AF5F"
 INCOMING = "#5FD7FF"
 UNPUSHED = "#D7AF5F"
 
+#: Accent for merge-commit markers. Distinct from every REPO_PALETTE entry.
+MERGE = "#D787FF"
+
 #: Deterministic per-repo accent palette, cycled in resolved-repo order
 #: (primary first, then linked sorted by name, then sidecars).
 REPO_PALETTE = (
@@ -59,6 +62,7 @@ def repo_colors(repos: Iterable[Any]) -> dict[str, str]:
 __all__ = [
     "GOLD",
     "INCOMING",
+    "MERGE",
     "REPO_PALETTE",
     "UNPUSHED",
     "make_console",

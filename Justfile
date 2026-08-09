@@ -291,7 +291,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-i8(MergeSummary)" \
-        --epic-symbol "sase-i8(merge_summary)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
