@@ -9,8 +9,8 @@ Each non-README note declares its tier in YAML frontmatter:
   `## Tier 1 (short-term) Memory` block of the managed `AGENTS.md` with generated note
   and subsection numbers (e.g. `### 1. Build & Run Commands (build_and_run)` and
   `#### 1.1 IMPORTANT: Two-Speed Verification`) when the root opts in with project-local
-  `is_sase_managed: true`. `amd_h1_title` optionally customizes the generated title. The
-  retired `memory.enabled` key no longer authorizes management.
+  `is_sase_managed: true`. `memory.h1_title` optionally customizes the generated title.
+  The retired `memory.enabled` key no longer authorizes management.
 - **Long-term memory** uses `type: long`. It is reference context, requires
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
   another long note's `## Children` section.

@@ -4331,13 +4331,13 @@ from the active workspace project when the prompt does not select one.
 #### Glossary terms
 
 Project glossary entries are authored in `sase/sase.yml`; see
-[glossary configuration](configuration.md#glossary). ACE highlights matched glossary
-phrases in the prompt after the catalog is warm, rendering them bold, in the theme
-accent, and underlined to mark a term you can preview with `K` or jump to with `Ctrl+]`.
-Matching skips inline code and fenced code and uses the shared longest-match rules from
-the xprompt LSP. Loading, validation, and matcher compilation run off the render path
-and are cached per project/config signature. Config edits, project changes, and watched
-`sase.yml` changes invalidate the cache.
+[glossary configuration](configuration.md#memoryglossary). ACE highlights matched
+glossary phrases in the prompt after the catalog is warm, rendering them bold, in the
+theme accent, and underlined to mark a term you can preview with `K` or jump to with
+`Ctrl+]`. Matching skips inline code and fenced code and uses the shared longest-match
+rules from the xprompt LSP. Loading, validation, and matcher compilation run off the
+render path and are cached per project/config signature. Config edits, project changes,
+and watched `sase.yml` changes invalidate the cache.
 
 `K` on a glossary phrase opens the Markdown preview panel with the canonical term,
 definition, configured aliases, project, and source path. `Ctrl+]` opens the

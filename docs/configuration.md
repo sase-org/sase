@@ -13,7 +13,8 @@ sections, environment variables, and CLI flags.
   - [Updates tab](#updates-tab)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
-  - [amd_h1_title](#amd_h1_title)
+  - [memory.h1_title](#memoryh1_title)
+  - [memory.glossary](#memoryglossary)
   - [generated templates](#generated-templates)
   - [is_sase_managed](#is_sase_managed)
   - [id](#id)
@@ -432,21 +433,24 @@ Source: `src/sase/config/core.py`
 
 ## Configuration Sections
 
-### amd_h1_title
+### memory.h1_title
 
 Optionally customizes the Markdown H1 title of a generated managed `AGENTS.md`.
 
 ```yaml
-amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructions" # default: null
+memory:
+  h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructions" # default: null
 ```
 
-| Field          | Type           | Default | Description                                                                             |
-| -------------- | -------------- | ------- | --------------------------------------------------------------------------------------- |
-| `amd_h1_title` | string \| null | `null`  | H1 title used by the `sase memory init` `AGENTS.md` generator when enabled for a scope. |
+| Field             | Type           | Default | Description                                                                             |
+| ----------------- | -------------- | ------- | --------------------------------------------------------------------------------------- |
+| `memory.h1_title` | string \| null | `null`  | H1 title used by the `sase memory init` `AGENTS.md` generator when enabled for a scope. |
 
 For ordinary project roots, `is_sase_managed: true` in that root's own `sase/sase.yml`
 is the authorization switch. A managed project with no title derives
-`<project> - Agent Instructions`; `amd_h1_title` alone does not opt a project in.
+`<project> - Agent Instructions`; `memory.h1_title` alone does not opt a project in. The
+legacy top-level `amd_h1_title` key is deprecated but still read as an alias; when both
+paths appear in one file, `memory.h1_title` wins.
 
 Home roots are the exception. For the live home root, user config from
 `~/.config/sase/sase.yml` and `~/.config/sase/sase_*.yml` can provide the home
@@ -489,7 +493,7 @@ deployment behavior.
 
 Source: `src/sase/amd/_template.py`, `src/sase/main/init_memory/root_rendering.py`
 
-### glossary
+### memory.glossary
 
 Defines project-local domain terms in the repository's canonical `sase/sase.yml`.
 Defaults, plugin config, user config, and overlays cannot provide glossary entries; the
@@ -497,28 +501,31 @@ config inventory reports those scopes as invalid so a global glossary cannot lea
 another project.
 
 ```yaml
-glossary:
-  Agent Clan:
-    definition: >-
-      A named, rootless container for agents that run in parallel.
+memory:
+  glossary:
+    Agent Clan:
+      definition: >-
+        A named, rootless container for agents that run in parallel.
 ```
 
-| Field        | Type              | Default | Description                                                                                                 |
-| ------------ | ----------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
-| `glossary`   | object \| omitted | omitted | Mapping from canonical displayed term to one glossary entry.                                                |
-| `definition` | string            | n/a     | Required nonblank Markdown definition, generated into project memory.                                       |
-| `aliases`    | string[]          | `[]`    | Optional single-line aliases matched after the canonical term itself; derivable plurals need not be listed. |
+| Field             | Type              | Default | Description                                                                                                 |
+| ----------------- | ----------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `memory.glossary` | object \| omitted | omitted | Mapping from canonical displayed term to one glossary entry.                                                |
+| `definition`      | string            | n/a     | Required nonblank Markdown definition, generated into project memory.                                       |
+| `aliases`         | string[]          | `[]`    | Optional single-line aliases matched after the canonical term itself; derivable plurals need not be listed. |
 
-Run `sase memory init` after editing glossary entries. A nonempty glossary generates
-`sase/memory/glossary.md` with `sase_generated: glossary` frontmatter, adds that short
-note to `sase/memory/README.md`, and inlines it into `AGENTS.md` plus the provider
-instruction copies. The plural of the term and of each alias is matched automatically.
-Derivable plurals are omitted from the generated `ALIASES: <comma-separated>` line, and
-the line is omitted entirely when no configured aliases remain to display.
-`sase memory init --check` verifies that the generated glossary and agent instructions
-are current. If an existing `sase/memory/glossary.md` lacks the generated marker,
-initialization refuses to overwrite it; migrate the definitions into `sase/sase.yml` or
-remove the manual note intentionally before rerunning the command.
+The legacy top-level `glossary` key is deprecated but still read as an alias; when both
+paths appear in one file, `memory.glossary` wins. Run `sase memory init` after editing
+glossary entries. A nonempty glossary generates `sase/memory/glossary.md` with
+`sase_generated: glossary` frontmatter, adds that short note to `sase/memory/README.md`,
+and inlines it into `AGENTS.md` plus the provider instruction copies. The plural of the
+term and of each alias is matched automatically. Derivable plurals are omitted from the
+generated `ALIASES: <comma-separated>` line, and the line is omitted entirely when no
+configured aliases remain to display. `sase memory init --check` verifies that the
+generated glossary and agent instructions are current. If an existing
+`sase/memory/glossary.md` lacks the generated marker, initialization refuses to
+overwrite it; migrate the definitions into `memory.glossary` entries in `sase/sase.yml`
+or remove the manual note intentionally before rerunning the command.
 
 The canonical term is always the first effective alias, followed by configured aliases
 and accepted derived plurals. Matching is case-insensitive, Unicode-aware, bounded by
@@ -3443,7 +3450,7 @@ planner (which owns agent-document initialization) only generates managed projec
 `AGENTS.md` from bare `sase init` when the current project's own `sase/sase.yml` sets
 `is_sase_managed: true`. The SDD planner uses that same local marker and skips unmanaged
 repositories before provider work. Neither planner infers project ownership from
-`amd_h1_title`, existing memory notes, lifecycle state, or merged configuration.
+`memory.h1_title`, existing memory notes, lifecycle state, or merged configuration.
 
 `--all` applies that coordinator to every registered enabled main project from its
 recorded primary workspace, even when the command starts outside a project. It excludes
@@ -3502,8 +3509,8 @@ sase memory log --id <read-id>
 ### `sase memory init`
 
 Creates or refreshes home memory and memory for SASE-managed projects. Project ownership
-requires `is_sase_managed: true` in the project's own `sase/sase.yml`; `amd_h1_title` is
-optional title customization, with a stable derived title otherwise. The retired
+requires `is_sase_managed: true` in the project's own `sase/sase.yml`; `memory.h1_title`
+is optional title customization, with a stable derived title otherwise. The retired
 `memory.enabled` key does not authorize management. It never creates or alters an
 unmanaged project's root `AGENTS.md`. Independently, it overwrites each provider
 instruction file (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a
@@ -3518,8 +3525,8 @@ project-side files. `sase init memory` is a compatibility alias for this command
 Generated repository memory requires agents to use `/sase_repo` before reading or
 modifying any repo outside their own workspace checkout. The rule covers linked repos,
 sidecars, different SASE projects, and unlinked GitHub repos even when no linked
-repositories are configured. When a managed project has a nonempty `glossary` section,
-the same run also regenerates `sase/memory/glossary.md`, lists it in
+repositories are configured. When a managed project has a nonempty `memory.glossary`
+section, the same run also regenerates `sase/memory/glossary.md`, lists it in
 `sase/memory/README.md`, and inlines the fresh definition text into `AGENTS.md`;
 `sase memory init --check` reports drift if any of those generated files are stale.
 

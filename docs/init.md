@@ -180,7 +180,7 @@ lifecycle state and is independent of `sase project enable`.
   contains `is_sase_managed: true`.
 - Home memory under `~/sase/memory/`, or under
   `~/.local/share/chezmoi/home/sase/memory/` when `use_chezmoi: true`.
-- A managed project `AGENTS.md` only with that same explicit opt-in. `amd_h1_title`
+- A managed project `AGENTS.md` only with that same explicit opt-in. `memory.h1_title`
   customizes its H1; otherwise SASE derives the stable `<project> - Agent Instructions`
   title.
 - Provider instruction files `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`;
@@ -198,20 +198,20 @@ use convention-based template files in the SASE user-config directory (or its ch
 source counterpart). Template variables and validation rules are listed in the
 [generated templates configuration](configuration.md#generated-templates).
 
-A SASE-managed project's `glossary` section in `sase/sase.yml` is also rendered during
-memory initialization. `sase memory init` validates the project-local entries, writes a
-managed `sase/memory/glossary.md` note with `sase_generated: glossary` frontmatter, adds
-it to the memory README, and uses the fresh body while composing `AGENTS.md` and the
-provider instruction files. An empty or absent glossary produces no empty note. If a
-manual `sase/memory/glossary.md` already exists without the generated marker, the
-initializer stops with migration guidance instead of overwriting it. See
-[glossary configuration](configuration.md#glossary) for the schema, matching behavior,
-and collision rules.
+A SASE-managed project's `memory.glossary` section in `sase/sase.yml` is also rendered
+during memory initialization. `sase memory init` validates the project-local entries,
+writes a managed `sase/memory/glossary.md` note with `sase_generated: glossary`
+frontmatter, adds it to the memory README, and uses the fresh body while composing
+`AGENTS.md` and the provider instruction files. An empty or absent glossary produces no
+empty note. If a manual `sase/memory/glossary.md` already exists without the generated
+marker, the initializer stops with migration guidance instead of overwriting it. See
+[glossary configuration](configuration.md#memoryglossary) for the schema, matching
+behavior, and collision rules.
 
 For a SASE-managed project, `sase memory init` inlines each short-term note into Tier 1
 with generated heading numbers, renders Tier 2 from long-note descriptions, adds missing
 canonical frontmatter, and validates reachability. Missing, false, merged-global, or
-`amd_h1_title`-only configuration does not authorize any project memory or root
+`memory.h1_title`-only configuration does not authorize any project memory or root
 `AGENTS.md` creation, refresh, or validation. The retired `memory.enabled` key is not an
 alias. Existing projects must replace it once with:
 
