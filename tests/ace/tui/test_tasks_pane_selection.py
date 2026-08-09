@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from textual.widgets import OptionList
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 
 from tests.ace.tui._tasks_pane_helpers import (
@@ -42,6 +43,7 @@ async def test_tasks_loading_echo_preserves_requested_store_bookmark(
 
     async with TasksTestApp(queue(second, first)).run_test() as pilot:
         _, pane = await open_tasks_pane(pilot, session_state=state)
+        await wait_for(pilot, lambda: not pane._store_load_pending)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
         state.tasks.task.record("store-wanted", 1)
@@ -85,6 +87,7 @@ async def test_tasks_stale_rebuild_echo_cannot_record_neighbor(
 
     async with TasksTestApp(queue(beta, alpha)).run_test() as pilot:
         _, pane = await open_tasks_pane(pilot, session_state=state)
+        await wait_for(pilot, lambda: not pane._store_load_pending)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
         pane._store_loaded_once = True
@@ -118,6 +121,7 @@ async def test_tasks_bookmark_rekeys_when_durable_id_is_minted(
 
     async with TasksTestApp(queue(task_info)).run_test() as pilot:
         _, pane = await open_tasks_pane(pilot, session_state=state)
+        await wait_for(pilot, lambda: not pane._store_load_pending)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
 
@@ -153,6 +157,7 @@ async def test_tasks_authoritative_identity_miss_uses_nearest_row_fallback(
 
     async with TasksTestApp(queue(beta, alpha)).run_test() as pilot:
         _, pane = await open_tasks_pane(pilot, session_state=state)
+        await wait_for(pilot, lambda: not pane._store_load_pending)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
         pane._store_loaded_once = True
@@ -191,6 +196,7 @@ async def test_tasks_provisional_highlight_echo_cannot_promote_stand_in(
 
     async with TasksTestApp(queue(second, first)).run_test() as pilot:
         _, pane = await open_tasks_pane(pilot, session_state=state)
+        await wait_for(pilot, lambda: not pane._store_load_pending)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
         state.tasks.task.record("store-wanted", 1)
