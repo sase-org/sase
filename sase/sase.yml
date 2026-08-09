@@ -17,6 +17,7 @@ memory:
         pure container, so a family always has at least two members.
     Agent Hood:
       aliases:
+        - hood
         - agent neighborhood
       definition: >-
         An agent hood is a group of agents that are all named with the same `<name>.`
