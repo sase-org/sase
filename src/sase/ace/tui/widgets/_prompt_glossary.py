@@ -142,7 +142,7 @@ class PromptGlossaryMixin(_MixinBase):
             icon="G",
             title=entry.term,
             source_path=_glossary_source_path(catalog, entry),
-            content=_glossary_preview_markdown(catalog, span, entry),
+            content=_glossary_preview_markdown(catalog, entry),
             lexer="markdown",
             reference=span.matched_text,
             default_view="rendered",
@@ -398,7 +398,6 @@ def _entry_for_span(
 
 def _glossary_preview_markdown(
     catalog: EditorGlossaryCatalog,
-    span: GlossarySpan,
     entry: GlossaryEntry,
 ) -> str:
     lines = [
@@ -408,17 +407,15 @@ def _glossary_preview_markdown(
     ]
     aliases = tuple(alias for alias in entry.configured_aliases if alias)
     if aliases:
-        lines.extend(("", f"Aliases: {', '.join(aliases)}"))
+        lines.extend(("", f"ALIASES: {', '.join(aliases)}"))
     project = getattr(catalog.project, "name", None) or getattr(
         catalog.project, "key", ""
     )
     if project:
-        lines.extend(("", f"Project: {project}"))
+        lines.extend(("", f"PROJECT: {project}"))
     source = _glossary_source_display(catalog, entry)
     if source:
-        lines.extend(("", f"Source: `{source}`"))
-    if span.matched_text and span.matched_text != entry.term:
-        lines.extend(("", f"Matched: {span.matched_text}"))
+        lines.extend(("", f"SOURCE: `{source}`"))
     return "\n".join(lines).rstrip() + "\n"
 
 

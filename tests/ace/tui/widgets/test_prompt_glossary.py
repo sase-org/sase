@@ -498,10 +498,33 @@ async def test_k_on_glossary_term_pushes_markdown_preview(
         assert payload.source_path == str(tmp_path / "sase.yml")
         assert "# Agent Clan" in payload.content
         assert "A named, rootless container for coordinated agents." in payload.content
-        assert "Aliases: clan, agent clans" in payload.content
-        assert "Project: sase" in payload.content
+        assert "ALIASES: clan, agent clans" in payload.content
+        assert "Aliases:" not in payload.content
+        assert "PROJECT: sase" in payload.content
+        assert "SOURCE:" in payload.content
         assert str(tmp_path / "sase.yml") in payload.content
         assert page.ta._prompt_preview_request_id == 0
+
+
+async def test_k_on_glossary_alias_keeps_reference_without_matched_field(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    text = "Ask clan to coordinate"
+    catalog = _catalog_for_text(text, tmp_path, "clan", entry_term="Agent Clan")
+
+    async with PromptPage(text, cursor=(0, 6), size=(80, 24)) as page:
+        _install_warm_glossary(monkeypatch, page.ta.app, catalog)
+
+        await page.press("K")
+        await _wait_for(page, lambda: _top_is_preview(page))
+
+        modal = page.ta.app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        payload = modal._payload
+        assert payload.title == "Agent Clan"
+        assert payload.reference == "clan"
+        assert "Matched:" not in payload.content
 
 
 async def test_k_on_cold_glossary_defers_without_word_lookup(
@@ -701,8 +724,10 @@ def _catalog_for_text(
     tmp_path: Path,
     term: str,
     *,
+    entry_term: str | None = None,
     occurrence_count: int = 1,
 ) -> EditorGlossaryCatalog:
+    entry_term = entry_term or term
     spans = tuple(
         _span_wire(text, term, start, start + len(term))
         for start in (_occurrence_offsets(text, term, occurrence_count))
@@ -710,8 +735,8 @@ def _catalog_for_text(
     config_path = tmp_path / "sase.yml"
     entry = GlossaryEntry(
         index=0,
-        term=term,
-        normalized_term=term.casefold(),
+        term=entry_term,
+        normalized_term=entry_term.casefold(),
         definition="A named, rootless container for coordinated agents.",
         configured_aliases=("clan", "agent clans"),
         display_aliases=("clan",),
