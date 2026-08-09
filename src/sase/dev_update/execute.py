@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import subprocess
+import time
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from sase.dev_update.diffstat import parse_git_numstat
@@ -35,37 +37,49 @@ _COMMIT_LOG_FORMAT = "%h%x1f%s%x1e"
 
 
 def execute_dev_update(
-    plan: DevUpdatePlan, *, run: DevCommandRunner
+    plan: DevUpdatePlan,
+    *,
+    run: DevCommandRunner,
+    clock: Callable[[], float] = time.monotonic,
 ) -> DevUpdateResult:
     """Execute ``plan`` with a fully injected subprocess runner."""
+    start = clock()
     commands: list[DevExecutedCommand] = []
+
+    def finish(result: DevUpdateResult) -> DevUpdateResult:
+        return replace(result, duration_seconds=max(0.0, clock() - start))
+
     # Reconcile steps can exist without actionable checkouts (for example a
     # dev install restoring the editable sase-core-rs build over a published
     # wheel), so an empty root set alone does not make the plan a no-op.
     if not plan.actionable_roots and not plan.reconcile_steps:
-        return DevUpdateResult(
-            changed=False,
-            outcomes=_skipped_outcomes(plan),
-            commands=(),
+        return finish(
+            DevUpdateResult(
+                changed=False,
+                outcomes=_skipped_outcomes(plan),
+                commands=(),
+            )
         )
 
-    fetch_failure = _fetch_actionable_roots(plan.actionable_roots, run, commands)
+    fetch_failure = _fetch_actionable_roots(plan.actionable_roots, run, commands, clock)
     if fetch_failure is not None:
-        return _failed_result(plan, fetch_failure, commands, changed=False)
+        return finish(_failed_result(plan, fetch_failure, commands, changed=False))
 
     preflight_failure = _preflight_actionable_roots(
-        plan.actionable_roots, run, commands
+        plan.actionable_roots, run, commands, clock
     )
     if preflight_failure is not None:
-        return _failed_result(plan, preflight_failure, commands, changed=False)
+        return finish(_failed_result(plan, preflight_failure, commands, changed=False))
 
     with code_swap_writer_lock() as lock:
         if not lock.acquired:
-            return _failed_result(
-                plan,
-                _code_swap_deferred_reason(lock.blocked_by),
-                commands,
-                changed=False,
+            return finish(
+                _failed_result(
+                    plan,
+                    _code_swap_deferred_reason(lock.blocked_by),
+                    commands,
+                    changed=False,
+                )
             )
 
         (
@@ -73,23 +87,31 @@ def execute_dev_update(
             merged_any,
             root_diffstats,
             root_commits,
-        ) = _merge_actionable_roots(plan.actionable_roots, run, commands)
+        ) = _merge_actionable_roots(plan.actionable_roots, run, commands, clock)
         if merge_failure is not None:
-            return _failed_result(plan, merge_failure, commands, changed=merged_any)
-
-        reconcile_failure = _run_reconcile_steps(plan.reconcile_steps, run, commands)
-        if reconcile_failure is not None:
-            return _failed_result(
-                plan,
-                reconcile_failure,
-                commands,
-                changed=merged_any or bool(commands),
+            return finish(
+                _failed_result(plan, merge_failure, commands, changed=merged_any)
             )
 
-        return DevUpdateResult(
-            changed=True,
-            outcomes=_success_outcomes(plan, root_diffstats, root_commits),
-            commands=tuple(commands),
+        reconcile_failure = _run_reconcile_steps(
+            plan.reconcile_steps, run, commands, clock
+        )
+        if reconcile_failure is not None:
+            return finish(
+                _failed_result(
+                    plan,
+                    reconcile_failure,
+                    commands,
+                    changed=merged_any or bool(commands),
+                )
+            )
+
+        return finish(
+            DevUpdateResult(
+                changed=True,
+                outcomes=_success_outcomes(plan, root_diffstats, root_commits),
+                commands=tuple(commands),
+            )
         )
 
 
@@ -151,12 +173,15 @@ def _fetch_actionable_roots(
     roots: tuple[DevUpdateRootPlan, ...],
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
 ) -> str | None:
     for root in roots:
         try:
             fetch_git_upstream(
                 _root_status_for_fetch(root),
-                run_git_fn=_git_text_runner(run, commands, label="git fetch"),
+                run_git_fn=_git_text_runner(
+                    run, commands, label="git fetch", clock=clock
+                ),
             )
         except _GitCommandFailure as exc:
             return str(exc)
@@ -167,6 +192,7 @@ def _preflight_actionable_roots(
     roots: tuple[DevUpdateRootPlan, ...],
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
 ) -> str | None:
     for root in roots:
         dirty = _run(
@@ -175,6 +201,7 @@ def _preflight_actionable_roots(
             cwd=None,
             label="git status",
             commands=commands,
+            clock=clock,
         )
         if dirty.returncode != 0:
             return _command_failure("git status failed", dirty)
@@ -197,6 +224,7 @@ def _preflight_actionable_roots(
             cwd=None,
             label="git preflight ancestry",
             commands=commands,
+            clock=clock,
         )
         if rev_list.returncode != 0:
             return _command_failure("git ancestry preflight failed", rev_list)
@@ -216,6 +244,7 @@ def _merge_actionable_roots(
     roots: tuple[DevUpdateRootPlan, ...],
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
 ) -> tuple[
     str | None,
     bool,
@@ -233,23 +262,26 @@ def _merge_actionable_roots(
                 root_diffstats,
                 root_commits,
             )
-        old_head = _best_effort_head(root.git_root, run, commands)
+        old_head = _best_effort_head(root.git_root, run, commands, clock)
         try:
             merge_git_ff_only(
                 Path(root.git_root),
                 root.upstream,
-                run_git_fn=_git_text_runner(run, commands, label="git merge --ff-only"),
+                run_git_fn=_git_text_runner(
+                    run, commands, label="git merge --ff-only", clock=clock
+                ),
             )
         except _GitCommandFailure as exc:
             return str(exc), merged_any, root_diffstats, root_commits
         merged_any = True
-        new_head = _best_effort_head(root.git_root, run, commands)
+        new_head = _best_effort_head(root.git_root, run, commands, clock)
         root_diffstats[root.git_root] = _best_effort_diffstat(
             root.git_root,
             old_head,
             new_head,
             run,
             commands,
+            clock,
         )
         root_commits[root.git_root] = _best_effort_commit_log(
             root.git_root,
@@ -257,6 +289,7 @@ def _merge_actionable_roots(
             new_head,
             run,
             commands,
+            clock,
             limit=DEV_UPDATE_COMMIT_LOG_CAPTURE_LIMIT,
         )
     return None, merged_any, root_diffstats, root_commits
@@ -266,6 +299,7 @@ def _run_reconcile_steps(
     steps: tuple[DevReconcileStep, ...],
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
 ) -> str | None:
     pending_failure: str | None = None
     for index, step in enumerate(steps):
@@ -274,6 +308,7 @@ def _run_reconcile_steps(
                 step,
                 run,
                 commands,
+                clock,
                 prior_failure=pending_failure,
             )
             if health_failure is not None:
@@ -294,6 +329,7 @@ def _run_reconcile_steps(
             cwd=Path(step.cwd) if step.cwd else None,
             label=step.label,
             commands=commands,
+            clock=clock,
         )
         if result.returncode != 0:
             failure = _command_failure(f"{step.label} failed", result)
@@ -316,6 +352,7 @@ def _run_rust_health_check_step(
     step: DevReconcileStep,
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
     *,
     prior_failure: str | None,
 ) -> str | None:
@@ -329,6 +366,7 @@ def _run_rust_health_check_step(
         cwd=Path(step.cwd) if step.cwd else None,
         label=step.label,
         commands=commands,
+        clock=clock,
     )
     if health.returncode == 0:
         if prior_failure is None:
@@ -351,6 +389,7 @@ def _run_rust_health_check_step(
         cwd=Path(step.repair_cwd) if step.repair_cwd else None,
         label=repair_label,
         commands=commands,
+        clock=clock,
     )
     if repair.returncode != 0:
         repair_failure = _command_failure(f"{repair_label} failed", repair)
@@ -362,6 +401,7 @@ def _run_rust_health_check_step(
         cwd=Path(step.cwd) if step.cwd else None,
         label=f"{step.label} after repair",
         commands=commands,
+        clock=clock,
     )
     if repaired_health.returncode != 0:
         repaired_failure = _command_failure(
@@ -397,14 +437,18 @@ def _run(
     cwd: Path | None,
     label: str,
     commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
 ) -> DevCommandResult:
+    start = clock()
     result = run(argv, cwd=cwd)
+    duration = max(0.0, clock() - start)
     commands.append(
         DevExecutedCommand(
             label=label,
             command=tuple(argv),
             cwd=str(cwd) if cwd else None,
             returncode=result.returncode,
+            duration_seconds=duration,
             stdout=result.stdout,
             stderr=result.stderr,
         )
@@ -453,6 +497,7 @@ def _git_text_runner(
     commands: list[DevExecutedCommand],
     *,
     label: str,
+    clock: Callable[[], float],
 ) -> Callable[..., str]:
     def runner(root: Path, *args: str, **_kwargs: object) -> str:
         result = _run(
@@ -461,6 +506,7 @@ def _git_text_runner(
             cwd=None,
             label=label,
             commands=commands,
+            clock=clock,
         )
         if result.returncode != 0:
             raise _GitCommandFailure(_command_failure(f"{label} failed", result))
@@ -473,6 +519,7 @@ def _best_effort_head(
     git_root: str,
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
 ) -> str | None:
     result = _run(
         run,
@@ -480,6 +527,7 @@ def _best_effort_head(
         cwd=None,
         label="git rev-parse HEAD",
         commands=commands,
+        clock=clock,
     )
     if result.returncode != 0:
         return None
@@ -493,6 +541,7 @@ def _best_effort_diffstat(
     new_head: str | None,
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
 ) -> RepoDiffStat | None:
     if old_head is None or new_head is None:
         return None
@@ -502,6 +551,7 @@ def _best_effort_diffstat(
         cwd=None,
         label="git diff --numstat",
         commands=commands,
+        clock=clock,
     )
     if result.returncode != 0:
         return None
@@ -514,6 +564,7 @@ def _best_effort_commit_log(
     new_head: str | None,
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
     *,
     limit: int,
 ) -> RepoCommitLog | None:
@@ -526,6 +577,7 @@ def _best_effort_commit_log(
         cwd=None,
         label="git rev-list --count",
         commands=commands,
+        clock=clock,
     )
     if count_result.returncode != 0:
         return None
@@ -553,6 +605,7 @@ def _best_effort_commit_log(
             cwd=None,
             label="git log applied commits",
             commands=commands,
+            clock=clock,
         )
         if log_result.returncode != 0:
             return None

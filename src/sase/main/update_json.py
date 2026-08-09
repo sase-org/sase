@@ -133,6 +133,7 @@ def _dev_result_json(
         payload.update(
             {
                 "changed": result.changed,
+                "duration_seconds": round(result.duration_seconds, 3),
                 "counts": dev_counts(result),
                 "packages": [_dev_outcome_json(outcome) for outcome in result.outcomes],
                 "commands": [_dev_command_json(command) for command in result.commands],
@@ -205,6 +206,7 @@ def _dev_command_json(command: Any) -> dict[str, Any]:
         "command": list(command.command),
         "cwd": command.cwd,
         "returncode": command.returncode,
+        "duration_seconds": round(float(command.duration_seconds or 0.0), 3),
         "stdout": command.stdout,
         "stderr": command.stderr,
     }

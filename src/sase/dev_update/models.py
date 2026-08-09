@@ -198,6 +198,7 @@ class DevExecutedCommand:
     command: tuple[str, ...]
     cwd: str | None
     returncode: int
+    duration_seconds: float = 0.0
     stdout: str = ""
     stderr: str = ""
 
@@ -209,3 +210,4 @@ class DevUpdateResult:
     changed: bool
     outcomes: tuple[DevUpdateOutcome, ...]
     commands: tuple[DevExecutedCommand, ...] = ()
+    duration_seconds: float = 0.0

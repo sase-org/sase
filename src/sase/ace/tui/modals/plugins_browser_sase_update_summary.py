@@ -8,6 +8,7 @@ from typing import Any
 
 from sase.ace.tui.task_subprocess import TaskReporter
 from sase.main.update_types import CombinedUpdateResult
+from sase.dev_update.timings import slowest_reconcile_command
 from sase.plugins.render_common import humanize_duration
 from sase.uv_tool.commands import build_upgrade_all
 from sase.uv_tool.detect import UvToolInstall
@@ -193,6 +194,12 @@ def log_combined_update_result(
             reporter.log(
                 f"{outcome.record.name}: {outcome.old_version} -> "
                 f"{outcome.new_version}",
+                stream="result",
+            )
+        if slowest := slowest_reconcile_command(result.dev_result.commands):
+            reporter.log(
+                f"slowest: {slowest.label} "
+                f"({humanize_duration(slowest.duration_seconds)})",
                 stream="result",
             )
     if result.managed_summary is not None:

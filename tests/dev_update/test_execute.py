@@ -99,6 +99,31 @@ def test_execute_dev_update_fetches_preflights_merges_and_reconciles() -> None:
     ]
 
 
+def test_execute_dev_update_records_command_and_total_durations() -> None:
+    step = DevReconcileStep(
+        kind="uv_tool_install",
+        label="Reinstall uv-tool editable Python packages",
+        command=("uv", "tool", "install", "sase"),
+        cwd="/repo",
+    )
+    update_plan = DevUpdatePlan(
+        packages=(package("sase", status="skipped"),),
+        roots=(),
+        reconcile_steps=(step,),
+    )
+    ticks = iter([10.0, 11.0, 13.5, 16.0])
+
+    result = execute_dev_update(
+        update_plan,
+        run=FakeRunner(),
+        clock=lambda: next(ticks),
+    )
+
+    assert result.duration_seconds == 6.0
+    assert result.commands[0].label == "Reinstall uv-tool editable Python packages"
+    assert result.commands[0].duration_seconds == 2.5
+
+
 def test_execute_dev_update_preflights_all_roots_before_merging() -> None:
     plan = DevUpdatePlan(
         packages=(package("sase"),),

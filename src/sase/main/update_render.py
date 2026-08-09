@@ -18,6 +18,7 @@ from sase.dev_update import (
     DevUpdateRootPlan,
 )
 from sase.dev_update.code_swap_lock import code_swap_advisory_warning
+from sase.dev_update.timings import slowest_reconcile_command
 from sase.main.update_state import dev_counts, humanize_duration, plural
 from sase.uv_tool.render import PlannedPackage
 
@@ -86,6 +87,8 @@ def render_dev_update_result(
     if reconcile:
         body.append(Text(""))
         body.append(_dev_executed_commands_table(reconcile))
+        if (slowest := _slowest_reconcile_line(result)) is not None:
+            body.append(slowest)
     if (advisory := _advisory_warning_line()) is not None:
         body.append(Text(""))
         body.append(advisory)
@@ -246,6 +249,16 @@ def _dev_summary_line(result: DevUpdateResult, elapsed: float, *, failed: bool) 
     if failed_count:
         line.append(f" · {failed_count} failed", style="red")
     return line
+
+
+def _slowest_reconcile_line(result: DevUpdateResult) -> Text | None:
+    command = slowest_reconcile_command(result.commands)
+    if command is None:
+        return None
+    return Text(
+        f"slowest: {command.label} ({humanize_duration(command.duration_seconds)})",
+        style="dim",
+    )
 
 
 def _dev_quiet_line(result: DevUpdateResult, elapsed: float, *, failed: bool) -> Text:

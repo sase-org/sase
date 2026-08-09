@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""Summarize timed dev-update reconcile steps from the local JSONL journal."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import statistics
+from collections import defaultdict
+from collections.abc import Iterable, Iterator
+from pathlib import Path
+from typing import Any
+
+DEFAULT_JOURNAL = Path.home() / ".sase" / "logs" / "dev_update.jsonl"
+
+
+def _journal_paths(path: Path) -> tuple[Path, ...]:
+    return (path, path.with_name(f"{path.name}.1"))
+
+
+def _records(paths: Iterable[Path]) -> Iterator[dict[str, Any]]:
+    for path in paths:
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(record, dict):
+                yield record
+
+
+def _core_state(record: dict[str, Any]) -> str | None:
+    outcomes = record.get("result", {}).get("outcomes", ())
+    if not isinstance(outcomes, list):
+        return None
+    for outcome in outcomes:
+        if not isinstance(outcome, dict):
+            continue
+        if outcome.get("name") == "sase-core-rs":
+            status = outcome.get("status")
+            if status in {"updated", "skipped"}:
+                return str(status)
+    return None
+
+
+def _reconcile_labels(record: dict[str, Any]) -> frozenset[str]:
+    steps = record.get("plan", {}).get("reconcile_steps", ())
+    if not isinstance(steps, list):
+        return frozenset()
+    labels: list[str] = []
+    for step in steps:
+        if isinstance(step, dict) and isinstance(step.get("label"), str):
+            labels.append(step["label"])
+    return frozenset(labels)
+
+
+def _timed_reconcile_commands(record: dict[str, Any]) -> Iterator[tuple[str, float]]:
+    labels = _reconcile_labels(record)
+    if not labels:
+        return
+    commands = record.get("commands", ())
+    if not isinstance(commands, list):
+        return
+    for command in commands:
+        if not isinstance(command, dict):
+            continue
+        label = command.get("label")
+        duration = command.get("duration_seconds")
+        if not isinstance(label, str) or label not in labels:
+            continue
+        if not isinstance(duration, int | float):
+            continue
+        yield label, max(0.0, float(duration))
+
+
+def _format_seconds(seconds: float) -> str:
+    if seconds < 1:
+        return f"{seconds:.3f}s"
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes, remainder = divmod(seconds, 60)
+    return f"{int(minutes)}m{remainder:04.1f}s"
+
+
+def _print_table(rows: list[tuple[str, str, list[float]]]) -> None:
+    headers = ("reconcile step", "sase-core-rs", "runs", "median", "mean", "max")
+    rendered = [
+        (
+            label,
+            state,
+            str(len(values)),
+            _format_seconds(statistics.median(values)),
+            _format_seconds(statistics.fmean(values)),
+            _format_seconds(max(values)),
+        )
+        for label, state, values in rows
+    ]
+    widths = [
+        max(len(headers[index]), *(len(row[index]) for row in rendered))
+        for index in range(len(headers))
+    ]
+    print(
+        "  ".join(header.ljust(widths[index]) for index, header in enumerate(headers))
+    )
+    print("  ".join("-" * width for width in widths))
+    for row in rendered:
+        print("  ".join(value.ljust(widths[index]) for index, value in enumerate(row)))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Summarize schema-2 dev-update reconcile-step durations from "
+            "~/.sase/logs/dev_update.jsonl and its .1 rotation."
+        )
+    )
+    parser.add_argument(
+        "--path",
+        type=Path,
+        default=DEFAULT_JOURNAL,
+        help="dev-update journal path (default: %(default)s)",
+    )
+    args = parser.parse_args()
+
+    samples: dict[tuple[str, str], list[float]] = defaultdict(list)
+    records_seen = 0
+    timed_records = 0
+    for record in _records(_journal_paths(args.path)):
+        records_seen += 1
+        state = _core_state(record)
+        if state is None:
+            continue
+        record_timed = False
+        for label, duration in _timed_reconcile_commands(record):
+            samples[(label, state)].append(duration)
+            record_timed = True
+        if record_timed:
+            timed_records += 1
+
+    if not samples:
+        print(
+            "No timed dev-update reconcile-step records found "
+            f"in {args.path} or {args.path.name}.1."
+        )
+        if records_seen:
+            print(f"Read {records_seen} record(s); older schema-1 records are untimed.")
+        return 0
+
+    rows = [
+        (label, state, values) for (label, state), values in sorted(samples.items())
+    ]
+    _print_table(rows)
+    print()
+    print(f"timed records: {timed_records}; records read: {records_seen}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

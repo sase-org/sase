@@ -60,7 +60,7 @@ def _dev_update_journal_record(
 ) -> dict[str, Any]:
     """Build the serializable journal record for a dev-update run."""
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "timestamp": datetime.now(get_timezone()).isoformat(timespec="seconds"),
         "plan": {
             "packages": [
@@ -94,6 +94,7 @@ def _dev_update_journal_record(
         "result": {
             "status": _result_status(result),
             "changed": result.changed,
+            "duration_seconds": round(result.duration_seconds, 3),
             "counts": _result_counts(result),
             "outcomes": [
                 {
@@ -158,6 +159,7 @@ def _command_record(command: DevExecutedCommand) -> dict[str, Any]:
         "command": list(command.command),
         "cwd": command.cwd,
         "returncode": command.returncode,
+        "duration_seconds": round(command.duration_seconds, 3),
         "stdout_tail": _tail(command.stdout),
         "stderr_tail": _tail(command.stderr),
     }

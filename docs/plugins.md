@@ -210,7 +210,8 @@ canonical uv-tool environment. For a managed install it delegates to
 move forward as a coherent set. Receipt-owned editable / dev components of the same uv
 tool environment are detected from the receipt, updated from git, and reconciled so
 Python entry points, dependencies, and compiled Rust artifacts match the checked-out
-source (see [Dev / editable installs](#dev-editable-installs) below).
+source (see [Dev / editable installs](#dev-editable-installs) below). Dev-update timing
+baselines can be summarized from the local journal with `tools/dev_update_timings`.
 
 ```bash
 sase update            # update sase + all plugins
