@@ -216,7 +216,7 @@ def test_execute_dev_update_attaches_capped_commit_log_from_merge_range(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.dev_update.execute.DEV_UPDATE_COMMIT_LOG_CAPTURE_LIMIT",
+        "sase.dev_update.roots.DEV_UPDATE_COMMIT_LOG_CAPTURE_LIMIT",
         2,
     )
     runner = SequenceRunner(

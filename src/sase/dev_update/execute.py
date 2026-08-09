@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
-from sase.dev_update.diffstat import parse_git_numstat
 from sase.dev_update.code_swap_lock import code_swap_writer_lock
+from sase.dev_update.command import (
+    DEV_UPDATE_COMMAND_TIMEOUT_SECONDS as DEV_UPDATE_COMMAND_TIMEOUT_SECONDS,
+    command_failure,
+    run_dev_update_command as run_dev_update_command,
+    run_recorded_command,
+)
 from sase.dev_update.models import (
-    DevCommandResult,
     DevCommandRunner,
     DevExecutedCommand,
     DevReconcileStep,
@@ -21,22 +23,21 @@ from sase.dev_update.models import (
     DevUpdatePackagePlan,
     DevUpdatePlan,
     DevUpdateResult,
-    DevUpdateRootPlan,
-    RepoCommit,
     RepoCommitLog,
     RepoDiffStat,
 )
 from sase.dev_update.prebuild import parse_outcome_marker
-from sase.git_lock_retry import run_with_git_lock_retry
-from sase.version._git import GitUpstreamStatus, fetch_git_upstream, merge_git_ff_only
-from sase.workspace_provider.utils import non_interactive_git_env
+from sase.dev_update.roots import (
+    fetch_actionable_roots,
+    merge_actionable_roots,
+    preflight_actionable_roots,
+)
 
-DEV_UPDATE_COMMAND_TIMEOUT_SECONDS = 300.0
-DEV_UPDATE_COMMIT_LOG_CAPTURE_LIMIT = 20
-
-_COMMIT_LOG_UNIT_SEP = "\x1f"
-_COMMIT_LOG_RECORD_SEP = "\x1e"
-_COMMIT_LOG_FORMAT = "%h%x1f%s%x1e"
+__all__ = [
+    "DEV_UPDATE_COMMAND_TIMEOUT_SECONDS",
+    "execute_dev_update",
+    "run_dev_update_command",
+]
 
 
 def execute_dev_update(
@@ -66,7 +67,7 @@ def execute_dev_update(
             )
         )
 
-    fetch_failure = _fetch_actionable_roots(plan.actionable_roots, run, commands, clock)
+    fetch_failure = fetch_actionable_roots(plan.actionable_roots, run, commands, clock)
     if fetch_failure is not None:
         return finish(
             _failed_result(
@@ -78,7 +79,7 @@ def execute_dev_update(
             )
         )
 
-    preflight_failure = _preflight_actionable_roots(
+    preflight_failure = preflight_actionable_roots(
         plan.actionable_roots, run, commands, clock
     )
     if preflight_failure is not None:
@@ -109,7 +110,7 @@ def execute_dev_update(
             merged_any,
             root_diffstats,
             root_commits,
-        ) = _merge_actionable_roots(plan.actionable_roots, run, commands, clock)
+        ) = merge_actionable_roots(plan.actionable_roots, run, commands, clock)
         if merge_failure is not None:
             return finish(
                 _failed_result(
@@ -153,179 +154,6 @@ def _code_swap_deferred_reason(blocked_by: str | None) -> str:
     )
 
 
-def run_dev_update_command(
-    argv: Sequence[str],
-    *,
-    cwd: Path | None = None,
-    env: Mapping[str, str] | None = None,
-    timeout: float = DEV_UPDATE_COMMAND_TIMEOUT_SECONDS,
-) -> DevCommandResult:
-    """Default command runner for callers that want real subprocess execution."""
-    command = list(argv)
-    command_env, git_stdin = _subprocess_options(command, env)
-
-    def attempt() -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            command,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            env=command_env,
-            stdin=git_stdin,
-        )
-
-    try:
-        if command and command[0] == "git":
-            completed, _outcome = run_with_git_lock_retry(
-                attempt,
-                cwd=_git_command_cwd(command, cwd),
-            )
-        else:
-            completed = attempt()
-    except FileNotFoundError as exc:
-        return DevCommandResult(returncode=127, stderr=str(exc))
-    except subprocess.TimeoutExpired as exc:
-        return DevCommandResult(
-            returncode=124,
-            stdout=exc.stdout if isinstance(exc.stdout, str) else "",
-            stderr="command timed out",
-        )
-    except OSError as exc:
-        return DevCommandResult(returncode=1, stderr=str(exc))
-    return DevCommandResult(
-        returncode=completed.returncode,
-        stdout=completed.stdout,
-        stderr=completed.stderr,
-    )
-
-
-def _fetch_actionable_roots(
-    roots: tuple[DevUpdateRootPlan, ...],
-    run: DevCommandRunner,
-    commands: list[DevExecutedCommand],
-    clock: Callable[[], float],
-) -> str | None:
-    for root in roots:
-        try:
-            fetch_git_upstream(
-                _root_status_for_fetch(root),
-                run_git_fn=_git_text_runner(
-                    run, commands, label="git fetch", clock=clock
-                ),
-            )
-        except _GitCommandFailure as exc:
-            return str(exc)
-    return None
-
-
-def _preflight_actionable_roots(
-    roots: tuple[DevUpdateRootPlan, ...],
-    run: DevCommandRunner,
-    commands: list[DevExecutedCommand],
-    clock: Callable[[], float],
-) -> str | None:
-    for root in roots:
-        dirty = _run(
-            run,
-            ("git", "-C", root.git_root, "status", "--porcelain"),
-            cwd=None,
-            label="git status",
-            commands=commands,
-            clock=clock,
-        )
-        if dirty.returncode != 0:
-            return _command_failure("git status failed", dirty)
-        if dirty.stdout.strip():
-            return f"{root.git_root}: checkout has local changes"
-
-        if root.upstream is None:
-            return f"{root.git_root}: checkout has no upstream"
-        rev_list = _run(
-            run,
-            (
-                "git",
-                "-C",
-                root.git_root,
-                "rev-list",
-                "--left-right",
-                "--count",
-                f"HEAD...{root.upstream}",
-            ),
-            cwd=None,
-            label="git preflight ancestry",
-            commands=commands,
-            clock=clock,
-        )
-        if rev_list.returncode != 0:
-            return _command_failure("git ancestry preflight failed", rev_list)
-        ahead, behind = _parse_ahead_behind(rev_list.stdout)
-        if ahead is None or behind is None:
-            return f"{root.git_root}: upstream ancestry unavailable"
-        if ahead > 0 and behind > 0:
-            return f"{root.git_root}: checkout has diverged from upstream"
-        if ahead > 0:
-            return f"{root.git_root}: checkout is ahead of upstream"
-        if behind <= 0:
-            return f"{root.git_root}: already current"
-    return None
-
-
-def _merge_actionable_roots(
-    roots: tuple[DevUpdateRootPlan, ...],
-    run: DevCommandRunner,
-    commands: list[DevExecutedCommand],
-    clock: Callable[[], float],
-) -> tuple[
-    str | None,
-    bool,
-    dict[str, RepoDiffStat | None],
-    dict[str, RepoCommitLog | None],
-]:
-    merged_any = False
-    root_diffstats: dict[str, RepoDiffStat | None] = {}
-    root_commits: dict[str, RepoCommitLog | None] = {}
-    for root in roots:
-        if root.upstream is None:
-            return (
-                f"{root.git_root}: checkout has no upstream",
-                merged_any,
-                root_diffstats,
-                root_commits,
-            )
-        old_head = _best_effort_head(root.git_root, run, commands, clock)
-        try:
-            merge_git_ff_only(
-                Path(root.git_root),
-                root.upstream,
-                run_git_fn=_git_text_runner(
-                    run, commands, label="git merge --ff-only", clock=clock
-                ),
-            )
-        except _GitCommandFailure as exc:
-            return str(exc), merged_any, root_diffstats, root_commits
-        merged_any = True
-        new_head = _best_effort_head(root.git_root, run, commands, clock)
-        root_diffstats[root.git_root] = _best_effort_diffstat(
-            root.git_root,
-            old_head,
-            new_head,
-            run,
-            commands,
-            clock,
-        )
-        root_commits[root.git_root] = _best_effort_commit_log(
-            root.git_root,
-            old_head,
-            new_head,
-            run,
-            commands,
-            clock,
-            limit=DEV_UPDATE_COMMIT_LOG_CAPTURE_LIMIT,
-        )
-    return None, merged_any, root_diffstats, root_commits
-
-
 def _run_reconcile_steps(
     steps: tuple[DevReconcileStep, ...],
     run: DevCommandRunner,
@@ -367,7 +195,7 @@ def _run_reconcile_steps(
                 pending_failure = _join_failures(pending_failure, failure)
                 continue
             return failure, rust_prebuild
-        result = _run(
+        result = run_recorded_command(
             run,
             step.command,
             cwd=Path(step.cwd) if step.cwd else None,
@@ -377,7 +205,7 @@ def _run_reconcile_steps(
             clock=clock,
         )
         if result.returncode != 0:
-            failure = _command_failure(f"{step.label} failed", result)
+            failure = command_failure(f"{step.label} failed", result)
             if _is_rust_build_step(step) and _has_later_rust_health_check(steps, index):
                 pending_failure = _join_failures(pending_failure, failure)
                 continue
@@ -400,7 +228,7 @@ def _run_rust_prebuild_step(
             ),
             False,
         )
-    result = _run(
+    result = run_recorded_command(
         run,
         step.command,
         cwd=Path(step.cwd) if step.cwd else None,
@@ -445,7 +273,7 @@ def _run_rust_health_check_step(
         failure = step.reason or f"{step.label} unavailable"
         return _join_failures(prior_failure, failure)
 
-    health = _run(
+    health = run_recorded_command(
         run,
         step.command,
         cwd=Path(step.cwd) if step.cwd else None,
@@ -462,13 +290,13 @@ def _run_rust_health_check_step(
             suffix = f"{suffix} ({version})"
         return _join_failures(prior_failure, suffix)
 
-    health_failure = _command_failure(f"{step.label} failed", health)
+    health_failure = command_failure(f"{step.label} failed", health)
     if not step.repair_command:
         repair_reason = step.repair_reason or "repair command unavailable"
         return _join_failures(prior_failure, f"{health_failure}; {repair_reason}")
 
     repair_label = step.repair_label or "Restore published sase-core-rs wheel"
-    repair = _run(
+    repair = run_recorded_command(
         run,
         step.repair_command,
         cwd=Path(step.repair_cwd) if step.repair_cwd else None,
@@ -477,10 +305,10 @@ def _run_rust_health_check_step(
         clock=clock,
     )
     if repair.returncode != 0:
-        repair_failure = _command_failure(f"{repair_label} failed", repair)
+        repair_failure = command_failure(f"{repair_label} failed", repair)
         return _join_failures(prior_failure, f"{health_failure}; {repair_failure}")
 
-    repaired_health = _run(
+    repaired_health = run_recorded_command(
         run,
         step.command,
         cwd=Path(step.cwd) if step.cwd else None,
@@ -489,7 +317,7 @@ def _run_rust_health_check_step(
         clock=clock,
     )
     if repaired_health.returncode != 0:
-        repaired_failure = _command_failure(
+        repaired_failure = command_failure(
             f"{step.label} after repair failed", repaired_health
         )
         return _join_failures(prior_failure, f"{health_failure}; {repaired_failure}")
@@ -513,217 +341,6 @@ def _version_from_health_check(stdout: str) -> str | None:
         if candidate:
             return candidate
     return None
-
-
-def _run(
-    run: DevCommandRunner,
-    argv: Sequence[str],
-    *,
-    cwd: Path | None,
-    env: Mapping[str, str] | None = None,
-    label: str,
-    commands: list[DevExecutedCommand],
-    clock: Callable[[], float],
-) -> DevCommandResult:
-    start = clock()
-    if env is None:
-        result = run(argv, cwd=cwd)
-    else:
-        result = run(argv, cwd=cwd, env=env)
-    duration = max(0.0, clock() - start)
-    commands.append(
-        DevExecutedCommand(
-            label=label,
-            command=tuple(argv),
-            cwd=str(cwd) if cwd else None,
-            returncode=result.returncode,
-            duration_seconds=duration,
-            stdout=result.stdout,
-            stderr=result.stderr,
-        )
-    )
-    return result
-
-
-def _subprocess_options(
-    argv: Sequence[str],
-    env: Mapping[str, str] | None,
-) -> tuple[dict[str, str] | None, int | None]:
-    base_env = _merged_subprocess_env(env)
-    if not argv or argv[0] != "git":
-        return base_env, None
-    return non_interactive_git_env(base_env), subprocess.DEVNULL
-
-
-def _merged_subprocess_env(env: Mapping[str, str] | None) -> dict[str, str] | None:
-    if env is None:
-        return None
-    merged = dict(os.environ)
-    merged.update(env)
-    return merged
-
-
-def _git_command_cwd(argv: Sequence[str], cwd: Path | None) -> Path:
-    try:
-        index = argv.index("-C")
-        configured = Path(argv[index + 1])
-    except (ValueError, IndexError):
-        return Path.cwd() if cwd is None else cwd
-    if configured.is_absolute() or cwd is None:
-        return configured
-    return cwd / configured
-
-
-def _root_status_for_fetch(root: DevUpdateRootPlan) -> GitUpstreamStatus:
-    return GitUpstreamStatus(
-        root=root.git_root,
-        upstream=root.upstream,
-        remote=root.remote,
-        remote_branch=root.remote_branch,
-        detached=False,
-        dirty=False,
-        ahead=root.ahead,
-        behind=root.behind,
-    )
-
-
-class _GitCommandFailure(Exception):
-    pass
-
-
-def _git_text_runner(
-    run: DevCommandRunner,
-    commands: list[DevExecutedCommand],
-    *,
-    label: str,
-    clock: Callable[[], float],
-) -> Callable[..., str]:
-    def runner(root: Path, *args: str, **_kwargs: object) -> str:
-        result = _run(
-            run,
-            ("git", "-C", str(root), *args),
-            cwd=None,
-            label=label,
-            commands=commands,
-            clock=clock,
-        )
-        if result.returncode != 0:
-            raise _GitCommandFailure(_command_failure(f"{label} failed", result))
-        return result.stdout.strip()
-
-    return runner
-
-
-def _best_effort_head(
-    git_root: str,
-    run: DevCommandRunner,
-    commands: list[DevExecutedCommand],
-    clock: Callable[[], float],
-) -> str | None:
-    result = _run(
-        run,
-        ("git", "-C", git_root, "rev-parse", "HEAD"),
-        cwd=None,
-        label="git rev-parse HEAD",
-        commands=commands,
-        clock=clock,
-    )
-    if result.returncode != 0:
-        return None
-    head = result.stdout.strip()
-    return head or None
-
-
-def _best_effort_diffstat(
-    git_root: str,
-    old_head: str | None,
-    new_head: str | None,
-    run: DevCommandRunner,
-    commands: list[DevExecutedCommand],
-    clock: Callable[[], float],
-) -> RepoDiffStat | None:
-    if old_head is None or new_head is None:
-        return None
-    result = _run(
-        run,
-        ("git", "-C", git_root, "diff", "--numstat", old_head, new_head),
-        cwd=None,
-        label="git diff --numstat",
-        commands=commands,
-        clock=clock,
-    )
-    if result.returncode != 0:
-        return None
-    return parse_git_numstat(result.stdout)
-
-
-def _best_effort_commit_log(
-    git_root: str,
-    old_head: str | None,
-    new_head: str | None,
-    run: DevCommandRunner,
-    commands: list[DevExecutedCommand],
-    clock: Callable[[], float],
-    *,
-    limit: int,
-) -> RepoCommitLog | None:
-    if old_head is None or new_head is None:
-        return None
-    rev_range = f"{old_head}..{new_head}"
-    count_result = _run(
-        run,
-        ("git", "-C", git_root, "rev-list", "--count", rev_range),
-        cwd=None,
-        label="git rev-list --count",
-        commands=commands,
-        clock=clock,
-    )
-    if count_result.returncode != 0:
-        return None
-    try:
-        total = int(count_result.stdout.strip() or "0")
-    except ValueError:
-        return None
-    if total < 0:
-        return None
-
-    commits: tuple[RepoCommit, ...] = ()
-    capped_limit = max(0, limit)
-    if total > 0 and capped_limit > 0:
-        log_result = _run(
-            run,
-            (
-                "git",
-                "-C",
-                git_root,
-                "log",
-                f"-n{capped_limit}",
-                f"--format={_COMMIT_LOG_FORMAT}",
-                rev_range,
-            ),
-            cwd=None,
-            label="git log applied commits",
-            commands=commands,
-            clock=clock,
-        )
-        if log_result.returncode != 0:
-            return None
-        commits = _parse_commit_log(log_result.stdout)[:capped_limit]
-    return RepoCommitLog(total=total, commits=commits)
-
-
-def _parse_commit_log(text: str) -> tuple[RepoCommit, ...]:
-    commits: list[RepoCommit] = []
-    for raw_record in text.split(_COMMIT_LOG_RECORD_SEP):
-        record = raw_record.strip("\r\n")
-        if not record or _COMMIT_LOG_UNIT_SEP not in record:
-            continue
-        short_sha, subject = record.split(_COMMIT_LOG_UNIT_SEP, 1)
-        short_sha = short_sha.strip()
-        subject = subject.strip()
-        if short_sha and subject:
-            commits.append(RepoCommit(short_sha=short_sha, subject=subject))
-    return tuple(commits)
 
 
 def _success_outcomes(
@@ -790,20 +407,3 @@ def _skipped_outcome(pkg: DevUpdatePackagePlan) -> DevUpdateOutcome:
         new_version=pkg.latest_version,
         git_root=pkg.git_root,
     )
-
-
-def _command_failure(prefix: str, result: DevCommandResult) -> str:
-    detail = result.stderr.strip() or result.stdout.strip()
-    if detail:
-        return f"{prefix}: {detail}"
-    return f"{prefix}: exit {result.returncode}"
-
-
-def _parse_ahead_behind(text: str) -> tuple[int | None, int | None]:
-    parts = text.split()
-    if len(parts) != 2:
-        return None, None
-    try:
-        return int(parts[0]), int(parts[1])
-    except ValueError:
-        return None, None

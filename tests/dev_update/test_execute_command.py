@@ -19,7 +19,7 @@ def test_run_dev_update_command_disables_git_prompts(
         captured.update(kwargs)
         return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
 
-    monkeypatch.setattr("sase.dev_update.execute.subprocess.run", fake_run)
+    monkeypatch.setattr("sase.dev_update.command.subprocess.run", fake_run)
 
     result = run_dev_update_command(("git", "fetch", "origin"))
 
@@ -41,7 +41,7 @@ def test_run_dev_update_command_merges_env_overrides(
         return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
 
     monkeypatch.setenv("PATH", "/usr/bin")
-    monkeypatch.setattr("sase.dev_update.execute.subprocess.run", fake_run)
+    monkeypatch.setattr("sase.dev_update.command.subprocess.run", fake_run)
 
     result = run_dev_update_command(
         ("just", "rust-dev-install-uv-tool"),
@@ -80,7 +80,7 @@ def test_run_dev_update_command_recovers_stale_git_index_lock(
         return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
 
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
-    monkeypatch.setattr("sase.dev_update.execute.subprocess.run", fake_run)
+    monkeypatch.setattr("sase.dev_update.command.subprocess.run", fake_run)
 
     result = run_dev_update_command(("git", "-C", str(tmp_path), "add", "-A"))
 
