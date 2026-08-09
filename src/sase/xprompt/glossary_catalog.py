@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-import re
 from typing import Any
 
 from sase.config._edit_yaml_io import make_yaml
@@ -24,27 +23,14 @@ from sase.core.glossary_facade import (
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
-from sase.xprompt._parsing import (
-    extract_project_from_vcs_tag,
-    extract_vcs_workflow_tag,
-    find_vcs_workflow_tag_prepend_offset,
-    normalize_vcs_underscore_refs,
-)
 from sase.xprompt._parsing_vcs_refs import resolve_known_project_ref
 
 GLOSSARY_CONFIG_KEY = "glossary"
 EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION = 1
-_FALLBACK_VCS_WORKFLOW_NAMES = frozenset({"gh", "git", "jj", "p4"})
-_LEADING_GENERIC_VCS_RE = re.compile(
-    r"#(?P<workflow>[a-zA-Z_][a-zA-Z0-9_]*)"
-    r"(?:!!|\?\?)?"
-    r"(?:[_:](?P<colon>[a-zA-Z0-9_.~/-]+)|\((?P<paren>[a-zA-Z0-9_.~/-]+)\))"
-    r"(?=\s|$)"
-)
 
 
 @dataclass(frozen=True, slots=True)
-class GlossaryConfigSignature:
+class _GlossaryConfigSignature:
     """Filesystem signature used by editor caches to detect config changes."""
 
     path: str
@@ -60,7 +46,7 @@ class GlossaryConfigSignature:
 
 
 @dataclass(frozen=True, slots=True)
-class EditorGlossaryProject:
+class _EditorGlossaryProject:
     """The enabled project/workspace selected for glossary semantics."""
 
     key: str
@@ -82,9 +68,9 @@ class EditorGlossaryCatalog:
     """A normalized glossary catalog plus the compiled native matcher handle."""
 
     schema_version: int
-    project: EditorGlossaryProject
+    project: _EditorGlossaryProject
     config_path: Path
-    config_signature: GlossaryConfigSignature
+    config_signature: _GlossaryConfigSignature
     catalog: GlossaryCatalog
     compiled: CompiledGlossaryCatalog
 
@@ -106,34 +92,13 @@ class EditorGlossaryCatalog:
 class EditorGlossaryCatalogResult:
     """Best-effort glossary load result for editor warmers."""
 
-    project: EditorGlossaryProject | None
+    project: _EditorGlossaryProject | None
     catalog: EditorGlossaryCatalog | None
     diagnostics: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
         return self.catalog is not None and not self.diagnostics
-
-
-def editor_glossary_catalog_for_prompt(
-    prompt: str,
-    *,
-    launch_workspace: str | Path | None = None,
-    projects_root: str | Path | None = None,
-) -> EditorGlossaryCatalogResult:
-    """Load the glossary selected by a prompt's leading VCS context.
-
-    A leading VCS workflow ref wins. When it is absent, the launch/current
-    workspace selects the default project. Unknown, disabled, home, missing, or
-    invalid projects degrade to ``catalog=None``.
-    """
-
-    project_ref = leading_vcs_project_ref(prompt)
-    return editor_glossary_catalog_for_project(
-        project_ref,
-        launch_workspace=launch_workspace,
-        projects_root=projects_root,
-    )
 
 
 def editor_glossary_catalog_for_project(
@@ -157,11 +122,11 @@ def editor_glossary_catalog_for_project(
             else "no enabled project matched the active workspace"
         )
         return EditorGlossaryCatalogResult(None, None, (detail,))
-    return load_editor_glossary_catalog(project)
+    return _load_editor_glossary_catalog(project)
 
 
-def load_editor_glossary_catalog(
-    project: EditorGlossaryProject,
+def _load_editor_glossary_catalog(
+    project: _EditorGlossaryProject,
 ) -> EditorGlossaryCatalogResult:
     """Load and compile the project-local glossary for an exact project."""
 
@@ -232,24 +197,6 @@ def load_editor_glossary_catalog(
     )
 
 
-def leading_vcs_project_ref(prompt: str) -> str | None:
-    """Return the ref from the prompt's leading VCS workflow tag, if any."""
-
-    offset = find_vcs_workflow_tag_prepend_offset(prompt)
-    segment = prompt[offset:]
-    registered_tag = extract_vcs_workflow_tag(segment)
-    if registered_tag is not None:
-        return extract_project_from_vcs_tag(registered_tag)
-
-    normalized = normalize_vcs_underscore_refs(segment)
-    match = _LEADING_GENERIC_VCS_RE.match(normalized)
-    if match is None:
-        return None
-    if match.group("workflow") not in _vcs_workflow_names():
-        return None
-    return match.group("colon") or match.group("paren")
-
-
 def editor_glossary_lsp_catalog_payload(
     launch_workspace: str | Path | None = None,
     *,
@@ -268,7 +215,7 @@ def editor_glossary_lsp_catalog_payload(
         project = _project_from_record(record)
         if project is None:
             continue
-        result = load_editor_glossary_catalog(project)
+        result = _load_editor_glossary_catalog(project)
         if result.catalog is None:
             continue
         projects.append(result.catalog.to_wire())
@@ -308,7 +255,7 @@ def _select_project(
     records: Sequence[ProjectRecordWire],
     *,
     launch_workspace: str | Path | None,
-) -> EditorGlossaryProject | None:
+) -> _EditorGlossaryProject | None:
     if project_ref:
         record = _record_for_ref(project_ref, records)
         return None if record is None else _project_from_record(record)
@@ -368,10 +315,10 @@ def _record_for_workspace(
     return None
 
 
-def _project_from_record(record: ProjectRecordWire) -> EditorGlossaryProject | None:
+def _project_from_record(record: ProjectRecordWire) -> _EditorGlossaryProject | None:
     if not record.workspace_dir:
         return None
-    return EditorGlossaryProject(
+    return _EditorGlossaryProject(
         key=record.project_name,
         name=effective_project_name(record),
         aliases=tuple(dict.fromkeys(record.aliases)),
@@ -522,12 +469,12 @@ def _format_diagnostic(
     return f"{config_path}: {path}: {diagnostic.message}"
 
 
-def _config_signature(path: Path) -> GlossaryConfigSignature | None:
+def _config_signature(path: Path) -> _GlossaryConfigSignature | None:
     try:
         stat = path.stat()
     except OSError:
         return None
-    return GlossaryConfigSignature(
+    return _GlossaryConfigSignature(
         path=str(path),
         mtime_ns=stat.st_mtime_ns,
         size=stat.st_size,
@@ -614,15 +561,6 @@ def _entry_to_wire(entry: GlossaryEntry) -> dict[str, object]:
     }
 
 
-def _vcs_workflow_names() -> set[str]:
-    try:
-        from sase.workspace_provider import get_workflow_names
-
-        return set(get_workflow_names()) | set(_FALLBACK_VCS_WORKFLOW_NAMES)
-    except Exception:
-        return set(_FALLBACK_VCS_WORKFLOW_NAMES)
-
-
 def _safe_cwd() -> Path | None:
     try:
         return Path.cwd()
@@ -653,11 +591,6 @@ __all__ = [
     "GLOSSARY_CONFIG_KEY",
     "EditorGlossaryCatalog",
     "EditorGlossaryCatalogResult",
-    "EditorGlossaryProject",
-    "GlossaryConfigSignature",
     "editor_glossary_catalog_for_project",
-    "editor_glossary_catalog_for_prompt",
     "editor_glossary_lsp_catalog_payload",
-    "leading_vcs_project_ref",
-    "load_editor_glossary_catalog",
 ]

@@ -89,7 +89,7 @@ def _write_config(workspace: Path, body: str) -> Path:
     return config_path
 
 
-def test_catalog_for_prompt_uses_leading_vcs_alias_and_source_ranges(
+def test_catalog_for_project_uses_project_alias_and_source_ranges(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -113,10 +113,9 @@ def test_catalog_for_prompt_uses_leading_vcs_alias_and_source_ranges(
         display_name="sase",
     )
     monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
-    monkeypatch.setattr("sase.workspace_provider.get_workflow_names", lambda: {"gh"})
 
-    result = catalog.editor_glossary_catalog_for_prompt(
-        "#gh:s Fix Agent Clan",
+    result = catalog.editor_glossary_catalog_for_project(
+        "s",
         launch_workspace=tmp_path / "other",
     )
 
@@ -148,7 +147,7 @@ def test_catalog_for_prompt_uses_leading_vcs_alias_and_source_ranges(
     }
 
 
-def test_catalog_without_vcs_uses_launch_workspace_and_never_falls_back_from_bad_ref(
+def test_catalog_without_ref_uses_launch_workspace_and_never_falls_back_from_bad_ref(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -169,14 +168,13 @@ def test_catalog_without_vcs_uses_launch_workspace_and_never_falls_back_from_bad
         _record("beta", beta, aliases=["docs"]),
     ]
     monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr("sase.workspace_provider.get_workflow_names", lambda: {"gh"})
 
-    fallback = catalog.editor_glossary_catalog_for_prompt(
-        "Explain the Beta Term",
+    fallback = catalog.editor_glossary_catalog_for_project(
+        None,
         launch_workspace=beta / "nested",
     )
-    missing = catalog.editor_glossary_catalog_for_prompt(
-        "#gh:missing Explain the Beta Term",
+    missing = catalog.editor_glossary_catalog_for_project(
+        "missing",
         launch_workspace=beta,
     )
 

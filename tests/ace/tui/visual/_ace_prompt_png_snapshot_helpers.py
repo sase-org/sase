@@ -17,8 +17,8 @@ from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
 from sase.xprompt.glossary_catalog import (
     EditorGlossaryCatalog,
-    EditorGlossaryProject,
-    GlossaryConfigSignature,
+    _EditorGlossaryProject,
+    _GlossaryConfigSignature,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_state,
@@ -353,14 +353,14 @@ def _visual_glossary_catalog() -> EditorGlossaryCatalog:
     )
     return EditorGlossaryCatalog(
         schema_version=1,
-        project=EditorGlossaryProject(
+        project=_EditorGlossaryProject(
             key="sase",
             name="sase",
             aliases=("sase-org",),
             workspace_dir=Path("/workspace/sase"),
         ),
         config_path=config_path,
-        config_signature=GlossaryConfigSignature(
+        config_signature=_GlossaryConfigSignature(
             path=str(config_path),
             mtime_ns=1,
             size=2048,

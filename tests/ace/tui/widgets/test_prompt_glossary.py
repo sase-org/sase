@@ -19,8 +19,8 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
 from sase.xprompt.glossary_catalog import (
     EditorGlossaryCatalog,
-    EditorGlossaryProject,
-    GlossaryConfigSignature,
+    _EditorGlossaryProject,
+    _GlossaryConfigSignature,
 )
 
 from ._completion_helpers import CompletionTestApp
@@ -458,14 +458,14 @@ def _catalog_for_text(
     )
     return EditorGlossaryCatalog(
         schema_version=1,
-        project=EditorGlossaryProject(
+        project=_EditorGlossaryProject(
             key="sase",
             name="sase",
             aliases=("sase-org",),
             workspace_dir=tmp_path,
         ),
         config_path=config_path,
-        config_signature=GlossaryConfigSignature(
+        config_signature=_GlossaryConfigSignature(
             path=str(config_path),
             mtime_ns=1,
             size=256,
