@@ -4319,18 +4319,35 @@ position captured when the finder opened. Inside the finder, type to filter, use
 and `Esc` to cancel.
 
 In prompt NORMAL mode, `K` previews the xprompt, slash skill, or file under the cursor.
-As a fallback, `K` on a plain word opens its definition or offers spelling fixes.
-`Ctrl+]` jumps to an xprompt, skill, or file definition, or opens an action picker when
-several jump targets are available.
+On ordinary prompt text, ACE checks the warm project glossary before falling back to
+plain word lookup or spelling fixes. `Ctrl+]` jumps to an xprompt, skill, file, or
+glossary definition, or opens an action picker when several jump targets are available.
+Glossary terms come from the project selected by a leading VCS workflow reference, or
+from the active workspace project when the prompt does not select one.
+
+#### Glossary terms
+
+Project glossary entries are authored in `sase/sase.yml`; see
+[glossary configuration](configuration.md#glossary). ACE highlights matched glossary
+phrases in the prompt after the catalog is warm, skipping inline code and fenced code
+and using the shared longest-match rules from the xprompt LSP. Loading, validation, and
+matcher compilation run off the render path and are cached per project/config signature.
+Config edits, project changes, and watched `sase.yml` changes invalidate the cache.
+
+`K` on a glossary phrase opens the Markdown preview panel with the canonical term,
+definition, configured aliases, project, and source path. `Ctrl+]` opens the
+project-local `sase/sase.yml` definition range through the normal editor/tmux jump flow.
+If the catalog is still loading, ACE schedules a warm and asks you to retry rather than
+falling through to word lookup or an unrelated jump target.
 
 #### Word definitions & spellcheck
 
 When no xprompt, slash skill, workflow, or file target matches, `K` treats a plain
-natural-language word under the cursor as a lookup target. Correctly spelled words open
-a scrollable definition panel; use `j` / `k`, `Ctrl+D` / `Ctrl+U`, and `g` / `G` to
-navigate it. Misspelled words open a compact correction panel: press `1`–`9` to apply a
-suggestion immediately, or move with `j` / `k` and press `Enter`. The replacement is an
-ordinary undoable prompt edit.
+natural-language word that is not a glossary match as a lookup target. Correctly spelled
+words open a scrollable definition panel; use `j` / `k`, `Ctrl+D` / `Ctrl+U`, and `g` /
+`G` to navigate it. Misspelled words open a compact correction panel: press `1`–`9` to
+apply a suggestion immediately, or move with `j` / `k` and press `Enter`. The
+replacement is an ordinary undoable prompt edit.
 
 Definitions require the optional `dict` command. Spell checking requires GNU `aspell`
 with an English dictionary (`aspell-en` on Debian; Homebrew's package bundles English).
@@ -4574,8 +4591,8 @@ Text objects compose with `d`, `c`, and `y`.
 | `~`        | Toggle case of character(s) at cursor (supports count: `5~`)                                          |
 | `.`        | Repeat last mutation, including inserted text; a count replaces the recorded count                    |
 | `J`        | Join current line with next, removing a pulled-up prompt `- ` or `<N>.` marker (supports count: `5J`) |
-| `K`        | Preview the xprompt, workflow, skill, file, or plain word under the cursor                            |
-| `Ctrl+]`   | Jump to the xprompt/workflow/skill definition or file under the cursor                                |
+| `K`        | Preview the xprompt, workflow, skill, file, glossary term, or plain word under the cursor             |
+| `Ctrl+]`   | Jump to the xprompt/workflow/skill/glossary definition or file under the cursor                       |
 | `/` / `?`  | Search forward / backward in the current prompt pane                                                  |
 | `n` / `N`  | Repeat the last confirmed search in its original / opposite direction                                 |
 
@@ -4591,7 +4608,8 @@ current line keeps the marker, and non-prompt editors retain vanilla `J` behavio
 
 For `Ctrl+]`, ACE opens the target directly in `$EDITOR` when there is only one
 available action. Inside tmux, or for loadable Markdown xprompt definitions, it can show
-a small chooser for editor, tmux-pane, or load-into-prompt actions.
+a small chooser for editor, tmux-pane, or load-into-prompt actions. Glossary jumps use
+the same flow, targeting the owning project's `sase/sase.yml` `definition` scalar.
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with
 count 2 is pending).

@@ -489,6 +489,55 @@ deployment behavior.
 
 Source: `src/sase/amd/_template.py`, `src/sase/main/init_memory/root_rendering.py`
 
+### glossary
+
+Defines project-local domain terms in the repository's canonical `sase/sase.yml`.
+Defaults, plugin config, user config, and overlays cannot provide glossary entries; the
+config inventory reports those scopes as invalid so a global glossary cannot leak into
+another project.
+
+```yaml
+glossary:
+  Agent Clan:
+    aliases:
+      - agent clans
+    definition: >-
+      A named, rootless container for agents that run in parallel.
+```
+
+| Field        | Type              | Default | Description                                                           |
+| ------------ | ----------------- | ------- | --------------------------------------------------------------------- |
+| `glossary`   | object \| omitted | omitted | Mapping from canonical displayed term to one glossary entry.          |
+| `definition` | string            | n/a     | Required nonblank Markdown definition, generated into project memory. |
+| `aliases`    | string[]          | `[]`    | Optional single-line aliases matched after the canonical term itself. |
+
+Run `sase memory init` after editing glossary entries. A nonempty glossary generates
+`sase/memory/glossary.md` with `sase_generated: glossary` frontmatter, adds that short
+note to `sase/memory/README.md`, and inlines it into `AGENTS.md` plus the provider
+instruction copies. `sase memory init --check` verifies that the generated glossary and
+agent instructions are current. If an existing `sase/memory/glossary.md` lacks the
+generated marker, initialization refuses to overwrite it; migrate the definitions into
+`sase/sase.yml` or remove the manual note intentionally before rerunning the command.
+
+The canonical term is always the first effective alias. Matching is case-insensitive,
+Unicode-aware, bounded by word-like edges, allows horizontal whitespace runs inside
+multiword phrases, and does not cross a line. Inline and fenced code are skipped.
+Overlapping phrases are allowed; the longest match wins, with authored order breaking
+ties. Blank terms, blank definitions, multiline aliases, duplicate normalized terms, and
+one alias claimed by more than one term fail validation consistently for config loading,
+memory generation, ACE, and the xprompt LSP.
+
+ACE highlights warm glossary matches in prompt text. In NORMAL mode, `K` previews the
+matching project's definition after xprompt, skill, and file targets; `Ctrl+]` jumps to
+the entry's `definition` range in that project's `sase/sase.yml`. The xprompt LSP uses
+the same project selection and matcher for semantic tokens, hover Markdown, and
+go-to-definition. A leading VCS workflow reference selects the glossary project;
+otherwise the active workspace project is used. Unknown, disabled, home, or unreadable
+project contexts produce no glossary semantics.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`,
+`src/sase/main/init_memory/glossary.py`, `src/sase/xprompt/glossary_catalog.py`
+
 ### is_sase_managed
 
 Controls whether SASE owns repository resources such as project memory, the root
@@ -3464,7 +3513,11 @@ tries to commit, rebase-pull, and push generated project-side files. `sase init 
 is a compatibility alias for this command. Generated repository memory requires agents
 to use `/sase_repo` before reading or modifying any repo outside their own workspace
 checkout. The rule covers linked repos, sidecars, different SASE projects, and unlinked
-GitHub repos even when no linked repositories are configured.
+GitHub repos even when no linked repositories are configured. When a managed project has
+a nonempty `glossary` section, the same run also regenerates `sase/memory/glossary.md`,
+lists it in `sase/memory/README.md`, and inlines the fresh definition text into
+`AGENTS.md`; `sase memory init --check` reports drift if any of those generated files
+are stale.
 
 | Flag                          | Values | Default | Description                                                                                             |
 | ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

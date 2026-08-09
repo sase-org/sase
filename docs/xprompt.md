@@ -230,6 +230,18 @@ The Rust server also has a native fallback for simple xprompt snippets and
 fallback intentionally skips xprompts that require complex Jinja or composition it
 cannot mirror exactly; when the helper is available, its response is preferred.
 
+The LSP also consumes the project glossary configured in `sase/sase.yml`; see
+[glossary configuration](configuration.md#glossary). A leading VCS workflow reference
+selects the glossary project for the document, otherwise the active workspace project is
+used. Glossary phrases are emitted as standard `type` semantic tokens, with the same
+case-insensitive, line-local, code-literal-skipping, longest-match scanner ACE uses.
+Hover returns Markdown for the canonical term, aliases, project, and source context, and
+go-to-definition targets the glossary entry's `definition` range in the project-local
+config. Explicit xprompt and artifact references keep precedence over glossary matches.
+When the selected project is disabled, unknown, home, unreadable, or has an invalid
+glossary, the server suppresses glossary semantics for that context instead of falling
+back to another project's terms.
+
 See the [editor integration guide](editor.md) for setup, feature coverage, helper bridge
 usage, and troubleshooting.
 

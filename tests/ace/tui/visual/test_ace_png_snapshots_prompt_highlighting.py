@@ -30,6 +30,7 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
     patch_visual_artifact_ref_kinds,
     patch_visual_glossary_catalog,
     patch_visual_skill_catalog,
+    seed_visual_artifact_ref_kinds,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
@@ -285,7 +286,9 @@ async def test_prompt_artifact_ref_highlight_png_snapshot(
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
-        await mount_prompt_bar(page, ARTIFACT_REF_HIGHLIGHT)
+        bar = await mount_prompt_bar(page, ARTIFACT_REF_HIGHLIGHT)
+        seed_visual_artifact_ref_kinds(bar.active_text_area())
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
