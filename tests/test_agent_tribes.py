@@ -117,7 +117,7 @@ def test_concurrent_mutations_preserve_every_assignment(tmp_path: Path) -> None:
     def slow_save(
         tribes: dict[tuple[AgentType, str, str | None], str],
     ) -> bool:
-        time.sleep(0.005)
+        time.sleep(0.005)  # sase-test-wait: concurrent save race window
         return original_save(tribes)
 
     def update(index: int) -> bool:

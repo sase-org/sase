@@ -10,7 +10,9 @@ from sase.ace.patch import Patch
 from sase.ace.tui import AceApp
 
 from ._startup import _install_fast_startup_overrides
+from . import settle as settle_helpers
 from .fixtures import DEFAULT_PATCHES
+from .wait import _poll_until
 
 AceStartupPolicy = Literal["fast", "real"]
 
@@ -196,13 +198,13 @@ class AcePage:
                         raise AssertionError(
                             "AcePage startup state did not load within 15 seconds"
                         )
-                    await self._pilot.pause()
+                    await settle_helpers.settle_pilot(self._pilot)
                     paused = True
                 # Fast fixtures can complete before Textual's run-test enter
                 # returns. Give their queued display/focus continuations one
                 # turn, matching the settling turn the real loader wait gets.
                 if not paused:
-                    await self._pilot.pause()
+                    await settle_helpers.settle_pilot(self._pilot)
             return self
         except BaseException:
             await stack.aclose()
@@ -225,13 +227,20 @@ class AcePage:
         await self._pilot.press(*keys)
 
     async def pause(self, delay: float | None = None) -> None:
-        """Let the Textual message queue settle.
+        """Let Textual settle, or sleep for an explicitly requested delay.
 
-        Pass ``0`` when the caller has its own semantic or frame-convergence
-        barrier and only needs queued messages to drain. The default retains
-        Textual's CPU-idle heuristic for general-purpose tests.
+        Bare pauses use ACE's event-driven settle barrier. Numeric pauses are
+        retained as real delays for tests that intentionally exercise time.
         """
-        await self._pilot.pause(delay)
+        if delay is None:
+            await settle_helpers.settle_pilot(self._pilot)
+        else:
+            await self._pilot.pause(delay)
+
+    async def pause_until_cpu_idle(self) -> None:
+        """Use Textual's original CPU-idle pause heuristic explicitly."""
+
+        await settle_helpers.pause_until_cpu_idle(self._pilot)
 
     async def click(self, selector: str) -> None:
         """Click a widget by CSS selector."""
@@ -290,21 +299,30 @@ class AcePage:
         Supports dot-notation for nested keys (e.g., "selected.name").
         """
         value = _LEGACY_STATE_VALUE_ALIASES.get((key, value), value)
-        deadline = asyncio.get_event_loop().time() + timeout
         last_actual: Any = _SENTINEL
-        while True:
+        app = self.app
+
+        def predicate() -> bool:
+            nonlocal last_actual
             state = self.state
             actual = _resolve_key(state, key)
             last_actual = actual
-            if actual == value:
-                return
-            if asyncio.get_event_loop().time() >= deadline:
-                msg = (
-                    f"expect_state({key!r}, {value!r}) timed out after"
-                    f" {timeout}s — last value was {last_actual!r}"
-                )
-                raise AssertionError(msg)
-            await self._pilot.pause()
+            return actual == value
+
+        def timeout_message() -> str:
+            return (
+                f"expect_state({key!r}, {value!r}) timed out after"
+                f" {timeout}s — last value was {last_actual!r}"
+            )
+
+        await _poll_until(
+            predicate,
+            is_success=bool,
+            settle=lambda: settle_helpers.settle_pilot(self._pilot),
+            timeout=timeout,
+            timeout_message=timeout_message,
+            clock=app._loop.time if app._loop is not None else None,
+        )
 
     async def expect_modal(self, name: str, *, timeout: float = 5.0) -> None:
         """Assert that the named modal is currently shown."""
@@ -316,35 +334,37 @@ class AcePage:
 
     async def expect_screen_contains(self, text: str, *, timeout: float = 5.0) -> None:
         """Poll screen until text is found, or raise AssertionError."""
-        deadline = asyncio.get_event_loop().time() + timeout
-        while True:
-            screen = self.screen
-            if text in screen:
-                return
-            if asyncio.get_event_loop().time() >= deadline:
-                msg = (
-                    f"expect_screen_contains({text!r}) timed out after"
-                    f" {timeout}s — text not found in screen"
-                )
-                raise AssertionError(msg)
-            await self._pilot.pause()
+        app = self.app
+
+        await _poll_until(
+            lambda: text in self.screen,
+            is_success=bool,
+            settle=lambda: settle_helpers.settle_pilot(self._pilot),
+            timeout=timeout,
+            timeout_message=lambda: (
+                f"expect_screen_contains({text!r}) timed out after"
+                f" {timeout}s — text not found in screen"
+            ),
+            clock=app._loop.time if app._loop is not None else None,
+        )
 
     async def expect_screen_not_contains(
         self, text: str, *, timeout: float = 5.0
     ) -> None:
         """Poll screen until text is absent, or raise AssertionError."""
-        deadline = asyncio.get_event_loop().time() + timeout
-        while True:
-            screen = self.screen
-            if text not in screen:
-                return
-            if asyncio.get_event_loop().time() >= deadline:
-                msg = (
-                    f"expect_screen_not_contains({text!r}) timed out after"
-                    f" {timeout}s — text still present in screen"
-                )
-                raise AssertionError(msg)
-            await self._pilot.pause()
+        app = self.app
+
+        await _poll_until(
+            lambda: text not in self.screen,
+            is_success=bool,
+            settle=lambda: settle_helpers.settle_pilot(self._pilot),
+            timeout=timeout,
+            timeout_message=lambda: (
+                f"expect_screen_not_contains({text!r}) timed out after"
+                f" {timeout}s — text still present in screen"
+            ),
+            clock=app._loop.time if app._loop is not None else None,
+        )
 
     async def wait_for(
         self,
@@ -353,15 +373,15 @@ class AcePage:
         timeout: float = 5.0,
     ) -> None:
         """Poll state until predicate(state) returns True, or raise."""
-        deadline = asyncio.get_event_loop().time() + timeout
-        while True:
-            state = self.state
-            if predicate(state):
-                return
-            if asyncio.get_event_loop().time() >= deadline:
-                msg = (
-                    f"wait_for() timed out after {timeout}s —"
-                    f" predicate never returned True"
-                )
-                raise AssertionError(msg)
-            await self._pilot.pause()
+        app = self.app
+
+        await _poll_until(
+            lambda: predicate(self.state),
+            is_success=bool,
+            settle=lambda: settle_helpers.settle_pilot(self._pilot),
+            timeout=timeout,
+            timeout_message=lambda: (
+                f"wait_for() timed out after {timeout}s — predicate never returned True"
+            ),
+            clock=app._loop.time if app._loop is not None else None,
+        )

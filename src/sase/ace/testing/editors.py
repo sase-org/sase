@@ -9,6 +9,8 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 
+from . import settle as settle_helpers
+
 
 class _PromptTestApp(App[None]):
     """Minimal app hosting a single PromptTextArea for isolation testing.
@@ -112,8 +114,8 @@ class PromptPage:
         await self._pilot.press(*keys)
 
     async def pause(self) -> None:
-        """Pause the pilot to let the app process events."""
-        await self._pilot.pause()
+        """Let the app process events and render a frame."""
+        await settle_helpers.settle_pilot(self._pilot)
 
     @property
     def text(self) -> str:
@@ -241,8 +243,8 @@ class VimEditorPage:
         await self._pilot.press(*keys)
 
     async def pause(self) -> None:
-        """Pause the pilot to let the app process events."""
-        await self._pilot.pause()
+        """Let the app process events and render a frame."""
+        await settle_helpers.settle_pilot(self._pilot)
 
     @property
     def text(self) -> str:

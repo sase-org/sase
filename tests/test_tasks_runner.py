@@ -463,7 +463,7 @@ def _wait_for_running(task_id: str) -> BackgroundTask:
             return task
         if task.status not in {"pending", "running"}:
             pytest.fail(f"task became {task.status} before it was observed running")
-        time.sleep(0.025)
+        time.sleep(min(0.025, max(0.0, deadline - time.monotonic())))
     pytest.fail("task did not enter running state")
 
 
@@ -472,5 +472,5 @@ def _wait_for_process_exit(pid: int) -> None:
     while time.monotonic() < deadline:
         if not is_process_running(pid):
             return
-        time.sleep(0.025)
+        time.sleep(min(0.025, max(0.0, deadline - time.monotonic())))
     pytest.fail(f"process {pid} did not exit")

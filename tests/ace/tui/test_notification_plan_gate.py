@@ -84,6 +84,14 @@ class _PlanModalApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
 
+def _has_button(modal: PlanApprovalModal, selector: str) -> bool:
+    try:
+        modal.query_one(selector, Button)
+    except Exception:
+        return False
+    return True
+
+
 def test_plan_modal_loader_projects_tale_branch_model(gate_home: Path) -> None:
     plan = gate_home / "tale.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
@@ -125,6 +133,7 @@ async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
         )
         assert modal._copy_plan_path == str(plan)
         assert modal._gate.branches[0] == ("approve", "commit")
+        await wait_for(pilot, lambda: _has_button(modal, "#gate-option-0-0"))
         coder_label = str(modal.query_one("#gate-option-0-0", Button).label)
         assert "🚀" in coder_label
         assert "Launch coder agent" in coder_label
@@ -181,6 +190,7 @@ async def test_epic_plan_modal_renders_canonical_singleton_label(
         assert modal._gate.options[0].id == "approve"
         assert modal._gate.options[0].label == "Epic"
         assert modal._gate.options[0].icon == "✅"
+        await wait_for(pilot, lambda: _has_button(modal, "#gate-singleton-0"))
         epic_label = str(modal.query_one("#gate-singleton-0", Button).label)
         assert epic_label.startswith("1 ")
         assert "✅" in epic_label

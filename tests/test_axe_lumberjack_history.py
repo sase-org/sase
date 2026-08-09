@@ -178,7 +178,7 @@ def test_chop_history_is_pruned_to_max(
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     for _ in range(MAX_CHOP_RUN_HISTORY + 2):
         lumberjack._run_tick()
-        time.sleep(0.001)
+        time.sleep(0.001)  # sase-test-wait: distinct chop run timestamps
 
     index = read_chop_run_index("test_lumberjack", "hook_checks")
     assert len(index) == MAX_CHOP_RUN_HISTORY

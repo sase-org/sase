@@ -230,7 +230,7 @@ def test_simultaneous_leases_never_exceed_pool(
         with state_lock:
             active_tokens += grant
             maximum_active_tokens = max(maximum_active_tokens, active_tokens)
-        time.sleep(0.03)
+        time.sleep(0.03)  # sase-test-wait: suite-token overlap window
         with state_lock:
             active_tokens -= grant
         lease.release()

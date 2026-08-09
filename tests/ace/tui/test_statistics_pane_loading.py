@@ -158,7 +158,7 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
 
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
-        await asyncio.sleep(1.1)
+        await asyncio.sleep(1.1)  # sase-test-wait: auto-refresh soak window
         # Soak for a fixed window, then wait on the observed refresh count
         # rather than assuming the window produced it. A loaded CI runner can
         # starve the 0.2s refresh timer enough that 1.1s of wall clock yields

@@ -70,7 +70,7 @@ def test_concurrent_claim_registered_name_preserves_all_claims(
 
     def slow_load() -> dict[str, object]:
         data = real_load()
-        time.sleep(0.01)
+        time.sleep(0.01)  # sase-test-wait: contention overlap window
         return data
 
     def claim(i: int) -> None:

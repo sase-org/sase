@@ -78,6 +78,17 @@ async def test_expect_state_fails_on_timeout() -> None:
             await page.expect_state("idx", 999, timeout=0.1)
 
 
+async def test_expect_state_timeout_preserves_last_value_message() -> None:
+    async with AcePage() as page:
+        with pytest.raises(AssertionError) as excinfo:
+            await page.expect_state("idx", 999, timeout=0)
+
+    assert (
+        str(excinfo.value)
+        == "expect_state('idx', 999) timed out after 0s — last value was 0"
+    )
+
+
 async def test_expect_state_nested_key() -> None:
     """Dot-notation like 'selected.name' resolves nested dict keys."""
     async with AcePage() as page:

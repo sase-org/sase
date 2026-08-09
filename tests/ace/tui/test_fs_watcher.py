@@ -24,7 +24,7 @@ def _wait(predicate: Callable[[], bool], timeout: float = 2.0) -> bool:
     while time.monotonic() < deadline:
         if predicate():
             return True
-        time.sleep(0.02)
+        time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
     return predicate()
 
 
@@ -200,7 +200,7 @@ def test_watcher_coalesces_burst(tmp_path: Path) -> None:
         for i in range(20):
             (tmp_path / f"f_{i}.json").write_text("{}")
         # Wait long enough for the coalesce window to elapse.
-        time.sleep(0.30)
+        time.sleep(0.30)  # sase-test-wait: fs watcher coalesce window
         # We expect 1 dispatch, possibly 2 if the final write landed
         # exactly on the boundary — never the 20+ that uncoalesced
         # forwarding would yield.

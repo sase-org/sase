@@ -392,7 +392,7 @@ def test_tick_overrun_logs_warning(
     streamed = streamed_ok()
 
     def slow_run(*args: object, **kwargs: object):
-        time.sleep(1.1)
+        time.sleep(1.1)  # sase-test-wait: tick overrun threshold
         return streamed(*args, **kwargs)
 
     mock_run.side_effect = slow_run
@@ -430,7 +430,7 @@ def test_chops_run_concurrently(
     streamed = streamed_ok()
 
     def slow_run(*args: object, **kwargs: object):
-        time.sleep(1.0)
+        time.sleep(1.0)  # sase-test-wait: concurrent chop duration
         return streamed(*args, **kwargs)
 
     mock_run.side_effect = slow_run

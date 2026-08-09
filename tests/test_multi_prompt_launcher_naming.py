@@ -55,7 +55,7 @@ def test__wait_for_agent_naming_waits_for_name_field() -> None:
             json.dump({"pid": 123}, f)
 
         def _write_name_later() -> None:
-            time.sleep(0.3)
+            time.sleep(0.3)  # sase-test-wait: delayed metadata write
             with open(meta_path, "w") as f:
                 json.dump({"pid": 123, "name": "beta"}, f)
 

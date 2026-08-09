@@ -181,7 +181,7 @@ def test_append_plus_rewrite_contract_preserves_valid_jsonl_after_race(
     rewritten = dataclasses.replace(first, read=True)
 
     def append_second() -> None:
-        time.sleep(0.01)
+        time.sleep(0.01)  # sase-test-wait: concurrent rewrite interleave
         append_notification(
             Notification(
                 id="second",

@@ -16,6 +16,19 @@ from tests._test_cost import (
 )
 
 
+class _FakePilotApp:
+    async def wait_for_refresh(self) -> bool:
+        return True
+
+
+class _FakePilot:
+    app = _FakePilotApp()
+
+
+async def _fake_pilot_pause(_pilot: _FakePilot, _delay: float | None) -> None:
+    return None
+
+
 def test_cost_directory_lives_under_the_timing_store(tmp_path: Path) -> None:
     assert cost_directory(tmp_path) == tmp_path / "timings" / "cost"
 
@@ -170,13 +183,19 @@ def test_format_cost_report_includes_diff_and_top_files() -> None:
                     "peak": 100,
                     "sample_count": 4,
                 },
-                "causes": {"parser_create": {"count": 1, "seconds": 0.5}},
+                "causes": {
+                    "ace_settle_pilot": {"count": 2, "seconds": 0.25},
+                    "parser_create": {"count": 1, "seconds": 0.5},
+                },
                 "files": {
                     "tests/test_a.py": {
                         "node_count": 1,
                         "wall_seconds": 1.0,
                         "cpu_seconds": 0.75,
-                        "causes": {"parser_create": {"count": 1, "seconds": 0.5}},
+                        "causes": {
+                            "ace_settle_pilot": {"count": 2, "seconds": 0.25},
+                            "parser_create": {"count": 1, "seconds": 0.5},
+                        },
                     }
                 },
             }
@@ -194,6 +213,7 @@ def test_format_cost_report_includes_diff_and_top_files() -> None:
         "worker RSS curve: start=70 KiB, post_collection=80 KiB, "
         "median=85 KiB, peak=100 KiB, samples=4"
     ) in report
+    assert "ACE settle_pilot: 0.250s (2x)" in report
     assert "sase.main.parser.create_parser: 0.500s (1x)" in report
     assert "by wall:" in report
     assert "tests/test_a.py" in report
@@ -216,3 +236,23 @@ def test_cost_recorder_attributes_causes_to_current_file(tmp_path: Path) -> None
     assert payload["causes"]["parser_create"]["count"] == 1
     assert payload["rss_curve_kib"]["sample_count"] >= 2
     assert payload["rss_curve_kib"]["peak"] >= payload["rss_curve_kib"]["start"]
+
+
+async def test_cost_recorder_attributes_ace_settle_helpers(tmp_path: Path) -> None:
+    recorder = _test_cost_plugin.CostRecorder(tmp_path, mode="cost", worker_count=1)
+    token = _test_cost_plugin._CURRENT_FILE.set("tests/test_a.py")
+    try:
+        from sase.ace.testing import settle as settle_helpers
+
+        pilot = _FakePilot()
+        await settle_helpers.settle_pilot(pilot, _pilot_pause=_fake_pilot_pause)
+        await settle_helpers.pause_until_cpu_idle(pilot, _pilot_pause=_fake_pilot_pause)
+        recorder._record_item("tests/test_a.py", wall_seconds=1.0, cpu_seconds=0.5)
+        payload = recorder._worker_payload()
+    finally:
+        _test_cost_plugin._CURRENT_FILE.reset(token)
+        recorder._restore_patches()
+
+    causes = payload["files"]["tests/test_a.py"]["causes"]
+    assert causes["ace_settle_pilot"]["count"] == 1
+    assert causes["ace_pause_until_cpu_idle"]["count"] == 1

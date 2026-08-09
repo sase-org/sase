@@ -215,7 +215,7 @@ def test_signal_and_wait_for_form_a_deterministic_barrier(tmp_path: Path) -> Non
         process.stdin.close()
         deadline = time.monotonic() + 2
         while not started.exists() and time.monotonic() < deadline:
-            time.sleep(0.01)
+            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
         assert started.exists()
         assert process.poll() is None
         release.touch()
@@ -250,7 +250,7 @@ def test_sigterm_during_barrier_exits_cleanly(tmp_path: Path) -> None:
         process.stdin.close()
         deadline = time.monotonic() + 2
         while not started.exists() and time.monotonic() < deadline:
-            time.sleep(0.01)
+            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
         assert started.exists()
         process.send_signal(signal.SIGTERM)
         assert process.wait(timeout=2) == 143

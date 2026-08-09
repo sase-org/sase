@@ -627,7 +627,7 @@ def test_rebuild_from_jsonl_noop_when_db_newer(tmp_path):
     db_path = beads_dir / "beads.db"
 
     jsonl_path.write_text("")
-    time.sleep(0.01)
+    time.sleep(0.01)  # sase-test-wait: orders db newer than jsonl
     db_path.write_text("")
 
     result = rebuild_from_jsonl(beads_dir)

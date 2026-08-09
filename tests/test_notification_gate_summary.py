@@ -197,7 +197,7 @@ def test_load_gate_summary_overdue_past_its_deadline(gate_home: Path) -> None:
     spec["gate_timeout_seconds"] = 0.01
     create_gate(spec)
     [notification] = load_notifications(include_dismissed=True)
-    time.sleep(0.05)
+    time.sleep(0.05)  # sase-test-wait: gate timeout expiry
 
     summary = load_gate_summary(notification)
 

@@ -520,7 +520,7 @@ def test_commit_sdd_files_waits_for_store_write_lock(
         writer = threading.Thread(target=commit_in_thread)
         writer.start()
         assert started.wait(timeout=1)
-        time.sleep(0.05)
+        time.sleep(0.05)  # sase-test-wait: verifies git lock contention
         assert finished.is_set() is False
         current_head = subprocess.run(
             ["git", "rev-parse", "HEAD"],

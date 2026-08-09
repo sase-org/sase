@@ -254,7 +254,7 @@ class TestStreamChopScript:
                 if log_path.exists() and "first" in log_path.read_text():
                     captured["mid_run"] = log_path.read_text()
                     return
-                time.sleep(0.02)
+                time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
 
         result = stream_chop_script(script, str(ctx_file), log_path, on_pid=watcher)
 

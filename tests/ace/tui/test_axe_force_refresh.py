@@ -9,6 +9,7 @@ and updates its cache entry, independent of the full-fleet refresh.
 from __future__ import annotations
 
 import asyncio
+import threading
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -233,10 +234,12 @@ async def test_targeted_refresh_is_non_blocking() -> None:
     the event loop stays responsive while they run."""
     app = FakeAxeApp()
 
-    import time
+    entered = threading.Event()
+    release = threading.Event()
 
     def slow_status(_name: str) -> LumberjackStatus:
-        time.sleep(0.05)
+        entered.set()
+        release.wait(timeout=1.0)
         return _status("hooks")
 
     with (
@@ -254,8 +257,14 @@ async def test_targeted_refresh_is_non_blocking() -> None:
         ),
     ):
         task = asyncio.create_task(app._refresh_selected_axe_item_async())
-        # While the worker is sleeping, we must still be able to progress
-        # other coroutines.
-        await asyncio.sleep(0.01)
-        assert not task.done()
+        try:
+            assert await asyncio.wait_for(asyncio.to_thread(entered.wait), timeout=0.5)
+            # While the worker is blocked, we must still be able to progress
+            # other coroutines.
+            heartbeat = asyncio.Event()
+            asyncio.get_running_loop().call_soon(heartbeat.set)
+            await asyncio.wait_for(heartbeat.wait(), timeout=0.05)
+            assert not task.done()
+        finally:
+            release.set()
         await task

@@ -203,7 +203,7 @@ def test_provider_interrupt_restarts_with_accumulated_prompt(
     def request_interrupt() -> None:
         deadline = time.monotonic() + 5
         while not started.exists() and time.monotonic() < deadline:
-            time.sleep(0.01)
+            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
         assert started.exists()
         (artifacts / "interrupt_request.json").write_text(
             json.dumps({"message": "also test interrupts"}), encoding="utf-8"

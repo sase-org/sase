@@ -106,15 +106,22 @@ async def test_commit_hint_copy_suffix_copies_short_sha(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     copied: list[str] = []
+    copied_event = asyncio.Event()
+
+    def copy(content: str) -> bool:
+        copied.append(content)
+        copied_event.set()
+        return True
+
     monkeypatch.setattr(
         "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
-        lambda content: copied.append(content) is None or True,
+        copy,
     )
     app = _make_app()
     app._hint_commit_views = {1: _commit_spec(sha="abcdef1234567890")}
 
     await app._process_view_input("1%")
-    await asyncio.sleep(0.05)
+    await asyncio.wait_for(copied_event.wait(), timeout=1.0)
 
     assert copied == ["abcdef123456"]
     app.notify.assert_called_once_with(
@@ -128,9 +135,16 @@ async def test_multiple_commit_hint_copy_suffix_copies_all_short_shas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     copied: list[str] = []
+    copied_event = asyncio.Event()
+
+    def copy(content: str) -> bool:
+        copied.append(content)
+        copied_event.set()
+        return True
+
     monkeypatch.setattr(
         "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
-        lambda content: copied.append(content) is None or True,
+        copy,
     )
     app = _make_app()
     app._hint_commit_views = {
@@ -139,7 +153,7 @@ async def test_multiple_commit_hint_copy_suffix_copies_all_short_shas(
     }
 
     await app._process_view_input("1 2%")
-    await asyncio.sleep(0.05)
+    await asyncio.wait_for(copied_event.wait(), timeout=1.0)
 
     assert copied == ["111111111111 222222222222"]
     app.notify.assert_called_once_with(

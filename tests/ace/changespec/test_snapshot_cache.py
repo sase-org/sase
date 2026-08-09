@@ -80,7 +80,7 @@ def test_editing_one_file_reparses_only_that_file(tmp_path: Path) -> None:
     cache.get_file_specs(b)
 
     # Touch only file `a` so its (mtime_ns, size) signature changes.
-    time.sleep(0.01)
+    time.sleep(0.01)  # sase-test-wait: separates file mtime signatures
     new_text = _GP_HEADER.replace("Ready", "Draft")
     a.write_text(new_text)
     new_mtime = time.time_ns()

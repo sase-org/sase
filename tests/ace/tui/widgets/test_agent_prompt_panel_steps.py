@@ -50,7 +50,7 @@ def test_get_prompt_content_workflow_child_filters_by_step(
     api_research_file.write_text("api_research prompt content")
 
     # Ensure plan prompt has a later mtime
-    time.sleep(0.05)
+    time.sleep(0.05)  # sase-test-wait: separates prompt mtimes
     plan_file = tmp_path / "workflow-olcr-plan_prompt.md"
     plan_file.write_text("plan prompt content")
 

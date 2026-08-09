@@ -511,7 +511,7 @@ def _wait_for_condition(
     while time.monotonic() < deadline:
         if predicate():
             return
-        time.sleep(0.01)
+        time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
     raise TimeoutError(f"timed out waiting for {description}")
 
 

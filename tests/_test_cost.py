@@ -34,6 +34,8 @@ KEEP_COST_RECORDINGS = 8
 CAUSE_LABELS: Mapping[str, str] = {
     "ace_page_enter": "AcePage.__aenter__",
     "ace_page_exit": "AcePage.__aexit__",
+    "ace_pause_until_cpu_idle": "ACE pause_until_cpu_idle",
+    "ace_settle_pilot": "ACE settle_pilot",
     "config_load_merged": "sase.config.core.load_merged_config",
     "gettext_find": "gettext.find",
     "parser_create": "sase.main.parser.create_parser",

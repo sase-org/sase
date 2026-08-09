@@ -211,7 +211,7 @@ def _wait_for_output_containing(
             text = path.read_text()
             if all(expected in text for expected in expected_parts):
                 return text
-        time.sleep(0.02)
+        time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
     return path.read_text() if path.exists() else ""
 
 
@@ -293,7 +293,7 @@ def test_spawn_prepared_agent_process_cleans_up_on_claim_failure(
     assert seen_pid
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline and _pid_alive(seen_pid[0]):
-        time.sleep(0.02)
+        time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
     assert not _pid_alive(seen_pid[0])
 
 
@@ -328,7 +328,7 @@ def test_spawn_prepared_agent_process_propagates_workspace_claim_error_type(
     assert seen_pid
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline and _pid_alive(seen_pid[0]):
-        time.sleep(0.02)
+        time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
     assert not _pid_alive(seen_pid[0])
 
 

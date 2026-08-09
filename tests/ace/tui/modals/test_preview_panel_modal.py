@@ -12,7 +12,7 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Input, Markdown, Static
 
-from sase.ace.testing import AcePage
+from sase.ace.testing import AcePage, wait_for
 from sase.ace.tui.modals.preview_panel_modal import (
     PreviewPanelModal,
     _fence_leading_yaml_frontmatter,
@@ -76,11 +76,8 @@ async def _wait_for_modal_state(
     *,
     attempts: int = 20,
 ) -> None:
-    for _ in range(attempts):
-        if predicate():
-            return
-        await pilot.pause()
-    assert predicate()
+    del attempts
+    await wait_for(pilot, predicate)
 
 
 def test_fence_leading_yaml_frontmatter() -> None:

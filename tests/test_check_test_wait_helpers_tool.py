@@ -147,3 +147,98 @@ def test_prompt_panel_aliases_do_not_leak_between_functions(tmp_path: Path) -> N
     tool = _load_tool()
 
     assert tool.find_forbidden_helpers((root,)) == []
+
+
+def test_positive_literal_sleep_requires_inline_reason(tmp_path: Path) -> None:
+    root = tmp_path / "tests"
+    root.mkdir(parents=True)
+    (root / "test_bad.py").write_text(
+        "import asyncio\n\nasync def test_wait():\n    await asyncio.sleep(0.01)\n",
+        encoding="utf-8",
+    )
+
+    tool = _load_tool()
+
+    assert tool.find_forbidden_helpers((root,)) == [
+        tool.Finding(root / "test_bad.py", 4, "fixed-sleep-missing-pragma")
+    ]
+
+
+def test_positive_literal_sleep_allows_inline_reason(tmp_path: Path) -> None:
+    root = tmp_path / "tests"
+    root.mkdir(parents=True)
+    (root / "test_ok.py").write_text(
+        "import time\n"
+        "\n"
+        "def test_wait():\n"
+        "    time.sleep(0.01)  # sase-test-wait: filesystem mtime granularity\n",
+        encoding="utf-8",
+    )
+
+    tool = _load_tool()
+
+    assert tool.find_forbidden_helpers((root,)) == []
+
+
+def test_positive_literal_sleep_rejects_empty_inline_reason(tmp_path: Path) -> None:
+    root = tmp_path / "tests"
+    root.mkdir(parents=True)
+    (root / "test_bad.py").write_text(
+        "import time\n\ndef test_wait():\n    time.sleep(0.01)  # sase-test-wait:\n",
+        encoding="utf-8",
+    )
+
+    tool = _load_tool()
+
+    assert tool.find_forbidden_helpers((root,)) == [
+        tool.Finding(root / "test_bad.py", 4, "fixed-sleep-empty-pragma")
+    ]
+
+
+def test_positive_literal_sleep_rejects_detached_reason(tmp_path: Path) -> None:
+    root = tmp_path / "tests"
+    root.mkdir(parents=True)
+    (root / "test_bad.py").write_text(
+        "import time\n"
+        "\n"
+        "def test_wait():\n"
+        "    # sase-test-wait: filesystem mtime granularity\n"
+        "    time.sleep(0.01)\n",
+        encoding="utf-8",
+    )
+
+    tool = _load_tool()
+
+    assert tool.find_forbidden_helpers((root,)) == [
+        tool.Finding(root / "test_bad.py", 5, "fixed-sleep-detached-pragma")
+    ]
+
+
+def test_zero_sleep_cooperative_yield_is_allowed(tmp_path: Path) -> None:
+    root = tmp_path / "tests"
+    root.mkdir(parents=True)
+    (root / "test_ok.py").write_text(
+        "import asyncio\n\nasync def test_wait():\n    await asyncio.sleep(0)\n",
+        encoding="utf-8",
+    )
+
+    tool = _load_tool()
+
+    assert tool.find_forbidden_helpers((root,)) == []
+
+
+def test_deadline_clamped_backoff_sleep_is_allowed(tmp_path: Path) -> None:
+    root = tmp_path / "tests"
+    root.mkdir(parents=True)
+    (root / "test_ok.py").write_text(
+        "import asyncio\n"
+        "\n"
+        "async def test_wait(loop):\n"
+        "    deadline = loop.time() + 1\n"
+        "    await asyncio.sleep(min(0.01, max(0.0, deadline - loop.time())))\n",
+        encoding="utf-8",
+    )
+
+    tool = _load_tool()
+
+    assert tool.find_forbidden_helpers((root,)) == []

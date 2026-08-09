@@ -45,7 +45,7 @@ def _run_questions_flow(
     def _respond_or_kill() -> None:
         marker_deadline = time.monotonic() + 10.0
         while not os.path.exists(marker_path) and time.monotonic() < marker_deadline:
-            time.sleep(0.01)
+            time.sleep(min(0.01, max(0.0, marker_deadline - time.monotonic())))
         # Snapshot marker existence and contents during the poll loop.
         if os.path.exists(marker_path):
             try:

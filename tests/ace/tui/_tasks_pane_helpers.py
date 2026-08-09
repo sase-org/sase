@@ -20,6 +20,7 @@ from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.tasks_pane import TasksPane
 from sase.ace.tui.modals.tasks_store_rows import StoreTasksSnapshot, _store_task_row
 from sase.ace.tui.task_queue import TaskInfo, TaskQueue
+from sase.ace.testing import wait_for
 from sase.tasks import BackgroundTask
 
 
@@ -127,6 +128,7 @@ async def open_tasks_pane(
     pilot.app.push_screen(modal)
     await pilot.pause()
     pane = modal.query_one("#tasks", TasksPane)
+    await wait_for(pilot, lambda: not pane._store_load_pending)
     return modal, pane
 
 

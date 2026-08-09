@@ -117,7 +117,7 @@ def test_plan_command_pulse_mtime_advances(
 
         # Force the filesystem clock to advance so mtime resolution differences
         # don't cause flakes on filesystems with coarse mtime granularity.
-        time.sleep(0.01)
+        time.sleep(0.01)  # sase-test-wait: separates pulse mtimes
         assert _invoke_plan(plan_file) == 0
         second_mtime = pulse_path.stat().st_mtime_ns
 

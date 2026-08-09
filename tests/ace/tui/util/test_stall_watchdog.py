@@ -63,7 +63,7 @@ async def test_watchdog_emits_nothing_while_loop_progresses(
     )
     try:
         watchdog.start()
-        await asyncio.sleep(0.08)
+        await asyncio.sleep(0.08)  # sase-test-wait: below watchdog threshold
     finally:
         watchdog.stop()
 
@@ -432,7 +432,7 @@ async def test_paused_watchdog_quiets_loop_and_pump_beacons(
     try:
         watchdog.pause()
         watchdog.start()
-        await asyncio.sleep(0.12)
+        await asyncio.sleep(0.12)  # sase-test-wait: paused watchdog window
     finally:
         watchdog.resume()
         watchdog.stop()
@@ -457,9 +457,9 @@ async def test_paused_watchdog_emits_no_stall_while_loop_blocked(
         watchdog.start()
         watchdog.pause()
         # Block the loop well past the threshold while paused.
-        time.sleep(0.2)
+        time.sleep(0.2)  # sase-test-wait: intentional loop block
         # Let the watchdog thread poll several times during the paused block.
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.05)  # sase-test-wait: watchdog thread poll window
     finally:
         watchdog.resume()
         watchdog.stop()
@@ -482,10 +482,10 @@ async def test_resumed_watchdog_records_one_later_real_stall(
     try:
         watchdog.start()
         watchdog.pause()
-        time.sleep(0.15)  # intentional suspend — must not record
+        time.sleep(0.15)  # sase-test-wait: paused loop block
         watchdog.resume()
-        await asyncio.sleep(0.03)  # warm up so a ping marks fresh progress
-        time.sleep(0.15)  # real accidental block — must record exactly one
+        await asyncio.sleep(0.03)  # sase-test-wait: fresh watchdog ping
+        time.sleep(0.15)  # sase-test-wait: recorded loop block
         await _wait_for_path(path)
     finally:
         watchdog.stop()
@@ -607,7 +607,7 @@ async def _wait_for_path(path: Path) -> None:
     while time.monotonic() < deadline:
         if path.exists():
             return
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
     raise AssertionError(f"{path} was not written")
 
 
@@ -622,5 +622,5 @@ async def _wait_for_event(path: Path, event: str) -> None:
     while time.monotonic() < deadline:
         if any(record.get("event") == event for record in _read_records(path)):
             return
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
     raise AssertionError(f"{event} was not written to {path}")

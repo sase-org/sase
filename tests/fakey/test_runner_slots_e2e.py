@@ -268,7 +268,7 @@ def _wait_for_condition(predicate: object, description: str) -> None:
     while time.monotonic() < deadline:
         if callable(predicate) and predicate():
             return
-        time.sleep(0.01)
+        time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
     raise AssertionError(f"timed out waiting for {description}")
 
 
@@ -325,7 +325,7 @@ def test_fakey_drain_barrier_waits_for_later_eligible_launch(
 
     harness.release_agent(running)
     harness.join(running)
-    time.sleep(0.05)
+    time.sleep(0.05)  # sase-test-wait: delayed runner admission window
     assert (barrier.artifacts_dir / "waiting.json").exists()
     assert not barrier.started.exists()
 

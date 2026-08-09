@@ -15,7 +15,7 @@ responsive while the load is in flight.
 from __future__ import annotations
 
 import asyncio
-import time
+import threading
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -94,9 +94,12 @@ async def test_reload_does_not_block_event_loop() -> None:
     """
     disk_cs = [_make_cs("alpha"), _make_cs("beta"), _make_cs("gamma")]
 
+    entered = threading.Event()
+    release = threading.Event()
+
     def slow_find_all() -> list[MagicMock]:
-        # Sleeps on a worker thread; the event loop must stay responsive.
-        time.sleep(0.2)
+        entered.set()
+        release.wait(timeout=1.0)
         return disk_cs
 
     app = FakeApp([_make_cs("alpha"), _make_cs("beta"), _make_cs("gamma")])
@@ -117,18 +120,19 @@ async def test_reload_does_not_block_event_loop() -> None:
         ),
     ):
         reload_task = asyncio.create_task(app._reload_and_reposition_async())
-
-        # Simulate a navigation keypress that fires while the disk scan is
-        # still blocked in the worker thread. On the sync implementation
-        # this would queue up behind the scan. On the async implementation
-        # it runs immediately.
-        await asyncio.sleep(0.05)
-        assert not reload_task.done(), (
-            "disk scan completed suspiciously fast — test cannot observe "
-            "responsiveness during the load"
-        )
-        app.current_idx = 2  # user pressed j twice
-
+        try:
+            assert await asyncio.wait_for(asyncio.to_thread(entered.wait), timeout=0.5)
+            # Simulate a navigation keypress that fires while the disk scan is
+            # still blocked in the worker thread. On the sync implementation
+            # this would queue up behind the scan. On the async implementation
+            # it runs immediately.
+            heartbeat = asyncio.Event()
+            asyncio.get_running_loop().call_soon(heartbeat.set)
+            await asyncio.wait_for(heartbeat.wait(), timeout=0.05)
+            assert not reload_task.done()
+            app.current_idx = 2  # user pressed j twice
+        finally:
+            release.set()
         await reload_task
 
     # After the reload, the cursor should have been repositioned onto the

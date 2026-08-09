@@ -167,6 +167,22 @@ class CostRecorder:
         self._patch_async_function(
             "textual._wait", "wait_for_idle", "textual_wait_for_idle"
         )
+        self._patch_async_function(
+            "sase.ace.testing.settle", "settle_pilot", "ace_settle_pilot"
+        )
+        self._patch_async_function(
+            "sase.ace.testing.settle",
+            "pause_until_cpu_idle",
+            "ace_pause_until_cpu_idle",
+        )
+        self._patch_async_function(
+            "sase.ace.testing", "settle_pilot", "ace_settle_pilot"
+        )
+        self._patch_async_function(
+            "sase.ace.testing",
+            "pause_until_cpu_idle",
+            "ace_pause_until_cpu_idle",
+        )
         self._patch_app_run_test()
         self._patch_async_method(
             "sase.ace.testing.ace_page", "AcePage", "__aenter__", "ace_page_enter"

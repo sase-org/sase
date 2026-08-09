@@ -149,7 +149,7 @@ def test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir(
         assert data["entries"]["sharded"]["raw_suffix"] == "20260613120000"
 
         before = _registry_store._source_signature()
-        time.sleep(0.01)
+        time.sleep(0.01)  # sase-test-wait: separates source mtimes
         _make_sharded_agent(tmp_path, "proj", "20260613120100", "sharded-later")
         after = _registry_store._source_signature()
         assert after != before
@@ -195,7 +195,7 @@ def test_registry_signature_detects_dismissed_bundle_changes(
     )
     rewritten = _registry_store._source_signature()
 
-    time.sleep(0.01)
+    time.sleep(0.01)  # sase-test-wait: separates bundle mtimes
     added_bundle = _write_bundle(
         tmp_path,
         "20260508120100.json",
@@ -203,7 +203,7 @@ def test_registry_signature_detects_dismissed_bundle_changes(
     )
     added = _registry_store._source_signature()
 
-    time.sleep(0.01)
+    time.sleep(0.01)  # sase-test-wait: separates unlink mtime
     added_bundle.unlink()
     removed = _registry_store._source_signature()
 
@@ -228,7 +228,7 @@ def test_registry_source_scan_caches_unchanged_shards(tmp_path: Path) -> None:
         second = _registry_scan.source_signature_paths()
         second_info = cache.cache_info()
 
-        time.sleep(0.01)
+        time.sleep(0.01)  # sase-test-wait: invalidates cached shard mtime
         added = _write_bundle(
             tmp_path,
             "20260508999999.json",
@@ -267,7 +267,7 @@ def test_registry_source_scan_caches_unchanged_artifact_walks(
     ):
         first = _registry_scan.source_signature_paths()
         second = _registry_scan.source_signature_paths()
-        time.sleep(0.01)
+        time.sleep(0.01)  # sase-test-wait: invalidates artifact scan mtime
         added = _make_sharded_agent(
             tmp_path,
             "proj",

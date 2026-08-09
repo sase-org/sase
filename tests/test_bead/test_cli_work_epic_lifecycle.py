@@ -253,7 +253,7 @@ def test_rollback_kills_partially_launched_agents(
         for _ in range(50):
             if child.poll() is not None:
                 break
-            time.sleep(0.1)
+            time.sleep(0.1)  # sase-test-wait: observes child cleanup across processes
         assert child.poll() is not None, "partially-launched child was not killed"
     finally:
         if child.poll() is None:

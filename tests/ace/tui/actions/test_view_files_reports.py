@@ -106,7 +106,6 @@ async def test_tool_call_report_hint_is_materialized_for_clipboard(
     app._copy_files_to_clipboard = MagicMock()  # type: ignore[method-assign]
 
     await app._process_view_input("1%")
-    await asyncio.sleep(0.05)
 
     assert Path(report_path).is_file()
     app._copy_files_to_clipboard.assert_called_once_with([report_path])

@@ -137,7 +137,7 @@ def test_wait_blocks_then_proceeds(tmp_path: Path) -> None:
 
         # Release the lock from a thread after a short delay
         def release_after_delay() -> None:
-            time.sleep(0.3)
+            time.sleep(0.3)  # sase-test-wait: edit-lock delay is asserted
             proc.terminate()
             proc.wait()
             try:

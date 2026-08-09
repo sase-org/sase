@@ -72,7 +72,7 @@ def test_streaming_chop_writes_output_before_exit(
             ):
                 mid_run_tail = tail
                 break
-        time.sleep(0.02)
+        time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
 
     worker.join(timeout=5.0)
     assert not worker.is_alive(), "lumberjack tick failed to finish"

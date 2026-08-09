@@ -18,7 +18,7 @@ def _wait_for_interrupt_monitor(
     while time.monotonic() < deadline:
         if pred():
             return True
-        time.sleep(interval)
+        time.sleep(min(interval, max(0.0, deadline - time.monotonic())))
     return pred()
 
 
@@ -57,7 +57,6 @@ def test_start_interrupt_monitor_no_op_without_env(
     received: list[str | None] = []
     start_interrupt_monitor(process, on_interrupt=received.append)
 
-    time.sleep(0.05)
     assert received == []
     process.terminate.assert_not_called()
 
@@ -82,7 +81,7 @@ def test_start_interrupt_monitor_handles_invalid_json(
     # Wait for the monitor to attempt the read and return.
     assert _wait_for_interrupt_monitor(lambda: process.poll.call_count >= 1)
     # Give the thread a beat to finish its post-try `return`.
-    time.sleep(0.05)
+    time.sleep(0.05)  # sase-test-wait: daemon monitor return window
 
     assert received == []
     process.terminate.assert_not_called()

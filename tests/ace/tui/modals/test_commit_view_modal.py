@@ -166,23 +166,31 @@ async def _wait_for_diff(
     modal: CommitViewModal,
     expected_text: str,
 ) -> None:
-    for _ in range(50):
-        if (
-            modal._diff_loaded
-            and modal._diff_text
-            and expected_text in modal._diff_text
-        ):
-            return
-        await pilot.pause()
-    raise AssertionError(f"commit diff did not load expected text: {expected_text}")
+    try:
+        await wait_for(
+            pilot,
+            lambda: bool(
+                modal._diff_loaded
+                and modal._diff_text
+                and expected_text in modal._diff_text
+            ),
+        )
+    except AssertionError as exc:
+        raise AssertionError(
+            f"commit diff did not load expected text: {expected_text}"
+        ) from exc
 
 
 async def _wait_for_plan(pilot, modal: CommitViewModal) -> None:
-    for _ in range(50):
-        if modal._display_mode == "plan" and modal._plan_document is not None:
-            return
-        await pilot.pause()
-    raise AssertionError("commit plan did not load")
+    try:
+        await wait_for(
+            pilot,
+            lambda: bool(
+                modal._display_mode == "plan" and modal._plan_document is not None
+            ),
+        )
+    except AssertionError as exc:
+        raise AssertionError("commit plan did not load") from exc
 
 
 async def test_commit_view_modal_copies_sha_and_closes(

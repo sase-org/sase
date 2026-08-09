@@ -35,7 +35,7 @@ def _wait_for_new_merged_config(previous: dict) -> dict:
         current = load_merged_config()
         if current is not previous:
             return current
-        time.sleep(0.01)
+        time.sleep(min(0.01, max(0.0, deadline - time.perf_counter())))
     raise AssertionError("config-token refresh did not publish before timeout")
 
 
@@ -45,7 +45,7 @@ def _wait_for_config_token(expected: tuple) -> None:
     while time.perf_counter() < deadline:
         if current_config_token() == expected:
             return
-        time.sleep(0.01)
+        time.sleep(min(0.01, max(0.0, deadline - time.perf_counter())))
     raise AssertionError(f"config token {expected!r} was not published before timeout")
 
 
@@ -486,7 +486,7 @@ def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
         deadline = time.perf_counter() + 2.0
         while config_core._current_config_token_refresh_thread is not None:
             assert time.perf_counter() < deadline
-            time.sleep(0.01)
+            time.sleep(min(0.01, max(0.0, deadline - time.perf_counter())))
         assert current_config_token() == ("token", 3)
 
 

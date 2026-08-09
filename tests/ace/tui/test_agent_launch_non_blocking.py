@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
+import threading
 from contextlib import ExitStack
 from datetime import datetime
 from typing import Any
@@ -155,31 +155,31 @@ async def test_launch_body_runs_in_worker_thread_not_blocking_loop() -> None:
     """
     app = _FakeApp()
 
-    slow_done = asyncio.Event()
+    entered = threading.Event()
+    release = threading.Event()
 
     def slow_body(prompt: str, ctx: object = None) -> None:
-        # Sleeps on a worker thread; the event loop must stay responsive.
         del ctx
-        time.sleep(0.2)
+        entered.set()
+        release.wait(timeout=1.0)
         app.body_calls.append(prompt)
 
     with patch.object(_FakeApp, "_run_agent_launch_body", side_effect=slow_body):
         task = asyncio.create_task(app._run_agent_launch_body_async("hello"))
-
-        # A coroutine scheduled while the body is blocking must still run
-        # promptly — this is the property that "j/k works during launch"
-        # depends on.
-        await asyncio.sleep(0.05)
-        assert not task.done(), (
-            "body completed suspiciously fast — test cannot observe "
-            "responsiveness during the load"
-        )
-        slow_done.set()  # sentinel: the loop is processing tasks
-
+        try:
+            assert await asyncio.wait_for(asyncio.to_thread(entered.wait), timeout=0.5)
+            # A coroutine scheduled while the body is blocked must still run
+            # promptly — this is the property that "j/k works during launch"
+            # depends on.
+            heartbeat = asyncio.Event()
+            asyncio.get_running_loop().call_soon(heartbeat.set)
+            await asyncio.wait_for(heartbeat.wait(), timeout=0.05)
+            assert not task.done()
+        finally:
+            release.set()
         await task
 
     assert app.body_calls == ["hello"]
-    assert slow_done.is_set()
 
 
 @pytest.mark.asyncio

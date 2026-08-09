@@ -16,7 +16,7 @@ def test_concurrent_auto_extract_assigns_unique_names(tmp_path: Path) -> None:
 
     def slow_get_next_auto_name() -> str:
         name = real_get_next_auto_name()
-        time.sleep(0.05)
+        time.sleep(0.05)  # sase-test-wait: concurrent name race window
         return name
 
     def run(index: int) -> str:

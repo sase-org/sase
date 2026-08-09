@@ -13,6 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCANNED_ROOTS = (REPO_ROOT / "tests",)
 FORBIDDEN_FUNCTION = "_wait_until"
 PROMPT_PANEL_SELECTORS = {"#agent-prompt-panel"}
+WAIT_PRAGMA = "sase-test-wait:"
 
 
 class Finding(NamedTuple):
@@ -42,6 +43,107 @@ def _is_range_call(node: ast.AST) -> bool:
         and isinstance(node.func, ast.Name)
         and node.func.id == "range"
     )
+
+
+def _is_zero_literal(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, int | float)
+        and not isinstance(node.value, bool)
+        and float(node.value) == 0.0
+    )
+
+
+def _is_positive_literal(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, int | float)
+        and not isinstance(node.value, bool)
+        and float(node.value) > 0.0
+    )
+
+
+def _is_named_call(node: ast.AST, name: str) -> bool:
+    return isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and (
+        node.func.id == name
+    )
+
+
+def _contains_deadline(node: ast.AST) -> bool:
+    return any(
+        isinstance(child, ast.Name) and child.id == "deadline"
+        for child in ast.walk(node)
+    )
+
+
+def _is_deadline_clamped_backoff(node: ast.AST) -> bool:
+    if not _is_named_call(node, "min"):
+        return False
+    for arg in node.args:
+        if not _is_named_call(arg, "max"):
+            continue
+        has_zero_floor = any(_is_zero_literal(max_arg) for max_arg in arg.args)
+        has_deadline_delta = any(
+            isinstance(child, ast.BinOp)
+            and isinstance(child.op, ast.Sub)
+            and _contains_deadline(child)
+            for child in ast.walk(arg)
+        )
+        if has_zero_floor and has_deadline_delta:
+            return True
+    return False
+
+
+def _is_sleep_call(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "sleep"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id in {"asyncio", "time"}
+    )
+
+
+def _requires_wait_pragma(node: ast.Call) -> bool:
+    if not node.args:
+        return False
+    delay = node.args[0]
+    if _is_zero_literal(delay) or _is_deadline_clamped_backoff(delay):
+        return False
+    return _is_positive_literal(delay)
+
+
+def _inline_wait_pragma_reason(line: str) -> str | None:
+    marker = f"# {WAIT_PRAGMA}"
+    if marker not in line:
+        return None
+    return line.split(marker, 1)[1].strip()
+
+
+def _has_detached_wait_pragma(lines: list[str], line_number: int) -> bool:
+    if line_number <= 1:
+        return False
+    previous = lines[line_number - 2].strip()
+    return previous.startswith("#") and WAIT_PRAGMA in previous
+
+
+def _fixed_sleep_findings(tree: ast.AST, path: Path, lines: list[str]) -> list[Finding]:
+    findings: list[Finding] = []
+    for node in ast.walk(tree):
+        if not _is_sleep_call(node) or not _requires_wait_pragma(node):
+            continue
+        assert isinstance(node, ast.Call)
+        line = lines[node.lineno - 1] if 0 < node.lineno <= len(lines) else ""
+        reason = _inline_wait_pragma_reason(line)
+        if reason is not None:
+            if not reason:
+                findings.append(Finding(path, node.lineno, "fixed-sleep-empty-pragma"))
+            continue
+        if _has_detached_wait_pragma(lines, node.lineno):
+            findings.append(Finding(path, node.lineno, "fixed-sleep-detached-pragma"))
+        else:
+            findings.append(Finding(path, node.lineno, "fixed-sleep-missing-pragma"))
+    return findings
 
 
 def _is_pilot_pause_await(node: ast.AST) -> bool:
@@ -152,9 +254,11 @@ def find_forbidden_helpers(
     for root in roots:
         for path in _python_files(root):
             try:
-                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+                source = path.read_text(encoding="utf-8")
+                tree = ast.parse(source, filename=str(path))
             except SyntaxError:
                 continue
+            lines = source.splitlines()
             for node in _function_defs(tree):
                 if node.name == FORBIDDEN_FUNCTION:
                     findings.append(Finding(path, node.lineno, "private-wait-until"))
@@ -166,6 +270,7 @@ def find_forbidden_helpers(
                 Finding(path, node.lineno, "raw-agent-prompt-panel-text")
                 for node in _raw_prompt_panel_text_updates(tree)
             )
+            findings.extend(_fixed_sleep_findings(tree, path, lines))
     return findings
 
 
@@ -178,7 +283,9 @@ def main() -> int:
         "sase.ace.testing.wait.wait_for for raw Textual pilots, "
         "sase.ace.testing.set_agent_prompt_document for ACE prompt-panel "
         "document injection, or give non-pilot harness waits a "
-        "domain-specific name.",
+        "domain-specific name. Positive literal test sleeps must use "
+        "an inline '# sase-test-wait: <reason>' pragma, or be replaced by "
+        "an observable wait.",
         file=sys.stderr,
     )
     for finding in findings:

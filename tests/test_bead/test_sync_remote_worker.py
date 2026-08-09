@@ -61,7 +61,7 @@ def test_managed_sync_worker_positive_lock_wait_acquires_after_release(
     fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def release_lock() -> None:
-        time.sleep(0.03)
+        time.sleep(0.03)  # sase-test-wait: held flock overlap window
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     release = threading.Thread(target=release_lock)
