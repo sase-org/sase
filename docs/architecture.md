@@ -12,11 +12,11 @@ reviewed, retried, and handed off through stable project artifacts.
 | Area         | Responsibility                                                                                                                | Main References                   |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                               | [CLI reference](cli.md)           |
-| ACE          | Interactive TUI for ChangeSpecs, agents, notifications, artifacts, and axe status.                                            | [ACE TUI](ace.md)                 |
+| ACE          | Interactive TUI for Patches, agents, notifications, artifacts, and axe status.                                                | [ACE TUI](ace.md)                 |
 | Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                        | [Axe](axe.md)                     |
 | XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                      | [XPrompts](xprompt.md)            |
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md) |
-| ChangeSpecs  | PR-sized review records with lifecycle state, commits, hooks, comments, mentors, and timestamps.                              | [ChangeSpecs](change_spec.md)     |
+| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                             | [Patches](change_spec.md)         |
 | Memory       | Instruction memory, explicit `#memory/<stem>` xprompt inclusion, audited long-term reads, and reviewed write proposals.       | [Memory](memory.md)               |
 | SDD          | Durable prompt, tale, epic, and research artifacts.                                                                           | [SDD](sdd.md)                     |
 | Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                      | [Beads](beads.md)                 |
@@ -81,7 +81,7 @@ The project-adjacent taxonomy has three non-overlapping roles:
 
 | State            | Location / Owner                                                                 | Use                                                                                                                                                                                            |
 | ---------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ProjectSpecs     | `<project>/<project>.sase` under `~/.sase/projects/`                             | Enabled/disabled lifecycle, primary repo, aliases, claims, and embedded ChangeSpecs.                                                                                                           |
+| ProjectSpecs     | `<project>/<project>.sase` under `~/.sase/projects/`                             | Enabled/disabled lifecycle, primary repo, aliases, claims, and embedded Patches.                                                                                                               |
 | Agent metadata   | Agent artifact directories under `~/.sase/`                                      | Running/completed status, prompt files, output, diffs, workflow state, and attachments.                                                                                                        |
 | Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/`               | Dismissed-agent recovery bundles and named groups for later ACE revival.                                                                                                                       |
 | SDD artifacts    | Provider-resolved `sdd/`, `.sase/sdd/`, or split sidecar roots                   | Plans, executable epics, research notes, and links to canonical agents-sidecar prompts; resolve with `sase repo path plans` or `research`.                                                     |
@@ -128,7 +128,7 @@ The required `sase_core_rs` extension is the shared backend boundary for determi
 logic that benefits from a stable wire contract or from being reused by non-Python
 frontends. Current Rust-backed areas include:
 
-- ChangeSpec parsing and batch query operations.
+- Patch parsing and batch query operations.
 - Project lifecycle parsing, canonical enabled/disabled normalization, the true-project
   predicate, VCS-kind derivation, update planning, and lifecycle-filtered project
   listing.
@@ -159,7 +159,7 @@ complete operation list and facade map.
 | Command discovery                        | [CLI reference](cli.md)                                                                              |
 | Contributor setup and source orientation | [Development](development.md)                                                                        |
 | Runtime operations                       | [ACE](ace.md), [Axe](axe.md), [notifications](notifications.md)                                      |
-| Durable work records                     | [ChangeSpecs](change_spec.md), [memory](memory.md), [SDD](sdd.md), [beads](beads.md)                 |
+| Durable work records                     | [Patches](change_spec.md), [memory](memory.md), [SDD](sdd.md), [beads](beads.md)                     |
 | Prompt and workflow execution            | [XPrompts](xprompt.md), [workflow spec](workflow_spec.md)                                            |
 | Extension boundaries                     | [Plugins](plugins.md), [LLM providers](llms.md), [VCS providers](vcs.md), [workspaces](workspace.md) |
 | Backend boundary                         | [Rust backend](rust_backend.md)                                                                      |

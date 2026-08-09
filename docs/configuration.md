@@ -268,9 +268,9 @@ time range. Its seven numbered views are **1 Overview**, **2 Runners**, **3 Proj
 **4 Providers**, **5 Activity**, **6 XPrompts**, and **7 Plans & Questions**. The
 Runners view uses today's effective global limit—including a temporary override—as
 present-day context, never as historical configuration. The Projects view can group by
-project, by ChangeSpec, or as a project-to-ChangeSpec drilldown. XPrompts can group by
-usage, model, project, or co-usage. A pane-wide project filter lets you apply the same
-scope to the other views.
+project, by Patch, or as a project-to-Patch drilldown. XPrompts can group by usage,
+model, project, or co-usage. A pane-wide project filter lets you apply the same scope to
+the other views.
 
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries
 off the UI thread. Use `[` / `]` to change views or press `0` followed by `1`–`7` to
@@ -661,8 +661,8 @@ ace:
       refresh: "r"
       help: "question_mark"
     app:
-      next_changespec: "j"
-      prev_changespec: "k"
+      next_patch: "j"
+      prev_patch: "k"
       edit_query: "slash" # defaults render as `/` outside Agents
       # ... all app-level keybindings are configurable
     modes:
@@ -1061,10 +1061,10 @@ completion still works.
 The former `history_word_min_length` key has been replaced by `word_min_length`.
 Existing overrides must rename the key to keep controlling word completion.
 
-The `+query` project/ChangeSpec picker uses the same completion panel and opens when the
-plus is at absolute prompt offset zero or immediately follows a literal ASCII space. It
-is not disabled by `auto_xprompt_menu`. Manual `Ctrl+T` project/ChangeSpec completion
-uses the same token rule and works regardless of these automatic-completion settings.
+The `+query` project/Patch picker uses the same completion panel and opens when the plus
+is at absolute prompt offset zero or immediately follows a literal ASCII space. It is
+not disabled by `auto_xprompt_menu`. Manual `Ctrl+T` project/Patch completion uses the
+same token rule and works regardless of these automatic-completion settings.
 
 `@` reference completion uses a project-scoped artifact catalog and warm prompt path
 inventory. `auto_artifact_menu` controls automatic opening of the grouped menu from bare
@@ -1699,7 +1699,7 @@ vcs_provider:
 | ------------------------------------ | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
 | `vcs_provider.provider`              | string            | `"auto"` | VCS provider: `"git"`, `"hg"`, or `"auto"` for directory detection.                                           |
 | `vcs_provider.workspace_root`        | string            | -        | Legacy VCS helper workspace root. New numbered-checkout layout is configured by `workspace.root` below.       |
-| `vcs_provider.default_hooks`         | list[string]      | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults.                                           |
+| `vcs_provider.default_hooks`         | list[string]      | -        | Hook commands added to new Patches. Replaces built-in defaults.                                               |
 | `vcs_provider.pr_tags`               | dict[string, str] | `{}`     | Key-value tags appended as `SASE_TAG=VALUE` lines to PR commit messages (keys are rendered `SASE_`-prefixed). |
 | `vcs_provider.use_project_pr_prefix` | bool              | `false`  | Prepend `[<project>] ` to PR titles / PR descriptions (see below).                                            |
 
@@ -1708,9 +1708,9 @@ When `default_hooks` is not set, plugins may provide their own defaults via
 core `sase` package has no built-in default hooks.
 
 When `use_project_pr_prefix` is `true`, a `[<project>] ` prefix is prepended to PR
-titles (GitHub) or PR descriptions (Mercurial) without polluting the ChangeSpec
-DESCRIPTION or git commit message. The prefix is automatically stripped when reading
-descriptions back.
+titles (GitHub) or PR descriptions (Mercurial) without polluting the Patch DESCRIPTION
+or git commit message. The prefix is automatically stripped when reading descriptions
+back.
 
 Source: `src/sase/vcs_provider/config.py`, `src/sase/ace/hooks/defaults.py`
 
@@ -1741,8 +1741,8 @@ Source: `src/sase/default_config.yml`, `src/sase/xprompt/vcs_repo_completion.py`
 
 ### vcs_ref_completion
 
-Configures project, ChangeSpec, and namespace completion at the root of VCS workflow
-refs such as `#gh:` and `#git:`.
+Configures project, Patch, and namespace completion at the root of VCS workflow refs
+such as `#gh:` and `#git:`.
 
 ```yaml
 vcs_ref_completion:
@@ -1754,8 +1754,8 @@ vcs_ref_completion:
 | `vcs_ref_completion.enabled` | bool | `true`  | Enable ACE and xprompt LSP completion at the root of VCS workflow refs. |
 
 When disabled, ACE does not detect VCS ref-root completion triggers and the materialized
-xprompt LSP VCS catalog omits namespace rows. Project and ChangeSpec candidates come
-from local ProjectSpecs; provider namespace rows come from fast local workspace-provider
+xprompt LSP VCS catalog omits namespace rows. Project and Patch candidates come from
+local ProjectSpecs; provider namespace rows come from fast local workspace-provider
 hooks.
 
 Source: `src/sase/default_config.yml`, `src/sase/xprompt/vcs_ref_completion.py`
@@ -1771,7 +1771,7 @@ axe:
   max_hook_runners: 3 # concurrent hook runners (default: 3)
   max_agent_runners: 3 # concurrent agent runners (default: 3)
   zombie_timeout_seconds: 7200 # seconds (default: 7200 = 2 hours)
-  query: "" # query filter for ChangeSpecs (default: all)
+  query: "" # query filter for Patches (default: all)
   chop_script_dirs: [] # additional directories to search for chop scripts
   lumberjacks:
     hooks:
@@ -1779,7 +1779,7 @@ axe:
         Fast lane that advances hook, mentor, and workflow lifecycle state every few seconds
 
         Runs every five seconds with a 90-second per-chop timeout so completed work is noticed and new work starts
-        promptly. Put latency-sensitive ChangeSpec lifecycle reconciliation here; slower remote polling, wait
+        promptly. Put latency-sensitive Patch lifecycle reconciliation here; slower remote polling, wait
         coordination, and maintenance belong in the other lanes.
       interval: 5
       chop_timeout: "90s"
@@ -1789,9 +1789,9 @@ axe:
           description: |-
             Complete finished hooks and start stale ones, with zombie detection
 
-            Scans hook entries on every matching ChangeSpec, records completed process results, and starts stale hooks
+            Scans hook entries on every matching Patch, records completed process results, and starts stale hooks
             when a runner slot is free. Honors max_hook_runners across the tick; stale fix-hook suffixes older than
-            zombie_timeout_seconds become ZOMBIE, while terminal ChangeSpecs may finish hooks but cannot start new ones.
+            zombie_timeout_seconds become ZOMBIE, while terminal Patches may finish hooks but cannot start new ones.
         - name: mentor_checks
           script: sase_chop_mentor_checks
           description: |-
@@ -1799,13 +1799,13 @@ axe:
 
             Reconciles running mentors, stops mentors left behind by older commits, adds matching mentor profiles, and
             launches ready profiles after their hooks finish. Mentor launches share max_agent_runners with other agent
-            workflows, and review-ineligible or terminal ChangeSpecs are skipped.
+            workflows, and review-ineligible or terminal Patches are skipped.
         - name: workflow_checks
           script: sase_chop_workflow_checks
           description: |-
             Complete finished CRS/fix-hook workflows and start stale ones
 
-            Reads workflow state from every matching ChangeSpec, records results for finished CRS and fix-hook agents,
+            Reads workflow state from every matching Patch, records results for finished CRS and fix-hook agents,
             and launches stale workflows. New workflows share max_agent_runners and the current tick's agent-launch
             budget with mentors, so a full runner pool defers work instead of queueing it.
         - name: pending_checks_poll
@@ -1813,7 +1813,7 @@ axe:
           description: |-
             Poll background is_cl_submitted and critique_comments checks for results
 
-            Scans the pending-check directory once per tick, applies completed results to matching ChangeSpecs, and
+            Scans the pending-check directory once per tick, applies completed results to matching Patches, and
             reaps output files orphaned by killed or crashed checks. This chop only consumes background results;
             pr_submitted_checks and comment_checks launch the remote checks.
         - name: comment_zombie_checks
@@ -1821,7 +1821,7 @@ axe:
           description: |-
             Mark comment threads older than zombie_timeout as ZOMBIE
 
-            Examines comment-entry suffix timestamps on matching ChangeSpecs and writes a ZOMBIE suffix when an entry
+            Examines comment-entry suffix timestamps on matching Patches and writes a ZOMBIE suffix when an entry
             exceeds zombie_timeout_seconds. It performs no remote comment fetch; comment_checks starts those checks and
             pending_checks_poll applies their results.
         - name: suffix_transforms
@@ -1829,16 +1829,16 @@ axe:
           description: |-
             Strip stale suffixes from older proposals and update mail-readiness markers
 
-            Normalizes matching ChangeSpecs in place by converting old proposal markers from !: to ~:, removing error
-            markers from superseded commit entries, and acknowledging attention markers on terminal statuses. It only
+            Normalizes matching Patches in place by converting old proposal markers from !: to ~:, removing error
+            markers from superseded stitches, and acknowledging attention markers on terminal statuses. It only
             repairs stored suffix state and never launches hooks or agents.
         - name: orphan_cleanup
           script: sase_chop_orphan_cleanup
           description: |-
             Release workspace claims orphaned by reverted PRs with dead PIDs
 
-            Reads all ChangeSpecs and workspace claims, regardless of the axe query, then releases unpinned claims tied
-            to Reverted ChangeSpecs when their owning PID is absent or dead. Live claims and pinned workspaces are left
+            Reads all Patches and workspace claims, regardless of the axe query, then releases unpinned claims tied
+            to Reverted Patches when their owning PID is absent or dead. Live claims and pinned workspaces are left
             untouched.
         - name: stale_running_cleanup
           script: sase_chop_stale_running_cleanup
@@ -1853,7 +1853,7 @@ axe:
         Resolve agent wait dependencies and keep bead claims and stores in sync
 
         Runs every ten seconds so waiting agents resume promptly and short-lived bead claims are reconciled quickly.
-        Put agent dependency, bead-claim, and bead-store coordination here; ChangeSpec lifecycle checks and general
+        Put agent dependency, bead-claim, and bead-store coordination here; Patch lifecycle checks and general
         cleanup belong in their dedicated lanes.
       interval: 10
       chops:
@@ -1905,7 +1905,7 @@ axe:
           description: |-
             Start background is_cl_submitted checks for leaf PRs with a submitted parent
 
-            Applies the axe query, finds eligible leaf ChangeSpecs with PR URLs, and launches non-blocking submission
+            Applies the axe query, finds eligible leaf Patches with PR URLs, and launches non-blocking submission
             checks whose results are collected by pending_checks_poll. A five-minute sync cache suppresses duplicate
             remote work, except that the first cycle checks eligible leaves immediately.
         - name: stale_running_cleanup
@@ -1920,7 +1920,7 @@ axe:
       description: |-
         Start background critique-comment checks for mailed PRs every minute
 
-        Runs every minute so reviewer feedback reaches active ChangeSpecs promptly without polling on every hooks tick.
+        Runs every minute so reviewer feedback reaches active Patches promptly without polling on every hooks tick.
         Only remote comment-check launches belong here; pending result collection and zombie marking remain in the
         faster hooks lane.
       interval: 60
@@ -1930,7 +1930,7 @@ axe:
           description: |-
             Start background critique_comments checks for all mailed PRs
 
-            Applies the axe query and starts non-blocking critique_comments checks for mailed ChangeSpecs that have an
+            Applies the axe query and starts non-blocking critique_comments checks for mailed Patches that have an
             available workspace, then records a comment-cycle summary. The lumberjack's one-minute interval is the
             polling throttle; pending_checks_poll later consumes each background result.
     housekeeping:
@@ -1962,18 +1962,18 @@ axe:
 
 **Top-level fields:**
 
-| Field                                    | Type         | Default    | Description                                                                   |
-| ---------------------------------------- | ------------ | ---------- | ----------------------------------------------------------------------------- |
-| `max_hook_runners`                       | int          | `3`        | Maximum concurrent hook runners (non-`$` hooks) across all ChangeSpecs.       |
-| `max_agent_runners`                      | int          | `3`        | Maximum concurrent agent runners (agents and mentors) across all ChangeSpecs. |
-| `zombie_timeout_seconds`                 | int          | `7200`     | Seconds after which a running hook or workflow is flagged as a zombie.        |
-| `query`                                  | string       | `""`       | Query string for filtering ChangeSpecs (empty = all).                         |
-| `chop_script_dirs`                       | list[string] | `[]`       | Additional directories to search for external chop scripts.                   |
-| `lumberjack_log_max_bytes`               | int          | `52428800` | Maximum bytes retained for each bounded lumberjack log.                       |
-| `lumberjack_log_temp_max_age_seconds`    | int          | `300`      | Minimum age before orphaned log-rotation temp files are removed.              |
-| `lumberjack_restart_backoff_max_seconds` | int          | `60`       | Maximum delay between retries for a crashing lumberjack.                      |
-| `verbose_lumberjack_diagnostics`         | bool         | `false`    | Include verbose diagnostics in chop script context JSON.                      |
-| `lumberjacks`                            | dict         | -          | Mapping of lumberjack name → config (see below).                              |
+| Field                                    | Type         | Default    | Description                                                               |
+| ---------------------------------------- | ------------ | ---------- | ------------------------------------------------------------------------- |
+| `max_hook_runners`                       | int          | `3`        | Maximum concurrent hook runners (non-`$` hooks) across all Patches.       |
+| `max_agent_runners`                      | int          | `3`        | Maximum concurrent agent runners (agents and mentors) across all Patches. |
+| `zombie_timeout_seconds`                 | int          | `7200`     | Seconds after which a running hook or workflow is flagged as a zombie.    |
+| `query`                                  | string       | `""`       | Query string for filtering Patches (empty = all).                         |
+| `chop_script_dirs`                       | list[string] | `[]`       | Additional directories to search for external chop scripts.               |
+| `lumberjack_log_max_bytes`               | int          | `52428800` | Maximum bytes retained for each bounded lumberjack log.                   |
+| `lumberjack_log_temp_max_age_seconds`    | int          | `300`      | Minimum age before orphaned log-rotation temp files are removed.          |
+| `lumberjack_restart_backoff_max_seconds` | int          | `60`       | Maximum delay between retries for a crashing lumberjack.                  |
+| `verbose_lumberjack_diagnostics`         | bool         | `false`    | Include verbose diagnostics in chop script context JSON.                  |
+| `lumberjacks`                            | dict         | -          | Mapping of lumberjack name → config (see below).                          |
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
@@ -1988,20 +1988,20 @@ axe:
 
 **Chop fields** (per entry under `chops`):
 
-| Field         | Type                    | Required  | Default  | Description                                                            |
-| ------------- | ----------------------- | --------- | -------- | ---------------------------------------------------------------------- |
-| `name`        | string                  | list only | -        | Stable identity; map form uses the entry key.                          |
-| `script`      | string                  | no        | `name`   | Exact executable name; no prefix is added automatically.               |
-| `enabled`     | boolean                 | no        | `true`   | Soft-disable a keyed entry while retaining inherited fields.           |
-| `description` | string                  | yes       | -        | Summary line, blank line, optional body describing what the chop does. |
-| `run_every`   | string                  | no        | -        | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`.       |
-| `timeout`     | string                  | no        | -        | Per-chop duration limit. Overrides lumberjack `chop_timeout`.          |
-| `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.           |
-| `inhibit_if`  | list or map             | no        | -        | `changespec` / `agent_hood` / `agent_clan` guards before dispatch.     |
-| `trigger`     | string or map           | no        | `always` | `always` or `git.commits_since` scheduled-run trigger.                 |
-| `once_per`    | string or object        | no        | -        | Bounded per-proposal dedupe-key template.                              |
-| `for_each`    | list or source          | no        | -        | Literal targets or the filtered `projects` source.                     |
-| `vars`        | object                  | no        | `{}`     | Non-secret values copied to the chop context.                          |
+| Field         | Type                    | Required  | Default  | Description                                                                                   |
+| ------------- | ----------------------- | --------- | -------- | --------------------------------------------------------------------------------------------- |
+| `name`        | string                  | list only | -        | Stable identity; map form uses the entry key.                                                 |
+| `script`      | string                  | no        | `name`   | Exact executable name; no prefix is added automatically.                                      |
+| `enabled`     | boolean                 | no        | `true`   | Soft-disable a keyed entry while retaining inherited fields.                                  |
+| `description` | string                  | yes       | -        | Summary line, blank line, optional body describing what the chop does.                        |
+| `run_every`   | string                  | no        | -        | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`.                              |
+| `timeout`     | string                  | no        | -        | Per-chop duration limit. Overrides lumberjack `chop_timeout`.                                 |
+| `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.                                  |
+| `inhibit_if`  | list or map             | no        | -        | `patch` / `agent_hood` / `agent_clan` guards before dispatch; `changespec` is a legacy alias. |
+| `trigger`     | string or map           | no        | `always` | `always` or `git.commits_since` scheduled-run trigger.                                        |
+| `once_per`    | string or object        | no        | -        | Bounded per-proposal dedupe-key template.                                                     |
+| `for_each`    | list or source          | no        | -        | Literal targets or the filtered `projects` source.                                            |
+| `vars`        | object                  | no        | `{}`     | Non-secret values copied to the chop context.                                                 |
 
 Both `description` fields use one grammar: a non-blank summary line of at most 100
 characters, then — if anything follows — a blank line, then a free-form body, with the
@@ -2062,11 +2062,12 @@ available in the context JSON under `target` and through `SASE_CHOP_TARGET_KEY` 
 `SASE_CHOP_TARGET_<FIELD>`. Literal target rows may include `overrides:` for per-target
 chop fields such as `run_every` and trigger thresholds.
 
-`inhibit_if` accepts keyed `changespec`, `agent_hood`, and `agent_clan` providers. The
-clan provider requires a case-sensitive `name_prefix` and checks canonical clan metadata
-for active agents, including waiting members; it never infers clans from dotted names.
-`trigger` accepts `always` or `git.commits_since`; the git provider requires `project`
-and `threshold`, and its checkpoint policy is `on_observation`, `on_action_accepted`, or
+`inhibit_if` accepts keyed `patch`, `agent_hood`, and `agent_clan` providers. The legacy
+`changespec` key remains accepted as an alias. The clan provider requires a
+case-sensitive `name_prefix` and checks canonical clan metadata for active agents,
+including waiting members; it never infers clans from dotted names. `trigger` accepts
+`always` or `git.commits_since`; the git provider requires `project` and `threshold`,
+and its checkpoint policy is `on_observation`, `on_action_accepted`, or
 `on_action_success`. Skips are recorded with reasons. Manual runs bypass the trigger but
 honor guards unless `sase axe chop run -f/--force` is used. `once_per` can be a key
 template string or an object with `key` and bounded `capacity`; proposal-supplied
@@ -2189,7 +2190,7 @@ Source: `src/sase/config/file_hooks.py`, `src/sase/config/sase.schema.json`
 
 ### mentor_profiles
 
-Defines mentor agents that run automated code reviews when a ChangeSpec's diff, changed
+Defines mentor agents that run automated code reviews when a Patch's diff, changed
 files, or amend notes match configurable criteria. Each profile groups one or more
 mentors with shared matching rules. See [docs/mentors.md](mentors.md) for the full
 mentor system reference.
@@ -2220,15 +2221,15 @@ mentor_profiles:
 
 **Profile fields:**
 
-| Field                | Type         | Required | Description                                                                       |
-| -------------------- | ------------ | -------- | --------------------------------------------------------------------------------- |
-| `profile_name`       | string       | yes      | Unique name identifying this profile.                                             |
-| `mentors`            | list         | yes      | List of mentor definitions (see below).                                           |
-| `file_globs`         | list[string] | no\*     | Glob patterns matched against changed file paths.                                 |
-| `diff_regexes`       | list[string] | no\*     | Regex patterns matched against the diff content.                                  |
-| `amend_note_regexes` | list[string] | no\*     | Regex patterns matched against commit/amend notes.                                |
-| `first_commit`       | bool         | no       | If true, match only on the first commit of a ChangeSpec.                          |
-| `projects`           | list[string] | no       | Only match ChangeSpecs in these projects. Auto-set for local `sase.yml` profiles. |
+| Field                | Type         | Required | Description                                                                   |
+| -------------------- | ------------ | -------- | ----------------------------------------------------------------------------- |
+| `profile_name`       | string       | yes      | Unique name identifying this profile.                                         |
+| `mentors`            | list         | yes      | List of mentor definitions (see below).                                       |
+| `file_globs`         | list[string] | no\*     | Glob patterns matched against changed file paths.                             |
+| `diff_regexes`       | list[string] | no\*     | Regex patterns matched against the diff content.                              |
+| `amend_note_regexes` | list[string] | no\*     | Regex patterns matched against commit/amend notes.                            |
+| `first_commit`       | bool         | no       | If true, match only on the first commit of a Patch.                           |
+| `projects`           | list[string] | no       | Only match Patches in these projects. Auto-set for local `sase.yml` profiles. |
 
 \*At least one of `file_globs`, `diff_regexes`, `amend_note_regexes`, or `first_commit`
 must be provided per profile.
@@ -2248,7 +2249,7 @@ must be provided per profile.
 | `focus_name`  | string | yes      | Short name for this focus area (e.g., "correctness"). |
 | `description` | string | yes      | Description of what this focus area reviews.          |
 
-Mentors run automatically on ChangeSpecs with Ready or Mailed status when their matching
+Mentors run automatically on Patches with Ready or Mailed status when their matching
 criteria are met. Mentor comments are structured JSON with severity levels (error,
 warning, suggestion) that can be reviewed and applied through the ACE TUI's Mentor
 Review modal (`,C`).
@@ -2423,7 +2424,7 @@ Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.p
 The configured global cap on concurrently running slot participants across all projects.
 Participants are top-level user agents—including independently launched clan members—and
 eligible parallel family members. Serial family follow-ups, workflow Python/bash steps,
-and axe ChangeSpec runners are excluded; axe runners continue to use their separate
+and axe Patch runners are excluded; axe runners continue to use their separate
 `axe.max_*_runners` limits. An unanswered participant at `QUESTION` temporarily yields
 its slot. After the user answers, it must reacquire against the current effective cap
 before follow-up work resumes and may therefore appear as a runner-slot `QUEUED` row.
@@ -2964,7 +2965,7 @@ default or model alias resolves to any advisory-flagged model. See
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SASE_VCS_PROVIDER`               | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                 |
 | `SASE_WORKSPACE_ROOT`             | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts. |
-| `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `SASE_BUG=<id>` into PR tags and ChangeSpec.                                                      |
+| `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `SASE_BUG=<id>` into PR tags and Patch.                                                           |
 | `SASE_BEAD_ID`                    | Bead ID for commit workflows. When set, `sase commit` adds a linked `SASE_BEAD=` footer tag and leaves the subject unchanged.                             |
 | `SASE_DISABLE_COMMIT_STOP_HOOK`   | Disable commit finalization for this process.                                                                                                             |
 | `SASE_LINKED_REPOS_JSON`          | Resolved linked-repo metadata passed to launched agents.                                                                                                  |
@@ -3062,7 +3063,7 @@ subcommand level. Use the explicit `list` form when passing list options, such a
 
 | Flag                     | Values                                      | Default                   | Description                                                                                                                                                                           |
 | ------------------------ | ------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[query]`                | string                                      | last saved query or `!!!` | Query string for filtering ChangeSpecs.                                                                                                                                               |
+| `[query]`                | string                                      | last saved query or `!!!` | Query string for filtering Patches.                                                                                                                                                   |
 | `-m, --model-tier`       | `large`, `small`                            | -                         | Override model tier for all LLM invocations.                                                                                                                                          |
 | `-M, --model-size`       | `big`, `little`                             | -                         | Deprecated alias for `--model-tier`.                                                                                                                                                  |
 | `-p, --profile`          | optional path                               | -                         | Profile the TUI session with pyinstrument (default output `$SASE_TMPDIR/ace_profile_<ts>.txt`); after exit, print a shortened path and copy it to the system clipboard when possible. |
@@ -3098,7 +3099,7 @@ recovery-command contract.
 
 | Flag                      | Values        | Default          | Description                                         |
 | ------------------------- | ------------- | ---------------- | --------------------------------------------------- |
-| `-q, --query`             | string        | `""` (all)       | Query string for filtering ChangeSpecs.             |
+| `-q, --query`             | string        | `""` (all)       | Query string for filtering Patches.                 |
 | `-H, --max-hook-runners`  | int           | config or `3`    | Maximum concurrent hook runners.                    |
 | `-A, --max-agent-runners` | int           | config or `3`    | Maximum concurrent agent runners.                   |
 | `-z, --zombie-timeout`    | int (seconds) | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
@@ -3178,18 +3179,18 @@ Dispatches a commit, proposal, or PR via the VCS provider layer. See
 [commit_workflows.md](commit_workflows.md) for the full flow, payload, checkpoint, and
 resume semantics.
 
-| Flag                    | Values                        | Default                 | Description                                                                                      |
-| ----------------------- | ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `-m, --message`         | string                        | -                       | Commit message (mutually exclusive with `-M`).                                                   |
-| `-M, --message-file`    | path                          | -                       | File containing the commit message / PR description (mutually exclusive with `-m`).              |
-| `-f, --file`            | path (repeatable)             | stage all               | Specific file to stage. Repeat for multiple; omit to stage everything.                           |
-| `-n, --name`            | string                        | -                       | Branch/PR name (required for `create_pull_request`).                                             |
-| `-B, --bug-id`          | int                           | `$SASE_BUG_ID`          | Bug ID to associate with the commit.                                                             |
-| `-c, --checkout-target` | string                        | `HEAD~1`                | Branch point for PR creation.                                                                    |
-| `-p, --parent`          | ChangeSpec name               | auto                    | Parent ChangeSpec name (overrides branch-based auto-detection). Unresolvable values are dropped. |
-| `-r, --resume`          | flag                          | -                       | Resume a previously-checkpointed commit after manual conflict resolution.                        |
-| `-s, --status`          | `wip` / `draft` / `ready`     | `$SASE_PR_STATUS`/draft | ChangeSpec status override for PRs.                                                              |
-| `-t, --type`            | `commit` / `propose` / `pr` … | `$SASE_COMMIT_METHOD`   | Commit method — full names (`create_commit`, etc.) and short aliases are both accepted.          |
+| Flag                    | Values                        | Default                 | Description                                                                                 |
+| ----------------------- | ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
+| `-m, --message`         | string                        | -                       | Commit message (mutually exclusive with `-M`).                                              |
+| `-M, --message-file`    | path                          | -                       | File containing the commit message / PR description (mutually exclusive with `-m`).         |
+| `-f, --file`            | path (repeatable)             | stage all               | Specific file to stage. Repeat for multiple; omit to stage everything.                      |
+| `-n, --name`            | string                        | -                       | Branch/PR name (required for `create_pull_request`).                                        |
+| `-B, --bug-id`          | int                           | `$SASE_BUG_ID`          | Bug ID to associate with the commit.                                                        |
+| `-c, --checkout-target` | string                        | `HEAD~1`                | Branch point for PR creation.                                                               |
+| `-p, --parent`          | Patch name                    | auto                    | Parent Patch name (overrides branch-based auto-detection). Unresolvable values are dropped. |
+| `-r, --resume`          | flag                          | -                       | Resume a previously-checkpointed commit after manual conflict resolution.                   |
+| `-s, --status`          | `wip` / `draft` / `ready`     | `$SASE_PR_STATUS`/draft | Patch status override for PRs.                                                              |
+| `-t, --type`            | `commit` / `propose` / `pr` … | `$SASE_COMMIT_METHOD`   | Commit method — full names (`create_commit`, etc.) and short aliases are both accepted.     |
 
 ### `sase vcs`
 
@@ -3216,11 +3217,11 @@ does not expand the eligible set. `--all --sdd` includes materialized separate S
 repositories across registered projects. The `--limit` is the cap on the final merged
 timeline.
 
-### `sase changespec search`
+### `sase patch search`
 
 | Flag           | Values                      | Default    | Description                                           |
 | -------------- | --------------------------- | ---------- | ----------------------------------------------------- |
-| `query`        | string                      | (required) | Query string for filtering ChangeSpecs.               |
+| `query`        | string                      | (required) | Query string for filtering Patches.                   |
 | `-f, --format` | `plain`, `rich`, `markdown` | `rich`     | Output format (`markdown` for agent-friendly output). |
 
 Search uses the normal enabled-project discovery scope. Disabled projects and internal
@@ -3229,7 +3230,7 @@ sibling backing records are omitted from this CLI path; run
 run `sase project enable <project>` before using normal search and launch surfaces for
 new work.
 
-### `sase changespec migrate-extension`
+### `sase patch migrate-extension`
 
 One-time cleanup for older installs: renames legacy ProjectSpec files under
 `~/.sase/projects` from `.gp` to `.sase`, including archive siblings. Current readers
@@ -3340,16 +3341,16 @@ deterministically.
 
 ### `sase revert`
 
-| Flag   | Values | Default    | Description                       |
-| ------ | ------ | ---------- | --------------------------------- |
-| `name` | string | (required) | NAME of the ChangeSpec to revert. |
+| Flag   | Values | Default    | Description                  |
+| ------ | ------ | ---------- | ---------------------------- |
+| `name` | string | (required) | NAME of the Patch to revert. |
 
 ### `sase restore`
 
-| Flag         | Values | Default | Description                                 |
-| ------------ | ------ | ------- | ------------------------------------------- |
-| `[name]`     | string | -       | NAME of the reverted ChangeSpec to restore. |
-| `-l, --list` | flag   | -       | List all reverted ChangeSpecs.              |
+| Flag         | Values | Default | Description                            |
+| ------------ | ------ | ------- | -------------------------------------- |
+| `[name]`     | string | -       | NAME of the reverted Patch to restore. |
+| `-l, --list` | flag   | -       | List all reverted Patches.             |
 
 ### `sase run`
 
@@ -3634,18 +3635,18 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead create`
 
-| Flag                | Values                                         | Default    | Description                                                                            |
-| ------------------- | ---------------------------------------------- | ---------- | -------------------------------------------------------------------------------------- |
-| `-t, --title`       | string                                         | (required) | Issue title                                                                            |
-| `-T, --type`        | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, or standalone `task`    |
-| `-d, --description` | string                                         | -          | Issue description                                                                      |
-| `-a, --assignee`    | string                                         | -          | Assignee name                                                                          |
-| `-m, --model`       | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                    |
-| `-R, --ref`         | artifact reference                             | -          | Artifact reference to attach; repeatable                                               |
-| `-z, --size`        | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; phases use model and plan-first routing, tasks use model routing only |
-| `-r, --tier`        | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                       |
-| `-c, --changespec`  | ChangeSpec name                                | -          | Attach ChangeSpec metadata to a plan bead                                              |
-| `-b, --bug-id`      | string                                         | -          | Bug ID for the attached ChangeSpec; requires `--changespec`                            |
+| Flag                           | Values                                         | Default    | Description                                                                            |
+| ------------------------------ | ---------------------------------------------- | ---------- | -------------------------------------------------------------------------------------- |
+| `-t, --title`                  | string                                         | (required) | Issue title                                                                            |
+| `-T, --type`                   | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, or standalone `task`    |
+| `-d, --description`            | string                                         | -          | Issue description                                                                      |
+| `-a, --assignee`               | string                                         | -          | Assignee name                                                                          |
+| `-m, --model`                  | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                    |
+| `-R, --ref`                    | artifact reference                             | -          | Artifact reference to attach; repeatable                                               |
+| `-z, --size`                   | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; phases use model and plan-first routing, tasks use model routing only |
+| `-r, --tier`                   | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                       |
+| `--patch` / `-c, --changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible              |
+| `-b, --bug-id`                 | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                    |
 
 #### `sase bead list`
 
@@ -3738,7 +3739,7 @@ once. Removal is irreversible.
 | --------------------- | ---------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
 | `targets`             | bead IDs or plan paths | (required) | One or more epic/task beads or validated epic plan files, processed in order until the first error |
 | `-a, --artifacts-dir` | directory              | -          | Back-fill planner artifacts after each approved epic; plan-file targets only                       |
-| `-c, --cl-name`       | ChangeSpec name        | -          | Approved epic ChangeSpec name applied per plan-file target                                         |
+| `-c, --cl-name`       | Patch name             | -          | Approved epic Patch name applied per plan-file target                                              |
 | `-n, --dry-run`       | flag                   | -          | Preview the epic wave plan or task prompt without mutating files, beads, or agents                 |
 | `-j, --json`          | flag                   | -          | Print one result object per processed target as JSON Lines and imply `--yes-to-all`                |
 | `-P, --no-push`       | flag                   | -          | Commit checkpoint state locally but skip post-commit pushes                                        |

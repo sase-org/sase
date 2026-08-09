@@ -126,7 +126,7 @@ workflow types.
 
 | Hook                                   | Returns                            | Description                                     |
 | -------------------------------------- | ---------------------------------- | ----------------------------------------------- |
-| `ws_submit`                            | `tuple[bool, str \| None] \| None` | Submit a ChangeSpec (merge, push, etc.)         |
+| `ws_submit`                            | `tuple[bool, str \| None] \| None` | Submit a Patch (merge, push, etc.)              |
 | `ws_prepare_mail`                      | `object \| None`                   | Prepare a change for mailing/review             |
 | `ws_extract_change_identifier`         | `tuple[str, str] \| None`          | Extract identifier from a PR URL                |
 | `ws_supports_reviewer_comments`        | `bool \| None`                     | Check if a PR URL supports reviewer comments    |
@@ -149,7 +149,7 @@ that call through the plugin manager. These are the primary API for consumers:
 | `detect_workflow_type()`           | Detect workflow type for a project file    |
 | `get_change_label()`               | Get the change label for a project         |
 | `resolve_ref()`                    | Resolve a workspace reference              |
-| `submit_changespec()`              | Submit a ChangeSpec                        |
+| `submit_changespec()`              | Submit a Patch                             |
 | `get_workspace_directory()`        | Get the directory for a workspace number   |
 | `prepare_mail()`                   | Prepare a change for review                |
 | `format_commit_description()`      | Format a commit description                |
@@ -169,7 +169,7 @@ The bundled bare-git provider resolves `#git:<ref>` in four modes:
 
 1. A registered project shorthand, using `~/.sase/projects/<name>/<name>.sase` when it
    contains `BARE_REPO_DIR` and `WORKSPACE_DIR`.
-2. A ChangeSpec name found across registered projects.
+2. A Patch name found across registered projects.
 3. A missing project shorthand with no slash, which initializes a new bare-git project
    using `~/.sase/repos/<name>.git` as the bare repository and `~/projects/git/<name>/`
    as the primary checkout.

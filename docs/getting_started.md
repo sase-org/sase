@@ -100,13 +100,12 @@ ACE has three top-level tabs:
 - **Artifacts** — five top-level views for commits, beads, bugs, PRs, and files. Files
   has nested Plans, Chats, and Other views, so documents and stored artifact files
   remain easy to browse without crowding the main tab strip. The PRs view contains every
-  ChangeSpec on the project. A **ChangeSpec** is SASE's durable record of one PR-sized
-  unit of work; think of it as the long-lived sibling of a pull request that holds the
+  Patch on the project. A **Patch** is SASE's durable record of one PR-sized unit of
+  work; think of it as the long-lived sibling of a pull request that holds the
   description, parent, status (WIP → Draft → Ready → Mailed → Submitted), commits,
   hooks, comments, and mentor activity all in one place. The
-  [ChangeSpec guide](change_spec.md) goes deeper when you're curious. This first
-  read-only run should not have created one yet; editable committed work is where
-  ChangeSpecs appear.
+  [Patch guide](change_spec.md) goes deeper when you're curious. This first read-only
+  run should not have created one yet; editable committed work is where Patches appear.
 - **Axe** — the background daemon's view: scheduled jobs, hooks waiting to complete,
   mentor launches, error digests. ACE auto-starts AXE the first time it opens, so this
   tab is already ticking before you click it.
@@ -127,8 +126,8 @@ sase agent list
 Now the agent has permission to make a visible diff in its isolated numbered workspace.
 Your own repositories and the `home` primary checkout stay untouched unless you
 explicitly bring changes back. When the agent commits its work, SASE's commit workflow
-records a ChangeSpec that you can review in ACE's Artifacts tab, under PRs, before
-landing or submitting anything.
+records a Patch that you can review in ACE's Artifacts tab, under PRs, before landing or
+submitting anything.
 
 Wait until `sase agent list` reports that the run is done before continuing. The second
 instruction registers a durable snapshot while leaving the tracked `notes.md` in the
@@ -281,15 +280,15 @@ still run `sase bead work <epic-id>` manually to retry remaining work.
 
 The names you'll keep bumping into, in one place:
 
-- **[ACE](ace.md)** — the TUI control surface for ChangeSpecs, agents, notifications,
-  and automation.
+- **[ACE](ace.md)** — the TUI control surface for Patches, agents, notifications, and
+  automation.
 - **[AXE](axe.md)** — the background automation daemon. Runs hooks, mentor launches,
   comment polling, dependency unblocking, error digests.
 - **`sase run`** — the entry point that launches an agent or workflow. See the
   [CLI reference](cli.md).
 - **[Workspaces](workspace.md)** — isolated numbered clones managed by SASE so agents
   can work in parallel without touching your primary checkout.
-- **[ChangeSpecs](change_spec.md)** — durable PR-sized review records: status lifecycle,
+- **[Patches](change_spec.md)** — durable PR-sized review records: status lifecycle,
   commits, hooks, comments, mentors.
 - **Artifact references** — durable `@kind:payload` locators that put files, documents,
   chats, beads, agents, commits, and bugs into a launch prompt. Resolve them with

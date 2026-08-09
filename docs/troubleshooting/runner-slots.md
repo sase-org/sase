@@ -21,8 +21,8 @@ age, so sustained higher-priority arrivals can starve default- or lower-priority
 waiters. An older low-threshold waiter does not block a later launch whose higher
 threshold currently permits it to run. Parallel family members participate even when ACE
 renders them as nested rows. Serial family follow-ups are exempt so a running parent can
-safely wait for child work; workflow Python/bash steps and axe ChangeSpec runners are
-exempt as well.
+safely wait for child work; workflow Python/bash steps and axe Patch runners are exempt
+as well.
 
 The bundled task, epic phase, and lander xprompts used by `sase bead work` do not set an
 authored wait priority. They use the default priority (`10`) once their rendered

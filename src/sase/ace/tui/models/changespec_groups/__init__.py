@@ -33,7 +33,7 @@ status_bucket_for_changespec = status_bucket_for_patch
 
 
 def _sync_legacy_bucket_monkeypatch() -> None:
-    _patch_buckets._parse_timestamp_value = _legacy_buckets._parse_timestamp_value
+    _patch_buckets.parse_timestamp_value = _legacy_buckets._parse_timestamp_value
 
 
 def _build_changespec_tree(*args: Any, **kwargs: Any) -> list[PatchTreeEntry]:

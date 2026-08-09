@@ -4,7 +4,7 @@ tags: rollover
 input:
   - name: name
     type: word
-    description: Pull request or ChangeSpec name to create or update.
+    description: Pull request or Patch name to create or update.
   - name: bug_id
     type: int
     default: 0

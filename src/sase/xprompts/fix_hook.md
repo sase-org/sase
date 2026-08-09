@@ -12,10 +12,10 @@ input:
   - name: cl_name
     type: word
     default: "null"
-    description: Optional ChangeSpec or PR name to attach to the fix workflow.
+    description: Optional Patch or PR name to attach to the fix workflow.
   - name: vcs_type
     type: word
-    description: Registered workspace directive prefix to use for the ChangeSpec or PR.
+    description: Registered workspace directive prefix to use for the Patch or PR.
 ---
 
 {% if cl_name != "null" %}#{{ vcs_type }}({{ cl_name }}, workflow_label="fix_hook")

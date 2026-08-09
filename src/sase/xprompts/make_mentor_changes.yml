@@ -7,7 +7,7 @@ input:
     description: JSON array of accepted mentor comments to apply.
   cl_name:
     type: word
-    description: PR or ChangeSpec name where the changes should be applied.
+    description: PR or Patch name where the changes should be applied.
   vcs_type:
     type: word
     description: Registered workspace directive prefix to use for the target PR.

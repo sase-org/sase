@@ -142,12 +142,11 @@ The [`sase-nvim`](https://github.com/sase-org/sase-nvim) plugin gives the same p
 language a proper editor surface. It ships three things:
 
 1. **Filetype detection and syntax highlighting** for
-   `~/.sase/projects/<project>/<project>.sase` ChangeSpec files, with colors that match
-   the `sase ace` rendering — field labels (`NAME:`, `STATUS:`, `HOOKS:`,
-   `WORKSPACE_DIR:`), status values colored by lifecycle stage (WIP → Draft → Ready →
-   Mailed → Submitted), inline process states (RUNNING/PASSED/FAILED/DEAD/KILLED),
-   timestamps, URLs, file paths, and the suffix badges ACE uses for errors and running
-   agents.
+   `~/.sase/projects/<project>/<project>.sase` Patch files, with colors that match the
+   `sase ace` rendering — field labels (`NAME:`, `STATUS:`, `HOOKS:`, `WORKSPACE_DIR:`),
+   status values colored by lifecycle stage (WIP → Draft → Ready → Mailed → Submitted),
+   inline process states (RUNNING/PASSED/FAILED/DEAD/KILLED), timestamps, URLs, file
+   paths, and the suffix badges ACE uses for errors and running agents.
 2. **A `<C-t>` completion dispatcher** that mirrors the widget's `Ctrl+T`: on `#token`
    it completes xprompts, on `/skill` it completes skills, on `%directive` it completes
    directives, on a path-like token it completes files, and on empty input it falls back

@@ -61,7 +61,7 @@ def _base_status(status: str) -> str:
     return status.split(" - ", 1)[0].strip()
 
 
-def _parse_timestamp_value(raw: str) -> datetime | None:
+def parse_timestamp_value(raw: str) -> datetime | None:
     """Best-effort parse of a ``TimestampEntry.timestamp`` string.
 
     Supports:
@@ -88,6 +88,9 @@ def _parse_timestamp_value(raw: str) -> datetime | None:
     return None
 
 
+_parse_timestamp_value = parse_timestamp_value
+
+
 def latest_patch_timestamp(cs: Patch) -> datetime | None:
     """Return the most recent parseable TIMESTAMPS entry, or ``None``.
 
@@ -99,7 +102,7 @@ def latest_patch_timestamp(cs: Patch) -> datetime | None:
         return None
     latest: datetime | None = None
     for entry in cs.timestamps:
-        parsed = _parse_timestamp_value(entry.timestamp)
+        parsed = parse_timestamp_value(entry.timestamp)
         if parsed is None:
             continue
         if latest is None or parsed > latest:

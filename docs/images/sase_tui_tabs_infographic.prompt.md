@@ -51,7 +51,7 @@ The generated base is intentionally text-free. Final labels were added to show:
   footer framing.
 - Tab colors: PRs `#00D7AF`, Agents `#87D7FF`, AXE `#FF5F5F`.
 - Per-tab `Surfaces`, `Lifecycle`, and `Actions` rows:
-  - PRs: ChangeSpec list/detail, ancestors/children, PR status lifecycle,
+  - PRs: Patch list/detail, ancestors/children, PR status lifecycle,
     accept/mail/rebase/diff/checkout.
   - Agents: agent tree, retry chains, prompt/files/diffs/thinking detail, run lifecycle,
     resume/tag/kill/open.

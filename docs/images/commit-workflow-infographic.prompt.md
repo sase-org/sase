@@ -34,8 +34,8 @@ Exact visible labels to include, spelled exactly:
 - CommitWorkflow stage labels inside the central orchestration band: Bead lifecycle,
   Plan handling, Before hook, PR tags, Parent detection, Diff capture, Checkpoint, VCS
   dispatch, After hook, Result marker, Tracking
-- Right output branches: Commit hash + COMMITS entry, Saved diff + COMMITS entry, PR
-  URL + ChangeSpec
+- Right output branches: Commit hash + STITCHES entry, Saved diff + STITCHES entry, PR
+  URL + Patch
 - Side loop label: Conflict checkpoint + resume
 - Provider note label: VCS providers: Git, GitHub, Mercurial
 

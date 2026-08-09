@@ -12,7 +12,7 @@
 
 <img src="docs/images/sase_overview.png" alt="One developer using SASE to run parallel coding agents in isolated workspaces with tracked, reviewable results" width="830">
 
-<p><em>One prompt fans out to parallel agents in isolated workspaces; ACE supervises, AXE schedules, durable state tracks ChangeSpecs, beads, and artifacts, and reviewed PRs are the output.</em></p>
+<p><em>One prompt fans out to parallel agents in isolated workspaces; ACE supervises, AXE schedules, durable state tracks Patches, beads, and artifacts, and reviewed PRs are the output.</em></p>
 
 </div>
 
@@ -35,7 +35,7 @@ layer, use those CLIs directly.
 - Keep prompts and multi-step workflows reusable (**XPrompts**) instead of trapped in
   shell history.
 - Track every PR-sized unit of work with status, commits, comments, and review state
-  (**ChangeSpecs**).
+  (**Patches**).
 - Schedule background and recurring agent work with the **AXE** daemon.
 
 sase does not replace coding agents; it makes agent-driven engineering dependable.
@@ -55,10 +55,10 @@ diffs, chats, and artifact files from one control surface.
 
 <em>Select the still to watch the 29-second demo.</em>
 
-**Land tracked changes.** The PRs tab follows the ChangeSpec lifecycle from WIP to
-Submitted, with grouping, search, commits, and diffs.
+**Land tracked changes.** The PRs tab follows the Patch lifecycle from WIP to Submitted,
+with grouping, search, commits, and diffs.
 
-<a href="demos/out/sase_ace_prs_pipeline.mp4"><img src="docs/images/blog/sase_ace_prs_pipeline_still.png" alt="SASE ACE PRs tab showing ChangeSpecs moving through the review and submission pipeline" width="830"></a>
+<a href="demos/out/sase_ace_prs_pipeline.mp4"><img src="docs/images/blog/sase_ace_prs_pipeline_still.png" alt="SASE ACE PRs tab showing Patches moving through the review and submission pipeline" width="830"></a>
 
 <em>Select the still to watch the 26-second demo.</em>
 
@@ -109,7 +109,7 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [Getting Started](https://sase.sh/getting_started/) — the guided beginner path
 - [ACE TUI](https://sase.sh/ace/) — the interactive control surface
 - [XPrompts](https://sase.sh/xprompt/) — reusable prompts and multi-step workflows
-- [ChangeSpecs](https://sase.sh/change_spec/) — tracked PR-sized units of work
+- [Patches](https://sase.sh/change_spec/) — tracked PR-sized units of work
 - [AXE Automation](https://sase.sh/axe/) — scheduled and background agent work
 - [Spec-Driven Development](https://sase.sh/sdd/) — plans, epics, and beads
 - [Plugins](https://sase.sh/plugins/) — GitHub, Telegram, editor, and provider

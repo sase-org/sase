@@ -140,9 +140,9 @@ by the "embedding doc still renders" check the plan calls for.
    `docs/rust_backend.md` they are the **stable** part of the contract. A boundary
    diagram that omits them misstates what stability means here.
 
-9. **Python App Layer chips are slightly off-target.** "ChangeSpec workflows", "agent
-   scans", "status + git helpers" are all real, but the diagram chooses three areas that
-   happen to all be Rust-backed, omitting the purely-host areas (TUI rendering, xprompt
+9. **Python App Layer chips are slightly off-target.** "Patch workflows", "agent scans",
+   "status + git helpers" are all real, but the diagram chooses three areas that happen
+   to all be Rust-backed, omitting the purely-host areas (TUI rendering, xprompt
    expansion, workflow orchestration, VCS plugin dispatch). That makes the façade look
    like it sits under _all_ Python work, when in fact most of `sase` (TUI, axe, xprompt)
    bypasses it entirely. `docs/rust_backend.md` lines 31–58 enumerate the host-owned

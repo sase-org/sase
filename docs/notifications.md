@@ -289,10 +289,10 @@ The following events generate notifications:
 | `question`                     | An agent is asking the user a question (via `/sase_questions`)                                  |
 | `hitl`                         | A workflow HITL step is waiting for user input                                                  |
 | `memory.proposed`              | A long-term memory proposal is ready for human review                                           |
-| `sync`                         | A sync operation completed for a ChangeSpec                                                     |
+| `sync`                         | A sync operation completed for a Patch                                                          |
 | `axe`                          | Hourly error digest summarizing recent axe errors                                               |
 | `file-hooks`                   | A configured per-file hook completed or failed                                                  |
-| `mentors`                      | All mentors finished for a ChangeSpec entry (or none matched)                                   |
+| `mentors`                      | All mentors finished for a Patch entry (or none matched)                                        |
 | Workflow-specific sender label | Workflow completion (success or failure)                                                        |
 
 ### Task Triage Notification
@@ -423,14 +423,14 @@ owning project, then the caller's current bead view, then all known SASE project
 ### Mentors-Complete Notification
 
 A mentors-complete notification uses sender `mentors` and fires once per
-`(ChangeSpec, COMMITS entry)` under either of two conditions:
+`(Patch, STITCHES entry)` under either of two conditions:
 
 - **All mentors terminal** — every mentor that was started for the entry has reached a
   terminal status (`PASSED`, `COMMENTED`, `FAILED`, `DEAD`, or `KILLED`).
-- **No matching profile** — every hook is ready and no mentor profile matched the
-  ChangeSpec, so no mentors will run.
+- **No matching profile** — every hook is ready and no mentor profile matched the Patch,
+  so no mentors will run.
 
-Selecting the notification jumps to the PRs sub-tab, focuses the target ChangeSpec, and
+Selecting the notification jumps to the PRs sub-tab, focuses the target Patch, and
 pushes the Mentor Review modal when at least one mentor produced reviewable output.
 
 Idempotency is enforced via `~/.sase/notifications/mentors_complete.json`, keyed on

@@ -151,7 +151,7 @@ Control flow is `if`, `for`, `while`, and `repeat`/`until`. Loops support `on_er
 policies. Parallel steps support configurable join modes. Steps can pass `artifacts` to
 later steps. Agent steps can declare an `output:` schema and SASE will validate the
 response. A final `done.json` artifact records the completion outcome the rest of the
-system (notifications, `%wait` resolution, ChangeSpec stitching) consumes.
+system (notifications, `%wait` resolution, Patch stitching) consumes.
 
 The [workflow spec reference](../../workflow_spec.md) covers every field, control flow
 form, and template feature.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Axe is the background automation subsystem of sase. It watches ChangeSpecs (the per-PR
+Axe is the background automation subsystem of sase. It watches Patches (the per-PR
 records that sase uses to track work) and periodically runs lifecycle jobs such as hook
 completion, mentor launch, workflow cleanup, comment polling, `%wait` dependency checks,
 and error digests.
@@ -92,7 +92,7 @@ sase axe status --json
 sase axe ensure install
 sase axe ensure uninstall
 
-# Run axe against only matching ChangeSpecs
+# Run axe against only matching Patches
 sase axe start --query '!!! OR @@@'
 
 # Inspect lumberjacks
@@ -325,14 +325,14 @@ Axe is configured in `sase.yml` under the `axe:` section. See
 | `max_hook_runners`                       | 3        | Concurrent hook runners allowed globally                  |
 | `max_agent_runners`                      | 3        | Concurrent agent runners allowed globally                 |
 | `zombie_timeout_seconds`                 | 7200     | Timeout for marking jobs as zombie                        |
-| `query`                                  | `""`     | Optional query filter for all changespecs                 |
+| `query`                                  | `""`     | Optional query filter for all Patches                     |
 | `chop_script_dirs`                       | `[]`     | Directories to search for chop scripts                    |
 | `lumberjack_log_max_bytes`               | 52428800 | Maximum bytes retained for each bounded lumberjack log    |
 | `lumberjack_log_temp_max_age_seconds`    | 300      | Age before orphaned log-rotation temp files may be reaped |
 | `lumberjack_restart_backoff_max_seconds` | 60       | Maximum delay between retries for a crashing lumberjack   |
 | `verbose_lumberjack_diagnostics`         | false    | Include verbose diagnostics in chop script context JSON   |
 
-The `query` setting uses the same ChangeSpec query language as ACE. CLI flags on
+The `query` setting uses the same Patch query language as ACE. CLI flags on
 `sase axe start` and `sase axe lumberjack run` override the configured query, runner
 limits, and zombie timeout for that process.
 
@@ -410,7 +410,7 @@ low threshold can serialize the clan.
 | `run_every`   | `str \| null`          | no        | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                                             |
 | `timeout`     | `str \| null`          | no        | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                                    |
 | `env`         | `dict[str, env-value]` | no        | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs                       |
-| `inhibit_if`  | list or map            | no        | `changespec` / `agent_hood` / `agent_clan` guards evaluated before the script                            |
+| `inhibit_if`  | list or map            | no        | `patch` / `agent_hood` / `agent_clan` guards evaluated before the script; `changespec` is a legacy alias |
 | `trigger`     | string or map          | no        | `always` or `git.commits_since`; scheduled runs fire only when it accepts                                |
 | `once_per`    | string or object       | no        | Bounded per-proposal dedupe-key template                                                                 |
 | `for_each`    | list or source         | no        | Literal target objects or `source: projects`, expanded to stable per-target instances                    |
@@ -464,7 +464,7 @@ source lines to keep the file inside the configured Markdown prose width
 description: |-
   Complete finished hooks and start stale ones, with zombie detection
 
-  Scans every ChangeSpec matching the axe query, completes hooks whose runner exited, and starts the next
+  Scans every Patch matching the axe query, completes hooks whose runner exited, and starts the next
   stale hook when a runner slot is free.
 
   - Honors max_hook_runners; a full slot table defers work to the next tick rather than queueing.
@@ -545,17 +545,17 @@ Axe runs script chops as:
 ```
 
 The context file contains the effective runner limits, zombie timeout, query, lumberjack
-name, lumberjack state directory, paths to serialized `all_changespecs.json` and
-`filtered_changespecs.json` files, the current `target`, configured `vars`, the run
-source (`scheduled`, `manual`, or `oneshot`), the `dry_run` flag, and the run-local
-result path. The result path is also exported as `SASE_CHOP_RESULT_FILE`; the source and
-dry-run flag are mirrored as `SASE_CHOP_SOURCE` and `SASE_CHOP_DRY_RUN` (`1` for true,
-`0` for false). `SASE_CHOP_VERBOSE` enables opt-in debug output. Target fields are
-exported as `SASE_CHOP_TARGET_<FIELD>` along with `SASE_CHOP_TARGET_KEY`. Scripts with
-direct side effects must honor `dry_run` before mutating external state; runner-level
-dry-run only previews launch proposals. Scheduled script chops within one lumberjack
-tick run concurrently; use `timeout` or `chop_timeout` to keep a slow script from
-blocking later ticks indefinitely.
+name, lumberjack state directory, paths to legacy-named serialized
+`all_changespecs.json` and `filtered_changespecs.json` files, the current `target`,
+configured `vars`, the run source (`scheduled`, `manual`, or `oneshot`), the `dry_run`
+flag, and the run-local result path. The result path is also exported as
+`SASE_CHOP_RESULT_FILE`; the source and dry-run flag are mirrored as `SASE_CHOP_SOURCE`
+and `SASE_CHOP_DRY_RUN` (`1` for true, `0` for false). `SASE_CHOP_VERBOSE` enables
+opt-in debug output. Target fields are exported as `SASE_CHOP_TARGET_<FIELD>` along with
+`SASE_CHOP_TARGET_KEY`. Scripts with direct side effects must honor `dry_run` before
+mutating external state; runner-level dry-run only previews launch proposals. Scheduled
+script chops within one lumberjack tick run concurrently; use `timeout` or
+`chop_timeout` to keep a slow script from blocking later ticks indefinitely.
 
 Script chop stdout and stderr are streamed to the chop's per-run log file while the
 subprocess is still alive (see [Chop Run History](#chop-run-history) below). The Axe-tab
@@ -741,10 +741,10 @@ provenance line the reader sees.
 Policy is runner-owned and evaluated before the script:
 
 - `run_every` limits cadence for each expanded chop instance.
-- `inhibit_if` supports `changespec`, `agent_hood`, and `agent_clan` guards.
-  `agent_clan.name_prefix` matches canonical clan metadata on active agents only; dotted
-  agent names are not treated as clans. A match records a visible `skipped` run naming
-  the clan and member.
+- `inhibit_if` supports `patch`, `agent_hood`, and `agent_clan` guards. The legacy
+  `changespec` guard key remains accepted as an alias. `agent_clan.name_prefix` matches
+  canonical clan metadata on active agents only; dotted agent names are not treated as
+  clans. A match records a visible `skipped` run naming the clan and member.
 - `trigger` defaults to `always`. `git.commits_since` observes a project repository,
   fires when its threshold is met, and owns its checkpoint under the chop's state
   directory. A missing checkpoint fires once so a new chop is not silently inert.

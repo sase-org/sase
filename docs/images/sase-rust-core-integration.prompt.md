@@ -34,7 +34,7 @@ sase_core_rs extension"
 Main architecture flow, left to right, three columns:
 
 1. Left column header: "Python host layer" Large box label: "sase CLI / TUI / workflows" Include two groups inside:
-   - "Rust-backed callers" with chips: "ChangeSpec parsing", "queries", "status planning", "git parsing",
+   - "Rust-backed callers" with chips: "Patch parsing", "queries", "status planning", "git parsing",
      "notifications", "agent scan", "agent launch", "beads"
    - "Host-owned, stays in Python" with chips: "TUI rendering", "xprompt expansion", "workflow orchestration",
      "plugins", "subprocesses", "file locks"

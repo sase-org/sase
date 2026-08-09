@@ -73,8 +73,8 @@ Rust-backend image are all 16:9 PNGs.
 
 - Show the shared path from `#commit`, `#propose`, or `#pr` through the provider-neutral
   commit finalizer, commit skill, `sase commit`, and `CommitWorkflow`.
-- Keep the three dispatch outputs visually distinct: commit hash plus COMMITS entry,
-  saved diff plus COMMITS entry, and PR URL plus ChangeSpec entry.
+- Keep the three dispatch outputs visually distinct: commit hash plus STITCHES entry,
+  saved diff plus STITCHES entry, and PR URL plus Patch entry.
 - Include bead lifecycle, plan handling, PR tags, parent detection, VCS dispatch, result
   marker, and tracking as orchestrator stages.
 - Show conflict resume as a checkpoint/recover side loop, not as a normal success

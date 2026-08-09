@@ -115,9 +115,9 @@ can own child epic `beads-001.2.1`; an epic proposed by the land agent can becom
 next direct child such as `beads-001.3`.
 
 Task beads are deliberately flat: the task creation form takes no plan path or parent
-ID, and a task cannot carry a plan tier or ChangeSpec metadata. Use a task for
-independent follow-up work that one worker can own. Use an epic and phase beads when the
-work needs a validated plan, dependency waves, or a final land agent.
+ID, and a task cannot carry a plan tier or Patch metadata. Use a task for independent
+follow-up work that one worker can own. Use an epic and phase beads when the work needs
+a validated plan, dependency waves, or a final land agent.
 
 The generic `sase bead update <task-id> --design <path>` command currently accepts
 design metadata on a task, even though task creation does not. That metadata does not
@@ -916,21 +916,21 @@ batching bead mutations, then publish the batch with a later `sase bead sync`.
 
 Create a new issue.
 
-| Flag                | Required             | Description                                                                                                                                                                                                                       |
-| ------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-t, --title`       | yes                  | Issue title                                                                                                                                                                                                                       |
-| `-T, --type`        | yes                  | Bead type: `task`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand                                                                                                          |
-| `-d, --description` | no                   | Issue description                                                                                                                                                                                                                 |
-| `-a, --assignee`    | no                   | Assignee name                                                                                                                                                                                                                     |
-| `--tier`            | no                   | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                  |
-| `-c, --changespec`  | no                   | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                           |
-| `-b, --bug-id`      | no                   | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                       |
-| `-m, --model`       | no                   | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase/task beads it is the worker model. |
-| `-R, --ref`         | no                   | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                       |
-| `-z, --size`        | task: yes; phase: no | Phase/task size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. It controls model routing and whether large/xlarge work receives a plan-first handoff. Legacy sizeless tasks remain readable.                                 |
+| Flag                           | Required             | Description                                                                                                                                                                                                                       |
+| ------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`                  | yes                  | Issue title                                                                                                                                                                                                                       |
+| `-T, --type`                   | yes                  | Bead type: `task`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand                                                                                                          |
+| `-d, --description`            | no                   | Issue description                                                                                                                                                                                                                 |
+| `-a, --assignee`               | no                   | Assignee name                                                                                                                                                                                                                     |
+| `--tier`                       | no                   | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                  |
+| `--patch` / `-c, --changespec` | no                   | Attach a Patch name to a plan bead; `--changespec` is legacy-compatible                                                                                                                                                           |
+| `-b, --bug-id`                 | no                   | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                                                                                                               |
+| `-m, --model`                  | no                   | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase/task beads it is the worker model. |
+| `-R, --ref`                    | no                   | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                       |
+| `-z, --size`                   | task: yes; phase: no | Phase/task size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. It controls model routing and whether large/xlarge work receives a plan-first handoff. Legacy sizeless tasks remain readable.                                 |
 
-ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and
-`sase bead work` flows to keep plan beads linked to the ChangeSpec they are intended to
+Patch metadata is valid only on plan beads. It is used by the epic-approval and
+`sase bead work` flows to keep plan beads linked to the Patch they are intended to
 produce.
 
 New beads are attributed to the acting SASE agent (from `SASE_AGENT_NAME` or
@@ -1207,8 +1207,8 @@ irreversible.
 Find beads whose indexed text fields contain a case-insensitive literal substring. This
 is substring search, not regex or glob matching. Current indexed fields include ID,
 title, description, notes, design/plan path, artifact references, owner, assignee,
-model, phase/task size, ChangeSpec name/bug ID, status, type, and tier; timestamps are
-not searched. Unlike `sase bead list`, search includes `open`, `claimed`, `ready`,
+model, phase/task size, Patch name/bug ID, status, type, and tier; timestamps are not
+searched. Unlike `sase bead list`, search includes `open`, `claimed`, `ready`,
 `in_progress`, and `closed` beads by default, so it is the quickest way to recover older
 context.
 
@@ -1237,9 +1237,9 @@ sase bead search auth --type plan --tier epic
 ### `sase bead show <id>`
 
 Display complete details for an issue including status, type, tier, parent lineage,
-dependencies, blockers, description, notes, ChangeSpec metadata, model, linked plan
-path, artifact references, creator, and the hosted page URL when one resolves locally.
-The `CREATED BY` block localizes an agent's durable global name and links to its hosted
+dependencies, blockers, description, notes, Patch metadata, model, linked plan path,
+artifact references, creator, and the hosted page URL when one resolves locally. The
+`CREATED BY` block localizes an agent's durable global name and links to its hosted
 agents-sidecar page when that URL resolves. A human-created bead shows the creator's
 email without a link. `sase bead list --format full` and
 `sase bead search --format full` share the same `CREATED BY` block but never resolve or
@@ -1429,9 +1429,9 @@ Plan-file mode is the canonical epic-approval entry point. It:
 3. Archives the plan under the resolved `{YYYYMM}/` plans directory and commits it.
 4. Resumes the linked epic when the archived plan already has a valid `bead_id`.
 5. Otherwise creates the epic plan bead from the plan's `title`, `goal`, top-level
-   `model`, optional `parent_bead`, and optional ChangeSpec metadata; creates phase
-   beads with their authored sizes in `phases[]` order; wires every `depends_on` edge;
-   and commits the new `bead_id` link.
+   `model`, optional `parent_bead`, and optional Patch metadata; creates phase beads
+   with their authored sizes in `phases[]` order; wires every `depends_on` edge; and
+   commits the new `bead_id` link.
 6. Invokes the existing bead-ID launch path.
 
 A missing phase description becomes a deterministic pointer to the plan and phase ID. A
@@ -1546,7 +1546,7 @@ landing to sweep it up.
 | Flag                  | Description                                                                                          |
 | --------------------- | ---------------------------------------------------------------------------------------------------- |
 | `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch; plan-file targets only       |
-| `-c, --cl-name`       | ChangeSpec name for the approved epic completion notification; plan-file targets only                |
+| `-c, --cl-name`       | Patch name for the approved epic completion notification; plan-file targets only                     |
 | `-n, --dry-run`       | Preview the epic graph or task prompt, model routing, and cleanup without mutation                   |
 | `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                                |
 | `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning                |
@@ -1561,15 +1561,14 @@ spawned agents can auto-approve submitted tale or epic plans and follow the path
 selected by the authored `tier`, without a human-in-the-loop checkpoint between
 dependency waves.
 
-When the epic plan bead is attached to ChangeSpec metadata (`--changespec` /
-`--bug-id`), `sase bead work` preserves the current project's VCS context in the
+When the epic plan bead is attached to Patch metadata (`--patch`, legacy `--changespec`,
+or `--bug-id`), `sase bead work` preserves the current project's VCS context in the
 generated prompt. The first phase segment targets the project reference and adds a `#pr`
-reference for the ChangeSpec, while later phase and land segments target the ChangeSpec
-ref directly. For non-ChangeSpec epics launched from a known SASE workspace, each
-segment is still prefixed with the detected VCS workflow and project name (for example
-`#git:sase` or `#gh:sase-org/sase`). If the current directory is not associated with a
-SASE project, the prompts are left unprefixed and run in the caller's normal launch
-context.
+reference for the Patch, while later phase and land segments target the Patch ref
+directly. For non-Patch epics launched from a known SASE workspace, each segment is
+still prefixed with the detected VCS workflow and project name (for example `#git:sase`
+or `#gh:sase-org/sase`). If the current directory is not associated with a SASE project,
+the prompts are left unprefixed and run in the caller's normal launch context.
 
 If checkpoint creation fails before it commits, the command restores every phase/epic
 status and assignee it changed, and restores `is_ready_to_work` only when this attempt
@@ -1682,8 +1681,8 @@ record that the host owns the launch in the planner response. Because the task i
 detached and global, no interactive session owns it: it survives the approving process,
 appears in every default `sase task list` and Tasks-tab scope, is streamable with
 `sase task show <id> --follow`, supports kill, and still emits the epic-completion
-notification. The approval passes `--artifacts-dir` (and `--cl-name` when a ChangeSpec
-is involved), so a successful launch back-fills the epic ID and committed plan path into
+notification. The approval passes `--artifacts-dir` (and `--cl-name` when a Patch is
+involved), so a successful launch back-fills the epic ID and committed plan path into
 planner metadata.
 
 There is no planner-side subprocess fallback and no foreground path. If the host cannot

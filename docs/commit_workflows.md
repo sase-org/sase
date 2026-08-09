@@ -1,17 +1,17 @@
 # Commit Workflows
 
 Sase provides three unified workflows for landing code changes: **commit**, **propose**,
-and **pull request**. All three share the same ChangeSpecI command (`sase commit`), the
-same `CommitWorkflow` orchestrator, and the same VCS provider abstraction, but differ in
-what they produce and how they track the result.
+and **pull request**. All three share the same PatchI command (`sase commit`), the same
+`CommitWorkflow` orchestrator, and the same VCS provider abstraction, but differ in what
+they produce and how they track the result.
 
 ## Overview
 
-| Workflow    | XPrompt    | Method                | What it produces             | Tracking      |
-| ----------- | ---------- | --------------------- | ---------------------------- | ------------- |
-| **Commit**  | `#commit`  | `create_commit`       | Git commit on current branch | COMMITS entry |
-| **Propose** | `#propose` | `create_proposal`     | Saved diff file              | COMMITS entry |
-| **PR**      | `#pr`      | `create_pull_request` | New branch + PR              | ChangeSpec    |
+| Workflow    | XPrompt    | Method                | What it produces             | Tracking       |
+| ----------- | ---------- | --------------------- | ---------------------------- | -------------- |
+| **Commit**  | `#commit`  | `create_commit`       | Git commit on current branch | STITCHES entry |
+| **Propose** | `#propose` | `create_proposal`     | Saved diff file              | STITCHES entry |
+| **PR**      | `#pr`      | `create_pull_request` | New branch + PR              | Patch          |
 
 ```
 #commit / #propose / #pr
@@ -99,18 +99,18 @@ directory is available, a `commit_finalizer_result.json` artifact.
 
 ### CLI Arguments
 
-| Short | Long                | Description                                                                                                                                                                                                                                                                     |
-| ----- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-m`  | `--message`         | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                            |
-| `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                                      |
-| `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                                                                                                                                                                                                                                   |
-| `-n`  | `--name`            | Branch/PR name (required for `create_pull_request`)                                                                                                                                                                                                                             |
-| `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                                  |
-| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                                         |
-| `-p`  | `--parent`          | Parent ChangeSpec **name** (overrides auto-detection from current branch). Must be an existing ChangeSpec in the current ProjectSpec or its archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
-| `-r`  | `--resume`          | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-f` and other commit args are ignored (the payload is loaded from the checkpoint). See [Resume after Conflict](#resume-after-conflict) below.                                |
-| `-s`  | `--status`          | ChangeSpec status for PRs (`wip`, `draft`, `ready`). Overrides `$SASE_PR_STATUS`; default is `draft`.                                                                                                                                                                           |
-| `-t`  | `--type`            | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                           |
+| Short | Long                | Description                                                                                                                                                                                                                                                           |
+| ----- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-m`  | `--message`         | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                  |
+| `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                            |
+| `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                                                                                                                                                                                                                         |
+| `-n`  | `--name`            | Branch/PR name (required for `create_pull_request`)                                                                                                                                                                                                                   |
+| `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                        |
+| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                               |
+| `-p`  | `--parent`          | Parent Patch **name** (overrides auto-detection from current branch). Must be an existing Patch in the current ProjectSpec or its archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
+| `-r`  | `--resume`          | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-f` and other commit args are ignored (the payload is loaded from the checkpoint). See [Resume after Conflict](#resume-after-conflict) below.                      |
+| `-s`  | `--status`          | Patch status for PRs (`wip`, `draft`, `ready`). Overrides `$SASE_PR_STATUS`; default is `draft`.                                                                                                                                                                      |
+| `-t`  | `--type`            | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                 |
 
 #### Type Aliases
 
@@ -122,7 +122,7 @@ The `-t/--type` flag accepts both full method names and short aliases:
 | `propose` | `create_proposal`     |
 | `pr`      | `create_pull_request` |
 
-The COMMITS entry note is always derived from the first line of the commit message —
+The STITCHES entry note is always derived from the first line of the commit message —
 there is no separate `--note` flag.
 
 ### 3. CommitWorkflow orchestrates
@@ -144,7 +144,7 @@ Before hook        (`commit_hooks.before`, e.g. `just fix`)
     |
 PR name suffixing  (compute _<N> suffix for unique branch names)          [PR only]
     |
-Detect parent PR   (auto-set PARENT from current branch's ChangeSpec)     [PR only]
+Detect parent PR   (auto-set PARENT from current branch's Patch)     [PR only]
     |
 PR metadata        (append PR tags and project prefix)                    [PR only]
     |
@@ -160,13 +160,13 @@ VCS dispatch       (call provider.create_commit / create_proposal / create_pull_
     |
 After hook         (`commit_hooks.after`, after commit/push)              [commit/PR only]
     |
-ChangeSpec         (create ChangeSpec entry in project file)              [PR only]
+Patch         (create Patch entry in project file)              [PR only]
     |
 Result marker      (write commit_result.json for xprompt post-steps)
     |
 Agent publication  (resolve target; enqueue exact hood, then try publish) [agent commit/PR only]
     |
-COMMITS entry      (append entry to project file)                         [commit/propose only]
+STITCHES entry      (append entry to project file)                         [commit/propose only]
 ```
 
 The **subject gate** runs first, immediately after payload-shape validation and before
@@ -259,10 +259,10 @@ require `sase commit --resume`.
 **Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `BEAD`, `AGENT`,
 `PLAN`, `BUG`, and any configured or inherited PR tag keys) are written with a `SASE_`
 prefix — for example `SASE_TYPE=sdd` and `SASE_AGENT=<name>`. Readers
-(agent-commit/revert discovery, parent-PR tag inheritance, ChangeSpec description
-stripping) still accept historical `MACHINE` tags and the unprefixed spelling, so commit
-history is not rewritten and old commits remain readable. External consumers should
-accept both historical and `SASE_`-prefixed spellings.
+(agent-commit/revert discovery, parent-PR tag inheritance, Patch description stripping)
+still accept historical `MACHINE` tags and the unprefixed spelling, so commit history is
+not rewritten and old commits remain readable. External consumers should accept both
+historical and `SASE_`-prefixed spellings.
 
 **Legacy `SASE_AGENT` values:** commits written before provenance moved to the lane
 carry a concrete member name and a `#member-<role>` anchor — for example
@@ -296,8 +296,8 @@ After a successful dispatch, `commit_result.json` contains:
   "message": "The commit message",
   "name": "Branch/PR name",
   "bead_id": "Bead ID if SASE_BEAD_ID was set",
-  "changespec_name": "ChangeSpec name (PR only)",
-  "entry_id": "COMMITS entry ID (commit/propose only)",
+  "changespec_name": "Patch name (PR only)",
+  "entry_id": "STITCHES entry ID (commit/propose only)",
   "diff_path": "Saved pre-dispatch diff path, when available"
 }
 ```
@@ -323,12 +323,12 @@ Creates an actual git commit on the current branch and pushes it.
 
 **Returns:** `(True, commit_hash)`
 
-**Tracking:** Appends a COMMITS entry to the project file with the commit note, diff
+**Tracking:** Appends a STITCHES entry to the project file with the commit note, diff
 path, chat path, and plan path (when `SASE_PLAN` is set). Multi-line commit messages are
 supported: the first paragraph becomes the note, and subsequent paragraphs (separated by
 a blank line) become an indented body below the note. Empty body lines are stored as a
 dot (`.`) placeholder to preserve structure. See
-[change_spec.md](change_spec.md#commits) for the full entry format including drawers.
+[change_spec.md](change_spec.md#stitches) for the full entry format including drawers.
 
 ### Propose (`#propose`)
 
@@ -342,7 +342,7 @@ parking work-in-progress changes that aren't ready to land.
 
 **Returns:** `(True, diff_path)`
 
-**Tracking:** Appends a proposal COMMITS entry to the project file. Bead lifecycle and
+**Tracking:** Appends a proposal STITCHES entry to the project file. Bead lifecycle and
 plan handling are skipped because proposals don't represent landed changes. Runtime
 `AGENT` and `MACHINE` commit tags are also skipped because no VCS commit is created.
 
@@ -359,7 +359,7 @@ input:
     type: word
   - name: bug_id # Bug ID (optional, default: 0)
     type: int
-  - name: status # Initial ChangeSpec status: draft, wip, or ready (optional, default: draft)
+  - name: status # Initial Patch status: draft, wip, or ready (optional, default: draft)
     type: word
 ```
 
@@ -373,28 +373,28 @@ input:
 
 **Returns:** `(True, pr_url)` after GitHub plugin processing
 
-**Parent detection:** If the current branch corresponds to an existing ChangeSpec, that
-ChangeSpec is automatically set as the PARENT of the new PR ChangeSpec. This creates a
-chain of related changes without manual bookkeeping.
+**Parent detection:** If the current branch corresponds to an existing Patch, that Patch
+is automatically set as the PARENT of the new PR Patch. This creates a chain of related
+changes without manual bookkeeping.
 
 **BUG propagation:** When `SASE_BUG_ID` is set in the environment and non-zero, the
-value is propagated to two places: the BUG field of the created ChangeSpec (as
+value is propagated to two places: the BUG field of the created Patch (as
 `http://b/<bug_id>`), and a `SASE_BUG=<bug_id>` line prepended to the PR tag block
 (taking precedence over any static `BUG` key in `vcs_provider.pr_tags` config).
 
 **Project prefix:** When `vcs_provider.use_project_pr_prefix` is `true`, a
 `[<project>] ` prefix is prepended to the PR title (GitHub) or PR description
 (Mercurial). This prefix is only applied to the external representation — it does not
-appear in the ChangeSpec DESCRIPTION or git commit message, and is automatically
-stripped when reading descriptions back.
+appear in the Patch DESCRIPTION or git commit message, and is automatically stripped
+when reading descriptions back.
 
 **PR tag inheritance:** When creating a child PR (one whose PARENT is an existing
-ChangeSpec), PR tags from the parent PR's body are automatically inherited. Parent tags
-are read in either spelling — legacy `TAG=` or new `SASE_TAG=` — so inheritance works
-across the migration. The merge order is: parent PR tags (lowest priority) -> config
-`pr_tags` -> `BUG` tag (highest priority), followed by runtime-owned `AGENT` and
-`MACHINE` tags. Inherited or configured `AGENT` and `MACHINE` values are ignored so
-child PRs do not retain stale parent runtime provenance.
+Patch), PR tags from the parent PR's body are automatically inherited. Parent tags are
+read in either spelling — legacy `TAG=` or new `SASE_TAG=` — so inheritance works across
+the migration. The merge order is: parent PR tags (lowest priority) -> config `pr_tags`
+-> `BUG` tag (highest priority), followed by runtime-owned `AGENT` and `MACHINE` tags.
+Inherited or configured `AGENT` and `MACHINE` values are ignored so child PRs do not
+retain stale parent runtime provenance.
 
 **PR tags:** Any key-value pairs configured in `vcs_provider.pr_tags` are appended as
 `SASE_TAG=VALUE` lines to the commit message before building the PR body. This supports
@@ -407,14 +407,13 @@ consumes these tags must accept the prefixed names. See
 
 **PR tag stripping:** When PR tags are present in the commit description (trailing lines
 matching `^[A-Z][A-Z0-9_]*=`), they are automatically stripped before writing the
-DESCRIPTION field of the created ChangeSpec. This prevents provider-specific metadata
-(e.g., `AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT`, `MARKDOWN=true`) from polluting the
-human-readable description. The same stripping is applied when syncing descriptions
-after a reword operation.
+DESCRIPTION field of the created Patch. This prevents provider-specific metadata (e.g.,
+`AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT`, `MARKDOWN=true`) from polluting the human-readable
+description. The same stripping is applied when syncing descriptions after a reword
+operation.
 
-**Tracking:** Creates a ChangeSpec in the project file (not a COMMITS entry). The PR
-name is automatically suffixed with `_<N>` if a ChangeSpec with the same base name
-already exists.
+**Tracking:** Creates a Patch in the project file (not a STITCHES entry). The PR name is
+automatically suffixed with `_<N>` if a Patch with the same base name already exists.
 
 ## VCS Provider Abstraction
 
@@ -491,7 +490,7 @@ SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running unde
    dispatch completion.
 5. Run `commit_hooks.after` for commit/PR workflows unless its completion is already
    checkpointed.
-6. Re-run the tracking steps (COMMITS entry append, ChangeSpec creation) using the
+6. Re-run the tracking steps (STITCHES entry append, Patch creation) using the
    snapshotted payload.
 7. Delete the checkpoint on success.
 
@@ -515,10 +514,10 @@ success and checkpoint persistence has at-least-once execution semantics.
 | `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance                                      |
 | `SASE_BEAD_ID`                      | Bead ID written as a linked `SASE_BEAD=` footer tag without changing the subject                 |
 | `SASE_PLAN`                         | Plan source for storage/staging, status update, and the storage-relative `SASE_PLAN=` commit tag |
-| `SASE_AGENT_PROJECT_FILE`           | Project file for COMMITS/ChangeSpec tracking                                                     |
+| `SASE_AGENT_PROJECT_FILE`           | Project file for COMMITS/Patch tracking                                                          |
 | `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                                                            |
 | `SASE_PR_NAME`                      | PR name (set by `#pr` xprompt input)                                                             |
-| `SASE_PR_STATUS`                    | Initial PR ChangeSpec status (`draft`, `wip`, `ready`)                                           |
+| `SASE_PR_STATUS`                    | Initial PR Patch status (`draft`, `wip`, `ready`)                                                |
 | `SASE_BUG_ID`                       | Bug ID for PR metadata                                                                           |
 | `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))                                           |
 | `SASE_LINKED_REPOS_JSON`            | JSON metadata for configured linked repos passed to agents                                       |

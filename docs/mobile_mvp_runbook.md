@@ -179,7 +179,7 @@ official Serve docs: <https://tailscale.com/docs/features/tailscale-serve> and
 Use a recent Tailscale client. The Serve CLI changed in Tailscale 1.52, and the current
 command accepts a local port, partial URL, or full local URL as its target. If the
 command prompts to enable HTTPS for the tailnet, follow the Tailscale consent flow.
-Tailnet AChangeSpecs still apply to Serve traffic.
+Tailnet ACLs still apply to Serve traffic.
 
 Start SASE on loopback:
 
@@ -194,9 +194,8 @@ tailscale serve --bg http://127.0.0.1:7629
 tailscale serve status
 ```
 
-Use the reported tailnet HTTPS URL as the Android base URL. Keep Tailscale AChangeSpecs
-limited to the users/devices that should operate the workstation. Stop serving when
-finished:
+Use the reported tailnet HTTPS URL as the Android base URL. Keep Tailscale ACLs limited
+to the users/devices that should operate the workstation. Stop serving when finished:
 
 ```bash
 tailscale serve reset
@@ -336,7 +335,7 @@ brute-force, scanner, and logging risks materially worse.
 Controls and guidance:
 
 - Do not use public tunnels or Tailscale Funnel for the MVP.
-- Tailscale Serve keeps access inside the tailnet and respects tailnet AChangeSpecs.
+- Tailscale Serve keeps access inside the tailnet and respects tailnet ACLs.
 - Pair only while physically operating both devices.
 
 ### Attachment URL And Token Leakage

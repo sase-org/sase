@@ -1,43 +1,43 @@
 ---
-title: "[06] ChangeSpecs in Practice — Review State Outside the Chat"
+title: "[06] Patches in Practice — Review State Outside the Chat"
 date: 2026-05-20
 draft: true
 description: >-
-  ChangeSpecs are the durable, reviewable shape of one PR of agent work. They survive
-  the chat. Getting Started names them; this post lives inside them.
+  Patches are the durable, reviewable shape of one PR of agent work. They survive the
+  chat. Getting Started names them; this post lives inside them.
 categories:
   - Agentic Software Engineering
   - Review
 slug: changespecs-in-practice
 links:
-  - ChangeSpecs: change_spec.md
+  - Patches: change_spec.md
   - Mentors: mentors.md
   - ACE TUI: ace.md
   - "[05] Commit Workflows — The Pluggable Path From Diff to PR": blog/posts/commit-workflows-plugins.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# [06] ChangeSpecs in Practice — Review State Outside the Chat
+# [06] Patches in Practice — Review State Outside the Chat
 
-ChangeSpecs are the durable, reviewable shape of one PR of agent work. They survive the
+Patches are the durable, reviewable shape of one PR of agent work. They survive the
 chat. [Getting Started](../../getting_started.md) names them; this post lives inside
 them.
 
 <!-- more -->
 
 [\[05\]](commit-workflows-plugins.md) ended with `commit_result.json` — the marker every
-successful commit/PR drops on disk. The thing that marker writes into is a ChangeSpec.
-This post walks through what's actually in one, how mentors attach to it, and what the
-ACE TUI does with it once it exists.
+successful commit/PR drops on disk. The thing that marker writes into is a Patch. This
+post walks through what's actually in one, how mentors attach to it, and what the ACE
+TUI does with it once it exists.
 
 ## The ProjectSpec `.sase` Record, End to End
 
-A ChangeSpec is a structured block inside a ProjectSpec file at
+A Patch is a structured block inside a ProjectSpec file at
 `~/.sase/projects/<project>/`. Active specs live in `<project>.sase`; terminal ones
 (Submitted, Reverted, Archived) move to `<project>-archive.sase`. Legacy `.gp`
 ProjectSpec files from older installs are still readable as a fallback and can be
-renamed with `sase changespec migrate-extension`; that command changes filenames only,
-not the ChangeSpec contents. The canonical section order is:
+renamed with `sase patch migrate-extension`; that command changes filenames only, not
+the Patch contents. The canonical section order is:
 
 ```
 NAME: <NAME>
@@ -49,7 +49,7 @@ PARENT: <PARENT>
 BUG: <BUG>
 PR: <PR>
 STATUS: <STATUS>
-COMMITS:
+STITCHES:
   <COMMIT_ENTRIES>
 DELTAS:
   <DELTA_ENTRIES>
@@ -66,8 +66,8 @@ TIMESTAMPS:
 The status lifecycle is a small state machine: `WIP → Draft, Ready`, `Draft → Ready`,
 `Ready → Mailed, Draft`, `Mailed → Submitted`. `Submitted`, `Reverted`, and `Archived`
 are terminal — the moment a spec enters one, it moves to the archive file. PR workflows
-default new ChangeSpecs to `Draft` unless `sase commit --status` or `SASE_PR_STATUS`
-overrides; manual ChangeSpecs typically start `WIP`.
+default new Patches to `Draft` unless `sase commit --status` or `SASE_PR_STATUS`
+overrides; manual Patches typically start `WIP`.
 
 ## COMMITS, Drawers, and Proposals
 
@@ -82,7 +82,7 @@ more **drawer** lines (6-space indent, `| ` prefix):
 | `DIFF` | `\| DIFF: <path>`              | Saved diff file                                 |
 | `PLAN` | `\| PLAN: <path>`              | Plan file associated with this commit (via SDD) |
 
-Those three drawers are how you get back from a ChangeSpec to the artifacts an agent
+Those three drawers are how you get back from a Patch to the artifacts an agent
 produced. The CHAT drawer's duration (e.g., `2m15s`) is computed from the chat filename
 timestamp to the commit time. The PLAN drawer is emitted when `SASE_PLAN` was set during
 the commit workflow — i.e., the commit was associated with a tale or epic plan.
@@ -91,7 +91,7 @@ the commit workflow — i.e., the commit was associated with a tale or epic plan
 
 A **mentor** is a background AI code-review agent. Mentor profiles match commits via
 `file_globs`, `diff_regexes`, `amend_note_regexes`, or `first_commit`. When a profile
-matches a regular commit entry (proposals like `(2a)` are ignored for matching), it is
+matches a regular stitch (proposals like `(2a)` are ignored for matching), it is
 registered in that commit's MENTORS entry with `[0/N]` counts. AXE's `mentor_checks`
 chop then waits for all non-skipped hooks on that commit to become ready and launches
 one background mentor agent per mentor in the profile.
@@ -154,8 +154,8 @@ They combine: `!$just presubmit` skips fix-hook hints _and_ skips proposals.
 
 ## Advanced ACE Operations
 
-The PRs sub-tab in [ACE](../../ace.md)'s Artifacts tab is built around ChangeSpec
-navigation. The high-leverage moves:
+The PRs sub-tab in [ACE](../../ace.md)'s Artifacts tab is built around Patch navigation.
+The high-leverage moves:
 
 - **Grouping (`o` / `O`)** cycles the L0 bucket through `BY_PROJECT`, `BY_DATE`, and
   `BY_STATUS`. Sibling workspaces (`foobar_1` / `foobar_2`) share an L1 banner inside
@@ -175,8 +175,8 @@ navigation. The high-leverage moves:
 
 The full reference lives in [`ace.md`](../../ace.md). The point is that everything you
 would normally do in a code review — find the change, look at the diff, accept or reject
-mentor comments, apply changes, advance the status — is keystrokes away from the
-ChangeSpec record, not from a chat transcript.
+mentor comments, apply changes, advance the status — is keystrokes away from the Patch
+record, not from a chat transcript.
 
 ## TIMESTAMPS
 
@@ -194,13 +194,13 @@ TIMESTAMPS:
   [260328_171500] REBASE  old_parent -> new_parent
 ```
 
-That trail is what tells you which agent did what when a ChangeSpec has been through
-several. It is recorded atomically by SASE and is not normally edited by hand.
+That trail is what tells you which agent did what when a Patch has been through several.
+It is recorded atomically by SASE and is not normally edited by hand.
 
 ## What To Read Next
 
-- [ChangeSpec format](../../change_spec.md) — every field, every state transition,
-  complete examples.
+- [Patch format](../../change_spec.md) — every field, every state transition, complete
+  examples.
 - [Mentors](../../mentors.md) — profile matching criteria, execution lifecycle, ACE
   review modal, apply modes, file-snapshot semantics.
 - [ACE TUI](../../ace.md) — the full keybinding reference for the Artifacts, Agents, and

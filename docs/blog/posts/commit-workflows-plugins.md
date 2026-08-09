@@ -37,11 +37,11 @@ The `sase commit` command drives three XPrompt workflows. They share the same
 orchestrator, the same pre-stages, and the same result format; they differ only in what
 the dispatch step produces.
 
-| Workflow    | XPrompt    | Dispatch hook         | What it produces             | Tracking      |
-| ----------- | ---------- | --------------------- | ---------------------------- | ------------- |
-| **Commit**  | `#commit`  | `create_commit`       | Git commit on current branch | COMMITS entry |
-| **Propose** | `#propose` | `create_proposal`     | Saved diff file              | COMMITS entry |
-| **PR**      | `#pr`      | `create_pull_request` | New branch + PR              | ChangeSpec    |
+| Workflow    | XPrompt    | Dispatch hook         | What it produces             | Tracking       |
+| ----------- | ---------- | --------------------- | ---------------------------- | -------------- |
+| **Commit**  | `#commit`  | `create_commit`       | Git commit on current branch | STITCHES entry |
+| **Propose** | `#propose` | `create_proposal`     | Saved diff file              | STITCHES entry |
+| **PR**      | `#pr`      | `create_pull_request` | New branch + PR              | Patch          |
 
 Every flow walks the same pre-dispatch pipeline: bead association → bead lifecycle close
 (skipped for proposals) → plan handling → `commit_hooks.before` → parent PR detection
@@ -120,8 +120,8 @@ on disk (`$SASE_ARTIFACTS_DIR/commit_state.json`, or
 markers, verifies the commit at `HEAD` matches the subject line from the checkpointed
 message, calls the provider's `vcs_finalize_commit` hook to replay idempotent
 post-commit work (bead amend, push with retry), runs `commit_hooks.after`, re-runs the
-tracking steps (COMMITS entry append, ChangeSpec creation), and deletes the checkpoint
-on success. Completed steps are skipped, so resuming an after-hook failure does not
+tracking steps (STITCHES entry append, Patch creation), and deletes the checkpoint on
+success. Completed steps are skipped, so resuming an after-hook failure does not
 duplicate dispatch or a successful hook. After hooks should still be repeatable for the
 crash window between command success and checkpoint persistence. Resume is VCS-agnostic:
 the same `--resume` flag works for commits, proposals, and PRs.
@@ -143,8 +143,8 @@ that wrote the code and whoever (or whatever) consumes the result:
   "message": "The commit message",
   "name": "Branch/PR name",
   "bead_id": "Bead ID if SASE_BEAD_ID was set",
-  "changespec_name": "ChangeSpec name (PR only)",
-  "entry_id": "COMMITS entry ID (commit/propose only)",
+  "changespec_name": "Patch name (PR only)",
+  "entry_id": "STITCHES entry ID (commit/propose only)",
   "diff_path": "Saved pre-dispatch diff path, when available"
 }
 ```
@@ -182,5 +182,5 @@ contribute to the resolver, not which providers exist.
   workspace / LLM / xprompt / config plugins.
 - [VCS providers](../../vcs.md) — provider selection tiers, per-command VCS usage,
   provider-specific details.
-- [\[06\] ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md)
+- [\[06\] Patches in Practice — Review State Outside the Chat](changespecs-in-practice.md)
   — what the commit/PR flow writes to, and how ACE reviews it.

@@ -11,7 +11,7 @@ For exhaustive flag tables, see the
 
 | Command                         | Purpose                                                                                                                                                                                          | Details                                               |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| `sase ace`                      | Open ACE, the interactive control surface for ChangeSpecs, live agents, notifications, and axe state.                                                                                            | [ACE TUI](ace.md)                                     |
+| `sase ace`                      | Open ACE, the interactive control surface for Patches, live agents, notifications, and axe state.                                                                                                | [ACE TUI](ace.md)                                     |
 | `sase run [PROMPT]`             | Launch an agent or workflow from a prompt, an xprompt reference, a workflow reference, history, or an editor buffer.                                                                             | [XPrompts](xprompt.md), [workflows](workflow_spec.md) |
 | `sase agent list`               | List active and recent agents across projects.                                                                                                                                                   | [ACE Agents tab](ace.md#tab-system)                   |
 | `sase agent show`               | Render one agent's detail panel by name.                                                                                                                                                         | [Agent attachments](agent_images.md)                  |
@@ -90,10 +90,10 @@ command, keep the `list` subcommand explicit, for example `sase notify list -j`,
 
 | Command                                      | Purpose                                                                                                      | Details                                                           |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `sase changespec current`                    | Render the ChangeSpec associated with the current workspace.                                                 | [ChangeSpecs](change_spec.md)                                     |
-| `sase changespec migrate-extension`          | Rename legacy `.gp` ProjectSpec files to the canonical `.sase` extension.                                    | [ProjectSpec](project_spec.md)                                    |
-| `sase changespec search`                     | Search and filter ChangeSpecs with the query language.                                                       | [Query language](query_language.md)                               |
-| `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.                                                | [ChangeSpecs](change_spec.md)                                     |
+| `sase patch current`                         | Render the Patch associated with the current workspace.                                                      | [Patches](change_spec.md)                                         |
+| `sase patch migrate-extension`               | Rename legacy `.gp` ProjectSpec files to the canonical `.sase` extension.                                    | [ProjectSpec](project_spec.md)                                    |
+| `sase patch search`                          | Search and filter Patches with the query language.                                                           | [Query language](query_language.md)                               |
+| `sase patch sync-deltas`                     | Recompute the `DELTAS` field for a Patch from VCS state.                                                     | [Patches](change_spec.md)                                         |
 | `sase init`                                  | Check and initialize config, memory, repositories, and skills for the current project.                       | [Initialization](init.md)                                         |
 | `sase init --all --check`                    | Check every enabled main project without writing; report one aggregate status.                               | [Initialization](init.md)                                         |
 | `sase init --all --yes`                      | Initialize every enabled main project without generic prompts; sidecar creation still asks.                  | [Initialization](init.md)                                         |
@@ -145,9 +145,9 @@ command, keep the `list` subcommand explicit, for example `sase notify list -j`,
 | `sase launch approve` / `reject`             | Resolve a pending launch request by request id, notification id, or unique prefix.                           | [Agent groups](agent_families.md#agent-initiated-family-launches) |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                                 | [XPrompt directives](xprompt.md#directives)                       |
 
-ChangeSpecs are PR-sized review records. SDD stores durable prompt and planning
-artifacts. Beads add git-portable dependency tracking and executable epics on top of
-those artifacts.
+Patches are PR-sized review records. SDD stores durable prompt and planning artifacts.
+Beads add git-portable dependency tracking and executable epics on top of those
+artifacts.
 
 `sase project` defaults to `sase project list`, and `sase project list` defaults to
 enabled true projects. Use `sase project list --state all --json` to inspect disabled
@@ -173,7 +173,7 @@ the primary user-facing name. For example, the GitHub provider can create
 while keeping stable canonical project records. Existing auto-aliased GitHub projects
 remain valid and keep resolving through `PROJECT_ALIASES`.
 
-Enabled-only true-project discovery is also the default for launch pickers, ChangeSpec
+Enabled-only true-project discovery is also the default for launch pickers, Patch
 searches, project-local xprompt catalogs, broad mobile helper catalogs, and all-known
 bead helper reads. Internal sibling backing records are hidden from those surfaces and
 support configured linked repositories. Agents prepare one through `/sase_repo`; the
@@ -296,8 +296,8 @@ references are resolved before the prompt or workflow runs.
 | Command         | Purpose                                                                 | Details                                 |
 | --------------- | ----------------------------------------------------------------------- | --------------------------------------- |
 | `sase commit`   | Dispatch a commit, proposal, or PR through the configured VCS provider. | [Commit workflows](commit_workflows.md) |
-| `sase revert`   | Revert a ChangeSpec by pruning its change and archiving its diff.       | [Commit workflows](commit_workflows.md) |
-| `sase restore`  | Restore a reverted ChangeSpec by reapplying its archived diff.          | [Commit workflows](commit_workflows.md) |
+| `sase revert`   | Revert a Patch by pruning its change and archiving its diff.            | [Commit workflows](commit_workflows.md) |
+| `sase restore`  | Restore a reverted Patch by reapplying its archived diff.               | [Commit workflows](commit_workflows.md) |
 | `sase comments` | Preview mentor comments from JSON with syntax-highlighted code context. | [Mentors](mentors.md)                   |
 
 Delivery commands delegate to the VCS and workspace provider layers, so the same command
@@ -310,7 +310,7 @@ surface can support plain git, GitHub pull requests, and other provider plugins.
 | `sase doctor`                       | Run read-only install, config, provider, project, and state diagnostics for support.                                                                                                                                              | [Doctor support reports](#doctor-support-reports)                                                                    |
 | `sase config layers`                | Show the configuration merge chain.                                                                                                                                                                                               | [Configuration](configuration.md)                                                                                    |
 | `sase config show`                  | Dump the final merged configuration, optionally filtered by key.                                                                                                                                                                  | [Configuration](configuration.md)                                                                                    |
-| `sase config mentor-match`          | Trace mentor profile matching for a ChangeSpec.                                                                                                                                                                                   | [Mentors](mentors.md)                                                                                                |
+| `sase config mentor-match`          | Trace mentor profile matching for a Patch.                                                                                                                                                                                        | [Mentors](mentors.md)                                                                                                |
 | `sase file-hook` / `file-hook list` | List effective post-commit/artifact file hooks, filters, commands, and contributing config layers.                                                                                                                                | [File hooks](configuration.md#file_hooks)                                                                            |
 | `sase core health`                  | Check that the required `sase_core_rs` extension is loadable and working.                                                                                                                                                         | [Rust backend](rust_backend.md)                                                                                      |
 | `sase validate`                     | Run portable memory/repo/skills initialization checks plus SDD frontmatter and agents-sidecar prompt archive validation.                                                                                                          | [Initialization](init.md), [SDD](sdd.md)                                                                             |

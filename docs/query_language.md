@@ -1,15 +1,14 @@
 # Query Language Reference
 
-The ChangeSpec query language filters ChangeSpecs using boolean expressions that combine
-string matching, property filters, and operational shorthands. It is used by the PRs
-sub-tab in `sase ace [query]` and by other ChangeSpec filters such as
-`sase axe start --query`.
+The Patch query language filters Patches using boolean expressions that combine string
+matching, property filters, and operational shorthands. It is used by the PRs sub-tab in
+`sase ace [query]` and by other Patch filters such as `sase axe start --query`.
 
-Normal query surfaces use enabled-project ChangeSpec discovery. Disabled projects are
-omitted from CLI search and day-to-day ACE/axe scans. Views that are specifically about
-agent history or old artifacts opt into all project lifecycle states explicitly.
+Normal query surfaces use enabled-project Patch discovery. Disabled projects are omitted
+from CLI search and day-to-day ACE/axe scans. Views that are specifically about agent
+history or old artifacts opt into all project lifecycle states explicitly.
 
-This page documents ChangeSpec queries. The Agents tab in ACE has a separate agent query
+This page documents Patch queries. The Agents tab in ACE has a separate agent query
 language with agent-specific property keys.
 
 ## String Matching
@@ -35,13 +34,13 @@ backslash), `\"` (literal quote), `\n` (newline), `\r` (carriage return), and `\
 
 ## Searchable Fields
 
-String matches search across these ChangeSpec fields as one combined text corpus:
+String matches search across these Patch fields as one combined text corpus:
 
-- **name** -- the ChangeSpec name
-- **description** -- the ChangeSpec description text
-- **status** -- the status text as stored on the ChangeSpec
+- **name** -- the Patch name
+- **description** -- the Patch description text
+- **status** -- the status text as stored on the Patch
 - **project** -- project directory basename (derived from file path)
-- **parent** -- parent ChangeSpec name (if set)
+- **parent** -- parent Patch name (if set)
 - **cl** -- PR identifier (if set)
 - **commits** -- history entry notes and suffixes
 - **hooks** -- hook display commands and status line suffixes
@@ -54,16 +53,15 @@ before comparing.
 
 ## Property Filters
 
-Property filters match against a specific ChangeSpec field rather than performing a
-full-text substring search. The supported property filters are exact and
-case-insensitive:
+Property filters match against a specific Patch field rather than performing a full-text
+substring search. The supported property filters are exact and case-insensitive:
 
 ```
-status:WIP            match ChangeSpecs with base status "WIP"
-project:myproject     match ChangeSpecs whose effective project name is "myproject"
+status:WIP            match Patches with base status "WIP"
+project:myproject     match Patches whose effective project name is "myproject"
 ancestor:parent_cl    match if name or parent chain includes "parent_cl"
-name:foo              match ChangeSpecs whose name is exactly "foo"
-sibling:bar           match ChangeSpecs in the same sibling family as "bar"
+name:foo              match Patches whose name is exactly "foo"
+sibling:bar           match Patches in the same sibling family as "bar"
 ```
 
 Valid property keys: `status`, `project`, `ancestor`, `name`, and `sibling`. Values can
@@ -99,21 +97,21 @@ Status shorthands are case-insensitive (`%D` and `%d` are equivalent).
 
 ### Status Matching
 
-The `status:` filter compares the base status only. For example, a ChangeSpec whose
-stored status is `Ready (sase_102)` matches `status:Ready`. It also treats the legacy
+The `status:` filter compares the base status only. For example, a Patch whose stored
+status is `Ready (sase_102)` matches `status:Ready`. It also treats the legacy
 `Ready - (!: READY TO MAIL)` form as base status `Ready`.
 
 ### Ancestor Matching
 
-The `ancestor:` filter (and `^` shorthand) walks the parent chain recursively. A
-ChangeSpec matches if its own name equals the value, or if any parent, grandparent, etc.
-in the chain equals the value. Cycle detection prevents infinite loops.
+The `ancestor:` filter (and `^` shorthand) walks the parent chain recursively. A Patch
+matches if its own name equals the value, or if any parent, grandparent, etc. in the
+chain equals the value. Cycle detection prevents infinite loops.
 
 ### Sibling Matching
 
 The `sibling:` filter (and `~` shorthand) strips any `__<N>` revert suffix from both the
-search value and the ChangeSpec name, then compares base names. This matches all members
-of a "family" -- the original plus its `__1`, `__2`, etc. variants.
+search value and the Patch name, then compares base names. This matches all members of a
+"family" -- the original plus its `__1`, `__2`, etc. variants.
 
 ## Boolean Operators
 
@@ -140,7 +138,7 @@ feature OR bugfix
 The `!` operator or `NOT` keyword negates the following expression:
 
 ```
-!draft                exclude ChangeSpecs containing "draft"
+!draft                exclude Patches containing "draft"
 NOT draft             same as above
 !"work in progress"   negate a quoted string
 ```
@@ -164,32 +162,32 @@ feature AND (test OR lint)
 
 ## Special Shorthands
 
-These shorthands filter ChangeSpecs by error, agent, or process state recorded in status
-or suffix fields.
+These shorthands filter Patches by error, agent, or process state recorded in status or
+suffix fields.
 
 ### Error Suffix
 
-| Syntax | Meaning                                                                            |
-| ------ | ---------------------------------------------------------------------------------- |
-| `!!!`  | Match ChangeSpecs that have an error suffix in status, commits, hooks, or comments |
-| `!`    | Same as `!!!` when standalone: followed by whitespace or at end                    |
-| `!!`   | Match ChangeSpecs with no error suffix (equivalent to `NOT !!!`; standalone only)  |
+| Syntax | Meaning                                                                        |
+| ------ | ------------------------------------------------------------------------------ |
+| `!!!`  | Match Patches that have an error suffix in status, commits, hooks, or comments |
+| `!`    | Same as `!!!` when standalone: followed by whitespace or at end                |
+| `!!`   | Match Patches with no error suffix (equivalent to `NOT !!!`; standalone only)  |
 
 ### Running Agents
 
-| Syntax | Meaning                                                                      |
-| ------ | ---------------------------------------------------------------------------- |
-| `@@@`  | Match ChangeSpecs with a running agent marker in hooks, comments, or mentors |
-| `@`    | Same as `@@@` when standalone                                                |
-| `!@`   | Match ChangeSpecs with no running agents (equivalent to `NOT @@@`)           |
+| Syntax | Meaning                                                                  |
+| ------ | ------------------------------------------------------------------------ |
+| `@@@`  | Match Patches with a running agent marker in hooks, comments, or mentors |
+| `@`    | Same as `@@@` when standalone                                            |
+| `!@`   | Match Patches with no running agents (equivalent to `NOT @@@`)           |
 
 ### Running Processes
 
-| Syntax | Meaning                                                               |
-| ------ | --------------------------------------------------------------------- |
-| `$$$`  | Match ChangeSpecs with a running process marker in hooks or comments  |
-| `$`    | Same as `$$$` when standalone                                         |
-| `!$`   | Match ChangeSpecs with no running processes (equivalent to `NOT $$$`) |
+| Syntax | Meaning                                                           |
+| ------ | ----------------------------------------------------------------- |
+| `$$$`  | Match Patches with a running process marker in hooks or comments  |
+| `$`    | Same as `$$$` when standalone                                     |
+| `!$`   | Match Patches with no running processes (equivalent to `NOT $$$`) |
 
 ### Any Special
 
@@ -204,15 +202,15 @@ other characters, as in `!"foo"`, it acts as the `NOT` operator.
 ## Practical Examples
 
 ```
-%w                           all WIP ChangeSpecs
-%w +myproject                WIP ChangeSpecs in "myproject"
-feature %d                   drafted ChangeSpecs containing "feature"
-!!! %m                       mailed ChangeSpecs with errors
+%w                           all WIP Patches
+%w +myproject                WIP Patches in "myproject"
+feature %d                   drafted Patches containing "feature"
+!!! %m                       mailed Patches with errors
 !! !@ !$                     no errors, no agents, no processes
 ^base_cl %w                  WIP descendants of "base_cl"
 ~my_cl                       all siblings of "my_cl" (including reverted variants)
-"fix bug" OR "refactor"      ChangeSpecs matching either phrase
-(bug OR fix) AND !test       bug/fix ChangeSpecs excluding test ones
+"fix bug" OR "refactor"      Patches matching either phrase
+(bug OR fix) AND !test       bug/fix Patches excluding test ones
 c"README" +docs              case-sensitive "README" in the docs project
 *                            anything with errors, agents, or processes
 ```

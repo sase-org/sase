@@ -945,7 +945,7 @@ boundaries, and docs/tests:
 | Path                           | Purpose                                                                                                |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `src/sase/main/`               | CLI parser registration and subcommand handlers.                                                       |
-| `src/sase/ace/`                | ACE TUI, ChangeSpec rendering, query integration, actions, widgets, and TUI state.                     |
+| `src/sase/ace/`                | ACE TUI, Patch rendering, query integration, actions, widgets, and TUI state.                          |
 | `src/sase/agent/`              | Agent launch, detached spawn, prompt fan-out, running-agent metadata, artifact lookup, and naming.     |
 | `src/sase/axe/`                | Axe orchestrator, lumberjacks, chop execution, scheduled jobs, maintenance mode, and automation state. |
 | `src/sase/xprompt/`            | XPrompt expansion, directives, workflow loading, execution, tracing, explaining, and graphing.         |

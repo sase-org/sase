@@ -69,23 +69,23 @@ grammar.
 
 Start project work with a workspace ref; bare prompts normalize to `#git:home`.
 
-| Ref          | Runs in                                               |
-| ------------ | ----------------------------------------------------- |
-| `#gh:<ref>`  | GitHub project, ChangeSpec, `owner/repo`, or `@agent` |
-| `#git:<ref>` | Bare-git workspace                                    |
+| Ref          | Runs in                                          |
+| ------------ | ------------------------------------------------ |
+| `#gh:<ref>`  | GitHub project, Patch, `owner/repo`, or `@agent` |
+| `#git:<ref>` | Bare-git workspace                               |
 
 Append a rollover xprompt for code-changing tasks; each sets `SASE_COMMIT_METHOD` and
 injects the no-direct-commit rule.
 
-| XPrompt      | Result                                                        |
-| ------------ | ------------------------------------------------------------- |
-| `#commit`    | Commit on current branch and push; tracked as COMMITS         |
-| `#propose`   | Saved diff under `~/.sase/diffs/`, workspace cleaned          |
-| `#pr:<name>` | New branch + GitHub PR; ChangeSpec status defaults to `draft` |
+| XPrompt      | Result                                                   |
+| ------------ | -------------------------------------------------------- |
+| `#commit`    | Commit on current branch and push; tracked as STITCHES   |
+| `#propose`   | Saved diff under `~/.sase/diffs/`, workspace cleaned     |
+| `#pr:<name>` | New branch + GitHub PR; Patch status defaults to `draft` |
 
 `#pr(name, status=ready, bug_id=123)` accepts named args, auto-detects PARENT from the
-current branch's ChangeSpec, and suffixes duplicates with `_<N>`. `#sync` syncs/rebases
-and launches conflict help; `#git:<ref>` checks out a ref and reports the diff.
+current branch's Patch, and suffixes duplicates with `_<N>`. `#sync` syncs/rebases and
+launches conflict help; `#git:<ref>` checks out a ref and reports the diff.
 
 **Rule:** Agents never create git commits, branches, or PRs directly. The
 provider-neutral finalizer asks the runtime to use `/sase_git_commit` -> `sase commit`,

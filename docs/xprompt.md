@@ -402,8 +402,8 @@ pattern matching, so both forms work identically. This is useful in contexts whe
 colons are inconvenient.
 
 Provider-backed references also support `@name` agent references in the ref portion. The
-`@name` is resolved at runtime to the named agent's ChangeSpec (branch name), allowing
-one agent's prompt to target another agent's workspace:
+`@name` is resolved at runtime to the named agent's Patch (branch name), allowing one
+agent's prompt to target another agent's workspace:
 
 ```
 #gh:@planner     resolves to e.g. #gh:planner_add_config_parser
@@ -467,24 +467,24 @@ already matches the GitHub repo. Owner/repo fallback avoids basename routing whe
 duplicate GitHub basenames would make that ambiguous; direct `owner/repo` refs match the
 GitHub workspace path first, then only use a basename fallback when it is unambiguous.
 
-ACE and the xprompt LSP provide the same project/ChangeSpec completion helper for these
+ACE and the xprompt LSP provide the same project/Patch completion helper for these
 references. Type `+query` at absolute prompt offset zero or immediately after a literal
-ASCII space to open a picker of enabled launchable projects and active PR-sized
-ChangeSpecs in `WIP`, `Draft`, `Ready`, or `Mailed` status. The token extends to the
-next whitespace boundary, and `#+query`, line-start `+query` without a preceding space,
-tab-delimited forms, and plus signs glued to other text are not project triggers.
-Accepting a project row inserts a tag such as `#gh:sase`; accepting a ChangeSpec row
-inserts a tag such as `#gh:my_change`. The helper filters by `PROJECT_NAME`,
-directory-key project name, project alias, or ChangeSpec name prefix, and it ignores
-system-managed `home`, disabled projects, sibling records, and non-launchable projects.
+ASCII space to open a picker of enabled launchable projects and active PR-sized Patches
+in `WIP`, `Draft`, `Ready`, or `Mailed` status. The token extends to the next whitespace
+boundary, and `#+query`, line-start `+query` without a preceding space, tab-delimited
+forms, and plus signs glued to other text are not project triggers. Accepting a project
+row inserts a tag such as `#gh:sase`; accepting a Patch row inserts a tag such as
+`#gh:my_change`. The helper filters by `PROJECT_NAME`, directory-key project name,
+project alias, or Patch name prefix, and it ignores system-managed `home`, disabled
+projects, sibling records, and non-launchable projects.
 
 ACE and the xprompt LSP also provide token-local completion at the root of registered
 VCS workflow refs. Typing `:` or `(` after a workflow tag, such as `#gh:` or `#git(`,
-opens project and active PR-sized ChangeSpec rows scoped to that provider. Providers can
-add fast local namespace rows; the GitHub plugin derives organization rows from enabled
-GitHub project records and `github_orgs`. Accepting a project or ChangeSpec completes
-the current token, for example `#gh:sase ` or `#gh(sase)`. Accepting a namespace inserts
-a trailing slash such as `#gh:sase-org/` without closing the token, so repository
+opens project and active PR-sized Patch rows scoped to that provider. Providers can add
+fast local namespace rows; the GitHub plugin derives organization rows from enabled
+GitHub project records and `github_orgs`. Accepting a project or Patch completes the
+current token, for example `#gh:sase ` or `#gh(sase)`. Accepting a namespace inserts a
+trailing slash such as `#gh:sase-org/` without closing the token, so repository
 completion can immediately take over.
 
 ACE and the xprompt LSP also complete repositories inside provider refs after the
@@ -1251,13 +1251,14 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | -------------------- | --------------------------------------------------------------------------------------------- |
 | `sase_agents_status` | Report on currently running SASE agents                                                       |
 | `sase_artifact_file` | Create, list, show, resolve, and open SASE artifacts through `sase artifact`                  |
-| `sase_changespecs`   | Inspect and reason about ChangeSpecs, commits, hooks, comments, and mentors                   |
+| `sase_changespecs`   | Legacy compatibility shim that points agents to `sase_patches`                                |
 | `sase_chats`         | Inspect prior SASE agent prompts and responses                                                |
 | `sase_gate`          | Create a durable custom confirmation gate for a proposed command or decision                  |
 | `sase_git_commit`    | Commit through `sase commit` for git and GitHub workflows                                     |
 | `sase_hg_commit`     | Commit through `sase commit` for the fig VCS workflow where deployed                          |
 | `sase_memory_read`   | Perform audited long-term memory reads through `sase memory read`                             |
 | `sase_notify`        | Inspect SASE notifications and notification inbox entries                                     |
+| `sase_patches`       | Inspect and reason about Patches, stitches, hooks, comments, and mentors                      |
 | `sase_plan`          | Create and submit an implementation plan when provider-native plan mode is disabled           |
 | `sase_project`       | Inspect or manage project lifecycle state and aliases                                         |
 | `sase_questions`     | Ask the user structured questions when the provider-native question tool is disabled          |
@@ -1903,7 +1904,7 @@ agents—including every clan member launched independently—plus parallel fami
 even when ACE renders them as nested rows. Immediate participating launches claim a slot
 before workspace preparation; dependency, time, and fork waiters remain uncounted until
 those prerequisites resolve. Serial family follow-ups, workflow Python/bash steps, and
-axe ChangeSpec runners do not consume these slots.
+axe Patch runners do not consume these slots.
 
 A slot participant that pauses at `QUESTION` temporarily yields its slot while waiting
 for the user's answer. Answering does not bypass the cap: before follow-up work resumes,

@@ -24,7 +24,7 @@ from, and a browser the team can open without learning a TUI.
 <!-- more -->
 
 The previous nine posts walked through what exists: XPrompts, AXE, SDD and beads, commit
-workflows, ChangeSpecs, the Telegram mobile control surface, and the prompt input widget
+workflows, Patches, the Telegram mobile control surface, and the prompt input widget
 with its Neovim plugin. This one is shorter and more speculative. It names three threads
 that are in motion but not yet shipped, and points at the artifacts where the design
 work is happening.
@@ -85,7 +85,7 @@ mobile client to finish pairing via `POST /api/v1/session/pair/start` then
 exposing a public bind.
 
 Today's gateway is a tightly-scoped HTTP API: list agents, launch text, launch image,
-kill, retry, ChangeSpec tag operations, an XPrompt catalog, beads list, and an SSE event
+kill, retry, Patch tag operations, an XPrompt catalog, beads list, and an SSE event
 stream. Push hints are opt-in (FCM HTTP v1, or a local test provider) and carry only
 safe IDs, categories, and short display text — never tokens, prompt bodies, response
 text, attachment contents, or host paths. The mobile client always fetches authenticated
@@ -111,10 +111,10 @@ supervision should be reachable without learning a TUI first.
 Every horizon in this list trades terminal-native context for context that lives outside
 one developer's head. Shared memory moves intent across agents; mobile and web move the
 control surface to wherever the operator is. The orchestration layer the series has
-covered — XPrompts, AXE, SDD, beads, commit workflows, ChangeSpecs, and the Telegram
-chop — is what makes that move possible. Those pieces are how agent work becomes a
-durable object in the first place; memory, mobile, and web are how that durable object
-stays reachable.
+covered — XPrompts, AXE, SDD, beads, commit workflows, Patches, and the Telegram chop —
+is what makes that move possible. Those pieces are how agent work becomes a durable
+object in the first place; memory, mobile, and web are how that durable object stays
+reachable.
 
 ## What To Read Next
 

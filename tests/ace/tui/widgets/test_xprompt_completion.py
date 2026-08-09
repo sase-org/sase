@@ -183,6 +183,7 @@ def test_slash_skill_completion_filters_to_skills_and_uses_slash_insertions() ->
     entries = [
         _entry("sase_plan", inputs=(_input("topic", "line"),), is_skill=True),
         _entry("sase_changespecs", is_skill=True),
+        _entry("sase_patches", is_skill=True),
         _entry("sase_regular"),
         _entry("review", is_skill=True),
     ]
@@ -194,9 +195,10 @@ def test_slash_skill_completion_filters_to_skills_and_uses_slash_insertions() ->
     assert shared == ""
     assert [(c.display, c.insertion, c.name) for c in candidates] == [
         ("/sase_changespecs", "/sase_changespecs", "sase_changespecs"),
+        ("/sase_patches", "/sase_patches", "sase_patches"),
         ("/sase_plan", "/sase_plan", "sase_plan"),
     ]
-    assert candidates[1].metadata is entries[0]
+    assert candidates[2].metadata is entries[0]
 
 
 def test_slash_skill_completion_finds_packaged_sase_skills() -> None:
@@ -207,6 +209,7 @@ def test_slash_skill_completion_finds_packaged_sase_skills() -> None:
     by_name = {candidate.name: candidate for candidate in candidates}
 
     assert "sase_plan" in by_name
+    assert "sase_patches" in by_name
     assert "sase_questions" in by_name
     assert by_name["sase_plan"].display == "/sase_plan"
     assert by_name["sase_plan"].insertion == "/sase_plan"

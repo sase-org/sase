@@ -45,15 +45,15 @@ Type "clear"
 Enter
 Show
 
-Type "sase ace --refresh-interval 0 --tab changespecs -x"
+Type "sase ace --refresh-interval 0 --tab artifacts -x"
 Hide
 Enter
 Wait+Screen /PRs/
-Wait+Screen /ChangeSpec: 1\/5/
+Wait+Screen /Patch: 1\/5/
 Wait+Screen /group: by project/
 Wait+Screen /nova_prompt_input/
 Wait+Screen /DESCRIPTION:/
-Wait+Screen /COMMITS:/
+Wait+Screen /STITCHES:/
 Wait+Screen /HOOKS:/
 Wait+Screen /PASSED/
 Show
@@ -87,7 +87,7 @@ Sleep 1.4s
 Type "j"
 Wait+Screen /nova_release_notes/
 Wait+Screen /STATUS: Mailed/
-Wait+Screen /COMMITS:/
+Wait+Screen /STITCHES:/
 Wait+Screen /CHAT:/
 Sleep 1.6s
 

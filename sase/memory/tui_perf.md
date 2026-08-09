@@ -28,7 +28,7 @@ serial app message pump. Reuse these established fixes; don't invent new paths.
    releasing them if spawning fails. After a conversion, re-sweep all four APIs for slow
    async callbacks; the July 2026 epic missed two at phase seams.
 3. **Run slow user-initiated operations as tracked background tasks** (agent launches,
-   kill/dismiss persistence, ChangeSpec actions): `_submit_tracked_task()` /
+   kill/dismiss persistence, Patch actions): `_submit_tracked_task()` /
    `_submit_background_task()` (`src/sase/ace/tui/actions/task_actions.py`), not
    fire-and-forget coroutines. They appear in the task indicator/Task Queue (`t`), dedup
    submissions, count at quit, and leave records. Shape (see `LaunchTaskMixin` /

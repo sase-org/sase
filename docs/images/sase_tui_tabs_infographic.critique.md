@@ -32,7 +32,7 @@ changes, notifications, and automation state." The diagram is reviewed against:
 A title strap reads "sase ACE TUI: 3 tabs, one control plane". Below it, three
 side-by-side coloured cards represent the tabs:
 
-- **PRs (teal)** — caption "PRs: ChangeSpec command center" with three small icon rows:
+- **PRs (teal)** — caption "PRs: Patch command center" with three small icon rows:
   `query, group, fold`; `status lifecycle`; `review, mail, sync`.
 - **Agents (light blue)** — caption "Agents: live run supervision" with three rows:
   `running + completed runs`; `prompts, files, diffs`; `resume, tag, kill`.
@@ -108,9 +108,9 @@ The accuracy bar is whether the diagram matches today's
    `changespecs=#00D7AF` (teal), `agents=#87D7FF` (light blue), `axe=#FF5F5F` (red) —
    all three match the card colours in the image. ✓
 3. **PRs-tab content row "query, group, fold" understates what is on screen.** The PRs
-   view in `app.py:242-250` composes `ChangeSpecInfoPanel`, `ChangeSpecList`,
-   **`AncestorsChildrenPanel`**, `SearchQueryPanel`, and `ChangeSpecDetail`. Ancestor /
-   child / sibling navigation (`<`, `>`, `~` per `docs/ace.md:PRs Tab`) is one of the
+   view in `app.py:242-250` composes `PatchInfoPanel`, `PatchList`,
+   **`AncestorsChildrenPanel`**, `SearchQueryPanel`, and `PatchDetail`. Ancestor / child
+   / sibling navigation (`<`, `>`, `~` per `docs/ace.md:PRs Tab`) is one of the
    distinctive features of the tab and is not represented at all in the icon row.
 4. **PRs-tab grouping is named generically.** Code supports three explicit grouping
    modes — `BY_PROJECT`, `BY_DATE`, `BY_STATUS` — cycled with `o`/`O` (per `docs/ace.md`
@@ -167,7 +167,7 @@ These are scoped so the regen agent (`sase-2s.17`) can act on them directly.
 2. **Replace each card's three icon rows with a "Surfaces / Lifecycle / Actions" trio**,
    explicitly labelled, so the reader knows which row is "what you see", "what state
    model is in play", and "what you can do":
-   - **PRs**: Surfaces = `ChangeSpec list · detail · ancestors/children`; Lifecycle =
+   - **PRs**: Surfaces = `Patch list · detail · ancestors/children`; Lifecycle =
      `WIP → Draft → Ready → Mailed → Submitted`; Actions =
      `accept · mail · rebase · diff · checkout`.
    - **Agents**: Surfaces =

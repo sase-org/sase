@@ -136,14 +136,16 @@ An agent tribe is a user-facing label for related agents across clans and famili
 Tribes are assigned with `%tribe:<name>` (alias `%t`), managed with `sase agent tribe`,
 and displayed with an `@` prefix.
 
-#### ChangeSpec
+#### Patch
 
-Aliases: ChangeSpecs
+Aliases: patches
 
-Represents a single CL/PR. Active specs live in ProjectSpec `<key>.sase` (directory key
+A Patch is SASE's local unit of change. Every PR created or managed by SASE is
+associated with exactly one Patch, but a Patch may exist without a PR, represented by an
+absent `PR:` field. Active Patches live in ProjectSpec `<key>.sase` (directory key
 `<key>`; see Project, Repo, and Workspace); terminal ones (Submitted, Archived,
-Reverted) in `<key>-archive.sase`. Sections: NAME, DESCRIPTION, PARENT, CL/PR, STATUS,
-COMMITS, HOOKS, COMMENTS, MENTORS. Status lifecycle: WIP -> Draft -> Ready -> Mailed ->
+Reverted) live in `<key>-archive.sase`. Sections: NAME, DESCRIPTION, PARENT, PR, STATUS,
+STITCHES, HOOKS, COMMENTS, MENTORS. Status lifecycle: WIP -> Draft -> Ready -> Mailed ->
 Submitted.
 
 #### Project
@@ -167,6 +169,16 @@ Aliases: repos, repository, repositories
 A repo is any repository SASE knows: a project's primary repo, an SDD sidecar repo
 (`<project>--plans` or `<project>--research`), or a repo declared through
 `linked_repos:`.
+
+#### Stitch
+
+Aliases: stitches
+
+A stitch is the lightweight ordered change record inside a Patch's `STITCHES:` section.
+Every VCS commit made through the tracked workflow has an associated numeric stitch, but
+a stitch need not have a commit: proposals retain numeric-plus-letter IDs such as
+`(2a)`. The `sase commit` command and real Git/Mercurial commits are still called
+commits.
 
 #### Workspace
 

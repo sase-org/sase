@@ -7,8 +7,8 @@ later performance phases still rely on the tracing and benchmark harness describ
 
 ## Trace recorder
 
-`SASE_TUI_TRACE=1` enables `tui_trace(...)` context managers spread across the
-ChangeSpec, agents, and AXE hot paths. Each entered span emits one JSONL line to:
+`SASE_TUI_TRACE=1` enables `tui_trace(...)` context managers spread across the Patch,
+agents, and AXE hot paths. Each entered span emits one JSONL line to:
 
 ```text
 ~/.sase/perf/tui_trace.jsonl
@@ -23,7 +23,7 @@ Each record contains at least:
 ts            unix epoch seconds
 span          dotted span name (e.g. "agents.refresh_panel_widgets")
 duration_ms   wall time inside the span
-current_tab   "changespecs" | "agents" | "axe" | null
+current_tab   "artifacts" | "agents" | "axe" | null
 ```
 
 …plus any per-call counters (`count`, `agents`, `panels`, `output_bytes`, …) and any
@@ -36,9 +36,9 @@ where there is no timed block to measure.
 
 Timed spans currently wired (by file):
 
-- `actions/changespec/_display.py` — `changespec.refresh_display`,
-  `changespec.refresh_debounced`, `changespec.refresh_detail_only`
-- `actions/changespec/_loading.py` — `changespec.filter`
+- `actions/patch/_display.py` — `patch.refresh_display`, `patch.refresh_debounced`,
+  `patch.refresh_detail_only`
+- `actions/patch/_loading.py` — `patch.filter`
 - `actions/agents/_display.py` — `agents.refresh_display`, `agents.refresh_debounced`
 - `actions/agents/_display_panels.py` — `agents.refresh_panel_widgets`,
   `agents.refresh_panel_highlights`
@@ -49,10 +49,9 @@ Timed spans currently wired (by file):
   `agents.view_hint_bar_mount`
 - `widgets/prompt_panel/_agent_display_hints.py` —
   `widget.prompt_panel.update_display_with_hints`
-- `widgets/changespec_list.py` — `widget.changespec_list.update_list`,
-  `widget.changespec_list.update_highlight`,
-  `widget.changespec_list.patch_changespec_row`
-- `widgets/changespec_detail.py` — `widget.changespec_detail.update_display`
+- `widgets/patch_list.py` — `widget.patch_list.update_list`,
+  `widget.patch_list.update_highlight`, `widget.patch_list.patch_patch_row`
+- `widgets/patch_detail.py` — `widget.patch_detail.update_display`
 - `widgets/agent_list.py` — `widget.agent_list.update_list`,
   `widget.agent_list.update_highlight`, `widget.agent_list.patch_agent_row`,
   `widget.agent_list.try_remove_rows`
@@ -131,7 +130,7 @@ jq -c 'select(.span | startswith("agents.view_") or . == "widget.prompt_panel.up
 Trace events currently wired include:
 
 - `selection.current_idx.set`
-- `widget.changespec_list.watch_highlighted` and `.suppressed`
+- `widget.patch_list.watch_highlighted` and `.suppressed`
 - `widget.agent_list.watch_highlighted` and `.suppressed`
 - `widget.bgcmd_list.watch_highlighted` and `.suppressed`
 
@@ -222,8 +221,8 @@ for no size rotation. This bound is separate from the opt-in trace files under
 
 ## Synthetic-data benchmark harness
 
-The harness lives at `tests/perf/bench_tui_trace.py`. It generates in-memory ChangeSpec
-and agent fixtures, then drives the TUI through Textual Pilot without touching real
+The harness lives at `tests/perf/bench_tui_trace.py`. It generates in-memory Patch and
+agent fixtures, then drives the TUI through Textual Pilot without touching real
 `~/.sase` data. It is marked `pytest.mark.slow`, so it does not run as part of
 `just test`.
 
@@ -262,7 +261,7 @@ python -m tests.perf.bench_tui_trace \
 Fixture sizes:
 
 ```text
-ChangeSpecs: 100,  500, 2000   (tests/perf/fixtures.py: CHANGESPEC_SIZES)
+Patches: 100,  500, 2000   (tests/perf/fixtures.py: legacy-named CHANGESPEC_SIZES)
 Agents:       50,  200, 1000   (tests/perf/fixtures.py: AGENT_SIZES)
 Large reply:   1,    5,   20 MB (LARGE_REPLY_SIZES_MB)
 ```
@@ -349,26 +348,25 @@ relevant targets are met **without regressing** any other span.
 j/k highlight p95             < 16 ms
 key-to-paint p95              < 33 ms
 debounced detail paint        < 150–250 ms
-warm ChangeSpec reload, 1k    < 100 ms
+warm Patch reload, 1k    < 100 ms
 no-change auto-refresh stall  ~0 ms (event-driven path; Phase 7)
 large reply first paint       immediate plain render, syntax later/optional
 ```
 
 Per-phase responsibilities:
 
-- **Phase 2** (ChangeSpec j/k hot path): `widget.changespec_list.update_list` call count
-  drops to zero for j/k navigation; `update_highlight` p95 < 16 ms at 500 specs.
-- **Phase 3** (data layer): warm ChangeSpec reload < 100 ms at 1k specs;
-  `changespec.filter` p95 should drop materially after the snapshot cache and query
-  context land.
+- **Phase 2** (Patch j/k hot path): `widget.patch_list.update_list` call count drops to
+  zero for j/k navigation; `update_highlight` p95 < 16 ms at 500 patches.
+- **Phase 3** (data layer): warm Patch reload < 100 ms at 1k specs; `patch.filter` p95
+  should drop materially after the snapshot cache and query context land.
 - **Phase 4** (agent panel + list): `agents.refresh_panel_highlights` and
   `widget.agent_list.update_highlight` p95 < 16 ms at 1k agents.
 - **Phase 5** (incremental loader): `agents.load_from_disk` near zero on a no-change
   auto-refresh.
 - **Phase 6** (artifact + render caching): `widget.prompt_panel.update_display` /
   `widget.file_panel.update_display` immediate first paint on the largest reply fixture.
-- **Phase 7** (event-driven auto-refresh): no-change auto-refresh shows no
-  agents/changespec spans firing at all.
+- **Phase 7** (event-driven auto-refresh): no-change auto-refresh shows no agents/patch
+  spans firing at all.
 
 ## Adding a new span
 

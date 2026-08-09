@@ -14,7 +14,7 @@ links:
   - Plugins: plugins.md
   - Notifications: notifications.md
   - Mobile Gateway: mobile_gateway.md
-  - "[06] ChangeSpecs in Practice — Review State Outside the Chat": blog/posts/changespecs-in-practice.md
+  - "[06] Patches in Practice — Review State Outside the Chat": blog/posts/changespecs-in-practice.md
   - View on GitHub: https://github.com/sase-org/sase-telegram
 ---
 
@@ -23,14 +23,14 @@ links:
 The mobile gateway is the long-term path to a phone-native SASE client. The plugin
 already in everyone's pocket is Telegram. **sase-telegram** is the bridge: pip-install a
 plugin, point it at a bot token, and a regular Telegram chat becomes a two-way control
-surface for agents, plans, ChangeSpecs, and generated artifacts.
+surface for agents, plans, Patches, and generated artifacts.
 
 <!-- more -->
 
-[\[06\]](changespecs-in-practice.md) showed how review state lives in a `.sase`
-ChangeSpec on disk. This post is about moving the operator off the keyboard entirely:
-replying to plan approvals, launching new runs, and reviewing rendered plans or
-generated images from the same chat you already use for everything else.
+[\[06\]](changespecs-in-practice.md) showed how review state lives in a `.sase` Patch on
+disk. This post is about moving the operator off the keyboard entirely: replying to plan
+approvals, launching new runs, and reviewing rendered plans or generated images from the
+same chat you already use for everything else.
 
 ## What The Plugin Actually Is
 
@@ -139,17 +139,17 @@ Telegram's `set_my_commands` API so they show up in the chat input UI:
 | `/list`              | Lists running agents with their families and current state                        |
 | `/kill [<name>]`     | Kills a specific agent or, with no argument, picks one from a button list         |
 | `/resume`            | Sends a copy-text button to re-enter the most recent conversation                 |
-| `/changes [project]` | Lists active ChangeSpecs with a copy-text button for the bare workflow tag        |
+| `/changes [project]` | Lists active Patches with a copy-text button for the bare workflow tag            |
 | `/xprompts`          | Exports the xprompt catalog so you can see what `#foo` will expand to             |
 | `/bead [<id>]`       | Without an ID, lists active beads as picker buttons; with one, shows bead details |
 | `/update`            | Starts the shared SASE chat update worker in a detached process                   |
 
 `/changes` deliberately excludes Submitted, Archived, and Reverted entries — the
 assumption is that a phone is for live work, not archive browsing. The copy-text button
-for each ChangeSpec emits its detected provider ref, such as `#gh:foobar`, so the next
-agent you launch can target it directly. `/bead` follows the same picker pattern as the
-kill flow: most of the time you want a button list, not the cognitive overhead of
-remembering an ID.
+for each Patch emits its detected provider ref, such as `#gh:foobar`, so the next agent
+you launch can target it directly. `/bead` follows the same picker pattern as the kill
+flow: most of the time you want a button list, not the cognitive overhead of remembering
+an ID.
 
 Deployments can add their own slash-menu commands under `telegram.commands` in SASE
 configuration. Each entry declares a description, an executable with fixed arguments,

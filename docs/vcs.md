@@ -6,7 +6,7 @@ control, including `sase commit`, `sase ace`, `sase axe`, `sase revert`, and
 `sase restore`, delegate to a provider interface rather than calling VCS commands
 directly.
 
-Git and Mercurial share the same SASE concepts: ChangeSpecs, workspace checkout, diff
+Git and Mercurial share the same SASE concepts: Patches, workspace checkout, diff
 capture, commit/proposal dispatch, review submission, revert, and restore.
 Provider-specific capabilities and prerequisites still matter. For example, GitHub
 pull-request operations require the optional `sase-github` plugin and the GitHub CLI,
@@ -68,7 +68,7 @@ The hooks are organized into several groups:
   `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`, `vcs_upload`,
   `vcs_find_reviewers`, `vcs_rewind`
 - **Branch naming hooks** — `vcs_derive_branch_name`,
-  `vcs_derive_branch_name_with_suffix` (compute branch names from ChangeSpec names),
+  `vcs_derive_branch_name_with_suffix` (compute branch names from Patch names),
   `vcs_can_rename_branch` (check if branch renaming is supported)
 - **Classification hooks** — `vcs_detect_repo_type` (detect VCS markers like `.hg/` or
   `.git/`) and `vcs_classify_repo` (classify git repos by remote URL, e.g. GitHub vs
@@ -324,7 +324,7 @@ Pushes changes for review. The flow differs significantly between providers.
 2. Prompt user to confirm push
 3. `git push -u origin <branch>`
 4. With the GitHub provider, check or create a PR through `gh`
-5. Update ChangeSpec with the PR URL when the provider can return one
+5. Update Patch with the PR URL when the provider can return one
 
 **Mercurial flow:**
 
@@ -336,7 +336,7 @@ Pushes changes for review. The flow differs significantly between providers.
 
 #### Show Diff (`d` key)
 
-Displays the diff for a ChangeSpec. Uses `diff()` for uncommitted changes or
+Displays the diff for a Patch. Uses `diff()` for uncommitted changes or
 `diff_revision()` for committed revisions.
 
 | Type        | Git                                              | Mercurial          |
@@ -346,7 +346,7 @@ Displays the diff for a ChangeSpec. Uses `diff()` for uncommitted changes or
 
 #### Revert (`X` key / status change to "Reverted")
 
-Reverts a ChangeSpec by saving its diff and pruning the revision.
+Reverts a Patch by saving its diff and pruning the revision.
 
 1. Save diff to `~/.sase/reverted/<name>.diff` via `diff_revision()`
 2. Prune revision via `prune()`
@@ -358,7 +358,7 @@ Reverts a ChangeSpec by saving its diff and pruning the revision.
 
 #### Restore (status change from "Reverted" to "WIP"/"Drafted")
 
-Restores a previously reverted ChangeSpec.
+Restores a previously reverted Patch.
 
 1. Checkout parent or default branch via `checkout()`
 2. Apply stashed diff via `apply_patch()`
@@ -371,7 +371,7 @@ Restores a previously reverted ChangeSpec.
 
 #### Archive (status change to "Archived")
 
-Archives a ChangeSpec by saving the diff, archiving the revision, and updating status.
+Archives a Patch by saving the diff, archiving the revision, and updating status.
 
 1. Checkout the PR via `checkout()`
 2. Save diff to `~/.sase/archived/<name>.diff`
@@ -395,8 +395,8 @@ uses `$'...'` shell quoting internally.
 
 ### `sase axe`
 
-Background daemon that periodically checks ChangeSpecs and runs hooks. Uses VCS
-operations for:
+Background daemon that periodically checks Patches and runs hooks. Uses VCS operations
+for:
 
 - **Hook running** — Workspace checkout and sync before running hooks
 - **Mentor checks** — Checking for changes via `has_local_changes()`
@@ -406,8 +406,8 @@ The `--vcs-provider` flag works identically to `sase ace`.
 
 ### `sase revert`
 
-Standalone command to revert a ChangeSpec. Performs the same operations as the ace TUI
-revert action:
+Standalone command to revert a Patch. Performs the same operations as the ace TUI revert
+action:
 
 1. Save diff via `diff_revision()` to `~/.sase/reverted/<name>.diff`
 2. Prune revision via `prune()`
@@ -415,7 +415,7 @@ revert action:
 
 ### `sase restore`
 
-Standalone command to restore a reverted ChangeSpec:
+Standalone command to restore a reverted Patch:
 
 1. Checkout parent (or default branch) via `checkout()`
 2. Apply saved diff via `apply_patch()` from `~/.sase/reverted/` or `~/.sase/archived/`
@@ -430,16 +430,16 @@ GitHub workspace references.
 
 ### Branch Naming
 
-Git branch names match ChangeSpec names exactly — no prefix stripping or
-underscore-to-hyphen conversion. Two VCS hooks control branch name derivation:
+Git branch names match Patch names exactly — no prefix stripping or underscore-to-hyphen
+conversion. Two VCS hooks control branch name derivation:
 
-- `vcs_derive_branch_name()` — returns the base branch name (ChangeSpec name without
-  `__<N>` suffix)
+- `vcs_derive_branch_name()` — returns the base branch name (Patch name without `__<N>`
+  suffix)
 - `vcs_derive_branch_name_with_suffix()` — returns the full branch name including suffix
 
 **Immutable branch aliases:** When a provider cannot rename branches (e.g., GitHub with
 open PRs), sase persists branch aliases in `~/.sase/projects/<project>/branch_map.json`.
-This maps the current ChangeSpec name to the actual git branch name. The
+This maps the current Patch name to the actual git branch name. The
 `vcs_can_rename_branch()` hook tells the system whether renaming is possible — GitHub
 returns `False` for branches with open PRs, so alias mappings are used instead of
 `git branch -m`.
@@ -471,13 +471,12 @@ PRs, preserve immutable branch aliases for open PRs, resolve workspace reference
 as `#gh:<ref>`, and submit merged PRs through `gh pr merge`.
 
 It does not currently provide the richer Mercurial-specific automation surface. In
-particular, GitHub PRs do not get plugin-supplied default ChangeSpec hooks, metahooks,
-mentor profiles, PR tags, or a provider-specific `commit_hooks.before` fix command
-unless users configure those in `sase.yml`. Reviewer-comment polling and
-comment-response automation are not enabled for GitHub PR URLs, reviewer discovery
-during mail preparation is not implemented, `vcs_rewind` has no GitHub backend, BUG
-values are left as provided, and Mercurial-only refresh/split workflows do not have
-GitHub equivalents.
+particular, GitHub PRs do not get plugin-supplied default Patch hooks, metahooks, mentor
+profiles, PR tags, or a provider-specific `commit_hooks.before` fix command unless users
+configure those in `sase.yml`. Reviewer-comment polling and comment-response automation
+are not enabled for GitHub PR URLs, reviewer discovery during mail preparation is not
+implemented, `vcs_rewind` has no GitHub backend, BUG values are left as provided, and
+Mercurial-only refresh/split workflows do not have GitHub equivalents.
 
 These are plugin capability gaps, not core VCS limitations: ordinary git operations,
 diffing, branch management, commit/proposal/PR dispatch, conflict resume, and workspace

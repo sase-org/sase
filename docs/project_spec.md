@@ -1,25 +1,25 @@
 # ProjectSpec Format
 
 A ProjectSpec is SASE's project-level `.sase` file. It groups the non-terminal
-[ChangeSpecs](change_spec.md) for one project and may also store project metadata used
-by workspace and agent coordination.
+[Patches](change_spec.md) for one project and may also store project metadata used by
+workspace and agent coordination.
 
 ProjectSpec files live under `~/.sase/projects/<project>/<project>.sase`. Terminal
-ChangeSpecs are moved to the adjacent archive file,
+Patches are moved to the adjacent archive file,
 `~/.sase/projects/<project>/<project>-archive.sase`. Legacy `.gp` files from earlier
-releases remain readable as a fallback; the `sase changespec migrate-extension` command
+releases remain readable as a fallback; the `sase patch migrate-extension` command
 renames them to the canonical `.sase` extension. That migration changes only the
-ProjectSpec filenames; it does not rewrite ChangeSpec blocks or alter review state.
+ProjectSpec filenames; it does not rewrite Patch blocks or alter review state.
 
 ## Format
 
 A ProjectSpec has two parts:
 
 1. Optional project metadata before the first `NAME:` line.
-2. One or more ChangeSpec blocks, separated by two blank lines.
+2. One or more Patch blocks, separated by two blank lines.
 
-The ChangeSpec parser finds blocks by scanning for `NAME:` lines. Project metadata is
-read by narrower helpers and must stay before the first ChangeSpec.
+The Patch parser finds blocks by scanning for `NAME:` lines. Project metadata is read by
+narrower helpers and must stay before the first Patch.
 
 ```text
 BARE_REPO_DIR: ~/.sase/repos/my_project.git
@@ -51,9 +51,9 @@ STATUS: WIP
 
 ## BUG Field
 
-`BUG:` is a ChangeSpec field, not required project metadata. Put it inside each
-ChangeSpec that should link to a bug or issue. SASE stores the value as text; common
-values are a plain identifier or a URL:
+`BUG:` is a Patch field, not required project metadata. Put it inside each Patch that
+should link to a bug or issue. SASE stores the value as text; common values are a plain
+identifier or a URL:
 
 ```text
 BUG: 12345
@@ -61,9 +61,9 @@ BUG: http://b/12345
 BUG: https://b/12345
 ```
 
-PR workflows that receive `SASE_BUG_ID` or `sase commit --bug-id` write the ChangeSpec
-field as `http://b/<id>`. Child ChangeSpecs may inherit the parent's `BUG:` when SASE
-creates them through the commit workflow.
+PR workflows that receive `SASE_BUG_ID` or `sase commit --bug-id` write the Patch field
+as `http://b/<id>`. Child Patches may inherit the parent's `BUG:` when SASE creates them
+through the commit workflow.
 
 ## Project Metadata Fields
 
@@ -84,7 +84,7 @@ currently uses these fields:
   `inactive`, `archived`, and `closed` normalize to disabled.
 - **PROJECT_NAME**: Optional user-facing project name. The storage key remains the
   directory name `~/.sase/projects/<project>/`; `PROJECT_NAME` is surfaced in project
-  lists, launch pickers, agent grouping labels, and VCS workspace references. ChangeSpec
+  lists, launch pickers, agent grouping labels, and VCS workspace references. Patch
   `project:` queries (including the `+project` shorthand) also use this configured name
   exactly and case-insensitively, falling back to the directory key only when
   `PROJECT_NAME` is missing or invalid.
@@ -96,7 +96,7 @@ currently uses these fields:
 
 `BARE_REPO_DIR` and `WORKSPACE_DIR` are created by first-use `#git:<project>`
 initialization or `#git:<bare-repo-path>` registration. They are parsed only before the
-first ChangeSpec.
+first Patch.
 
 `PROJECT_STATE` is managed by `sase project`. If you edit this field by hand, keep it
 before `RUNNING:` or the first `NAME:` line and use one of the valid lowercase values.
@@ -141,10 +141,10 @@ present. Display-only helpers also humanize filename-safe project stems in some
 artifact, retry, and mobile-facing labels when they can map the stem back to a
 ProjectSpec display name; the underlying files are not renamed.
 
-ChangeSpec `project:` queries use `PROJECT_NAME` as their sole project identity when it
-is configured; the directory key is not an additional query alias. `PROJECT_ALIASES`
-remain launch/xprompt aliases and do not participate in this filter. Non-terminal and
-archived ChangeSpecs share the name configured in the main ProjectSpec.
+Patch `project:` queries use `PROJECT_NAME` as their sole project identity when it is
+configured; the directory key is not an additional query alias. `PROJECT_ALIASES` remain
+launch/xprompt aliases and do not participate in this filter. Non-terminal and archived
+Patches share the name configured in the main ProjectSpec.
 
 Validation rules:
 
@@ -186,7 +186,7 @@ lifecycle-only.
 
 Project lifecycle state controls whether a project appears in the default lists used to
 start new work or browse current work. It is project-level metadata; it does not delete
-project files. Do not confuse it with ChangeSpec status (`WIP` through `Submitted` or
+project files. Do not confuse it with Patch status (`WIP` through `Submitted` or
 `Archived`), an agent or workspace being active, or the `is_sase_managed` configuration
 marker that authorizes generated project files.
 
@@ -202,8 +202,8 @@ Legacy `PROJECT_STATE: active` files normalize to enabled. Legacy `inactive`,
 linked-repository bookkeeping.
 
 Broad project discovery is enabled-only. That includes launch and completion pickers,
-`sase changespec search`, project-local xprompt catalogs, broad mobile helper catalogs,
-and all-known bead helper reads. Disabled records are intentionally hidden from those
+`sase patch search`, project-local xprompt catalogs, broad mobile helper catalogs, and
+all-known bead helper reads. Disabled records are intentionally hidden from those
 surfaces. An explicitly typed known-project VCS ref such as `#gh:sase` is the exception:
 launch preparation treats it as intent to resume work and writes
 `PROJECT_STATE: enabled` before claiming a workspace. A checkout cwd or mobile `project`
@@ -268,12 +268,12 @@ RUNNING:
 The timestamp and `PINNED` marker are optional. Do not edit `RUNNING` by hand unless you
 are repairing a stale workspace claim and have verified the process is gone.
 
-## ChangeSpec Fields
+## Patch Fields
 
-Each ChangeSpec in a ProjectSpec follows the [ChangeSpec format](change_spec.md). For
-hand-written entries, the normal minimum fields are:
+Each Patch in a ProjectSpec follows the [Patch format](change_spec.md). For hand-written
+entries, the normal minimum fields are:
 
-1. **NAME**: Unique ChangeSpec identifier. SASE-generated names normally start with
+1. **NAME**: Unique Patch identifier. SASE-generated names normally start with
    `<project>_` and end with a numeric uniqueness suffix such as `_1`.
 2. **DESCRIPTION**: A title, a blank line, and a body, all indented by two spaces.
 3. **STATUS**: One of the lifecycle statuses documented in
@@ -281,11 +281,11 @@ hand-written entries, the normal minimum fields are:
 
 Common optional fields include:
 
-- **PARENT**: The `NAME` of a parent ChangeSpec that must land first. Omit it when there
-  is no dependency.
+- **PARENT**: The `NAME` of a parent Patch that must land first. Omit it when there is
+  no dependency.
 - **PR**: URL for the created review, omitted until the PR exists. New files write
   `PR:`; legacy `CL:` fields remain readable during the compatibility window.
-- **BUG**: Bug or issue reference for this ChangeSpec.
+- **BUG**: Bug or issue reference for this Patch.
 - **COMMITS**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**: See
   [`change_spec.md`](change_spec.md) for details.
 
@@ -334,15 +334,14 @@ STATUS: WIP
 ## Important Notes
 
 - **Project file path**: Use `~/.sase/projects/<project>/<project>.sase` for
-  non-terminal ChangeSpecs and `~/.sase/projects/<project>/<project>-archive.sase` for
+  non-terminal Patches and `~/.sase/projects/<project>/<project>-archive.sase` for
   terminal history.
 - **Project metadata**: Keep `BARE_REPO_DIR`, `WORKSPACE_DIR`, `PROJECT_STATE`,
   `PROJECT_NAME`, `PROJECT_ALIASES`, and `RUNNING` before the first `NAME:` line.
-- **Blank lines between ChangeSpecs**: Separate ChangeSpecs with exactly two blank
-  lines.
+- **Blank lines between Patches**: Separate Patches with exactly two blank lines.
 - **NAME field**: Prefer SASE-generated names, which use the project prefix and a
   numeric suffix.
-- **PARENT field**: Set it only to another ChangeSpec `NAME`; omit it when there is no
+- **PARENT field**: Set it only to another Patch `NAME`; omit it when there is no
   dependency.
 - **PR field**: Omit until the PR exists, then set it to the review URL.
 - **No file modification lists**: Keep file lists out of `DESCRIPTION`; SASE records

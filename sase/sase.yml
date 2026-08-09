@@ -71,15 +71,18 @@ glossary:
       An agent tribe is a user-facing label for related agents across clans and
       families. Tribes are assigned with `%tribe:<name>` (alias `%t`), managed
       with `sase agent tribe`, and displayed with an `@` prefix.
-  ChangeSpec:
+  Patch:
     aliases:
-      - ChangeSpecs
+      - patches
     definition: >-
-      Represents a single CL/PR. Active specs live in ProjectSpec `<key>.sase`
-      (directory key `<key>`; see Project, Repo, and Workspace); terminal ones
-      (Submitted, Archived, Reverted) in `<key>-archive.sase`. Sections: NAME,
-      DESCRIPTION, PARENT, CL/PR, STATUS, COMMITS, HOOKS, COMMENTS, MENTORS.
-      Status lifecycle: WIP -> Draft -> Ready -> Mailed -> Submitted.
+      A Patch is SASE's local unit of change. Every PR created or managed by
+      SASE is associated with exactly one Patch, but a Patch may exist without a
+      PR, represented by an absent `PR:` field. Active Patches live in
+      ProjectSpec `<key>.sase` (directory key `<key>`; see Project, Repo, and
+      Workspace); terminal ones (Submitted, Archived, Reverted) live in
+      `<key>-archive.sase`. Sections: NAME, DESCRIPTION, PARENT, PR, STATUS,
+      STITCHES, HOOKS, COMMENTS, MENTORS. Status lifecycle: WIP -> Draft ->
+      Ready -> Mailed -> Submitted.
   Project:
     aliases:
       - projects
@@ -104,6 +107,15 @@ glossary:
       A repo is any repository SASE knows: a project's primary repo, an SDD
       sidecar repo (`<project>--plans` or `<project>--research`), or a repo
       declared through `linked_repos:`.
+  Stitch:
+    aliases:
+      - stitches
+    definition: >-
+      A stitch is the lightweight ordered change record inside a Patch's
+      `STITCHES:` section. Every VCS commit made through the tracked workflow
+      has an associated numeric stitch, but a stitch need not have a commit:
+      proposals retain numeric-plus-letter IDs such as `(2a)`. The `sase
+      commit` command and real Git/Mercurial commits are still called commits.
   Workspace:
     aliases:
       - workspaces
@@ -226,7 +238,7 @@ mentor_profiles:
               config file must stay in sync.
           - focus_name: nvim_syntax_sync
             description: >
-              When ChangeSpec display format, status names, tag names, or other TUI-visible tokens change, check whether
+              When Patch display format, status names, tag names, or other TUI-visible tokens change, check whether
               ../sase-nvim syntax highlighting files need a corresponding update.
           - focus_name: workflow_schema_sync
             description: >

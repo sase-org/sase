@@ -11,7 +11,7 @@ input:
   cl_name:
     type: word
     default: "null"
-    description: Optional PR or ChangeSpec name to include in the review prompt.
+    description: Optional PR or Patch name to include in the review prompt.
   vcs_type:
     type: word
     description: Registered workspace directive prefix to use for the PR.

@@ -35,9 +35,9 @@ Reading the committed `commit-workflow-infographic.png` directly:
 - Side loop, drawn under the band as a yellow warning chip with a curved arrow:
   **Conflict checkpoint + resume**.
 - Right output branches (3 cards):
-  - **Commit hash + COMMITS entry**
-  - **Saved diff + COMMITS entry**
-  - **PR URL + ChangeSpec**
+  - **Commit hash + STITCHES entry**
+  - **Saved diff + STITCHES entry**
+  - **PR URL + Patch**
 - Bottom-right note card: **VCS providers: Git, GitHub, Mercurial**.
 
 ## Clarity issues a new user would hit
@@ -59,7 +59,7 @@ Reading the committed `commit-workflow-infographic.png` directly:
    `VCS dispatch` and `Result marker` / `Tracking`, not floating under the whole band.
 4. **"Tracking" is one chip but represents several discrete outputs.** A reader sees one
    chip and three output cards and has to guess which card each tracking step writes to.
-   Splitting "Tracking" into the actual tracking artifacts (ChangeSpec, COMMITS entry,
+   Splitting "Tracking" into the actual tracking artifacts (Patch, STITCHES entry,
    result marker) — or showing arrows from each tracking sub-step to its specific output
    card — would remove the ambiguity.
 5. **No visual distinction for proposal-skipped stages.** The doc explicitly calls out
@@ -85,7 +85,7 @@ and the stage list in `docs/commit_workflows.md` ("3. CommitWorkflow orchestrate
    8. Checkpoint (`checkpoint_save`)
    9. VCS dispatch
    10. After hook (`run_after_commit_hook`) — commit/PR only
-   11. Tracking (ChangeSpec for PR; result marker; COMMITS entry for commit/propose)
+   11. Tracking (Patch for PR; result marker; STITCHES entry for commit/propose)
 
    The diagram puts the old `Precommit` stage first, then `Bead handling`, then
    `Plan handling`. That contradicts the prompt sidecar's corrected ordering and the
@@ -99,7 +99,7 @@ and the stage list in `docs/commit_workflows.md` ("3. CommitWorkflow orchestrate
 3. **Missing "Diff capture" chip.** This is a real stage in the code
    (`capture_pre_commit_diff`, line 177 of `workflow.py`) and is in the prompt's
    required label list. Without it, a reader cannot tell where the
-   `Saved diff + COMMITS entry` output branch's diff actually comes from.
+   `Saved diff + STITCHES entry` output branch's diff actually comes from.
 4. **Missing "Checkpoint" chip.** The pre-dispatch checkpoint write
    (`checkpoint_save(cp)`, line 192 of `workflow.py`) is what the
    `Conflict checkpoint + resume` side loop is reading from. Omitting the chip leaves
@@ -107,17 +107,16 @@ and the stage list in `docs/commit_workflows.md` ("3. CommitWorkflow orchestrate
 5. **Missing PR-only "PR name suffixing" stage.** The doc lists this explicitly under
    PR-only stages, and the code computes `_<N>` suffixing in `run` (lines 124–140)
    before parent detection. Not in the prompt label list either, but worth flagging
-   since it's a real PR-only stage that affects the output branch
-   (`PR URL + ChangeSpec`).
+   since it's a real PR-only stage that affects the output branch (`PR URL + Patch`).
 6. **Legacy stop-hook label is now stale.** The current code runs the provider-neutral
    commit finalizer after a successful provider invocation inside a SASE agent session.
    The old `Stop hook` label should become `Commit finalizer`, with no provider-native
    stop-hook compatibility path implied.
 7. **Output branches are correct but the proposal branch is mislabeled imprecisely.**
-   "Saved diff + COMMITS entry" matches the doc and code (proposals append a COMMITS
+   "Saved diff + STITCHES entry" matches the doc and code (proposals append a COMMITS
    entry per workflow.py `_run_tracking_steps` and the doc's "Tracking: Appends a
-   proposal COMMITS entry"). No change needed; flagging only that this was the chip most
-   likely to drift.
+   proposal STITCHES entry"). No change needed; flagging only that this was the chip
+   most likely to drift.
 
 ## Concrete suggested changes for regeneration
 

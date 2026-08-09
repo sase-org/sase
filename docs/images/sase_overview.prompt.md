@@ -51,7 +51,7 @@ The deterministic labels are:
 - Input: `ONE PROMPT`, `Prompt`, `XPrompt`, and `Workflow`
 - Fan-out: `PARALLEL AGENTS`; `Workspace 1` / `Claude Code`; `Workspace 2` / `Codex`;
   and `Workspace 3` / `Antigravity CLI`
-- Durable state: `ChangeSpecs`, `Beads`, `Commits`, and `Artifacts`
+- Durable state: `Patches`, `Beads`, `Commits`, and `Artifacts`
 - Outcomes: `Reviewed PRs`, `Tracked runs`, and `Scheduled work`
 
 ## Final Review

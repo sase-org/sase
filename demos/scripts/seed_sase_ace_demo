@@ -84,12 +84,12 @@ xprompts:
     content: |
       Review @{{ file_path }} for correctness, edge cases, and maintainability. Report concrete issues first.
   summarize_change:
-    description: Summarize a ChangeSpec for release notes.
+    description: Summarize a Patch for release notes.
     input:
-      changespec: word
+      patch: word
       audience: { type: word, default: developers }
     content: |
-      Summarize ChangeSpec {{ changespec }} for {{ audience }}. Keep it concise and mention user-visible behavior.
+      Summarize Patch {{ patch }} for {{ audience }}. Keep it concise and mention user-visible behavior.
 YAML
 
 cat >"$workspace/README.md" <<'MARKDOWN'
@@ -356,7 +356,7 @@ PROJECT_ALIASES: nova-demo
 PROJECT_STATE: active
 BARE_REPO_DIR: $bare_repo
 WORKSPACE_DIR: $workspace
-## ChangeSpec
+## Patch
 
 NAME: nova_prompt_input
 DESCRIPTION:
@@ -366,7 +366,7 @@ PARENT:
 PR: https://example.test/nova/pull/42
 BUG: DEMO-101
 STATUS: Ready
-COMMITS:
+STITCHES:
   (1) [run] Seed prompt input demo data
       | CHAT: $sase_home/chats/nova_prompt_input.md
       | DIFF: $sase_home/diffs/nova_prompt_input.diff
@@ -411,7 +411,7 @@ DESCRIPTION: Prepare concise release notes for the prompt input workflow.
 PARENT: nova_prompt_input
 PR: https://example.test/nova/pull/43
 STATUS: Mailed
-COMMITS:
+STITCHES:
   (1) Draft release note copy
       | CHAT: $sase_home/chats/nova_release_notes.md
       | DIFF: $sase_home/diffs/nova_release_notes.diff
@@ -425,7 +425,7 @@ DESCRIPTION: Remove obsolete fixture names from the demo seed.
 PARENT:
 PR: https://example.test/nova/pull/40
 STATUS: Submitted
-COMMITS:
+STITCHES:
   (1) Cleanup demo seed data
       | CHAT: $sase_home/chats/nova_seed_cleanup.md
       | DIFF: $sase_home/diffs/nova_seed_cleanup.diff
@@ -437,7 +437,7 @@ cat >"$github_project_file" <<EOF
 PROJECT_NAME: acme-nova
 PROJECT_STATE: active
 WORKSPACE_DIR: $github_workspace
-## ChangeSpec
+## Patch
 
 NAME: harden_parser
 DESCRIPTION:
@@ -454,7 +454,7 @@ EOF
 
 mkdir -p "$sase_home/chats" "$sase_home/diffs" "$sase_home/comments"
 cat >"$sase_home/chats/nova_prompt_input.md" <<'MARKDOWN'
-Demo chat transcript for the prompt input ChangeSpec.
+Demo chat transcript for the prompt input Patch.
 MARKDOWN
 cat >"$sase_home/diffs/nova_prompt_input.diff" <<'DIFF'
 diff --git a/demos/tapes/sase_ace_prompt_input.tape b/demos/tapes/sase_ace_prompt_input.tape

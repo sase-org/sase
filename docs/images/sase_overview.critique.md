@@ -26,8 +26,8 @@ The final deterministic labels match the current product model:
    modules.
 3. The three isolated workspace cards contain the current labels `Claude Code`, `Codex`,
    and `Antigravity CLI`.
-4. Durable state is represented separately from runtime coordination as ChangeSpecs,
-   Beads, Commits, and Artifacts.
+4. Durable state is represented separately from runtime coordination as Patches, Beads,
+   Commits, and Artifacts.
 5. The outcome rail names Reviewed PRs, Tracked runs, and Scheduled work.
 
 The diagram intentionally omits the previous planner-handoff sub-diagram, plugin

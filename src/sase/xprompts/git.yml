@@ -4,7 +4,7 @@ tags: vcs, rollover
 input:
   - name: git_ref
     type: word
-    description: Git ref, branch, or ChangeSpec name to check out.
+    description: Git ref, branch, or Patch name to check out.
   - name: n
     type: int
     default: null
@@ -64,7 +64,7 @@ steps:
       # Checkout the PR branch so that subsequent diffs are relative to the
       # PR tip rather than the default branch.  Try checkout_target first
       # (works for default-branch refs like origin/main), then fall back to
-      # ChangeSpec name -> branch name conversion.
+      # Patch name -> branch name conversion.
       ok, err = provider.checkout(checkout_target, os.getcwd())
       if not ok:
           resolved = provider.resolve_revision(

@@ -177,15 +177,15 @@ internally even when a configured display name is shown.
 
 The seven numbered views answer different questions:
 
-| #   | View                  | Contents                                                                                                                                                |
-| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                          |
-| 2   | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.        |
-| 3   | **Projects**          | Project and ChangeSpec run counts, success, commits, wall time, and last activity; `g` cycles project, ChangeSpec, and project-to-ChangeSpec groupings. |
-| 4   | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                               |
-| 5   | **Activity**          | Skill, memory, and workspace use.                                                                                                                       |
-| 6   | **XPrompts**          | XPrompt use by frequency, model, project, and co-usage, with an optional focused XPrompt drill-down.                                                    |
-| 7   | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                     |
+| #   | View                  | Contents                                                                                                                                         |
+| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                   |
+| 2   | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context. |
+| 3   | **Projects**          | Project and Patch run counts, success, commits, wall time, and last activity; `g` cycles project, Patch, and project-to-Patch groupings.         |
+| 4   | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                        |
+| 5   | **Activity**          | Skill, memory, and workspace use.                                                                                                                |
+| 6   | **XPrompts**          | XPrompt use by frequency, model, project, and co-usage, with an optional focused XPrompt drill-down.                                             |
+| 7   | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                              |
 
 Each populated view ends with a compact legend defining its calculated metrics. Press
 `?` for the complete per-view glossary, control list, active range/group/project scope,
@@ -231,8 +231,7 @@ distributions, come from global documents rather than project-attributed runs. T
 detailed Plans & Questions view labels those fields **all projects** while a project is
 selected. The Overview Plans Proposed and Questions tiles also use all-project document
 aggregates, but their tile faces do not append that scope label. The Projects view
-retains an `(no ChangeSpec)` row for runs that have a project but no ChangeSpec
-attribution.
+retains an `(no Patch)` row for runs that have a project but no Patch attribution.
 
 Override these focused-pane bindings under `ace.keymaps.statistics`; the effective keys
 are reflected in the pane's hint bar:

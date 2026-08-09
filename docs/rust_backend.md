@@ -66,7 +66,7 @@ The intentionally Python-owned host surfaces include:
   host logic. Batch product filtering uses a cached Rust query corpus; the public
   `evaluate_query_many(query, changespecs)` API remains as a compatibility wrapper that
   compiles a temporary Rust corpus for one call.
-- `build_changespec_graph_index` — ChangeSpec graph index construction.
+- `build_changespec_graph_index` — Patch graph index construction.
 - `transition_changespec_status` — the side-effecting status transition (acquires a file
   lock, rewrites the project file, performs archive moves and suffix renames). The pure
   decision step inside it routes through Rust via `plan_status_transition`.
@@ -92,8 +92,8 @@ The intentionally Python-owned host surfaces include:
 - Agent cleanup process signalling, dismissed-bundle persistence, dismissed-bundle
   summary indexing, and TUI orchestration stay on the Python host path. The Rust
   boundary owns reusable cleanup planning, compact dismissed-identity writes, artifact
-  deletion, workspace-release content rewrites, and ChangeSpec-entry kill marking
-  exposed through Python helpers in `sase.core.agent_cleanup_*`.
+  deletion, workspace-release content rewrites, and Patch-entry kill marking exposed
+  through Python helpers in `sase.core.agent_cleanup_*`.
 - Bead host responsibilities stay in Python where they touch the surrounding
   application: storage-location discovery, SASE workspace/project lookup, VCS prompt
   context for `sase bead work`, xprompt resolution, user confirmation, agent launch,
@@ -153,7 +153,7 @@ Rust-backed boundaries, while others are Python-owned host adapters.
 | `project_lifecycle_facade.py`   | Rust-backed ProjectSpec lifecycle parse/update/list helpers                                                        |
 | `project_lifecycle_wire.py`     | Project lifecycle and project-record wire dataclasses                                                              |
 | `wire.py`                       | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
-| `wire_conversion.py`            | Python `ChangeSpec` ↔ wire record serialization                                                                    |
+| `wire_conversion.py`            | Python `Patch` ↔ wire record serialization                                                                         |
 | `query_facade.py`               | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |
 | `query_corpus_facade.py`        | Persistent Rust query corpus wrapper for cached batch evaluation                                                   |
 | `notification_store_facade.py`  | Notification JSONL snapshot, append, rewrite, and state mutation facade (Rust)                                     |
@@ -215,8 +215,7 @@ Golden contract fixtures live under `tests/test_bead/golden/`:
   `stats`, `dep add`, `update`, `open`, `close`, `rm`, `sync --status`, and
   representative error paths.
 - `jsonl/` pins current and legacy JSONL shapes, corrupt-line tolerance, empty/missing
-  import behavior, hierarchy, dependencies, cross-epic blockers, and ChangeSpec
-  metadata.
+  import behavior, hierarchy, dependencies, cross-epic blockers, and Patch metadata.
 - `stores/current/` is a complete deterministic bead store used by the CLI golden tests.
 - Rust parity fixtures in `../sase-core/crates/sase_core/tests/fixtures/bead/` pin
   legacy JSONL import, deterministic event migration, event-backed reads, and
@@ -459,11 +458,11 @@ summaries, and pre-computed `(workload, scenario)` comparison rows.
 
 The historical one-shot Rust `evaluate_query_many(query, dicts)` binding remains a
 non-product diagnostic row only. The shipped product route uses a persistent Rust query
-corpus: compile `ChangeSpec` wire records once per stable list object, then
-compile/evaluate each query string against that cached corpus. Query-corpus Phase 6
-measured the product query-keystroke path at 37-74x faster than the Python batch
-reference on the synthetic workloads and added the `synthetic_1000_specs` persistent
-query-keystroke row to the regression floor.
+corpus: compile `Patch` wire records once per stable list object, then compile/evaluate
+each query string against that cached corpus. Query-corpus Phase 6 measured the product
+query-keystroke path at 37-74x faster than the Python batch reference on the synthetic
+workloads and added the `synthetic_1000_specs` persistent query-keystroke row to the
+regression floor.
 
 The full per-percentile data (min / median / p95 / max) is in each artifact's
 `workloads[].baseline` / `workloads[].candidate`; the `comparisons[]` rows pre-compute
@@ -615,7 +614,7 @@ and Git query helpers:
 
 | Surface                      | Tests                                                                                                                       |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| ChangeSpec parser            | `tests/test_core_golden.py`, `tests/test_core_wire.py`, `tests/test_core_facade/test_parser.py`                             |
+| Patch parser                 | `tests/test_core_golden.py`, `tests/test_core_wire.py`, `tests/test_core_facade/test_parser.py`                             |
 | Query parse / canonical form | `tests/test_core_query_golden_*` (errors / eval / tokens / wire), `tests/test_core_facade/test_query.py`                    |
 | Agent artifact scan          | `tests/test_core_agent_scan.py` + `tests/agent_scan_golden/` fixture builder                                                |
 | Notification store           | `tests/test_core_notification_store.py`, `tests/test_core_facade/test_notification_store.py`                                |

@@ -61,8 +61,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Type: `short`
 - Description: Project-local glossary generated from sase.yml.
 - Parent: `AGENTS.md`
-- Lines: 151
-- Approx. tokens: 1415
+- Lines: 163
+- Approx. tokens: 1549
 
 ### `sase/memory/gotchas.md`
 
@@ -134,7 +134,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
   freezes or stalls.
 - Parent: `AGENTS.md`
 - Lines: 92
-- Approx. tokens: 1425
+- Approx. tokens: 1424
 
 ### `sase/memory/xprompts.md`
 
@@ -143,15 +143,15 @@ always-loaded notes from detailed reference notes that agents read only when rel
   VCS workflow blocks.
 - Parent: `AGENTS.md`
 - Lines: 95
-- Approx. tokens: 1405
+- Approx. tokens: 1393
 
 ## Statistics
 
 - Total notes: 11
 - Short notes: 5
 - Long notes: 6
-- Total lines: 853
-- Total approx. tokens: 10434
+- Total lines: 865
+- Total approx. tokens: 10555
 
 ## Commands
 

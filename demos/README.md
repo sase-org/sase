@@ -129,8 +129,8 @@ ACE prompt input and writes:
 - `demos/out/sase_ace_prompt_history_stash.gif`
 - `demos/out/sase_ace_prompt_history_stash.mp4`
 
-The PR pipeline tape shows the ACE PRs tab ChangeSpec lifecycle, parent/child
-navigation, grouping, and folding, and writes:
+The PR pipeline tape shows the ACE PRs tab Patch lifecycle, parent/child navigation,
+grouping, and folding, and writes:
 
 - `demos/out/sase_ace_prs_pipeline.gif`
 - `demos/out/sase_ace_prs_pipeline.mp4`

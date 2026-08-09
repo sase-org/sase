@@ -192,10 +192,18 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
         (
             "sase_changespecs",
             (
+                "Compatibility reference for the legacy `/sase_changespecs` skill",
+                "Use `/sase_patches` for normal Patch work",
                 "sase changespec current -f markdown",
-                "sase changespec search '<query>' -f markdown",
-                "ChangeSpecs can carry a `REFS:` section",
-                "sase changespec ref add -c <name>",
+            ),
+        ),
+        (
+            "sase_patches",
+            (
+                "sase patch current -f markdown",
+                "sase patch search '<query>' -f markdown",
+                "Patches can carry a `REFS:` section",
+                "sase patch ref add --patch <name>",
                 "project.changespec_refs",
             ),
         ),

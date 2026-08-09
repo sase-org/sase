@@ -20,7 +20,7 @@ REQUIRED_SENTINELS = (
     "ACE TUI",
     "AXE Automation",
     "Spec-Driven Development",
-    "ChangeSpecs",
+    "Patches",
     "Why Coding Agents Need Orchestration",
 )
 

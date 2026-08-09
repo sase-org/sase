@@ -1,23 +1,23 @@
 # Ace Subcommand Guidelines
 
-## ChangeSpec Suffix Syntax Highlighting
+## Patch Suffix Syntax Highlighting
 
-**CRITICAL**: When updating styling for ChangeSpec suffix types (e.g., `killed_process`,
+**CRITICAL**: When updating styling for Patch suffix types (e.g., `killed_process`,
 `running_agent`, `error`), you MUST update ALL of these files:
 
 1. `home/dot_config/nvim/syntax/saseproject.vim` - Vim syntax highlighting (2 places:
-   COMMITS and HOOKS sections)
-2. `src/sase/ace/display.py` - CLI Rich styling (3 places: commits, hooks, comments)
+   STITCHES and HOOKS sections)
+2. `src/sase/ace/display.py` - CLI Rich styling (3 places: stitches, hooks, comments)
 3. `src/sase/ace/query/highlighting.py` - Query token styles in `QUERY_TOKEN_STYLES`
    dict
-4. `src/sase/ace/tui/widgets/changespec_detail.py` - TUI widget Rich styling (3 places:
-   commits, hooks, comments)
+4. `src/sase/ace/tui/widgets/patch_detail.py` - TUI widget Rich styling (3 places:
+   stitches, hooks, comments)
 
 ## Footer Keybinding Convention
 
 **CRITICAL**: The TUI footer (bottom bar) shows **conditional keymaps** — bindings whose
-availability is determined by the currently selected entry (ChangeSpec, Agent, etc.) or
-by transient app state (e.g. marks exist, completed agents present). The implementation
+availability is determined by the currently selected entry (Patch, Agent, etc.) or by
+transient app state (e.g. marks exist, completed agents present). The implementation
 lives in `src/sase/ace/tui/widgets/keybinding_footer.py`.
 
 Rules:

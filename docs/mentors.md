@@ -2,9 +2,9 @@
 
 ## Overview
 
-Mentors are automated AI code review agents for ChangeSpecs. A ChangeSpec is SASE's
-local record for one proposed code change; mentors watch its commits, decide whether
-configured review profiles match, and then run focused review agents in the background.
+Mentors are automated AI code review agents for Patches. A Patch is SASE's local record
+for one proposed code change; mentors watch its commits, decide whether configured
+review profiles match, and then run focused review agents in the background.
 
 The Axe daemon drives mentor checks. When a mentor finds issues, it writes structured
 JSON comments with severities (`error`, `warning`, or `suggestion`). You review those
@@ -12,8 +12,8 @@ comments in the ACE TUI and can launch an apply agent for the accepted comments.
 
 The lifecycle is:
 
-1. Match mentor profiles against ChangeSpec commits.
-2. Register matching profiles in the ChangeSpec `MENTORS` field.
+1. Match mentor profiles against Patch commits.
+2. Register matching profiles in the Patch `MENTORS` field.
 3. Wait for non-skipped hooks on the latest regular commit to become ready.
 4. Start mentor agents when runner slots are available.
 5. Save structured JSON output and file snapshots.
@@ -75,17 +75,17 @@ criterion, SASE uses OR logic: any criterion can match.
 | `file_globs`         | Changed file paths extracted from the diff             |
 | `diff_regexes`       | Diff content using Python regular expressions          |
 | `amend_note_regexes` | Commit or amend notes using Python regular expressions |
-| `first_commit`       | The first regular commit entry of a ChangeSpec         |
+| `first_commit`       | The first regular stitch of a Patch                    |
 
-Profile matching ignores proposal entries such as `(2a)` and uses regular commit entries
-such as `(1)` and `(2)`. Matching profiles are added to the latest regular commit's
-`MENTORS` entry before the mentors actually start.
+Profile matching ignores proposal entries such as `(2a)` and uses regular stitches such
+as `(1)` and `(2)`. Matching profiles are added to the latest regular commit's `MENTORS`
+entry before the mentors actually start.
 
 ### Project Scoping
 
 Mentor profiles from a project-local `sase/sase.yml` are automatically scoped to that
 project. This means a profile defined in `/home/user/myproject/sase/sase.yml` will only
-match ChangeSpecs belonging to `myproject`, preventing local profiles from firing on
+match Patches belonging to `myproject`, preventing local profiles from firing on
 unrelated projects.
 
 You can also explicitly set the `projects` field on any profile to restrict it to
@@ -120,9 +120,9 @@ Each mentor in a profile requires these fields:
 
 ### Debugging Profile Matching
 
-Use `sase config mentor-match <changespec_name>` to trace which profiles match a given
-ChangeSpec and why. The command loads the current config, inspects the ChangeSpec
-commits, and reports per-criterion results.
+Use `sase config mentor-match <patch_name>` to trace which profiles match a given Patch
+and why. The command loads the current config, inspects the Patch commits, and reports
+per-criterion results.
 
 ```bash
 sase config mentor-match my_feature_cl
@@ -132,8 +132,8 @@ sase config mentor-match my_feature_cl
 
 ### 1. Profile Registration
 
-When a ChangeSpec is in a reviewable status (`Ready` or `Mailed`), the scheduler checks
-all mentor profiles against the regular commits since the last mentor entry. Matching
+When a Patch is in a reviewable status (`Ready` or `Mailed`), the scheduler checks all
+mentor profiles against the regular commits since the last mentor entry. Matching
 profiles are registered in the `MENTORS` field with `[0/N]` counts before execution
 begins.
 
@@ -172,7 +172,7 @@ Mentors use these statuses:
 
 ### 5. Stale Mentor Cleanup
 
-When a newer commit is added to a ChangeSpec, mentors running against older commits are
+When a newer commit is added to a Patch, mentors running against older commits are
 automatically killed. This prevents stale reviews from continuing after new code is
 committed.
 
@@ -189,9 +189,9 @@ mentor metadata and a `comments` array. Each comment includes:
 | `description` | string  | Actionable description of the issue        |
 | `severity`    | string  | One of `error`, `warning`, or `suggestion` |
 
-## MENTORS Field in ChangeSpec Files
+## MENTORS Field in Patch Files
 
-Mentor status is tracked in the MENTORS section of ChangeSpec files:
+Mentor status is tracked in the MENTORS section of Patch files:
 
 ```
 MENTORS:
@@ -211,9 +211,8 @@ duration for completed mentors.
 
 ### Review Mentors (`,C`)
 
-Press `,C` on the PRs sub-tab to open the Mentor Review modal for the current
-ChangeSpec. The modal shows all mentor comments and lets you accept or reject individual
-suggestions.
+Press `,C` on the PRs sub-tab to open the Mentor Review modal for the current Patch. The
+modal shows all mentor comments and lets you accept or reject individual suggestions.
 
 | Key                 | Action                                                   |
 | ------------------- | -------------------------------------------------------- |
@@ -244,8 +243,8 @@ launching the apply agent.
 #### Running Mentor Profiles
 
 Press `r` to open a profile picker showing all configured mentor profiles. Selecting a
-profile starts (or restarts) all mentors in that profile for the current ChangeSpec.
-This is useful for re-running a specific review after making changes.
+profile starts (or restarts) all mentors in that profile for the current Patch. This is
+useful for re-running a specific review after making changes.
 
 Running and completed mentor agents are visible in the Agents tab under tribe `@review`.
 The same tribe is used for CRS, fix-hook, and summarize-hook review agents, so review
@@ -278,25 +277,24 @@ current global comment position (`N / total`) and an acceptance count (`✓ N ac
 The side panel shows a mini progress bar for each mentor (`■` = read, `□` = unread)
 along with an accepted/total count. The side panel also shows a status indicator per
 mentor: `▸` (selected), `●` (running), `✗` (failed/killed), or `✓` (all comments
-accepted). Read state persists across modal opens and is stored per ChangeSpec and
-commit entry.
+accepted). Read state persists across modal opens and is stored per Patch and stitch.
 
 Unread comment counts also appear inline in the PRs sub-tab list (see
 [ACE docs](ace.md#mentor-comment-stats-in-pr-list)).
 
 ### Kill Mentors (`,M`)
 
-Press `,M` on the PRs sub-tab to kill all running mentors for the current ChangeSpec.
+Press `,M` on the PRs sub-tab to kill all running mentors for the current Patch.
 
 ### Fold Mentors (`z` `m`)
 
-Press `z` `m` to toggle the MENTORS section visibility in the ChangeSpec detail view.
+Press `z` `m` to toggle the MENTORS section visibility in the Patch detail view.
 
 ## Trigger Conditions
 
-Mentors run on ChangeSpecs that meet **all** of the following:
+Mentors run on Patches that meet **all** of the following:
 
 - Status is **Ready** or **Mailed** (not WIP, Draft, Submitted, Reverted, or Archived).
-- The ChangeSpec has at least one commit.
+- The Patch has at least one commit.
 - At least one mentor profile's matching criteria are satisfied.
 - All non-skipped hooks for the latest regular commit are ready.

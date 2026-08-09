@@ -15,7 +15,7 @@ The implementation is split across repos:
   `_mobile_notification_*` modules are internal implementation details.
 - `sase.integrations.mobile_agents` and `sase.integrations.mobile_helpers` are the
   fixed-operation bridge facades used by the Rust gateway to list/launch/kill/retry
-  agents and to expose ChangeSpec, xprompt, bead, and update helpers. The sibling
+  agents and to expose Patch, xprompt, bead, and update helpers. The sibling
   `_mobile_agent_*` and `_mobile_helper_*` modules are internal implementation details.
 - `../sase-core/crates/sase_gateway` owns the Rust HTTP server, wire records,
   pairing/token storage, audit log, SSE event stream, and committed API contract
@@ -110,14 +110,14 @@ Agent bridge operations:
 
 Helper bridge operations:
 
-| Command                                     | Purpose                                                |
-| ------------------------------------------- | ------------------------------------------------------ |
-| `sase mobile helper-bridge changespec-tags` | List active ChangeSpec prompt tags for a known project |
-| `sase mobile helper-bridge xprompt-catalog` | Return the mobile-safe structured xprompt catalog      |
-| `sase mobile helper-bridge beads-list`      | List every non-closed bead, snoozed ones included      |
-| `sase mobile helper-bridge beads-show`      | Inspect one bead by ID                                 |
-| `sase mobile helper-bridge update-start`    | Start the configured SASE update worker                |
-| `sase mobile helper-bridge update-status`   | Poll structured update worker status                   |
+| Command                                     | Purpose                                                            |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| `sase mobile helper-bridge changespec-tags` | List active Patch prompt tags; the operation name is legacy-stable |
+| `sase mobile helper-bridge xprompt-catalog` | Return the mobile-safe structured xprompt catalog                  |
+| `sase mobile helper-bridge beads-list`      | List every non-closed bead, snoozed ones included                  |
+| `sase mobile helper-bridge beads-show`      | Inspect one bead by ID                                             |
+| `sase mobile helper-bridge update-start`    | Start the configured SASE update worker                            |
+| `sase mobile helper-bridge update-status`   | Poll structured update worker status                               |
 
 Notification bridge operations:
 
@@ -647,7 +647,7 @@ records with a common `result` object containing `status`, `message`, `warnings`
 showing the primary payload and surfacing the structured skipped rows; it should not
 parse the human message text for control flow.
 
-List active ChangeSpec tags for a known project:
+List active Patch tags for a known project:
 
 ```bash
 curl -sS "$BASE_URL/api/v1/changespec-tags?project=sase&limit=25" \
@@ -778,7 +778,6 @@ route or record shape changes.
 - Agent project context is intentionally an MVP metadata and known-project cwd selector.
   It does not expose arbitrary host directory selection, and clients must use SASE
   prompt syntax for VCS refs rather than sending raw repo paths.
-- Workflow helper routes are native helper APIs, not generic command execution.
-  ChangeSpec, xprompt, and bead helpers are read-only; xprompt PDF generation is
-  optional; and update completion events are opportunistic while status polling remains
-  authoritative.
+- Workflow helper routes are native helper APIs, not generic command execution. Patch,
+  xprompt, and bead helpers are read-only; xprompt PDF generation is optional; and
+  update completion events are opportunistic while status polling remains authoritative.

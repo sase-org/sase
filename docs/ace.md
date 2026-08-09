@@ -2,9 +2,9 @@
 
 ## Overview
 
-ACE (Agentic ChangeSpec Explorer) is the primary TUI for the SASE toolkit. It provides
-an interactive interface for navigating, managing, and operating on ChangeSpecs, agents,
-and the Axe daemon.
+ACE (Agentic Change Explorer) is the primary TUI for the SASE toolkit. It provides an
+interactive interface for navigating, managing, and operating on Patches, agents, and
+the Axe daemon.
 
 ## Launching
 
@@ -19,7 +19,7 @@ falls back to `!!!` for error suffixes.
 
 | Option                     | Description                                                                             |
 | -------------------------- | --------------------------------------------------------------------------------------- |
-| `QUERY` (positional)       | Query string for filtering ChangeSpecs                                                  |
+| `QUERY` (positional)       | Query string for filtering Patches                                                      |
 | `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)                          |
 | `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)                                 |
 | `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument; optional output path                         |
@@ -84,13 +84,12 @@ tab switches while Help stays open, but resets whenever the panel is closed and
 reopened. `Esc` clears an active filter before it closes the Help modal.
 
 On first use, empty tabs render onboarding states instead of blank panels: the PRs view
-shows a getting-started card when no ChangeSpecs or saved queries exist yet, and the
-Agents tab walks through launching a first agent — the project/ChangeSpec launch hint
-appears only when a launchable target exists — and can recommend installing plugins from
-the Admin Center when no third-party plugins are installed. Onboarding cards carry
-"learn more" links into the published docs. An empty Beads pane points agents to
-`/sase_new_task`, calls out sized draft tasks, and explains how ready tasks enter
-TaskTriage.
+shows a getting-started card when no Patches or saved queries exist yet, and the Agents
+tab walks through launching a first agent — the project/Patch launch hint appears only
+when a launchable target exists — and can recommend installing plugins from the Admin
+Center when no third-party plugins are installed. Onboarding cards carry "learn more"
+links into the published docs. An empty Beads pane points agents to `/sase_new_task`,
+calls out sized draft tasks, and explains how ready tasks enter TaskTriage.
 
 Within Artifacts, the top-level strip is numbered **1 Commits · 2 Beads · 3 Bugs · 4 PRs
 · 5 Files**. Press `1`–`5` to jump directly to a view, or use `[` / `]` to cycle. Files
@@ -98,7 +97,7 @@ contains a second strip — **Plans · Chats · Other** — cycled with `(` / `)
 selection is remembered when you leave Files. These keys act only while Artifacts is
 visible. Press `p` in Commits, Beads, Bugs, Plans, Chats, or Other to change the shared
 project scope, or use the command palette to jump directly to a top-level view. PRs
-remains query-scoped and retains the existing ChangeSpec workflow.
+remains query-scoped and retains the existing Patch workflow.
 
 ### Navigation in Commits, Beads, Plans, Chats, Other, and Bugs
 
@@ -656,13 +655,13 @@ The active grouping mode is shown in the PRs sub-tab's info-panel header as a
 | --- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `l` | Expand the focused banner one level (or peel one layer of the visible tree)                                                            |
 | `h` | Collapse the focused banner; on a collapsed L1 banner, escalate to its parent. With agent focus, collapse the deepest enclosing group. |
-| `L` | Snap to fully expanded — all banners and ChangeSpec rows visible                                                                       |
+| `L` | Snap to fully expanded — all banners and Patch rows visible                                                                            |
 | `H` | Snap to fully collapsed — collapse every visible banner                                                                                |
 
 Collapsed banner rows are first-class navigation stops: `j`/`k` step through them just
-like ChangeSpec rows, and `'` jump-hints land on them too. After a fold change that
-hides the focused PR, focus snaps to the deepest collapsed ancestor banner so the cursor
-always sits on a row the user can see.
+like Patch rows, and `'` jump-hints land on them too. After a fold change that hides the
+focused PR, focus snaps to the deepest collapsed ancestor banner so the cursor always
+sits on a row the user can see.
 
 ### Fold Mode (`z` prefix)
 
@@ -698,7 +697,7 @@ intermediate **Expanded** state, jumping directly between **Collapsed** and **Fu
 Expanded**.
 
 When collapsed, a `[folded: CHAT + DIFF + PLAN + N proposals]` indicator appears on
-COMMITS entries with hidden content. The indicator width is pre-calculated so that note
+STITCHES entries with hidden content. The indicator width is pre-calculated so that note
 truncation accounts for it. TIMESTAMPS shows a `[folded: N]` indicator inline with the
 header and displays the most recent timestamp entry when collapsed, giving a quick view
 of the last lifecycle event.
@@ -708,17 +707,17 @@ one-line file and line-count summary such as
 `DELTAS:  +3 (+428) ~6 (+91 ~37 -14) -1 (-22) (10 files)`. When **unfolded**, the
 alphabetical entry list is shown with colored glyphs (green `+`, gold `~`, red `-`) and
 inline line-count tokens. Binary files display `binary`; zero-count entries display
-`0 lines`. The section is omitted entirely when the ChangeSpec has no deltas.
+`0 lines`. The section is omitted entirely when the Patch has no deltas.
 
 ### Workflows and Agents
 
-| Key     | Action                                                  |
-| ------- | ------------------------------------------------------- |
-| `r`     | Run workflow on current PR                              |
-| `+`     | Run a custom agent (opens project/ChangeSpec selection) |
-| `Space` | Run agent from current PR                               |
+| Key     | Action                                             |
+| ------- | -------------------------------------------------- |
+| `r`     | Run workflow on current PR                         |
+| `+`     | Run a custom agent (opens project/Patch selection) |
+| `Space` | Run agent from current PR                          |
 
-If ACE cannot detect a workspace provider for the selected ChangeSpec or agent, the
+If ACE cannot detect a workspace provider for the selected Patch or agent, the
 quick-launch actions show an error toast instead of opening a prompt with a broken VCS
 prefix.
 
@@ -773,10 +772,10 @@ re-enables the project before claiming a workspace.
 
 Project launch pickers also support `Ctrl+D` for cleanup of empty project entries. This
 deletes only the highlighted project's active/archive ProjectSpec files, refuses entries
-whose ProjectSpec files still contain ChangeSpecs, and does not delete workspace
-checkouts or other SASE state. For lifecycle changes, bulk operations, ProjectSpec
-editing, or deleting the whole SASE project directory, use the **Projects** tab of the
-SASE Admin Center (press `#`).
+whose ProjectSpec files still contain Patches, and does not delete workspace checkouts
+or other SASE state. For lifecycle changes, bulk operations, ProjectSpec editing, or
+deleting the whole SASE project directory, use the **Projects** tab of the SASE Admin
+Center (press `#`).
 
 The repeat binding is the leader prefix followed by the configured `repeat_last` key.
 With the defaults both are comma, so the sequence is `,,`; if the leader prefix is
@@ -810,21 +809,21 @@ accept or reject suggestions, and apply accepted changes. See
 
 ### Copy Mode (`%` prefix)
 
-Press `%` to open the **Copy as…** palette for the selected ChangeSpec. Select a row
-with the mouse, arrows or `j`/`k` and `Enter`, or complete any configured two-key
-accelerator directly. `q`/`Esc` cancels; configured target keys take precedence if
-rebound to `j`, `k`, or `q`.
+Press `%` to open the **Copy as…** palette for the selected Patch. Select a row with the
+mouse, arrows or `j`/`k` and `Enter`, or complete any configured two-key accelerator
+directly. `q`/`Esc` cancels; configured target keys take precedence if rebound to `j`,
+`k`, or `q`.
 
-| Key  | Action                     |
-| ---- | -------------------------- |
-| `%%` | Copy ChangeSpec            |
-| `%!` | Copy ChangeSpec + snapshot |
-| `%b` | Copy bug number            |
-| `%c` | Copy PR number             |
-| `%n` | Copy PR name               |
-| `%l` | Copy Markdown link         |
-| `%p` | Copy project spec file     |
-| `%s` | Copy sase ace snapshot     |
+| Key  | Action                 |
+| ---- | ---------------------- |
+| `%%` | Copy Patch             |
+| `%!` | Copy Patch + snapshot  |
+| `%b` | Copy bug number        |
+| `%c` | Copy PR number         |
+| `%n` | Copy PR name           |
+| `%l` | Copy Markdown link     |
+| `%p` | Copy project spec file |
+| `%s` | Copy sase ace snapshot |
 
 ## Keybindings: Agents Tab
 
@@ -852,12 +851,12 @@ rebound to `j`, `k`, or `q`.
 > vim-style scroll-to-top/bottom meaning on every tab. See
 > [Grouping Modes](#grouping-modes) below.
 
-On the Agents tab, `~` uses dotted agent-name relationships rather than ChangeSpec
-sibling families. Relations are keyed on the name a row presents as its **lane** name,
-so a family lane participates under its bare family name rather than its root member's
-`--` name. It includes visible ancestors and descendants plus neighbors from every
-dotted hood that contains the selected lane name — including the hood that matches that
-name exactly. For example, `foo.bar.worker` can offer peers under `foo.bar` and cousins
+On the Agents tab, `~` uses dotted agent-name relationships rather than Patch sibling
+families. Relations are keyed on the name a row presents as its **lane** name, so a
+family lane participates under its bare family name rather than its root member's `--`
+name. It includes visible ancestors and descendants plus neighbors from every dotted
+hood that contains the selected lane name — including the hood that matches that name
+exactly. For example, `foo.bar.worker` can offer peers under `foo.bar` and cousins
 elsewhere under `foo`, grouped deepest hood first, and a family lane `fam` offers
 `fam.helper` as a descendant while `fam.helper` offers the family lane back as its
 ancestor. Dotless names can still have descendants such as `foo.child`. If there is
@@ -1440,13 +1439,12 @@ it from the CLI.
 ### Group Banners and Folding
 
 In `STANDARD` mode, agents within each tribe side panel use either a two-tier or
-three-tier banner hierarchy depending on whether any agent in the panel targets a
-ChangeSpec:
+three-tier banner hierarchy depending on whether any agent in the panel targets a Patch:
 
-- **3-level layout** (panel contains at least one ChangeSpec-scoped agent): **project →
-  ChangeSpec → name-root**. Project-scoped agents and agents with no `cl_name` fall into
-  a synthetic `(no ChangeSpec)` bucket that sorts last.
-- **2-level layout** (no ChangeSpec anywhere in the panel): **project → name-root**.
+- **3-level layout** (panel contains at least one Patch-scoped agent): **project → Patch
+  → name-root**. Project-scoped agents and agents with no `cl_name` fall into a
+  synthetic `(no Patch)` bucket that sorts last.
+- **2-level layout** (no Patch anywhere in the panel): **project → name-root**.
 
 Banners are rendered between agent rows and carry a summary chip
 (`N agents · K running · M failed`). Workflow children inherit grouping identity from
@@ -1461,7 +1459,7 @@ therefore be visible at once:
 
 | Layer             | What it controls                                         | Default keys                                                   |
 | ----------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
-| Grouping banner   | Project, ChangeSpec, date, status, and name buckets      | Repeated `H` collapses after scoped lanes/clans; `l` expands   |
+| Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped lanes/clans; `l` expands   |
 | Structural row    | Clan members, family members, and workflow descendants   | `H` fully collapses group lanes, then group clans; `l` expands |
 | Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands          |
 
@@ -1543,8 +1541,8 @@ for the next distinct inner step; at the terminal step, the existing lowercase
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  `
 segment per ancestor L0/L1 banner (in the parent tier's dim accent — project blue or
-ChangeSpec cooler accent), so nesting reads as a tree at a glance. L0 project / bucket
-banners use a sky-blue `▌` left bar and a heavy `━` rule. ChangeSpec banners, `BY_DATE`
+Patch cooler accent), so nesting reads as a tree at a glance. L0 project / bucket
+banners use a sky-blue `▌` left bar and a heavy `━` rule. Patch banners, `BY_DATE`
 subgroups, and banners that own another dotted-prefix subgroup use a cooler `▎` bar and
 lighter `─` rule. Leaf name-root and dotted-prefix banners use a `▸` branch glyph with a
 teal label. Singleton name-root groups suppress their banner entirely to reduce visual
@@ -1568,7 +1566,7 @@ each cycle:
 
 | Mode        | L0 buckets                                                                    | Notes                                                                                                                                                                         |
 | ----------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STANDARD`  | Project (with optional ChangeSpec sub-level)                                  | The "by project" default. Uses the 2-/3-level layout described above.                                                                                                         |
+| `STANDARD`  | Project (with optional Patch sub-level)                                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                                                         |
 | `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                               | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                                     |
 | `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Queued` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position. Standalone lanes precede name subgroups, with launch recency sorting units inside each partition. |
 
@@ -1618,8 +1616,8 @@ override first, configured value second), and `Q` counts every live agent parked
 runner-slot admission gate, whether its threshold comes from that effective cap or an
 authored `%wait(runners=N)`. Slot participants are top-level user agents—including every
 clan member launched independently—plus parallel family members. Serial family
-follow-ups, workflow Python/bash steps, and axe ChangeSpec runners do not participate.
-The occupancy count `R` always renders green, so it reads as a plain count; capacity
+follow-ups, workflow Python/bash steps, and axe Patch runners do not participate. The
+occupancy count `R` always renders green, so it reads as a plain count; capacity
 pressure is carried by `L`, which escalates from dim through gold at half the limit,
 orange at three quarters, and red once `R` reaches or passes it. A nonzero queue count
 is cornflower blue.
@@ -1671,7 +1669,7 @@ badges instead of verbose text:
 | `?`   | QUESTION                                             |
 | `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)      |
 | `≡`   | Workflow row (top-level)                             |
-| `❑`   | ChangeSpec / ChangeSpec row (top-level)              |
+| `❑`   | Patch / Patch row (top-level)                        |
 | `⚡`  | Autonomous (`%auto`) agent                           |
 | `◌`   | Hidden agent (visible only when `.` toggles them in) |
 
@@ -1741,10 +1739,10 @@ forwards compatibility.
 ### Agent Search
 
 Press `,/` (leader mode) on the Agents tab to open the query editor. The query language
-is a **structured Boolean expression** — parallel to the ChangeSpec query language but
-with a property-key allowlist tailored to agents. Bare words are substring-matched
-against an agent's `cl_name`, `display_name`, `agent_name`, and `status`, plus its
-**xprompt, live reply/response, chat transcript, and prior attempt replies**.
+is a **structured Boolean expression** — parallel to the Patch query language but with a
+property-key allowlist tailored to agents. Bare words are substring-matched against an
+agent's `cl_name`, `display_name`, `agent_name`, and `status`, plus its **xprompt, live
+reply/response, chat transcript, and prior attempt replies**.
 
 Property keys (closed allowlist):
 
@@ -1946,7 +1944,7 @@ Expanded — the summary, a blank gutter row, and the reflowed body:
 ```
 ▌ Complete finished hooks and start stale ones, with zombie detection            ▾ d
 ▌
-▌ Scans every ChangeSpec matching the axe query, completes hooks whose runner exited, and
+▌ Scans every Patch matching the axe query, completes hooks whose runner exited, and
 ▌ starts the next stale hook when a runner slot is free.
 ▌
 ▌ • Honors max_hook_runners; a full slot table defers work to the next tick rather than
@@ -1970,7 +1968,7 @@ row becomes a dim `… +N more · e` marker: nothing is silently dropped, and `e
 AXE entry editor, whose first field is the full description in a multi-line text area.
 
 Because `d` belongs to the Axe tab, `show_diff` is scoped to the PRs sub-tab. Pressing
-`d` outside PRs no longer opens a diff for an unrelated ChangeSpec.
+`d` outside PRs no longer opens a diff for an unrelated Patch.
 
 ### Dynamic Sidebar Width and No-Wrap Rows
 
@@ -2762,8 +2760,8 @@ is selected. The following notification action types are supported:
 | `CustomGate`         | Agent/tool      | Opens the generic choices, add-ons, and feedback modal                          |
 | `HITL`               | Workflow        | Opens the workflow human-in-the-loop response modal                             |
 | `JumpToAgent`        | Agent/workflow  | Jumps to the matching Agents-tab row                                            |
-| `JumpToChangeSpec`   | Sync/workflow   | Jumps to the referenced ChangeSpec on the PRs sub-tab                           |
-| `JumpToMentorReview` | Mentors         | Jumps to the ChangeSpec and opens mentor review output when available           |
+| `JumpToPatch`        | Sync/workflow   | Jumps to the referenced Patch on the PRs sub-tab                                |
+| `JumpToMentorReview` | Mentors         | Jumps to the Patch and opens mentor review output when available                |
 | `LaunchApproval`     | Agent           | Opens the launch approval modal for an agent-requested launch                   |
 | `PlanApproval`       | Agent           | Opens the plan approval modal                                                   |
 | `Tmux`               | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`   |
@@ -2794,8 +2792,8 @@ HITL bundles retain the direct response-file fallback.
 ### Toast Notifications
 
 Each newly-arrived notification produces a short toast in the TUI. The toast text is
-derived per-action type (plan, question, HITL, axe error, ChangeSpec sync, agent update)
-so the message previews the actual event rather than a generic "N new notification(s)"
+derived per-action type (plan, question, HITL, axe error, Patch sync, agent update) so
+the message previews the actual event rather than a generic "N new notification(s)"
 line. Severity is also picked per type: plans, questions, and HITL render as warnings;
 axe errors (and sync failures) render as errors; everything else renders as information.
 
@@ -2926,14 +2924,14 @@ same hint-character navigation.
 
 ## Mentor Comment Stats in PR List
 
-When a ChangeSpec has completed mentor reviews with comments, its PRs sub-tab list entry
+When a Patch has completed mentor reviews with comments, its PRs sub-tab list entry
 shows inline stats:
 
 - **checkmark + count** (e.g., `✓3`) — number of accepted comments
 - **dot + count** (e.g., `●2`) — number of unread comments
 
-These stats are computed from the latest commit entry's finished mentors. They update as
-you accept or read comments in the Mentor Review modal.
+These stats are computed from the latest stitch's finished mentors. They update as you
+accept or read comments in the Mentor Review modal.
 
 ## Tab Bar Display
 
@@ -3207,7 +3205,7 @@ dismissed-bundle directory so the revive modal and internal lookups can list dis
 agents without opening every bundle. Use `sase agent archive verify` to check that
 maintenance index, or `sase agent archive rebuild-index` to rebuild it from bundle
 files. The index stores metadata such as status, name, project, model, provider,
-workflow, and ChangeSpec metadata; it is not a full-text copy of agent chat contents.
+workflow, and Patch metadata; it is not a full-text copy of agent chat contents.
 
 Revival removes the agent identity from the dismissed set, restores enough artifact
 files for ACE to rediscover the agent, and preserves the dismissed bundle as historical
@@ -3249,7 +3247,7 @@ inside prompts or replies does not. The shortcuts continue to target the metadat
 when a file or tools pane is also visible, and changing agents or entering/leaving a
 pinned attempt view resets the cursor.
 
-- **Agent details**: Name, status, model, provider, ChangeSpec association, and
+- **Agent details**: Name, status, model, provider, Patch association, and
   chronologically sorted timestamps:
   - `Bead` — shown for agents launched by `sase bead work`; modern phase and task rows
     use explicit bead launch metadata, phase rows also use epic/plan metadata and
@@ -3661,8 +3659,8 @@ Override any app-level keybinding under `ace.keymaps.app`:
 ace:
   keymaps:
     app:
-      next_changespec: "n" # Remap j → n
-      prev_changespec: "p" # Remap k → p
+      next_patch: "n" # Remap j -> n
+      prev_patch: "p" # Remap k -> p
       edit_query: "f5" # PRs, Commits, Plans, and Axe
       show_notifications: "N" # Remap i → N
 ```
@@ -4157,24 +4155,24 @@ token under the cursor:
   arguments shown as `name?: type` plus a default when the default is a simple scalar.
   Standalone workflow references use the `#!name` insertion form; typing `#!` filters
   completion to entries whose canonical insertion starts with `#!`.
-- **Project/ChangeSpec completion**: When the cursor is on a `+query` token whose plus
-  is at absolute prompt offset zero or immediately after a literal ASCII space,
-  completion opens a project/ChangeSpec picker. A plus directly after a newline or tab,
-  a plus glued to other text, and `#+query` are not project triggers. The picker
-  contains enabled launchable projects plus active PR-sized ChangeSpecs in `WIP`,
-  `Draft`, `Ready`, or `Mailed` status; system-managed `home`, disabled projects,
-  internal sibling backing records, and non-launchable projects are excluded. Typing
-  after the trigger filters by project name, project alias, or ChangeSpec name prefix.
-  Accepting a row inserts the canonical workspace tag such as `#gh:sase` or
-  `#gh:my_change`, replacing existing line-start VCS tags when present or placing the
-  tag after leading frontmatter/directives when no tag exists.
+- **Project/Patch completion**: When the cursor is on a `+query` token whose plus is at
+  absolute prompt offset zero or immediately after a literal ASCII space, completion
+  opens a project/Patch picker. A plus directly after a newline or tab, a plus glued to
+  other text, and `#+query` are not project triggers. The picker contains enabled
+  launchable projects plus active PR-sized Patches in `WIP`, `Draft`, `Ready`, or
+  `Mailed` status; system-managed `home`, disabled projects, internal sibling backing
+  records, and non-launchable projects are excluded. Typing after the trigger filters by
+  project name, project alias, or Patch name prefix. Accepting a row inserts the
+  canonical workspace tag such as `#gh:sase` or `#gh:my_change`, replacing existing
+  line-start VCS tags when present or placing the tag after leading
+  frontmatter/directives when no tag exists.
 - **VCS ref completion**: When the cursor is inside the root segment of a registered VCS
   workflow ref, such as `#gh:`, `#gh:sa`, or `#git(`, completion lists that provider's
-  projects and active PR-sized ChangeSpecs. Providers can add namespace rows, such as
-  GitHub organization rows, from local project/config data. Accepting a project or
-  ChangeSpec completes only the current ref token, producing `#gh:sase ` in colon form
-  or `#gh(sase)` in parenthesized form. Accepting a namespace inserts a trailing slash
-  such as `#gh:sase-org/` and immediately hands off to repository completion.
+  projects and active PR-sized Patches. Providers can add namespace rows, such as GitHub
+  organization rows, from local project/config data. Accepting a project or Patch
+  completes only the current ref token, producing `#gh:sase ` in colon form or
+  `#gh(sase)` in parenthesized form. Accepting a namespace inserts a trailing slash such
+  as `#gh:sase-org/` and immediately hands off to repository completion.
 - **VCS repository completion**: When the cursor is inside a registered VCS workflow ref
   that already contains an owner or namespace plus `/`, completion lists repositories
   for that namespace through the owning workspace plugin. For example, `#gh:bbugyi200/`
@@ -4395,7 +4393,7 @@ bare `@`, narrowed artifact/file queries such as `@pl` or `@src/`, and syntactic
 valid `@kind:` payload contexts; disable automatic opening with
 `ace.prompt_completion.auto_artifact_menu: false`. On an un-narrowed bare-`@` menu,
 `Enter` still submits the prompt and dismisses the menu until you type a query character
-or move the selection. The project/ChangeSpec picker opens when `+` completes a token at
+or move the selection. The project/Patch picker opens when `+` completes a token at
 prompt offset zero or immediately after a literal ASCII space and is also available
 through manual `Ctrl+T`. The VCS ref-root menu opens when `:` or `(` completes a known
 workflow ref trigger such as `#gh:` and local candidates exist. The VCS repository menu
@@ -4406,11 +4404,10 @@ join automatic results after the prefix is non-empty, while manual `Ctrl+T` can 
 them from a bare `<`. Manual `Ctrl+T` inserts a lone match in the highest-priority
 placeholder source group outright; automatic completion only opens the menu, even for
 one match. Manual `Ctrl+T` completion still supports file paths, xprompt names,
-directives, skills, `@` references, project/ChangeSpec tags, VCS ref roots, VCS
-repository refs, prompt-local prose words, placeholders, and enabled history words
-regardless of the automatic settings. Live suggestions pause while the manual completion
-panel is open, while snippet tabstops are active, in NORMAL mode, and during feedback
-prompts.
+directives, skills, `@` references, project/Patch tags, VCS ref roots, VCS repository
+refs, prompt-local prose words, placeholders, and enabled history words regardless of
+the automatic settings. Live suggestions pause while the manual completion panel is
+open, while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are
 hidden unless the partial prefix starts with `.`. Accepting a directory automatically

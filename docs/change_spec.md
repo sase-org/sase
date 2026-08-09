@@ -1,19 +1,26 @@
-# ChangeSpec Format Documentation
+# Patch Format Documentation
 
-A **ChangeSpec** is a structured record for one pull request (PR). It lives inside a
-project `.sase` file and records the change's description, dependency metadata, review
-URL, lifecycle status, commits, hooks, comments, mentor runs, timestamps, and computed
-file deltas.
+A **Patch** is SASE's durable local record for one unit of reviewable work. Every PR
+created or managed by SASE is associated with exactly one Patch, but a Patch may exist
+without a PR; in that case the `PR:` field is absent. SASE does not discover external
+PRs and create local Patches for them automatically.
+
+Each Patch lives inside a project `.sase` file and records the change's description,
+dependency metadata, PR URL, lifecycle status, stitches, hooks, comments, mentor runs,
+timestamps, and computed file deltas.
+
+The filename for this guide remains `change_spec.md` so older public links keep
+resolving.
 
 ## Format Overview
 
-Each ChangeSpec is a block of top-level fields and optional sections. `NAME`,
-`DESCRIPTION`, and `STATUS` are the normal minimum for a hand-written entry;
-`sase commit` creates and updates most other sections automatically.
+Each Patch is a block of top-level fields and optional sections. `NAME`, `DESCRIPTION`,
+and `STATUS` are the normal minimum for a hand-written entry; `sase commit` creates and
+updates most other sections automatically.
 
 The canonical order is:
 
-```
+```text
 NAME: <NAME>
 DESCRIPTION:
   <TITLE>
@@ -25,8 +32,8 @@ BUG: <BUG>
 STATUS: <STATUS>
 REFS:
   <ARTIFACT_REFERENCE>
-COMMITS:
-  <COMMIT_ENTRIES>
+STITCHES:
+  <STITCH_ENTRIES>
 DELTAS:
   <DELTA_ENTRIES>
 HOOKS:
@@ -39,28 +46,29 @@ TIMESTAMPS:
   <TIMESTAMP_ENTRIES>
 ```
 
-The parser is tolerant of some older ordering and timestamp variants, but new docs,
-scripts, and examples should use the order above. See individual field specifications
-below for optionality and automatic behavior.
+The parser also accepts legacy `COMMITS:` sections and legacy `## ChangeSpec` block
+headers. New Patches and newly created sections use `STITCHES:`. When SASE edits an
+older Patch for an unrelated reason, it preserves the existing section header instead of
+rewriting the whole block.
 
-**IMPORTANT**: When outputting multiple ChangeSpecs, separate each one with **two blank
+**Important:** when outputting multiple Patches, separate each one with **two blank
 lines**.
 
 ## Field Specifications
 
 ### NAME
 
-The unique identifier for the ChangeSpec.
+The unique identifier for the Patch.
 
-**Recommended format**: `<project_or_area>_<descriptive_suffix>`
+**Recommended format:** `<project_or_area>_<descriptive_suffix>`
 
-- Prefer a project- or area-specific prefix followed by an underscore
-- Suffix should use underscores to separate words
-- Suffix should be descriptive but concise
+- Prefer a project- or area-specific prefix followed by an underscore.
+- Use underscores to separate suffix words.
+- Keep the suffix descriptive but concise.
 - `sase commit` appends a numeric suffix such as `_1` when it needs to make a new name
-  unique
+  unique.
 
-**Examples**:
+**Examples:**
 
 - `my_project_add_config_parser`
 - `feature_x_implement_validation`
@@ -68,158 +76,136 @@ The unique identifier for the ChangeSpec.
 
 ### DESCRIPTION
 
-A comprehensive description of what the PR does and why.
+A comprehensive description of what the PR-sized change does and why.
 
-**Structure**:
+**Structure:**
 
-1. **TITLE** (first line): A brief one-line summary
-2. **Blank line**: Always include one blank line after the title
-3. **BODY** (remaining lines): Detailed multi-line description
+1. **Title:** the first line is a brief one-line summary.
+2. **Blank line:** always include one blank line after the title.
+3. **Body:** remaining lines give detailed multi-line context.
 
-**Formatting**:
+**Formatting:**
 
-- **All lines must be 2-space indented** (including the blank line)
-- TITLE should be concise (one line)
-- BODY should include:
-  - What changes are being made
-  - Why the changes are needed
-  - High-level approach or implementation details
-  - What will be tested (if applicable)
+- All lines must be 2-space indented, including the blank line.
+- The title should be concise.
+- The body should cover what changes are being made, why they are needed, the high-level
+  approach, and what will be tested when applicable.
 
-**PR tag stripping:** When a ChangeSpec is created from a PR workflow or its description
-is synced after a reword, any trailing `KEY=VALUE` metadata lines (matching
-`^[A-Z][A-Z0-9_]*=`) are automatically stripped. The pattern matches both the legacy
-unprefixed spelling and the new `SASE_`-prefixed footer tags (e.g.
-`SASE_AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT`, `SASE_MARKDOWN=true`), so neither pollutes the
+**PR tag stripping:** when a Patch is created from a PR workflow or its description is
+synced after a reword, any trailing `KEY=VALUE` metadata lines matching
+`^[A-Z][A-Z0-9_]*=` are automatically stripped. The pattern matches both the legacy
+unprefixed spelling and the `SASE_`-prefixed footer tags, such as
+`SASE_AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT` and `SASE_MARKDOWN=true`, so neither pollutes the
 description. See [commit_workflows.md](commit_workflows.md#pull-request-pr) for details.
 
-**Example**:
+**Example:**
 
-```
+```text
 DESCRIPTION:
   Add configuration file parser for user settings
 
   This PR implements a YAML-based configuration parser that reads
   user settings from ~/.myapp/config.yaml. The parser includes a
   ConfigParser class with load() and validate() methods, along with
-  type definitions for the configuration schema. Tests will cover
-  valid YAML parsing, invalid config validation, and missing file
-  handling.
+  type definitions for the configuration schema. Tests cover valid
+  YAML parsing, invalid config validation, and missing file handling.
 ```
 
 ### PARENT
 
-Specifies the dependency relationship between ChangeSpecs.
+Specifies the dependency relationship between Patches.
 
-**Values**:
+**Values:**
 
-- Omit this field entirely - This PR has no dependencies (default, preferred for
-  parallelization)
-- `<parent_changespec_name>` - The `NAME` of a parent ChangeSpec that must be completed
-  first
+- Omit this field entirely: this Patch has no dependency.
+- `<parent_patch_name>`: the `NAME` of a parent Patch that must be completed first.
 
-The PARENT field is a ChangeSpec **name** — never a VCS ref. Values like `origin/main`,
-`origin/master`, or the Mercurial sentinel `p4head` are not valid here; they describe
-checkout targets for the VCS, not dependency relationships between PRs. "No parent
-ChangeSpec" is represented by omitting the field entirely. `sase commit` drops the
-PARENT field and warns when the value passed via `-p` does not resolve to an existing
-ChangeSpec.
+The `PARENT` field is a Patch **name**, never a VCS ref. Values like `origin/main`,
+`origin/master`, or the Mercurial sentinel `p4head` describe checkout targets, not
+dependencies between Patches. "No parent Patch" is represented by omitting the field
+entirely. `sase commit` drops the `PARENT` field and warns when the value passed via
+`-p` does not resolve to an existing Patch.
 
-**Auto-detection:** When creating a new ChangeSpec via `sase commit`, the PARENT field
-is automatically set if the current branch corresponds to an existing ChangeSpec. This
-can be overridden with the `-p`/`--parent` flag (see
-[commit_workflows.md](commit_workflows.md) for details).
+**Auto-detection:** when creating a new Patch via `sase commit`, the `PARENT` field is
+automatically set if the current branch corresponds to an existing Patch. This can be
+overridden with `-p`/`--parent`; see [commit_workflows.md](commit_workflows.md) for
+details.
 
-**CRITICAL Dependency Guidelines**:
+**Dependency guidelines:**
 
-- **Default to omitting PARENT** to maximize parallel development
-- **Only set a PARENT when there's a real content dependency**:
-  - PR B calls a function/class that PR A creates
-  - PR B modifies a file that PR A creates
-  - PR B extends functionality that PR A introduces
-- **DO NOT set a PARENT for**:
-  - Independent features that don't interact
-  - Changes to different files/modules
-  - Tests for independent features
-  - Documentation that doesn't reference new code
+- Default to omitting `PARENT` to maximize parallel development.
+- Only set `PARENT` when there is a real content dependency, such as calling a function
+  introduced by another Patch or modifying a file that another Patch creates.
+- Do not set `PARENT` for independent features, unrelated files, tests for independent
+  features, or documentation that does not reference new code.
 
-**Examples**:
+**Examples:**
 
-```
-# No PARENT field = no dependencies (preferred)
-PARENT: my_project_add_config_parser   # Depends on another PR
+```text
+# No PARENT field = no dependency
+PARENT: my_project_add_config_parser
 ```
 
 ### PR
 
-The PR identifier (usually a PR URL). New and updated ChangeSpecs use `PR:`. Legacy
-`CL:` fields are still accepted during the compatibility window and are rewritten as
-`PR:` when touched.
+The PR identifier, usually a PR URL. `PR:` is optional because a Patch can exist before
+or without a PR.
 
-**Values**:
+Legacy `CL:` fields are still accepted during the compatibility window and are rewritten
+as `PR:` when touched.
 
-- Omit this field entirely - PR not yet created (initial state)
-- `<review-url>` - URL to the created PR
-- `https://github.com/<owner>/<repo>/pull/<N>` - URL to the PR
+**Values:**
 
-**Example**:
+- Omit this field entirely: no PR has been created yet.
+- `<review-url>`: URL to the created PR.
+- `https://github.com/<owner>/<repo>/pull/<N>`: URL to a GitHub PR.
 
-```
-# No PR field = PR not yet created
+**Example:**
+
+```text
 PR: https://github.com/org/repo/pull/42
 ```
 
 ### BUG
 
-An optional bug reference linking the PR to an issue tracker. SASE stores this as plain
-text. PR workflows that receive `SASE_BUG_ID` or `sase commit --bug-id` write it as
-`http://b/<id>` in the ChangeSpec and add `SASE_BUG=<id>` to provider tag metadata.
+An optional bug reference linking the Patch to an issue tracker. SASE stores this as
+plain text. PR workflows that receive `SASE_BUG_ID` or `sase commit --bug-id` write it
+as `http://b/<id>` in the Patch and add `SASE_BUG=<id>` to provider tag metadata.
 
-**Example**:
+**Example:**
 
-```
+```text
 BUG: http://b/12345
 ```
 
 ### STATUS
 
-The current state of the PR in its lifecycle.
-
-**Valid Values**:
+The current state of the Patch in its lifecycle.
 
 | Status      | Description                                     |
 | ----------- | ----------------------------------------------- |
-| `WIP`       | Work in progress — initial development          |
+| `WIP`       | Work in progress; initial development           |
 | `Draft`     | PR created as a draft, not yet ready for review |
 | `Ready`     | Ready for review                                |
 | `Mailed`    | Sent out for review                             |
-| `Submitted` | Merged / submitted to the codebase (terminal)   |
-| `Reverted`  | PR was reverted after submission (terminal)     |
-| `Archived`  | PR was abandoned without submission (terminal)  |
+| `Submitted` | Merged or submitted to the codebase             |
+| `Reverted`  | PR was reverted after submission                |
+| `Archived`  | PR was abandoned without submission             |
 
-**Valid Transitions**:
+Valid transitions:
 
+```text
+WIP -> Draft, Ready
+Draft -> Ready
+Ready -> Mailed, Draft
+Mailed -> Submitted
+Submitted -> terminal
+Reverted -> terminal
+Archived -> terminal
 ```
-WIP → Draft, Ready
-Draft → Ready
-Ready → Mailed, Draft
-Mailed → Submitted
-Submitted → (terminal)
-Reverted → (terminal)
-Archived → (terminal)
-```
 
-These transitions are enforced by the status state machine. Terminal statuses are moved
-to the archive project file.
-
-**Status Selection Rules**:
-
-- New PRs typically start as `WIP`
-- PR workflows default new ChangeSpecs to `Draft` unless `sase commit --status` or
-  `SASE_PR_STATUS` says otherwise
-- Move to `Ready` when the PR is ready for review
-- Move to `Mailed` when sent out for review
-- Update status as work progresses through the lifecycle
+The status state machine enforces these transitions. Terminal Patches are moved to the
+archive project file.
 
 ### REFS
 
@@ -229,7 +215,7 @@ sigil.
 
 **Entry format:**
 
-```
+```text
 REFS:
   research:202607/artifact_capture_and_retention/artifact_capture_and_retention.md
   file:default:0123456789abcdef01234567
@@ -237,7 +223,7 @@ REFS:
 ```
 
 Accepted kinds include `file:`, `chat:`, `bug:`, `commit:`, `agent:`, `bead:`, and
-configured document roles such as `plans:` and `research:`. `sase changespec ref add`
+configured document roles such as `plans:` and `research:`. `sase patch ref add`
 normalizes entries before writing, deduplicates them while preserving first-write order,
 and stores the canonical rendered form. Hand-edited entries are preserved by the parser
 so `sase doctor -C project.changespec_refs` can report malformed or unresolved
@@ -246,20 +232,26 @@ references instead of silently erasing them.
 Use the command group instead of editing the section by hand:
 
 ```bash
-sase changespec ref add -c <name> research:202607/report.md
-sase changespec ref list -c <name> --resolve
-sase changespec ref rm -c <name> research:202607/report.md
+sase patch ref add --patch <name> research:202607/report.md
+sase patch ref list --patch <name> --resolve
+sase patch ref rm --patch <name> research:202607/report.md
 ```
 
-### COMMITS
+`-c`/`--changespec` and `sase changespec ref ...` remain accepted compatibility aliases.
 
-Tracks the commit history associated with this PR. This section is managed automatically
-by `sase commit`.
+### STITCHES
+
+A stitch is the lightweight ordered change record inside a Patch. A stitch has a stable
+numeric or numeric-plus-letter ID. Numeric stitches are created for real VCS commits
+made through the tracked workflow. Proposal stitches such as `(2a)` are intentionally
+commitless until accepted.
+
+This section is managed automatically by `sase commit`.
 
 **Entry format:**
 
-```
-COMMITS:
+```text
+STITCHES:
   (1) First commit note
       | CHAT: ~/.sase/chats/mybranch-commit-260328_143052.md (2m15s)
       | DIFF: ~/.sase/diffs/mybranch-260328_143052.diff
@@ -277,27 +269,31 @@ COMMITS:
 
 **Entry numbering:**
 
-- Regular entries use sequential integers: `(1)`, `(2)`, `(3)`, ...
-- Proposal entries use the last regular number plus a letter suffix: `(2a)`, `(2b)`, ...
+- Regular stitches use sequential integers: `(1)`, `(2)`, `(3)`, and so on.
+- Proposal stitches use the last regular number plus a letter suffix: `(2a)`, `(2b)`,
+  and so on.
 - Proposals are marked with `(!: NEW PROPOSAL)` to flag them for review.
 
-**Multi-line body:** The first line of the commit message becomes the note. Subsequent
-paragraphs (separated by a blank line in the original message) become 6-space-indented
-body lines below the note. Empty body lines are stored as a dot (`.`) placeholder to
-preserve structure.
+**Multi-line body:** the first line of the commit message becomes the stitch note.
+Subsequent paragraphs become 6-space-indented body lines below the note. Empty body
+lines are stored as a dot (`.`) placeholder to preserve structure.
 
-**Drawers:** Each entry can have zero or more drawer lines (6-space indent, `| `
-prefix):
+**Drawers:** each stitch can have zero or more drawer lines with a 6-space indent and
+`| ` prefix:
 
-| Drawer | Format                         | Description                                     |
-| ------ | ------------------------------ | ----------------------------------------------- |
-| `CHAT` | `\| CHAT: <path> (<duration>)` | Agent chat log file with optional run duration  |
-| `DIFF` | `\| DIFF: <path>`              | Saved diff file                                 |
-| `PLAN` | `\| PLAN: <path>`              | Plan file associated with this commit (via SDD) |
+| Drawer | Format                         | Description                                    |
+| ------ | ------------------------------ | ---------------------------------------------- |
+| `CHAT` | `\| CHAT: <path> (<duration>)` | Agent chat log file with optional run duration |
+| `DIFF` | `\| DIFF: <path>`              | Saved diff file                                |
+| `PLAN` | `\| PLAN: <path>`              | Plan file associated with this stitch          |
 
-The CHAT drawer's duration (e.g., `2m15s`) is calculated from the chat filename
-timestamp to the commit time. The PLAN drawer is emitted when the `SASE_PLAN`
-environment variable is set during the commit workflow.
+The `CHAT` drawer's duration is calculated from the chat filename timestamp to the
+commit time. The `PLAN` drawer is emitted when `SASE_PLAN` is set during the commit
+workflow.
+
+Legacy `COMMITS:` sections are parsed as stitches. "Commit" remains the correct term for
+real Git or Mercurial commits, SHAs, VCS logs, commit statistics, the `sase commit`
+command, and the act of committing.
 
 ### TIMESTAMPS
 
@@ -306,7 +302,7 @@ timestamp, event type, and detail string.
 
 **Entry format:**
 
-```
+```text
 TIMESTAMPS:
   [260328_143052] COMMIT  (1)
   [260328_151203] STATUS  WIP -> Draft
@@ -317,32 +313,29 @@ TIMESTAMPS:
   [260328_171500] REBASE  old_parent -> new_parent
 ```
 
-**Event types:**
+| Type     | Description                                                  |
+| -------- | ------------------------------------------------------------ |
+| `COMMIT` | A real commit added a numeric stitch; detail is usually ID   |
+| `STATUS` | A status transition occurred, such as `WIP -> Draft`         |
+| `SYNC`   | A sync operation was performed                               |
+| `REWORD` | The description or PR-derived metadata was edited            |
+| `REWIND` | A rewind to a previous stitch occurred                       |
+| `RENAME` | The Patch name changed; detail records `old -> new`          |
+| `REBASE` | The parent relationship changed; detail records `old -> new` |
 
-| Type     | Description                                                      |
-| -------- | ---------------------------------------------------------------- |
-| `COMMIT` | A commit was added to the ChangeSpec; detail is usually `(N)`    |
-| `STATUS` | A status transition occurred (e.g., `WIP -> Draft`)              |
-| `SYNC`   | A sync operation was performed                                   |
-| `REWORD` | The description or PR-derived metadata was edited                |
-| `REWIND` | A rewind to a previous commit entry occurred; detail shows `(N)` |
-| `RENAME` | The ChangeSpec name changed; detail records `old -> new`         |
-| `REBASE` | The parent relationship changed; detail records `old -> new`     |
-
-New entries use the format `[YYMMDD_HHMMSS]` in the configured SASE timezone. The parser
-also accepts older bare `YYMMDD_HHMMSS` and `[YYYY-MM-DD HH:MM:SS]` forms for
-compatibility. TIMESTAMPS are recorded atomically by SASE and are not normally edited by
-hand. Multiple events of the same type may appear.
+New entries use `[YYMMDD_HHMMSS]` in the configured SASE timezone. The parser also
+accepts older bare `YYMMDD_HHMMSS` and `[YYYY-MM-DD HH:MM:SS]` forms for compatibility.
+`TIMESTAMPS` is recorded atomically by SASE and is not normally edited by hand.
 
 ### DELTAS
 
-A computed summary of files added, modified, or deleted by this PR relative to its
-parent. The section is maintained automatically by sase from VCS state — it is not
-edited by hand.
+A computed summary of files added, modified, or deleted by this Patch relative to its
+parent. The section is maintained automatically by SASE from VCS state and is not edited
+by hand.
 
 **Entry format:**
 
-```
+```text
 DELTAS:
   + path/to/added_file.py
       | LINES: +128
@@ -354,48 +347,41 @@ DELTAS:
 
 The optional `LINES` drawer records semantic line counts. Git-style raw
 additions/deletions are converted so paired add/delete lines are shown as modified lines
-(`~N`); binary files use `LINES: binary`. Older ChangeSpecs without `LINES` drawers
-remain valid.
+(`~N`); binary files use `LINES: binary`. Older Patches without `LINES` drawers remain
+valid.
 
-| Glyph | Change type | Notes                                                                                    |
-| ----- | ----------- | ---------------------------------------------------------------------------------------- |
-| `+`   | Added       | File introduced by this PR (`A` from VCS); copies are represented as added target files. |
-| `~`   | Modified    | File edited (`M`); typechange, unmerged, or future statuses are coerced to modified.     |
-| `-`   | Deleted     | File removed (`D`).                                                                      |
+| Glyph | Change type | Notes                                                                         |
+| ----- | ----------- | ----------------------------------------------------------------------------- |
+| `+`   | Added       | File introduced by this Patch; copies are represented as added target files   |
+| `~`   | Modified    | File edited; typechange, unmerged, or future statuses are coerced to modified |
+| `-`   | Deleted     | File removed                                                                  |
 
-Renames (VCS status `R`) are split into a `-` for the source path and a `+` for the
-target path. Line counts attach to the target path when the VCS reports them; a pure
-rename can therefore show `0 lines`. Entries are sorted alphabetically by path. The
-section is omitted entirely when there are no deltas.
+Renames are split into a `-` for the source path and a `+` for the target path. Entries
+are sorted alphabetically by path. The section is omitted entirely when there are no
+deltas.
 
 **When DELTAS is recomputed:** refresh hooks run after commit creation, rewind, sync,
-proposal accept, and proposal rebase. The refresh is best-effort — if the required VCS
-query fails, the existing DELTAS section is left untouched and the parent workflow
-proceeds. Providers without line stats still refresh file-level DELTAS.
+proposal accept, and proposal rebase. The refresh is best-effort; if the required VCS
+query fails, the existing `DELTAS` section is left untouched and the parent workflow
+proceeds.
 
-**Manual refresh:** run `sase changespec sync-deltas -c <CL_NAME>` to recompute DELTAS
-for a single ChangeSpec from the current VCS state. Optional `-p/--project-file` and
-`-w/--workspace-dir` flags override the inferred defaults.
+**Manual refresh:** run `sase patch sync-deltas --patch <name>` to recompute `DELTAS`
+for a single Patch from the current VCS state. Optional `-p`/`--project-file` and
+`-w`/`--workspace-dir` flags override the inferred defaults. The legacy
+`sase changespec sync-deltas -c <name>` spelling remains accepted.
 
-In ACE, DELTAS renders with colored glyphs (green `+`, gold `~`, red `-`). The section
-has two semantic fold states: folded and unfolded. The folded state shows the `DELTAS:`
-header plus a one-line file and line-count summary; the unfolded state shows the full
-alphabetical entry list with inline line tokens. The shared fold model still has an
-internal intermediate value for other sections, but DELTAS normalizes any non-folded
-value to the unfolded full list. In ACE fold mode, `z1`, `z2`, and `z3` set COMMITS,
-HOOKS, MENTORS, TIMESTAMPS, and DELTAS together to collapsed, expanded, or fully
-expanded. DELTAS preserves its two-state rendering: both levels 2 and 3 display the
-unfolded list.
+In ACE, `DELTAS` renders with colored glyphs. The section has two semantic fold states:
+folded and unfolded. The folded state shows the header plus a one-line file and
+line-count summary; the unfolded state shows the full alphabetical entry list.
 
 ### HOOKS
 
-Defines lifecycle hooks attached to this PR — shell commands that run automatically at
-specific points (e.g., after commit, before mail). Hooks are managed via the `h`
-keybinding in ACE.
+Defines lifecycle hooks attached to this Patch: shell commands that run automatically at
+specific points, such as after commit or before mail. Hooks are managed via ACE.
 
 **Entry format:**
 
-```
+```text
 HOOKS:
   just test
       | (1) [260328_143200] PASSED (12s)
@@ -404,23 +390,21 @@ HOOKS:
 
 Hook commands are 2-space indented. Status drawer lines are 6-space indented and start
 with `| `. A leading `!` on a hook command means failed runs should skip fix-hook hints;
-a leading `$` means the hook is not run for proposal entries and is not subject to the
+a leading `$` means the hook is not run for proposal stitches and is not subject to the
 normal runner limit. Prefixes can be combined, for example `!$just presubmit`.
 
 ACE leaves a running hook's output file untouched. When ACE observes the completion
-marker, a capture larger than 500 KiB is atomically compacted, retaining up to the first
-200 KiB and last 300 KiB with an explicit byte-elision marker between them. Completion
-parsing, metahook matching, and failure summarization inspect the full output before
-compaction; later manual viewing uses the compacted capture.
+marker, large captures are atomically compacted for manual viewing while completion
+parsing, metahook matching, and failure summarization still inspect the full output.
 
 ### COMMENTS
 
-Stores review comments and discussion threads. Comments are added via the ACE TUI or
-through the review workflow.
+Stores review comments and discussion threads. Comments are added via ACE or through the
+review workflow.
 
 **Entry format:**
 
-```
+```text
 COMMENTS:
   [critique] ~/.sase/comments/auth_system_fix-critique-260328_143500.json
   [critique] ~/.sase/comments/auth_system_fix-critique-260328_150000.json - (!: Unresolved Critique Comments)
@@ -428,41 +412,40 @@ COMMENTS:
 
 ### MENTORS
 
-Configures mentor workflows for the PR — automated agents that monitor and provide
+Configures mentor workflows for the Patch: automated agents that monitor and provide
 guidance during development.
 
 **Entry format:**
 
-```
+```text
 MENTORS:
   (1) security[1/2] reliability[1/1]
       | [260328_143700] security:auth-review - PASSED - (1m05s)
       | [260328_143705] reliability:tests-review - COMMENTED - (2m10s)
 ```
 
-The entry id matches a `COMMITS` entry such as `(1)` or `(2a)`. Profile names may
-include progress counts; legacy entries without counts still parse.
+The entry ID matches a stitch such as `(1)` or `(2a)`. Profile names may include
+progress counts; legacy entries without counts still parse.
 
 ## Complete Examples
 
-### Example 1: Independent PR with Tests
+### Example 1: Independent Patch With Tests
 
-```
+```text
 NAME: auth_system_add_jwt_validator
 DESCRIPTION:
   Add JWT token validation for authentication
 
   This PR implements JWT token validation using the PyJWT library.
   It includes a JWTValidator class that handles token parsing,
-  signature verification, and expiration checking. The implementation
-  supports both RS256 and HS256 algorithms. Tests cover valid tokens,
+  signature verification, and expiration checking. Tests cover valid tokens,
   expired tokens, invalid signatures, and malformed tokens.
 STATUS: WIP
 ```
 
-### Example 2: Dependent PR
+### Example 2: Dependent Patch
 
-```
+```text
 NAME: auth_system_integrate_validator
 DESCRIPTION:
   Integrate JWT validator into authentication middleware
@@ -477,39 +460,32 @@ PARENT: auth_system_add_jwt_validator
 STATUS: WIP
 ```
 
-### Example 3: Config-Only PR (No Tests)
+### Example 3: Patch With A PR And Stitches
 
-```
-NAME: auth_system_update_config
-DESCRIPTION:
-  Update JWT configuration with new secret key
-
-  This PR updates the production configuration file to use a new
-  secret key for JWT signing. This is a config-only change that
-  rotates the signing key for security purposes.
-STATUS: WIP
-```
-
-### Example 4: PR with Bug Reference
-
-```
+```text
 NAME: auth_system_fix_token_expiry
 DESCRIPTION:
   Fix incorrect token expiry calculation
 
   The token expiry was being computed from the issue time rather
-  than the current time, causing tokens to expire prematurely
-  under clock skew conditions.
+  than the current time, causing tokens to expire prematurely.
+PR: https://github.com/org/repo/pull/42
 BUG: http://b/98765
 STATUS: Draft
+STITCHES:
+  (1) Fix token-expiry calculation
+      | CHAT: ~/.sase/chats/auth_system_fix_token_expiry-commit-260328_143052.md (2m15s)
+      | DIFF: ~/.sase/diffs/auth_system_fix_token_expiry-260328_143052.diff
+  (1a) Alternative skew-handling proposal - (!: NEW PROPOSAL)
+      | DIFF: ~/.sase/diffs/auth_system_fix_token_expiry-260328_160000.diff
 ```
 
 ## Best Practices
 
-1. **Keep PRs Small and Focused**: Each PR should address a single, well-defined change
-2. **Maximize Parallelization**: Omit `PARENT` whenever possible
-3. **Include Tests**: Attach relevant test commands in `HOOKS`
-4. **Write Clear Descriptions**: Explain what, why, and how
-5. **Use Descriptive Names**: NAME should clearly indicate what the PR does
-6. **Think About Dependencies**: Only create dependencies when truly necessary
-7. **Update Status Appropriately**: Keep STATUS field current as work progresses
+1. Keep Patches small and focused.
+2. Omit `PARENT` whenever possible.
+3. Attach relevant test commands in `HOOKS`.
+4. Write clear descriptions that explain what, why, and how.
+5. Use descriptive `NAME` values.
+6. Update `STATUS` as work progresses.
+7. Use `sase patch ref ...` for artifact references instead of hand-editing `REFS:`.

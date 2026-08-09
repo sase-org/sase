@@ -255,10 +255,10 @@ shell history._
 
 ## The Agents Tab In ACE
 
-`sase ace` opens ACE, the Agentic ChangeSpec Explorer. It has three top-level tabs:
+`sase ace` opens ACE, the Agentic Change Explorer. It has three top-level tabs:
 **Agents**, **Artifacts**, and **Axe**. Agents is the startup default. Artifacts has
 five top-level views—Commits, Beads, Bugs, PRs, and Files—with Plans, Chats, and Other
-nested under Files. Its PRs view owns durable PR-sized ChangeSpec records. Axe is the
+nested under Files. Its PRs view owns durable PR-sized Patch records. Axe is the
 background daemon view. This post stays on Agents because that is the tmux-window-farm
 replacement.
 
@@ -398,7 +398,7 @@ launched it. For the guided path, use [Getting Started](../../getting_started.md
 
 This post covered SASE's front door: provider CLIs, XPrompts, ACE's Agents tab, and the
 installation path. The parts that make it an engineering system deserve their own posts:
-Beads and Spec-Driven Development, ChangeSpecs, hooks, mentors, review comments, memory,
+Beads and Spec-Driven Development, Patches, hooks, mentors, review comments, memory,
 Telegram/mobile control, and SASE's plugin architecture.
 
 The quick start is still the same:

@@ -75,7 +75,7 @@ Three issue types:
 - **Plan** beads — plan-like containers. ID format `{prefix}-{counter}`.
 - **Phase** beads — executable children inside an epic. ID format `{parent_id}.{N}` (so
   `myapp-7.1`, `myapp-7.2`, …).
-- **Task** beads — flat, independent follow-ups with no parent, plan tier, or ChangeSpec
+- **Task** beads — flat, independent follow-ups with no parent, plan tier, or Patch
   metadata.
 
 Epic-tier plan beads hand off to a phase-and-land run through `sase bead work`; a

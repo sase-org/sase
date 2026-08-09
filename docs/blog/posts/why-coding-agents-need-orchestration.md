@@ -53,7 +53,7 @@ One notation note before we start:
 SASE is a local orchestration layer above coding-agent CLIs such as Codex, Claude Code,
 Antigravity CLI (`agy`), Qwen Code, OpenCode, and Meta's Muse Code. It gives those
 agents a common workflow: launch in isolated workspaces, expand reusable prompts, save
-prompt and response artifacts, track PR-sized work as ChangeSpecs, coordinate dependency
+prompt and response artifacts, track PR-sized work as Patches, coordinate dependency
 graphs with Beads, and supervise background work through AXE.
 
 The repo split is intentionally boring:
@@ -75,7 +75,7 @@ ARCHITECTURE DIAGRAM BRIEF 1 - place here after the repo table.
 Title: "SASE as the operating layer"
 Shape: horizontal layered architecture diagram.
 Top layer: "Human surfaces" with ACE TUI, Telegram, Neovim/XPrompt LSP, future Web UI, future Mobile app.
-Middle layer: "SASE Python host" with XPrompts, agent launcher, AXE daemon, ChangeSpecs, SDD, Beads, VCS/workspace plugins.
+Middle layer: "SASE Python host" with XPrompts, agent launcher, AXE daemon, Patches, SDD, Beads, VCS/workspace plugins.
 Right side attached to middle: "Provider CLIs" with Codex, Claude Code, Antigravity (agy), Qwen, OpenCode, and Muse Code. Draw them as replaceable
 execution engines rather than the center of the system.
 Show Muse Code as explicitly selected by provider/model directive, not auto-detected.
@@ -138,7 +138,7 @@ This buys a lot:
   provider-specific improvements.
 - You can swap providers per prompt with `%model` instead of rewriting the orchestration
   layer.
-- SASE can focus on work state: prompts, workspaces, plans, Beads, ChangeSpecs, and UI.
+- SASE can focus on work state: prompts, workspaces, plans, Beads, Patches, and UI.
 - Users can keep using the agent CLI they already trust, which is a boring advantage and
   therefore an excellent one.
 
@@ -367,7 +367,7 @@ epic: move it from draft `open` to `ready` for human triage, then launch one wor
 
 This is where Steve Yegge's [Beads](https://github.com/gastownhall/beads) influence is
 most obvious. Beads makes agent-friendly work items git-portable and dependency-aware.
-SASE borrows that spirit, then integrates it with SDD plans, ChangeSpecs, ACE, AXE, and
+SASE borrows that spirit, then integrates it with SDD plans, Patches, ACE, AXE, and
 local workspace orchestration.
 
 <!--
@@ -375,30 +375,30 @@ ARCHITECTURE DIAGRAM BRIEF 2 - place here after the SDD/Beads section.
 Title: "Durable work state graph"
 Shape: graph/flow diagram, not a stack.
 Nodes: user prompt -> agents-sidecar prompt archive -> tale OR epic -> phase beads in the resolved SDD store -> agent
-runs -> commits -> ChangeSpec -> PR provider -> final archive. Add a separate standalone task bead -> one worker branch.
-Side nodes: ACE reads ChangeSpecs/agents/beads; AXE watches waits/hooks/chops; Telegram emits/receives notifications.
+runs -> commits -> Patch -> PR provider -> final archive. Add a separate standalone task bead -> one worker branch.
+Side nodes: ACE reads Patches/agents/beads; AXE watches waits/hooks/chops; Telegram emits/receives notifications.
 Draw dependencies between phase beads clearly; reserve the `ready` label for standalone task triage.
 Purpose: show that chat history is not the source of truth; durable files and state records are.
 -->
 
-> **Friction note:** SDD has a lot of nouns. Prompt, tale, epic, bead, ChangeSpec. The
-> nouns are there because the lifecycle stages are different, but the docs and UI need
-> to keep doing better at teaching "what do I touch today?" versus "what exists for the
-> full research roadmap?"
+> **Friction note:** SDD has a lot of nouns. Prompt, tale, epic, bead, Patch. The nouns
+> are there because the lifecycle stages are different, but the docs and UI need to keep
+> doing better at teaching "what do I touch today?" versus "what exists for the full
+> research roadmap?"
 
 ## ACE: The Cockpit
 
-`sase ace` opens the Agentic ChangeSpec Explorer, the terminal UI for daily work. ACE
-has three top-level tabs:
+`sase ace` opens the Agentic Change Explorer, the terminal UI for daily work. ACE has
+three top-level tabs:
 
 - **Agents**: live and recent agents, groups, tags, hidden rows, child workflow steps,
   prompt panels, transcript panels, artifact viewers, tool metadata, file panels,
   retry/fork/wait/kill actions, and model/provider badges.
 - **Artifacts**: Commits, Beads, Bugs, PRs, and Files top-level views, with Plans,
-  Chats, and Other nested under Files. The PRs view owns ChangeSpec status, hooks,
-  comments, mentor output, diffs, file deltas, mail/submit flows, rewind, revert,
-  restore, and archive operations; Chats browses transcripts with local/shared/remote
-  sync provenance.
+  Chats, and Other nested under Files. The PRs view owns Patch status, hooks, comments,
+  mentor output, diffs, file deltas, mail/submit flows, rewind, revert, restore, and
+  archive operations; Chats browses transcripts with local/shared/remote sync
+  provenance.
 - **Axe**: the daemon view: lumberjacks, chops, run history, live output, wait checks,
   hook checks, mentor checks, comment polling, and error digests.
 
@@ -423,24 +423,24 @@ paths, and compose multi-agent prompts directly in the prompt input widget.
 The VCS support is the part that makes ACE feel like engineering software instead of a
 prettier terminal. SASE's VCS providers are pluggy-based. Bare Git support ships with
 `sase`; GitHub support lives in `sase-github`. ACE shows the same review objects either
-way: file deltas, diffs, commit lists, ChangeSpec status, and provider-backed actions.
+way: file deltas, diffs, commit lists, Patch status, and provider-backed actions.
 
 In practice, this means you can:
 
-- inspect a ChangeSpec's diff from the TUI;
+- inspect a Patch's diff from the TUI;
 - view added/modified/deleted file counts and line deltas;
 - rewind a PR to an earlier state;
-- revert an agent's committed work and archive the ChangeSpec;
-- restore a reverted ChangeSpec by re-applying its diff;
+- revert an agent's committed work and archive the Patch;
+- restore a reverted Patch by re-applying its diff;
 - launch follow-up agents against the exact work record you are looking at.
 
 <!--
 SCREENSHOT BRIEF 2 - place after the VCS paragraph above.
 Asset suggestion: docs/images/blog/00-ace-prs-diff.png
-View: ACE Artifacts tab with the PRs sub-tab focused on one ChangeSpec with file deltas and diff preview visible.
+View: ACE Artifacts tab with the PRs sub-tab focused on one Patch with file deltas and diff preview visible.
 Show status, commits, and at least one action hint for diff/revert/rewind. The key visual should be "this is not just
 chat; this is reviewable code state."
-Alt text: "ACE Artifacts PRs view showing a ChangeSpec with file deltas, commits, diff preview, and VCS actions."
+Alt text: "ACE Artifacts PRs view showing a Patch with file deltas, commits, diff preview, and VCS actions."
 -->
 
 ## AXE, Lumberjacks, And Chops
@@ -456,8 +456,8 @@ digests.
 Scripts can return a versioned JSON result with structured launch proposals. AXE
 validates those proposals, injects workspace/name/tribe scaffolding, launches the
 agents, and follows them through success or failure. The scripts never self-launch.
-Declarative commit triggers, ChangeSpec and agent-hood guards, once-per dedupe, and
-project target fan-out keep the scheduling mechanics out of individual scripts.
+Declarative commit triggers, Patch and agent-hood guards, once-per dedupe, and project
+target fan-out keep the scheduling mechanics out of individual scripts.
 
 The builtin `sase_chop_refresh_docs`, for example, fans out over enabled projects and
 proposes an update agent followed by a polish agent. External chop packages can add
@@ -491,7 +491,7 @@ Useful things it can do:
 - notify you when an agent finishes, fails, asks a question, or needs plan approval;
 - let you approve, reject, or give feedback on plans from your phone;
 - list, kill, fork, retry, or inspect agents with slash commands;
-- show ChangeSpec and Bead summaries;
+- show Patch and Bead summaries;
 - launch agents from messages, including messages with images or PDF attachments;
 - keep outbound notifications quiet when ACE sees you actively working at the terminal.
 
@@ -623,7 +623,7 @@ future of software engineering into **SE for Humans** and **SE for Agents**, the
 proposes two workbenches: **ACE**, the **Agent Command Environment**, where humans
 orchestrate and mentor agent teams, and **AEE**, the **Agent Execution Environment**,
 where agents execute work and call humans in for ambiguity or complex trade-offs. SASE
-maps that lineage into local tooling: its **ACE** cockpit is the **Agentic ChangeSpec
+maps that lineage into local tooling: its **ACE** cockpit is the **Agentic Change
 Explorer**, but it deliberately echoes the paper's Agent Command Environment; **AXE** is
 the background execution/supervision daemon that echoes the paper's Agent Execution
 Environment.

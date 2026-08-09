@@ -36,7 +36,7 @@ repos:
 # Maximum number of slot-participating user agents that may run concurrently
 # across all projects: top-level user agents and eligible parallel family
 # members. Serial follow-ups, workflow Python/bash steps, and axe runners are
-# excluded; axe ChangeSpec runners use their separate axe.max_* limits.
+# excluded; axe Patch runners use their separate axe.max_* limits.
 max_running_agents: 10
 
 runner_slots:
@@ -75,7 +75,7 @@ artifacts:
     pool_max_bytes: 1073741824
   retention:
     # Retention removes nothing until this is true. Explicit artifacts, artifacts
-    # referenced by a bead, plan, or ChangeSpec, and the newest capture of every
+    # referenced by a bead, plan, or Patch, and the newest capture of every
     # label are kept regardless of the settings below.
     enabled: false
     # Automatic captures kept per label; older generations are trashed first.
@@ -611,7 +611,7 @@ axe:
         Fast lane that advances hook, mentor, and workflow lifecycle state every few seconds
 
         Runs every five seconds with a 90-second per-chop timeout so completed work is noticed and new work starts
-        promptly. Put latency-sensitive ChangeSpec lifecycle reconciliation here; slower remote polling, wait
+        promptly. Put latency-sensitive Patch lifecycle reconciliation here; slower remote polling, wait
         coordination, and maintenance belong in the other lanes.
       interval: 5
       chop_timeout: "90s"
@@ -621,9 +621,9 @@ axe:
           description: |-
             Complete finished hooks and start stale ones, with zombie detection
 
-            Scans hook entries on every matching ChangeSpec, records completed process results, and starts stale hooks
+            Scans hook entries on every matching Patch, records completed process results, and starts stale hooks
             when a runner slot is free. Honors max_hook_runners across the tick; stale fix-hook suffixes older than
-            zombie_timeout_seconds become ZOMBIE, while terminal ChangeSpecs may finish hooks but cannot start new ones.
+            zombie_timeout_seconds become ZOMBIE, while terminal Patches may finish hooks but cannot start new ones.
         - name: mentor_checks
           script: sase_chop_mentor_checks
           description: |-
@@ -631,13 +631,13 @@ axe:
 
             Reconciles running mentors, stops mentors left behind by older commits, adds matching mentor profiles, and
             launches ready profiles after their hooks finish. Mentor launches share max_agent_runners with other agent
-            workflows, and review-ineligible or terminal ChangeSpecs are skipped.
+            workflows, and review-ineligible or terminal Patches are skipped.
         - name: workflow_checks
           script: sase_chop_workflow_checks
           description: |-
             Complete finished CRS/fix-hook workflows and start stale ones
 
-            Reads workflow state from every matching ChangeSpec, records results for finished CRS and fix-hook agents,
+            Reads workflow state from every matching Patch, records results for finished CRS and fix-hook agents,
             and launches stale workflows. New workflows share max_agent_runners and the current tick's agent-launch
             budget with mentors, so a full runner pool defers work instead of queueing it.
         - name: pending_checks_poll
@@ -645,7 +645,7 @@ axe:
           description: |-
             Poll background is_cl_submitted and critique_comments checks for results
 
-            Scans the pending-check directory once per tick, applies completed results to matching ChangeSpecs, and
+            Scans the pending-check directory once per tick, applies completed results to matching Patches, and
             reaps output files orphaned by killed or crashed checks. This chop only consumes background results;
             pr_submitted_checks and comment_checks launch the remote checks.
         - name: comment_zombie_checks
@@ -653,7 +653,7 @@ axe:
           description: |-
             Mark comment threads older than zombie_timeout as ZOMBIE
 
-            Examines comment-entry suffix timestamps on matching ChangeSpecs and writes a ZOMBIE suffix when an entry
+            Examines comment-entry suffix timestamps on matching Patches and writes a ZOMBIE suffix when an entry
             exceeds zombie_timeout_seconds. It performs no remote comment fetch; comment_checks starts those checks and
             pending_checks_poll applies their results.
         - name: suffix_transforms
@@ -661,16 +661,16 @@ axe:
           description: |-
             Strip stale suffixes from older proposals and update mail-readiness markers
 
-            Normalizes matching ChangeSpecs in place by converting old proposal markers from !: to ~:, removing error
-            markers from superseded commit entries, and acknowledging attention markers on terminal statuses. It only
+            Normalizes matching Patches in place by converting old proposal markers from !: to ~:, removing error
+            markers from superseded stitches, and acknowledging attention markers on terminal statuses. It only
             repairs stored suffix state and never launches hooks or agents.
         - name: orphan_cleanup
           script: sase_chop_orphan_cleanup
           description: |-
             Release workspace claims orphaned by reverted PRs with dead PIDs
 
-            Reads all ChangeSpecs and workspace claims, regardless of the axe query, then releases unpinned claims tied
-            to Reverted ChangeSpecs when their owning PID is absent or dead. Live claims and pinned workspaces are left
+            Reads all Patches and workspace claims, regardless of the axe query, then releases unpinned claims tied
+            to Reverted Patches when their owning PID is absent or dead. Live claims and pinned workspaces are left
             untouched.
         - name: stale_running_cleanup
           script: sase_chop_stale_running_cleanup
@@ -685,7 +685,7 @@ axe:
         Resolve agent wait dependencies and keep bead claims and stores in sync
 
         Runs every ten seconds so waiting agents resume promptly and short-lived bead claims are reconciled quickly.
-        Put agent dependency, bead-claim, and bead-store coordination here; ChangeSpec lifecycle checks and general
+        Put agent dependency, bead-claim, and bead-store coordination here; Patch lifecycle checks and general
         cleanup belong in their dedicated lanes.
       interval: 10
       chops:
@@ -749,7 +749,7 @@ axe:
           description: |-
             Start background is_cl_submitted checks for leaf PRs with a submitted parent
 
-            Applies the axe query, finds eligible leaf ChangeSpecs with PR URLs, and launches non-blocking submission
+            Applies the axe query, finds eligible leaf Patches with PR URLs, and launches non-blocking submission
             checks whose results are collected by pending_checks_poll. A five-minute sync cache suppresses duplicate
             remote work, except that the first cycle checks eligible leaves immediately.
         - name: stale_running_cleanup
@@ -764,7 +764,7 @@ axe:
       description: |-
         Start background critique-comment checks for mailed PRs every minute
 
-        Runs every minute so reviewer feedback reaches active ChangeSpecs promptly without polling on every hooks tick.
+        Runs every minute so reviewer feedback reaches active Patches promptly without polling on every hooks tick.
         Only remote comment-check launches belong here; pending result collection and zombie marking remain in the
         faster hooks lane.
       interval: 60
@@ -774,7 +774,7 @@ axe:
           description: |-
             Start background critique_comments checks for all mailed PRs
 
-            Applies the axe query and starts non-blocking critique_comments checks for mailed ChangeSpecs that have an
+            Applies the axe query and starts non-blocking critique_comments checks for mailed Patches that have an
             available workspace, then records a comment-cycle summary. The lumberjack's one-minute interval is the
             polling throttle; pending_checks_poll later consumes each background result.
     housekeeping:

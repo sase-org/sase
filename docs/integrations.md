@@ -11,13 +11,14 @@ For editor setup and user-facing behavior, start with the
 [editor integration guide](editor.md). This page focuses on the integration-facing
 Python and bridge contracts.
 
-## ChangeSpec XPrompt Tags
+## Patch XPrompt Tags
 
-`sase.integrations.changespec_tags.list_changespec_xprompt_tags()` returns copyable VCS
-xprompt references for active ChangeSpecs. A ChangeSpec is SASE's stored record for a
-change list or pull request, and an xprompt tag is the `#workflow:target` reference that
-launches an agent in that workspace. This helper is intended for plugins and editors
-that need to show a picker of targets such as `#gh:my_change` or `#git:local_branch`.
+`sase.integrations.changespec_tags.list_changespec_xprompt_tags()` is the legacy-named
+helper that returns copyable VCS xprompt references for active Patches. A Patch is
+SASE's stored record for a change list or pull request, and an xprompt tag is the
+`#workflow:target` reference that launches an agent in that workspace. This helper is
+intended for plugins and editors that need to show a picker of targets such as
+`#gh:my_change` or `#git:local_branch`.
 
 ```python
 from sase.integrations.changespec_tags import list_changespec_xprompt_tags
@@ -27,30 +28,30 @@ for entry in listing.entries:
     print(entry.project, entry.name, entry.status, entry.workflow_type, entry.tag)
 
 if listing.skipped:
-    print("Some ChangeSpecs could not be tagged:", listing.skipped)
+    print("Some Patches could not be tagged:", listing.skipped)
 ```
 
-The optional `project` argument is an exact project-name filter. Terminal ChangeSpecs
-are excluded after normalizing workspace/status suffixes, so `Submitted`, `Archived`,
-and `Reverted` entries are not returned. Results are sorted deterministically by
-project, ChangeSpec name, and normalized status.
+The optional `project` argument is an exact project-name filter. Terminal Patches are
+excluded after normalizing workspace/status suffixes, so `Submitted`, `Archived`, and
+`Reverted` entries are not returned. Results are sorted deterministically by project,
+Patch name, and normalized status.
 
-The helper uses the same enabled-project default as normal ChangeSpec discovery.
-Disabled projects are omitted from the broad list. The mobile helper bridge wraps
-explicit disabled-project tag requests with a partial-success warning telling the caller
-to enable the project before launching new work.
+The helper uses the same enabled-project default as normal Patch discovery. Disabled
+projects are omitted from the broad list. The mobile helper bridge wraps explicit
+disabled-project tag requests with a partial-success warning telling the caller to
+enable the project before launching new work.
 
 Each entry in `listing.entries` has:
 
 | Field           | Description                                                        |
 | --------------- | ------------------------------------------------------------------ |
 | `project`       | Parsed project basename                                            |
-| `name`          | ChangeSpec `NAME`                                                  |
+| `name`          | Patch `NAME`                                                       |
 | `status`        | Normalized non-terminal status                                     |
 | `workflow_type` | Detected registered workspace workflow type, such as `git` or `gh` |
 | `tag`           | Copyable xprompt target in `#{workflow_type}:{name}` form          |
 
-If workspace workflow detection fails for an entry, that ChangeSpec is omitted and a
+If workspace workflow detection fails for an entry, that Patch is omitted and a
 human-readable message is appended to `listing.skipped`. This lets callers still show
 the rest of the list while surfacing degraded entries.
 
@@ -110,12 +111,12 @@ By default the helper returns active agents. `include_recent=True` includes rece
 completed `DONE` and `FAILED` rows using the same cap as `sase agent list -a`; `project`
 filters by exact project key after projection. Each `AgentListEntry` includes the basic
 CLI fields plus status bucket/glyph, provider and VCS display labels, retry and wait
-metadata, family role, parent, tribe, bead and ChangeSpec names, direct-child counts,
-output variables, artifact and commit counts, and error text when available.
-Output-variable values retain their JSON scalar, list, and map shapes, so integrations
-should not coerce containers to strings before rendering or transport. The nested
-wait/retry/children objects are frozen dataclasses, not raw JSON; bridge commands should
-convert them into their own wire shape.
+metadata, family role, parent, tribe, bead and Patch names, direct-child counts, output
+variables, artifact and commit counts, and error text when available. Output-variable
+values retain their JSON scalar, list, and map shapes, so integrations should not coerce
+containers to strings before rendering or transport. The nested wait/retry/children
+objects are frozen dataclasses, not raw JSON; bridge commands should convert them into
+their own wire shape.
 
 Every live runner-slot waiter is promoted in memory from the scan-level `WAITING` state
 to `QUEUED`; the status is never persisted. `entry.wait.runner_slot_queue_position` and
@@ -285,28 +286,29 @@ must not send host paths. Image launches store uploads under SASE-owned gateway 
 then inject the saved path into the agent prompt. Launch, kill, retry, upload, and
 per-device project context metadata lives under `<sase_home>/mobile_gateway/`.
 
-Helper bridge operations cover `changespec-tags`, `xprompt-catalog`, `beads-list`,
-`beads-show`, `update-start`, and `update-status`. ChangeSpec, xprompt, and bead helpers
-are read-only. The only mutating helper operation is `update-start`, which starts the
-built-in SASE update worker and reports status through structured polling. Bead helper
-reads are project-scoped rather than active-checkout-scoped: for each requested project
-they read one canonical store, `sdd/beads/` in in-tree mode, the primary workspace's
-`.sase/sdd/beads/` clone in local/legacy separate-repo mode, or the root of the primary
-`--beads` clone for schema-3 split storage. Schema-2 split records retain `beads/` in
-the primary `--plans` clone. Normal `sase bead` commands launched from a numbered
-workspace can still write that workspace's own sidecar clone. `events/**` is canonical
-and `issues.jsonl` is a compatibility projection; helper reads do not merge numbered
-sibling workspaces or legacy bead stores. The structured xprompt catalog includes
-`definition_path` when the source can be resolved to a real file, so mobile and editor
-clients can offer jump-to-definition without reverse-engineering display paths.
+Helper bridge operations cover legacy-stable `changespec-tags`, `xprompt-catalog`,
+`beads-list`, `beads-show`, `update-start`, and `update-status`. Patch, xprompt, and
+bead helpers are read-only. The only mutating helper operation is `update-start`, which
+starts the built-in SASE update worker and reports status through structured polling.
+Bead helper reads are project-scoped rather than active-checkout-scoped: for each
+requested project they read one canonical store, `sdd/beads/` in in-tree mode, the
+primary workspace's `.sase/sdd/beads/` clone in local/legacy separate-repo mode, or the
+root of the primary `--beads` clone for schema-3 split storage. Schema-2 split records
+retain `beads/` in the primary `--plans` clone. Normal `sase bead` commands launched
+from a numbered workspace can still write that workspace's own sidecar clone.
+`events/**` is canonical and `issues.jsonl` is a compatibility projection; helper reads
+do not merge numbered sibling workspaces or legacy bead stores. The structured xprompt
+catalog includes `definition_path` when the source can be resolved to a real file, so
+mobile and editor clients can offer jump-to-definition without reverse-engineering
+display paths.
 
 All-known helper reads are lifecycle-aware and enumerate enabled projects by default.
-Disabled projects are left out of broad ChangeSpec tag, xprompt catalog, and bead lists.
-Explicit ChangeSpec tag and xprompt catalog requests for an disabled project report
-warnings in the structured `result.warnings` / `result.skipped` fields where the bridge
-can still return a partial result. Explicit bead requests resolve the requested
-project's canonical bead store directly; the lifecycle filter only applies to the
-all-known bead list.
+Disabled projects are left out of broad Patch tag, xprompt catalog, and bead lists.
+Explicit Patch tag and xprompt catalog requests for an disabled project report warnings
+in the structured `result.warnings` / `result.skipped` fields where the bridge can still
+return a partial result. Explicit bead requests resolve the requested project's
+canonical bead store directly; the lifecycle filter only applies to the all-known bead
+list.
 
 Bridge commands read a JSON object from stdin and write a compact JSON object to stdout:
 

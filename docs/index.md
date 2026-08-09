@@ -63,7 +63,7 @@ title: Structured Agentic Software Engineering
   <h3>I want a TUI for agent work</h3>
 
   <p>
-    Use ACE, the Agentic ChangeSpec Explorer TUI, to navigate ChangeSpecs, live agents, notifications, and automation
+    Use ACE, the Agentic Change Explorer TUI, to navigate Patches, live agents, notifications, and automation
     state from one terminal interface.
   </p>
 
@@ -75,7 +75,7 @@ title: Structured Agentic Software Engineering
   <h3>I want durable work units</h3>
 
   <p>
-    Use ChangeSpecs for PR-sized review state and Beads for plan, epic, phase, and standalone task work that can drive
+    Use Patches for PR-sized review state and Beads for plan, epic, phase, and standalone task work that can drive
     single- or multi-agent execution.
   </p>
 
@@ -139,7 +139,7 @@ title: Structured Agentic Software Engineering
   <h2>The coordination model</h2>
 
   <p>
-    SASE keeps the work state outside the chat transcript. Plans, ChangeSpecs, beads, agent artifacts, and workflow
+    SASE keeps the work state outside the chat transcript. Plans, Patches, beads, agent artifacts, and workflow
     records let agents be scheduled, resumed, reviewed, retried, or handed off without relying on one session's context
     window.
   </p>
@@ -147,7 +147,7 @@ title: Structured Agentic Software Engineering
 
   <div class="sase-primitive-list">
   <ul>
-    <li><strong>ProjectSpecs and ChangeSpecs</strong> track project lifecycle, PR-sized work, commits, review state, comments, mentors, and lifecycle transitions.</li>
+    <li><strong>ProjectSpecs and Patches</strong> track project lifecycle, PR-sized work, commits, review state, comments, mentors, and lifecycle transitions.</li>
     <li><strong>Beads</strong> provide git-native issue tracking for plans, executable epics, phase dependencies, and agent handoff.</li>
     <li><strong>XPrompts</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
     <li><strong>ACE</strong> is the interactive control surface for daily work.</li>

@@ -19,7 +19,7 @@ infrastructure:
 - **Workspaces instead of manual checkouts** -- sase's workspace provider system creates
   and manages isolated working copies programmatically, eliminating the need to manually
   set up and maintain parallel git checkouts.
-- **ChangeSpecs instead of mental bookkeeping** -- Each unit of work gets a tracked
+- **Patches instead of mental bookkeeping** -- Each unit of work gets a tracked
   lifecycle with status, metadata, and history, replacing the cognitive load of
   remembering what's happening in each tmux tab.
 - **XPrompts instead of ad-hoc prompts** -- Reusable, composable prompt templates with

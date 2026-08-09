@@ -212,7 +212,7 @@ goal: Demonstrate the plan-side layout.
   [sase-ai.8](https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.8.md)
 - **AGENTS:**
   - [bbugyi200.athena.sase-8k.6](https://github.com/sase-org/sase--agents/blob/main/agents/bbugyi200.athena.sase-8k.6/README.md)
-- **COMMITS:**
+- **STITCHES:**
   - [699456a](https://github.com/sase-org/sase/commit/699456a521e25e0aaa38f4e289db38e71a6488a6)
     — fix(xprompt): canonicalize workflow project identity
 
