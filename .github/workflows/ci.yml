@@ -279,6 +279,20 @@ jobs:
           path: .pytest_cache/sase-visual
           if-no-files-found: ignore
 
+  ace-page-group-isolation:
+    needs: build-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install visual dependencies
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
+          install-recipe: install-visual
+      - name: Run ACE shared-page isolation lane
+        run: just test-ace-page-group-isolated
+
   contention-test:
     needs: build-core
     if: github.event_name == 'schedule'

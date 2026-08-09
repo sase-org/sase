@@ -99,6 +99,12 @@ SCOPED_MODE = "scoped"
 CONTEXTS_MODE = "cov-contexts"
 CONTEXTS_COVERAGE_CONFIG = "coverage_contexts.toml"
 TEST_COST_MODE = "cost"
+#: Re-run every test from modules migrated to AcePageGroup with forced fresh
+#: apps, proving the shared-page path is an amortization layer and not a
+#: semantic requirement.
+ACE_PAGE_GROUP_ISOLATION_MODE = "ace-page-group-isolated"
+ACE_PAGE_GROUP_ISOLATION_ENV = "SASE_ACE_PAGE_GROUP_ISOLATION"
+ACE_PAGE_GROUP_MANIFEST = Path("tests/ace/tui/ace_page_group_files.txt")
 #: coverage's measurement-core selector, and the one value that attributes every
 #: line to every test that ran it. See `_apply_contexts_environment`.
 COVERAGE_CORE_ENV = "COVERAGE_CORE"
@@ -323,7 +329,13 @@ def _pytest_command(
         command.extend(["-m", VISUAL_MARKER_EXPRESSION])
     elif mode == "terminal-smoke":
         command.extend(["-m", TERMINAL_SMOKE_MARKER_EXPRESSION])
-    elif mode in ("fast", SCOPED_MODE, CONTENTION_MODE, TEST_COST_MODE):
+    elif mode in (
+        "fast",
+        SCOPED_MODE,
+        CONTENTION_MODE,
+        TEST_COST_MODE,
+        ACE_PAGE_GROUP_ISOLATION_MODE,
+    ):
         command.extend(["-m", FAST_MARKER_EXPRESSION])
     elif mode == "cov":
         command.extend(
@@ -777,6 +789,58 @@ def _arm_test_cost_recorder(mode: str, *, worker_count: int | None) -> None:
     )
 
 
+def _ace_page_group_manifest_paths() -> list[str]:
+    manifest_path = REPO_ROOT / ACE_PAGE_GROUP_MANIFEST
+    try:
+        lines = manifest_path.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise pytest.UsageError(
+            f"cannot read ACE page-group manifest {manifest_path}: {error}"
+        ) from error
+
+    paths: list[str] = []
+    for line_number, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("-") or "::" in stripped:
+            raise pytest.UsageError(
+                f"{manifest_path}:{line_number} must be a repo-relative test file, "
+                f"not {stripped!r}"
+            )
+        path = REPO_ROOT / stripped
+        try:
+            path.resolve().relative_to(REPO_ROOT.resolve())
+        except ValueError as error:
+            raise pytest.UsageError(
+                f"{manifest_path}:{line_number} escapes the repo: {stripped!r}"
+            ) from error
+        if not path.is_file():
+            raise pytest.UsageError(
+                f"{manifest_path}:{line_number} does not name a file: {stripped!r}"
+            )
+        paths.append(stripped)
+
+    if not paths:
+        raise pytest.UsageError(f"{manifest_path} does not list any test files")
+    return paths
+
+
+def _apply_ace_page_group_isolation_mode(
+    mode: str,
+    pytest_args: list[str],
+) -> list[str]:
+    if mode != ACE_PAGE_GROUP_ISOLATION_MODE:
+        return pytest_args
+    if pytest_args:
+        raise pytest.UsageError(
+            f"{ACE_PAGE_GROUP_ISOLATION_MODE} runs its manifest exactly and "
+            "does not accept extra pytest args"
+        )
+    os.environ[ACE_PAGE_GROUP_ISOLATION_ENV] = "1"
+    return _ace_page_group_manifest_paths()
+
+
 def _reject_scoped_worker_overrides(args: list[str]) -> None:
     """Keep rejecting the width knobs, now that scoped runs are not all serial.
 
@@ -954,6 +1018,7 @@ def main(argv: list[str] | None = None) -> int:
             "cov",
             CONTEXTS_MODE,
             TEST_COST_MODE,
+            ACE_PAGE_GROUP_ISOLATION_MODE,
             "terminal-smoke",
             SCOPED_MODE,
             CONTENTION_MODE,
@@ -973,6 +1038,7 @@ def main(argv: list[str] | None = None) -> int:
     scoped_worker_count: int | None = None
     manifest_path = _scoped_manifest_path()
     try:
+        pytest_args = _apply_ace_page_group_isolation_mode(mode, pytest_args)
         if mode == CONTENTION_MODE:
             # Never reaches the gate paths below: the soak is ungoverned by
             # design, and it needs a surviving parent to emit the tally.

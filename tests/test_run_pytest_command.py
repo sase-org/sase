@@ -108,6 +108,72 @@ def test_cost_mode_selects_the_fast_suite_marker(
     assert result[-2:] == ["-m", runner.FAST_MARKER_EXPRESSION]
 
 
+def test_ace_page_group_isolation_mode_selects_the_fast_suite_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = load_run_pytest()
+    monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
+
+    result = runner._pytest_command(
+        runner.ACE_PAGE_GROUP_ISOLATION_MODE,
+        ["tests/ace/tui/widgets/test_vim_normal_key_containment.py"],
+        worker_count=3,
+    )
+
+    assert result[3:6] == ["-n", "3", "--dist=worksteal"]
+    assert result[-3:] == [
+        "-m",
+        runner.FAST_MARKER_EXPRESSION,
+        "tests/ace/tui/widgets/test_vim_normal_key_containment.py",
+    ]
+
+
+def test_ace_page_group_isolation_mode_does_not_record_health_timings_or_cost() -> None:
+    runner = load_run_pytest()
+    mode = runner.ACE_PAGE_GROUP_ISOLATION_MODE
+
+    assert mode not in runner.FULL_LANE_MODES
+    assert mode not in runner.TIMINGS_RECORDING_MODES
+    assert runner._full_lane_recording_args(mode) == []
+    assert runner._timings_pytest_args(mode) == []
+    assert runner._test_cost_pytest_args(mode) == []
+
+
+def test_ace_page_group_isolation_manifest_accepts_only_files(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runner = load_run_pytest()
+    test_path = tmp_path / "tests/ace/tui/widgets/test_example.py"
+    test_path.parent.mkdir(parents=True)
+    test_path.write_text("def test_example(): pass\n", encoding="utf-8")
+    manifest = tmp_path / "manifest.txt"
+    manifest.write_text(
+        "# migrated modules\n\ntests/ace/tui/widgets/test_example.py\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(runner, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(runner, "ACE_PAGE_GROUP_MANIFEST", Path("manifest.txt"))
+
+    assert runner._ace_page_group_manifest_paths() == [
+        "tests/ace/tui/widgets/test_example.py"
+    ]
+
+
+def test_ace_page_group_isolation_manifest_rejects_node_ids(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runner = load_run_pytest()
+    manifest = tmp_path / "manifest.txt"
+    manifest.write_text("tests/test_example.py::test_one\n", encoding="utf-8")
+    monkeypatch.setattr(runner, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(runner, "ACE_PAGE_GROUP_MANIFEST", Path("manifest.txt"))
+
+    with pytest.raises(pytest.UsageError, match="repo-relative test file"):
+        runner._ace_page_group_manifest_paths()
+
+
 def test_command_uses_granted_worker_count_and_worksteal_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

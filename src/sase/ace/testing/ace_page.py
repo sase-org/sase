@@ -10,6 +10,11 @@ from sase.ace.patch import Patch
 from sase.ace.tui import AceApp
 
 from ._startup import _install_fast_startup_overrides
+from ._stylesheet_cache import (
+    FastStylesheetSeed,
+    finish_fast_stylesheet_boot,
+    seed_fast_stylesheet,
+)
 from . import settle as settle_helpers
 from .fixtures import DEFAULT_PATCHES
 from .wait import _poll_until
@@ -151,6 +156,7 @@ class AcePage:
         self._app: AceApp | None = None
         self._pilot: Any = None
         self._stack: AsyncExitStack | None = None
+        self._stylesheet_seed: FastStylesheetSeed | None = None
 
     async def __aenter__(self) -> "AcePage":
         stack = AsyncExitStack()
@@ -184,6 +190,9 @@ class AcePage:
                 refresh_interval=0,
                 initial_tab=self._initial_tab,
             )
+            if self._startup_policy == "fast":
+                self._app.animation_level = "none"
+                self._stylesheet_seed = seed_fast_stylesheet(self._app)
             self._pilot = await stack.enter_async_context(
                 self._app.run_test(
                     size=self._size,
@@ -205,6 +214,8 @@ class AcePage:
                 # turn, matching the settling turn the real loader wait gets.
                 if not paused:
                     await settle_helpers.settle_pilot(self._pilot)
+            if self._startup_policy == "fast":
+                finish_fast_stylesheet_boot(self._app, self._stylesheet_seed)
             return self
         except BaseException:
             await stack.aclose()

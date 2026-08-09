@@ -22,6 +22,7 @@ WHEEL_CONSUMER_JOBS = (
     "lint",
     "test",
     "visual-test",
+    "ace-page-group-isolation",
     "perf-floors",
     "coverage-contexts",
 )
@@ -101,6 +102,7 @@ def test_rust_core_is_built_once_and_shared_with_source_based_jobs() -> None:
         "lint",
         "test",
         "visual-test",
+        "ace-page-group-isolation",
         "perf-floors",
     }
     for job_name in consumers:
@@ -270,6 +272,12 @@ def test_visual_suite_runs_only_in_dedicated_job() -> None:
     assert any(
         step.get("run") == "just test-visual" for step in jobs["visual-test"]["steps"]
     )
+
+
+def test_ace_page_group_isolation_job_runs_dedicated_lane() -> None:
+    steps = _load_ci_workflow()["jobs"]["ace-page-group-isolation"]["steps"]
+
+    assert any(step.get("run") == "just test-ace-page-group-isolated" for step in steps)
 
 
 def test_perf_floors_job_runs_slow_lane() -> None:

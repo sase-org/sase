@@ -1,0 +1,4 @@
+# Test modules migrated to AcePageGroup shared app checkout.
+# The isolation lane reruns every node in these files with fresh AcePage
+# instances to prove no test depends on shared-page state.
+tests/ace/tui/widgets/test_vim_normal_key_containment.py

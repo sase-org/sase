@@ -41,6 +41,7 @@ just test-visual   # ACE PNG visual regression snapshots only; the sole visual e
 just test-terminal-smoke  # Optional real-terminal ACE smoke test
 just test-cov      # Parallel test run with coverage + 50% gate, excluding visual snapshots
 just test-contexts # Record the per-test coverage baseline the selector consumes, and cache it host-locally
+just test-ace-page-group-isolated  # Rerun AcePageGroup modules with fresh AcePage checkouts
 just test-contention  # Diagnostic soak: repeat the default lane under pinned-CPU contention and tally per-node failures
 just check         # Agent default: whole-repo lint gates + a diff-scoped test lane
 just check-full    # Exhaustive verification: whole-repo lint gates + the full test suite

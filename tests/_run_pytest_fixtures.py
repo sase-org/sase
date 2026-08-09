@@ -24,11 +24,11 @@ RUN_PYTEST_PATH = ROOT / "tools" / "run_pytest"
 # Every process global `tools/run_pytest`'s main() mutates on its way to
 # execv: TMPDIR and SASE_PYTEST_TMP_REDIRECTED (_prepare_pytest_tmpdir()), the
 # four keys _sanitize_pytest_environment() pops
-# (run_pytest.PYTEST_ENV_UNSET_KEYS), and the three requests it hands the
-# plugins it is about to exec (COVERAGE_CORE, and the health, timings, and cost
-# record requests). Duplicated here rather than derived by calling load_run_pytest(),
-# which would re-exec the module on every test; contract tests in
-# test_run_pytest_main.py pin the lists together.
+# (run_pytest.PYTEST_ENV_UNSET_KEYS), the requests it hands the plugins it is
+# about to exec (COVERAGE_CORE, and the health, timings, and cost record
+# requests), and lane switches set for the pytest child. Duplicated here rather
+# than derived by calling load_run_pytest(), which would re-exec the module on
+# every test; contract tests in test_run_pytest_main.py pin the lists together.
 PINNED_ENV_VARS: tuple[str, ...] = (
     "TMPDIR",
     "SASE_PYTEST_TMP_REDIRECTED",
@@ -40,6 +40,7 @@ PINNED_ENV_VARS: tuple[str, ...] = (
     "SASE_TEST_SELECTION_HEALTH_RECORD",
     "SASE_TEST_SELECTION_TIMINGS_RECORD",
     "SASE_TEST_COST_RECORD",
+    "SASE_ACE_PAGE_GROUP_ISOLATION",
 )
 
 # The markers that tell `tools/run_pytest` an ancestor's lease already paid for

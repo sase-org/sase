@@ -362,6 +362,13 @@ test-cost *args: _setup-visual (_header "test-cost")
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cost "$@"
     @{{ venv_bin }}/python tools/test_cost_report
 
+# Run every test module migrated to AcePageGroup with forced fresh AcePage
+# instances. This keeps the shared-page optimization honest without recording
+# timings or selection-health evidence.
+test-ace-page-group-isolated: _setup-visual (_header "test-ace-page-group-isolated")
+    @printf "\n---------- Running ACE shared-page forced-isolation lane... ----------\n"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest ace-page-group-isolated
+
 # Diff-scoped test lane: selects tests from the change set, runs them serially
 # without taking a suite-gate lease, and escalates to the governed full lane
 # when the selection is too large or a broadening rule fires.

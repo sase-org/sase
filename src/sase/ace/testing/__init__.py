@@ -4,7 +4,15 @@ from ._startup import (
     _plugins_browser_pane as _plugins_browser_pane,
     _stall_watchdog as _stall_watchdog,
 )
+from ._stylesheet_cache import (
+    clear_fast_stylesheet_cache,
+    fast_stylesheet_cache_stats,
+)
 from .ace_page import AcePage, AceStartupPolicy
+from .ace_page_group import (
+    ACE_PAGE_GROUP_ISOLATION_ENV,
+    AcePageGroup,
+)
 from .editors import PromptPage, VimEditorPage
 from .fixtures import DEFAULT_PATCHES, make_changespec, make_patch  # legacy alias
 from .prompt_document import set_agent_prompt_document
@@ -17,7 +25,9 @@ __all__ = [
     "DEFAULT_PATCHES",
     "DEFAULT_CHANGESPECS",  # legacy compatibility alias
     "AcePage",
+    "AcePageGroup",
     "AceStartupPolicy",
+    "ACE_PAGE_GROUP_ISOLATION_ENV",
     "PromptPage",
     "VimEditorPage",
     "make_changespec",  # legacy compatibility alias
@@ -26,4 +36,6 @@ __all__ = [
     "set_agent_prompt_document",
     "settle_pilot",
     "wait_for",
+    "clear_fast_stylesheet_cache",
+    "fast_stylesheet_cache_stats",
 ]

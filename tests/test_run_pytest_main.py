@@ -47,6 +47,11 @@ def test_pinned_env_vars_cover_every_request_main_writes_for_its_plugins() -> No
     } <= set(PINNED_ENV_VARS)
 
 
+def test_pinned_env_vars_cover_every_lane_switch_main_writes() -> None:
+    runner = load_run_pytest()
+    assert runner.ACE_PAGE_GROUP_ISOLATION_ENV in PINNED_ENV_VARS
+
+
 def test_ambient_mode_env_vars_name_the_switch_the_contention_harness_exports() -> None:
     runner = load_run_pytest()
     assert runner.HEALTH_DISABLED_ENV in AMBIENT_MODE_ENV_VARS
@@ -250,6 +255,70 @@ def test_main_cost_mode_arms_only_the_cost_recorder(
     assert cost_request["mode"] == "cost"
     assert cost_request["worker_count"] == 2
     assert Path(cost_request["directory"]).name == "cost"
+
+
+def test_main_ace_page_group_isolation_uses_manifest_without_recorders(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runner = load_run_pytest()
+    test_path = tmp_path / "tests/ace/tui/widgets/test_example.py"
+    test_path.parent.mkdir(parents=True)
+    test_path.write_text("def test_example(): pass\n", encoding="utf-8")
+    manifest = tmp_path / "manifest.txt"
+    manifest.write_text(
+        "tests/ace/tui/widgets/test_example.py\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(runner, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(runner, "ACE_PAGE_GROUP_MANIFEST", Path("manifest.txt"))
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(tmp_path / "scratch"))
+    monkeypatch.setattr(runner, "_parallel_worker_grant", lambda: (2, None))
+    observed: dict[str, object] = {}
+
+    class ExecCalled(Exception):
+        pass
+
+    def _execv(_executable: str, command: list[str]) -> None:
+        observed["command"] = command
+        observed["isolation"] = runner.os.environ.get(
+            runner.ACE_PAGE_GROUP_ISOLATION_ENV
+        )
+        observed["health_request"] = runner.os.environ.get(runner.RECORD_ENV)
+        observed["timings_request"] = runner.os.environ.get(runner.TIMINGS_RECORD_ENV)
+        observed["cost_request"] = runner.os.environ.get(runner.TEST_COST_RECORD_ENV)
+        raise ExecCalled
+
+    monkeypatch.setattr(runner.os, "execv", _execv)
+
+    with pytest.raises(ExecCalled):
+        runner.main([runner.ACE_PAGE_GROUP_ISOLATION_MODE])
+
+    command = observed["command"]
+    assert isinstance(command, list)
+    assert command[-3:] == [
+        "-m",
+        runner.FAST_MARKER_EXPRESSION,
+        "tests/ace/tui/widgets/test_example.py",
+    ]
+    assert runner.HEALTH_PLUGIN_MODULE not in command
+    assert runner.TIMINGS_PLUGIN_MODULE not in command
+    assert runner.TEST_COST_PLUGIN_MODULE not in command
+    assert observed["isolation"] == "1"
+    assert observed["health_request"] is None
+    assert observed["timings_request"] is None
+    assert observed["cost_request"] is None
+
+
+def test_main_ace_page_group_isolation_rejects_extra_pytest_args(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runner = load_run_pytest()
+
+    result = runner.main([runner.ACE_PAGE_GROUP_ISOLATION_MODE, "-k", "one"])
+
+    assert result == int(pytest.ExitCode.USAGE_ERROR)
+    assert "runs its manifest exactly" in capsys.readouterr().err
 
 
 def _token_descriptors(directory: Path) -> list[int]:

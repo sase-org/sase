@@ -1,14 +1,21 @@
 """Tests for the ace testing DSL (AcePage, PromptPage)."""
 
 from collections.abc import Callable
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
+from textual.css.stylesheet import Stylesheet
 
 import sase.ace.patch as patch_module
 import sase.ace.testing as testing_module
 from sase.ace.testing import (
+    ACE_PAGE_GROUP_ISOLATION_ENV,
     AcePage,
+    AcePageGroup,
     PromptPage,
+    clear_fast_stylesheet_cache,
+    fast_stylesheet_cache_stats,
     make_changespec as make_patch,  # legacy ACE test helper name
 )
 from sase.ace.tui import AceApp
@@ -140,6 +147,7 @@ async def test_ace_page_fast_startup_is_structurally_quiet() -> None:
     """Default pages mount real widgets without owning background services."""
     async with AcePage() as page:
         app = page.app
+        assert app.animation_level == "none"
         assert app._mount_state_loads_done is True
         assert app._agents_first_load_done is True
         assert app._axe_first_load_done is True
@@ -227,10 +235,14 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
         "start_event_loop_stall_watchdog",
         record("stall-watchdog"),
     )
+    clear_fast_stylesheet_cache()
 
     async with AcePage(startup_policy="real"):
         pass
 
+    assert fast_stylesheet_cache_stats().misses == 0
+    assert fast_stylesheet_cache_stats().hits == 0
+    assert fast_stylesheet_cache_stats().stores == 0
     assert calls >= {
         "mount-state",
         "fold-state",
@@ -307,6 +319,138 @@ async def test_ace_page_preserves_caller_supplied_startup_fixtures(
         )
 
     assert calls >= {"agents", "axe"}
+
+
+async def test_ace_page_fast_stylesheet_cache_skips_second_parse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_fast_stylesheet_cache()
+    original_parse = Stylesheet.parse
+    parse_calls = 0
+    source_css = str(
+        Path(__file__).resolve().parents[1] / "src/sase/ace/tui/styles.tcss"
+    )
+
+    def parse(self: Stylesheet) -> None:
+        nonlocal parse_calls
+        if any(str(read_from[0]) == source_css for read_from in self.source):
+            parse_calls += 1
+        original_parse(self)
+
+    monkeypatch.setattr(Stylesheet, "parse", parse)
+
+    async with AcePage():
+        pass
+    first_parse_calls = parse_calls
+    assert first_parse_calls > 0
+
+    page = AcePage()
+    await page.__aenter__()
+    try:
+        assert parse_calls == first_parse_calls
+    finally:
+        await page.__aexit__(None, None, None)
+
+    stats = fast_stylesheet_cache_stats()
+    assert stats.hits == 1
+    assert stats.misses == 1
+    assert stats.stores == 1
+
+
+async def test_ace_page_fast_stylesheet_cache_invalidates_changed_css_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    clear_fast_stylesheet_cache()
+    repo_root = Path(__file__).resolve().parents[1]
+    source_css = repo_root / "src/sase/ace/tui/styles.tcss"
+    css_path = tmp_path / "styles.tcss"
+    css_text = source_css.read_text(encoding="utf-8")
+    css_path.write_text(css_text, encoding="utf-8")
+    monkeypatch.setattr(AceApp, "CSS_PATH", css_path)
+
+    async with AcePage():
+        pass
+    css_path.write_text(css_text + "\n/* cache invalidation */\n", encoding="utf-8")
+    async with AcePage():
+        pass
+
+    stats = fast_stylesheet_cache_stats()
+    assert stats.hits == 0
+    assert stats.misses == 2
+    assert stats.stores == 2
+
+
+async def test_ace_page_fast_stylesheet_cache_hydrates_mutable_data_per_app() -> None:
+    clear_fast_stylesheet_cache()
+    async with AcePage():
+        pass
+
+    async with AcePage() as page:
+        source_count = len(page.app.stylesheet.source)
+        assert source_count > 0
+        assert page.app.stylesheet.rules
+        page.app.stylesheet.source.clear()
+        page.app.stylesheet._rules.clear()
+        page.app.stylesheet._rules_map = {}
+
+    async with AcePage() as page:
+        assert len(page.app.stylesheet.source) == source_count
+        assert page.app.stylesheet.rules
+        assert page.app.stylesheet.rules_map
+
+
+async def test_ace_page_group_reuses_page_and_resets_prompt_without_history() -> None:
+    with (
+        patch("sase.config.load_merged_config", return_value={"ace": {}}),
+        patch("sase.history.prompt.add_or_update_prompt") as save_history,
+    ):
+        async with AcePageGroup() as group:
+            async with group.checkout() as page:
+                app = page.app
+                app._show_prompt_input_bar_for_home(initial_text="hello")
+                await page.pause()
+                assert app.query("#prompt-input-bar")
+
+            async with group.checkout() as next_page:
+                assert next_page.app is app
+                assert not next_page.app.query("#prompt-input-bar")
+
+    save_history.assert_not_called()
+
+
+async def test_ace_page_group_rejects_overlapping_checkouts() -> None:
+    async with AcePageGroup() as group:
+        checkout = group.checkout()
+        await checkout.__aenter__()
+        try:
+            with pytest.raises(RuntimeError, match="overlapping checkouts"):
+                async with group.checkout():
+                    pass
+        finally:
+            await checkout.__aexit__(None, None, None)
+
+
+async def test_ace_page_group_reports_reset_hook_leaks() -> None:
+    def leak(page: AcePage) -> None:
+        page.app.current_idx = 1
+
+    async with AcePageGroup(reset_hook=leak) as group:
+        with pytest.raises(AssertionError, match="idx"):
+            async with group.checkout():
+                pass
+
+
+async def test_ace_page_group_isolation_mode_creates_distinct_apps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(ACE_PAGE_GROUP_ISOLATION_ENV, "1")
+
+    async with AcePageGroup() as group:
+        async with group.checkout() as first:
+            first_app = first.app
+        async with group.checkout() as second:
+            assert second.app is not first_app
 
 
 @pytest.mark.parametrize("failure_phase", ["construction", "mount"])
