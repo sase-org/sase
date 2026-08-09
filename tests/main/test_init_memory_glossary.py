@@ -69,7 +69,8 @@ glossary:
     assert "sase_generated: glossary" in glossary_text
     assert "# Glossary" in glossary_text
     assert "## Agent Clan" in glossary_text
-    assert "Aliases: agent clans, clan" in glossary_text
+    assert "ALIASES: agent clans, clan" in glossary_text
+    assert "Aliases: agent clans, clan" not in glossary_text
 
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
     assert "### 1. Glossary (glossary)" in agents

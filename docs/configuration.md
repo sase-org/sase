@@ -514,10 +514,12 @@ glossary:
 Run `sase memory init` after editing glossary entries. A nonempty glossary generates
 `sase/memory/glossary.md` with `sase_generated: glossary` frontmatter, adds that short
 note to `sase/memory/README.md`, and inlines it into `AGENTS.md` plus the provider
-instruction copies. `sase memory init --check` verifies that the generated glossary and
-agent instructions are current. If an existing `sase/memory/glossary.md` lacks the
-generated marker, initialization refuses to overwrite it; migrate the definitions into
-`sase/sase.yml` or remove the manual note intentionally before rerunning the command.
+instruction copies. Entries with `aliases:` render an `ALIASES: <comma-separated>` line
+in the generated note and inlined agent instructions. `sase memory init --check`
+verifies that the generated glossary and agent instructions are current. If an existing
+`sase/memory/glossary.md` lacks the generated marker, initialization refuses to
+overwrite it; migrate the definitions into `sase/sase.yml` or remove the manual note
+intentionally before rerunning the command.
 
 The canonical term is always the first effective alias. Matching is case-insensitive,
 Unicode-aware, bounded by word-like edges, allows horizontal whitespace runs inside

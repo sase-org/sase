@@ -27,6 +27,7 @@ GLOSSARY_CONFIG_KEY = "glossary"
 GENERATED_GLOSSARY_MARKER_KEY = "sase_generated"
 GENERATED_GLOSSARY_MARKER_VALUE = "glossary"
 GENERATED_GLOSSARY_DESCRIPTION = "Project-local glossary generated from sase.yml."
+GLOSSARY_ALIASES_LABEL = "ALIASES"
 
 
 @dataclass(frozen=True)
@@ -147,7 +148,7 @@ def _render_glossary_memory(catalog: GlossaryCatalog) -> GeneratedGlossaryMemory
         lines.extend(["", f"## {md_escape(entry.term)}"])
         if entry.configured_aliases:
             aliases = ", ".join(md_escape(alias) for alias in entry.configured_aliases)
-            lines.extend(["", f"Aliases: {aliases}"])
+            lines.extend(["", f"{GLOSSARY_ALIASES_LABEL}: {aliases}"])
         lines.extend(["", entry.definition.rstrip()])
     body = format_generated_memory_markdown("\n".join(lines))
     content = apply_memory_frontmatter(

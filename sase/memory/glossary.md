@@ -9,7 +9,7 @@ sase_generated: glossary
 
 ## Agent Clan
 
-Aliases: agent clans
+ALIASES: agent clans
 
 An agent clan is a named, rootless container for agents that run in parallel. Every
 member is named inside the clan's hood (`<clan>.<suffix>`) and declares `%clan:<clan>`;
@@ -17,7 +17,7 @@ the clan name is reserved and is never itself an agent.
 
 ## Agent Family
 
-Aliases: agent families
+ALIASES: agent families
 
 An agent family is a strictly sequential chain whose members use `<family>--<suffix>`
 names. The first `%n(parent, suffix)` attachment renames the original agent with its own
@@ -26,7 +26,7 @@ least two members.
 
 ## Agent Hoods
 
-Aliases: agent hood
+ALIASES: agent hood
 
 An agent hood is a group of agents that are all named with the same `<name>.` prefix.
 For example, agents named `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the
@@ -35,7 +35,7 @@ same `foo` agent hood. The agent `foo`, if it exists, is also considered part of
 
 ## Agent Lane
 
-Aliases: agent lanes
+ALIASES: agent lanes
 
 An agent lane is a term that describes either an agent family or a single agent that
 does not belong to a family. Agent lanes never have a name that ends with `--<suffix>`
@@ -48,7 +48,7 @@ and the original agent, which is renamed with its own `--<suffix>`.
 
 ## Agent Instruction Files
 
-Aliases: agent instruction file, agents.md files, agents.md file
+ALIASES: agent instruction file, agents.md files, agents.md file
 
 An agent instruction file is a `.md` file that an agent CLI reads automatically when
 working in a directory that contains it. For example, the `AGENTS.md` file is the name
@@ -61,7 +61,7 @@ directory contain the same contents.
 
 ## Agent Neighbors
 
-Aliases: agent neighbor
+ALIASES: agent neighbor
 
 An agent neighbor is any agent that is in the same agent hood as another agent. For
 example, agents named `foo`, `foo.baz`, and `foo.bar.1` are all neighbors of each other
@@ -69,7 +69,7 @@ because they are all in the same `foo` agent hood.
 
 ## Agent Tribe
 
-Aliases: agent tribes
+ALIASES: agent tribes
 
 An agent tribe is a user-facing label for related agents across clans and families.
 Tribes are assigned with `%tribe:<name>` (alias `%t`), managed with `sase agent tribe`,
@@ -77,7 +77,7 @@ and displayed with an `@` prefix.
 
 ## Patch
 
-Aliases: patches
+ALIASES: patches
 
 A Patch is SASE's local unit of change. Every PR created or managed by SASE is
 associated with exactly one Patch, but a Patch may exist without a PR, represented by an
@@ -89,7 +89,7 @@ Submitted.
 
 ## Project
 
-Aliases: projects
+ALIASES: projects
 
 A project is a named unit of work registered with SASE. A project is created only when a
 new VCS xprompt argument resolves to a valid project: `#git:<name>` accepts any valid
@@ -103,7 +103,7 @@ that. The system-managed `home` project remains hidden.
 
 ## Repo
 
-Aliases: repos, repository, repositories
+ALIASES: repos, repository, repositories
 
 A repo is any repository SASE knows: a project's primary repo, an SDD sidecar repo
 (`<project>--plans` or `<project>--research`), or a repo declared through
@@ -111,7 +111,7 @@ A repo is any repository SASE knows: a project's primary repo, an SDD sidecar re
 
 ## Stitch
 
-Aliases: stitches
+ALIASES: stitches
 
 A stitch is the lightweight ordered change record inside a Patch's `STITCHES:` section.
 Every VCS commit made through the tracked workflow has an associated numeric stitch, but
@@ -121,7 +121,7 @@ commits.
 
 ## Workspace
 
-Aliases: workspaces
+ALIASES: workspaces
 
 A workspace is a numbered clone of a project's primary repo, managed by the workspace
 store and tracked in that project's `registry.json`. Each SASE agent claims exactly one
@@ -130,27 +130,27 @@ materialized for a workspace are repo checkouts, not additional workspaces.
 
 ## xprompt
 
-Aliases: xprompts
+ALIASES: xprompts
 
 Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/ directory (.md or
 .yml file) or in ~/.config/sase/sase.yml (`xprompts` field).
 
 ## xprompt Memory
 
-Aliases: xprompt memories, memory xprompt, memory xprompts
+ALIASES: xprompt memories, memory xprompt, memory xprompts
 
 A flat SASE memory note exposed as a namespaced xprompt: `sase/memory/foo.md` expands
 with `#memory/foo`, and the `memory/` prefix is required.
 
 ## xprompt Part
 
-Aliases: xprompt parts
+ALIASES: xprompt parts
 
 .md file -> single `prompt_part` step with the file's content.
 
 ## xprompt Swarm
 
-Aliases: xprompt swarms
+ALIASES: xprompt swarms
 
 An xprompt whose body contains top-level `---` segment separators outside fenced blocks
 and fans out into one agent per segment at launch. Literal user prompts can also use
@@ -158,6 +158,6 @@ and fans out into one agent per segment at launch. Literal user prompts can also
 
 ## xprompt Workflow
 
-Aliases: xprompt workflows
+ALIASES: xprompt workflows
 
 .yml file -> multiple steps (`prompt_part`, `python`, `bash`, etc.).
