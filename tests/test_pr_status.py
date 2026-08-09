@@ -20,7 +20,7 @@ def test_is_parent_submitted_no_parent() -> None:
     assert result is True
 
 
-@patch("sase.ace.pr_status.find_all_changespecs")  # legacy API path
+@patch("sase.ace.pr_status.find_all_patches")
 def test_is_parent_submitted_parent_not_submitted(mock_find: MagicMock) -> None:
     """Test that non-submitted parent returns False."""
     mock_parent = MagicMock()
@@ -37,7 +37,7 @@ def test_is_parent_submitted_parent_not_submitted(mock_find: MagicMock) -> None:
     assert result is False
 
 
-@patch("sase.ace.pr_status.find_all_changespecs")  # legacy API path
+@patch("sase.ace.pr_status.find_all_patches")
 def test_is_parent_submitted_parent_not_found(mock_find: MagicMock) -> None:
     """Test that missing parent returns True (assumed deleted)."""
     mock_find.return_value = []

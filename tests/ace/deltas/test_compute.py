@@ -207,7 +207,7 @@ def test_compute_deltas_with_unknown_parent_falls_back_to_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.deltas.compute.find_all_changespecs",
+        "sase.ace.deltas.compute.find_all_patches",
         lambda: [],
     )
     provider = _FakeProvider(
@@ -225,7 +225,7 @@ def test_compute_deltas_with_known_parent_resolves_parent_branch(
 ) -> None:
     parent_cs = _make_changespec("parent_cl")
     monkeypatch.setattr(
-        "sase.ace.deltas.compute.find_all_changespecs",
+        "sase.ace.deltas.compute.find_all_patches",
         lambda: [parent_cs],
     )
     provider = _FakeProvider(

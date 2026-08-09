@@ -185,7 +185,7 @@ def _patch_snapshot_for_loader(
     return (
         patch_snapshot
         if patch_snapshot is not None
-        else find_all_changespecs(include_states="all")  # legacy compat alias
+        else find_all_patches(include_states="all")
     )
 
 

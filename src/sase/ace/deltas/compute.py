@@ -51,7 +51,7 @@ def resolve_parent_ref(
     :meth:`VCSProvider.get_default_parent_revision`.
     """
     if patch.parent:
-        for cs in find_all_changespecs():  # legacy compatibility alias
+        for cs in find_all_patches():
             if cs.name == patch.parent:
                 return vcs_provider.resolve_revision(cs.name, cs.project_basename, cwd)
         logger.warning(

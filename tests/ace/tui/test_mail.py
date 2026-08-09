@@ -27,7 +27,7 @@ def _make_changespec(**overrides: object) -> MagicMock:
 
 # Patch targets
 _PATCH_RELEASE = "sase.running_field.release_workspace"
-_PATCH_TRANSITION = "sase.status_state_machine.transition_changespec_status"
+_PATCH_TRANSITION = "sase.status_state_machine.transition_patch_status"
 _PATCH_EXECUTE_MAIL = "sase.ace.handlers.mail.execute_mail"
 
 

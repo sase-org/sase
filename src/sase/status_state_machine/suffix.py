@@ -87,7 +87,7 @@ def handle_suffix_strip(
     Returns:
         List of SiblingRevertResult for reverted siblings.
     """
-    from sase.ace.revert import update_changespec_name_atomic
+    from sase.ace.revert import update_patch_name_atomic
     from sase.core.branch_map import remove_branch_alias, write_branch_alias
     from sase.running_field import (
         get_first_available_axe_workspace,
@@ -98,7 +98,7 @@ def handle_suffix_strip(
     from .field_updates import update_parent_references_atomic
 
     # Update NAME field
-    update_changespec_name_atomic(project_file, suffixed_name, base_name)
+    update_patch_name_atomic(project_file, suffixed_name, base_name)
 
     # Rename the Patch branch in git to match the new name
     project_basename = Path(project_file).stem
@@ -159,7 +159,7 @@ def handle_suffix_append(
         base_name: The base name without suffix (e.g., "foo_bar").
         suffixed_name: The new name with suffix (e.g., "foo_bar__1").
     """
-    from sase.ace.revert import update_changespec_name_atomic
+    from sase.ace.revert import update_patch_name_atomic
     from sase.core.branch_map import (
         read_branch_map,
         remove_branch_alias,
@@ -174,7 +174,7 @@ def handle_suffix_append(
     from .field_updates import update_parent_references_atomic
 
     # Update NAME field
-    update_changespec_name_atomic(project_file, base_name, suffixed_name)
+    update_patch_name_atomic(project_file, base_name, suffixed_name)
 
     # Rename the Patch branch in git to match the new name
     project_basename = Path(project_file).stem

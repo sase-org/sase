@@ -461,10 +461,10 @@ def kill_and_persist_all_running_processes(
     # Lazy imports to avoid circular dependencies
     from ..comments.operations import (
         mark_comment_agents_as_killed,
-        update_changespec_comments_field,  # legacy compatibility alias
+        update_patch_comments_field,
     )
     from ..mentors import update_patch_mentors_field
-    from .persistence import update_changespec_hooks_field  # legacy compat alias
+    from .persistence import update_patch_hooks_field
 
     # Kill running hook processes
     killed_processes = kill_running_hook_processes(patch)
@@ -475,10 +475,7 @@ def kill_and_persist_all_running_processes(
             updated_hooks = mark_hooks_as_killed(
                 patch.hooks, killed_processes, kill_reason
             )
-            # legacy compatibility alias
-            update_changespec_hooks_field(
-                project_file, cl_name, updated_hooks
-            )  # legacy compatibility alias
+            update_patch_hooks_field(project_file, cl_name, updated_hooks)
 
     # Kill running agent processes
     killed_hook_agents, killed_comment_agents = kill_running_agent_processes(patch)
@@ -488,18 +485,12 @@ def kill_and_persist_all_running_processes(
             log_fn(f"Killed {total_killed_agents} running agent process(es)")
         if killed_hook_agents and patch.hooks:
             updated_hooks = mark_hook_agents_as_killed(patch.hooks, killed_hook_agents)
-            # legacy compatibility alias
-            update_changespec_hooks_field(
-                project_file, cl_name, updated_hooks
-            )  # legacy compatibility alias
+            update_patch_hooks_field(project_file, cl_name, updated_hooks)
         if killed_comment_agents and patch.comments:
             updated_comments = mark_comment_agents_as_killed(
                 patch.comments, killed_comment_agents
             )
-            # legacy compatibility alias
-            update_changespec_comments_field(
-                project_file, cl_name, updated_comments
-            )  # legacy compatibility alias
+            update_patch_comments_field(project_file, cl_name, updated_comments)
 
     # Kill running mentor processes
     killed_mentors = kill_running_mentor_processes(patch)

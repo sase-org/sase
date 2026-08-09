@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 def transition_patch_status(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     new_status: str,
     validate: bool = True,
     console: "Console | None" = None,
@@ -62,7 +62,7 @@ def transition_patch_status(
     """
     from sase.core.status_facade import transition_patch_status as _facade
 
-    return _facade(project_file, changespec_name, new_status, validate, console)
+    return _facade(project_file, patch_name, new_status, validate, console)
 
 
 transition_changespec_status = transition_patch_status  # legacy API alias
@@ -70,7 +70,7 @@ transition_changespec_status = transition_patch_status  # legacy API alias
 
 def transition_patch_status_python(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     new_status: str,
     validate: bool = True,
     console: "Console | None" = None,
@@ -85,7 +85,7 @@ def transition_patch_status_python(
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         new_status: New STATUS value.
         validate: If True, validate the transition is allowed.
         console: Optional Rich console for output during sibling reverts.
@@ -102,16 +102,16 @@ def transition_patch_status_python(
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
-        old_status = read_status_from_lines(lines, changespec_name)
+        old_status = read_status_from_lines(lines, patch_name)
         if old_status is None:
-            error_msg = f"ChangeSpec '{changespec_name}' not found in {project_file}"
+            error_msg = f"Patch '{patch_name}' not found in {project_file}"
             logger.error(error_msg)
             return (False, None, error_msg, sibling_results)
 
         # Stage 1: gather inputs.
         request = build_status_transition_request(
             project_file=project_file,
-            changespec_name=changespec_name,
+            changespec_name=patch_name,  # legacy compatibility wire field
             old_status=old_status,
             new_status=new_status,
             validate=validate,
@@ -127,7 +127,7 @@ def transition_patch_status_python(
         # Stage 3: in-lock side effects (STATUS line rewrite + mentor flags).
         timestamp = local_now().strftime("%Y-%m-%d %H:%M:%S")
         log_msg = (
-            f"[{timestamp}] Transitioning {changespec_name}: "
+            f"[{timestamp}] Transitioning {patch_name}: "
             f"'{old_status}' -> '{new_status}'"
         )
         if not validate:
@@ -138,22 +138,22 @@ def transition_patch_status_python(
 
         assert plan.status_update_target is not None
         updated_content = apply_status_update(
-            lines, changespec_name, plan.status_update_target
+            lines, patch_name, plan.status_update_target
         )
         write_patch_atomic(
             project_file,
             updated_content,
-            f"Update STATUS to {plan.status_update_target} for {changespec_name}",
+            f"Update STATUS to {plan.status_update_target} for {patch_name}",
         )
 
         if plan.mentor_draft_action == MENTOR_ACTION_SET:
             from sase.ace.mentors import set_mentor_draft_flags
 
-            set_mentor_draft_flags(project_file, changespec_name)
+            set_mentor_draft_flags(project_file, patch_name)
         elif plan.mentor_draft_action == MENTOR_ACTION_CLEAR:
             from sase.ace.mentors import clear_mentor_draft_flags
 
-            clear_mentor_draft_flags(project_file, changespec_name)
+            clear_mentor_draft_flags(project_file, patch_name)
         elif plan.mentor_draft_action != MENTOR_ACTION_NONE:
             raise ValueError(
                 f"unexpected mentor_draft_action: {plan.mentor_draft_action!r}"
@@ -192,10 +192,10 @@ def transition_patch_status_python(
             archive_file = get_archive_file_path(project_file)
 
         if plan.archive_action == ARCHIVE_ACTION_TO_ARCHIVE:
-            if move_patch_to_file(main_file, archive_file, changespec_name):
+            if move_patch_to_file(main_file, archive_file, patch_name):
                 timestamp_project_file = archive_file
         elif plan.archive_action == ARCHIVE_ACTION_FROM_ARCHIVE:
-            if move_patch_to_file(archive_file, main_file, changespec_name):
+            if move_patch_to_file(archive_file, main_file, patch_name):
                 timestamp_project_file = main_file
         else:
             raise ValueError(f"unexpected archive_action: {plan.archive_action!r}")

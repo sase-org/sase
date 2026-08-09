@@ -78,9 +78,7 @@ def test_restore_patch_success(make_patch) -> None:  # type: ignore[no-untyped-d
         "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with mock_patch("os.path.isdir", return_value=True):
-            with mock_patch(
-                "sase.ace.restore.update_changespec_name_atomic"
-            ) as mock_rename:
+            with mock_patch("sase.ace.restore.update_patch_name_atomic") as mock_rename:
                 with mock_patch(
                     "sase.ace.restore.get_vcs_provider", return_value=mock_provider
                 ):
@@ -113,7 +111,7 @@ def test_restore_patch_with_parent(make_patch) -> None:  # type: ignore[no-untyp
         "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with mock_patch("os.path.isdir", return_value=True):
-            with mock_patch("sase.ace.restore.update_changespec_name_atomic"):
+            with mock_patch("sase.ace.restore.update_patch_name_atomic"):
                 with mock_patch(
                     "sase.ace.restore.get_vcs_provider", return_value=mock_provider
                 ):
@@ -140,7 +138,7 @@ def test_restore_patch_sase_hg_update_fails(make_patch) -> None:  # type: ignore
         "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with mock_patch("os.path.isdir", return_value=True):
-            with mock_patch("sase.ace.restore.update_changespec_name_atomic"):
+            with mock_patch("sase.ace.restore.update_patch_name_atomic"):
                 with mock_patch(
                     "sase.ace.restore.get_vcs_provider", return_value=mock_provider
                 ):
@@ -161,7 +159,7 @@ def test_restore_patch_diff_not_found(make_patch) -> None:  # type: ignore[no-un
         "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with mock_patch("os.path.isdir", return_value=True):
-            with mock_patch("sase.ace.restore.update_changespec_name_atomic"):
+            with mock_patch("sase.ace.restore.update_patch_name_atomic"):
                 with mock_patch(
                     "sase.ace.restore.get_vcs_provider", return_value=mock_provider
                 ):
@@ -185,7 +183,7 @@ def test_restore_patch_hg_import_fails(make_patch) -> None:  # type: ignore[no-u
         "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with mock_patch("os.path.isdir", return_value=True):
-            with mock_patch("sase.ace.restore.update_changespec_name_atomic"):
+            with mock_patch("sase.ace.restore.update_patch_name_atomic"):
                 with mock_patch(
                     "sase.ace.restore.get_vcs_provider", return_value=mock_provider
                 ):
@@ -209,7 +207,7 @@ def test_restore_patch_sase_commit_fails(make_patch) -> None:  # type: ignore[no
         "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with mock_patch("os.path.isdir", return_value=True):
-            with mock_patch("sase.ace.restore.update_changespec_name_atomic"):
+            with mock_patch("sase.ace.restore.update_patch_name_atomic"):
                 with mock_patch(
                     "sase.ace.restore.get_vcs_provider", return_value=mock_provider
                 ):

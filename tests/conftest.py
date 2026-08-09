@@ -542,6 +542,12 @@ def make_patch(tmp_path: Path) -> "_PatchFactory":
     return _PatchFactory(tmp_path)
 
 
+@pytest.fixture
+def make_changespec(make_patch: "_PatchFactory") -> "_PatchFactory":
+    """Legacy compatibility fixture alias for older tests."""
+    return make_patch
+
+
 class _PatchFactory:
     """Factory class for creating Patch objects in tests."""
 

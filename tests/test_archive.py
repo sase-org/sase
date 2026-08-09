@@ -31,7 +31,7 @@ def test_archive_changespec_fails_with_non_terminal_children(make_changespec) ->
     mock_provider.checkout.return_value = (True, None)
     mock_provider.archive.return_value = (True, None)
 
-    with patch("sase.ace.archive.find_all_changespecs", return_value=[parent, child]):
+    with patch("sase.ace.archive.find_all_patches", return_value=[parent, child]):
         with patch(
             "sase.ace.archive.get_first_available_axe_workspace", return_value=100
         ):
@@ -65,7 +65,7 @@ def test_archive_changespec_claims_workspace_100_plus(make_changespec) -> None: 
     mock_provider.abandon_change.return_value = (True, None)
     mock_provider.archive.return_value = (True, None)
 
-    with patch("sase.ace.archive.find_all_changespecs", return_value=[changespec]):
+    with patch("sase.ace.archive.find_all_patches", return_value=[changespec]):
         with patch(
             "sase.ace.archive.get_first_available_axe_workspace", return_value=100
         ) as mock_get_ws:
@@ -87,7 +87,7 @@ def test_archive_changespec_claims_workspace_100_plus(make_changespec) -> None: 
                                 "sase.ace.archive.rename_changespec_with_references"
                             ):
                                 with patch(
-                                    "sase.ace.archive.transition_changespec_status",
+                                    "sase.ace.archive.transition_patch_status",
                                     return_value=(True, "Mailed", None, []),
                                 ):
                                     with patch("sase.ace.archive.release_workspace"):
@@ -114,7 +114,7 @@ def test_archive_changespec_fails_on_archive_error(make_changespec) -> None:  # 
     mock_provider.abandon_change.return_value = (True, None)
     mock_provider.archive.return_value = (False, "archive failed")
 
-    with patch("sase.ace.archive.find_all_changespecs", return_value=[changespec]):
+    with patch("sase.ace.archive.find_all_patches", return_value=[changespec]):
         with patch(
             "sase.ace.archive.get_first_available_axe_workspace", return_value=100
         ):
@@ -147,7 +147,7 @@ def test_archive_changespec_releases_workspace_on_failure(make_changespec) -> No
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (False, "update failed")
 
-    with patch("sase.ace.archive.find_all_changespecs", return_value=[changespec]):
+    with patch("sase.ace.archive.find_all_patches", return_value=[changespec]):
         with patch(
             "sase.ace.archive.get_first_available_axe_workspace", return_value=100
         ):

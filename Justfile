@@ -242,7 +242,7 @@ _setup-terminal-smoke: _setup
         uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + pyscripts + test waits + changelog + symvision + toobig + keep-sorted)
+# Run linters (ruff + mypy + pyscripts + test waits + changelog + terminology audit + symvision + toobig + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
@@ -254,6 +254,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-test-waits
     @printf "\n---------- Validating generated changelog structure... ----------\n"
     @just _lint-changelog
+    @printf "\n---------- Auditing Patch/stitch terminology... ----------\n"
+    @just _lint-patch-stitch-terminology
     @printf "\n---------- Checking for unused Python definitions... ----------\n"
     @just _lint-symvision
     @printf "\n---------- Checking Python file line counts... ----------\n"
@@ -278,6 +280,10 @@ _lint-test-waits: _setup
 # Check that CHANGELOG.md contains only release-please sections (private, extracted for per-stage wrapping)
 _lint-changelog: _setup
     {{ venv_bin }}/python tools/validate_changelog
+
+# Check canonical Patch/stitch terminology (private, extracted for per-stage wrapping)
+_lint-patch-stitch-terminology: _setup
+    {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root .
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-symvision *args: _setup
@@ -490,7 +496,7 @@ refresh-contract-manifest: _setup
 
 audit-patch-stitch-terminology: _setup
     @printf "\n---------- Auditing Patch/stitch terminology... ----------\n"
-    {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root .
+    @just _lint-patch-stitch-terminology
 
 # Download the newest per-test coverage-contexts baseline published by the CI
 # coverage leg into the host-local cache. Selection itself never touches the
@@ -545,6 +551,7 @@ check: _setup
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (test waits)"  just _lint-test-waits
     @tools/run_silent "lint (changelog)"   just _lint-changelog
+    @tools/run_silent "lint (patch/stitch terminology)" just _lint-patch-stitch-terminology
     @tools/run_silent "lint (symvision)"   just _lint-symvision
     @tools/run_silent "lint (toobig)"      just _lint-toobig
     @tools/run_silent "SASE validation"     just validate
@@ -563,6 +570,7 @@ check-full: _setup
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (test waits)"  just _lint-test-waits
     @tools/run_silent "lint (changelog)"   just _lint-changelog
+    @tools/run_silent "lint (patch/stitch terminology)" just _lint-patch-stitch-terminology
     @tools/run_silent "lint (symvision)"   just _lint-symvision
     @tools/run_silent "lint (toobig)"      just _lint-toobig
     @tools/run_silent "SASE validation"     just validate

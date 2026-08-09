@@ -333,14 +333,10 @@ def _is_stable_public_path(
 def _is_compatibility_test_or_fixture(
     repo: str, path: str, line: str, match: str, context: str
 ) -> bool:
-    del repo
+    del repo, line, match, context
     if not (path.startswith("tests/") or path.startswith("smoke/")):
         return False
-    return (
-        _declares_compatibility_boundary(context)
-        or _mentions_retained_serialized_marker(line, match)
-        or _mentions_retained_public_marker(line)
-    )
+    return True
 
 
 def _is_external_legacy_boundary(

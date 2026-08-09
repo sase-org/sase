@@ -40,16 +40,16 @@ if TYPE_CHECKING:
     from rich.console import Console
 
 
-def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None:
+def read_status_from_lines(lines: list[str], patch_name: str) -> str | None:
     """Read the STATUS field from raw project-file lines via ``sase_core_rs``."""
     binding = require_rust_binding("read_status_from_lines")
-    return binding(lines, changespec_name)  # type: ignore[no-any-return]
+    return binding(lines, patch_name)  # type: ignore[no-any-return]
 
 
-def apply_status_update(lines: list[str], changespec_name: str, new_status: str) -> str:
+def apply_status_update(lines: list[str], patch_name: str, new_status: str) -> str:
     """Return updated file content with the STATUS line rewritten via ``sase_core_rs``."""
     binding = require_rust_binding("apply_status_update")
-    return binding(lines, changespec_name, new_status)  # type: ignore[no-any-return]
+    return binding(lines, patch_name, new_status)  # type: ignore[no-any-return]
 
 
 def plan_status_transition(
@@ -70,7 +70,7 @@ def plan_status_transition(
 
 def transition_patch_status(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     new_status: str,
     validate: bool = True,
     console: Console | None = None,
@@ -88,7 +88,7 @@ def transition_patch_status(
     """
     return transition_patch_status_python(
         project_file,
-        changespec_name,
+        patch_name,
         new_status,
         validate=validate,
         console=console,

@@ -16,7 +16,7 @@ from sase.status_state_machine.suffix import (
 # Lazy imports inside handle_suffix_strip / handle_suffix_append — patch
 # at the source module for each.
 _PATCHES = {
-    "update_name": "sase.ace.revert.update_changespec_name_atomic",
+    "update_name": "sase.ace.revert.update_patch_name_atomic",
     "first_ws": "sase.running_field.get_first_available_axe_workspace",
     "ws_dir": "sase.running_field.get_workspace_directory_for_num",
     "running": "sase.running_field.update_running_field_cl_name",

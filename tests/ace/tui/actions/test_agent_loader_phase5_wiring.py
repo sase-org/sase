@@ -2,7 +2,7 @@
 
 Verifies that ``load_agents_from_disk_with_state`` accepts a pre-fetched
 ChangeSpec snapshot and forwards it through to ``load_all_agents`` so the
-loader does not call ``find_all_changespecs()`` itself.
+loader does not call ``find_all_patches()`` itself.
 """
 
 from __future__ import annotations
@@ -97,7 +97,7 @@ def test_load_agents_from_disk_passes_snapshot_through() -> None:
     snapshot = _make_snapshot()
 
     with (
-        patch("sase.ace.tui.models.agent_loader.find_all_changespecs") as mock_find,
+        patch("sase.ace.tui.models.agent_loader.find_all_patches") as mock_find,
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
@@ -148,7 +148,7 @@ def test_load_agents_from_disk_passes_snapshot_through() -> None:
 def test_load_agents_from_disk_falls_back_to_find_all() -> None:
     with (
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ) as mock_find,
         patch(
@@ -330,7 +330,7 @@ def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(
             return_value=snapshot,
         ) as mock_scan,
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(
@@ -430,7 +430,7 @@ def test_load_agents_from_disk_full_history_reconciles_from_source() -> None:
             return_value=snapshot,
         ) as mock_scan,
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(
@@ -487,7 +487,7 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
             return_value=snapshot,
         ) as mock_scan,
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(
@@ -552,7 +552,7 @@ def test_load_agents_from_disk_bad_index_uses_bounded_tier1_source_scan(
             return_value=snapshot,
         ) as mock_scan,
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.find_all_patches",
             return_value=[],
         ),
         patch(

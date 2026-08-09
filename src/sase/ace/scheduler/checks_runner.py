@@ -424,13 +424,11 @@ def _handle_cl_submitted_completion(
         if base_status not in ARCHIVE_STATUSES:
             from ..sync_cache import clear_cache_entry
 
-            success, old_status, _, _ = (
-                transition_changespec_status(  # legacy compatibility alias
-                    patch.file_path,
-                    patch.name,
-                    "Archived",
-                    validate=False,
-                )
+            success, old_status, _, _ = transition_patch_status(
+                patch.file_path,
+                patch.name,
+                "Archived",
+                validate=False,
             )
 
             if success:
@@ -442,13 +440,11 @@ def _handle_cl_submitted_completion(
     if exit_code == 0 and is_parent_submitted(patch) and patch.status != "Submitted":
         from ..sync_cache import clear_cache_entry
 
-        success, old_status, _, _ = (
-            transition_changespec_status(  # legacy compatibility alias
-                patch.file_path,
-                patch.name,
-                "Submitted",
-                validate=False,
-            )
+        success, old_status, _, _ = transition_patch_status(
+            patch.file_path,
+            patch.name,
+            "Submitted",
+            validate=False,
         )
 
         if success:

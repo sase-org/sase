@@ -261,7 +261,7 @@ def strip_terminal_status_markers(patch: Patch) -> list[str]:
         hook_updates.extend(current_updates)
         return updated_hooks
 
-    if transform_changespec_hooks_field(  # legacy compatibility alias
+    if transform_patch_hooks_field(
         patch.file_path,
         patch.name,
         transform_hooks,
@@ -279,7 +279,7 @@ def strip_terminal_status_markers(patch: Patch) -> list[str]:
         comment_updates.extend(current_updates)
         return updated_comments
 
-    if transform_changespec_comments_field(  # legacy compatibility alias
+    if transform_patch_comments_field(
         patch.file_path,
         patch.name,
         transform_comments,
@@ -325,7 +325,7 @@ def strip_terminal_status_markers(patch: Patch) -> list[str]:
                 mentors_to_update.append(mentor_entry)
 
         if mentor_updates:
-            success = update_changespec_mentors_field(  # legacy compatibility alias
+            success = update_patch_mentors_field(
                 patch.file_path,
                 patch.name,
                 mentors_to_update,

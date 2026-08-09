@@ -81,7 +81,7 @@ def archive_patch(
     )
 
     # Get all patches to check for children and name conflicts
-    all_patches = find_all_changespecs()  # legacy compatibility alias
+    all_patches = find_all_patches()
 
     # Validate no non-terminal children (different from revert!)
     if has_active_children(
@@ -200,7 +200,7 @@ def archive_patch(
                 )
 
         # Update STATUS to Archived
-        success, _, error, _ = transition_changespec_status(  # legacy compat alias
+        success, _, error, _ = transition_patch_status(
             patch.file_path,
             new_name,  # Use the new name after rename
             "Archived",

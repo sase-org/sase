@@ -12,9 +12,9 @@ def test_revert_changespec_succeeds_without_cl(make_changespec) -> None:  # type
     """Test revert_changespec succeeds without a CL, skipping VCS operations."""
     changespec = make_changespec.create_with_file(cl=None)
 
-    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+    with patch("sase.ace.revert.find_all_patches", return_value=[changespec]):
         with patch(
-            "sase.ace.revert.transition_changespec_status",
+            "sase.ace.revert.transition_patch_status",
             return_value=(True, "Draft", None, []),
         ):
             with patch(
@@ -46,7 +46,7 @@ def test_revert_changespec_fails_with_children(make_changespec) -> None:  # type
         name="child_feature", parent="parent_feature"
     )
 
-    with patch("sase.ace.revert.find_all_changespecs", return_value=[parent, child]):
+    with patch("sase.ace.revert.find_all_patches", return_value=[parent, child]):
         success, error = revert_changespec(parent)
 
     assert success is False
@@ -61,7 +61,7 @@ def test_revert_changespec_fails_without_workspace_dir(make_changespec) -> None:
     """Test revert_changespec fails when workspace directory cannot be determined."""
     changespec = make_changespec.create_with_file()
 
-    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+    with patch("sase.ace.revert.find_all_patches", return_value=[changespec]):
         with patch.dict("os.environ", {}, clear=True):
             success, error = revert_changespec(changespec)
 
@@ -76,7 +76,7 @@ def test_revert_changespec_fails_with_nonexistent_workspace(make_changespec) -> 
     """Test revert_changespec fails when workspace directory doesn't exist."""
     changespec = make_changespec.create_with_file()
 
-    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+    with patch("sase.ace.revert.find_all_patches", return_value=[changespec]):
         with patch("sase.ace.revert.get_workspace_directory_for_patch") as mock_get_ws:
             mock_get_ws.return_value = "/nonexistent/workspace"
             success, error = revert_changespec(changespec)
@@ -97,7 +97,7 @@ def test_revert_changespec_success(make_changespec) -> None:  # type: ignore[no-
     mock_provider.abandon_change.return_value = (True, None)
     mock_provider.prune.return_value = (True, None)
 
-    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+    with patch("sase.ace.revert.find_all_patches", return_value=[changespec]):
         with patch(
             "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
@@ -110,7 +110,7 @@ def test_revert_changespec_success(make_changespec) -> None:  # type: ignore[no-
                         "sase.ace.revert.rename_changespec_with_references"
                     ) as mock_rename:
                         with patch(
-                            "sase.ace.revert.transition_changespec_status",
+                            "sase.ace.revert.transition_patch_status",
                             return_value=(True, "Mailed", None, []),
                         ):
                             with patch("sase.ace.revert.reset_changespec_pr_url"):
@@ -127,7 +127,7 @@ def test_revert_changespec_fails_on_diff_error(make_changespec) -> None:  # type
     """Test revert_changespec fails when diff cannot be saved."""
     changespec = make_changespec.create_with_file()
 
-    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+    with patch("sase.ace.revert.find_all_patches", return_value=[changespec]):
         with patch(
             "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
@@ -153,7 +153,7 @@ def test_revert_changespec_fails_on_prune_error(make_changespec) -> None:  # typ
     mock_provider.abandon_change.return_value = (True, None)
     mock_provider.prune.return_value = (False, "prune failed")
 
-    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+    with patch("sase.ace.revert.find_all_patches", return_value=[changespec]):
         with patch(
             "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
@@ -179,7 +179,7 @@ def test_revert_changespec_calls_kill_and_persist(make_changespec) -> None:  # t
     mock_provider.abandon_change.return_value = (True, None)
     mock_provider.prune.return_value = (True, None)
 
-    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+    with patch("sase.ace.revert.find_all_patches", return_value=[changespec]):
         with patch(
             "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
@@ -190,7 +190,7 @@ def test_revert_changespec_calls_kill_and_persist(make_changespec) -> None:  # t
                 ):
                     with patch("sase.ace.revert.rename_changespec_with_references"):
                         with patch(
-                            "sase.ace.revert.transition_changespec_status",
+                            "sase.ace.revert.transition_patch_status",
                             return_value=(True, "Mailed", None, []),
                         ):
                             with patch("sase.ace.revert.reset_changespec_pr_url"):

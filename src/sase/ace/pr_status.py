@@ -28,7 +28,7 @@ def is_parent_submitted(patch: Patch) -> bool:
         return True
 
     # Find all patches to locate the parent
-    all_patches = find_all_changespecs()  # legacy compatibility alias
+    all_patches = find_all_patches()
 
     # Look for the parent by name
     for cs in all_patches:

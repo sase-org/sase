@@ -68,7 +68,7 @@ def mail_execute_task(
     """
     from sase.running_field import release_workspace
     from sase.status_state_machine import (
-        transition_changespec_status,  # legacy compatibility alias
+        transition_patch_status,
     )
 
     console = Console()
@@ -81,13 +81,11 @@ def mail_execute_task(
             return (False, f"Mail failed for {display_name}")
 
         # Update status to "Mailed"
-        status_success, old_status, status_error, _ = (
-            transition_changespec_status(  # legacy compatibility alias
-                patch.file_path,
-                patch.name,
-                "Mailed",
-                validate=True,
-            )
+        status_success, old_status, status_error, _ = transition_patch_status(
+            patch.file_path,
+            patch.name,
+            "Mailed",
+            validate=True,
         )
         if status_success:
             return (

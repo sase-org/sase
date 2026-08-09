@@ -118,7 +118,7 @@ def revert_patch(
     )
 
     # Get all patches to check for children and name conflicts
-    all_patches = find_all_changespecs()  # legacy compatibility alias
+    all_patches = find_all_patches()
 
     # Validate no children
     if has_children(patch, all_patches):
@@ -199,7 +199,7 @@ def revert_patch(
             )
 
     # Update STATUS to Reverted
-    success, _, error, _ = transition_changespec_status(  # legacy compatibility alias
+    success, _, error, _ = transition_patch_status(
         patch.file_path,
         new_name,  # Use the new name after rename
         "Reverted",

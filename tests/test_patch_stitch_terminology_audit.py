@@ -83,6 +83,18 @@ def test_classifier_accepts_stable_public_path() -> None:
     assert rule == "stable_public_path"
 
 
+def test_classifier_accepts_test_tree_fixture_tokens() -> None:
+    classification, rule, _reason = _classify_candidate(
+        "main",
+        "tests/ace/tui/test_changespec_grouping.py",
+        "def test_changespec_grouping_keeps_legacy_fixture() -> None:",
+        "changespec_grouping",
+    )
+
+    assert classification == "legacy-data-test-fixture"
+    assert rule == "compatibility_test_or_fixture"
+
+
 def test_default_discovery_reports_missing_expected_linked_repos(
     tmp_path: Path,
 ) -> None:

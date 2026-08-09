@@ -34,7 +34,7 @@ def list_reverted_patches() -> list[Patch]:
     Returns:
         List of Patches that have status "Reverted"
     """
-    all_patches = find_all_changespecs()  # legacy compatibility alias
+    all_patches = find_all_patches()
     return [cs for cs in all_patches if cs.status == "Reverted"]
 
 
@@ -153,9 +153,7 @@ def restore_patch(
     # This allows sase commit to find it and use its description
     if base_name != patch.name:
         try:
-            update_changespec_name_atomic(  # legacy compatibility alias
-                patch.file_path, patch.name, base_name
-            )
+            update_patch_name_atomic(patch.file_path, patch.name, base_name)
             if console:
                 console.print(
                     "[green]Renamed Patch: "
