@@ -462,12 +462,6 @@
         }
       }
     },
-    "amd_h1_title": {
-      "type": ["string", "null"],
-      "deprecated": true,
-      "description": "Deprecated top-level alias for memory.h1_title. Optional H1 title used by generated AMD-managed AGENTS.md; SASE-managed projects derive a stable project title when this is null. New configuration must use memory.h1_title.",
-      "default": null
-    },
     "amd_agents_template": {
       "type": ["string", "null"],
       "description": "Optional root-relative path to the Jinja2 template used for AMD-managed AGENTS.md files.",
@@ -487,18 +481,6 @@
       "type": ["string", "null"],
       "description": "Optional root-relative path to the Jinja2 template used for generated sase/memory/README.md files.",
       "default": null
-    },
-    "glossary": {
-      "type": "object",
-      "deprecated": true,
-      "description": "Deprecated top-level alias for memory.glossary. Project-local domain glossary, valid only in a project's canonical sase/sase.yml; user, overlay, plugin, and builtin layers are diagnosed by the Rust config backend. New configuration must use memory.glossary.",
-      "propertyNames": {
-        "description": "Canonical displayed glossary term.",
-        "pattern": "\\S"
-      },
-      "additionalProperties": {
-        "$ref": "#/definitions/glossaryEntry"
-      }
     },
     "is_sase_managed": {
       "type": "boolean",

@@ -449,8 +449,8 @@ memory:
 For ordinary project roots, `is_sase_managed: true` in that root's own `sase/sase.yml`
 is the authorization switch. A managed project with no title derives
 `<project> - Agent Instructions`; `memory.h1_title` alone does not opt a project in. The
-legacy top-level `amd_h1_title` key is deprecated but still read as an alias; when both
-paths appear in one file, `memory.h1_title` wins.
+legacy top-level `amd_h1_title` key has been removed; it is now reported as an
+unsupported key by `sase config layers` instead of being silently ignored.
 
 Home roots are the exception. For the live home root, user config from
 `~/.config/sase/sase.yml` and `~/.config/sase/sase_*.yml` can provide the home
@@ -514,18 +514,19 @@ memory:
 | `definition`      | string            | n/a     | Required nonblank Markdown definition, generated into project memory.                                       |
 | `aliases`         | string[]          | `[]`    | Optional single-line aliases matched after the canonical term itself; derivable plurals need not be listed. |
 
-The legacy top-level `glossary` key is deprecated but still read as an alias; when both
-paths appear in one file, `memory.glossary` wins. Run `sase memory init` after editing
-glossary entries. A nonempty glossary generates `sase/memory/glossary.md` with
-`sase_generated: glossary` frontmatter, adds that short note to `sase/memory/README.md`,
-and inlines it into `AGENTS.md` plus the provider instruction copies. The plural of the
-term and of each alias is matched automatically. Derivable plurals are omitted from the
-generated `ALIASES: <comma-separated>` line, and the line is omitted entirely when no
-configured aliases remain to display. `sase memory init --check` verifies that the
-generated glossary and agent instructions are current. If an existing
-`sase/memory/glossary.md` lacks the generated marker, initialization refuses to
-overwrite it; migrate the definitions into `memory.glossary` entries in `sase/sase.yml`
-or remove the manual note intentionally before rerunning the command.
+The legacy top-level `glossary` key has been removed; it is now reported as an
+unsupported key by `sase config layers` instead of being silently ignored. Run
+`sase memory init` after editing glossary entries. A nonempty glossary generates
+`sase/memory/glossary.md` with `sase_generated: glossary` frontmatter, adds that short
+note to `sase/memory/README.md`, and inlines it into `AGENTS.md` plus the provider
+instruction copies. The plural of the term and of each alias is matched automatically.
+Derivable plurals are omitted from the generated `ALIASES: <comma-separated>` line, and
+the line is omitted entirely when no configured aliases remain to display.
+`sase memory init --check` verifies that the generated glossary and agent instructions
+are current. If an existing `sase/memory/glossary.md` lacks the generated marker,
+initialization refuses to overwrite it; migrate the definitions into `memory.glossary`
+entries in `sase/sase.yml` or remove the manual note intentionally before rerunning the
+command.
 
 The canonical term is always the first effective alias, followed by configured aliases
 and accepted derived plurals. Matching is case-insensitive, Unicode-aware, bounded by

@@ -162,8 +162,6 @@ def test_config_schema_validates_project_glossary_shape() -> None:
         },
     }
     validator.validate({"memory": {"glossary": valid_glossary}})
-    # Legacy top-level form keeps validating.
-    validator.validate({"glossary": valid_glossary})
 
     for invalid in (
         {"Agent Clan": {"aliases": ["clan"]}},
@@ -174,10 +172,6 @@ def test_config_schema_validates_project_glossary_shape() -> None:
     ):
         with pytest.raises(ValidationError):
             validator.validate({"memory": {"glossary": invalid}})
-        with pytest.raises(ValidationError):
-            validator.validate({"glossary": invalid})
-
-    assert schema()["properties"]["glossary"]["deprecated"] is True
 
 
 def test_config_schema_validates_nested_owner_and_legacy_machine_name() -> None:

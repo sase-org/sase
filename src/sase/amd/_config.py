@@ -18,7 +18,6 @@ _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
 _PROJECT_TITLE_SUFFIX = "Agent Instructions"
 _MANAGED_TEMPLATE_KEY = "amd_agents_template"
 _MINIMAL_TEMPLATE_KEY = "amd_agents_minimal_template"
-_LEGACY_AMD_H1_TITLE_KEY = "amd_h1_title"
 _MEMORY_H1_TITLE_KEY = "h1_title"
 _MEMORY_H1_TITLE_PATH = f"{MEMORY_CONFIG_KEY}.{_MEMORY_H1_TITLE_KEY}"
 
@@ -59,12 +58,6 @@ def _resolve_amd_h1_title_config(data: Mapping[str, Any]) -> _AmdH1TitleResoluti
                 display_path=_MEMORY_H1_TITLE_PATH,
                 declared=True,
             )
-    if _LEGACY_AMD_H1_TITLE_KEY in data:
-        return _AmdH1TitleResolution(
-            value=data[_LEGACY_AMD_H1_TITLE_KEY],
-            display_path=_LEGACY_AMD_H1_TITLE_KEY,
-            declared=True,
-        )
     return _AmdH1TitleResolution()
 
 

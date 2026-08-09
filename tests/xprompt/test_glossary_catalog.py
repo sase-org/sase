@@ -150,69 +150,6 @@ def test_catalog_for_project_uses_project_alias_and_source_ranges(
     }
 
 
-def test_catalog_legacy_top_level_glossary_still_loads(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    config_path = _write_config(
-        workspace,
-        """glossary:
-  Agent Clan:
-    definition: A named, rootless container.
-""",
-    )
-    record = _record("sase", workspace)
-    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
-
-    result = catalog.editor_glossary_catalog_for_project("sase")
-
-    assert result.ok
-    assert result.catalog is not None
-    source = result.catalog.entries[0].source
-    assert source is not None
-    assert source["config_path"] == str(config_path)
-    assert source["config_key_path"] == ["glossary", "Agent Clan"]
-    assert source["term_range"] == {
-        "start": {"line": 1, "character": 2},
-        "end": {"line": 1, "character": 12},
-    }
-
-
-def test_catalog_prefers_memory_glossary_over_legacy_top_level(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    _write_config(
-        workspace,
-        """memory:
-  glossary:
-    Canonical Term:
-      definition: The canonical entry.
-glossary:
-  Legacy Term:
-    definition: The legacy entry.
-""",
-    )
-    record = _record("sase", workspace)
-    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
-
-    result = catalog.editor_glossary_catalog_for_project("sase")
-
-    assert result.ok
-    assert result.catalog is not None
-    assert [entry.term for entry in result.catalog.entries] == ["Canonical Term"]
-    assert result.catalog.entries[0].source is not None
-    assert result.catalog.entries[0].source["config_key_path"] == [
-        "memory",
-        "glossary",
-        "Canonical Term",
-    ]
-
-
 def test_catalog_without_ref_uses_launch_workspace_and_never_falls_back_from_bad_ref(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

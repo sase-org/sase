@@ -71,62 +71,6 @@ def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
     }
 
 
-def test_memory_plan_reads_legacy_amd_title_as_fallback(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    write(
-        project_root / "sase.yml",
-        'is_sase_managed: true\namd_h1_title: "Legacy Instructions"\n',
-    )
-
-    plan = plan_memory()
-
-    action_by_path = {action.path: action for action in plan.actions}
-    agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
-    assert agents.startswith("# Legacy Instructions\n")
-
-
-def test_memory_plan_prefers_memory_h1_title_over_legacy_amd_title(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    write(
-        project_root / "sase.yml",
-        "is_sase_managed: true\n"
-        'memory:\n  h1_title: "Canonical Instructions"\n'
-        'amd_h1_title: "Legacy Instructions"\n',
-    )
-
-    plan = plan_memory()
-
-    action_by_path = {action.path: action for action in plan.actions}
-    agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
-    assert agents.startswith("# Canonical Instructions\n")
-
-
 def test_memory_plan_repairs_unreferenced_long_memory_without_title(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

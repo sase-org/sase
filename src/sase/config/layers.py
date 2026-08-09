@@ -20,15 +20,15 @@ log = logging.getLogger(__name__)
 
 # Top-level config keys that were once supported but have since been removed.
 # Surfaced via ``sase config layers`` so users see why their entries are ignored.
-UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({"workflows"})
+UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
+    {"amd_h1_title", "glossary", "workflows"}
+)
 
 # Top-level config keys that are still parsed for backward compatibility but have
 # a canonical replacement. Mapped to the key callers should migrate to. Surfaced
 # (non-fatally) via ``sase config layers`` and ``sase doctor`` so users get a
 # nudge to migrate without breaking launched agents with repeated warnings.
 DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {
-    "amd_h1_title": "memory.h1_title",
-    "glossary": "memory.glossary",
     "linked_repos": "repos.linked",
     "machine_name": "id.machine_name",
     "sibling_repos": "repos.linked",
