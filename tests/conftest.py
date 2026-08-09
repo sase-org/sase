@@ -360,6 +360,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
                 "SASE_LINKED_REPOS_JSON",
                 SASE_MODEL_ALIAS_OVERRIDES_ENV,
                 "SASE_SIBLING_REPOS_JSON",
+                "TMUX_PANE",
             }
         )
     }

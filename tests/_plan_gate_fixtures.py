@@ -18,6 +18,12 @@ def plan_gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     from sase.notification_gates import paths
     from sase.notifications import pending_actions, store
 
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.send_desktop_notification",
+        lambda _title, _message: None,
+    )
+    monkeypatch.setattr("sase.main.plan_approve_handler.ring_tmux_bell", lambda: None)
+    monkeypatch.setattr("sase.main.plan_approve_handler.get_tmux_prefix", lambda: "")
     monkeypatch.setattr(paths, "INTERACTION_REQUESTS_DIR", tmp_path / "requests")
     monkeypatch.setattr(store, "NOTIFICATIONS_DIR", str(tmp_path / "notifications"))
     monkeypatch.setattr(
@@ -35,6 +41,7 @@ def plan_gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.delenv("TMUX_PANE", raising=False)
     store._LOAD_CACHE.clear()
     return tmp_path
 

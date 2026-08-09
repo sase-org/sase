@@ -30,6 +30,15 @@ def _collapse_whitespace(text: str) -> str:
     return " ".join(text.split())
 
 
+@pytest.fixture(autouse=True)
+def _disable_prettier_for_skill_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """These source-discovery tests assert content, not Prettier integration."""
+
+    monkeypatch.setattr(init_skills_handler, "_prettier_available", lambda: False)
+
+
 def test_skill_source_integrity_allows_clean_merged_source(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

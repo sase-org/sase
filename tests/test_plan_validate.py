@@ -11,7 +11,6 @@ from unittest.mock import patch
 import pytest
 
 from sase.main import plan_command_handler
-from sase.main.parser import create_parser
 from sase.main.plan_explain import (
     EPIC_PLAN_EXPLANATION,
     TALE_PLAN_EXPLANATION,
@@ -23,6 +22,7 @@ from sase.sdd.plan_validate import (
     validate_plan,
     validate_plan_file,
 )
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
 VALID_TALE = """---
@@ -69,7 +69,7 @@ MALFORMED_HEADER_EPIC = VALID_EPIC.replace(
 
 
 def _parse(argv: list[str]) -> argparse.Namespace:
-    return create_parser().parse_args(argv)
+    return parse_sase_args(argv)
 
 
 def _invoke(argv: list[str]) -> int:

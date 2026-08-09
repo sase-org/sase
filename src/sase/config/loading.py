@@ -12,7 +12,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, Literal
 
-from sase._yaml_safe import yaml_safe_load
+from sase._yaml_safe import yaml_safe_load_cached_text
 from sase.config.identity import AgentOwnerConfigSnapshot
 from sase.config.layers import without_retired_sdd_selectors
 
@@ -72,7 +72,7 @@ def load_default_config(
     """Load the bundled ``default_config.yml``, returning empty on error."""
     try:
         ref = resource_files("sase").joinpath("default_config.yml")
-        data = yaml_safe_load(ref.read_text(encoding="utf-8"))
+        data = yaml_safe_load_cached_text(ref.read_text(encoding="utf-8"))
         if isinstance(data, dict):
             return data
     except Exception:
@@ -83,8 +83,7 @@ def load_default_config(
 def load_yaml_file(path: Path) -> dict[str, Any] | None:
     """Load a YAML mapping, returning ``None`` on missing or invalid input."""
     try:
-        with open(path, encoding="utf-8") as file:
-            data = yaml_safe_load(file)
+        data = yaml_safe_load_cached_text(path.read_text(encoding="utf-8"))
         if isinstance(data, dict):
             return data
     except Exception:
@@ -112,7 +111,7 @@ def load_plugin_configs(
     for module in discover_plugin_resources("sase_config"):
         try:
             ref = resource_files(module).joinpath("default_config.yml")
-            data = yaml_safe_load(ref.read_text(encoding="utf-8"))
+            data = yaml_safe_load_cached_text(ref.read_text(encoding="utf-8"))
             if isinstance(data, dict):
                 configs.append(data)
         except Exception:

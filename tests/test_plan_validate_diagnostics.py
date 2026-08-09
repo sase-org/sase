@@ -8,17 +8,17 @@ from pathlib import Path
 
 import pytest
 
-from sase.main.parser import create_parser
 from sase.main.plan_explain import (
     EPIC_PLAN_EXPLANATION,
     INVALID_PLAN_TIER_HINT,
     TALE_PLAN_EXPLANATION,
 )
 from sase.main.plan_validate_handler import handle_plan_validate_command
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
 def _parse(argv: list[str]) -> argparse.Namespace:
-    return create_parser().parse_args(argv)
+    return parse_sase_args(argv)
 
 
 def _invoke(argv: list[str]) -> int:

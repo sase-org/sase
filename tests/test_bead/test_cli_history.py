@@ -11,7 +11,7 @@ from sase.bead import cli as bead_cli
 from sase.bead import cli_history
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
-from sase.main.parser import create_parser
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
 def _revision_chain(project_dir: Path) -> str:
@@ -58,7 +58,7 @@ def _run_history(
     argv: list[str],
     capsys: pytest.CaptureFixture[str],
 ) -> str:
-    args = create_parser().parse_args(["bead", "history", *argv])
+    args = parse_sase_args(["bead", "history", *argv])
     bead_cli.handle_bead_history(args)
     return capsys.readouterr().out
 
@@ -66,7 +66,7 @@ def _run_history(
 def test_history_parser_contract_and_missing_id_error(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    args = create_parser().parse_args(
+    args = parse_sase_args(
         [
             "bead",
             "history",
@@ -88,7 +88,7 @@ def test_history_parser_contract_and_missing_id_error(
     assert args.limit == 2
 
     with pytest.raises(SystemExit) as excinfo:
-        bead_cli.handle_bead_history(create_parser().parse_args(["bead", "history"]))
+        bead_cli.handle_bead_history(parse_sase_args(["bead", "history"]))
     assert excinfo.value.code == 2
     assert "Error: issue ID is required" in capsys.readouterr().err
 
@@ -96,7 +96,7 @@ def test_history_parser_contract_and_missing_id_error(
 def test_lost_notes_parser_contract_and_restore_requires_scan_mode(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    args = create_parser().parse_args(["bead", "history", "sase-1", "-l", "-R", "-y"])
+    args = parse_sase_args(["bead", "history", "sase-1", "-l", "-R", "-y"])
     assert args.id == "sase-1"
     assert args.lost_notes is True
     assert args.restore is True
@@ -104,7 +104,7 @@ def test_lost_notes_parser_contract_and_restore_requires_scan_mode(
 
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_history(
-            create_parser().parse_args(["bead", "history", "sase-1", "--restore"])
+            parse_sase_args(["bead", "history", "sase-1", "--restore"])
         )
     assert excinfo.value.code == 2
     assert "--restore requires --lost-notes" in capsys.readouterr().err
@@ -115,7 +115,7 @@ def test_lost_notes_yes_requires_restore(
 ) -> None:
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_history(
-            create_parser().parse_args(["bead", "history", "sase-1", "--yes"])
+            parse_sase_args(["bead", "history", "sase-1", "--yes"])
         )
 
     assert excinfo.value.code == 2
@@ -428,6 +428,6 @@ def test_lost_notes_unknown_scoped_id_exits_nonzero(
 @pytest.mark.parametrize("flag", ["--limit", "-n"])
 def test_history_rejects_negative_limit(flag: str) -> None:
     with pytest.raises(SystemExit) as excinfo:
-        create_parser().parse_args(["bead", "history", "sase-1", flag, "-1"])
+        parse_sase_args(["bead", "history", "sase-1", flag, "-1"])
 
     assert excinfo.value.code == 2

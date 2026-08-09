@@ -18,9 +18,9 @@ from unittest.mock import patch
 import pytest
 
 from sase.main import plan_command_handler
-from sase.main.parser import create_parser
 from sase.main.plan_search_handler import handle_plan_search_command
 from sase.sdd.store import write_sdd_store_record
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
 def _write_plan(
@@ -91,7 +91,7 @@ def corpus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _run(argv: list[str]) -> argparse.Namespace:
-    return create_parser().parse_args(argv)
+    return parse_sase_args(argv)
 
 
 # --- flag parsing --------------------------------------------------------

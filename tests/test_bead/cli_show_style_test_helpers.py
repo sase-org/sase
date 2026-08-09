@@ -22,7 +22,7 @@ from sase.bead.model import (
     Status,
     TaskPlusOneEvidence,
 )
-from sase.main.parser import create_parser
+from tests.main.parser_cli_helpers import parse_sase_args
 
 STRIP_SGR = re.compile(r"\x1b\[[0-9;]*m")
 GOLDEN = Path(__file__).parent / "golden"
@@ -96,7 +96,7 @@ def render(
     ]
     if wrap is not None:
         argv.extend(["--wrap", wrap])
-    args = create_parser().parse_args(argv)
+    args = parse_sase_args(argv)
     bead_cli.handle_bead_show(args)
     return capsys.readouterr().out
 

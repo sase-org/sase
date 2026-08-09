@@ -1,6 +1,8 @@
 """Argument parser creation for the SASE CLI tool."""
 
 import argparse
+import functools
+import gettext
 from collections.abc import Iterable, Sequence
 from importlib import import_module
 import os
@@ -14,6 +16,68 @@ from rich.text import Text
 _NamespaceT = TypeVar("_NamespaceT")
 
 _RegistrarSpec = tuple[str, str]
+
+_GETTEXT_ENV_KEYS = ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG")
+_ORIGINAL_GETTEXT_FIND = gettext.find
+
+
+def _gettext_languages_key(languages: object) -> tuple[str, ...] | None:
+    if languages is None:
+        return None
+    if isinstance(languages, str):
+        return (languages,)
+    if isinstance(languages, Iterable):
+        return tuple(str(language) for language in languages)
+    return (str(languages),)
+
+
+@functools.lru_cache(maxsize=512)
+def _cached_gettext_find(
+    domain: str,
+    localedir: str | None,
+    languages: tuple[str, ...] | None,
+    locale_env: tuple[str | None, ...] | None,
+    all_matches: bool,
+) -> str | list[str] | None:
+    del locale_env
+    result = _ORIGINAL_GETTEXT_FIND(
+        domain,
+        localedir,
+        None if languages is None else list(languages),
+        all=all_matches,
+    )
+    if isinstance(result, list):
+        return list(result)
+    return result
+
+
+def _memoized_gettext_find(
+    domain: str,
+    localedir: str | None = None,
+    languages: object = None,
+    all: bool = False,  # noqa: A002 - mirrors gettext.find's public signature.
+) -> str | list[str] | None:
+    """Memoize locale catalog discovery while preserving gettext's inputs."""
+
+    language_key = _gettext_languages_key(languages)
+    locale_env = (
+        tuple(os.environ.get(key) for key in _GETTEXT_ENV_KEYS)
+        if language_key is None
+        else None
+    )
+    result = _cached_gettext_find(
+        domain,
+        localedir,
+        language_key,
+        locale_env,
+        bool(all),
+    )
+    if isinstance(result, list):
+        return list(result)
+    return result
+
+
+gettext.find = _memoized_gettext_find  # type: ignore[assignment]
 
 # Keep the command inventory and registrar routing in one lazy registry. Values are
 # module/function names instead of imported callables so ``create_parser(only=...)``

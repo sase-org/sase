@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import yaml
+from sase import _yaml_safe
 from sase.config import core as config_core
 from sase.config import mentor as mentor_config
 from sase.config.core import (
@@ -138,6 +139,53 @@ def test_clear_config_cache_forces_reload(tmp_path: Path) -> None:
     # Distinct dicts because the cache was dropped between calls.
     assert first is not second
     assert first == second
+
+
+def test_yaml_content_cache_survives_config_cache_clear(tmp_path: Path) -> None:
+    """Clearing merged config does not reparse identical config bytes."""
+    global_dir = tmp_path / "global"
+    content = {"key": f"user-{tmp_path.name}"}
+    _write_user_config(global_dir, content)
+    calls = {"n": 0}
+    real_loader = _yaml_safe.yaml_safe_load
+
+    def counting_loader(stream: object) -> object:
+        calls["n"] += 1
+        return real_loader(stream)  # type: ignore[arg-type]
+
+    _yaml_safe._cached_yaml_safe_load_text.cache_clear()
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core._load_default_config", return_value={}),
+        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase._yaml_safe.yaml_safe_load", counting_loader),
+    ):
+        first = load_merged_config()
+        clear_config_cache()
+        second = load_merged_config()
+
+    assert first == second == content
+    assert calls["n"] == 1
+
+
+def test_yaml_content_cache_returns_fresh_objects(tmp_path: Path) -> None:
+    """Content-cache hits cannot leak caller mutations into later loads."""
+    global_dir = tmp_path / "global"
+    _write_user_config(global_dir, {"nested": {"key": f"user-{tmp_path.name}"}})
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core._load_default_config", return_value={}),
+        patch("sase.config.core._load_plugin_configs", return_value=[]),
+    ):
+        first = load_merged_config()
+        first["nested"]["key"] = "mutated"
+        clear_config_cache()
+        second = load_merged_config()
+
+    assert second["nested"]["key"] == f"user-{tmp_path.name}"
 
 
 def test_selector_stat_participates_in_config_freshness_token(tmp_path: Path) -> None:

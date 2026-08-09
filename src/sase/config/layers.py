@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from sase._yaml_safe import yaml_safe_load
+from sase._yaml_safe import yaml_safe_load_cached_text
 
 
 log = logging.getLogger(__name__)
@@ -100,8 +100,7 @@ def load_yaml_file_with_metadata(
 ) -> tuple[bool, dict[str, Any] | None, str | None]:
     """Load a YAML mapping and keep missing/invalid metadata separate."""
     try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml_safe_load(f)
+        data = yaml_safe_load_cached_text(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return False, None, None
     except Exception as exc:
@@ -159,7 +158,7 @@ def load_config_layers(
             module_name = getattr(module, "__name__", str(module))
             try:
                 ref = resource_files(module).joinpath("default_config.yml")
-                data = yaml_safe_load(ref.read_text(encoding="utf-8"))
+                data = yaml_safe_load_cached_text(ref.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
                     layers.append(
                         ConfigLayer(

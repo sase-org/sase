@@ -13,13 +13,13 @@ from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.main.entry import main as sase_main
-from sase.main.parser import create_parser
+from tests.main.parser_cli_helpers import parse_sase_args
 
 EMPTY_ANSI_SPAN_RE = re.compile(r"\x1b\[[0-9;]*m\x1b\[0m")
 
 
 def test_search_parser_sets_query_filters_and_output_options() -> None:
-    args = create_parser().parse_args(
+    args = parse_sase_args(
         [
             "bead",
             "search",
@@ -55,7 +55,7 @@ def test_search_parser_sets_query_filters_and_output_options() -> None:
 
 @pytest.mark.parametrize("flag", ["-e", "--regex"])
 def test_search_parser_sets_regex_flag(flag: str) -> None:
-    args = create_parser().parse_args(["bead", "search", "Needle", flag])
+    args = parse_sase_args(["bead", "search", "Needle", flag])
 
     assert args.regex is True
 
@@ -64,7 +64,7 @@ def test_search_parser_rejects_negative_limit(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit) as excinfo:
-        create_parser().parse_args(["bead", "search", "needle", "--limit", "-1"])
+        parse_sase_args(["bead", "search", "needle", "--limit", "-1"])
 
     assert excinfo.value.code == 2
     assert "must be a non-negative integer" in capsys.readouterr().err
@@ -84,7 +84,7 @@ def test_handle_bead_search_compact_includes_closed_and_match_reason(
         closed = proj.create("Closed Needle", IssueType.PLAN)
         proj.close([closed.id], reason="done")
 
-    args = create_parser().parse_args(["bead", "search", "needle"])
+    args = parse_sase_args(["bead", "search", "needle"])
     bead_cli.handle_bead_search(args)
 
     out = capsys.readouterr().out
@@ -107,7 +107,7 @@ def test_handle_bead_search_compact_snippet_uses_matching_line(
             description="Overview line\nNeedle appears later",
         )
 
-    args = create_parser().parse_args(["bead", "search", "needle"])
+    args = parse_sase_args(["bead", "search", "needle"])
     bead_cli.handle_bead_search(args)
 
     out = capsys.readouterr().out
@@ -123,11 +123,11 @@ def test_handle_bead_search_regex_matches_when_literal_cannot(
     with BeadProject(project_dir) as proj:
         proj.create("Needle Epic", IssueType.PLAN)
 
-    literal_args = create_parser().parse_args(["bead", "search", "^Needle"])
+    literal_args = parse_sase_args(["bead", "search", "^Needle"])
     bead_cli.handle_bead_search(literal_args)
     assert capsys.readouterr().out == 'No beads match "^Needle".\n'
 
-    regex_args = create_parser().parse_args(["bead", "search", "^Needle", "--regex"])
+    regex_args = parse_sase_args(["bead", "search", "^Needle", "--regex"])
     bead_cli.handle_bead_search(regex_args)
     out = capsys.readouterr().out
     assert "Needle Epic" in out
@@ -141,7 +141,7 @@ def test_handle_bead_search_literal_mode_treats_metacharacters_literally(
         proj.create("Literal a.c", IssueType.PLAN)
         proj.create("Letters abc", IssueType.PLAN)
 
-    args = create_parser().parse_args(["bead", "search", "a.c"])
+    args = parse_sase_args(["bead", "search", "a.c"])
     bead_cli.handle_bead_search(args)
 
     out = capsys.readouterr().out
@@ -160,7 +160,7 @@ def test_handle_bead_search_regex_compact_snippet_uses_matching_line(
             description="Overview line\nNeedle-42 appears later",
         )
 
-    args = create_parser().parse_args(["bead", "search", r"Needle-\d+", "--regex"])
+    args = parse_sase_args(["bead", "search", r"Needle-\d+", "--regex"])
     bead_cli.handle_bead_search(args)
 
     out = capsys.readouterr().out
@@ -182,7 +182,7 @@ def test_handle_bead_search_compact_renders_aligned_type_glyphs(
         )
         task = proj.create("Needle Task", IssueType.TASK, size="small")
 
-    args = create_parser().parse_args(["bead", "search", "needle", "--color", "never"])
+    args = parse_sase_args(["bead", "search", "needle", "--color", "never"])
     bead_cli.handle_bead_search(args)
 
     lines = capsys.readouterr().out.splitlines()
@@ -210,7 +210,7 @@ def test_handle_bead_search_compact_colors_type_glyphs(
         proj.create("Needle Phase", IssueType.PHASE, parent_id=plan.id)
         proj.create("Needle Task", IssueType.TASK, size="small")
 
-    args = create_parser().parse_args(["bead", "search", "needle", "--color", "always"])
+    args = parse_sase_args(["bead", "search", "needle", "--color", "always"])
     bead_cli.handle_bead_search(args)
 
     out = capsys.readouterr().out
@@ -226,7 +226,7 @@ def test_handle_bead_search_json_outputs_envelope(
     with BeadProject(project_dir) as proj:
         issue = proj.create("Needle Epic", IssueType.PLAN)
 
-    args = create_parser().parse_args(["bead", "search", "needle", "--format", "json"])
+    args = parse_sase_args(["bead", "search", "needle", "--format", "json"])
     bead_cli.handle_bead_search(args)
 
     payload = json.loads(capsys.readouterr().out)
@@ -244,9 +244,7 @@ def test_handle_bead_search_json_outputs_regex_mode(
     with BeadProject(project_dir) as proj:
         issue = proj.create("Needle Epic", IssueType.PLAN)
 
-    args = create_parser().parse_args(
-        ["bead", "search", "^needle", "--regex", "--format", "json"]
-    )
+    args = parse_sase_args(["bead", "search", "^needle", "--regex", "--format", "json"])
     bead_cli.handle_bead_search(args)
 
     payload = json.loads(capsys.readouterr().out)
@@ -263,11 +261,11 @@ def test_handle_bead_search_full_reuses_show_rendering(
     with BeadProject(project_dir) as proj:
         issue = proj.create("Needle Epic", IssueType.PLAN, description="Full body")
 
-    args = create_parser().parse_args(["bead", "search", "needle", "--format", "full"])
+    args = parse_sase_args(["bead", "search", "needle", "--format", "full"])
     bead_cli.handle_bead_search(args)
     search_out = capsys.readouterr().out
 
-    bead_cli.handle_bead_show(create_parser().parse_args(["bead", "show", issue.id]))
+    bead_cli.handle_bead_show(parse_sase_args(["bead", "show", issue.id]))
     show_out = capsys.readouterr().out
 
     assert search_out == show_out
@@ -280,7 +278,7 @@ def test_handle_bead_search_no_matches_is_success(
     with BeadProject(project_dir) as proj:
         proj.create("Present", IssueType.PLAN)
 
-    args = create_parser().parse_args(["bead", "search", "missing"])
+    args = parse_sase_args(["bead", "search", "missing"])
     bead_cli.handle_bead_search(args)
 
     assert capsys.readouterr().out == 'No beads match "missing".\n'
@@ -290,7 +288,7 @@ def test_handle_bead_search_whitespace_query_exits_usage_error(
     project_dir,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    args = create_parser().parse_args(["bead", "search", "   "])
+    args = parse_sase_args(["bead", "search", "   "])
 
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_search(args)
@@ -305,7 +303,7 @@ def test_handle_bead_search_invalid_regex_exits_usage_error(
 ) -> None:
     with BeadProject(project_dir) as proj:
         proj.create("Present", IssueType.PLAN)
-    args = create_parser().parse_args(["bead", "search", "[", "--regex"])
+    args = parse_sase_args(["bead", "search", "[", "--regex"])
 
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_search(args)
@@ -389,7 +387,7 @@ def test_handle_bead_search_compact_appends_the_bead_created_cell(
     with BeadProject(project_dir) as proj:
         proj.create("Needle Epic", IssueType.PLAN)
 
-    args = create_parser().parse_args(["bead", "search", "needle", "--color", "never"])
+    args = parse_sase_args(["bead", "search", "needle", "--color", "never"])
     bead_cli.handle_bead_search(args)
 
     row = capsys.readouterr().out.splitlines()[0]

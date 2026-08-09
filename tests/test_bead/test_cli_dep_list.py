@@ -10,7 +10,8 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import Issue, IssueType
 from sase.bead.project import BeadProject
-from sase.main.parser import create_parser, default_list_delegation_notice
+from sase.main.parser import default_list_delegation_notice
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
 def _seed_graph(project_dir: Path) -> dict[str, Issue]:
@@ -32,11 +33,11 @@ def _seed_graph(project_dir: Path) -> dict[str, Issue]:
 
 
 def _run(argv: list[str]) -> None:
-    bead_cli.handle_bead_dep(create_parser().parse_args(["bead", "dep", *argv]))
+    bead_cli.handle_bead_dep(parse_sase_args(["bead", "dep", *argv]))
 
 
 def test_dep_parser_supports_bare_list_delegation_and_sorted_options() -> None:
-    args = create_parser().parse_args(["bead", "dep"])
+    args = parse_sase_args(["bead", "dep"])
 
     assert args.dep_action == "list"
     assert args.id is None

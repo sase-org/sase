@@ -10,6 +10,8 @@ loaders without changing behavior.
 
 from __future__ import annotations
 
+from copy import deepcopy
+from functools import lru_cache
 from typing import IO, Any
 
 import yaml  # type: ignore[import-untyped]
@@ -31,4 +33,23 @@ def yaml_safe_load(stream: str | bytes | IO[str] | IO[bytes]) -> Any:
     return yaml.load(stream, Loader=_safe_loader())
 
 
-__all__ = ["yaml_safe_load"]
+@lru_cache(maxsize=256)
+def _cached_yaml_safe_load_text(text: str | bytes) -> Any:
+    return yaml_safe_load(text)
+
+
+def yaml_safe_load_cached_text(text: str | bytes) -> Any:
+    """Parse trusted YAML text with a content-keyed cache.
+
+    The cached value is deep-copied before returning so callers can preserve the
+    long-standing "fresh parse result" behavior even when repeated config-cache
+    clears read identical bytes.
+    """
+
+    return deepcopy(_cached_yaml_safe_load_text(text))
+
+
+__all__ = [
+    "yaml_safe_load",
+    "yaml_safe_load_cached_text",
+]

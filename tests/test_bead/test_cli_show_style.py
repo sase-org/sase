@@ -8,7 +8,6 @@ import pytest
 
 from sase.bead import cli as bead_cli
 from sase.bead.model import Issue, IssueType
-from sase.main.parser import create_parser
 from tests.test_bead.cli_show_style_test_helpers import (
     CORPUS,
     STRIP_SGR,
@@ -22,6 +21,7 @@ from tests.test_bead.cli_show_style_test_helpers import (
     strip_sgr,
 )
 from tests.test_bead.cli_show_test_helpers import show_with_format
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
 @pytest.mark.parametrize("name,build", CORPUS, ids=[case[0] for case in CORPUS])
@@ -163,7 +163,7 @@ def test_style_invariant_epic_with_phases_and_child_epics(
         "sys.argv",
         ["sase", "bead", "show", root.id, "--style", "rich", "--color", "always"],
     )
-    args = create_parser().parse_args(
+    args = parse_sase_args(
         ["bead", "show", root.id, "--style", "rich", "--color", "always"]
     )
     bead_cli.handle_bead_show(args)
@@ -179,7 +179,7 @@ def test_style_invariant_phase_with_parent_epic_plan(
     phase = nested_store["phase"]
 
     plain = show_with_format(phase, "full", capsys)
-    args = create_parser().parse_args(
+    args = parse_sase_args(
         ["bead", "show", phase.id, "--style", "rich", "--color", "always"]
     )
     bead_cli.handle_bead_show(args)
@@ -267,7 +267,7 @@ def test_default_non_tty_stdout_emits_zero_escapes(
     issues, target_id = build_markdown_description()
     install_view(monkeypatch, issues)
 
-    args = create_parser().parse_args(["bead", "show", target_id])
+    args = parse_sase_args(["bead", "show", target_id])
     bead_cli.handle_bead_show(args)
     out = capsys.readouterr().out
 
@@ -281,7 +281,7 @@ def test_json_is_never_styled_even_with_rich_and_color_always(
     issues, target_id = build_markdown_description()
     install_view(monkeypatch, issues)
 
-    args = create_parser().parse_args(
+    args = parse_sase_args(
         [
             "bead",
             "show",

@@ -6,22 +6,22 @@ import json
 import pytest
 from unittest.mock import patch
 
-from sase.main.parser import create_parser
 from sase.main.workspace_handler import handle_workspace_command
 from sase.workspace_provider.inventory import WorkspaceInventory
+from tests.main.parser_cli_helpers import parse_sase_args
 from tests.main.workspace_handler_helpers import make_args
 
 
 class TestWorkspaceParser:
     def test_list_dispatch(self) -> None:
-        ns = create_parser().parse_args(["workspace", "list", "-p", "demo", "-j"])
+        ns = parse_sase_args(["workspace", "list", "-p", "demo", "-j"])
         assert ns.command == "workspace"
         assert ns.workspace_subcommand == "list"
         assert ns.project == "demo"
         assert ns.json is True
 
     def test_list_all_projects_option(self) -> None:
-        ns = create_parser().parse_args(["workspace", "list", "--all"])
+        ns = parse_sase_args(["workspace", "list", "--all"])
         assert ns.workspace_subcommand == "list"
         assert ns.all_projects is True
 
@@ -29,7 +29,7 @@ class TestWorkspaceParser:
         self,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        ns = create_parser().parse_args(["workspace", "list", "--all", "--json"])
+        ns = parse_sase_args(["workspace", "list", "--all", "--json"])
         with (
             patch(
                 "sase.main.workspace_handler_list.collect_workspace_inventory",
@@ -45,20 +45,18 @@ class TestWorkspaceParser:
 
     def test_path_requires_number(self) -> None:
         with pytest.raises(SystemExit):
-            create_parser().parse_args(["workspace", "path"])
+            parse_sase_args(["workspace", "path"])
 
     @pytest.mark.parametrize("flag", ["-c", "--clean"])
     def test_open_clean_flag(self, flag: str) -> None:
-        ns = create_parser().parse_args(
-            ["workspace", "open", flag, "-r", "prep checkout", "12"]
-        )
+        ns = parse_sase_args(["workspace", "open", flag, "-r", "prep checkout", "12"])
         assert ns.workspace_subcommand == "open"
         assert ns.workspace_num == 12
         assert ns.clean is True
         assert ns.reason == "prep checkout"
 
     def test_open_print_flag_is_accepted_for_compatibility(self) -> None:
-        ns = create_parser().parse_args(
+        ns = parse_sase_args(
             ["workspace", "open", "--print", "-r", "prep checkout", "12"]
         )
         assert ns.workspace_subcommand == "open"
@@ -67,28 +65,24 @@ class TestWorkspaceParser:
 
     @pytest.mark.parametrize("flag", ["-r", "--reason"])
     def test_open_reason_flag_parses(self, flag: str) -> None:
-        ns = create_parser().parse_args(
-            ["workspace", "open", flag, "debugging a sibling", "12"]
-        )
+        ns = parse_sase_args(["workspace", "open", flag, "debugging a sibling", "12"])
         assert ns.workspace_subcommand == "open"
         assert ns.workspace_num == 12
         assert ns.reason == "debugging a sibling"
 
     def test_open_requires_reason(self) -> None:
         with pytest.raises(SystemExit):
-            create_parser().parse_args(["workspace", "open", "12"])
+            parse_sase_args(["workspace", "open", "12"])
 
     def test_cleanup_options(self) -> None:
-        ns = create_parser().parse_args(
-            ["workspace", "cleanup", "-s", "-i", "-n", "-p", "demo"]
-        )
+        ns = parse_sase_args(["workspace", "cleanup", "-s", "-i", "-n", "-p", "demo"])
         assert ns.workspace_subcommand == "cleanup"
         assert ns.stale is True
         assert ns.include_shares is True
         assert ns.dry_run is True
 
     def test_repair_dry_run(self) -> None:
-        ns = create_parser().parse_args(["workspace", "repair", "-n"])
+        ns = parse_sase_args(["workspace", "repair", "-n"])
         assert ns.workspace_subcommand == "repair"
         assert ns.dry_run is True
 

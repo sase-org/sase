@@ -9,12 +9,12 @@ from typing import Any
 
 import pytest
 
-from sase.main.parser import create_parser
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
 class TestVcsParser:
     def test_bare_vcs_defaults_to_list(self) -> None:
-        ns = create_parser().parse_args(["vcs"])
+        ns = parse_sase_args(["vcs"])
 
         assert ns.command == "vcs"
         assert ns.vcs_subcommand == "list"
@@ -26,7 +26,7 @@ class TestVcsParser:
         assert ns.sort == "default"
 
     def test_list_defaults(self) -> None:
-        ns = create_parser().parse_args(["vcs", "list"])
+        ns = parse_sase_args(["vcs", "list"])
 
         assert ns.vcs_subcommand == "list"
         assert ns.repos == []
@@ -37,7 +37,7 @@ class TestVcsParser:
         assert ns.sort == "default"
 
     def test_list_options(self) -> None:
-        ns = create_parser().parse_args(
+        ns = parse_sase_args(
             [
                 "vcs",
                 "list",
@@ -62,7 +62,7 @@ class TestVcsParser:
         assert ns.sort == "recent"
 
     def test_log_defaults(self) -> None:
-        ns = create_parser().parse_args(["vcs", "log"])
+        ns = parse_sase_args(["vcs", "log"])
 
         assert ns.vcs_subcommand == "log"
         assert ns.all is False
@@ -80,7 +80,7 @@ class TestVcsParser:
         assert ns.until is None
 
     def test_log_limit_and_format_and_color(self) -> None:
-        ns = create_parser().parse_args(
+        ns = parse_sase_args(
             ["vcs", "log", "-n", "5", "--format", "full", "--color", "never"]
         )
 
@@ -89,74 +89,72 @@ class TestVcsParser:
         assert ns.color == "never"
 
     def test_log_short_format_and_color_aliases(self) -> None:
-        ns = create_parser().parse_args(["vcs", "log", "-f", "json", "-c", "never"])
+        ns = parse_sase_args(["vcs", "log", "-f", "json", "-c", "never"])
 
         assert ns.format == "json"
         assert ns.color == "never"
 
     def test_log_remote_options(self) -> None:
-        ns = create_parser().parse_args(["vcs", "log", "-b", "main", "-N"])
+        ns = parse_sase_args(["vcs", "log", "-b", "main", "-N"])
 
         assert ns.remote_ref == "main"
         assert ns.no_fetch is True
 
     def test_log_force_fetch_option(self) -> None:
-        ns = create_parser().parse_args(["vcs", "log", "-F"])
+        ns = parse_sase_args(["vcs", "log", "-F"])
 
         assert ns.force_fetch is True
         assert ns.no_fetch is False
 
     def test_log_fetch_and_no_fetch_are_mutually_exclusive(self) -> None:
         with pytest.raises(SystemExit) as excinfo:
-            create_parser().parse_args(["vcs", "log", "--fetch", "--no-fetch"])
+            parse_sase_args(["vcs", "log", "--fetch", "--no-fetch"])
 
         assert excinfo.value.code == 2
 
     def test_log_ref_alias(self) -> None:
-        ns = create_parser().parse_args(["vcs", "log", "--ref", "release"])
+        ns = parse_sase_args(["vcs", "log", "--ref", "release"])
 
         assert ns.remote_ref == "release"
 
     def test_log_repo_is_repeatable(self) -> None:
-        ns = create_parser().parse_args(
-            ["vcs", "log", "-r", "sase", "--repo", "sase-core"]
-        )
+        ns = parse_sase_args(["vcs", "log", "-r", "sase", "--repo", "sase-core"])
 
         assert ns.repos == ["sase", "sase-core"]
 
     def test_log_current_only_flag(self) -> None:
-        ns = create_parser().parse_args(["vcs", "log", "-o"])
+        ns = parse_sase_args(["vcs", "log", "-o"])
 
         assert ns.current_only is True
 
     @pytest.mark.parametrize("option", ["-a", "--all"])
     def test_log_all_project_flags(self, option: str) -> None:
-        ns = create_parser().parse_args(["vcs", "log", option])
+        ns = parse_sase_args(["vcs", "log", option])
 
         assert ns.all is True
         assert ns.authors == []
 
     def test_log_all_and_current_only_are_mutually_exclusive(self) -> None:
         with pytest.raises(SystemExit) as excinfo:
-            create_parser().parse_args(["vcs", "log", "--all", "--current-only"])
+            parse_sase_args(["vcs", "log", "--all", "--current-only"])
 
         assert excinfo.value.code == 2
 
     def test_log_accepts_limit_zero(self) -> None:
-        ns = create_parser().parse_args(["vcs", "log", "--limit", "0"])
+        ns = parse_sase_args(["vcs", "log", "--limit", "0"])
 
         assert ns.limit == 0
 
     def test_log_rejects_negative_limit(self) -> None:
         with pytest.raises(SystemExit):
-            create_parser().parse_args(["vcs", "log", "-n", "-1"])
+            parse_sase_args(["vcs", "log", "-n", "-1"])
 
     def test_log_rejects_unknown_format(self) -> None:
         with pytest.raises(SystemExit):
-            create_parser().parse_args(["vcs", "log", "--format", "fancy"])
+            parse_sase_args(["vcs", "log", "--format", "fancy"])
 
     def test_log_date_aliases_author_and_reverse(self) -> None:
-        ns = create_parser().parse_args(
+        ns = parse_sase_args(
             [
                 "vcs",
                 "log",
@@ -178,27 +176,27 @@ class TestVcsParser:
         assert ns.reverse is True
 
     def test_log_since_until_short_aliases(self) -> None:
-        ns = create_parser().parse_args(["vcs", "log", "-s", "1d", "-u", "today"])
+        ns = parse_sase_args(["vcs", "log", "-s", "1d", "-u", "today"])
 
         assert ns.since == "1d"
         assert ns.until == "today"
 
     def test_log_no_tags_option(self) -> None:
-        short = create_parser().parse_args(["vcs", "log", "-T"])
-        long = create_parser().parse_args(["vcs", "log", "--no-tags"])
+        short = parse_sase_args(["vcs", "log", "-T"])
+        long = parse_sase_args(["vcs", "log", "--no-tags"])
 
         assert short.show_tags is False
         assert long.show_tags is False
 
     @pytest.mark.parametrize("option", ["-S", "--sdd"])
     def test_log_sdd_flags(self, option: str) -> None:
-        ns = create_parser().parse_args(["vcs", "log", option])
+        ns = parse_sase_args(["vcs", "log", option])
 
         assert ns.sdd is True
 
     def test_log_tags_aliases_remain_hidden_no_ops(self) -> None:
-        short = create_parser().parse_args(["vcs", "log", "-t"])
-        long = create_parser().parse_args(["vcs", "log", "--tags"])
+        short = parse_sase_args(["vcs", "log", "-t"])
+        long = parse_sase_args(["vcs", "log", "--tags"])
 
         assert short.show_tags is True
         assert long.show_tags is True
@@ -207,7 +205,7 @@ class TestVcsParser:
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         with pytest.raises(SystemExit) as excinfo:
-            create_parser().parse_args(["vcs", "log", "-h"])
+            parse_sase_args(["vcs", "log", "-h"])
 
         assert excinfo.value.code == 0
         help_text = capsys.readouterr().out
