@@ -254,7 +254,7 @@ def test_followup_offers_commit_and_scoped_apply_for_plain_chezmoi_target(
     assert offers[1].apply_target == str(target.apply_target)
 
 
-def test_followup_memory_init_suppresses_commit_and_apply(
+def test_followup_memory_init_has_message_and_cwd(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -281,4 +281,91 @@ def test_followup_memory_init_suppresses_commit_and_apply(
     assert [offer.kind for offer in offers] == [
         write_targets.PostWriteActionKind.MEMORY_INIT
     ]
-    assert offers[0].command == ("sase", "memory", "init")
+    assert offers[0].cwd == str(tmp_path)
+    assert offers[0].command == (
+        "sase",
+        "memory",
+        "init",
+        "--message",
+        "Update memory note obsidian",
+    )
+
+    new_offers = write_targets.build_post_write_action_offers(
+        target,
+        kind=write_targets.WrittenFileKind.MEMORY_NOTE,
+        is_new=True,
+        xprompt_name="obsidian",
+    )
+
+    assert new_offers[0].command == (
+        "sase",
+        "memory",
+        "init",
+        "--message",
+        "Add memory note obsidian",
+    )
+
+
+def test_followup_skill_init_commits_dirty_source_before_deploy(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = write_targets.XPromptWriteTarget(
+        read_path=tmp_path / "repo" / "sase" / "skills" / "foo.md",
+        write_path=tmp_path / "repo" / "sase" / "skills" / "foo.md",
+        apply_target=None,
+        via_chezmoi=False,
+    )
+    monkeypatch.setattr(write_targets, "get_git_root", lambda _path: str(tmp_path))
+    monkeypatch.setattr(
+        write_targets,
+        "has_git_changes",
+        lambda _root, _path: True,
+    )
+
+    offers = write_targets.build_post_write_action_offers(
+        target,
+        kind=write_targets.WrittenFileKind.SKILL_SOURCE,
+        is_new=False,
+        xprompt_name="foo",
+    )
+
+    assert [offer.kind for offer in offers] == [
+        write_targets.PostWriteActionKind.COMMIT_PUSH,
+        write_targets.PostWriteActionKind.SKILL_INIT,
+    ]
+    assert offers[1].cwd == str(tmp_path)
+    assert offers[1].command == ("sase", "skill", "init", "--yes")
+    # generated_skills.md: --force and --allow-dirty can revert another deployment.
+    assert "--force" not in offers[1].command
+    assert "--allow-dirty" not in offers[1].command
+
+
+def test_followup_skill_init_without_dirty_source_skips_commit(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = write_targets.XPromptWriteTarget(
+        read_path=tmp_path / "repo" / "sase" / "skills" / "foo.md",
+        write_path=tmp_path / "repo" / "sase" / "skills" / "foo.md",
+        apply_target=None,
+        via_chezmoi=False,
+    )
+    monkeypatch.setattr(write_targets, "get_git_root", lambda _path: str(tmp_path))
+    monkeypatch.setattr(
+        write_targets,
+        "has_git_changes",
+        lambda _root, _path: False,
+    )
+
+    offers = write_targets.build_post_write_action_offers(
+        target,
+        kind=write_targets.WrittenFileKind.SKILL_SOURCE,
+        is_new=False,
+        xprompt_name="foo",
+    )
+
+    assert [offer.kind for offer in offers] == [
+        write_targets.PostWriteActionKind.SKILL_INIT
+    ]
+    assert offers[0].cwd == str(tmp_path)

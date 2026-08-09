@@ -458,6 +458,7 @@ def run_init_skills(args: argparse.Namespace) -> int:
     is_tty = sys.stdin.isatty()
     provider_filter: str | None = getattr(args, "provider", None)
     force: bool = getattr(args, "force", False)
+    assume_yes: bool = getattr(args, "yes", False)
     dry_run: bool = getattr(args, "dry_run", False)
 
     provider_error = _provider_validation_error(provider_filter)
@@ -577,10 +578,10 @@ def run_init_skills(args: argparse.Namespace) -> int:
             print(f"  {operation}: {target.path}")
             continue
 
-        if target.path.exists() and not force:
+        if target.path.exists() and not force and not assume_yes:
             if not is_tty:
                 print(
-                    f"  Warning: {target.path} exists, skipping (not a TTY; use -f to force)",
+                    f"  Warning: {target.path} exists, skipping (not a TTY; use -f to force or -y to answer yes)",
                     file=sys.stderr,
                 )
                 skipped += 1

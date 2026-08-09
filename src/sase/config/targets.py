@@ -18,6 +18,7 @@ from pathlib import Path
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR
 from sase.config.inventory import ConfigInventory, ConfigSource
 from sase.content_layout import chezmoi_source_path as _layout_chezmoi_source_path
+from sase.noninteractive_subprocess import run_noninteractive
 
 
 def chezmoi_source_path(target: Path) -> Path:
@@ -113,11 +114,11 @@ def apply_chezmoi(
 ) -> subprocess.CompletedProcess[str]:
     """Run ``chezmoi apply --force`` (optionally scoped to a single *path*).
 
-    Applies are always forced so they stay non-interactive: chezmoi never pauses
-    for a confirmation prompt on a diverged destination (these run as captured
-    subprocesses with no interactive stdin). When *path* is given it is a home
-    (target) path, not a chezmoi source path; ``~`` is expanded so chezmoi always
-    receives an absolute home path it can resolve.
+    Applies are always forced and run without interactive stdin or a controlling
+    terminal, so chezmoi cannot pause for a confirmation prompt on a diverged
+    destination. When *path* is given it is a home (target) path, not a chezmoi
+    source path; ``~`` is expanded so chezmoi always receives an absolute home
+    path it can resolve.
 
     Side-effecting subprocess; only ever call from a tracked background task.
     Returns the completed process so the caller can surface stdout/stderr; a
@@ -126,4 +127,4 @@ def apply_chezmoi(
     cmd = ["chezmoi", "apply", "--force"]
     if path is not None:
         cmd.append(str(Path(path).expanduser()))
-    return subprocess.run(cmd, capture_output=True, text=True, check=False)
+    return run_noninteractive(cmd)

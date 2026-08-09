@@ -77,7 +77,22 @@ def test_non_tty_explicit_init_skills_skips_existing_without_force(
     assert exit_code == 0
     assert target.read_text(encoding="utf-8") == "keep me\n"
     err = capsys.readouterr().err
-    assert "exists, skipping (not a TTY; use -f to force)" in err
+    assert "exists, skipping (not a TTY; use -f to force or -y to answer yes)" in err
+
+
+def test_non_tty_init_skills_yes_overwrites_existing_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = stub_claude_skill_target(tmp_path, monkeypatch)
+    target.parent.mkdir(parents=True)
+    target.write_text("replace me\n", encoding="utf-8")
+    monkeypatch.setattr(init_skills_handler.sys, "stdin", StringIO())
+
+    exit_code = run_init_skills(make_args(force=False, yes=True, provider="claude"))
+
+    assert exit_code == 0
+    assert target.read_text(encoding="utf-8") != "replace me\n"
 
 
 def test_check_mode_reports_drift_without_writing(

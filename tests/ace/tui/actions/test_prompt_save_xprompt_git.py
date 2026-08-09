@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from sase.ace.tui.actions.agent_workflow import _prompt_bar_save_xprompt_git
 from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
     submit_post_write_action_sequence,
 )
@@ -123,10 +124,10 @@ def test_failed_or_skipped_snippet_commit_does_not_refresh_catalog(
 
 
 def test_git_commit_push_worker_runs_git_sequence(tmp_path: Path) -> None:
-    calls: list[list[str]] = []
+    calls: list[tuple[list[str], dict[str, object]]] = []
 
     def run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
-        calls.append(argv)
+        calls.append((argv, _kwargs))
         return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
 
     path = tmp_path / "review.md"
@@ -145,11 +146,17 @@ def test_git_commit_push_worker_runs_git_sequence(tmp_path: Path) -> None:
 
     assert result.success is True
     apply_chezmoi.assert_not_called()
-    assert calls[-3:] == [
+    assert [argv for argv, _kwargs in calls[-3:]] == [
         ["git", "-C", str(tmp_path), "commit", "-m", "chore: Add xprompt review"],
         ["git", "-C", str(tmp_path), "pull", "--rebase"],
         ["git", "-C", str(tmp_path), "push"],
     ]
+    assert all(kwargs["stdin"] is subprocess.DEVNULL for _argv, kwargs in calls)
+    assert all(kwargs["start_new_session"] is True for _argv, kwargs in calls)
+    assert all(
+        isinstance(kwargs["env"], dict) and kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
+        for _argv, kwargs in calls
+    )
 
 
 def test_git_commit_push_worker_stops_on_add_failure(tmp_path: Path) -> None:
@@ -277,3 +284,59 @@ def test_post_write_sequence_stops_after_failed_task() -> None:
     on_complete(SimpleNamespace(success=False, message="failed", payload=False))
 
     assert len(harness.submitted) == 1
+
+
+def test_generic_post_write_action_uses_noninteractive_runner_with_cwd() -> None:
+    offer = PostWriteActionOffer(
+        kind=PostWriteActionKind.MEMORY_INIT,
+        key="m",
+        label="sase memory init",
+        subtitle="Run.",
+        default_on=True,
+        file_path="/repo/sase/memory/foo.md",
+        rel_path="sase/memory/foo.md",
+        cwd="/repo",
+        command=("sase", "memory", "init"),
+    )
+    completed = subprocess.CompletedProcess(
+        list(offer.command),
+        0,
+        stdout="ok",
+        stderr="",
+    )
+
+    with patch(
+        "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git.run_noninteractive",
+        return_value=completed,
+    ) as run_noninteractive:
+        result = _prompt_bar_save_xprompt_git._run_post_write_action_sync(offer)
+
+    assert result.success is True
+    run_noninteractive.assert_called_once_with(offer.command, cwd="/repo")
+
+
+def test_timed_out_post_write_action_returns_failed_task_result() -> None:
+    harness = _CommitHarness()
+    offer = PostWriteActionOffer(
+        kind=PostWriteActionKind.MEMORY_INIT,
+        key="m",
+        label="sase memory init",
+        subtitle="Run.",
+        default_on=True,
+        file_path="/repo/sase/memory/foo.md",
+        rel_path="sase/memory/foo.md",
+        cwd="/repo",
+        command=("sase", "memory", "init"),
+    )
+
+    with patch(
+        "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git.run_noninteractive",
+        side_effect=subprocess.TimeoutExpired(list(offer.command), 0.5),
+    ):
+        submit_post_write_action_sequence(harness, harness, (offer,))
+        task = harness.submitted[0][0][3]
+        assert callable(task)
+        result = task()
+
+    assert result.success is False
+    assert result.error == "sase memory init timed out after 0.5s"

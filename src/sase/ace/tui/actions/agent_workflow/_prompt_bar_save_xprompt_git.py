@@ -13,6 +13,8 @@ from sase.ace.tui.actions.task_actions import (
     TrackedTaskResult,
 )
 from sase.git_lock_retry import run_with_git_lock_retry
+from sase.noninteractive_subprocess import run_noninteractive
+from sase.workspace_provider.utils import non_interactive_git_env
 from sase.xprompt.write_targets import (
     PostWriteActionKind,
     PostWriteActionOffer,
@@ -213,9 +215,12 @@ def run_git_commit_push_sync(
         result, outcome = run_with_git_lock_retry(
             lambda: subprocess.run(
                 argv,
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
                 check=False,
+                start_new_session=True,
+                env=non_interactive_git_env(),
             ),
             cwd=git_root,
         )
@@ -382,16 +387,14 @@ def _run_post_write_action_sync(offer: PostWriteActionOffer) -> GitCommitPushRes
         )
 
     if offer.command:
+        label = " ".join(offer.command)
         try:
-            result = subprocess.run(
-                list(offer.command),
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            result = run_noninteractive(offer.command, cwd=offer.cwd)
         except FileNotFoundError:
             return GitCommitPushResult(False, f"{offer.command[0]} not found on PATH")
-        label = " ".join(offer.command)
+        except subprocess.TimeoutExpired as exc:
+            timeout = "unknown" if exc.timeout is None else f"{exc.timeout:g}"
+            return GitCommitPushResult(False, f"{label} timed out after {timeout}s")
         if result.returncode != 0:
             return GitCommitPushResult(
                 False,

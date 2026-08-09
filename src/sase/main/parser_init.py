@@ -81,6 +81,16 @@ def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
         metavar="PROVIDER",
         help="Only deploy for a registered provider (default: all)",
     )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help=(
+            "Answer the overwrite confirmation for existing generated targets "
+            "with yes; unlike --force this does not override source-integrity "
+            "or provenance-manifest guards"
+        ),
+    )
 
 
 def register_init_parser(subparsers: argparse._SubParsersAction) -> None:

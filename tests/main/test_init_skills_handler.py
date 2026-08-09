@@ -133,6 +133,49 @@ def test_handler_dirty_chezmoi_source_is_refused_before_write(
     assert "src/sase/xprompts/skills/foo.md" in err
 
 
+def test_handler_yes_does_not_imply_force_or_allow_dirty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
+    force_values: list[bool] = []
+
+    def fake_prepare_skill_manifest(
+        _skill_xprompts: list[XPrompt],
+        *,
+        chezmoi_home: Path,
+        force: bool,
+    ) -> tuple[None, None]:
+        del chezmoi_home
+        force_values.append(force)
+        return None, None
+
+    monkeypatch.setattr(
+        init_skills_handler,
+        "prepare_skill_manifest",
+        fake_prepare_skill_manifest,
+    )
+    monkeypatch.setattr(
+        init_skills_handler,
+        "skill_source_integrity_error",
+        lambda: "dirty source tree refused",
+    )
+    deploy_mock = MagicMock()
+    monkeypatch.setattr(init_skills_handler, "_deploy_to_chezmoi", deploy_mock)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args(force=False, yes=True, provider="claude"))
+
+    assert exc.value.code == 1
+    assert force_values == [False]
+    assert "dirty source tree refused" in capsys.readouterr().err
+    deploy_mock.assert_not_called()
+
+
 def test_handler_backwards_manifest_refuses_and_leaves_newer_deployment_intact(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

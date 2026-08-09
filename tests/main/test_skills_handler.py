@@ -103,6 +103,7 @@ def test_parser_registers_skills_namespace() -> None:
             "--no-push",
             "--provider",
             "codex",
+            "--yes",
         ]
     )
     assert init_args.command == "skill"
@@ -114,6 +115,7 @@ def test_parser_registers_skills_namespace() -> None:
     assert init_args.dry_run is True
     assert init_args.no_push is True
     assert init_args.provider == "codex"
+    assert init_args.yes is True
 
     list_args = parser.parse_args(["skill", "list"])
     assert list_args.command == "skill"

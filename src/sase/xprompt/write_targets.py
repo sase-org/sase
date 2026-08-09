@@ -62,6 +62,7 @@ class PostWriteActionOffer:
     file_path: str
     rel_path: str
     git_root: str | None = None
+    cwd: str | None = None
     commit_message: str | None = None
     apply_target: str | None = None
     command: tuple[str, ...] = ()
@@ -184,6 +185,8 @@ def build_post_write_action_offers(
 
     rel_path = _display_rel_path(target.write_path)
     if kind is WrittenFileKind.MEMORY_NOTE:
+        git_root = get_git_root(target.write_path)
+        verb = "Add" if is_new else "Update"
         return (
             PostWriteActionOffer(
                 kind=PostWriteActionKind.MEMORY_INIT,
@@ -196,24 +199,41 @@ def build_post_write_action_offers(
                 default_on=True,
                 file_path=str(target.write_path),
                 rel_path=rel_path,
-                command=("sase", "memory", "init"),
+                cwd=git_root,
+                command=(
+                    "sase",
+                    "memory",
+                    "init",
+                    "--message",
+                    f"{verb} memory note {xprompt_name}",
+                ),
             ),
         )
     if kind is WrittenFileKind.SKILL_SOURCE:
-        return (
+        skill_offers: list[PostWriteActionOffer] = []
+        git_offer = _commit_push_offer(
+            target,
+            is_new=is_new,
+            xprompt_name=xprompt_name,
+            noun=noun,
+            commit_type=commit_type,
+        )
+        if git_offer is not None:
+            skill_offers.append(git_offer)
+        skill_offers.append(
             PostWriteActionOffer(
                 kind=PostWriteActionKind.SKILL_INIT,
                 key="s",
                 label="sase skill init",
-                subtitle=(
-                    "Regenerates and deploys skills, then commits and pushes for you."
-                ),
+                subtitle="Regenerates and deploys generated skill files.",
                 default_on=True,
                 file_path=str(target.write_path),
                 rel_path=rel_path,
-                command=("sase", "skill", "init"),
-            ),
+                cwd=get_git_root(target.write_path),
+                command=("sase", "skill", "init", "--yes"),
+            )
         )
+        return tuple(skill_offers)
 
     offers: list[PostWriteActionOffer] = []
     git_offer = _commit_push_offer(

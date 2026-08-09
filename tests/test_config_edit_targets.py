@@ -50,7 +50,7 @@ def test_apply_chezmoi_forces_and_expands_target_path() -> None:
     run_mock = MagicMock(
         return_value=subprocess.CompletedProcess([], 0, stdout="", stderr="")
     )
-    with patch("sase.config.targets.subprocess.run", run_mock):
+    with patch("sase.config.targets.run_noninteractive", run_mock):
         apply_chezmoi("~/.config/sase/sase.yml")
 
     cmd = run_mock.call_args.args[0]
@@ -64,7 +64,7 @@ def test_apply_chezmoi_without_path_is_full_forced_apply() -> None:
     run_mock = MagicMock(
         return_value=subprocess.CompletedProcess([], 0, stdout="", stderr="")
     )
-    with patch("sase.config.targets.subprocess.run", run_mock):
+    with patch("sase.config.targets.run_noninteractive", run_mock):
         apply_chezmoi()
 
     assert run_mock.call_args.args[0] == ["chezmoi", "apply", "--force"]

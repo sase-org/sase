@@ -24,6 +24,7 @@ def make_args(**overrides: Any) -> argparse.Namespace:
     defaults: dict[str, Any] = {
         "allow_dirty": False,
         "force": True,
+        "yes": False,
         "dry_run": False,
         "provider": None,
         "no_commit": False,

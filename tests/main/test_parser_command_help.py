@@ -188,8 +188,10 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
 def test_skills_help_documents_log_command() -> None:
     """Skills help text documents list/init/log/use and public log aliases."""
     skills_help = flat_help(parser_for(("sase", "skill")).format_help())
+    skills_init_help = flat_help(parser_for(("sase", "skill", "init")).format_help())
     skills_log_help = flat_help(parser_for(("sase", "skill", "log")).format_help())
     skills_use_help = flat_help(parser_for(("sase", "skill", "use")).format_help())
+    init_skills_help = flat_help(parser_for(("sase", "init", "skills")).format_help())
 
     assert "`sase skill list`" in skills_help
     assert "{init,list,log,use}" in skills_help
@@ -207,6 +209,14 @@ def test_skills_help_documents_log_command() -> None:
     assert "-s SKILL_NAME" in skills_log_help
     assert "sase skill log --id <use-id>" in skills_log_help
     assert "--reason REASON" in skills_use_help
+    assert "-y, --yes" in skills_init_help
+    assert "-y, --yes" in init_skills_help
+    assert skills_init_help.index("--provider PROVIDER") < skills_init_help.index(
+        "--yes"
+    )
+    assert init_skills_help.index("--provider PROVIDER") < init_skills_help.index(
+        "--yes"
+    )
 
 
 def test_workspace_open_help_requires_reason() -> None:
