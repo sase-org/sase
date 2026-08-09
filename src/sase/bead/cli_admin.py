@@ -403,6 +403,8 @@ Quick Start:
   sase bead list --status=open                   List open issues
   sase bead list --status=closed                 List newest 20 closed issues (-n 0 for all)
   sase bead list --tier=epic                     List epic plan beads
+  sase bead list --type=task --since=1w --status=all
+                                                  Task beads created in the last week
   sase bead ready                                Show unblocked ready task beads
   sase bead show <id>                            View issue details
   sase bead show <id> --format=json              Machine-readable bead detail

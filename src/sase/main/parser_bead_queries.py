@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import argparse
 
-from sase.main.parser_bead_common import nonnegative_int, wrap_width
+from sase.main.parser_bead_common import bead_date_arg, nonnegative_int, wrap_width
 from sase.markdown_width import markdown_print_width
+from sase.vcs_log.dates import DATE_HELP
 
 
 def register_bead_blocked_parser(
@@ -84,16 +85,19 @@ def register_bead_list_parser(
         description=(
             "List open, claimed, ready, snoozed, and in-progress beads by default. If "
             "none match and --status was not provided, list closed beads instead. "
-            "Closed listings default to the newest 20 beads unless --limit 0 "
-            "is used. Bare 'sase bead' defaults to this command."
+            "--since and --until bound bead creation time. Closed listings default "
+            "to the newest 20 beads unless --limit 0 is used or a creation-date "
+            "bound is present. Bare 'sase bead' defaults to this command."
         ),
         epilog=(
             "Examples:\n"
             "  sase bead list\n"
             "  sase bead list --status open --type phase\n"
+            "  sase bead list --type task --since 1w --status all\n"
             "  sase bead list --format json\n"
             "  sase bead list --format full --limit 3\n"
-            "  sase bead list --status closed --limit 0"
+            "  sase bead list --status closed --limit 0\n\n"
+            f"DATE grammar: {DATE_HELP}."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -121,9 +125,17 @@ def register_bead_list_parser(
         ),
     )
     parser.add_argument(
+        "-S",
+        "--since",
+        metavar="DATE",
+        type=bead_date_arg,
+        help="Only beads created at/after DATE",
+    )
+    parser.add_argument(
         "-s",
         "--status",
         choices=[
+            "all",
             "open",
             "claimed",
             "ready",
@@ -132,7 +144,7 @@ def register_bead_list_parser(
             "closed",
         ],
         action="append",
-        help="Filter by status (repeatable)",
+        help="Filter by status; 'all' selects every status (repeatable)",
     )
     parser.add_argument(
         "-r",
@@ -147,6 +159,13 @@ def register_bead_list_parser(
         choices=["plan", "phase", "task"],
         action="append",
         help="Filter by type (repeatable)",
+    )
+    parser.add_argument(
+        "-u",
+        "--until",
+        metavar="DATE",
+        type=bead_date_arg,
+        help="Only beads created at/before DATE",
     )
 
 

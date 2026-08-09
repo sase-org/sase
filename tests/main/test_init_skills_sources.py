@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import subprocess
 
 import pytest
@@ -233,10 +234,13 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
                 "sase bead +1 <task-id>",
                 "Do not create a task",
                 "same underlying defect/root cause or desired remediation",
+                "sase bead list --type task --since 1w --status all",
+                "created in the last week",
                 "sase bead list --type plan --tier epic --status in_progress",
                 "DISCOVERED ISSUE:",
                 "If both the duplicate and active-epic branches apply, record both",
                 "sase bead create -T task",
+                "RELATED:",
                 "--size <size>",
                 "xsmall",
                 "xlarge",
@@ -441,7 +445,7 @@ def test_commit_skill_sources_do_not_reference_legacy_bead_flag(
 
 
 def test_sase_new_task_duplicate_detection_stays_query_scoped() -> None:
-    """Duplicate detection must use search, while the epic check remains a list."""
+    """Duplicate detection permits only search, a bounded sweep, and epic lists."""
     src = get_sase_package_skills_dir() / "sase_new_task.md"
     front_matter, body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
     flat = _collapse_whitespace(body)
@@ -451,7 +455,8 @@ def test_sase_new_task_duplicate_detection_stays_query_scoped() -> None:
         "sase bead search 'symbol|filename|command|error-fragment' --regex --type task"
         in flat
     )
-    assert "sase bead list --type task" not in flat
+    assert re.search(r"sase bead list --type task(?! --since)", flat) is None
+    assert re.search(r"sase bead list --type task[^`]*--format full", flat) is None
     assert "sase bead list --type plan --tier epic" in flat
 
 

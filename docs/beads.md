@@ -1148,18 +1148,28 @@ remains visible through `--tier`, `--format full`, and `--format json`.
 | `phase` | `↳`  | Sized executable child within an epic/plan bead      |
 | `task`  | `◆`  | Independent work item; new tasks require a size      |
 
-| Flag           | Values                                                         | Description                                                                           |
-| -------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never`                                      | Color mode for compact output                                                         |
-| `-f, --format` | `compact`, `json`, `full`                                      | Output format; defaults to `compact`                                                  |
-| `-n, --limit`  | integer                                                        | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
-| `-s, --status` | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
-| `--tier`       | `plan`, `epic`                                                 | Filter by plan-bead tier                                                              |
-| `-t, --type`   | `plan`, `phase`, `task`                                        | Filter by type (repeatable)                                                           |
+| Flag           | Values                                                                | Description                                                                           |
+| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never`                                             | Color mode for compact output                                                         |
+| `-f, --format` | `compact`, `json`, `full`                                             | Output format; defaults to `compact`                                                  |
+| `-n, --limit`  | integer                                                               | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
+| `-S, --since`  | `DATE`                                                                | Only beads created at or after `DATE`                                                 |
+| `-s, --status` | `all`, `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
+| `--tier`       | `plan`, `epic`                                                        | Filter by plan-bead tier                                                              |
+| `-t, --type`   | `plan`, `phase`, `task`                                               | Filter by type (repeatable)                                                           |
+| `-u, --until`  | `DATE`                                                                | Only beads created at or before `DATE`                                                |
 
-Active (`open`/`claimed`/`ready`/`in_progress`) listings are unlimited by default.
-Whenever the final status scope includes `closed` and `--limit` is omitted, only the
-newest 20 beads print; pass `--limit 0` for the full closed history.
+Active (`open`/`claimed`/`ready`/`snoozed`/`in_progress`) listings are unlimited by
+default. Whenever the final status scope includes `closed` and `--limit` is omitted,
+only the newest 20 beads print; pass `--limit 0` for the full closed history. When
+`--since` or `--until` is present, the newest-20 closed default does not apply; an
+explicit `--limit` still wins.
+
+Creation-date filters accept `Nh`/`Nd`/`Nw`, `today`, `yesterday`, `YYYY-MM-DD`, and
+`YYYY-MM-DDTHH:MM`; day-granular `--until` bounds include the full named day. These CLI
+flags bound bead creation time, unlike ACE's `since:` and `until:` filter tokens, which
+bound last activity. A bead with no usable creation timestamp is omitted whenever a
+creation-date bound is present.
 
 ### `sase bead note <id> <text>`
 

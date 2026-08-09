@@ -6,8 +6,18 @@ import argparse
 import shutil
 
 from sase.markdown_wrap import MIN_PROSE_WRAP_WIDTH
+from sase.vcs_log.dates import VcsLogDateError, parse_time_bound
 
 WRAP_AUTO = -1
+
+
+def bead_date_arg(value: str) -> str:
+    """Validate a ``--since``/``--until`` DATE token for bead listings."""
+    try:
+        parse_time_bound(value)
+    except VcsLogDateError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
+    return value
 
 
 def nonnegative_int(value: str) -> int:

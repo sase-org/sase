@@ -44,7 +44,21 @@ Use this skill before creating any task bead.
    Do not create a task. A reporter counts at most once; use `sase bead note` for later
    supplementary evidence.
 
-4. Independently inspect in-progress epic plans and their plausible children:
+4. Sweep every task bead created in the last week, then show plausible matches:
+
+   ```bash
+   sase bead list --type task --since 1w --status all
+   sase bead show <plausible-task-id>
+   ```
+
+   A duplicate filed hours ago by another agent often shares no term with your queries,
+   so this sweep is not redundant with step 3. `--since` bounds creation time and lifts
+   the newest-20 closed default, and `--status all` matters because most recent task
+   beads are already closed. Keep the sweep in the default compact format; never run it
+   with `--format full`. Judge each row by the semantic-duplicate test above and
+   corroborate with `sase bead +1` instead of creating a task when one matches.
+
+5. Independently inspect in-progress epic plans and their plausible children:
 
    ```bash
    sase bead list --type plan --tier epic --status in_progress --format full --limit 0
@@ -62,13 +76,21 @@ Use this skill before creating any task bead.
    Do not create a task. If both the duplicate and active-epic branches apply, record
    both.
 
-5. Only when neither branch applies, choose a size and create an evidence-rich draft,
+6. Only when neither branch applies, choose a size and create an evidence-rich draft,
    attach refs, refine its scope and dependencies, then mark it ready:
 
    ```bash
    sase bead create -T task -t "<title>" -d "<reproduction, impact, and scope>" --size <size> --ref <artifact-ref>
    sase bead dep add <task-id> <blocking-bead-id>
    sase bead update <task-id> --status ready
+   ```
+
+   When the search or the sweep surfaced beads that are related but are not duplicates —
+   an adjacent defect, a shared root file, a bead whose fix could collide — record one
+   note per bead on the new task so its worker inherits that context:
+
+   ```bash
+   sase bead note <task-id> "RELATED: <bead-id> — <how it bears on this task>"
    ```
 
    Omit `--ref` and the dependency command when they do not apply. Sizes: `xsmall` is

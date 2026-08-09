@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pytest
 from rich.cells import cell_len
 
 from sase.bead import cli as bead_cli
+from sase.bead import cli_query
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
 from sase.bead_time_presentation import BEAD_CREATED_GLYPH, BEAD_TIME_CLI_STYLE
@@ -77,6 +79,38 @@ def test_list_parser_accepts_short_limit_and_zero() -> None:
     assert args.limit == 0
 
 
+def test_list_parser_accepts_created_date_filters_and_status_all() -> None:
+    args = create_parser().parse_args(
+        [
+            "bead",
+            "list",
+            "--since",
+            "1w",
+            "--until",
+            "today",
+            "--status",
+            "all",
+        ]
+    )
+    short_args = create_parser().parse_args(["bead", "list", "-S", "1w", "-u", "today"])
+
+    assert args.since == "1w"
+    assert args.until == "today"
+    assert args.status == ["all"]
+    assert short_args.since == "1w"
+    assert short_args.until == "today"
+
+
+def test_list_parser_rejects_malformed_created_date(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        create_parser().parse_args(["bead", "list", "--since", "lastweek"])
+
+    assert excinfo.value.code == 2
+    assert "Invalid DATE 'lastweek'" in capsys.readouterr().err
+
+
 def test_list_parser_rejects_negative_limit(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -85,6 +119,130 @@ def test_list_parser_rejects_negative_limit(
 
     assert excinfo.value.code == 2
     assert "must be a non-negative integer" in capsys.readouterr().err
+
+
+def test_handle_bead_list_since_keeps_current_beads(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        issue = proj.create("Recent Epic", IssueType.PLAN)
+
+    args = create_parser().parse_args(["bead", "list", "-f", "json", "--since", "1d"])
+    bead_cli.handle_bead_list(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["count"] == 1
+    assert payload["results"][0]["id"] == issue.id
+
+
+def test_handle_bead_list_until_excludes_current_beads(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        proj.create("Recent Epic", IssueType.PLAN)
+
+    args = create_parser().parse_args(["bead", "list", "-f", "json", "--until", "1d"])
+    bead_cli.handle_bead_list(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["count"] == 0
+    assert payload["total"] == 0
+
+
+def test_handle_bead_list_status_all_includes_closed_beads(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        open_issue = proj.create("Open Epic", IssueType.PLAN)
+        closed_issue = proj.create("Closed Epic", IssueType.PLAN)
+        proj.close([closed_issue.id], reason="done")
+
+    bead_cli.handle_bead_list(
+        create_parser().parse_args(["bead", "list", "-f", "json"])
+    )
+    default_payload = json.loads(capsys.readouterr().out)
+    assert [row["id"] for row in default_payload["results"]] == [open_issue.id]
+
+    args = create_parser().parse_args(["bead", "list", "-f", "json", "--status", "all"])
+    bead_cli.handle_bead_list(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["statuses"] == [status.value for status in Status]
+    assert {row["id"] for row in payload["results"]} == {
+        open_issue.id,
+        closed_issue.id,
+    }
+
+
+def test_handle_bead_list_json_total_counts_only_created_window(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2000-01-01T00:00:00Z")
+    with BeadProject(project_dir) as proj:
+        proj.create("Old Epic", IssueType.PLAN)
+    monkeypatch.setattr(
+        "sase.bead.project._now",
+        lambda: datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    with BeadProject(project_dir) as proj:
+        issue = proj.create("Recent Epic", IssueType.PLAN)
+
+    args = create_parser().parse_args(["bead", "list", "-f", "json", "--since", "1d"])
+    bead_cli.handle_bead_list(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["count"] == 1
+    assert payload["total"] == 1
+    assert payload["results"][0]["id"] == issue.id
+
+
+def test_handle_bead_list_created_bound_lifts_newest_closed_default(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli_query, "DEFAULT_CLOSED_LIST_LIMIT", 1)
+    with BeadProject(project_dir) as proj:
+        first = proj.create("First Task", IssueType.TASK, size="small")
+        second = proj.create("Second Task", IssueType.TASK, size="small")
+        proj.close([first.id], reason="done")
+        proj.close([second.id], reason="done")
+
+    args = create_parser().parse_args(
+        ["bead", "list", "-f", "json", "--status", "closed"]
+    )
+    bead_cli.handle_bead_list(args)
+    limited_payload = json.loads(capsys.readouterr().out)
+
+    args = create_parser().parse_args(
+        ["bead", "list", "-f", "json", "--status", "closed", "--since", "1d"]
+    )
+    bead_cli.handle_bead_list(args)
+    bounded_payload = json.loads(capsys.readouterr().out)
+
+    assert limited_payload["count"] == 1
+    assert limited_payload["total"] == 2
+    assert bounded_payload["count"] == 2
+    assert bounded_payload["total"] == 2
+
+
+def test_handle_bead_list_rejects_since_later_than_until(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = create_parser().parse_args(
+        ["bead", "list", "--since", "1w", "--until", "2w"]
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_list(args)
+
+    assert excinfo.value.code == 2
+    assert "--since must not be later than --until" in capsys.readouterr().err
 
 
 def test_handle_bead_list_json_outputs_envelope(
