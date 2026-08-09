@@ -1,6 +1,6 @@
 """Commits entry utilities for hooks."""
 
-from ..changespec import ChangeSpec, CommitEntry
+from ..patch import ChangeSpec, CommitEntry
 
 
 def get_last_history_entry_id(changespec: ChangeSpec) -> str | None:

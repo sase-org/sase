@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.workspace_provider.changespec import (
+from sase.workspace_provider.patch import (
     _build_description,
     _derive_cl_name,
     _get_commits_ahead,
@@ -18,7 +18,7 @@ from sase.workspace_provider.changespec import (
 def test_get_commits_ahead_returns_oldest_first() -> None:
     mock_result = MagicMock(returncode=0, stdout="third\nsecond\nfirst\n")
     with patch(
-        "sase.workspace_provider.changespec.subprocess.run", return_value=mock_result
+        "sase.workspace_provider.patch.subprocess.run", return_value=mock_result
     ):
         assert _get_commits_ahead("origin/main", "agent_1") == [
             "first",
@@ -30,7 +30,7 @@ def test_get_commits_ahead_returns_oldest_first() -> None:
 def test_get_commits_ahead_empty_on_no_output() -> None:
     mock_result = MagicMock(returncode=0, stdout="  \n")
     with patch(
-        "sase.workspace_provider.changespec.subprocess.run", return_value=mock_result
+        "sase.workspace_provider.patch.subprocess.run", return_value=mock_result
     ):
         assert _get_commits_ahead("origin/main", "agent_1") == []
 
@@ -73,7 +73,7 @@ def test_build_description_multiple_commits() -> None:
 def test_save_committed_diff_returns_none_on_empty(tmp_path: object) -> None:
     mock_result = MagicMock(returncode=0, stdout="")
     with patch(
-        "sase.workspace_provider.changespec.subprocess.run", return_value=mock_result
+        "sase.workspace_provider.patch.subprocess.run", return_value=mock_result
     ):
         assert (
             _save_committed_diff("cl", "origin/main", "agent_1", "260101_120000")
@@ -93,12 +93,10 @@ def test_save_committed_diff_writes_file(
     mock_result = MagicMock(returncode=0, stdout="diff --git a/f b/f\n+hello\n")
     with (
         patch(
-            "sase.workspace_provider.changespec.subprocess.run",
+            "sase.workspace_provider.patch.subprocess.run",
             return_value=mock_result,
         ),
-        patch(
-            "sase.workspace_provider.changespec.shorten_path", side_effect=lambda p: p
-        ),
+        patch("sase.workspace_provider.patch.shorten_path", side_effect=lambda p: p),
     ):
         path = _save_committed_diff("my_cl", "origin/main", "agent_1", "260101_120000")
         assert path is not None
@@ -121,16 +119,14 @@ def test_save_committed_diff_falls_back_to_vcs_provider(
 
     with (
         patch(
-            "sase.workspace_provider.changespec.subprocess.run",
+            "sase.workspace_provider.patch.subprocess.run",
             return_value=git_fail,
         ),
         patch(
             "sase.vcs_provider.get_vcs_provider",
             return_value=mock_provider,
         ),
-        patch(
-            "sase.workspace_provider.changespec.shorten_path", side_effect=lambda p: p
-        ),
+        patch("sase.workspace_provider.patch.shorten_path", side_effect=lambda p: p),
     ):
         path = _save_committed_diff("my_cl", "HEAD~1", "foobar", "260101_120000")
         assert path is not None

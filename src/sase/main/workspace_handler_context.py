@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.ace.patch import changespec_lock, write_changespec_atomic
 from sase.core.paths import is_valid_sase_project_name
 from sase.workflows.utils import get_project_file_path
 from sase.workspace_provider.store import WorkspaceStore

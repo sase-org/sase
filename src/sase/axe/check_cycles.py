@@ -8,7 +8,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     ChangeSpec,
     find_all_changespecs,
     get_base_status,

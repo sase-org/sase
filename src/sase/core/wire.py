@@ -103,7 +103,7 @@ class HookWire:
 
 @dataclass
 class CommentWire:
-    """Wire form of :class:`sase.ace.changespec.models.CommentEntry`."""
+    """Wire form of :class:`sase.ace.patch.models.CommentEntry`."""
 
     reviewer: str
     file_path: str
@@ -113,7 +113,7 @@ class CommentWire:
 
 @dataclass
 class MentorStatusLineWire:
-    """Wire form of :class:`sase.ace.changespec.models.MentorStatusLine`."""
+    """Wire form of :class:`sase.ace.patch.models.MentorStatusLine`."""
 
     profile_name: str
     mentor_name: str
@@ -146,7 +146,7 @@ class MentorWire:
 
 @dataclass
 class TimestampWire:
-    """Wire form of :class:`sase.ace.changespec.models.TimestampEntry`."""
+    """Wire form of :class:`sase.ace.patch.models.TimestampEntry`."""
 
     timestamp: str
     event_type: str
@@ -155,7 +155,7 @@ class TimestampWire:
 
 @dataclass
 class DeltaWire:
-    """Wire form of :class:`sase.ace.changespec.models.DeltaEntry`.
+    """Wire form of :class:`sase.ace.patch.models.DeltaEntry`.
 
     ``change_type`` uses the long form ("A", "M", "D"). The on-disk glyphs
     ("+", "~", "-") are a formatting concern and stay out of the wire shape.

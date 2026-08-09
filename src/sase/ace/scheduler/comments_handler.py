@@ -5,7 +5,7 @@ This module handles detecting stale comment entries (ZOMBIE marking).
 
 from sase.telemetry.metrics import ZOMBIE_DETECTIONS
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 from ..comments import (
     is_comments_suffix_stale,
     set_comment_suffix,

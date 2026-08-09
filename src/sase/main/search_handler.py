@@ -16,7 +16,7 @@ from sase.project_display_names import (
 
 def handle_search_command(args: argparse.Namespace) -> None:
     """Handle the 'sase changespec search' command."""
-    from sase.ace.changespec import find_all_changespecs
+    from sase.ace.patch import find_all_changespecs
     from sase.ace.query import parse_query
     from sase.core.query_facade import evaluate_query_many
 
@@ -450,7 +450,7 @@ def _display_markdown(
     """Display search results as agent-friendly markdown."""
     from collections import Counter
 
-    from sase.ace.changespec import ChangeSpec
+    from sase.ace.patch import ChangeSpec
 
     changespecs: list[ChangeSpec] = matching
     headings = [

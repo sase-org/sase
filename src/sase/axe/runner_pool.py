@@ -15,7 +15,7 @@ from pathlib import Path
 from threading import Lock
 from typing import IO
 
-from sase.ace.changespec import count_all_runners_global
+from sase.ace.patch import count_all_runners_global
 from sase.axe.state import ensure_shared_dir
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 

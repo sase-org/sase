@@ -7,7 +7,7 @@ completions, start hooks/mentors/workflows, and perform cleanup tasks.
 from collections.abc import Callable
 from datetime import datetime
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import ChangeSpec
 from sase.ace.scheduler.checks_runner import (
     reap_orphan_check_files,
     process_pending_checks_for,

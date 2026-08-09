@@ -7,7 +7,7 @@ from sase.running_field import (
     release_workspace,
 )
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 from ..hooks.processes import is_process_running
 
 

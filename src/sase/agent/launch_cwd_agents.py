@@ -87,7 +87,7 @@ def launch_agents_from_cwd_impl(
 
     is_home_mode = project_file is None
     if is_home_mode:
-        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+        from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
         project_name = "home"
         home_dir = str(sase_projects_dir() / "home")
@@ -446,7 +446,7 @@ def launch_agents_from_cwd_impl(
     # workspace ref before this point; this branch covers disabled/missing
     # workspace providers and explicit non-workspace contexts.
     if vcs_ref is None and not is_home_mode:
-        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+        from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
         is_home_mode = True
         project_name = "home"

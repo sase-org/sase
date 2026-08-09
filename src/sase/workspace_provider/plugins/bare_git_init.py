@@ -101,7 +101,7 @@ def init_bare_git_project(
         _rebuild_bare_from_matching_clone(bare_path, clone_path)
 
     # Create project spec file (canonical .sase extension).
-    from sase.ace.changespec.project_spec_path import active_project_spec_filename
+    from sase.ace.patch.project_spec_path import active_project_spec_filename
 
     projects_base = sase_projects_dir()
     project_file = str(

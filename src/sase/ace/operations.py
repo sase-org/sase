@@ -8,7 +8,7 @@ from rich.console import Console
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from sase.core.changespec import (
+from sase.core.patch import (
     get_next_suffix_number,
     has_suffix,
 )
@@ -23,7 +23,7 @@ from sase.running_field import (
 )
 from sase.status_state_machine import update_parent_references_atomic
 
-from .changespec import ChangeSpec
+from .patch import ChangeSpec
 from .hooks import has_failing_hooks_for_fix
 
 

@@ -9,7 +9,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     changespec_lock,
     find_all_changespecs,
     write_changespec_atomic,
@@ -157,7 +157,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     Raises:
         ValueError: If the reference cannot be resolved.
     """
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
     projects_base = sase_projects_dir()
 

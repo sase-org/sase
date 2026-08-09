@@ -9,8 +9,8 @@ from rich.markup import escape as _esc
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from sase.core.changespec import (
-    get_workspace_directory_for_changespec,
+from sase.core.patch import (
+    get_workspace_directory_for_patch,
     strip_reverted_suffix,
 )
 from sase.core.paths import sase_subdir
@@ -21,7 +21,7 @@ from sase.running_field import (
 from sase.vcs_provider import get_vcs_provider
 from sase.project_display_names import humanize_cl_name
 
-from .changespec import ChangeSpec, find_all_changespecs
+from .patch import ChangeSpec, find_all_changespecs
 from .revert import update_changespec_name_atomic
 
 
@@ -51,7 +51,7 @@ def _clear_hook_status_lines_for_last_history(
     Returns:
         Tuple of (success, error_message)
     """
-    from .changespec import HookEntry
+    from .patch import HookEntry
     from .hooks import get_last_history_entry_id, update_changespec_hooks_field
 
     # Skip if no hooks
@@ -136,7 +136,7 @@ def restore_changespec(
         )
 
     # Get workspace directory
-    workspace_dir = get_workspace_directory_for_changespec(changespec)
+    workspace_dir = get_workspace_directory_for_patch(changespec)
     if not workspace_dir:
         return (False, "Could not determine workspace directory")
 

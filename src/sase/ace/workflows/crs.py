@@ -24,7 +24,7 @@ from sase.running_field import (
     release_workspace,
 )
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 from ..comments import set_comment_suffix
 from ..operations import update_to_changespec
 

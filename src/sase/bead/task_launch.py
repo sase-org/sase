@@ -57,7 +57,7 @@ def _resolve_task_launch_cwd(
 
 def resolve_task_launch_cwd_for_project(project: str) -> Path:
     """Resolve an explicit SASE project key to its primary checkout."""
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
     from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 
     if not is_valid_sase_project_name(project):

@@ -3,8 +3,8 @@
 import re
 from typing import Any
 
-from sase.ace.changespec import changespec_lock, get_entry_id, write_changespec_atomic
-from sase.ace.changespec.section_order import PROJECT_SPEC_SECTION_HEADERS
+from sase.ace.patch import changespec_lock, get_entry_id, write_changespec_atomic
+from sase.ace.patch.section_order import PROJECT_SPEC_SECTION_HEADERS
 from sase.ace.patch.storage import is_stitch_section_header
 from sase.workflows.renumber_utils import (
     build_commits_section,

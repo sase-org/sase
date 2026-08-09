@@ -4,7 +4,7 @@ import os
 import time
 from pathlib import Path
 
-from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.ace.patch import changespec_lock, write_changespec_atomic
 from sase.core.agent_launch_claims import (
     allocate_and_claim_workspace_from_content,
     list_workspace_claims_from_content,

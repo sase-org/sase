@@ -6,7 +6,7 @@ from contextlib import AsyncExitStack
 from typing import Any, Literal
 from unittest.mock import patch
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import ChangeSpec
 from sase.ace.tui import AceApp
 
 from ._startup import _install_fast_startup_overrides
@@ -153,13 +153,13 @@ class AcePage:
         try:
             stack.enter_context(
                 patch(
-                    "sase.ace.changespec.find_all_changespecs",
+                    "sase.ace.patch.find_all_changespecs",
                     return_value=self._changespecs,
                 )
             )
             stack.enter_context(
                 patch(
-                    "sase.ace.changespec.find_all_changespecs_cached",
+                    "sase.ace.patch.find_all_changespecs_cached",
                     return_value=self._changespecs,
                 )
             )

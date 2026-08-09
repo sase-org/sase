@@ -1,6 +1,6 @@
 """Query AST introspection helpers (terminal/submitted/project filter detection)."""
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 from .matchers import get_base_status
 from .types import AndExpr, NotExpr, OrExpr, PropertyMatch, QueryExpr
 

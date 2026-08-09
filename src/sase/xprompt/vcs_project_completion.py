@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     ChangeSpec as Patch,
     iter_changespec_project_files,
     parse_project_file,

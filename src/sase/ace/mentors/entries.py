@@ -2,7 +2,7 @@
 
 import logging
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     MentorEntry,
     changespec_lock,
     parse_commit_entry_id,

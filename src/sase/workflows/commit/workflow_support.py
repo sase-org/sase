@@ -4,21 +4,19 @@ from __future__ import annotations
 
 
 def explicit_parent_resolves(parent_name: str) -> bool:
-    """Return whether ``parent_name`` is a known ChangeSpec in this project.
+    """Return whether ``parent_name`` is a known Patch in this project.
 
     Resolution failures are treated as success so a transient error does not
     silently drop a legitimate parent reference.
     """
     try:
-        from sase.workflows.commit.changespec_queries import (
-            changespec_exists_anywhere,
-        )
+        from sase.workflows.commit.patch_queries import patch_exists_anywhere
         from sase.workflows.utils import get_project_from_workspace
 
         project_name = get_project_from_workspace()
         if not project_name:
             return True
-        return changespec_exists_anywhere(project_name, parent_name)
+        return patch_exists_anywhere(project_name, parent_name)
     except Exception:
         return True
 

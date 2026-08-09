@@ -2,7 +2,7 @@
 
 import re
 
-from ..changespec import ChangeSpec, has_any_status_suffix
+from ..patch import ChangeSpec, has_any_status_suffix
 from .searchable import RUNNING_AGENT_MARKER, RUNNING_PROCESS_MARKER
 from .types import AndExpr, NotExpr, OrExpr, PropertyMatch, QueryExpr, StringMatch
 
@@ -96,7 +96,7 @@ def _match_sibling(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
     Returns:
         True if the base names match (case-insensitive).
     """
-    from sase.core.changespec import strip_reverted_suffix
+    from sase.core.patch import strip_reverted_suffix
 
     # Get the base name of the search value (strip __<N> suffix)
     search_base = strip_reverted_suffix(prop.value).lower()

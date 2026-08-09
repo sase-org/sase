@@ -10,7 +10,7 @@ from dataclasses import replace
 
 from sase.workflows.commit_utils import update_commit_entry_suffix
 
-from ..changespec import (
+from ..patch import (
     ChangeSpec,
     CommentEntry,
     HookEntry,

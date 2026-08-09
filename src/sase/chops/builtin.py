@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import ChangeSpec
 from sase.axe.check_cycles import CheckCycleRunner
 from sase.axe.chop_script_context import (
     ChopScriptContext,

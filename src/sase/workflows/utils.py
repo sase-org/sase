@@ -3,7 +3,7 @@
 import os
 import subprocess
 
-from sase.ace.changespec import ChangeSpec, parse_project_file
+from sase.ace.patch import ChangeSpec, parse_project_file
 from sase.core.paths import sase_projects_dir
 from sase.vcs_provider import get_vcs_provider
 
@@ -16,7 +16,7 @@ def get_project_file_path(project: str) -> str:
     uses the canonical ``.sase`` extension so callers have a stable
     destination for writes.
     """
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
     project_dir = str(sase_projects_dir() / project)
     return preferred_project_spec_path(project_dir, project)

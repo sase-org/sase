@@ -39,7 +39,7 @@ def _resolve_known_project_segment_context(
 ) -> SegmentVcsContext | None:
     from pathlib import Path
 
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
     from sase.agent.launch_projects import (
         enable_known_project_for_launch_ref,
         extract_known_project_vcs_launch_ref,

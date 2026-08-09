@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.changespec.section_order import PROJECT_SPEC_SECTION_HEADERS
+from sase.ace.patch.section_order import PROJECT_SPEC_SECTION_HEADERS
 from sase.ace.patch.storage import is_stitch_section_header
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -591,7 +591,7 @@ def create_changespec(
             get_project_file_path,
             get_project_from_workspace,
         )
-        from sase.workspace_provider.changespec import (
+        from sase.workspace_provider.patch import (
             create_changespec_for_workflow,
         )
 
@@ -646,7 +646,7 @@ def cleanup_reservation(reserved_name: str | None) -> None:
     if not reserved_name:
         return
     try:
-        from sase.workflows.commit.changespec_operations import remove_reservation
+        from sase.workflows.commit.patch_operations import remove_reservation
         from sase.workflows.utils import get_project_from_workspace
 
         project_name = get_project_from_workspace()

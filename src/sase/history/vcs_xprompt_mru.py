@@ -203,7 +203,7 @@ def _is_stale_known_project_prefix(
         alias_map = _project_alias_map_or_empty(projects_base)
     project_name = alias_map.get(project_name, project_name)
 
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
     project_file = Path(
         preferred_project_spec_path(str(projects_base / project_name), project_name)
@@ -235,7 +235,7 @@ def _resolvable_vcs_ref_index() -> (
     project-records read.
     """
     try:
-        from sase.ace.changespec.cache import find_all_changespecs_cached
+        from sase.ace.patch.cache import find_all_changespecs_cached
         from sase.xprompt.loader import get_known_project_workspaces
 
         known_projects = get_known_project_workspaces()

@@ -20,7 +20,7 @@ from sase.status_state_machine import transition_changespec_status
 from sase.vcs_provider import get_vcs_provider
 from sase.project_display_names import humanize_cl_name
 
-from .changespec import (
+from .patch import (
     ChangeSpec,
     find_all_changespecs,
 )
@@ -88,7 +88,7 @@ def archive_patch(
         )
 
     # Get project basename for workspace operations
-    from sase.ace.changespec.project_spec_path import project_spec_basename
+    from sase.ace.patch.project_spec_path import project_spec_basename
 
     project_basename = project_spec_basename(changespec.file_path)
 

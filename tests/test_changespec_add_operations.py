@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.changespec.parser import parse_project_file
-from sase.workflows.commit.changespec_operations import add_changespec_to_project_file
+from sase.workflows.commit.patch_operations import add_changespec_to_project_file
 
 
 def test_add_changespec_inherits_parent_hooks(tmp_path: Path) -> None:
@@ -30,7 +30,7 @@ HOOKS:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -88,7 +88,7 @@ STATUS: Draft
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -122,7 +122,7 @@ def test_add_changespec_initial_commit_plan_drawer(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -164,7 +164,7 @@ def test_add_changespec_initial_commit_no_plan_drawer(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -199,7 +199,7 @@ def test_add_changespec_initial_commits_creates_timestamps(tmp_path: Path) -> No
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -235,7 +235,7 @@ def test_add_changespec_initial_commits_multiple_timestamps(tmp_path: Path) -> N
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -284,7 +284,7 @@ def test_add_changespec_no_commits_no_timestamps(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -314,7 +314,7 @@ def test_add_changespec_no_parent_bug_inherited_when_no_parent(tmp_path: Path) -
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -352,7 +352,7 @@ def test_add_changespec_drops_parent_when_not_found_anywhere(tmp_path: Path) -> 
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -397,7 +397,7 @@ def test_add_changespec_keeps_parent_when_in_archive(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -435,7 +435,7 @@ def test_add_changespec_keeps_real_active_parent(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(

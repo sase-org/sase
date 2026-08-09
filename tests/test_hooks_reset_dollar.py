@@ -12,7 +12,7 @@ from sase.ace.hooks.mutations import reset_dollar_hooks
 
 # Patch targets: lazy imports are patched at their source modules,
 # while rerun_delete_hooks_by_command lives in the same module.
-_PATCH_PARSE = "sase.ace.changespec.parse_project_file"
+_PATCH_PARSE = "sase.ace.patch.parse_project_file"
 _PATCH_KILL = "sase.ace.hooks.processes.kill_running_processes_for_hooks"
 _PATCH_RERUN = "sase.ace.hooks.mutations.rerun_delete_hooks_by_command"
 

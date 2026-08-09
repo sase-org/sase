@@ -134,7 +134,7 @@ def preview_context() -> Any:
     )
     is_home_mode = project_file is None
     if is_home_mode:
-        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+        from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
         project_name = "home"
         home_dir = str(sase_projects_dir() / "home")

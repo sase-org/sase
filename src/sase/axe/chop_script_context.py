@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     ChangeSpec,
     CommentEntry,
     CommitEntry,

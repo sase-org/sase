@@ -5,7 +5,7 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from .changespec import ChangeSpec, find_all_changespecs
+from .patch import ChangeSpec, find_all_changespecs
 
 # Statuses that should be checked for submission/comments
 # Note: "Changes Requested" has been replaced by the COMMENTS field

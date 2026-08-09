@@ -98,28 +98,28 @@ class VCSProvider(ABC):
     def derive_branch_name(self, changespec_name: str, project_basename: str) -> str:
         """Derive the branch name for a suffix-stripped ChangeSpec (Ready form).
 
-        The default implementation calls ``changespec_name_to_branch()`` which
+        The default implementation calls ``patch_name_to_branch()`` which
         strips the project prefix, removes the suffix, and converts underscores
         to hyphens.  Git providers override this to keep the ChangeSpec name
         as-is (only stripping the suffix).
         """
-        from sase.core.changespec import changespec_name_to_branch
+        from sase.core.patch import patch_name_to_branch
 
-        return changespec_name_to_branch(changespec_name, project_basename)
+        return patch_name_to_branch(changespec_name, project_basename)
 
     def derive_branch_name_with_suffix(
         self, changespec_name: str, project_basename: str
     ) -> str:
         """Derive the branch name preserving the ``_N`` suffix (Draft form).
 
-        The default implementation calls ``changespec_name_to_branch_with_suffix()``
+        The default implementation calls ``patch_name_to_branch_with_suffix()``
         which strips the project prefix and converts underscores to hyphens while
         keeping the suffix.  Git providers override this to return the ChangeSpec
         name unchanged.
         """
-        from sase.core.changespec import changespec_name_to_branch_with_suffix
+        from sase.core.patch import patch_name_to_branch_with_suffix
 
-        return changespec_name_to_branch_with_suffix(changespec_name, project_basename)
+        return patch_name_to_branch_with_suffix(changespec_name, project_basename)
 
     def can_rename_branch(self, cwd: str) -> bool:
         """Return whether the VCS provider can rename branches.

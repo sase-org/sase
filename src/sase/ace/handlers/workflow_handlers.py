@@ -24,7 +24,7 @@ from sase.running_field import (
     release_workspace,
 )
 
-from ..changespec import ChangeSpec, parse_project_file
+from ..patch import ChangeSpec, parse_project_file
 from ..display import display_changespec
 from ..hooks import (
     clear_hook_suffix,

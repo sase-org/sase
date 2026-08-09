@@ -1,6 +1,6 @@
 """Test target hook utilities - helpers, queries, and mutations."""
 
-from ..changespec import HookEntry, changespec_lock
+from ..patch import HookEntry, changespec_lock
 from .persistence import update_changespec_hooks_field, write_hooks_unlocked
 
 # Test target hook helpers
@@ -115,7 +115,7 @@ def add_test_target_hooks_to_changespec(
         return update_changespec_hooks_field(project_file, changespec_name, hooks)
 
     # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):

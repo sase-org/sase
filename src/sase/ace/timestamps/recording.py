@@ -3,7 +3,7 @@
 import re
 import sys
 
-from sase.ace.changespec.locking import changespec_lock, write_changespec_atomic
+from sase.ace.patch.locking import changespec_lock, write_changespec_atomic
 from sase.core.time import generate_timestamp
 
 

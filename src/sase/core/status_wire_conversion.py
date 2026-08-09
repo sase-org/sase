@@ -13,7 +13,7 @@ Two responsibilities live here:
   existing-names set required by
   :class:`~sase.core.status_wire.StatusTransitionRequestWire`. This
   helper performs Python-only filesystem I/O via
-  :mod:`sase.ace.changespec` and :mod:`sase.ace.revert`.
+  :mod:`sase.ace.patch` and :mod:`sase.ace.revert`.
 - :func:`_plan_status_transition_python` — pure decision engine. Given a
   request wire, returns a :class:`~sase.core.status_wire.StatusTransitionPlanWire`
   describing the side effects the host should perform. This is the
@@ -28,7 +28,7 @@ paths return identical strings.
 
 from __future__ import annotations
 
-from sase.core.changespec import (
+from sase.core.patch import (
     get_next_suffix_number,
     has_suffix,
     strip_reverted_suffix,
@@ -356,7 +356,7 @@ def build_status_transition_request(
     Returns:
         A fully populated request wire.
     """
-    from sase.ace.changespec import find_all_changespecs, parse_project_file
+    from sase.ace.patch import find_all_changespecs, parse_project_file
     from sase.ace.revert import has_children
 
     base_old_status = remove_workspace_suffix(old_status)

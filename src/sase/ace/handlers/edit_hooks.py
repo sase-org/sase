@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from rich.markup import escape as _esc
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 
 if TYPE_CHECKING:
     from ..tui._workflow_context import WorkflowContext
@@ -198,7 +198,7 @@ def _handle_rerun_delete_hooks(
     Returns:
         Tuple of (updated_changespecs, updated_index)
     """
-    from ..changespec import HookEntry
+    from ..patch import HookEntry
     from ..hooks import (
         get_last_history_entry_id,
         kill_running_processes_for_hooks,

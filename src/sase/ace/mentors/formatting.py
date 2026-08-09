@@ -1,6 +1,6 @@
 """Mentor field formatting - rendering MentorEntry data into file lines."""
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     MentorEntry,
     MentorStatusLine,
     is_error_suffix,

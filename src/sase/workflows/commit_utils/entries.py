@@ -3,8 +3,8 @@
 import os
 import re
 
-from sase.ace.changespec import changespec_lock, write_changespec_atomic
-from sase.ace.changespec.section_order import PROJECT_SPEC_SECTION_HEADERS
+from sase.ace.patch import changespec_lock, write_changespec_atomic
+from sase.ace.patch.section_order import PROJECT_SPEC_SECTION_HEADERS
 from sase.ace.patch.storage import (
     DEFAULT_STITCH_SECTION_HEADER,
     is_stitch_section_header,

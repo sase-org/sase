@@ -24,7 +24,7 @@ timestamp recording — run after the lock releases.
 import logging
 from typing import TYPE_CHECKING
 
-from sase.ace.changespec import changespec_lock
+from sase.ace.patch import changespec_lock
 from sase.core.status_wire import (
     ARCHIVE_ACTION_FROM_ARCHIVE,
     ARCHIVE_ACTION_NONE,
@@ -131,7 +131,7 @@ def transition_changespec_status_python(
             log_msg += " (validation skipped)"
         logger.info(log_msg)
 
-        from sase.ace.changespec import write_changespec_atomic
+        from sase.ace.patch import write_changespec_atomic
 
         assert plan.status_update_target is not None
         updated_content = apply_status_update(
@@ -174,7 +174,7 @@ def transition_changespec_status_python(
 
     # 4b: archive move (between main and archive project spec files).
     if plan.archive_action != ARCHIVE_ACTION_NONE:
-        from sase.ace.changespec.archive import (
+        from sase.ace.patch.archive import (
             get_archive_file_path,
             get_main_file_path,
             is_archive_file,

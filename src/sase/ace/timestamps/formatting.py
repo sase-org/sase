@@ -1,6 +1,6 @@
 """Formatting utilities for TIMESTAMPS field serialization."""
 
-from sase.ace.changespec.models import TimestampEntry
+from sase.ace.patch.models import TimestampEntry
 
 # Event type keywords are right-padded to 7 chars for column alignment
 _EVENT_WIDTH = 7

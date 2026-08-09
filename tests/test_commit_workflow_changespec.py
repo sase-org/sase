@@ -11,12 +11,10 @@ from tests._commit_workflow_fixtures import (
 )
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
-_CHANGESPEC_TARGET = "sase.workspace_provider.changespec.create_changespec_for_workflow"
+_CHANGESPEC_TARGET = "sase.workspace_provider.patch.create_changespec_for_workflow"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 _PROJECT_FILE_TARGET = "sase.workflows.utils.get_project_file_path"
-_SUFFIXED_CL_TARGET = (
-    "sase.workflows.commit.changespec_operations.compute_suffixed_cl_name"
-)
+_SUFFIXED_CL_TARGET = "sase.workflows.commit.patch_operations.compute_suffixed_cl_name"
 
 
 @pytest.fixture(autouse=True)

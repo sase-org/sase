@@ -28,13 +28,14 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # spend significant curation cost on coverage the broadening rules already give.
 #
 # This cap intentionally equals the current manifest length. The retired
-# runtime oracle measured the current 35-entry set at 27.4 serial seconds on
-# 2026-08-08 before it was replaced; one additional contract file should force
-# an explicit value-per-second curation decision instead of consuming hidden
-# headroom. If the set changes, re-curate it per plans/202608/test_suite_tier1.md
-# and update this cap together with the measured-cost comment.
-_MANIFEST_ENTRY_BUDGET = 35
-_MEASURED_SERIAL_COST = "27.4 serial seconds"
+# runtime oracle measured the prior 35-entry set at 27.4 serial seconds on
+# 2026-08-08 before it was replaced; the Patch/stitch terminology audit was
+# explicitly added as the 36th always-on contract because it guards cross-repo
+# compatibility boundaries. If the set changes, re-curate it per
+# plans/202608/test_suite_tier1.md and update this cap together with the
+# measured-cost comment.
+_MANIFEST_ENTRY_BUDGET = 36
+_MEASURED_SERIAL_COST = "27.4 serial seconds + Patch/stitch audit"
 
 
 def _load_refresh_tool() -> ModuleType:
@@ -91,7 +92,7 @@ def _budget_failure_message(files: list[str]) -> str:
         "tests/contract_manifest.txt contains "
         f"{count} entries, over the {_MANIFEST_ENTRY_BUDGET}-entry "
         "contract-set budget.\n"
-        f"The current 35-entry set was measured at {_MEASURED_SERIAL_COST} before "
+        f"The current 36-entry set was measured at {_MEASURED_SERIAL_COST} before "
         "the load-sensitive runtime oracle was retired.\n"
         "Re-curate by value per second, then update this cap and measured-cost "
         "comment per plans/202608/test_suite_tier1.md.\n"
@@ -115,4 +116,4 @@ def test_contract_set_manifest_entry_budget_diagnostic_names_curation() -> None:
 
     assert _MEASURED_SERIAL_COST in message
     assert "plans/202608/test_suite_tier1.md" in message
-    assert "tests/generated_contract_35.py" in message
+    assert "tests/generated_contract_36.py" in message

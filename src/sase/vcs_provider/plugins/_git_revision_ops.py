@@ -12,9 +12,9 @@ class GitRevisionOpsMixin(CommandRunner):
         self, changespec_name: str, project_basename: str
     ) -> tuple[list[str], str, str]:
         from sase.core.branch_map import read_branch_map
-        from sase.core.changespec import (
-            changespec_name_to_branch,
-            changespec_name_to_branch_with_suffix,
+        from sase.core.patch import (
+            patch_name_to_branch,
+            patch_name_to_branch_with_suffix,
         )
 
         # 1. Branch map alias (highest priority for immutable-branch providers)
@@ -29,11 +29,11 @@ class GitRevisionOpsMixin(CommandRunner):
             changespec_name, project_basename
         )
 
-        # 3. Old naming (backward compat): changespec_name_to_branch*
-        old_branch_with_suffix = changespec_name_to_branch_with_suffix(
+        # 3. Old naming (backward compat): hyphenated branch spellings.
+        old_branch_with_suffix = patch_name_to_branch_with_suffix(
             changespec_name, project_basename
         )
-        old_branch_without_suffix = changespec_name_to_branch(
+        old_branch_without_suffix = patch_name_to_branch(
             changespec_name, project_basename
         )
 
@@ -69,7 +69,7 @@ class GitRevisionOpsMixin(CommandRunner):
     def vcs_derive_branch_name(
         self, changespec_name: str, project_basename: str
     ) -> str:
-        from sase.core.changespec import strip_reverted_suffix
+        from sase.core.patch import strip_reverted_suffix
 
         return strip_reverted_suffix(changespec_name)
 

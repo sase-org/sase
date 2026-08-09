@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from sase.config.mentor import MentorProfileConfig
 
-from ..changespec import ChangeSpec, CommitEntry
+from ..patch import ChangeSpec, CommitEntry
 from ._mentor_profile_helpers import CommitMatchArtifact
 
 

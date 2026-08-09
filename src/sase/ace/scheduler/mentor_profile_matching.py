@@ -10,7 +10,7 @@ from sase.config.mentor import (
 from sase.running_field import get_workspace_directory
 from sase.vcs_provider import VCSProviderNotFoundError, get_vcs_provider
 
-from ..changespec import (
+from ..patch import (
     ChangeSpec,
     CommitEntry,
     parse_commit_entry_id,

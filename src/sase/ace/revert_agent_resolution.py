@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.ace.changespec.project_spec_path import project_spec_basename
+from sase.ace.patch.project_spec_path import project_spec_basename
 from sase.ace.revert_agent_models import BulkRevertIntent, RevertIntent, RevertRepo
 from sase.linked_repos import opened_external_repo_records
 from sase.plan_chain import agent_family_base

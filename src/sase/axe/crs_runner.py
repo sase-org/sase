@@ -18,7 +18,7 @@ import sys
 import time
 import traceback as tb_mod
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import ChangeSpec
 from sase.ace.comments import set_comment_suffix
 from sase.ace.hooks import format_duration
 from sase.axe.runner_artifacts import (

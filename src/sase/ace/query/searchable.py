@@ -1,6 +1,6 @@
 """Searchable text extraction for ChangeSpec query matching."""
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 
 # Pattern that indicates a running agent in searchable text
 # Matches "- (@)" (no message) or "- (@: msg)" (with message)

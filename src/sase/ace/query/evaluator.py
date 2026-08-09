@@ -14,7 +14,7 @@ This module re-exports the public surface and defines the top-level
 :func:`evaluate_query` entry point.
 """
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 from .context import (
     QueryEvaluationContext,
     build_query_context,

@@ -1,5 +1,5 @@
 """Ace subcommand for iterating through ChangeSpecs."""
 
-from .changespec import CommitEntry
+from .patch import CommitEntry
 
 __all__ = ["CommitEntry"]

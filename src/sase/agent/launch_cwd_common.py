@@ -108,7 +108,7 @@ def resolve_known_project_vcs_launch_ref(
     if workspace_dir is None:
         return None
 
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
     project_dir = sase_projects_dir() / project_name
     project_file = Path(preferred_project_spec_path(str(project_dir), project_name))

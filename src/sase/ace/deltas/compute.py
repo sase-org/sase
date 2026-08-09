@@ -17,8 +17,8 @@ representation.
 
 import logging
 
-from sase.ace.changespec import find_all_changespecs
-from sase.ace.changespec.models import ChangeSpec, DeltaEntry, DeltaLineStats
+from sase.ace.patch import find_all_changespecs
+from sase.ace.patch.models import ChangeSpec, DeltaEntry, DeltaLineStats
 from sase.vcs_provider import VCSOperationError, VCSProvider
 
 logger = logging.getLogger(__name__)

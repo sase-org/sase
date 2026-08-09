@@ -2,7 +2,7 @@
 
 import re
 
-from sase.ace.changespec import CommitEntry
+from sase.ace.patch import CommitEntry
 
 
 def parse_proposal_id(proposal_id: str) -> tuple[int, str] | None:

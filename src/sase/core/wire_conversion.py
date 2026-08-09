@@ -45,7 +45,7 @@ from sase.core.wire import (
 )
 
 # DELTAS on-disk glyph -> long-form change_type stored in the wire record.
-# Mirrors the docstring on :class:`sase.ace.changespec.models.DeltaEntry`.
+# Mirrors the docstring on :class:`sase.ace.patch.models.DeltaEntry`.
 _DELTA_GLYPH_TO_CODE = {
     "+": "A",
     "~": "M",

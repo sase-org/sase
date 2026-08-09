@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 from typing import Literal
 
-from sase.ace.changespec.project_spec_path import (
+from sase.ace.patch.project_spec_path import (
     PROJECT_SPEC_EXTENSION,
     preferred_project_spec_path,
 )

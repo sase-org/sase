@@ -4,11 +4,11 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from ..changespec import HookEntry, HookStatusLine, changespec_lock
+from ..patch import HookEntry, HookStatusLine, changespec_lock
 from .persistence import update_changespec_hooks_field, write_hooks_unlocked
 
 if TYPE_CHECKING:
-    from ..changespec import ChangeSpec
+    from ..patch import ChangeSpec
 
 
 # Regex to match /tmp/*_failed_hooks_*.txt paths
@@ -34,7 +34,7 @@ def add_hook_to_changespec(
         return update_changespec_hooks_field(project_file, changespec_name, hooks)
 
     # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):
@@ -144,7 +144,7 @@ def set_hook_suffix(
         )
 
     # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):
@@ -190,7 +190,7 @@ def try_claim_hook_for_fix(
     Returns:
         The existing summary if successfully claimed, None if not eligible or already claimed.
     """
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):
@@ -320,7 +320,7 @@ def clear_hook_suffix(
         )
 
     # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):
@@ -366,7 +366,7 @@ def rerun_delete_hooks_by_command(
     Returns:
         True if update succeeded, False otherwise.
     """
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):
@@ -463,7 +463,7 @@ def reset_dollar_hooks(
     Returns:
         True if reset succeeded or was a no-op, False on error.
     """
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
     from .history import get_last_history_entry_id
     from .processes import kill_running_processes_for_hooks
 

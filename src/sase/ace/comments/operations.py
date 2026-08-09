@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from dataclasses import replace
 
-from ..changespec import (
+from ..patch import (
     CommentEntry,
     changespec_lock,
     is_error_suffix,
@@ -199,7 +199,7 @@ def transform_changespec_comments_field(
     Returns ``True`` only when the freshly read comments materially change and
     the updated field is persisted.
     """
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):
@@ -261,7 +261,7 @@ def add_comment_entry(
         return update_changespec_comments_field(project_file, changespec_name, comments)
 
     # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):
@@ -315,7 +315,7 @@ def remove_comment_entry(
         return update_changespec_comments_field(project_file, changespec_name, comments)
 
     # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):

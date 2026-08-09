@@ -26,7 +26,7 @@ _log = logging.getLogger(__name__)
 
 def _find_changespec(project_file: str, changespec_name: str) -> object | None:
     try:
-        from ..changespec import parse_project_file
+        from ..patch import parse_project_file
     except ImportError:  # pragma: no cover
         return None
 

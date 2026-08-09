@@ -1,6 +1,6 @@
 """Reusable ChangeSpec fixtures for ace tests."""
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     ChangeSpec,
     CommentEntry,
     CommitEntry,

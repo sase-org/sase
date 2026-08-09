@@ -5,7 +5,7 @@ import re
 import signal
 from collections.abc import Callable
 
-from ..changespec import (
+from ..patch import (
     ChangeSpec,
     CommentEntry,
     HookEntry,

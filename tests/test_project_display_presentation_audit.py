@@ -27,19 +27,19 @@ class _CanonicalExemption:
 # presentation-boundary review decision.
 _CANONICAL_EXEMPTIONS = (
     _CanonicalExemption(
-        "src/sase/main/changespec_handler.py",
+        "src/sase/main/patch_handler.py",
         "_changespec_payload",
         "cs.name",
-        "Stable JSON output must retain the exact ChangeSpec identity.",
+        "Stable JSON output must retain the exact Patch identity.",
     ),
     _CanonicalExemption(
-        "src/sase/main/changespec_handler.py",
+        "src/sase/main/patch_handler.py",
         "_changespec_payload",
         "cs.project_basename",
         "Stable JSON output must retain the canonical project key.",
     ),
     _CanonicalExemption(
-        "src/sase/main/changespec_handler.py",
+        "src/sase/main/patch_handler.py",
         "_changespec_payload",
         "cs.parent",
         "Stable JSON output must retain the exact parent identity.",

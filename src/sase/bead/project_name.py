@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.workspace_provider.utils import parse_workspace_dir
 

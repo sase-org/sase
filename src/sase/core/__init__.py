@@ -27,9 +27,15 @@ host logic, not backend fallbacks.
 from sase.core.changespec import (
     changespec_name_to_branch,
     changespec_name_to_branch_with_suffix,
-    get_next_suffix_number,
     get_workspace_directory_for_changespec,
+)
+from sase.core.patch import (
+    get_next_suffix_number,
+    get_workspace_directory_for_patch,
     has_suffix,
+    patch_name_to_branch,
+    patch_name_to_branch_with_suffix,
+    patch_names_match,
     strip_reverted_suffix,
 )
 from sase.core.clipboard import copy_to_system_clipboard
@@ -79,9 +85,13 @@ __all__ = [
     "get_sase_directory",
     "get_timezone",
     "get_vendored_tool",
+    "get_workspace_directory_for_patch",
     "get_workspace_directory_for_changespec",
     "has_suffix",
     "make_safe_filename",
+    "patch_name_to_branch",
+    "patch_name_to_branch_with_suffix",
+    "patch_names_match",
     "build_glossary_catalog",
     "compile_glossary_catalog",
     "lookup_glossary_span",

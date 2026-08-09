@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 
 from sase.workflows.commit_utils import run_sase_hg_clean
-from sase.core.changespec import strip_reverted_suffix
+from sase.core.patch import strip_reverted_suffix
 from sase.core.paths import make_safe_filename, sharded_path
 from sase.running_field import (
     claim_workspace,
@@ -16,7 +16,7 @@ from sase.running_field import (
 )
 from sase.vcs_provider import get_vcs_provider
 
-from ...changespec import (
+from ...patch import (
     ChangeSpec,
     CommentEntry,
     HookEntry,

@@ -29,7 +29,7 @@ for (( i=0; i<100; i++ )); do
   timestamp=$(date -d "@$((epoch + i))" +"%y%m%d_%H%M%S")
   filename="${base}-${timestamp}.${ext}"
   output_file=".sase/xcmds/${filename}"
-  # set -C (noclobber) makes > fail atomically if file exists (uses O_EXChangeSpec)
+  # set -C (noclobber) makes > fail atomically if file exists (uses O_EXCL)
   if (set -C; : > "$output_file") 2>/dev/null; then
     break
   fi

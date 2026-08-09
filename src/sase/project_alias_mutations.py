@@ -48,7 +48,7 @@ def _resolve_mutable_project_file(
     projects_root: Path,
     resolve_project_ref: ResolveProjectRef,
 ) -> tuple[str, Path]:
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
     if project == "home":
         raise ProjectAliasError("project 'home' is system-managed")
@@ -83,7 +83,7 @@ def _mutate_project_aliases_locked(
     list_project_records: ListProjectRecords,
     apply_project_aliases_update: ApplyAliasesUpdate,
 ) -> ProjectRecordWire:
-    from sase.ace.changespec import changespec_lock, write_changespec_atomic
+    from sase.ace.patch import changespec_lock, write_changespec_atomic
 
     project, project_file = _resolve_mutable_project_file(
         project,
@@ -123,7 +123,7 @@ def _mutate_project_name_locked(
     list_project_records: ListProjectRecords,
     apply_project_name_update: ApplyNameUpdate,
 ) -> ProjectRecordWire:
-    from sase.ace.changespec import changespec_lock, write_changespec_atomic
+    from sase.ace.patch import changespec_lock, write_changespec_atomic
 
     project, project_file = _resolve_mutable_project_file(
         project,

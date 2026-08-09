@@ -51,11 +51,11 @@ def _make_run_side_effect(
     return side_effect
 
 
-# The old changespec_name_to_branch* functions are still used inside
+# The legacy hyphenated branch-name helpers are still used inside
 # vcs_resolve_revision as backward-compat candidates — patch them.
-@patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
+@patch("sase.core.patch.patch_name_to_branch", return_value="feat-bar")
 @patch(
-    "sase.core.changespec.changespec_name_to_branch_with_suffix",
+    "sase.core.patch.patch_name_to_branch_with_suffix",
     return_value="feat-bar",
 )
 @patch("sase.core.branch_map.read_branch_map", return_value={})
@@ -76,9 +76,9 @@ def test_resolve_falls_back_to_unique_suffixed_branch(
     assert result == "origin/feat-bar-1"
 
 
-@patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
+@patch("sase.core.patch.patch_name_to_branch", return_value="feat-bar")
 @patch(
-    "sase.core.changespec.changespec_name_to_branch_with_suffix",
+    "sase.core.patch.patch_name_to_branch_with_suffix",
     return_value="feat-bar",
 )
 @patch("sase.core.branch_map.read_branch_map", return_value={})
@@ -100,9 +100,9 @@ def test_resolve_no_fallback_when_multiple_suffixed(
     assert result == "proj_feat_bar"
 
 
-@patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
+@patch("sase.core.patch.patch_name_to_branch", return_value="feat-bar")
 @patch(
-    "sase.core.changespec.changespec_name_to_branch_with_suffix",
+    "sase.core.patch.patch_name_to_branch_with_suffix",
     return_value="feat-bar",
 )
 @patch("sase.core.branch_map.read_branch_map", return_value={})
@@ -124,9 +124,9 @@ def test_resolve_no_fallback_when_no_suffixed(
     assert result == "proj_feat_bar"
 
 
-@patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
+@patch("sase.core.patch.patch_name_to_branch", return_value="feat-bar")
 @patch(
-    "sase.core.changespec.changespec_name_to_branch_with_suffix",
+    "sase.core.patch.patch_name_to_branch_with_suffix",
     return_value="feat-bar-1",
 )
 @patch("sase.core.branch_map.read_branch_map", return_value={})
@@ -148,9 +148,9 @@ def test_resolve_skips_fallback_when_name_already_suffixed(
     assert result == "proj_feat_bar"
 
 
-@patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
+@patch("sase.core.patch.patch_name_to_branch", return_value="feat-bar")
 @patch(
-    "sase.core.changespec.changespec_name_to_branch_with_suffix",
+    "sase.core.patch.patch_name_to_branch_with_suffix",
     return_value="feat-bar",
 )
 @patch("sase.core.branch_map.read_branch_map", return_value={})
@@ -172,9 +172,9 @@ def test_resolve_ignores_non_numeric_suffix_matches(
     assert result == "proj_feat_bar"
 
 
-@patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
+@patch("sase.core.patch.patch_name_to_branch", return_value="feat-bar")
 @patch(
-    "sase.core.changespec.changespec_name_to_branch_with_suffix",
+    "sase.core.patch.patch_name_to_branch_with_suffix",
     return_value="feat-bar",
 )
 @patch(

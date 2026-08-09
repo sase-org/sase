@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     find_all_changespecs,
     get_main_file_path,
     is_archive_file,

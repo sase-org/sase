@@ -5,11 +5,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from sase.core.changespec import strip_reverted_suffix
+from sase.core.patch import strip_reverted_suffix
 from sase.core.time import generate_timestamp, local_timezone_name
 from sase.telemetry.metrics import HOOK_DURATION, HOOK_EXECUTIONS, HOOK_RETRIES
 
-from ..changespec import (
+from ..patch import (
     ChangeSpec,
     HookEntry,
     HookStatusLine,

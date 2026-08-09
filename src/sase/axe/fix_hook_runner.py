@@ -19,7 +19,7 @@ import time
 import traceback as tb_mod
 from pathlib import Path
 
-from sase.ace.changespec import ChangeSpec, parse_project_file
+from sase.ace.patch import ChangeSpec, parse_project_file
 from sase.ace.hooks import (
     contract_test_target_command,
     format_duration,

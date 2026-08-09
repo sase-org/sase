@@ -2,14 +2,14 @@
 
 import logging
 
-from ..changespec import (
+from ..patch import (
     DeltaEntry,
     LockTimeoutError,
     changespec_lock,
     write_changespec_atomic,
 )
-from ..changespec.deltas_format import format_deltas_field
-from ..changespec.section_order import (
+from ..patch.deltas_format import format_deltas_field
+from ..patch.section_order import (
     CHANGESPEC_SECTION_ORDER,
     PATCH_SECTION_ORDER,
     PROJECT_SPEC_SECTION_HEADERS,

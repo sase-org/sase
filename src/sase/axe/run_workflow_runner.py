@@ -119,7 +119,7 @@ def main() -> None:
     artifacts_dir = sys.argv[7]
     update_target = sys.argv[8]
     is_home_mode_arg = sys.argv[9]
-    from sase.ace.changespec.project_spec_path import project_spec_basename
+    from sase.ace.patch.project_spec_path import project_spec_basename
 
     project_basename = project_spec_basename(project_file)
 

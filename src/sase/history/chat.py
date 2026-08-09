@@ -6,7 +6,7 @@ The implementation is split by responsibility across ``chat_storage``,
 
 from collections.abc import Mapping, Sequence
 
-from sase.core.changespec import strip_reverted_suffix
+from sase.core.patch import strip_reverted_suffix
 from sase.core.shell import run_shell_command
 from sase.core.time import generate_timestamp
 from sase.history.chat_fork import (

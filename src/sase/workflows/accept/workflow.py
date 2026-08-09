@@ -4,7 +4,7 @@ import os
 import sys
 from typing import NoReturn
 
-from sase.ace.changespec import ChangeSpec, CommitEntry
+from sase.ace.patch import ChangeSpec, CommitEntry
 from sase.ace.operations import update_to_changespec
 from sase.workflows.commit_utils import (
     apply_diff_to_workspace,

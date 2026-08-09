@@ -9,7 +9,7 @@ from typing import Final
 
 from sase.config.mentor import MentorProfileConfig
 
-from ..changespec import ChangeSpec, CommitEntry
+from ..patch import ChangeSpec, CommitEntry
 
 logger = logging.getLogger(__name__)
 

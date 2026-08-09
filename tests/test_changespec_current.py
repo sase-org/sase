@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from sase.ace.changespec import ChangeSpec
-from sase.main.changespec_handler import _handle_current
+from sase.main.patch_handler import _handle_current
 from sase.main.parser import create_parser
 
 
@@ -77,15 +77,15 @@ def _run_current(
     project_file: str | None = None,
 ) -> tuple[int, str, str]:
     monkeypatch.setattr(
-        "sase.main.changespec_handler.find_all_changespecs",
+        "sase.main.patch_handler.find_all_changespecs",
         lambda: changespecs,
     )
     monkeypatch.setattr(
-        "sase.main.changespec_handler.get_project_from_workspace",
+        "sase.main.patch_handler.get_project_from_workspace",
         lambda: project,
     )
     monkeypatch.setattr(
-        "sase.main.changespec_handler.get_vcs_provider",
+        "sase.main.patch_handler.get_vcs_provider",
         lambda cwd: provider,
     )
     args = argparse.Namespace(format=output_format, project_file=project_file)

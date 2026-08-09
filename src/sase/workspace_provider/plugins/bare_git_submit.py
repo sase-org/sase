@@ -101,7 +101,7 @@ def submit_bare_git(
     from rich.console import Console
     from rich.markup import escape as escape_markup
 
-    from sase.ace.changespec import find_all_changespecs
+    from sase.ace.patch import find_all_changespecs
     from sase.ace.hooks.processes import kill_and_persist_all_running_processes
     from sase.ace.operations import has_active_children
     from sase.running_field import (

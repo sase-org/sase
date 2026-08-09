@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.ace.changespec import ChangeSpec, parse_project_file
+from sase.ace.patch import ChangeSpec, parse_project_file
 from sase.artifact_ref_lists import resolve_artifact_ref_list
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 from sase.doctor.checks_project import resolve_current_project_record

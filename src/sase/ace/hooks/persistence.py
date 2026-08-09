@@ -4,10 +4,10 @@ import logging
 from collections.abc import Callable
 from dataclasses import replace
 
-from sase.core.changespec import strip_reverted_suffix
+from sase.core.patch import strip_reverted_suffix
 from sase.core.paths import make_safe_filename, sharded_path
 
-from ..changespec import (
+from ..patch import (
     HookEntry,
     HookStatusLine,
     LockTimeoutError,
@@ -132,7 +132,7 @@ def transform_changespec_hooks_field(
     Returns:
         True if the hooks were changed and persisted, False otherwise.
     """
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):
@@ -187,7 +187,7 @@ def merge_hook_updates(
     Returns:
         True if update succeeded, False otherwise.
     """
-    from ..changespec import parse_project_file
+    from ..patch import parse_project_file
 
     try:
         with changespec_lock(project_file):

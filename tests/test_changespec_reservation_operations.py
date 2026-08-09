@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.changespec.parser import parse_project_file
-from sase.workflows.commit.changespec_operations import (
+from sase.workflows.commit.patch_operations import (
     add_changespec_to_project_file,
     compute_suffixed_cl_name,
     remove_reservation,
@@ -23,7 +23,7 @@ def test_reservation_replaced_by_add_changespec(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             # Step 1: create reservation
@@ -74,7 +74,7 @@ def test_remove_reservation_cleans_up_stub(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             # Create reservation
@@ -110,7 +110,7 @@ def test_suffix_slot_reused_after_reservation_cleanup(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             # Reserve _1

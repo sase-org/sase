@@ -96,7 +96,7 @@ def test_transition_to_draft_blocked_when_child_is_ready(tmp_path: Path) -> None
         mock_child.parent = "Parent Feature"
         mock_child.status = "Ready"
 
-        with patch("sase.ace.changespec.find_all_changespecs") as mock_find:
+        with patch("sase.ace.patch.find_all_changespecs") as mock_find:
             mock_find.return_value = [mock_child]
 
             success, old_status, error, _ = transition_changespec_status(
@@ -141,7 +141,7 @@ def test_transition_to_draft_allowed_when_children_are_draft_or_reverted(
         mock_unrelated.status = "Ready"
 
         with (
-            patch("sase.ace.changespec.find_all_changespecs") as mock_find,
+            patch("sase.ace.patch.find_all_changespecs") as mock_find,
             patch("sase.ace.mentors.set_mentor_draft_flags"),
             patch("sase.ace.revert.update_changespec_name_atomic"),
             patch("sase.running_field.get_workspace_directory") as mock_ws_dir,
@@ -253,7 +253,7 @@ STATUS: Draft
         # Mock the external dependencies
         with (
             patch("sase.ace.mentors.clear_mentor_draft_flags"),
-            patch("sase.core.changespec.has_suffix") as mock_has_suffix,
+            patch("sase.core.status_wire_conversion.has_suffix") as mock_has_suffix,
         ):
             mock_has_suffix.return_value = False
 

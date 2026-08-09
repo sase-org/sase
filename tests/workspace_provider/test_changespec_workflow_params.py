@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.workspace_provider.changespec import create_changespec_for_workflow
+from sase.workspace_provider.patch import create_changespec_for_workflow
 
 
 # --- parent parameter ---
@@ -14,27 +14,27 @@ def test_create_changespec_for_workflow_passes_parent() -> None:
     """Parent argument is forwarded to add_changespec_to_project_file."""
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_child_1",
         ) as mock_add,
     ):
@@ -64,26 +64,26 @@ def test_create_changespec_uses_agent_chat_path_env(
     monkeypatch.setenv("SASE_AGENT_CHAT_PATH", "~/chats/ace-run-260101_120000.md")
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
         ) as mock_save_chat,
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
     ):
@@ -112,27 +112,27 @@ def test_create_changespec_falls_back_without_agent_chat_path(
     monkeypatch.delenv("SASE_AGENT_CHAT_PATH", raising=False)
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/fallback.md",
         ) as mock_save_chat,
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
     ):
@@ -161,27 +161,27 @@ def test_create_changespec_for_workflow_passes_bug(
     monkeypatch.delenv("SASE_AGENT_CHAT_PATH", raising=False)
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
     ):
@@ -211,31 +211,31 @@ def test_create_changespec_for_workflow_success(
     monkeypatch.delenv("SASE_PLAN", raising=False)
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
         patch(
-            "sase.workspace_provider.changespec.subprocess.run"
+            "sase.workspace_provider.patch.subprocess.run"
         ),  # Prevent real git branch -m
     ):
         result = create_changespec_for_workflow(
@@ -277,30 +277,30 @@ def test_create_changespec_for_workflow_passes_plan(
     monkeypatch.setenv("HOME", "/home/user")
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_plan_1",
         ) as mock_add,
-        patch("sase.workspace_provider.changespec.subprocess.run"),
+        patch("sase.workspace_provider.patch.subprocess.run"),
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
@@ -341,30 +341,30 @@ def test_create_changespec_for_workflow_uses_repo_relative_plan(
     monkeypatch.setenv("SASE_PLAN", str(plan_file))
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_plan_3",
         ) as mock_add,
-        patch("sase.workspace_provider.changespec.subprocess.run"),
+        patch("sase.workspace_provider.patch.subprocess.run"),
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
@@ -389,30 +389,30 @@ def test_create_changespec_for_workflow_plan_outside_home(
     monkeypatch.setenv("HOME", "/home/user")
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_plan_2",
         ) as mock_add,
-        patch("sase.workspace_provider.changespec.subprocess.run"),
+        patch("sase.workspace_provider.patch.subprocess.run"),
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
@@ -446,30 +446,30 @@ def test_create_changespec_for_workflow_no_plan_when_env_unset(
     monkeypatch.delenv("SASE_PLAN", raising=False)
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_thing_1",
         ) as mock_add,
-        patch("sase.workspace_provider.changespec.subprocess.run"),
+        patch("sase.workspace_provider.patch.subprocess.run"),
     ):
         create_changespec_for_workflow(
             project_name="proj",

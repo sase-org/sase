@@ -1,6 +1,6 @@
 """Hook status determination utilities."""
 
-from ..changespec import HookEntry
+from ..patch import HookEntry
 from ..constants import DEFAULT_ZOMBIE_TIMEOUT_SECONDS
 from .history import is_proposal_entry
 from .timestamps import get_hook_age_seconds

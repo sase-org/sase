@@ -118,7 +118,7 @@ def ensure_project_file_and_get_workspace_num(
         return (None, None, None)
 
     # Construct project file path (prefer canonical .sase, fall back to legacy .gp).
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
     from sase.core.paths import sase_projects_dir
 
     project_dir = str(sase_projects_dir() / project_name)

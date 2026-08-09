@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from sase.vcs_provider import get_vcs_provider
 from sase.project_display_names import humanize_cl_name
 
-from .changespec import ChangeSpec
+from .patch import ChangeSpec
 
 
 @dataclass

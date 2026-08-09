@@ -3,7 +3,7 @@
 import logging
 import os
 
-from sase.ace.changespec import write_changespec_atomic
+from sase.ace.patch import write_changespec_atomic
 from sase.core.paths import is_valid_sase_project_name
 from sase.output import print_status
 from sase.workflows.utils import get_project_file_path

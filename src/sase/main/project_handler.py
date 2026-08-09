@@ -8,8 +8,8 @@ import shutil
 import sys
 from pathlib import Path
 
-from sase.ace.changespec import changespec_lock, write_changespec_atomic
-from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+from sase.ace.patch import changespec_lock, write_changespec_atomic
+from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.running_field._model import WorkspaceClaim
 from sase.core.agent_launch_claims import list_workspace_claims_from_content
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir

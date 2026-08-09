@@ -6,7 +6,7 @@ import sys
 import time
 from collections.abc import Callable
 
-from sase.core.changespec import strip_reverted_suffix
+from sase.core.patch import strip_reverted_suffix
 from sase.core.paths import (
     make_safe_filename,
     sharded_path,
@@ -14,7 +14,7 @@ from sase.core.paths import (
 from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.config.mentor import MentorProfileConfig
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 from ..hooks import generate_timestamp
 from ..mentors import set_mentor_status
 

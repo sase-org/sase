@@ -12,7 +12,7 @@ from collections.abc import Callable
 from sase.core.time import generate_timestamp
 from sase.telemetry.metrics import ZOMBIE_DETECTIONS
 
-from ..changespec import (
+from ..patch import (
     ChangeSpec,
     HookEntry,
     HookStatusLine,

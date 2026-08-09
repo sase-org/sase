@@ -252,7 +252,7 @@ def test_draft_to_ready_records_timestamp_with_base_name(tmp_path: Path) -> None
     try:
         with (
             patch(
-                "sase.ace.changespec.find_all_changespecs",
+                "sase.ace.patch.find_all_changespecs",
                 return_value=[],
             ),
             patch("sase.ace.mentors.clear_mentor_draft_flags"),
@@ -333,7 +333,7 @@ def test_draft_to_ready_blocked_when_sibling_has_children(tmp_path: Path) -> Non
         ]
 
         with patch(
-            "sase.ace.changespec.find_all_changespecs",
+            "sase.ace.patch.find_all_changespecs",
             return_value=mock_changespecs,
         ):
             success, old_status, error, _ = transition_changespec_status(
@@ -406,7 +406,7 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted(tmp_path: Path) -
         ]
 
         with patch(
-            "sase.ace.changespec.find_all_changespecs",
+            "sase.ace.patch.find_all_changespecs",
             return_value=mock_changespecs,
         ):
             # Also need to mock the functions called after successful transition

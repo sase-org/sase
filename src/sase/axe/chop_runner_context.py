@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from sase.ace.changespec import ChangeSpec, find_all_changespecs
+from sase.ace.patch import ChangeSpec, find_all_changespecs
 from sase.core.query_facade import evaluate_query_many
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 

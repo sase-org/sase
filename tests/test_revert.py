@@ -77,9 +77,7 @@ def test_revert_changespec_fails_with_nonexistent_workspace(make_changespec) -> 
     changespec = make_changespec.create_with_file()
 
     with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
-        with patch(
-            "sase.ace.revert.get_workspace_directory_for_changespec"
-        ) as mock_get_ws:
+        with patch("sase.ace.revert.get_workspace_directory_for_patch") as mock_get_ws:
             mock_get_ws.return_value = "/nonexistent/workspace"
             success, error = revert_changespec(changespec)
 
@@ -101,7 +99,7 @@ def test_revert_changespec_success(make_changespec) -> None:  # type: ignore[no-
 
     with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
         with patch(
-            "sase.ace.revert.get_workspace_directory_for_changespec",
+            "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
         ):
             with patch("sase.ace.revert.save_diff_to_file", return_value=(True, None)):
@@ -131,7 +129,7 @@ def test_revert_changespec_fails_on_diff_error(make_changespec) -> None:  # type
 
     with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
         with patch(
-            "sase.ace.revert.get_workspace_directory_for_changespec",
+            "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
         ):
             with patch(
@@ -157,7 +155,7 @@ def test_revert_changespec_fails_on_prune_error(make_changespec) -> None:  # typ
 
     with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
         with patch(
-            "sase.ace.revert.get_workspace_directory_for_changespec",
+            "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
         ):
             with patch("sase.ace.revert.save_diff_to_file", return_value=(True, None)):
@@ -183,7 +181,7 @@ def test_revert_changespec_calls_kill_and_persist(make_changespec) -> None:  # t
 
     with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
         with patch(
-            "sase.ace.revert.get_workspace_directory_for_changespec",
+            "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
         ):
             with patch("sase.ace.revert.save_diff_to_file", return_value=(True, None)):

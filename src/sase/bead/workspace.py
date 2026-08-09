@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_for_cwd
 from sase.core.paths import sase_projects_dir

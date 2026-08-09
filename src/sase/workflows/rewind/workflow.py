@@ -2,7 +2,7 @@
 
 import os
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import ChangeSpec
 from sase.ace.hooks.processes import kill_and_persist_all_running_processes
 from sase.ace.operations import update_to_changespec
 from sase.ace.timestamps.recording import add_timestamp_entry_atomic

@@ -8,7 +8,7 @@ from rich.markup import escape as _esc
 
 from sase.vcs_provider import get_vcs_provider
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 
 if TYPE_CHECKING:
     from ..tui._workflow_context import WorkflowContext

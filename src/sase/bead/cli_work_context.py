@@ -57,7 +57,7 @@ def _resolve_required_vcs_launch_context(*, purpose: str) -> VCSLaunchContext:
             "project from this workspace"
         )
 
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
     project_dir = sase_projects_dir() / project_name
     project_file = Path(preferred_project_spec_path(str(project_dir), project_name))

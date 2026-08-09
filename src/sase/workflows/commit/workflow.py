@@ -148,7 +148,7 @@ class CommitWorkflow(BaseWorkflow):
             base_name: str = self._payload["name"]
             self._base_cl_name = base_name
             try:
-                from sase.workflows.commit.changespec_operations import (
+                from sase.workflows.commit.patch_operations import (
                     compute_suffixed_cl_name,
                 )
                 from sase.workflows.utils import get_project_from_workspace
@@ -325,7 +325,7 @@ class CommitWorkflow(BaseWorkflow):
         if not new_name or new_name == self._reserved_name:
             return
         try:
-            from sase.workflows.commit.changespec_operations import remove_reservation
+            from sase.workflows.commit.patch_operations import remove_reservation
             from sase.workflows.utils import get_project_from_workspace
 
             project_name = get_project_from_workspace()

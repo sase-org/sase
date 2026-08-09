@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from sase.workspace_provider.changespec import create_changespec_for_workflow
+from sase.workspace_provider.patch import create_changespec_for_workflow
 
 
 # --- No-commits edge cases ---
@@ -11,11 +11,11 @@ from sase.workspace_provider.changespec import create_changespec_for_workflow
 def test_create_changespec_for_workflow_no_commits() -> None:
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.refresh_deltas_after_commits_change",
+            "sase.workspace_provider.patch.refresh_deltas_after_commits_change",
         ) as mock_refresh,
     ):
         result = create_changespec_for_workflow(
@@ -34,34 +34,32 @@ def test_create_changespec_for_workflow_no_commits() -> None:
 def test_create_changespec_for_workflow_refreshes_deltas_after_creation() -> None:
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
         ),
+        patch("sase.workspace_provider.patch.os.getcwd", return_value="/workspace"),
         patch(
-            "sase.workspace_provider.changespec.os.getcwd", return_value="/workspace"
-        ),
-        patch(
-            "sase.workspace_provider.changespec.refresh_deltas_after_commits_change",
+            "sase.workspace_provider.patch.refresh_deltas_after_commits_change",
             return_value=False,
         ) as mock_refresh,
     ):
@@ -87,27 +85,27 @@ def test_create_changespec_for_workflow_no_commits_with_fallback() -> None:
     """commit_description fallback is used when git log returns empty."""
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_my_cl_1",
         ) as mock_add,
     ):
@@ -134,7 +132,7 @@ def test_create_changespec_for_workflow_no_commits_with_fallback() -> None:
 def test_create_changespec_for_workflow_no_commits_no_fallback() -> None:
     """Returns None when git log is empty and no commit_description provided."""
     with patch(
-        "sase.workspace_provider.changespec._get_commits_ahead",
+        "sase.workspace_provider.patch._get_commits_ahead",
         return_value=[],
     ):
         result = create_changespec_for_workflow(
@@ -158,27 +156,27 @@ def test_create_changespec_uses_full_commit_description() -> None:
     the full commit_description is used for DESCRIPTION (not just subjects)."""
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
     ):
@@ -204,27 +202,27 @@ def test_create_changespec_adds_project_prefix_to_cl_name() -> None:
     """cl_name without project prefix gets normalized before passing through."""
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["fix: something"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="sase_fix_split_1",
         ) as mock_add,
     ):
@@ -247,27 +245,27 @@ def test_create_changespec_strips_pr_tags_from_commit_description() -> None:
     """strip_pr_tags is applied to the full commit_description."""
     with (
         patch(
-            "sase.workspace_provider.changespec._get_commits_ahead",
+            "sase.workspace_provider.patch._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_provider.changespec.generate_timestamp",
+            "sase.workspace_provider.patch.generate_timestamp",
             return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_provider.changespec.save_chat_history",
+            "sase.workspace_provider.patch.save_chat_history",
             return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_provider.changespec._save_committed_diff",
+            "sase.workspace_provider.patch._save_committed_diff",
             return_value=None,
         ),
         patch(
-            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.patch.get_initial_hooks_for_changespec",
             return_value=[],
         ),
         patch(
-            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.patch.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
         patch(

@@ -83,7 +83,7 @@ def _get_all_project_files() -> list[str]:
         List of paths to project spec files for all projects. Prefers the
         canonical ``.sase`` extension and falls back to legacy ``.gp``.
     """
-    from sase.ace.changespec.project_spec_path import (
+    from sase.ace.patch.project_spec_path import (
         active_project_spec_filename,
         legacy_active_project_spec_filename,
     )

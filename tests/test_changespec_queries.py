@@ -2,13 +2,13 @@
 
 from unittest.mock import MagicMock, patch
 
-from sase.workflows.commit.changespec_queries import changespec_exists
+from sase.workflows.commit.patch_queries import changespec_exists
 
 
 # === Tests for changespec_exists ===
 
 
-@patch("sase.workflows.commit.changespec_queries.get_project_file_path")
+@patch("sase.workflows.commit.patch_queries.get_project_file_path")
 @patch("builtins.open")
 def test_changespec_exists_exception(
     mock_open: MagicMock, mock_get_path: MagicMock

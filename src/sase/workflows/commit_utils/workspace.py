@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-from sase.core.changespec import strip_reverted_suffix
+from sase.core.patch import strip_reverted_suffix
 from sase.core.paths import make_safe_filename, sharded_path
 from sase.core.time import generate_timestamp
 from sase.vcs_provider import get_vcs_provider

@@ -5,7 +5,7 @@ from sase.config.mentor import (
     get_all_mentor_profiles,
 )
 
-from ..changespec import (
+from ..patch import (
     ChangeSpec,
     extract_pid_from_agent_suffix,
 )
@@ -615,7 +615,7 @@ def check_mentors(
     # Check global concurrency limit
     # Include runners started this cycle (across all ChangeSpecs) that aren't
     # yet written to disk
-    from ..changespec import count_agent_runners_global
+    from ..patch import count_agent_runners_global
 
     current_running = count_agent_runners_global() + runners_started_this_cycle
 

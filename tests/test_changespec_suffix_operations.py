@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sase.workflows.commit.changespec_operations import compute_suffixed_cl_name
+from sase.workflows.commit.patch_operations import compute_suffixed_cl_name
 
 
 def test_compute_suffixed_cl_name_basic(tmp_path: Path) -> None:
@@ -20,7 +20,7 @@ def test_compute_suffixed_cl_name_basic(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = compute_suffixed_cl_name(
@@ -42,7 +42,7 @@ def test_compute_suffixed_cl_name_no_existing(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = compute_suffixed_cl_name("test_project", "test_project_eval_bar")
@@ -71,7 +71,7 @@ def test_compute_suffixed_cl_name_skips_remote_branch_suffixes(tmp_path: Path) -
     try:
         with (
             patch(
-                "sase.workflows.commit.changespec_operations.get_project_file_path",
+                "sase.workflows.commit.patch_operations.get_project_file_path",
                 return_value=project_file,
             ),
             patch(
@@ -107,7 +107,7 @@ def test_compute_suffixed_cl_name_skips_remote_query_without_cwd(
     try:
         with (
             patch(
-                "sase.workflows.commit.changespec_operations.get_project_file_path",
+                "sase.workflows.commit.patch_operations.get_project_file_path",
                 return_value=project_file,
             ),
             patch(
@@ -126,11 +126,11 @@ def test_compute_suffixed_cl_name_no_project_file() -> None:
     """Test compute_suffixed_cl_name returns None when project file can't be created."""
     with (
         patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value="/nonexistent/path.sase",
         ),
         patch(
-            "sase.workflows.commit.changespec_operations.os.path.isfile",
+            "sase.workflows.commit.patch_operations.os.path.isfile",
             return_value=False,
         ),
         patch(
@@ -152,7 +152,7 @@ def test_compute_suffixed_cl_name_adds_project_prefix(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = compute_suffixed_cl_name("myproj", "fix_bug")
@@ -172,7 +172,7 @@ def test_compute_suffixed_cl_name_uses_display_project_prefix(tmp_path: Path) ->
     try:
         with (
             patch(
-                "sase.workflows.commit.changespec_operations.get_project_file_path",
+                "sase.workflows.commit.patch_operations.get_project_file_path",
                 return_value=project_file,
             ),
             patch(
@@ -203,7 +203,7 @@ def test_compute_suffixed_cl_name_no_double_prefix(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.patch_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = compute_suffixed_cl_name("myproj", "myproj_fix_bug")

@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from sase.ace.changespec.models import ChangeSpec
+from sase.ace.patch.models import ChangeSpec
 from sase.bead.model import BeadTier, Issue, IssueType
 
 

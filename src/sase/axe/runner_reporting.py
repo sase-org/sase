@@ -4,7 +4,7 @@ import json
 import os
 from collections.abc import Callable, Mapping
 
-from sase.ace.changespec import ChangeSpec, parse_project_file
+from sase.ace.patch import ChangeSpec, parse_project_file
 
 
 def _commit_finalizer_verdict(artifacts_dir: str) -> str:

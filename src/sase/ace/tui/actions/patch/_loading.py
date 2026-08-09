@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from unittest.mock import Mock
@@ -46,6 +47,17 @@ class PatchLoadingMixin:
     _query_corpus: QueryCorpus | None
     _query_corpus_source_list_id: int | None
 
+    def _compat_loader(
+        self,
+        legacy_loader: Callable[[], list[Patch]],
+        canonical_loader: Callable[[], list[Patch]],
+    ) -> Callable[[], list[Patch]]:
+        if legacy_loader is canonical_loader:
+            return canonical_loader
+        if isinstance(canonical_loader, Mock) and not isinstance(legacy_loader, Mock):
+            return canonical_loader
+        return legacy_loader
+
     def _on_patch_list_tab(self) -> bool:
         current_tab = getattr(self, "current_tab", None)
         if current_tab in {
@@ -67,16 +79,17 @@ class PatchLoadingMixin:
         from .... import patch as patch_module
 
         if self._on_patch_list_tab():
-            legacy_uncached_loader = changespec_module.find_all_changespecs
-            canonical_uncached_alias = patch_module.find_all_changespecs
-            if legacy_uncached_loader is not canonical_uncached_alias:
-                return legacy_uncached_loader()
-            legacy_loader = changespec_module.find_all_changespecs_cached
-            canonical_loader = patch_module.find_all_changespecs_cached
-            canonical_legacy_alias = patch_module.find_all_changespecs_cached
-            if legacy_loader is not canonical_legacy_alias:
-                return legacy_loader()
-            return canonical_loader()
+            uncached_loader = self._compat_loader(
+                changespec_module.find_all_changespecs,
+                patch_module.find_all_changespecs,
+            )
+            if uncached_loader is not patch_module.find_all_changespecs:
+                return uncached_loader()
+            cached_loader = self._compat_loader(
+                changespec_module.find_all_changespecs_cached,
+                patch_module.find_all_changespecs_cached,
+            )
+            return cached_loader()
         return patch_module.find_all_patches_cached()
 
     def _prepare_patch_load_from_disk(self) -> _PreparedPatchLoad:

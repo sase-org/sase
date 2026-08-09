@@ -113,9 +113,9 @@ class VCSPluginManager(VCSProvider):
             changespec_name=changespec_name, project_basename=project_basename
         )
         if result is None:
-            from sase.core.changespec import changespec_name_to_branch
+            from sase.core.patch import patch_name_to_branch
 
-            return changespec_name_to_branch(changespec_name, project_basename)
+            return patch_name_to_branch(changespec_name, project_basename)
         return result  # type: ignore[return-value]
 
     def derive_branch_name_with_suffix(
@@ -125,11 +125,9 @@ class VCSPluginManager(VCSProvider):
             changespec_name=changespec_name, project_basename=project_basename
         )
         if result is None:
-            from sase.core.changespec import changespec_name_to_branch_with_suffix
+            from sase.core.patch import patch_name_to_branch_with_suffix
 
-            return changespec_name_to_branch_with_suffix(
-                changespec_name, project_basename
-            )
+            return patch_name_to_branch_with_suffix(changespec_name, project_basename)
         return result  # type: ignore[return-value]
 
     def can_rename_branch(self, cwd: str) -> bool:

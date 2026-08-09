@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sase.core.time import get_timezone
 
-from ..changespec import HookEntry, is_error_suffix
+from ..patch import HookEntry, is_error_suffix
 from ..constants import DEFAULT_ZOMBIE_TIMEOUT_SECONDS
 
 

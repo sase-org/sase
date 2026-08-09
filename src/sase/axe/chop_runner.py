@@ -14,7 +14,7 @@ code, TUI notification, scheduler bookkeeping).
 
 from __future__ import annotations
 
-from sase.ace.changespec import ChangeSpec, find_all_changespecs
+from sase.ace.patch import ChangeSpec, find_all_changespecs
 from sase.ace.hooks.processes import is_process_running
 from sase.agent.launcher import launch_agent_from_cwd, launch_agents_from_cwd
 from sase.core.query_facade import evaluate_query_many

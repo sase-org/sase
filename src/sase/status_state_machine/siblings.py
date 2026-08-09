@@ -42,9 +42,9 @@ def revert_sibling_draft_changespecs(
         List of SiblingRevertResult for each sibling that was attempted to be
         reverted.
     """
-    from sase.ace.changespec import parse_project_file
+    from sase.ace.patch import parse_project_file
     from sase.ace.revert import revert_changespec
-    from sase.core.changespec import strip_reverted_suffix
+    from sase.core.patch import strip_reverted_suffix
 
     changespecs = parse_project_file(project_file)
     results: list[SiblingRevertResult] = []

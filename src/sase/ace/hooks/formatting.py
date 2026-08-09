@@ -1,12 +1,12 @@
 """Hook field formatting for ChangeSpec project files."""
 
-from ..changespec import (
+from ..patch import (
     HookEntry,
     is_error_suffix,
     is_running_agent_suffix,
     parse_commit_entry_id,
 )
-from ..changespec.section_order import PROJECT_SPEC_SECTION_HEADERS
+from ..patch.section_order import PROJECT_SPEC_SECTION_HEADERS
 from .timestamps import format_timestamp_display
 
 

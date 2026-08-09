@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 from sase.ace.changespec import parse_project_file
-from sase.main.changespec_handler import _handle_ref
+from sase.main.patch_handler import _handle_ref
 from sase.main.parser import create_parser, default_list_delegation_notice
 from tests.artifact_refs.helpers import context as make_context
 
@@ -32,7 +32,7 @@ def _project_file(tmp_path: Path, refs: tuple[str, ...] = ()) -> Path:
 
 def _target(monkeypatch, project: Path) -> None:
     monkeypatch.setattr(
-        "sase.main.changespec_handler.find_all_changespecs",
+        "sase.main.patch_handler.find_all_changespecs",
         lambda: parse_project_file(str(project)),
     )
 
@@ -130,7 +130,7 @@ def test_ref_list_resolve_json_returns_machine_readable_outcomes(
     resolved.write_text("# Resolved\n", encoding="utf-8")
     _target(monkeypatch, project)
     monkeypatch.setattr(
-        "sase.main.changespec_handler._artifact_reference_context",
+        "sase.main.patch_handler._artifact_reference_context",
         lambda _project: context,
     )
     args = argparse.Namespace(

@@ -1,6 +1,6 @@
 """Workflow-specific hook queries for fix-hook and summarize-hook."""
 
-from ..changespec import HookEntry
+from ..patch import HookEntry
 from .history import is_proposal_entry
 
 

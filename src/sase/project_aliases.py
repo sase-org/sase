@@ -234,8 +234,8 @@ def find_project_ref_owner(
 
 def _load_project_changespec_names(project: str) -> frozenset[str]:
     """Return active and archived ChangeSpec names for *project*."""
-    from sase.ace.changespec import parse_project_file
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch import parse_project_file
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
     project_dir = sase_projects_dir() / project
     names: set[str] = set()

@@ -354,7 +354,7 @@ def spawn_agent_subprocess(
                     )
         else:
             # Ensure home project directory and file exist
-            from sase.ace.changespec.project_spec_path import (
+            from sase.ace.patch.project_spec_path import (
                 active_project_spec_filename,
                 legacy_active_project_spec_filename,
             )

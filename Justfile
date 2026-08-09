@@ -488,6 +488,10 @@ refresh-contract-manifest: _setup
     @printf "\n---------- Regenerating contract test manifest... ----------\n"
     {{ venv_bin }}/python tools/refresh_contract_manifest
 
+audit-patch-stitch-terminology: _setup
+    @printf "\n---------- Auditing Patch/stitch terminology... ----------\n"
+    {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root .
+
 # Download the newest per-test coverage-contexts baseline published by the CI
 # coverage leg into the host-local cache. Selection itself never touches the
 # network: it reads whatever this recipe last cached, and falls back to the

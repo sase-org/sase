@@ -44,9 +44,7 @@ def test_restore_changespec_no_workspace_dir(make_changespec) -> None:  # type: 
         name="test_project_feature__1", status="Reverted"
     )
 
-    with patch(
-        "sase.ace.restore.get_workspace_directory_for_changespec", return_value=None
-    ):
+    with patch("sase.ace.restore.get_workspace_directory_for_patch", return_value=None):
         success, error = restore_changespec(changespec)
 
     assert success is False
@@ -61,7 +59,7 @@ def test_restore_changespec_workspace_not_exists(make_changespec) -> None:  # ty
     )
 
     with patch(
-        "sase.ace.restore.get_workspace_directory_for_changespec",
+        "sase.ace.restore.get_workspace_directory_for_patch",
         return_value="/nonexistent/path",
     ):
         success, error = restore_changespec(changespec)
@@ -83,7 +81,7 @@ def test_restore_changespec_success(make_changespec) -> None:  # type: ignore[no
     mock_provider.apply_patch.return_value = (True, None)
 
     with patch(
-        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
+        "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with patch("os.path.isdir", return_value=True):
             with patch("sase.ace.restore.update_changespec_name_atomic") as mock_rename:
@@ -116,7 +114,7 @@ def test_restore_changespec_with_parent(make_changespec) -> None:  # type: ignor
     mock_provider.resolve_revision.return_value = "parent_branch"
 
     with patch(
-        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
+        "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with patch("os.path.isdir", return_value=True):
             with patch("sase.ace.restore.update_changespec_name_atomic"):
@@ -145,7 +143,7 @@ def test_restore_changespec_sase_hg_update_fails(make_changespec) -> None:  # ty
     mock_provider.checkout.return_value = (False, "update failed")
 
     with patch(
-        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
+        "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with patch("os.path.isdir", return_value=True):
             with patch("sase.ace.restore.update_changespec_name_atomic"):
@@ -168,7 +166,7 @@ def test_restore_changespec_diff_not_found(make_changespec) -> None:  # type: ig
     mock_provider.checkout.return_value = (True, None)
 
     with patch(
-        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
+        "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with patch("os.path.isdir", return_value=True):
             with patch("sase.ace.restore.update_changespec_name_atomic"):
@@ -194,7 +192,7 @@ def test_restore_changespec_hg_import_fails(make_changespec) -> None:  # type: i
     mock_provider.apply_patch.return_value = (False, "hg failed: import failed")
 
     with patch(
-        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
+        "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with patch("os.path.isdir", return_value=True):
             with patch("sase.ace.restore.update_changespec_name_atomic"):
@@ -220,7 +218,7 @@ def test_restore_changespec_sase_commit_fails(make_changespec) -> None:  # type:
     mock_provider.apply_patch.return_value = (True, None)
 
     with patch(
-        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
+        "sase.ace.restore.get_workspace_directory_for_patch", return_value="/tmp"
     ):
         with patch("os.path.isdir", return_value=True):
             with patch("sase.ace.restore.update_changespec_name_atomic"):

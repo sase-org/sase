@@ -232,7 +232,7 @@ def resolve_primary_from_project(
         if not project_name:
             return None
 
-        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+        from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
         home = Path.home() if project_home is None else project_home
         project_dir = home / ".sase" / "projects" / project_name

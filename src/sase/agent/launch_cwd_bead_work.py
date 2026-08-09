@@ -124,7 +124,7 @@ def launch_planned_bead_work_agents(
 
     allow_bypass = internal_agent_name_bypass_for_launch(None, segment_extra_env)
 
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
     project_dir = sase_projects_dir() / project_name
     project_file = preferred_project_spec_path(str(project_dir), project_name)

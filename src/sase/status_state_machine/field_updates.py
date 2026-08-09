@@ -7,9 +7,9 @@ DESCRIPTION fields.
 
 import logging
 
-from sase.ace.changespec import changespec_lock, write_changespec_atomic
-from sase.ace.changespec.section_order import PROJECT_SPEC_SECTION_HEADERS
-from sase.ace.changespec.review_field import (
+from sase.ace.patch import changespec_lock, write_changespec_atomic
+from sase.ace.patch.section_order import PROJECT_SPEC_SECTION_HEADERS
+from sase.ace.patch.review_field import (
     REVIEW_URL_PREFIXES,
     format_review_url_line,
     is_review_url_line,

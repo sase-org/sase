@@ -23,7 +23,7 @@ from sase.status_state_machine import (
 )
 from sase.workspace_provider import SUBMITTED_CHECK_EXIT_CODE_CLOSED
 
-from ..changespec import ChangeSpec, CommentEntry, get_base_status, is_plain_suffix
+from ..patch import ChangeSpec, CommentEntry, get_base_status, is_plain_suffix
 from ..pr_status import is_parent_submitted
 from ..comments import (
     get_comments_file_path,

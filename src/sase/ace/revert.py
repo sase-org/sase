@@ -9,9 +9,7 @@ from rich.markup import escape as escape_markup
 
 # Add parent directory to path for status_state_machine import
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from sase.core.changespec import (
-    get_workspace_directory_for_changespec,
-)
+from sase.core.patch import get_workspace_directory_for_patch
 from sase.core.paths import sase_subdir
 from sase.status_state_machine import (
     reset_changespec_pr_url,
@@ -20,7 +18,7 @@ from sase.status_state_machine import (
 from sase.vcs_provider import get_vcs_provider
 from sase.project_display_names import humanize_cl_name
 
-from .changespec import (
+from .patch import (
     ChangeSpec,
     changespec_lock,
     find_all_changespecs,
@@ -135,7 +133,7 @@ def revert_changespec(
     # PR-dependent operations: save diff, prune VCS revision, reset PR URL.
     if changespec.pr_url is not None:
         # Get workspace directory
-        workspace_dir = get_workspace_directory_for_changespec(changespec)
+        workspace_dir = get_workspace_directory_for_patch(changespec)
         if not workspace_dir:
             return (False, "Could not determine workspace directory")
 

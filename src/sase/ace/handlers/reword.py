@@ -15,7 +15,7 @@ from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.workflows.commit.editor_utils import get_editor_argv
 from sase.vcs_provider import get_vcs_provider
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 
 if TYPE_CHECKING:
     from rich.console import Console

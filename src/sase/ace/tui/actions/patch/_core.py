@@ -279,9 +279,14 @@ class PatchMixin(
         self._apply_reloaded_patches(all_patches, current_name, **kwargs)
 
     def _read_changespecs_from_disk(self) -> list[Patch]:
-        from ....changespec import find_all_changespecs_cached
+        from .... import changespec as changespec_module
+        from .... import patch as patch_module
 
-        return find_all_changespecs_cached()
+        loader = self._compat_loader(
+            changespec_module.find_all_changespecs_cached,
+            patch_module.find_all_changespecs_cached,
+        )
+        return loader()
 
     def _schedule_changespecs_async_refresh(self) -> None:
         if not hasattr(self, "_changespecs_loading"):

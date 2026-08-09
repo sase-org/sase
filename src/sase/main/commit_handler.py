@@ -138,7 +138,7 @@ def handle_restore_command(args: argparse.Namespace) -> NoReturn:
     Args:
         args: Parsed command-line arguments.
     """
-    from sase.ace.changespec import find_all_changespecs
+    from sase.ace.patch import find_all_changespecs
     from sase.ace.restore import list_reverted_changespecs, restore_changespec
 
     console = Console()
@@ -194,7 +194,7 @@ def handle_revert_command(args: argparse.Namespace) -> NoReturn:
     Args:
         args: Parsed command-line arguments.
     """
-    from sase.ace.changespec import find_all_changespecs
+    from sase.ace.patch import find_all_changespecs
     from sase.ace.revert import revert_changespec
 
     console = Console()

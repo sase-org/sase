@@ -11,7 +11,7 @@ from rich.text import Text
 from sase.running_field import get_claimed_workspaces
 from sase.project_display_names import ProjectDisplaySnapshot, humanize_cl_name
 
-from .changespec import (
+from .patch import (
     ChangeSpec,
     DeltaEntry,
     parse_commit_entry_id,
@@ -285,7 +285,7 @@ def display_changespec(
     # HOOKS field (only display if present)
     if changespec.hooks:
         # Lazy import to avoid circular dependency
-        from .changespec import get_current_and_proposal_entry_ids
+        from .patch import get_current_and_proposal_entry_ids
         from .hooks import (
             contract_test_target_command,
             format_timestamp_display,

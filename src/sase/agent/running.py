@@ -85,7 +85,7 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
         )
 
     # Derive project context from artifacts_dir.
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
     from sase.core.agent_artifact_paths import parse_agent_artifact_path
 
     artifacts_path = Path(agent.artifacts_dir)

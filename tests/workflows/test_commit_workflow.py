@@ -10,10 +10,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from sase.workflows.commit.changespec_operations import (
+from sase.workflows.commit.patch_operations import (
     _find_changespec_end_line,
 )
-from sase.workflows.commit.changespec_queries import changespec_exists
+from sase.workflows.commit.patch_queries import changespec_exists
 from sase.workflows.commit.commit_tracking import (
     append_commits_entry,
     capture_pre_commit_diff,
@@ -56,7 +56,7 @@ def test_changespec_exists_multiple_changespecs(tmp_path: Path) -> None:
 
     try:
         with patch(
-            "sase.workflows.commit.changespec_queries.get_project_file_path",
+            "sase.workflows.commit.patch_queries.get_project_file_path",
             return_value=project_file,
         ):
             assert changespec_exists("testproj", "feature_a") is True

@@ -64,7 +64,7 @@ def mark_hook_agents_as_killed_rust(
         binding = require_rust_binding("mark_hook_agents_as_killed")
     except (ImportError, AttributeError):
         return None
-    from sase.ace.changespec.models import HookEntry, HookStatusLine
+    from sase.ace.patch.models import HookEntry, HookStatusLine
 
     payload = to_json_dict([hook_entry_to_wire(hook) for hook in hooks])
     updated = binding(payload, suffixes)
@@ -96,7 +96,7 @@ def mark_mentor_agents_as_killed_rust(
         binding = require_rust_binding("mark_mentor_agents_as_killed")
     except (ImportError, AttributeError):
         return None
-    from sase.ace.changespec.models import MentorEntry, MentorStatusLine
+    from sase.ace.patch.models import MentorEntry, MentorStatusLine
 
     payload = to_json_dict([mentor_entry_to_wire(entry) for entry in mentors])
     updated = binding(payload, suffixes)
@@ -130,7 +130,7 @@ def mark_comment_agents_as_killed_rust(
         binding = require_rust_binding("mark_comment_agents_as_killed")
     except (ImportError, AttributeError):
         return None
-    from sase.ace.changespec.models import CommentEntry
+    from sase.ace.patch.models import CommentEntry
 
     payload = to_json_dict([comment_entry_to_wire(comment) for comment in comments])
     updated = binding(payload, suffixes)

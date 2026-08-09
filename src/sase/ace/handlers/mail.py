@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from rich.console import Console
 from rich.markup import escape as _esc
 
-from ..changespec import ChangeSpec
+from ..patch import ChangeSpec
 from ..mail_ops import MailPrepResult, execute_mail, prepare_mail
 from ..operations import update_to_changespec
 from sase.project_display_names import humanize_cl_name

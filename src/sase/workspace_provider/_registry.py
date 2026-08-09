@@ -173,7 +173,7 @@ def get_change_label(project_file: str) -> str:
         return result
 
     # Archive files aren't claimed by plugins — retry with the main file path
-    from sase.ace.changespec.archive import get_main_file_path, is_archive_file
+    from sase.ace.patch.archive import get_main_file_path, is_archive_file
 
     if is_archive_file(project_file):
         main_file = get_main_file_path(project_file)

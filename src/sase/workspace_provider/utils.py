@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from sase.ace.changespec import (
+from sase.ace.patch import (
     changespec_lock,
     write_changespec_atomic,
 )

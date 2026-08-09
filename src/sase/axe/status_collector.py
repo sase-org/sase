@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, tzinfo
 from typing import cast
 
-from sase.ace.changespec import count_agent_runners_global, count_hook_runners_global
+from sase.ace.patch import count_agent_runners_global, count_hook_runners_global
 from sase.ace.hooks.processes import is_process_running
 
 from .config import AxeConfig, load_axe_config

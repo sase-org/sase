@@ -12,7 +12,7 @@ from typing import NoReturn
 from rich.console import Console
 from rich.markup import escape as _esc
 
-from sase.ace.changespec import find_all_changespecs
+from sase.ace.patch import find_all_changespecs
 from sase.ace.mentor_output import (
     MENTOR_OUTPUT_JSON_SCHEMA,
     MentorComment,

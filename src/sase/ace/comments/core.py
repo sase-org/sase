@@ -3,11 +3,11 @@
 import os
 from datetime import datetime
 
-from sase.core.changespec import strip_reverted_suffix
+from sase.core.patch import strip_reverted_suffix
 from sase.core.paths import ensure_sase_directory, make_safe_filename
 from sase.core.time import get_timezone
 
-from ..changespec import CommentEntry, is_error_suffix
+from ..patch import CommentEntry, is_error_suffix
 from ..constants import DEFAULT_ZOMBIE_TIMEOUT_SECONDS
 
 

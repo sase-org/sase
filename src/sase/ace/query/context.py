@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 
-from ..changespec import ChangeSpec, has_any_status_suffix
+from ..patch import ChangeSpec, has_any_status_suffix
 from .matchers import evaluate, get_base_status, match_property
 from .searchable import (
     RUNNING_AGENT_MARKER,

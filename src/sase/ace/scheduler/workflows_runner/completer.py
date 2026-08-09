@@ -8,7 +8,7 @@ from sase.running_field import (
 )
 from sase.vcs_provider import get_vcs_provider
 
-from ...changespec import (
+from ...patch import (
     ChangeSpec,
     parse_project_file,
 )
