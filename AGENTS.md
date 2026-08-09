@@ -134,11 +134,11 @@ Reverted) live in `<key>-archive.sase`. Sections: NAME, DESCRIPTION, PARENT, PR,
 STITCHES, HOOKS, COMMENTS, MENTORS. Status lifecycle: WIP -> Draft -> Ready -> Mailed ->
 Submitted.
 
-#### 2.9 Project
+#### 2.9 Sase Project
 
-A project is a named unit of work registered with SASE. A project is created only when a
-new VCS xprompt argument resolves to a valid project: `#git:<name>` accepts any valid
-project name, while `#gh:<org>/<repo>` requires an existing GitHub repository. Its
+A sase project is a named unit of work registered with SASE. A project is created only
+when a new VCS xprompt argument resolves to a valid project: `#git:<name>` accepts any
+valid project name, while `#gh:<org>/<repo>` requires an existing GitHub repository. Its
 ProjectSpec is `~/.sase/projects/<key>/<key>.sase`, where the directory key `<key>` is
 `<name>` for `#git` projects but `gh_<org>__<repo>` for `#gh` projects (ex:
 `gh_sase-org__sase`); the user-facing name is the spec's `PROJECT_NAME:` (ex: `sase`)
@@ -146,28 +146,28 @@ or, if unset, the key. Projects have exactly two user-facing states, enabled and
 disabled; missing `PROJECT_STATE:` means enabled, and only an explicit disable changes
 that. The system-managed `home` project remains hidden.
 
-#### 2.10 Repo
+#### 2.10 Sase Repo
 
 ALIASES: repository
 
-A repo is any repository SASE knows: a project's primary repo, an SDD sidecar repo
+A sase repo is any repository SASE knows: a project's primary repo, an SDD sidecar repo
 (`<project>--plans` or `<project>--research`), or a repo declared through
 `linked_repos:`.
 
-#### 2.11 Stitch
+#### 2.11 Sase Workspace
+
+A sase workspace is a numbered clone of a project's primary repo, managed by the
+workspace store and tracked in that project's `registry.json`. Each SASE agent claims
+exactly one workspace until completion. Workspace directories are not repos. Linked-repo
+clones materialized for a workspace are repo checkouts, not additional workspaces.
+
+#### 2.12 Stitch
 
 A stitch is the lightweight ordered change record inside a Patch's `STITCHES:` section.
 Every VCS commit made through the tracked workflow has an associated numeric stitch, but
 a stitch need not have a commit: proposals retain numeric-plus-letter IDs such as
 `(2a)`. The `sase commit` command and real Git/Mercurial commits are still called
 commits.
-
-#### 2.12 Workspace
-
-A workspace is a numbered clone of a project's primary repo, managed by the workspace
-store and tracked in that project's `registry.json`. Each SASE agent claims exactly one
-workspace until completion. Workspace directories are not repos. Linked-repo clones
-materialized for a workspace are repo checkouts, not additional workspaces.
 
 #### 2.13 Xprompt
 
