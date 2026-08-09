@@ -2,3 +2,10 @@
 # Entries are debt to remove, not suppressions to grow. Adding a node requires
 # a filed SASE bead that names the flake, evidence, and owner.
 # effective-after: 2026-08-08T19:56:29Z
+tests/ace/tui/test_prompt_bar_xprompt_selector_requests.py::test_vcs_tag_directory_key_spelling_also_resolves
+tests/ace/tui/test_prompt_bar_xprompt_selector_requests.py::test_vcs_tag_offers_project_local_xprompts_by_canonical_name
+tests/test_bead/test_snooze_gate.py::test_bead_snooze_gate_preview_carries_the_real_snooze_note
+tests/test_bead/test_snooze_lifecycle.py::test_cancel_snooze_returns_the_bead_to_ready
+tests/test_bead/test_snooze_lifecycle.py::test_plus_one_target_wakes_the_bead_with_the_preset_note
+tests/test_bead/test_snooze_lifecycle.py::test_snooze_round_trips_through_every_persistence_surface
+tests/test_plan_approval_actions.py::test_headless_epic_approval_submits_while_inflight_launch_holds_anchor

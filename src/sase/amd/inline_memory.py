@@ -4,8 +4,10 @@ These functions are dependency-free building blocks consumed by ``sase memory
 init`` (wired up in a later phase). They translate a memory note's Markdown body
 into the inlined ``### Title (file)`` section shape, or the numbered
 ``### N. Title (file)`` section shape, used inside the ``## Tier 1
-(short-term) Memory`` block, and validate that a short note's heading structure
-can be inlined safely.
+(short-term) Memory`` block. When a note number is supplied, H2 and H3 body
+headings are also numbered as ``N.S`` and ``N.S.T`` after they are shifted down
+two levels. These helpers also validate that a short note's heading structure can
+be inlined safely.
 
 Heading detection is *fence-aware*: ``#`` characters at the start of lines inside
 fenced code blocks (for example ``# comment`` lines in a ``bash`` block) are
@@ -104,16 +106,28 @@ def validate_short_memory_structure(body: str) -> str | None:
     return None
 
 
-def _shift_body(body: str) -> list[str]:
+def _numbered_heading(line: str, level: int, prefix: str | None) -> str:
+    """Return *line* shifted two levels, with *prefix* before its text."""
+    text = line[level:].strip()
+    hashes = "#" * (level + 2)
+    parts = [part for part in (hashes, prefix, text) if part]
+    return " ".join(parts)
+
+
+def _shift_body(body: str, *, number: int | None = None) -> list[str]:
     """Strip the first H1 and shift remaining headings +2, fence-aware.
 
     Code fences (and their contents) are copied verbatim. Leading and trailing
     blank lines are trimmed so the result embeds cleanly under a section header.
+    When *number* is provided, H2 headings are numbered ``N.S`` and H3 headings
+    are numbered ``N.S.T``.
     """
     result: list[str] = []
     in_fence = False
     fence_marker = ""
     h1_consumed = False
+    section_number = 0
+    subsection_number = 0
     for line in body.splitlines():
         marker = _fence_marker(line)
         if in_fence:
@@ -131,7 +145,15 @@ def _shift_body(body: str) -> list[str]:
             if level == 1 and not h1_consumed:
                 h1_consumed = True
                 continue
-            result.append("##" + line)
+            prefix = None
+            if number is not None and level == 2:
+                section_number += 1
+                subsection_number = 0
+                prefix = f"{number}.{section_number}"
+            elif number is not None and level == 3:
+                subsection_number += 1
+                prefix = f"{number}.{section_number}.{subsection_number}"
+            result.append(_numbered_heading(line, level, prefix))
             continue
         result.append(line)
 
@@ -154,9 +176,11 @@ def inline_memory_section(
     ``### {title} ({basename})``. When *number* is provided, the header is
     prefixed as ``### {number}. {title} ({basename})``. The remaining body has
     every heading shifted down two levels (H2->H4, H3->H5) with code fences
-    copied verbatim. If the body has no title, the header falls back to
-    ``### {basename}`` or ``### {number}. {basename}``. The returned block ends
-    with a single trailing newline.
+    copied verbatim; numbered sections become ``{number}.{section}`` and nested
+    subsections become ``{number}.{section}.{subsection}``. If the body has no
+    title, the header falls back to ``### {basename}`` or
+    ``### {number}. {basename}``. The returned block ends with a single trailing
+    newline.
     """
     title = _extract_memory_title(body)
     basename = Path(relative_path).stem
@@ -165,7 +189,7 @@ def inline_memory_section(
         header = f"### {prefix}{title} ({basename})"
     else:
         header = f"### {prefix}{basename}"
-    transformed = _shift_body(body)
+    transformed = _shift_body(body, number=number)
     if transformed:
         return header + "\n\n" + "\n".join(transformed) + "\n"
     return header + "\n"

@@ -3510,18 +3510,18 @@ instruction file (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a
 byte-for-byte copy of that root's `AGENTS.md` (legacy `@AGENTS.md` / `*.md.tmpl` import
 shims are recognized and migrated to full copies). This copy applies to every existing
 project-tree `AGENTS.md`; directories without one are untouched. For managed roots,
-memory init synchronizes memory: short-term notes are inlined verbatim into the Tier 1
-block of `AGENTS.md`, long-term notes are rendered as a description-driven reference
-list, and missing long-memory `description` frontmatter is inserted. By default it also
-tries to commit, rebase-pull, and push generated project-side files. `sase init memory`
-is a compatibility alias for this command. Generated repository memory requires agents
-to use `/sase_repo` before reading or modifying any repo outside their own workspace
-checkout. The rule covers linked repos, sidecars, different SASE projects, and unlinked
-GitHub repos even when no linked repositories are configured. When a managed project has
-a nonempty `glossary` section, the same run also regenerates `sase/memory/glossary.md`,
-lists it in `sase/memory/README.md`, and inlines the fresh definition text into
-`AGENTS.md`; `sase memory init --check` reports drift if any of those generated files
-are stale.
+memory init synchronizes memory: short-term notes are inlined into the Tier 1 block of
+`AGENTS.md` with generated heading numbers, long-term notes are rendered as a
+description-driven reference list, and missing long-memory `description` frontmatter is
+inserted. By default it also tries to commit, rebase-pull, and push generated
+project-side files. `sase init memory` is a compatibility alias for this command.
+Generated repository memory requires agents to use `/sase_repo` before reading or
+modifying any repo outside their own workspace checkout. The rule covers linked repos,
+sidecars, different SASE projects, and unlinked GitHub repos even when no linked
+repositories are configured. When a managed project has a nonempty `glossary` section,
+the same run also regenerates `sase/memory/glossary.md`, lists it in
+`sase/memory/README.md`, and inlines the fresh definition text into `AGENTS.md`;
+`sase memory init --check` reports drift if any of those generated files are stale.
 
 | Flag                          | Values | Default | Description                                                                                             |
 | ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

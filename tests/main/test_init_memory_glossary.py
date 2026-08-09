@@ -75,7 +75,7 @@ glossary:
 
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
     assert "### 1. Glossary of Terms (glossary)" in agents
-    assert "#### Agent Clan" in agents
+    assert "#### 1.1 Agent Clan" in agents
     assert "A named, rootless container" in agents
 
     readme = str(

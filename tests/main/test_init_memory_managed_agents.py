@@ -95,7 +95,10 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
         project_root / "sase.yml",
         'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
     )
-    write(project_root / "sase" / "memory" / "extra.md", short_note("# Extra\n"))
+    write(
+        project_root / "sase" / "memory" / "extra.md",
+        short_note("# Extra\n\n## Section\n"),
+    )
     write(
         project_root / "sase" / "memory" / "described.md",
         long_note(
@@ -126,6 +129,7 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "The following memories contain core (always loaded) context:" in agents
     # Short memory is inlined (no ``@sase/memory/...`` imports) under H3 headers.
     assert "### 1. Extra (extra)" in agents
+    assert "#### 1.1 Section" in agents
     assert "### 2. SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "@sase/memory/extra.md" not in agents
     assert "@sase/memory/sase.md" not in agents

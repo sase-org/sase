@@ -5,10 +5,10 @@ as Markdown files directly under `sase/memory/`; home notes live under `~/sase/m
 Each non-README note declares its tier in YAML frontmatter:
 
 - **Short-term memory** uses `type: short`. It is always-loaded instruction context:
-  `sase memory init` inlines each short-term note's body verbatim into the
-  `## Tier 1 (short-term) Memory` block of the managed `AGENTS.md` (one
-  `### Title (<file>)` section per note, e.g.
-  `### Build & Run Commands (build_and_run)`) when the root opts in with project-local
+  `sase memory init` inlines each short-term note into the
+  `## Tier 1 (short-term) Memory` block of the managed `AGENTS.md` with generated note
+  and subsection numbers (e.g. `### 1. Build & Run Commands (build_and_run)` and
+  `#### 1.1 IMPORTANT: Two-Speed Verification`) when the root opts in with project-local
   `is_sase_managed: true`. `amd_h1_title` optionally customizes the generated title. The
   retired `memory.enabled` key no longer authorizes management.
 - **Long-term memory** uses `type: long`. It is reference context, requires

@@ -90,7 +90,28 @@ def test_validate_fails_for_h4_or_deeper() -> None:
 def test_inline_shifts_headings_down_two_levels() -> None:
     body = "# Title\n\n## Section\n\n### Subsection\n"
     expected = "### Title (x)\n\n#### Section\n\n##### Subsection\n"
-    assert inline_memory_section("sase/memory/x.md", body) == expected
+    section = inline_memory_section("sase/memory/x.md", body)
+    assert section == expected
+    assert "#### 1." not in section
+
+
+def test_inline_numbers_sections_under_note_number() -> None:
+    body = "# Title\n\n## First\n\nText.\n\n## Second\n"
+    expected = "### 3. Title (x)\n\n#### 3.1 First\n\nText.\n\n#### 3.2 Second\n"
+    assert inline_memory_section("sase/memory/x.md", body, number=3) == expected
+
+
+def test_inline_numbers_subsections_and_resets_per_section() -> None:
+    body = "# Title\n\n## First\n\n### One\n\n### Two\n\n## Second\n\n### One\n"
+    expected = (
+        "### 4. Title (x)\n\n"
+        "#### 4.1 First\n\n"
+        "##### 4.1.1 One\n\n"
+        "##### 4.1.2 Two\n\n"
+        "#### 4.2 Second\n\n"
+        "##### 4.2.1 One\n"
+    )
+    assert inline_memory_section("sase/memory/x.md", body, number=4) == expected
 
 
 def test_inline_strips_h1_and_emits_header() -> None:
@@ -144,6 +165,33 @@ def test_inline_copies_code_fences_verbatim() -> None:
     )
 
 
+def test_inline_numbers_realistic_fixture_headings_only() -> None:
+    expected = (
+        "### 1. Build & Run Commands (build_and_run)\n"
+        "\n"
+        "```bash\n"
+        "just install       # Install in editable mode with dev deps\n"
+        "just check         # lint + test\n"
+        "```\n"
+        "\n"
+        "#### 1.1 IMPORTANT: You MUST Run `just check` if you Made File Changes\n"
+        "\n"
+        "Run it before replying.\n"
+        "\n"
+        "##### 1.1.1 Exceptions\n"
+        "\n"
+        "There is no point if only bead files changed.\n"
+    )
+    assert (
+        inline_memory_section(
+            "sase/memory/build_and_run.md",
+            BUILD_AND_RUN_BODY,
+            number=1,
+        )
+        == expected
+    )
+
+
 def test_inline_keeps_fenced_hash_lines_untouched() -> None:
     # A ``#`` at column zero inside a fence must be neither stripped nor shifted.
     body = "# Title\n\n```sh\n# shell comment\necho hi\n```\n"
@@ -151,6 +199,27 @@ def test_inline_keeps_fenced_hash_lines_untouched() -> None:
     assert "# shell comment" in section
     assert "## shell comment" not in section
     assert section == "### Title (x)\n\n```sh\n# shell comment\necho hi\n```\n"
+
+
+def test_inline_numbered_keeps_fenced_hash_lines_untouched() -> None:
+    body = "# Title\n\n```sh\n# shell comment\necho hi\n```\n\n## Section\n"
+    section = inline_memory_section("sase/memory/x.md", body, number=2)
+    assert "# shell comment" in section
+    assert "## shell comment" not in section
+    assert "#### 2.1 Section" in section
+
+
+def test_inline_numbers_h3_before_h2_with_zero_parent() -> None:
+    body = "# Title\n\n### Orphan\n"
+    expected = "### 2. Title (x)\n\n##### 2.0.1 Orphan\n"
+    assert inline_memory_section("sase/memory/x.md", body, number=2) == expected
+
+
+def test_inline_numbers_empty_heading_without_trailing_space() -> None:
+    body = "# T\n\n##\n"
+    assert inline_memory_section("sase/memory/x.md", body, number=1) == (
+        "### 1. T (x)\n\n#### 1.1\n"
+    )
 
 
 def test_inline_without_title_omits_parenthetical() -> None:

@@ -26,7 +26,7 @@ just test-cov      # pytest with coverage + 50% gate (used by CI); also
                    # excludes the visual snapshot suite
 ```
 
-#### IMPORTANT: Two-Speed Verification — Run `just check` if you Made File Changes
+#### 1.1 IMPORTANT: Two-Speed Verification — Run `just check` if you Made File Changes
 
 If you made file changes in this repo (the sase repo), make sure to run the `just check`
 command before terminating / replying to the user. See the below subsection for
@@ -48,7 +48,7 @@ sase.md file in this directory) is that you need to run `just install` before ru
 other commands like `just check` (since it is possible we haven't used this workspace
 directory in a long time and package dependencies may have changed).
 
-##### Exceptions
+##### 1.1.1 Exceptions
 
 There is no point in running the `just check` command if the only file changes you made
 fall into one of the following categories:
@@ -57,7 +57,7 @@ fall into one of the following categories:
 - Changes to (or the creation of new) markdown files or images in the sdd/research/
   directory.
 
-#### PNG Snapshot Tests
+#### 1.2 PNG Snapshot Tests
 
 Run `just test-visual` for the dedicated ACE PNG snapshot suite; goldens live in
 `tests/ace/tui/visual/snapshots/png/`. On failures, inspect `.pytest_cache/sase-visual/`
@@ -68,20 +68,20 @@ color and fontconfig/Fira Code to keep rendering deterministic.
 
 ### 2. Glossary of Terms (glossary)
 
-#### Agent Clan
+#### 2.1 Agent Clan
 
 An agent clan is a named, rootless container for agents that run in parallel. Every
 member is named inside the clan's hood (`<clan>.<suffix>`) and declares `%clan:<clan>`;
 the clan name is reserved and is never itself an agent.
 
-#### Agent Family
+#### 2.2 Agent Family
 
 An agent family is a strictly sequential chain whose members use `<family>--<suffix>`
 names. The first `%n(parent, suffix)` attachment renames the original agent with its own
 suffix and reserves the bare family name as a pure container, so a family always has at
 least two members.
 
-#### Agent Hoods
+#### 2.3 Agent Hoods
 
 ALIASES: agent hood
 
@@ -90,7 +90,7 @@ For example, agents named `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of
 same `foo` agent hood. The agent `foo`, if it exists, is also considered part of the
 `foo` agent hood.
 
-#### Agent Lane
+#### 2.4 Agent Lane
 
 An agent lane is a term that describes either an agent family or a single agent that
 does not belong to a family. Agent lanes never have a name that ends with `--<suffix>`
@@ -101,7 +101,7 @@ agent completes, since agents in agent lanes run sequentially), that member move
 the same lane. At that point, the lane and the family share a name instead of the lane
 and the original agent, which is renamed with its own `--<suffix>`.
 
-#### Agent Instruction Files
+#### 2.5 Agent Instruction Files
 
 ALIASES: agent instruction file, agents.md file
 
@@ -114,7 +114,7 @@ post-commit hook, initializes the top-level agent instruction files using memori
 the sase/memory/ directory and ensures that all agent instruction files in the same
 directory contain the same contents.
 
-#### Agent Neighbors
+#### 2.6 Agent Neighbors
 
 ALIASES: agent neighbor
 
@@ -122,13 +122,13 @@ An agent neighbor is any agent that is in the same agent hood as another agent. 
 example, agents named `foo`, `foo.baz`, and `foo.bar.1` are all neighbors of each other
 because they are all in the same `foo` agent hood.
 
-#### Agent Tribe
+#### 2.7 Agent Tribe
 
 An agent tribe is a user-facing label for related agents across clans and families.
 Tribes are assigned with `%tribe:<name>` (alias `%t`), managed with `sase agent tribe`,
 and displayed with an `@` prefix.
 
-#### Patch
+#### 2.8 Patch
 
 A Patch is SASE's local unit of change. Every PR created or managed by SASE is
 associated with exactly one Patch, but a Patch may exist without a PR, represented by an
@@ -138,7 +138,7 @@ Reverted) live in `<key>-archive.sase`. Sections: NAME, DESCRIPTION, PARENT, PR,
 STITCHES, HOOKS, COMMENTS, MENTORS. Status lifecycle: WIP -> Draft -> Ready -> Mailed ->
 Submitted.
 
-#### Project
+#### 2.9 Project
 
 A project is a named unit of work registered with SASE. A project is created only when a
 new VCS xprompt argument resolves to a valid project: `#git:<name>` accepts any valid
@@ -150,7 +150,7 @@ or, if unset, the key. Projects have exactly two user-facing states, enabled and
 disabled; missing `PROJECT_STATE:` means enabled, and only an explicit disable changes
 that. The system-managed `home` project remains hidden.
 
-#### Repo
+#### 2.10 Repo
 
 ALIASES: repository
 
@@ -158,7 +158,7 @@ A repo is any repository SASE knows: a project's primary repo, an SDD sidecar re
 (`<project>--plans` or `<project>--research`), or a repo declared through
 `linked_repos:`.
 
-#### Stitch
+#### 2.11 Stitch
 
 A stitch is the lightweight ordered change record inside a Patch's `STITCHES:` section.
 Every VCS commit made through the tracked workflow has an associated numeric stitch, but
@@ -166,36 +166,36 @@ a stitch need not have a commit: proposals retain numeric-plus-letter IDs such a
 `(2a)`. The `sase commit` command and real Git/Mercurial commits are still called
 commits.
 
-#### Workspace
+#### 2.12 Workspace
 
 A workspace is a numbered clone of a project's primary repo, managed by the workspace
 store and tracked in that project's `registry.json`. Each SASE agent claims exactly one
 workspace until completion. Workspace directories are not repos. Linked-repo clones
 materialized for a workspace are repo checkouts, not additional workspaces.
 
-#### xprompt
+#### 2.13 xprompt
 
 Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/ directory (.md or
 .yml file) or in ~/.config/sase/sase.yml (`xprompts` field).
 
-#### xprompt Memory
+#### 2.14 xprompt Memory
 
 ALIASES: memory xprompt
 
 A flat SASE memory note exposed as a namespaced xprompt: `sase/memory/foo.md` expands
 with `#memory/foo`, and the `memory/` prefix is required.
 
-#### xprompt Part
+#### 2.15 xprompt Part
 
 .md file -> single `prompt_part` step with the file's content.
 
-#### xprompt Swarm
+#### 2.16 xprompt Swarm
 
 An xprompt whose body contains top-level `---` segment separators outside fenced blocks
 and fans out into one agent per segment at launch. Literal user prompts can also use
 `---`, but those are generic multi-agent prompts rather than xprompt swarms.
 
-#### xprompt Workflow
+#### 2.17 xprompt Workflow
 
 .yml file -> multiple steps (`prompt_part`, `python`, `bash`, etc.).
 
@@ -244,7 +244,7 @@ bindings, and tests in `../sase-core`, then update the Python callers or adapter
 
 ### 5. SASE = Structured Agentic Software Engineering (sase)
 
-#### Ephemeral `sase_<N>` Workspace Directories
+#### 5.1 Ephemeral `sase_<N>` Workspace Directories
 
 SASE runs agents (like you) from ephemeral workspace directories, which are full clones
 of the sase repo. These directories are named `sase_<N>` where `<N>` is some integer.
@@ -255,7 +255,7 @@ IMPORTANT: Do NOT mention your workspace directory (or any sibling workspace dir
 in any plan files that you generate using your `/sase_plan` skill. The agent(s) that
 implement the plan might not run in the same workspace directory as you!
 
-#### Repositories
+#### 5.2 Repositories
 
 Configured linked and sidecar repositories for this context:
 
@@ -284,7 +284,7 @@ discussions.
 IMPORTANT REMINDER: Do NOT locate, clone, or web-fetch another repo's contents any other
 way than by using `/sase_repo`!
 
-#### File Discovered Work As Task Beads
+#### 5.3 File Discovered Work As Task Beads
 
 Unless your prompt explicitly forbids creating beads (epic phase workers, for example,
 must record `PROPOSED FOLLOW-UP:` notes on their own bead instead), you can and SHOULD
