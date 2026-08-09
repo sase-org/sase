@@ -62,7 +62,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Description: Project-local glossary generated from sase.yml.
 - Parent: `AGENTS.md`
 - Lines: 135
-- Approx. tokens: 1459
+- Approx. tokens: 1460
 
 ### `sase/memory/gotchas.md`
 
@@ -151,7 +151,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Short notes: 5
 - Long notes: 6
 - Total lines: 837
-- Total approx. tokens: 10465
+- Total approx. tokens: 10466
 
 ## Commands
 

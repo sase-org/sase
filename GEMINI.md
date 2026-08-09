@@ -83,7 +83,7 @@ least two members.
 
 #### 2.3 Agent Hood
 
-ALIASES: agent neighborhood
+ALIASES: hood, agent neighborhood
 
 An agent hood is a group of agents that are all named with the same `<name>.` prefix.
 For example, agents named `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the
