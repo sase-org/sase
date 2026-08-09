@@ -37,15 +37,21 @@ user tool, without cloning the repository or setting up a contributor environmen
 
 ## Step 2 — Check Provider Readiness
 
-SASE orchestrates an existing provider CLI; it does not replace that provider's own
-install or authentication flow. Run the read-only doctor before the first agent launch:
+SASE orchestrates a supported provider CLI and still relies on the provider's own
+authentication flow. Inventory the supported CLIs, then run the read-only doctor before
+the first agent launch:
 
 ```bash
+sase agent-cli
 sase doctor
 ```
 
 If the provider check reports a missing executable or an authentication gap, install and
-authenticate one provider CLI, then run `sase doctor` again.
+authenticate one provider CLI, then run `sase doctor` again. Muse Code is the one
+provider SASE can currently install itself: use `sase agent-cli install muse --dry-run`
+to inspect the downloaded script's URL, digest, command, and target, then
+`sase agent-cli install muse` to confirm and run it. Other providers use the install
+commands in the provider guide.
 [Installing & Authenticating Agent Providers](agent_providers.md) has the per-provider
 install and auth commands plus the complete provider/model selection options; the
 [LLM provider reference](llms.md) covers how SASE integrates each provider once it is

@@ -286,8 +286,8 @@ Common optional fields include:
 - **PR**: URL for the created review, omitted until the PR exists. New files write
   `PR:`; legacy `CL:` fields remain readable during the compatibility window.
 - **BUG**: Bug or issue reference for this Patch.
-- **COMMITS**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**: See
-  [`change_spec.md`](change_spec.md) for details.
+- **STITCHES**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**:
+  See [`change_spec.md`](change_spec.md) for details.
 
 ## Example
 

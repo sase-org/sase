@@ -13,6 +13,7 @@ Then verify the install:
 sase version       # inspect the exact SASE packages loaded by this environment
 sase doctor        # readiness gate: install, config, provider, and state report
 sase core health   # confirm the required Rust core extension loaded
+sase agent-cli      # inventory supported provider CLIs and their install/update state
 ```
 
 The `uv tool install sase` path is more than a convenience: `sase update`,
@@ -142,7 +143,11 @@ The lists below describe what each command is for.
 | A text editor        | Commit-message editing uses `$EDITOR`, falling back to `nvim`, then `vim`.                                                                                                                                                                                                                                           |
 
 For per-provider install and authentication commands, see
-[Installing & Authenticating Agent Providers](docs/agent_providers.md).
+[Installing & Authenticating Agent Providers](docs/agent_providers.md). Muse Code is the
+one provider SASE can currently install itself: preview the exact HTTPS-fetched script,
+digest, command, and target with `sase agent-cli install muse --dry-run`, then run
+`sase agent-cli install muse` and confirm. Other providers retain their vendor
+installation flows.
 
 ### Recommended / optional
 
@@ -175,5 +180,5 @@ uv tool uninstall sase
 ```
 
 This removes SASE and every plugin injected into its tool environment. Durable state
-(projects, ChangeSpecs, prompt history, beads) lives under `~/.sase/` and platform state
+(projects, Patches, prompt history, beads) lives under `~/.sase/` and platform state
 directories and is not removed.

@@ -203,9 +203,9 @@ MENTORS:
       | python_review:style_checker - STARTING
 ```
 
-The entry id matches a regular `COMMITS` entry. The header line shows profile names with
-`[started/total]` counts. Status lines show timestamp, `profile:mentor`, status, and
-duration for completed mentors.
+The entry ID matches a regular `STITCHES` entry. The header line shows profile names
+with `[started/total]` counts. Status lines show timestamp, `profile:mentor`, status,
+and duration for completed mentors.
 
 ## ACE TUI Integration
 

@@ -119,6 +119,10 @@ Helper bridge operations:
 | `sase mobile helper-bridge update-start`    | Start the configured SASE update worker                            |
 | `sase mobile helper-bridge update-status`   | Poll structured update worker status                               |
 
+The bead helper payloads expose canonical `patch_name` and `patch_bug_id` fields and
+also dual-write `changespec_name` and `changespec_bug_id` for compatibility with older
+clients. New clients should prefer the Patch-named fields.
+
 Notification bridge operations:
 
 | Command                                           | Purpose                                       |

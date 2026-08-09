@@ -144,7 +144,7 @@ Before hook        (`commit_hooks.before`, e.g. `just fix`)
     |
 PR name suffixing  (compute _<N> suffix for unique branch names)          [PR only]
     |
-Detect parent PR   (auto-set PARENT from current branch's Patch)     [PR only]
+Detect parent PR   (auto-set PARENT from current branch's Patch)          [PR only]
     |
 PR metadata        (append PR tags and project prefix)                    [PR only]
     |
@@ -160,7 +160,7 @@ VCS dispatch       (call provider.create_commit / create_proposal / create_pull_
     |
 After hook         (`commit_hooks.after`, after commit/push)              [commit/PR only]
     |
-Patch         (create Patch entry in project file)              [PR only]
+Patch creation     (create Patch entry in project file)                    [PR only]
     |
 Result marker      (write commit_result.json for xprompt post-steps)
     |
@@ -187,8 +187,9 @@ validated subject.
 ### 4. XPrompt reads the result
 
 The xprompt post-steps read `commit_result.json` from `$SASE_ARTIFACTS_DIR` and emit
-metadata outputs (`meta_new_commit`, `meta_commit_message`, `meta_changespec`, etc.) for
-downstream consumption.
+metadata outputs such as `meta_new_commit` and `meta_commit_message`. Agent-run
+projection exposes the associated Patch as canonical `meta_patch` and also writes
+`meta_changespec` for compatibility with existing workflows.
 
 ## CLI Inputs and Internal Payload
 
@@ -292,18 +293,25 @@ After a successful dispatch, `commit_result.json` contains:
 ```json
 {
   "method": "create_commit",
-  "result": "<commit_hash | diff_path | null>",
+  "run_id": "Agent run identifier",
+  "cwd": "Repository directory used for the dispatch",
+  "repo_name": "Repository identity when the commit is outside the primary checkout",
+  "committed_at": "Resolved commit timestamp when available",
+  "result": "<commit_hash | diff_path | pr_url | null>",
   "message": "The commit message",
   "name": "Branch/PR name",
   "bead_id": "Bead ID if SASE_BEAD_ID was set",
-  "changespec_name": "Patch name (PR only)",
-  "entry_id": "STITCHES entry ID (commit/propose only)",
+  "patch_name": "Patch name (PR only)",
+  "commit_patch_name": "Patch name (PR only)",
+  "stitch_id": "STITCHES entry ID (commit/propose only)",
   "diff_path": "Saved pre-dispatch diff path, when available"
 }
 ```
 
-For compatibility with older xprompt post-steps, the marker also includes alias keys:
-`commit_result`, `commit_changespec_name`, `commit_entry_id`, and `commit_diff_path`.
+For compatibility with older consumers, the same marker dual-writes `changespec_name` /
+`commit_changespec_name` for the Patch, `entry_id` / `commit_entry_id` for the stitch,
+`commit_result` for `result`, and `commit_diff_path` for `diff_path`. New consumers
+should read `patch_name` (or `commit_patch_name`) and `stitch_id` first.
 
 ## Workflow Details
 
@@ -514,7 +522,7 @@ success and checkpoint persistence has at-least-once execution semantics.
 | `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance                                      |
 | `SASE_BEAD_ID`                      | Bead ID written as a linked `SASE_BEAD=` footer tag without changing the subject                 |
 | `SASE_PLAN`                         | Plan source for storage/staging, status update, and the storage-relative `SASE_PLAN=` commit tag |
-| `SASE_AGENT_PROJECT_FILE`           | Project file for COMMITS/Patch tracking                                                          |
+| `SASE_AGENT_PROJECT_FILE`           | Project file for Patch/STITCHES tracking                                                         |
 | `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                                                            |
 | `SASE_PR_NAME`                      | PR name (set by `#pr` xprompt input)                                                             |
 | `SASE_PR_STATUS`                    | Initial PR Patch status (`draft`, `wip`, `ready`)                                                |

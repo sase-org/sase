@@ -139,18 +139,26 @@ that wrote the code and whoever (or whatever) consumes the result:
 ```json
 {
   "method": "create_commit",
+  "run_id": "Agent run identifier",
+  "cwd": "Repository directory used for the dispatch",
+  "repo_name": "Repository identity when known",
+  "committed_at": "Resolved commit timestamp when available",
   "result": "<commit_hash | diff_path | pr_url | null>",
   "message": "The commit message",
   "name": "Branch/PR name",
   "bead_id": "Bead ID if SASE_BEAD_ID was set",
-  "changespec_name": "Patch name (PR only)",
-  "entry_id": "STITCHES entry ID (commit/propose only)",
+  "patch_name": "Patch name (PR only)",
+  "commit_patch_name": "Patch name (PR only)",
+  "stitch_id": "STITCHES entry ID (commit/propose only)",
   "diff_path": "Saved pre-dispatch diff path, when available"
 }
 ```
 
-XPrompt post-steps read it, emit metadata outputs (`meta_new_commit`,
-`meta_commit_message`, `meta_changespec`, …), and downstream workflows consume those.
+The marker also dual-writes the legacy Patch aliases `changespec_name` and
+`commit_changespec_name`, the stitch aliases `entry_id` and `commit_entry_id`, plus
+`commit_result` and `commit_diff_path`. XPrompt post-steps read it; agent-run projection
+emits canonical `meta_patch` alongside compatibility `meta_changespec`, and downstream
+workflows consume those outputs.
 
 ## The Public Plugin API
 

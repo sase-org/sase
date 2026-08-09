@@ -50,7 +50,7 @@ BUG: <BUG>
 PR: <PR>
 STATUS: <STATUS>
 STITCHES:
-  <COMMIT_ENTRIES>
+  <STITCH_ENTRIES>
 DELTAS:
   <DELTA_ENTRIES>
 HOOKS:
@@ -65,22 +65,22 @@ TIMESTAMPS:
 
 The status lifecycle is a small state machine: `WIP → Draft, Ready`, `Draft → Ready`,
 `Ready → Mailed, Draft`, `Mailed → Submitted`. `Submitted`, `Reverted`, and `Archived`
-are terminal — the moment a spec enters one, it moves to the archive file. PR workflows
+are terminal — the moment a Patch enters one, it moves to the archive file. PR workflows
 default new Patches to `Draft` unless `sase commit --status` or `SASE_PR_STATUS`
 overrides; manual Patches typically start `WIP`.
 
-## COMMITS, Drawers, and Proposals
+## STITCHES, Drawers, and Proposals
 
-Numbered entries are managed automatically by `sase commit`. Regular commits get
-sequential integers `(1)`, `(2)`, `(3)`; proposals attached to a commit get a letter
-suffix `(2a)`, `(2b)`, flagged with `(!: NEW PROPOSAL)`. Each entry can carry zero or
-more **drawer** lines (6-space indent, `| ` prefix):
+Stitches are managed automatically by `sase commit`. Regular commits get sequential
+integer stitches `(1)`, `(2)`, `(3)`; commitless proposals get a letter suffix `(2a)`,
+`(2b)`, flagged with `(!: NEW PROPOSAL)`. Each stitch can carry zero or more **drawer**
+lines (6-space indent, `| ` prefix):
 
 | Drawer | Format                         | Description                                     |
 | ------ | ------------------------------ | ----------------------------------------------- |
 | `CHAT` | `\| CHAT: <path> (<duration>)` | Agent chat log file with optional run duration  |
 | `DIFF` | `\| DIFF: <path>`              | Saved diff file                                 |
-| `PLAN` | `\| PLAN: <path>`              | Plan file associated with this commit (via SDD) |
+| `PLAN` | `\| PLAN: <path>`              | Plan file associated with this stitch (via SDD) |
 
 Those three drawers are how you get back from a Patch to the artifacts an agent
 produced. The CHAT drawer's duration (e.g., `2m15s`) is computed from the chat filename
@@ -92,7 +92,7 @@ the commit workflow — i.e., the commit was associated with a tale or epic plan
 A **mentor** is a background AI code-review agent. Mentor profiles match commits via
 `file_globs`, `diff_regexes`, `amend_note_regexes`, or `first_commit`. When a profile
 matches a regular stitch (proposals like `(2a)` are ignored for matching), it is
-registered in that commit's MENTORS entry with `[0/N]` counts. AXE's `mentor_checks`
+registered in that stitch's MENTORS entry with `[0/N]` counts. AXE's `mentor_checks`
 chop then waits for all non-skipped hooks on that commit to become ready and launches
 one background mentor agent per mentor in the profile.
 
@@ -166,7 +166,7 @@ The high-leverage moves:
 - **PR actions** are mostly one-letter: `a` accept proposal, `C` / `c1`–`c9` checkout,
   `d` diff, `e` edit, `f` hooks, `M` mail, `m` mark, `n` rename, `R` rewind, `s` status,
   `Y` sync.
-- **Fold modes** (`z` prefix): `z c` cycles COMMITS, `z h` cycles HOOKS, `z m` cycles
+- **Fold modes** (`z` prefix): `z c` cycles STITCHES, `z h` cycles HOOKS, `z m` cycles
   MENTORS, `z t` cycles TIMESTAMPS; uppercase variants toggle between collapsed and
   fully expanded. `z z` cycles every section at once.
 - **Mentor review** (`,C`) opens the modal. `Space` toggles acceptance, `a` applies

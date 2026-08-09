@@ -17,18 +17,18 @@ falls back to `!!!` for error suffixes.
 
 ### CLI Options
 
-| Option                     | Description                                                                             |
-| -------------------------- | --------------------------------------------------------------------------------------- |
-| `QUERY` (positional)       | Query string for filtering Patches                                                      |
-| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)                          |
-| `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)                                 |
-| `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument; optional output path                         |
-| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)                            |
-| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                                         |
-| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                                          |
-| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)                          |
-| `-t`, `--tab`              | Tab to focus on startup (`artifacts`, `agents`, `axe`; `changespecs` is a legacy alias) |
-| `-T`, `--tmux`             | Launch ACE in a new tmux window and print the target for external control               |
+| Option                     | Description                                                                                            |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `QUERY` (positional)       | Query string for filtering Patches                                                                     |
+| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)                                         |
+| `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)                                                |
+| `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument; optional output path                                        |
+| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)                                           |
+| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                                                        |
+| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                                                         |
+| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)                                         |
+| `-t`, `--tab`              | Tab to focus on startup (`artifacts`, `agents`, `axe`; `changespecs` and `patches` are legacy aliases) |
+| `-T`, `--tmux`             | Launch ACE in a new tmux window and print the target for external control                              |
 
 When profiling is enabled, ACE writes text output to `PATH` or
 `$SASE_TMPDIR/ace_profile_<ts>.txt`, prints the shortened path on exit, and copies that
@@ -667,12 +667,12 @@ sits on a row the user can see.
 
 | Key     | Action                                                 |
 | ------- | ------------------------------------------------------ |
-| `z` `c` | Cycle commits section (expand → collapse)              |
+| `z` `c` | Cycle stitches section (expand → collapse)             |
 | `z` `d` | Cycle deltas section (folded ↔ unfolded)               |
 | `z` `h` | Cycle hooks section (expand → collapse)                |
 | `z` `m` | Cycle mentors section (expand → collapse)              |
 | `z` `t` | Cycle timestamps section (expand → collapse)           |
-| `z` `C` | Toggle commits section (collapsed ↔ fully expanded)    |
+| `z` `C` | Toggle stitches section (collapsed ↔ fully expanded)   |
 | `z` `D` | Toggle deltas section (folded ↔ unfolded)              |
 | `z` `H` | Toggle hooks section (collapsed ↔ fully expanded)      |
 | `z` `M` | Toggle mentors section (collapsed ↔ fully expanded)    |
@@ -683,7 +683,7 @@ sits on a row the user can see.
 | `z` `2` | Set every section to expanded (level 2)                |
 | `z` `3` | Set every section to fully expanded (level 3)          |
 
-COMMITS, HOOKS, MENTORS, and TIMESTAMPS sections each cycle through three fold levels:
+STITCHES, HOOKS, MENTORS, and TIMESTAMPS sections each cycle through three fold levels:
 
 | Level              | Behavior                                                                           |
 | ------------------ | ---------------------------------------------------------------------------------- |
@@ -4144,6 +4144,8 @@ through the tracked task queue in order:
 With a single offered action, `Enter` runs it and `Esc` skips, matching the previous
 plain commit/push confirmation. With more than one, each row's key toggles it and
 `Enter` runs everything still selected.
+
+### Completion
 
 Press `Ctrl+T` to activate token completion. The completion kind is determined by the
 token under the cursor:

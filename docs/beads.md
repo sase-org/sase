@@ -1375,9 +1375,7 @@ evaluated against the whole batch: a descendant that is itself being closed by t
 invocation counts as closed, so argument order does not matter, but a descendant left
 out of the batch still rejects the whole update.
 
-<a id="sase-bead-work-target"></a>
-
-### `sase bead work <target> [<target> ...]`
+### `sase bead work <target> [<target> ...]` { #sase-bead-work-target }
 
 Create or resume one or more epics from validated Markdown plans, launch existing
 epic-tier plan beads, launch standalone task beads, or run an ordered mix of those

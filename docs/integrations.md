@@ -302,6 +302,10 @@ catalog includes `definition_path` when the source can be resolved to a real fil
 mobile and editor clients can offer jump-to-definition without reverse-engineering
 display paths.
 
+Bead helper payloads expose canonical `patch_name` and `patch_bug_id` fields while
+dual-writing `changespec_name` and `changespec_bug_id` for compatibility. New clients
+should prefer the Patch-named fields.
+
 All-known helper reads are lifecycle-aware and enumerate enabled projects by default.
 Disabled projects are left out of broad Patch tag, xprompt catalog, and bead lists.
 Explicit Patch tag and xprompt catalog requests for an disabled project report warnings
