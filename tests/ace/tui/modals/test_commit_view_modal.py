@@ -111,6 +111,31 @@ def test_commit_view_title_shows_time_chip_when_created_at_set(
     assert "CHIP:1700000000" in title
 
 
+def test_commit_view_modal_marks_merge_and_parents() -> None:
+    spec = replace(
+        _spec("/missing/commit.diff", sha="mmmmmmm1234567890"),
+        parent_ids=("a" * 40, "b" * 40),
+    )
+    modal = CommitViewModal([spec])
+    modal._diff_loaded = True
+    modal._diff_text = (
+        "diff --git a/src/app.py b/src/app.py\n"
+        "--- a/src/app.py\n"
+        "+++ b/src/app.py\n"
+        "@@ -1 +1 @@\n"
+        "-old\n"
+        "+new\n"
+    )
+
+    title = _rendered_text(modal._build_title())
+    content = _rendered_text(modal._build_content())
+
+    assert "mmmmmmm12345  ◆ merge" in title
+    assert "Parents    aaaaaaaaaaaa bbbbbbbbbbbb" in content
+    assert "Changes introduced by this merge (vs first parent)" in content
+    assert "+new" in content
+
+
 def test_commit_view_title_omits_metadata_row_when_nothing_to_show() -> None:
     spec = CommitViewSpec(
         short_sha="abcdef123456",

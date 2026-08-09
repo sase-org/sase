@@ -87,6 +87,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                     f"{d(a.commits_toggle_sdd)} / {d(a.commits_toggle_all_projects)}",
                     "Sidecars / project: off/on",
                 ),
+                (d(a.commits_cycle_merges), "Cycle merge visibility"),
                 (
                     f"{d(a.commits_fetch)} / {d(a.commits_refresh)}",
                     "Fetch remote refs / refresh from local refs",

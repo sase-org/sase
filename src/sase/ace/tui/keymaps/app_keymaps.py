@@ -42,6 +42,7 @@ class AppKeymaps:
     commits_copy_sha: str
     commits_filters: str
     commits_toggle_sdd: str
+    commits_cycle_merges: str
     commits_toggle_all_projects: str
     commits_fetch: str
     commits_refresh: str

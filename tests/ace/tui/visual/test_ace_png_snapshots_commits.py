@@ -17,7 +17,12 @@ from sase.ace.tui.widgets.artifacts.commits_timeline import CommitsTimeline
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.vcs_log.filter_query import parse_commit_filter_query, to_query_string
-from tests.ace.tui._commits_pane_helpers import _DIFF, _result, _result_with_sidecar
+from tests.ace.tui._commits_pane_helpers import (
+    _DIFF,
+    _result,
+    _result_with_merge,
+    _result_with_sidecar,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -127,6 +132,55 @@ async def test_commits_timeline_and_detail_png_snapshot(
             page,
             "artifacts_commits_timeline_detail_120x40",
             title="ACE Artifacts Commits timeline",
+        )
+
+
+async def test_commits_merge_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {
+            "ace": {
+                "artifacts": {
+                    "commits": {"default_query": "sidecar:false merges:show since:24h"}
+                }
+            }
+        },
+    )
+    timestamp = int(datetime(2026, 7, 6, 14, 30, tzinfo=UTC).timestamp())
+    result = _result_with_merge(timestamp)
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: _ArtifactsProjectChoices((), (), {}),
+    )
+
+    async with AcePage(
+        query='"visual"',
+        patches=patches(),
+        initial_tab="patches",
+    ) as page:
+        await wait_for_startup(page)
+        await page.expect_state("artifacts_subtab", "commits")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is result)
+        assert (
+            pane.query_one("#commit-filter-input", SingleLineVimTextArea).text
+            == "project:sase sidecar:false merges:show since:24h"
+        )
+        await wait_for_svg_contains(page, "mmmmmmm")
+        await wait_for_svg_contains(page, "◆ merge")
+        await wait_for_svg_contains(page, "Changes introduced by this merge")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "artifacts_commits_merge_row_120x40",
+            title="ACE Artifacts Commits merge row",
         )
 
 

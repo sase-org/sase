@@ -35,6 +35,7 @@ from tests.ace.tui._commits_pane_helpers import (
     _byte_heavy_diff,
     _rendered_text,
     _result,
+    _result_with_merge,
 )
 
 
@@ -242,6 +243,29 @@ def test_commit_detail_preserves_full_metadata_for_every_presence(
     assert "bug" in text and "42" in text
     assert "Changes:" in text
     assert "+new" in text
+    assert "◆ merge" not in text
+    assert "Parents" not in text
+    assert "Changes introduced by this merge" not in text
+
+
+def test_commit_detail_marks_merge_parents_and_first_parent_diff_label() -> None:
+    timestamp = int(datetime(2026, 7, 6, 14, 30, tzinfo=UTC).timestamp())
+    result = _result_with_merge(timestamp)
+    entry = result.commits[0]
+
+    detail = build_commit_detail(
+        entry,
+        _DIFF,
+        loading=False,
+        result=result,
+        render_cache=LazySyntaxRenderCache(),
+    )
+    text = _rendered_text(detail)
+
+    assert "alpha-platform-repository  mmmmmmm  ◆ merge" in text
+    assert "Parents    aaaaaaa bbbbbbb" in text
+    assert "Changes introduced by this merge (vs first parent)" in text
+    assert "+new" in text
 
 
 def test_commit_detail_omits_empty_author() -> None:
@@ -280,6 +304,16 @@ def test_commit_view_spec_preserves_owner_context_and_full_tagged_message() -> N
     assert spec.plan_workspaces == (owner,)
     assert "SASE_PLAN=sdd/plans/commits_single_line_timeline.md" in spec.message
     assert spec.created_at == result.commits[0].commit.timestamp
+    assert spec.parent_ids == ()
+
+
+def test_commit_view_spec_carries_merge_parent_ids() -> None:
+    result = _result_with_merge()
+
+    spec = build_commit_view_spec(result.commits[0], result)
+
+    assert spec.is_merge is True
+    assert spec.parent_ids == ("a" * 40, "b" * 40)
 
 
 def test_commit_detail_bounds_byte_heavy_diff_and_explains_truncation() -> None:

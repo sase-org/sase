@@ -123,3 +123,23 @@ def _result_with_sidecar(timestamp: int | None = None) -> VcsLogResult:
             RepoRemoteState("plans", "origin/main", 0, 0, True, 1.0),
         ),
     )
+
+
+def _result_with_merge(timestamp: int | None = None) -> VcsLogResult:
+    base = _result(timestamp)
+    now = timestamp or int(datetime.now(tz=UTC).timestamp())
+    merge = AggregatedCommitWire(
+        "alpha-platform-repository",
+        VcsCommitWire(
+            full_id="m" * 40,
+            short_id="mmmmmmm",
+            author_name="Merge Bot",
+            author_email="merge@example.com",
+            timestamp=now + 60,
+            parent_ids=("a" * 40, "b" * 40),
+            subject="Merge pull request #123 from sase-org/merge-support",
+            body="Add merge support to the commit log\n\nPreserve the raw body.",
+            presence="synced",
+        ),
+    )
+    return replace(base, commits=(merge, *base.commits))

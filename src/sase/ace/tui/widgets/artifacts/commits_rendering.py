@@ -15,7 +15,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_deltas import parse_unified_diff_d
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.core.vcs_log_wire import AggregatedCommitWire
 from sase.repo_inventory import RepoKind
-from sase.vcs_log._style import GOLD, repo_colors
+from sase.vcs_log._style import GOLD, MERGE, repo_colors
 from sase.vcs_log._tag_style import full_tag_lines
 from sase.vcs_log.filter_query import to_query_tokens
 from sase.vcs_log.models import VcsLogResult
@@ -143,6 +143,7 @@ def build_commits_hints(registry: KeymapRegistry) -> Text:
         (key_display_name(actions.commits_copy_sha), "copy"),
         (key_display_name(actions.edit_query), "filter"),
         (key_display_name(actions.commits_toggle_sdd), "sidecars"),
+        (key_display_name(actions.commits_cycle_merges), "merges"),
         (key_display_name(actions.commits_toggle_all_projects), "all"),
         (key_display_name(actions.commits_fetch), "fetch"),
         (key_display_name(actions.commits_refresh), "refresh"),
@@ -189,6 +190,7 @@ def build_commit_view_spec(
         repo_kind=repo_kind,
         plan_workspaces=repo.plan_workspaces if repo is not None else (),
         created_at=entry.commit.timestamp,
+        parent_ids=entry.commit.parent_ids,
     )
 
 
@@ -207,9 +209,19 @@ def build_commit_detail(
     header.append(entry.repo, style=f"bold {colors.get(entry.repo, '#87D7FF')}")
     header.append("  ")
     header.append(commit.short_id, style=GOLD)
+    if commit.is_merge:
+        header.append("  ◆ merge", style=MERGE)
     if commit.author_name:
         header.append("\nAuthor     ", style="dim")
         header.append(commit.author_name)
+    if commit.is_merge:
+        header.append("\nParents    ", style="dim")
+        header.append(
+            _short_parent_ids(
+                commit.parent_ids,
+                width=len(commit.short_id or commit.full_id),
+            )
+        )
     header.append("\nCommitted  ", style="dim")
     header.append(format_commit_timestamp(commit.timestamp))
     header.append("\nPresence   ", style="dim")
@@ -230,6 +242,13 @@ def build_commit_detail(
 
     parts: list[RenderableType] = [header, message]
     parts.extend(full_tag_lines(tag_view.tags))
+    if commit.is_merge:
+        parts.append(
+            Text(
+                "Changes introduced by this merge (vs first parent)",
+                style="bold #87D7FF",
+            )
+        )
     summary = _change_summary(diff_text)
     if summary is not None:
         parts.append(summary)
@@ -278,3 +297,8 @@ def _change_summary(diff_text: str | None) -> Text | None:
     text.append(f"  -{removed}", style="bold #FF5F5F")
     text.append(f"  ·  {len(entries)} {suffix}", style="dim #87D7FF")
     return text
+
+
+def _short_parent_ids(parent_ids: tuple[str, ...], *, width: int) -> str:
+    short_width = max(1, width)
+    return " ".join(parent_id[:short_width] for parent_id in parent_ids)

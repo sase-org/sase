@@ -16,6 +16,7 @@ COMMITS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "commits_copy_sha",
         "commits_filters",
         "commits_toggle_sdd",
+        "commits_cycle_merges",
         "commits_toggle_all_projects",
         "commits_fetch",
         "commits_refresh",
@@ -80,6 +81,11 @@ class ArtifactsCommitsActionsMixin:
         pane = self._commits_pane()
         if self._commits_active() and pane is not None:
             pane.toggle_sdd()
+
+    def action_commits_cycle_merges(self) -> None:
+        pane = self._commits_pane()
+        if self._commits_active() and pane is not None:
+            pane.cycle_merges()
 
     def action_commits_toggle_all_projects(self) -> None:
         pane = self._commits_pane()

@@ -125,6 +125,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         (),
     ),
     (
+        "commits_cycle_merges",
+        "Commits: cycle merge visibility",
+        "Display",
+        CL_ONLY,
+        (),
+    ),
+    (
         "commits_toggle_all_projects",
         "Commits: toggle all projects",
         "Display",

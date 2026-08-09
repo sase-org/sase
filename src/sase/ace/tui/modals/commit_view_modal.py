@@ -29,6 +29,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_commits import (
 from sase.ace.tui.widgets.prompt_panel._agent_deltas import parse_unified_diff_deltas
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.plan_documents import PlanDocument, load_commit_plan_document
+from sase.vcs_log._style import MERGE
 from sase.vcs_log.render import build_commit_time_chip
 
 from .base import CopyModeForwardingMixin
@@ -203,6 +204,8 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
             identity.append(" (external)", style="bold #FFAF00")
         identity.append("  ")
         identity.append(spec.short_sha or spec.sha, style=_COLOR_SHA)
+        if spec.is_merge:
+            identity.append("  ◆ merge", style=MERGE)
         if spec.subject:
             identity.append(" - ")
             identity.append(spec.subject, style="bold white")
@@ -295,6 +298,21 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
     def _build_message_header(self, diff_text: str | None) -> Text:
         spec = self._current_spec
         text = Text()
+        if spec.is_merge:
+            text.append("Parents    ", style=_COLOR_MUTED)
+            text.append(
+                _short_parent_ids(
+                    spec.parent_ids,
+                    width=len(spec.short_sha or spec.sha),
+                ),
+                style=_COLOR_BODY,
+            )
+            text.append("\n")
+            text.append(
+                "Changes introduced by this merge (vs first parent)",
+                style=_COLOR_HEADER,
+            )
+            text.append("\n\n")
         text.append("Message\n", style=_COLOR_HEADER)
         subject, body = _split_message(spec.message, spec.subject)
         text.append(subject or "(message unavailable)", style=_COLOR_SUBJECT)
@@ -518,6 +536,11 @@ def _format_change_summary(diff_text: str | None) -> Text | None:
     suffix = "file" if len(entries) == 1 else "files"
     summary.append(f" - {len(entries)} {suffix}", style=_COLOR_MUTED)
     return summary
+
+
+def _short_parent_ids(parent_ids: tuple[str, ...], *, width: int) -> str:
+    short_width = max(1, width)
+    return " ".join(parent_id[:short_width] for parent_id in parent_ids)
 
 
 def _line_totals(entries: list[DeltaEntry]) -> tuple[int, int, int, bool]:

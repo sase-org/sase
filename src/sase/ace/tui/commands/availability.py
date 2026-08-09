@@ -179,6 +179,7 @@ _COMMITS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.commits_copy_sha",
         "app.commits_filters",
         "app.commits_toggle_sdd",
+        "app.commits_cycle_merges",
         "app.commits_toggle_all_projects",
         "app.commits_fetch",
         "app.commits_refresh",

@@ -283,6 +283,7 @@ ace:
       commits_copy_sha: "y"
       commits_filters: "f"
       commits_toggle_sdd: "d"
+      commits_cycle_merges: "s"
       commits_toggle_all_projects: "a"
       commits_fetch: "F"
       commits_refresh: "R"

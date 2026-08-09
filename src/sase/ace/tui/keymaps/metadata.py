@@ -63,6 +63,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("commits_copy_sha", "Copy Commit SHA", False),
     ("commits_filters", "Commit Filters", False),
     ("commits_toggle_sdd", "Toggle Commit Sidecars", False),
+    ("commits_cycle_merges", "Cycle Merge Visibility", False),
     ("commits_toggle_all_projects", "Toggle All Projects", False),
     ("commits_fetch", "Fetch Commits", False),
     ("commits_refresh", "Refresh Commits", False),

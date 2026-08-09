@@ -39,6 +39,12 @@ class CommitViewSpec:
     plan_workspaces: tuple[PlanWorkspace, ...] = ()
     # Epoch seconds when the commit was created; author time where available.
     created_at: int | None = None
+    parent_ids: tuple[str, ...] = ()
+
+    @property
+    def is_merge(self) -> bool:
+        """Whether this commit has more than one parent."""
+        return len(self.parent_ids) > 1
 
 
 @dataclass

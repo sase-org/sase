@@ -14,6 +14,7 @@ from textual.worker import Worker
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.project_display_names import ProjectRefDisplaySnapshot
+from sase.vcs_provider._types import MergeVisibility
 from sase.vcs_log.models import VcsLogResult
 from sase.vcs_log.filter_query import CommitLogFilterValues, to_query_string
 
@@ -237,6 +238,14 @@ class CommitsPane(
             close_session=False,
         )
 
+    def cycle_merges(self) -> None:
+        mode = _next_merge_visibility(self.filters.merges)
+        self._commit_filter_values(
+            replace(self.filters, merges=mode),
+            close_session=False,
+        )
+        self.notify(f"Merge commits: {mode}", timeout=3)
+
     def toggle_all_projects(self) -> None:
         project = self.filters.project
         if project is not None:
@@ -311,6 +320,14 @@ class CommitsPane(
     def _cancel_worker(worker: Worker[Any] | None) -> None:
         if worker is not None and worker.is_running:
             worker.cancel()
+
+
+def _next_merge_visibility(current: MergeVisibility) -> MergeVisibility:
+    if current == "hide":
+        return "show"
+    if current == "show":
+        return "only"
+    return "hide"
 
 
 __all__ = ["CommitCollector", "CommitDiffLoader", "CommitsPane"]

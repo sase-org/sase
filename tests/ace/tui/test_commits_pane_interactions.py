@@ -16,7 +16,11 @@ from sase.ace.tui.widgets.artifacts.commit_filter_bar import CommitFilterBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.vcs_log.models import VcsLogResult
-from tests.ace.tui._commits_pane_helpers import _DIFF, _rendered_text, _result
+from tests.ace.tui._commits_pane_helpers import (
+    _DIFF,
+    _rendered_text,
+    _result,
+)
 
 
 async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
@@ -59,7 +63,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert "sidecar:" not in info
         assert footer.content.plain == (
             "j/k navigate  enter view  y copy  / filter  d sidecars  "
-            "a all  F fetch  R refresh  p project"
+            "s merges  a all  F fetch  R refresh  p project"
         )
         await page.wait_for(lambda _state: "Changes:" in _rendered_text(detail.content))
         assert "feat(artifacts): keep every commit" in _rendered_text(detail.content)
@@ -259,6 +263,7 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         assert "F / f2" in help_text
         assert "sidecar:true" in help_text
         assert "merges:hide" in help_text
+        assert "Cycle merge visibility" in help_text
         assert "project:NAME" in help_text
         assert "Single; omitted = all projects" in help_text
         assert "Sidecars / project: off/on" in help_text
@@ -301,3 +306,45 @@ async def test_commit_fetch_task_uses_visible_project_name_and_matching_file(
         assert kwargs["display_name"] == "Fetch commits (widgets)"
         assert kwargs["dedup_key"] == "commit-fetch:widgets"
         assert "gh_acme__widgets" not in kwargs["duplicate_message"]
+
+
+async def test_commits_cycle_merges_updates_query_and_recollects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _result()
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: calls.append(kwargs) or result,
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press("1")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is result)
+        bar = pane.query_one(CommitFilterBar)
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+
+        await page.press("s")
+        await page.wait_for(
+            lambda _state: (
+                pane.filters.merges == "show"
+                and calls[-1]["filter_spec"].merges == "show"
+            )
+        )
+        assert editor.text == "sidecar:false merges:show since:24h"
+
+        await page.press("s")
+        await page.wait_for(
+            lambda _state: (
+                pane.filters.merges == "only"
+                and calls[-1]["filter_spec"].merges == "only"
+            )
+        )
+        assert editor.text == "sidecar:false merges:only since:24h"
+
+        await page.press("s")
+        await page.wait_for(lambda _state: pane.filters.merges == "hide")
+        assert editor.text == "sidecar:false merges:hide since:24h"
