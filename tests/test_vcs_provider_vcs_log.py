@@ -3,11 +3,12 @@
 Exercises :class:`BareGitPlugin.vcs_log` (and the delegating
 :class:`VCSPluginManager.log`) against a real temporary git repository,
 asserting the parsed :class:`VcsCommitWire` fields, newest-first ordering,
-merge-commit exclusion, the ``limit`` cap, and multi-line body handling.
+merge-commit visibility, the ``limit`` cap, and multi-line body handling.
 """
 
 from collections.abc import Mapping
 from datetime import UTC, datetime
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -21,7 +22,7 @@ from sase.vcs_log.filter_query import CommitLogFilterValues, compile_commit_matc
 from sase.vcs_log.models import CommitFilters
 from sase.vcs_provider._hookspec import VCSHookSpec
 from sase.vcs_provider._plugin_manager import VCSPluginManager
-from sase.vcs_provider._types import CommandOutput
+from sase.vcs_provider._types import CommandOutput, MergeVisibility
 from sase.vcs_provider.plugins._git_query_ops import (
     GIT_AUTHOR_DATE_UNTIL_SLOP_SECONDS,
 )
@@ -39,6 +40,15 @@ def _make_git_provider() -> VCSPluginManager:
     return VCSPluginManager(pm)
 
 
+def _git_env(extra: Mapping[str, str] | None = None) -> dict[str, str]:
+    env = {
+        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+    }
+    if extra:
+        env.update(extra)
+    return env
+
+
 def _git(args: list[str], cwd: str, *, env: Mapping[str, str] | None = None) -> None:
     subprocess.run(
         ["git", *args],
@@ -46,8 +56,23 @@ def _git(args: list[str], cwd: str, *, env: Mapping[str, str] | None = None) -> 
         capture_output=True,
         check=True,
         text=True,
-        env=env,
+        env=_git_env(env),
     )
+
+
+def _git_stdout(args: list[str], cwd: str) -> str:
+    return subprocess.check_output(["git", *args], cwd=cwd, text=True, env=_git_env())
+
+
+def _rev_parse(cwd: str, rev: str = "HEAD") -> str:
+    return _git_stdout(["rev-parse", rev], cwd).strip()
+
+
+@pytest.fixture(autouse=True)
+def clean_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in tuple(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key, raising=False)
 
 
 @pytest.fixture()
@@ -69,11 +94,9 @@ def _commit(
     author_name: str | None = None,
     author_email: str | None = None,
 ) -> None:
-    import os
-
     (Path(cwd) / filename).write_text("content\n")
     _git(["add", filename], cwd)
-    env = os.environ.copy()
+    env: dict[str, str] = {}
     if timestamp is not None:
         raw_date = datetime.fromtimestamp(timestamp, UTC).strftime(
             "%Y-%m-%dT%H:%M:%S %z"
@@ -94,6 +117,25 @@ def _commit(
     _git(["commit", "-q", "-m", message], cwd, env=env)
 
 
+def _make_merge_history(repo: str) -> dict[str, str]:
+    _commit(repo, "base.txt", "base")
+    base_id = _rev_parse(repo)
+    _git(["checkout", "-q", "-b", "feature"], repo)
+    _commit(repo, "feature.txt", "feature work")
+    feature_id = _rev_parse(repo)
+    _git(["checkout", "-q", "main"], repo)
+    _commit(repo, "main.txt", "main work")
+    main_id = _rev_parse(repo)
+    _git(["merge", "--no-ff", "-q", "-m", "merge feature", "feature"], repo)
+    merge_id = _rev_parse(repo)
+    return {
+        "base": base_id,
+        "feature work": feature_id,
+        "main work": main_id,
+        "merge feature": merge_id,
+    }
+
+
 def test_vcs_log_parses_commit_fields(repo: str) -> None:
     _commit(repo, "a.txt", "feat: first commit")
 
@@ -109,6 +151,8 @@ def test_vcs_log_parses_commit_fields(repo: str) -> None:
     # Short id is a prefix of the full id.
     assert commit.full_id.startswith(commit.short_id)
     assert len(commit.short_id) < len(commit.full_id)
+    assert commit.parent_ids == ()
+    assert commit.is_merge is False
 
 
 def test_vcs_log_orders_newest_first(repo: str) -> None:
@@ -187,6 +231,36 @@ def test_vcs_log_generates_exact_since_and_sloped_until_args(
         f"--until=@{200 + GIT_AUTHOR_DATE_UNTIL_SLOP_SECONDS}",
         "HEAD",
     ]
+    assert commands[0][-1].startswith("--format=")
+
+
+@pytest.mark.parametrize(
+    ("merges", "expected_args"),
+    [
+        ("hide", ["git", "log", "-n", "5", "--no-merges", "HEAD"]),
+        ("show", ["git", "log", "-n", "5", "HEAD"]),
+        ("only", ["git", "log", "-n", "5", "--merges", "HEAD"]),
+    ],
+)
+def test_vcs_log_generates_merge_visibility_args(
+    monkeypatch: pytest.MonkeyPatch,
+    merges: MergeVisibility,
+    expected_args: list[str],
+) -> None:
+    plugin = BareGitPlugin()
+    commands: list[list[str]] = []
+
+    def run(args: list[str], cwd: str) -> CommandOutput:
+        del cwd
+        commands.append(args)
+        return CommandOutput(0, "", "")
+
+    monkeypatch.setattr(plugin, "_run", run)
+
+    assert plugin.vcs_log("/repo", 5, merges=merges) == []
+
+    assert len(commands) == 1
+    assert commands[0][:-1] == expected_args
     assert commands[0][-1].startswith("--format=")
 
 
@@ -295,18 +369,115 @@ def test_vcs_log_preserves_sase_footer_in_body(repo: str) -> None:
     assert "SASE_TYPE=sdd" in commit.body
 
 
-def test_vcs_log_excludes_merge_commits(repo: str) -> None:
+@pytest.mark.parametrize(
+    ("merges", "expected_subjects"),
+    [
+        ("hide", {"base", "feature work", "main work"}),
+        ("show", {"base", "feature work", "main work", "merge feature"}),
+        ("only", {"merge feature"}),
+    ],
+)
+def test_vcs_log_merge_visibility_modes(
+    repo: str, merges: MergeVisibility, expected_subjects: set[str]
+) -> None:
+    _make_merge_history(repo)
+
+    subjects = {c.subject for c in BareGitPlugin().vcs_log(repo, 10, merges=merges)}
+
+    assert subjects == expected_subjects
+
+
+def test_vcs_log_merge_visibility_partition_law(repo: str) -> None:
+    _make_merge_history(repo)
+    provider = BareGitPlugin()
+
+    hide_ids = {c.full_id for c in provider.vcs_log(repo, 10, merges="hide")}
+    show_ids = {c.full_id for c in provider.vcs_log(repo, 10, merges="show")}
+    only_ids = {c.full_id for c in provider.vcs_log(repo, 10, merges="only")}
+
+    assert hide_ids.isdisjoint(only_ids)
+    assert hide_ids | only_ids == show_ids
+
+
+def test_vcs_log_populates_parent_ids(repo: str) -> None:
+    expected_ids = _make_merge_history(repo)
+
+    commits = {
+        commit.subject: commit
+        for commit in BareGitPlugin().vcs_log(repo, 10, merges="show")
+    }
+
+    assert commits["base"].parent_ids == ()
+    assert commits["base"].is_merge is False
+    assert commits["feature work"].parent_ids == (expected_ids["base"],)
+    assert commits["main work"].parent_ids == (expected_ids["base"],)
+    assert commits["merge feature"].parent_ids == (
+        expected_ids["main work"],
+        expected_ids["feature work"],
+    )
+    assert commits["merge feature"].is_merge is True
+
+
+def test_vcs_show_revision_ordinary_commit_matches_default_git_show(repo: str) -> None:
+    _commit(repo, "ordinary.txt", "ordinary")
+    commit_id = _rev_parse(repo)
+
+    ok, output = BareGitPlugin().vcs_show_revision(commit_id, repo)
+    expected = _git_stdout(["show", "--format=", "--patch", commit_id], repo)
+
+    assert ok is True
+    assert output == expected
+
+
+def test_vcs_show_revision_merge_commit_returns_first_parent_patch(repo: str) -> None:
+    ids = _make_merge_history(repo)
+    merge_id = ids["merge feature"]
+
+    ok, output = BareGitPlugin().vcs_show_revision(merge_id, repo)
+    expected = _git_stdout(
+        ["show", "--first-parent", "--format=", "--patch", merge_id], repo
+    )
+
+    assert ok is True
+    assert output == expected
+    assert output is not None
+    assert output.strip()
+    assert "feature.txt" in output
+
+
+def test_vcs_partition_commits_honors_merge_visibility_modes(repo: str) -> None:
+    provider = BareGitPlugin()
+    origin = Path(repo).parent / "origin.git"
+
     _commit(repo, "base.txt", "base")
+    _git(["init", "--bare", "-q", str(origin)], repo)
+    _git(["remote", "add", "origin", str(origin)], repo)
+    _git(["push", "-u", "origin", "main"], repo)
+    _git(["--git-dir", str(origin), "symbolic-ref", "HEAD", "refs/heads/main"], repo)
+
     _git(["checkout", "-q", "-b", "feature"], repo)
     _commit(repo, "feature.txt", "feature work")
+    feature_id = _rev_parse(repo)
     _git(["checkout", "-q", "main"], repo)
-    _commit(repo, "main.txt", "main work")
     _git(["merge", "--no-ff", "-q", "-m", "merge feature", "feature"], repo)
+    merge_id = _rev_parse(repo)
 
-    subjects = [c.subject for c in BareGitPlugin().vcs_log(repo, 10)]
+    hide_ahead, hide_behind = provider.vcs_partition_commits(
+        repo, local_ref="HEAD", remote_ref="origin/main", merges="hide"
+    )
+    show_ahead, show_behind = provider.vcs_partition_commits(
+        repo, local_ref="HEAD", remote_ref="origin/main", merges="show"
+    )
+    only_ahead, only_behind = provider.vcs_partition_commits(
+        repo, local_ref="HEAD", remote_ref="origin/main", merges="only"
+    )
 
-    assert "merge feature" not in subjects
-    assert {"base", "feature work", "main work"} == set(subjects)
+    assert hide_ahead == {feature_id}
+    assert show_ahead == {feature_id, merge_id}
+    assert only_ahead == {merge_id}
+    assert hide_behind == set()
+    assert show_behind == set()
+    assert only_behind == set()
 
 
 def test_remote_log_ops_fetch_partition_and_union_log(repo: str) -> None:
@@ -323,40 +494,23 @@ def test_remote_log_ops_fetch_partition_and_union_log(repo: str) -> None:
     assert provider.vcs_resolve_remote_log_ref(repo) == "origin/main"
 
     _commit(repo, "local.txt", "local only")
-    local_id = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=repo, text=True
-    ).strip()
+    local_id = _rev_parse(repo)
 
-    subprocess.run(
-        ["git", "clone", "-q", str(origin), str(remote_work)],
-        capture_output=True,
-        check=True,
-        text=True,
-    )
+    _git(["clone", "-q", str(origin), str(remote_work)], str(Path(repo).parent))
     _git(["config", "user.email", "remote@example.com"], str(remote_work))
     _git(["config", "user.name", "Remote"], str(remote_work))
     _commit(str(remote_work), "remote.txt", "remote only")
-    remote_id = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=str(remote_work), text=True
-    ).strip()
+    remote_id = _rev_parse(str(remote_work))
     _git(["push", "origin", "main"], str(remote_work))
 
-    branch_before = subprocess.check_output(
-        ["git", "branch", "--show-current"], cwd=repo, text=True
-    ).strip()
-    status_before = subprocess.check_output(
-        ["git", "status", "--porcelain"], cwd=repo, text=True
-    )
+    branch_before = _git_stdout(["branch", "--show-current"], repo).strip()
+    status_before = _git_stdout(["status", "--porcelain"], repo)
 
     ok, error = provider.vcs_fetch_remote(repo, refs=("origin/main",))
     assert ok is True, error
 
-    branch_after = subprocess.check_output(
-        ["git", "branch", "--show-current"], cwd=repo, text=True
-    ).strip()
-    status_after = subprocess.check_output(
-        ["git", "status", "--porcelain"], cwd=repo, text=True
-    )
+    branch_after = _git_stdout(["branch", "--show-current"], repo).strip()
+    status_after = _git_stdout(["status", "--porcelain"], repo)
     assert branch_after == branch_before
     assert status_after == status_before
 

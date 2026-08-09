@@ -679,7 +679,7 @@ def load_commit_created_at(spec: CommitViewSpec) -> int | None:
         from sase.vcs_provider import get_vcs_provider
 
         provider = get_vcs_provider(spec.cwd)
-        commits = provider.log(spec.cwd, 1, revs=(spec.sha,))
+        commits = provider.log(spec.cwd, 1, revs=(spec.sha,), merges="show")
     except Exception:
         return None
 

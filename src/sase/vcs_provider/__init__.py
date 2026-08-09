@@ -19,7 +19,7 @@ from ._registry import (
     get_vcs_provider,
     supports_issues,
 )
-from ._types import IssueListState, IssueState, IssueWire
+from ._types import IssueListState, IssueState, IssueWire, MergeVisibility
 from .config import get_workspace_root
 
 VCS_DEFAULT_REVISION = "__vcs_default__"
@@ -29,6 +29,7 @@ __all__ = [
     "IssueListState",
     "IssueState",
     "IssueWire",
+    "MergeVisibility",
     "VCS_DEFAULT_REVISION",
     "VCSHookSpec",
     "VCSOperationError",

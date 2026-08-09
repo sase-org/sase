@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
     from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
-    from ._types import IssueListState, IssueState, IssueWire
+    from ._types import IssueListState, IssueState, IssueWire, MergeVisibility
 
 
 _ISSUE_OPERATION_HOOKS = (
@@ -235,6 +235,7 @@ class VCSPluginManager(VCSProvider):
         until: int | None = None,
         authors: tuple[str, ...] = (),
         revs: Sequence[str] = ("HEAD",),
+        merges: "MergeVisibility" = "hide",
     ) -> list["VcsCommitWire"]:
         result = self._pm.hook.vcs_log(
             cwd=cwd,
@@ -243,6 +244,7 @@ class VCSPluginManager(VCSProvider):
             until=until,
             authors=authors,
             revs=revs,
+            merges=merges,
         )
         if result is None:
             raise NotImplementedError("log is not supported by this VCS provider")
@@ -264,10 +266,15 @@ class VCSPluginManager(VCSProvider):
         )
 
     def partition_commits(
-        self, cwd: str, *, local_ref: str, remote_ref: str
+        self,
+        cwd: str,
+        *,
+        local_ref: str,
+        remote_ref: str,
+        merges: "MergeVisibility" = "hide",
     ) -> tuple[set[str], set[str]]:
         result = self._pm.hook.vcs_partition_commits(
-            cwd=cwd, local_ref=local_ref, remote_ref=remote_ref
+            cwd=cwd, local_ref=local_ref, remote_ref=remote_ref, merges=merges
         )
         if result is None:
             raise NotImplementedError(

@@ -130,14 +130,58 @@ def test_resolve_commit_created_at_returns_none_when_provider_raises(
     assert _resolve_commit_created_at("/workspace/sase", "abc123") is None
 
 
-def test_resolve_commit_created_at_rejects_mismatched_no_merges_ancestor(
+def test_resolve_commit_created_at_resolves_merge_sha(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class Provider:
         def log(
-            self, cwd: str, limit: int, *, revs: tuple[str, ...], **_kwargs: object
+            self,
+            cwd: str,
+            limit: int,
+            *,
+            revs: tuple[str, ...],
+            merges: str,
+            **_kwargs: object,
         ) -> list[VcsCommitWire]:
+            assert cwd == "/workspace/sase"
+            assert limit == 1
             assert revs == ("abc123",)
+            assert merges == "show"
+            return [
+                VcsCommitWire(
+                    full_id="abc123fullsha",
+                    short_id="abc123",
+                    author_name="bryan",
+                    author_email="b@x",
+                    timestamp=1_700_000_000,
+                    subject="merge feature",
+                    body="",
+                    parent_ids=("parent-a", "parent-b"),
+                )
+            ]
+
+    monkeypatch.setattr("sase.vcs_provider.get_vcs_provider", lambda _cwd: Provider())
+
+    assert _resolve_commit_created_at("/workspace/sase", "abc123") == 1_700_000_000
+
+
+def test_resolve_commit_created_at_rejects_mismatched_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Provider:
+        def log(
+            self,
+            cwd: str,
+            limit: int,
+            *,
+            revs: tuple[str, ...],
+            merges: str,
+            **_kwargs: object,
+        ) -> list[VcsCommitWire]:
+            assert cwd == "/workspace/sase"
+            assert limit == 1
+            assert revs == ("abc123",)
+            assert merges == "show"
             return [
                 VcsCommitWire(
                     full_id="deadbeef00000000",

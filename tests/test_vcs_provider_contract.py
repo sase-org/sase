@@ -9,8 +9,9 @@ from unittest.mock import MagicMock, patch
 
 import pluggy
 import pytest
+from sase.core.vcs_log_wire import VcsCommitWire
 from sase.vcs_provider._base import VCSProvider
-from sase.vcs_provider._hookspec import VCSHookSpec
+from sase.vcs_provider._hookspec import VCSHookSpec, hookimpl
 from sase.vcs_provider._plugin_manager import VCSPluginManager
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
@@ -21,6 +22,26 @@ def _make_bare_git_plugin_provider() -> VCSPluginManager:
     pm.add_hookspecs(VCSHookSpec)
     pm.register(BareGitPlugin())
     return VCSPluginManager(pm)
+
+
+class _LegacyMergeVisibilityPlugin:
+    """Hook implementation that predates the optional ``merges`` keyword."""
+
+    def __init__(self) -> None:
+        self.log_seen: tuple[str, int] | None = None
+        self.partition_seen: tuple[str, str, str] | None = None
+
+    @hookimpl
+    def vcs_log(self, cwd: str, limit: int) -> list[VcsCommitWire]:
+        self.log_seen = (cwd, limit)
+        return []
+
+    @hookimpl
+    def vcs_partition_commits(
+        self, cwd: str, local_ref: str, remote_ref: str
+    ) -> tuple[set[str], set[str]]:
+        self.partition_seen = (cwd, local_ref, remote_ref)
+        return ({"ahead"}, {"behind"})
 
 
 # Shared parameterization for all providers.
@@ -37,6 +58,21 @@ _PROVIDERS = pytest.mark.parametrize(
 
 
 # === Tests for isinstance check ===
+
+
+def test_merge_visibility_keyword_is_optional_for_hookimpls() -> None:
+    pm = pluggy.PluginManager("sase_vcs")
+    pm.add_hookspecs(VCSHookSpec)
+    plugin = _LegacyMergeVisibilityPlugin()
+    pm.register(plugin)
+    provider = VCSPluginManager(pm)
+
+    assert provider.log("/repo", 10, merges="only") == []
+    assert provider.partition_commits(
+        "/repo", local_ref="HEAD", remote_ref="origin/main", merges="only"
+    ) == ({"ahead"}, {"behind"})
+    assert plugin.log_seen == ("/repo", 10)
+    assert plugin.partition_seen == ("/repo", "HEAD", "origin/main")
 
 
 # === Tests for checkout contract ===

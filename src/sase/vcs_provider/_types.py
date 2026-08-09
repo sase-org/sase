@@ -5,6 +5,7 @@ from typing import Literal
 
 IssueState = Literal["open", "closed"]
 IssueListState = Literal["open", "closed", "all"]
+MergeVisibility = Literal["hide", "show", "only"]
 
 
 @dataclass(frozen=True)

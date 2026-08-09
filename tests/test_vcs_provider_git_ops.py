@@ -365,6 +365,7 @@ def test_show_revision_success(mock_run: MagicMock) -> None:
     assert mock_run.call_args[0][0] == [
         "git",
         "show",
+        "--first-parent",
         "--format=",
         "--patch",
         "abc123",

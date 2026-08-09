@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
     from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
-    from ._types import IssueListState, IssueState, IssueWire
+    from ._types import IssueListState, IssueState, IssueWire, MergeVisibility
 
 hookspec = pluggy.HookspecMarker("sase_vcs")
 hookimpl = pluggy.HookimplMarker("sase_vcs")
@@ -21,6 +21,9 @@ class VCSHookSpec:
     Every method uses ``firstresult=True`` so pluggy returns the first
     non-``None`` result from the registered plugins.  Method names are
     prefixed with ``vcs_`` to namespace them within the pluggy project.
+    Defaulted keyword additions, such as ``merges`` on commit-log hooks, are
+    optional for hook implementations; pluggy forwards only the arguments an
+    implementation declares, so older providers keep their existing behavior.
     """
 
     # --- Core operations ---
@@ -142,6 +145,7 @@ class VCSHookSpec:
         until: int | None = None,
         authors: tuple[str, ...] = (),
         revs: Sequence[str] = ("HEAD",),
+        merges: "MergeVisibility" = "hide",
     ) -> list["VcsCommitWire"]: ...
 
     @hookspec(firstresult=True)
@@ -156,7 +160,12 @@ class VCSHookSpec:
 
     @hookspec(firstresult=True)
     def vcs_partition_commits(
-        self, cwd: str, local_ref: str, remote_ref: str
+        self,
+        cwd: str,
+        local_ref: str,
+        remote_ref: str,
+        *,
+        merges: "MergeVisibility" = "hide",
     ) -> tuple[set[str], set[str]]: ...
 
     @hookspec(firstresult=True)

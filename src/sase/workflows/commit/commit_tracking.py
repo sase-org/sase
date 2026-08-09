@@ -461,7 +461,7 @@ def _resolve_commit_created_at(cwd: str, sha: str | None) -> int | None:
         from sase.vcs_provider import get_vcs_provider
 
         provider = get_vcs_provider(cwd)
-        commits = provider.log(cwd, 1, revs=(sha,))
+        commits = provider.log(cwd, 1, revs=(sha,), merges="show")
     except Exception:
         return None
 

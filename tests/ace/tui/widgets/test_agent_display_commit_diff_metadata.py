@@ -273,15 +273,62 @@ class TestCommitMetadataViewsAndDiffs:
             monkeypatch.setattr("sase.vcs_provider.get_vcs_provider", boom)
             assert load_commit_created_at(self._spec()) is None
 
-    def test_load_commit_created_at_rejects_mismatched_no_merges_ancestor(
+    def test_load_commit_created_at_resolves_merge_sha(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         class Provider:
             def log(
-                self, cwd: str, limit: int, *, revs: tuple[str, ...], **_kwargs: object
+                self,
+                cwd: str,
+                limit: int,
+                *,
+                revs: tuple[str, ...],
+                merges: str,
+                **_kwargs: object,
             ) -> list[VcsCommitWire]:
+                assert cwd == "/workspace/sase"
+                assert limit == 1
                 assert revs == ("abc1234567890",)
+                assert merges == "show"
+                return [
+                    VcsCommitWire(
+                        full_id="abc1234567890",
+                        short_id="abc1234",
+                        author_name="bryan",
+                        author_email="b@x",
+                        timestamp=1_700_000_000,
+                        subject="merge feature",
+                        body="",
+                        parent_ids=("parent-a", "parent-b"),
+                    )
+                ]
+
+        monkeypatch.setattr(
+            "sase.vcs_provider.get_vcs_provider",
+            lambda _cwd: Provider(),
+        )
+
+        assert load_commit_created_at(self._spec()) == 1_700_000_000
+
+    def test_load_commit_created_at_rejects_mismatched_commit(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class Provider:
+            def log(
+                self,
+                cwd: str,
+                limit: int,
+                *,
+                revs: tuple[str, ...],
+                merges: str,
+                **_kwargs: object,
+            ) -> list[VcsCommitWire]:
+                assert cwd == "/workspace/sase"
+                assert limit == 1
+                assert revs == ("abc1234567890",)
+                assert merges == "show"
                 return [
                     VcsCommitWire(
                         full_id="deadbeef00000000",

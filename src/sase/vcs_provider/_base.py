@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
     from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
-    from ._types import IssueListState, IssueState, IssueWire
+    from ._types import IssueListState, IssueState, IssueWire, MergeVisibility
 
 
 class VCSProvider(ABC):
@@ -254,13 +254,17 @@ class VCSProvider(ABC):
         until: int | None = None,
         authors: tuple[str, ...] = (),
         revs: Sequence[str] = ("HEAD",),
+        merges: "MergeVisibility" = "hide",
     ) -> list["VcsCommitWire"]:
         """Return up to *limit* recent commits, newest-first.
 
         Each commit is a provider-agnostic :class:`VcsCommitWire`
         carrying the full/short id, author name/email, epoch author
-        timestamp, subject, and body. Merge commits are excluded so the
-        timeline reflects authored change history.
+        timestamp, parent ids, subject, and body. ``merges`` controls
+        merge-commit visibility: ``"hide"`` excludes merge commits,
+        ``"show"`` includes every traversed commit, and ``"only"`` returns
+        merge commits alone. The default preserves the historical authored
+        change-history timeline.
 
         ``since`` and ``until`` are optional epoch-second bounds. ``authors``
         are case-insensitive substrings matched against author identity with
@@ -293,9 +297,19 @@ class VCSProvider(ABC):
         raise NotImplementedError("fetch_remote is not supported by this VCS provider")
 
     def partition_commits(
-        self, cwd: str, *, local_ref: str, remote_ref: str
+        self,
+        cwd: str,
+        *,
+        local_ref: str,
+        remote_ref: str,
+        merges: "MergeVisibility" = "hide",
     ) -> tuple[set[str], set[str]]:
-        """Return ``(ahead_ids, behind_ids)`` for two refs."""
+        """Return ``(ahead_ids, behind_ids)`` for two refs.
+
+        ``merges`` uses the same three-valued contract as :meth:`log` so
+        presence labels and ahead/behind counts describe the same slice of
+        history as the displayed commits.
+        """
         raise NotImplementedError(
             "partition_commits is not supported by this VCS provider"
         )

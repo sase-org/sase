@@ -19,6 +19,7 @@ from sase.core.vcs_log_wire import VcsCommitWire
 from sase.core.vcs_repo_stats_facade import build_vcs_repo_stats
 from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 from sase.vcs_provider._hookspec import hookimpl
+from sase.vcs_provider._types import MergeVisibility
 from sase.vcs_provider.plugins._git_revision_ops import GitRevisionOpsMixin
 from sase.vcs_provider.plugins._git_sync_ops import GitSyncOpsMixin
 
@@ -28,6 +29,17 @@ from sase.vcs_provider.plugins._git_sync_ops import GitSyncOpsMixin
 #: dates trail their author dates by more than this, or which lie beyond a
 #: saturated bounded candidate fetch, can still be absent.
 GIT_AUTHOR_DATE_UNTIL_SLOP_SECONDS = 7 * 24 * 60 * 60
+
+
+def _merge_visibility_args(merges: MergeVisibility) -> tuple[str, ...]:
+    match merges:
+        case "hide":
+            return ("--no-merges",)
+        case "show":
+            return ()
+        case "only":
+            return ("--merges",)
+    raise ValueError(f"unknown merge visibility: {merges!r}")
 
 
 class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
@@ -41,7 +53,12 @@ class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
 
     @hookimpl
     def vcs_show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["git", "show", "--format=", "--patch", revision], cwd)
+        # Git show omits merge patches by default. --first-parent (git >= 2.31)
+        # yields the changes introduced relative to the first parent and leaves
+        # ordinary commit patches unchanged.
+        out = self._run(
+            ["git", "show", "--first-parent", "--format=", "--patch", revision], cwd
+        )
         if not out.success:
             return (False, f"git show failed: {out.stderr.strip()}")
         return (True, out.stdout)
@@ -161,12 +178,18 @@ class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
 
     @hookimpl
     def vcs_partition_commits(
-        self, cwd: str, local_ref: str, remote_ref: str
+        self,
+        cwd: str,
+        local_ref: str,
+        remote_ref: str,
+        *,
+        merges: MergeVisibility = "hide",
     ) -> tuple[set[str], set[str]]:
         from sase.vcs_provider._errors import VCSOperationError
 
+        merge_args = _merge_visibility_args(merges)
         ahead_out = self._run(
-            ["git", "rev-list", "--no-merges", local_ref, f"^{remote_ref}"],
+            ["git", "rev-list", *merge_args, local_ref, f"^{remote_ref}"],
             cwd,
         )
         if not ahead_out.success:
@@ -175,7 +198,7 @@ class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
                 ahead_out.stderr.strip() or "git rev-list ahead failed",
             )
         behind_out = self._run(
-            ["git", "rev-list", "--no-merges", remote_ref, f"^{local_ref}"],
+            ["git", "rev-list", *merge_args, remote_ref, f"^{local_ref}"],
             cwd,
         )
         if not behind_out.success:
@@ -241,13 +264,14 @@ class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
         until: int | None = None,
         authors: tuple[str, ...] = (),
         revs: Sequence[str] = ("HEAD",),
+        merges: MergeVisibility = "hide",
     ) -> list[VcsCommitWire]:
         from sase.vcs_provider._errors import VCSOperationError
 
         args = ["git", "log"]
         if limit >= 1:
             args.extend(["-n", str(limit)])
-        args.append("--no-merges")
+        args.extend(_merge_visibility_args(merges))
         if since is not None:
             args.append(f"--since=@{since}")
         if until is not None:
