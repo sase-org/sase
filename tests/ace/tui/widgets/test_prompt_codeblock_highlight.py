@@ -78,9 +78,11 @@ def _assert_inline_chip_contract(text_area: PromptTextArea) -> tuple[Style, Styl
     assert inline.color == foreground_rich
     assert inline.bold is False
     assert inline.italic is False
+    assert inline.underline is False
     assert delimiter.bgcolor == inline.bgcolor
     assert delimiter.bold is False
     assert delimiter.italic is False
+    assert delimiter.underline is False
     assert _color_distance(delimiter.color, inline.bgcolor) < _color_distance(
         inline.color, inline.bgcolor
     )

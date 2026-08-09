@@ -529,10 +529,11 @@ ties. Blank terms, blank definitions, multiline aliases, duplicate normalized te
 one alias claimed by more than one term fail validation consistently for config loading,
 memory generation, ACE, and the xprompt LSP.
 
-ACE highlights warm glossary matches in prompt text. In NORMAL mode, `K` previews the
-matching project's definition after xprompt, skill, and file targets; `Ctrl+]` jumps to
-the entry's `definition` range in that project's `sase/sase.yml`. The xprompt LSP uses
-the same project selection and matcher for semantic tokens, hover Markdown, and
+ACE highlights warm glossary matches in prompt text as bold, theme-accent, underlined
+terms you can preview with `K` or jump to with `Ctrl+]`. In NORMAL mode, `K` previews
+the matching project's definition after xprompt, skill, and file targets; `Ctrl+]` jumps
+to the entry's `definition` range in that project's `sase/sase.yml`. The xprompt LSP
+uses the same project selection and matcher for semantic tokens, hover Markdown, and
 go-to-definition. A leading VCS workflow reference selects the glossary project;
 otherwise the active workspace project is used. Unknown, disabled, home, or unreadable
 project contexts produce no glossary semantics.

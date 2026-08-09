@@ -297,15 +297,34 @@ async def test_prompt_artifact_ref_highlight_png_snapshot(
         )
 
 
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "prompt_glossary_highlight_dark_120x40",
+            "ACE prompt input — glossary highlighting, dark theme",
+        ),
+        (
+            "textual-light",
+            "prompt_glossary_highlight_light_120x40",
+            "ACE prompt input — glossary highlighting, light theme",
+        ),
+    ],
+)
 async def test_prompt_glossary_highlight_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
 ) -> None:
     patch_startup_loaders(monkeypatch)
     patch_visual_glossary_catalog(monkeypatch)
     patch_visual_artifact_ref_kinds(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = theme
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -321,11 +340,7 @@ async def test_prompt_glossary_highlight_png_snapshot(
             for row in text_area._highlights.values()
             for *_range, name in row
         )
-        ace_png_visual.assert_page_png(
-            page,
-            "prompt_glossary_highlight_120x40",
-            title="ACE prompt input — glossary highlighting",
-        )
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
 
 @pytest.mark.parametrize(

@@ -20,6 +20,7 @@ from sase.xprompt.glossary_catalog import (
     _EditorGlossaryProject,
     _GlossaryConfigSignature,
 )
+from sase.xprompt._literal_zones import code_literal_ranges
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_state,
     wait_for_visual_idle,
@@ -289,22 +290,38 @@ class _VisualCompiledGlossary:
         self._entries = entries
 
     def scan(self, text: str) -> list[dict[str, Any]]:
+        literal_ranges = (
+            code_literal_ranges(text) if "`" in text or "~~~" in text else []
+        )
         spans: list[dict[str, Any]] = []
         for entry in self._entries:
             start = 0
+            literal_index = 0
             while True:
                 found = text.find(entry.term, start)
                 if found == -1:
                     break
+                end = found + len(entry.term)
+                while (
+                    literal_index < len(literal_ranges)
+                    and literal_ranges[literal_index][1] <= found
+                ):
+                    literal_index += 1
+                if (
+                    literal_index < len(literal_ranges)
+                    and literal_ranges[literal_index][0] < end
+                ):
+                    start = end
+                    continue
                 spans.append(
                     _visual_glossary_span_wire(
                         text,
                         entry,
                         found,
-                        found + len(entry.term),
+                        end,
                     )
                 )
-                start = found + len(entry.term)
+                start = end
         return spans
 
     def lookup(

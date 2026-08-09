@@ -56,6 +56,19 @@ def _glossary_highlights(ta: PromptTextArea) -> list[tuple[int, int, int, str]]:
     ]
 
 
+def _style_at_text_offset(
+    text_area: PromptTextArea,
+    y: int,
+    offset: int,
+) -> Style | None:
+    cell = text_area.gutter_width + offset
+    strip = text_area.render_line(y).crop(cell, cell + 1)
+    for segment in strip._segments:
+        if segment.control is None and segment.style is not None:
+            return segment.style
+    return None
+
+
 def _install_warm_glossary(
     monkeypatch: pytest.MonkeyPatch,
     app: Any,
@@ -99,7 +112,7 @@ async def test_glossary_overlay_marks_spans_and_registers_styles(
         assert (0, 4, 14, "glossary.term") in _glossary_highlights(ta)
         style = ta._theme.syntax_styles["glossary.term"]
         assert style.bold is True
-        assert style.underline is not True
+        assert style.underline is True
         assert style.color not in {
             Color.parse(app.current_theme.warning),
             Color.parse(app.current_theme.error),
@@ -150,6 +163,64 @@ async def test_glossary_overlay_wins_over_misspelling(
 
         names = _highlight_names(page.ta)
         assert names.index("spell.misspelled") < names.index("glossary.term")
+
+
+async def test_glossary_misspelling_overlap_renders_as_glossary_style(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    text = "Agent Clan"
+    async with PromptPage(
+        text,
+        cursor=(0, len(text)),
+        misspellings=["agent", "clan"],
+        mode="insert",
+        size=(40, 8),
+    ) as page:
+        catalog = _catalog_for_text(text, tmp_path, "Agent Clan")
+        _install_warm_glossary(monkeypatch, page.ta.app, catalog)
+
+        page.ta._refresh_prompt_glossary_context(schedule=False)
+        page.ta._build_highlight_map()
+        await page.pause()
+
+        rendered = _style_at_text_offset(page.ta, 0, 0)
+        glossary = page.ta._theme.syntax_styles["glossary.term"]
+        assert rendered is not None
+        assert rendered.color == glossary.color
+        assert rendered.bold is True
+        assert rendered.underline is True
+
+
+async def test_glossary_underline_is_cleared_inside_inline_code_chip(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    text = "`Agent Clan` Agent Clan"
+    async with PromptPage(
+        text,
+        cursor=(0, len(text)),
+        mode="insert",
+        size=(50, 8),
+    ) as page:
+        catalog = _catalog_for_text(
+            text,
+            tmp_path,
+            "Agent Clan",
+            occurrence_count=2,
+        )
+        _install_warm_glossary(monkeypatch, page.ta.app, catalog)
+
+        page.ta._refresh_prompt_glossary_context(schedule=False)
+        page.ta._build_highlight_map()
+        await page.pause()
+
+        inside_chip = _style_at_text_offset(page.ta, 0, 1)
+        outside_chip = _style_at_text_offset(page.ta, 0, text.rindex("Agent Clan"))
+        assert inside_chip is not None
+        assert inside_chip.underline is False
+        assert outside_chip is not None
+        assert outside_chip.underline is True
 
 
 async def test_glossary_overlay_cold_render_defers_without_warming(
@@ -233,7 +304,8 @@ async def test_glossary_style_reregisters_after_theme_switch(
         after = ta._theme.syntax_styles["glossary.term"]
         assert after != sentinel
         assert after.bold is True
-        assert after.underline is not True
+        assert after.underline is True
+        assert after.color != Color.parse("red")
 
 
 async def test_k_on_glossary_term_pushes_markdown_preview(

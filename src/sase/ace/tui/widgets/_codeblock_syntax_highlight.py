@@ -323,6 +323,7 @@ class CodeBlockHighlightMixin(_MixinBase):
                     bgcolor=inline_background.hex,
                     bold=False,
                     italic=False,
+                    underline=False,
                 ),
                 "codeblock.fence": Style(
                     color=foreground_color.blend(background_color, 0.35).hex,
@@ -332,6 +333,7 @@ class CodeBlockHighlightMixin(_MixinBase):
                     bgcolor=inline_background.hex,
                     bold=False,
                     italic=False,
+                    underline=False,
                 ),
                 "codeblock.lang": Style(
                     color=app_theme.accent,

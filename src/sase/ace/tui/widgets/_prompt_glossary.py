@@ -35,7 +35,13 @@ _GLOSSARY_STYLE = "glossary.term"
 
 
 class PromptGlossaryMixin(_MixinBase):
-    """Memory-only glossary overlay and actions for ``PromptTextArea``."""
+    """Memory-only glossary overlay and actions for ``PromptTextArea``.
+
+    The glossary term style is the definable-term link affordance: bold,
+    theme-accent text with an additive underline. Later structural overlays
+    keep winning on overlap, and clear that underline when their surface must
+    suppress inherited text attributes.
+    """
 
     if TYPE_CHECKING:
         _prompt_glossary_context_cache: PromptGlossaryContext | None
@@ -319,6 +325,7 @@ class PromptGlossaryMixin(_MixinBase):
                 background=background,
             ),
             bold=True,
+            underline=True,
         )
         theme = dataclasses.replace(
             base,

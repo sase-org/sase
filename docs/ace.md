@@ -4332,10 +4332,12 @@ from the active workspace project when the prompt does not select one.
 
 Project glossary entries are authored in `sase/sase.yml`; see
 [glossary configuration](configuration.md#glossary). ACE highlights matched glossary
-phrases in the prompt after the catalog is warm, skipping inline code and fenced code
-and using the shared longest-match rules from the xprompt LSP. Loading, validation, and
-matcher compilation run off the render path and are cached per project/config signature.
-Config edits, project changes, and watched `sase.yml` changes invalidate the cache.
+phrases in the prompt after the catalog is warm, rendering them bold, in the theme
+accent, and underlined to mark a term you can preview with `K` or jump to with `Ctrl+]`.
+Matching skips inline code and fenced code and uses the shared longest-match rules from
+the xprompt LSP. Loading, validation, and matcher compilation run off the render path
+and are cached per project/config signature. Config edits, project changes, and watched
+`sase.yml` changes invalidate the cache.
 
 `K` on a glossary phrase opens the Markdown preview panel with the canonical term,
 definition, configured aliases, project, and source path. `Ctrl+]` opens the
@@ -4360,22 +4362,23 @@ installation hint.
 
 Every word `K` proves misspelled is remembered durably and gets a red underline in every
 prompt input from that moment on, in every `sase ace` session -- no live spell-checking
-runs on every keystroke; only what `K` has already checked is ever squiggled. The
-correction panel offers two ways to stop fighting a word, at two different scopes. Press
-`a` to accept a word for SASE only: it is recorded in `prompt_misspellings.json`, `K` on
-it no longer opens the panel, but `aspell` itself -- and every other consumer of it on
-the machine -- still rejects the word. Press `d` to add the word to your `aspell`
-personal dictionary instead (usually `~/.aspell.en.pws`, though `aspell` configuration
-can relocate it), so it stops being flagged everywhere on the machine, not just in ACE;
-this is reversible by editing that file directly. The add is verified by re-checking the
-word in a fresh `aspell` process afterwards, so the squiggle clears only once `aspell`
-genuinely accepts it -- a failure leaves the word flagged and reports `aspell`'s own
-explanation. Case follows `aspell`: a word added capitalized (`Bugyi`) stays flagged in
-lowercase (`bugyi`). Hyphenated words cannot be added with `d` -- `aspell` does not
-permit `-` inside a personal-dictionary entry -- and the panel reports that explicitly
-rather than pretending the add worked. A `K` press on a now-correctly-spelled remembered
-word clears its squiggle automatically. The remembered words are stored at
-`sase_home()/prompt_misspellings.json`; see
+runs on every keystroke; only what `K` has already checked is ever squiggled. This is
+distinct from the bold theme-accent glossary underline, which marks a definable project
+term rather than a spelling issue. The correction panel offers two ways to stop fighting
+a word, at two different scopes. Press `a` to accept a word for SASE only: it is
+recorded in `prompt_misspellings.json`, `K` on it no longer opens the panel, but
+`aspell` itself -- and every other consumer of it on the machine -- still rejects the
+word. Press `d` to add the word to your `aspell` personal dictionary instead (usually
+`~/.aspell.en.pws`, though `aspell` configuration can relocate it), so it stops being
+flagged everywhere on the machine, not just in ACE; this is reversible by editing that
+file directly. The add is verified by re-checking the word in a fresh `aspell` process
+afterwards, so the squiggle clears only once `aspell` genuinely accepts it -- a failure
+leaves the word flagged and reports `aspell`'s own explanation. Case follows `aspell`: a
+word added capitalized (`Bugyi`) stays flagged in lowercase (`bugyi`). Hyphenated words
+cannot be added with `d` -- `aspell` does not permit `-` inside a personal-dictionary
+entry -- and the panel reports that explicitly rather than pretending the add worked. A
+`K` press on a now-correctly-spelled remembered word clears its squiggle automatically.
+The remembered words are stored at `sase_home()/prompt_misspellings.json`; see
 [`ace.prompt_spellcheck`](configuration.md#aceprompt_spellcheck) to disable the
 highlight or change how many words are retained.
 
