@@ -1,67 +1,107 @@
 """Widgets for the ace TUI."""
 
-from .agent_detail import AgentDetail
-from .agent_info_panel import AgentInfoPanel
-from .agent_list import AgentList
-from .agent_onboarding import AgentOnboarding
-from .agents_sync_indicator import AgentsSyncIndicator
-from .alias_overrides_indicator import AliasOverridesIndicator
-from .file_panel import FileLineCountChanged
-from .ancestors_children_panel import AncestorsChildrenPanel
-from .axe_dashboard import AxeDashboard
-from .axe_description_banner import AxeDescriptionBanner
-from .axe_info_panel import AxeInfoPanel
-from .axe_onboarding import AxeOnboarding
-from .artifacts import (
-    ARTIFACTS_SUBTAB_ORDER,
-    ArtifactPlaceholderPane,
-    ArtifactsBeadsPane,
-    ArtifactsChatsPane,
-    ArtifactsFilesPane,
-    ArtifactsFilesView,
-    ArtifactsPlansPane,
-    ArtifactsBugsPane,
-    ArtifactsPrsPane,
-    ArtifactsSubTab,
-    FilesSubTab,
-    ArtifactsView,
-    CommitsPane,
-    CommitsTimeline,
-)
-from .bgcmd_list import BgCmdList
-from .patch_detail import PatchDetail, SearchQueryPanel
-from .changespec_detail import ChangeSpecDetail  # legacy compatibility alias
-from .patch_info_panel import PatchInfoPanel
-from .changespec_info_panel import ChangeSpecInfoPanel  # legacy compatibility alias
-from .patch_list import PatchList
-from .changespec_list import ChangeSpecList  # legacy compatibility alias
-from .patch_onboarding import PatchOnboarding
-from .changespec_onboarding import ChangeSpecOnboarding  # legacy compatibility alias
-from .hint_input_bar import HintInputBar
-from .keybinding_footer import KeybindingFooter
-from .tools_panel import AgentToolsPanel, ToolDetailLevel, ToolsVisibilityChanged
-from .llm_override_indicator import LLMOverrideIndicator
-from .notification_indicator import NotificationIndicator
-from .prompt_input_bar import PromptInputBar
-from .stashed_prompts_indicator import StashedPromptsIndicator
-from .tab_bar import TabBar
-from .tab_quickstart import TabQuickStart
-from .task_indicator import TaskIndicator
-from .updates_indicator import UpdatesAvailableIndicator
-from .xprompt_arg_assist import (
-    ActiveXPromptArgHint,
-    XPromptAssistEntry,
-    XPromptInputHint,
-    append_input_hints,
-    build_xprompt_assist_entries,
-    colon_args_skeleton,
-    input_hint_from_input_arg,
-    input_label,
-    named_args_skeleton,
-    required_inputs,
-    visible_inputs,
-    xprompt_completion_skeleton,
-)
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
+
+_LAZY_EXPORTS = {
+    "ActiveXPromptArgHint": (".xprompt_arg_assist", "ActiveXPromptArgHint"),
+    "AgentDetail": (".agent_detail", "AgentDetail"),
+    "AgentInfoPanel": (".agent_info_panel", "AgentInfoPanel"),
+    "AgentList": (".agent_list", "AgentList"),
+    "AgentOnboarding": (".agent_onboarding", "AgentOnboarding"),
+    "AgentToolsPanel": (".tools_panel", "AgentToolsPanel"),
+    "AgentsSyncIndicator": (".agents_sync_indicator", "AgentsSyncIndicator"),
+    "AliasOverridesIndicator": (
+        ".alias_overrides_indicator",
+        "AliasOverridesIndicator",
+    ),
+    "AncestorsChildrenPanel": (
+        ".ancestors_children_panel",
+        "AncestorsChildrenPanel",
+    ),
+    "ARTIFACTS_SUBTAB_ORDER": (".artifacts.types", "ARTIFACTS_SUBTAB_ORDER"),
+    "ArtifactPlaceholderPane": (".artifacts.panes", "ArtifactPlaceholderPane"),
+    "ArtifactsBeadsPane": (".artifacts.beads_pane", "ArtifactsBeadsPane"),
+    "ArtifactsBugsPane": (".artifacts.bugs", "ArtifactsBugsPane"),
+    "ArtifactsChatsPane": (".artifacts.chats_pane", "ArtifactsChatsPane"),
+    "ArtifactsFilesPane": (".artifacts.files_pane", "ArtifactsFilesPane"),
+    "ArtifactsFilesView": (".artifacts.files_view", "ArtifactsFilesView"),
+    "ArtifactsPlansPane": (".artifacts.plans_pane", "ArtifactsPlansPane"),
+    "ArtifactsPrsPane": (".artifacts.panes", "ArtifactsPrsPane"),
+    "ArtifactsSubTab": (".artifacts.types", "ArtifactsSubTab"),
+    "ArtifactsView": (".artifacts.view", "ArtifactsView"),
+    "AxeDashboard": (".axe_dashboard", "AxeDashboard"),
+    "AxeDescriptionBanner": (".axe_description_banner", "AxeDescriptionBanner"),
+    "AxeInfoPanel": (".axe_info_panel", "AxeInfoPanel"),
+    "AxeOnboarding": (".axe_onboarding", "AxeOnboarding"),
+    "BgCmdList": (".bgcmd_list", "BgCmdList"),
+    "ChangeSpecDetail": (  # legacy compatibility alias
+        ".changespec_detail",
+        # legacy compatibility alias
+        "ChangeSpecDetail",
+    ),
+    "ChangeSpecInfoPanel": (  # legacy compatibility alias
+        ".changespec_info_panel",
+        # legacy compatibility alias
+        "ChangeSpecInfoPanel",
+    ),
+    "ChangeSpecList": (  # legacy compatibility alias
+        ".changespec_list",
+        # legacy compatibility alias
+        "ChangeSpecList",
+    ),
+    "ChangeSpecOnboarding": (  # legacy compatibility alias
+        ".changespec_onboarding",
+        # legacy compatibility alias
+        "ChangeSpecOnboarding",
+    ),
+    "CommitsPane": (".artifacts.commits", "CommitsPane"),
+    "CommitsTimeline": (".artifacts.commits", "CommitsTimeline"),
+    "FileLineCountChanged": (".file_panel", "FileLineCountChanged"),
+    "FilesSubTab": (".artifacts.types", "FilesSubTab"),
+    "HintInputBar": (".hint_input_bar", "HintInputBar"),
+    "KeybindingFooter": (".keybinding_footer", "KeybindingFooter"),
+    "LLMOverrideIndicator": (".llm_override_indicator", "LLMOverrideIndicator"),
+    "NotificationIndicator": (".notification_indicator", "NotificationIndicator"),
+    "PatchDetail": (".patch_detail", "PatchDetail"),
+    "PatchInfoPanel": (".patch_info_panel", "PatchInfoPanel"),
+    "PatchList": (".patch_list", "PatchList"),
+    "PatchOnboarding": (".patch_onboarding", "PatchOnboarding"),
+    "PromptInputBar": (".prompt_input_bar", "PromptInputBar"),
+    "SearchQueryPanel": (".patch_detail", "SearchQueryPanel"),
+    "StashedPromptsIndicator": (
+        ".stashed_prompts_indicator",
+        "StashedPromptsIndicator",
+    ),
+    "TabBar": (".tab_bar", "TabBar"),
+    "TabQuickStart": (".tab_quickstart", "TabQuickStart"),
+    "TaskIndicator": (".task_indicator", "TaskIndicator"),
+    "ToolDetailLevel": (".tools_panel", "ToolDetailLevel"),
+    "ToolsVisibilityChanged": (".tools_panel", "ToolsVisibilityChanged"),
+    "UpdatesAvailableIndicator": (
+        ".updates_indicator",
+        "UpdatesAvailableIndicator",
+    ),
+    "XPromptAssistEntry": (".xprompt_arg_assist", "XPromptAssistEntry"),
+    "XPromptInputHint": (".xprompt_arg_assist", "XPromptInputHint"),
+    "append_input_hints": (".xprompt_arg_assist", "append_input_hints"),
+    "build_xprompt_assist_entries": (
+        ".xprompt_arg_assist",
+        "build_xprompt_assist_entries",
+    ),
+    "colon_args_skeleton": (".xprompt_arg_assist", "colon_args_skeleton"),
+    "input_hint_from_input_arg": (".xprompt_arg_assist", "input_hint_from_input_arg"),
+    "input_label": (".xprompt_arg_assist", "input_label"),
+    "named_args_skeleton": (".xprompt_arg_assist", "named_args_skeleton"),
+    "required_inputs": (".xprompt_arg_assist", "required_inputs"),
+    "visible_inputs": (".xprompt_arg_assist", "visible_inputs"),
+    "xprompt_completion_skeleton": (
+        ".xprompt_arg_assist",
+        "xprompt_completion_skeleton",
+    ),
+}
 
 __all__ = [
     "AgentDetail",
@@ -126,3 +166,24 @@ __all__ = [
     "visible_inputs",
     "xprompt_completion_skeleton",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        module_name, attr = _LAZY_EXPORTS[name]
+    except KeyError as error:
+        raise AttributeError(
+            f"module {__name__!r} has no attribute {name!r}"
+        ) from error
+    module = import_module(module_name, __name__)
+    value = getattr(module, attr)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *__all__})
+
+
+# PEP 562 entry points are called by Python, not by normal in-file code.
+_PEP562_HOOKS = (__getattr__, __dir__)

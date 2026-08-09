@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import statistics
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -192,6 +193,57 @@ def _merged_worker_causes(
     }
 
 
+def _coerce_rss_curve(worker: Mapping[str, Any]) -> dict[str, int]:
+    peak = int(worker.get("peak_rss_kib", 0) or 0)
+    raw_curve = worker.get("rss_curve_kib")
+    if not isinstance(raw_curve, Mapping):
+        return {
+            "start": peak,
+            "post_collection": peak,
+            "median": peak,
+            "peak": peak,
+            "sample_count": 1 if peak else 0,
+        }
+    curve: dict[str, int] = {}
+    for key in ("start", "post_collection", "median", "peak", "sample_count"):
+        try:
+            curve[key] = max(int(raw_curve.get(key, 0) or 0), 0)
+        except (TypeError, ValueError):
+            curve[key] = 0
+    if curve["peak"] <= 0:
+        curve["peak"] = peak
+    return curve
+
+
+def _worker_rss_curve(
+    worker_payloads: Sequence[Mapping[str, Any]], *, peak_rss_kib: int
+) -> dict[str, int]:
+    curves = [_coerce_rss_curve(worker) for worker in worker_payloads]
+    samples: list[int] = []
+    for curve in curves:
+        samples.extend(
+            value
+            for value in (
+                curve["start"],
+                curve["post_collection"],
+                curve["median"],
+                curve["peak"],
+            )
+            if value > 0
+        )
+    if not samples and peak_rss_kib:
+        samples.append(peak_rss_kib)
+    return {
+        "start": max((curve["start"] for curve in curves), default=peak_rss_kib),
+        "post_collection": max(
+            (curve["post_collection"] for curve in curves), default=peak_rss_kib
+        ),
+        "median": int(statistics.median(samples)) if samples else 0,
+        "peak": peak_rss_kib,
+        "sample_count": sum(curve["sample_count"] for curve in curves),
+    }
+
+
 def _record_identity(record: Mapping[str, Any]) -> str:
     payload = json.dumps(record, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
@@ -224,6 +276,7 @@ def build_cost_record(
         (int(worker.get("peak_rss_kib", 0) or 0) for worker in worker_payloads),
         default=0,
     )
+    rss_curve = _worker_rss_curve(worker_payloads, peak_rss_kib=peak_rss)
     total_wall = sum(
         float(metrics["wall_seconds"] or 0.0) for metrics in files.values()
     )
@@ -244,6 +297,7 @@ def build_cost_record(
             "worker_cpu_seconds": _round_seconds(worker_cpu),
             "collection_seconds": _round_seconds(collection),
             "peak_worker_rss_kib": peak_rss,
+            "worker_rss_curve_kib": rss_curve,
             "causes": causes,
         },
         "files": files,
@@ -353,6 +407,24 @@ def _format_summary_value(key: str, value: float | None) -> str:
     return _format_seconds(value)
 
 
+def _format_rss_curve(record: Mapping[str, Any]) -> str | None:
+    summary = record.get("summary")
+    curve = (
+        summary.get("worker_rss_curve_kib") if isinstance(summary, Mapping) else None
+    )
+    if not isinstance(curve, Mapping):
+        return None
+    fields = []
+    for key in ("start", "post_collection", "median", "peak"):
+        try:
+            value = int(curve.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            value = 0
+        fields.append(f"{key}={value:,} KiB")
+    fields.append(f"samples={curve.get('sample_count', 'n/a')}")
+    return ", ".join(fields)
+
+
 def _sorted_causes(record: Mapping[str, Any]) -> list[tuple[str, Mapping[str, Any]]]:
     summary = record.get("summary")
     causes = summary.get("causes") if isinstance(summary, Mapping) else {}
@@ -403,6 +475,9 @@ def _append_summary(lines: list[str], record: Mapping[str, Any]) -> None:
         lines.append(f"  {label}: {_format_summary_value(key, value)}")
     summary = record.get("summary")
     if isinstance(summary, Mapping):
+        rss_curve = _format_rss_curve(record)
+        if rss_curve is not None:
+            lines.append(f"  worker RSS curve: {rss_curve}")
         lines.append(f"  files: {summary.get('file_count', 'n/a')}")
         lines.append(f"  nodes: {summary.get('node_count', 'n/a')}")
 

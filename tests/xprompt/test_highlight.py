@@ -80,6 +80,7 @@ def test_artifact_scanning_can_be_disabled() -> None:
         "x" * (MAX_HIGHLIGHT_BYTES + 1),
         "\n" * (MAX_HIGHLIGHT_LINES + 1),
     ],
+    ids=["over-byte-limit", "over-line-limit"],
 )
 def test_size_guards_return_no_spans(text: str) -> None:
     assert highlight_spans(text) == []

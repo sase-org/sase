@@ -5,7 +5,6 @@ import os
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 from rich.text import Text
 from sase.status_state_machine import remove_workspace_suffix
@@ -32,6 +31,7 @@ from ...patch.project_spec_path import (
 from .base import FilterInput, OptionListNavigationMixin
 from .confirm_delete_modal import ConfirmDeleteModal
 from .project_discovery import load_launchable_project_snapshot
+from .project_selection_types import ProjectSelectResult, SelectionItem
 
 
 @dataclass(frozen=True, init=False)
@@ -114,33 +114,6 @@ def show_project_select_modal(
             ),
             callback,
         )
-
-
-@dataclass
-class SelectionItem:
-    """An item that can be selected in the modal."""
-
-    display_name: str  # What to show in the list (e.g., "[P] myproject")
-    item_type: Literal["project", "cl", "home", "all"]  # Type for processing
-    project_name: str  # Project name
-    cl_name: str | None  # Patch name if type is "cl", None for projects/home
-    project_label: str | None = None
-    selection_label: str | None = None
-
-    @property
-    def option_id(self) -> str:
-        """Return a canonical identity for the interactive option row."""
-        if self.item_type == "cl":
-            return f"cl:{self.project_name}:{self.cl_name or ''}"
-        return f"{self.item_type}:{self.project_name}"
-
-
-@dataclass
-class ProjectSelectResult:
-    """Result from the project selection modal."""
-
-    selection: SelectionItem | str
-    open_in_editor: bool = False
 
 
 class ProjectSelectModal(

@@ -24,6 +24,7 @@ from tests._test_selection_timings import file_for_nodeid
 
 TEST_COST_RECORD_ENV = "SASE_TEST_COST_RECORD"
 WORKER_OUTPUT_KEY = "sase_test_cost"
+RSS_SAMPLE_ITEM_STRIDE = 100
 
 _CURRENT_FILE: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "sase_test_cost_current_file", default=None
@@ -75,7 +76,10 @@ class CostRecorder:
         self._collection_cpu_start: float | None = None
         self._collection_wall_seconds = 0.0
         self._collection_cpu_seconds = 0.0
+        self._items_since_rss_sample = 0
+        self._rss_samples_kib: list[int] = []
         self._install_patches()
+        self._record_rss_sample()
 
     @property
     def files(self) -> dict[str, dict[str, Any]]:
@@ -309,6 +313,7 @@ class CostRecorder:
             time.perf_counter() - self._collection_wall_start
         )
         self._collection_cpu_seconds += time.process_time() - self._collection_cpu_start
+        self._record_rss_sample()
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_protocol(
@@ -330,6 +335,10 @@ class CostRecorder:
                 wall_seconds=time.perf_counter() - wall_start,
                 cpu_seconds=time.process_time() - cpu_start,
             )
+            self._items_since_rss_sample += 1
+            if self._items_since_rss_sample >= RSS_SAMPLE_ITEM_STRIDE:
+                self._items_since_rss_sample = 0
+                self._record_rss_sample()
 
     @pytest.hookimpl(trylast=True)
     def pytest_collectreport(self, report: pytest.CollectReport) -> None:
@@ -373,6 +382,41 @@ class CostRecorder:
             return peak // 1024
         return peak
 
+    def _current_rss_kib(self) -> int:
+        if sys.platform.startswith("linux"):
+            try:
+                statm = Path(f"/proc/{self._pid}/statm").read_text(encoding="utf-8")
+                pages = int(statm.split()[1])
+                return pages * os.sysconf("SC_PAGE_SIZE") // 1024
+            except (OSError, IndexError, ValueError):
+                pass
+        return self._peak_rss_kib()
+
+    def _record_rss_sample(self) -> None:
+        sample = self._current_rss_kib()
+        with self._lock:
+            self._rss_samples_kib.append(sample)
+
+    def _rss_curve(self, peak_rss_kib: int) -> dict[str, int]:
+        with self._lock:
+            samples = [sample for sample in self._rss_samples_kib if sample > 0]
+        if not samples:
+            samples = [peak_rss_kib]
+        peak_rss_kib = max(peak_rss_kib, max(samples, default=0))
+        ordered = sorted(samples)
+        midpoint = len(ordered) // 2
+        if len(ordered) % 2:
+            median = ordered[midpoint]
+        else:
+            median = (ordered[midpoint - 1] + ordered[midpoint]) // 2
+        return {
+            "start": samples[0],
+            "post_collection": samples[1] if len(samples) > 1 else samples[-1],
+            "median": median,
+            "peak": peak_rss_kib,
+            "sample_count": len(samples),
+        }
+
     def _normalised_files(self) -> dict[str, dict[str, Any]]:
         with self._lock:
             return {
@@ -394,6 +438,9 @@ class CostRecorder:
     def _worker_payload(self) -> dict[str, Any]:
         wall_seconds = time.perf_counter() - self._session_wall_start
         cpu_seconds = time.process_time() - self._session_cpu_start
+        self._record_rss_sample()
+        rss_curve = self._rss_curve(self._peak_rss_kib())
+        peak_rss_kib = rss_curve["peak"]
         return {
             "worker_id": self._worker_id,
             "pid": self._pid,
@@ -401,7 +448,8 @@ class CostRecorder:
             "cpu_seconds": round(cpu_seconds, 6),
             "collection_seconds": round(self._collection_wall_seconds, 6),
             "collection_cpu_seconds": round(self._collection_cpu_seconds, 6),
-            "peak_rss_kib": self._peak_rss_kib(),
+            "peak_rss_kib": peak_rss_kib,
+            "rss_curve_kib": rss_curve,
             "causes": self.causes,
             "files": self.files,
         }

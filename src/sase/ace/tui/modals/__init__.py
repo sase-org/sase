@@ -1,221 +1,338 @@
 """Modal dialogs for the ace TUI."""
 
-from .add_property_modal import AddableProperty, AddPropertyModal
-from .property_picker_modal import (
-    PropertyPickerItem,
-    PropertyPickerModal,
-    PropertyPickerRecord,
-)
-from .axe_entry_editor_modal import (
-    AxeEntryEditorModal,
-    AxeEntryEditorResult,
-    AxeEntryEditorSeed,
-    AxeEntryIdentity,
-    AxeEntryKind,
-    AxeEntryMutationRequest,
-    AxeWritableScope,
-    axe_entry_schema,
-)
-from .axe_add_modals import (
-    AxeAddChooserModal,
-    AxeAddKind,
-    AxeLumberjackPickerModal,
-    AxeNewEntryDraft,
-    AxeNewEntryIdentityModal,
-    AxeScriptChoice,
-    AxeScriptPickerModal,
-    stable_chop_name,
-    validate_axe_new_entry_identity,
-)
-from .config_transaction import (
-    ConfigTransactionApplyResult,
-    ConfigTransactionConflict,
-    ConfigTransactionMetadata,
-    ConfigTransactionRequest,
-)
-from .config_transaction_preview import (
-    ConfigTransactionPreview,
-    TransactionDiagnostic,
-    TransactionEffectivePreview,
-    render_transaction_preview,
-)
-from .schema_object_form import (
-    SchemaFieldDiagnostic,
-    SchemaFieldOperation,
-    SchemaFormModel,
-    SchemaObjectField,
-    SchemaObjectForm,
-    SchemaObjectFormModel,
-)
-from .agent_name_modal import AgentNameModal
-from .agent_neighbor_modal import AgentNeighborChoice, AgentNeighborModal
-from .agent_workspace_tmux_modal import (
-    AgentWorkspaceTmuxChoice,
-    AgentWorkspaceTmuxModal,
-    build_agent_workspace_tmux_choices,
-)
-from .artifact_files_modal import (
-    ArtifactFileSelectionModal,
-    ArtifactFileSelectionResult,
-)
-from .agent_cleanup_modal import (
-    AgentCleanupAction,
-    AgentCleanupClanKey,
-    AgentCleanupClanModal,
-    AgentCleanupClanResult,
-    AgentCleanupCustomModal,
-    AgentCleanupCustomResult,
-    AgentCleanupModal,
-    AgentCleanupPanelState,
-    AgentCleanupResult,
-    AgentCleanupTribeModal,
-    AgentCleanupTribeResult,
-)
-from .command_history_modal import CommandHistoryModal
-from .command_input_modal import CommandInputModal
-from .bead_close_modal import BeadCloseModal, BeadCloseResult
-from .bead_create_modal import BeadCreateModal, BeadCreateResult
-from .bead_edit_modal import BeadEditModal, BeadEditResult
-from .bead_editor_modal import BeadEditorModal, BeadEditorResult
-from .bead_note_modal import BeadNoteModal
-from .command_palette_modal import CommandPaletteModal
-from .copy_as_modal import CopyAsModal
-from .copy_as_types import CopyAsContext, CopyAsRow
-from .commit_view_modal import CommitViewModal
-from .confirm_action_modal import ConfirmActionModal
-from .confirm_delete_modal import ConfirmDeleteModal
-from .confirm_dialog import ConfirmDialog, ConfirmKind
-from .confirm_kill_modal import (
-    ConfirmDismissAllModal,
-    ConfirmKillAllModal,
-    ConfirmKillModal,
-)
-from .confirm_rerun_modal import ConfirmRerunModal
-from .confirm_revert_agent_modal import ConfirmRevertAgentModal
-from .help_modal import HelpModal, TabName
-from .statistics_help_modal import StatisticsHelpModal
-from .statistics_xprompt_picker_modal import (
-    StatisticsXPromptPickerModal,
-    XPromptFocusChoice,
-)
-from .hook_history_modal import HookHistoryAction, HookHistoryModal, HookHistoryResult
-from .input_item_modal import InputItemModal
-from .issue_edit_modal import IssueEditModal, IssueEditResult
-from .jump_action_modal import JumpActionModal, JumpChoice
-from .jump_all_modal import JumpAllModal, JumpAllResult
-from .local_xprompt_name_modal import LocalXPromptNameModal
-from .notification_modal import NotificationModal
-from .report_modal import ReportModal
-from .parent_select_modal import ParentSelectModal
-from .process_select_modal import ProcessSelection, ProcessSelectModal
-from .project_alias_editor_modal import ProjectAliasEditorModal
-from .inventory_project_picker import (
-    InventoryProjectChoice,
-    InventoryProjectPicker,
-    InventoryProjectPickerResult,
-)
-from .project_select_modal import ProjectSelectModal, ProjectSelectResult, SelectionItem
-from .prompt_history_modal import (
-    PromptHistoryAction,
-    PromptHistoryModal,
-    PromptHistoryResult,
-)
-from .prompt_submit_choice_modal import PromptSubmitChoice, PromptSubmitChoiceModal
-from .post_write_actions_modal import PostWriteActionsModal
-from .query_edit_modal import QueryEditModal
-from .saved_query_picker import SavedQueryPickerModal
-from .quit_confirm_modal import QuitConfirmModal
-from .quit_options_modal import QuitOption, QuitOptionsModal
-from .stashed_prompts_modal import StashRestoreResult, StashedPromptsModal
-from .update_pinned_stash_modal import UpdatePinnedStashModal
-from .recursive_finder_modal import RecursiveFileFinderModal
-from .rename_patch_modal import RenamePatchModal
-from .save_agent_group_modal import SaveAgentGroupModal, SaveAgentGroupResult
-from .wait_modal import WaitAgentCandidate, WaitModal, WaitModalResult
-from .revive_agent_modal import DismissedAgentSelectModal
-from .saved_agent_group_revival_modal import (
-    SavedAgentGroupRevivalModal,
-    SavedAgentGroupRevivalResult,
-)
-from .snippet_config_location_modal import (
-    SnippetConfigLocation,
-    load_snippet_config_locations,
-)
-from .snooze_duration_modal import SnoozeDurationModal
-from .runners_modal import (
-    BackgroundTaskEntry,
-    RunnerJumpTarget,
-    RunnersModal,
-    get_runner_count,
-)
-from .status_modal import StatusModal
-from .agent_tribe_modal import AgentTribeModal, AgentTribeModalResult
-from .tag_input_modal import TagInputModal
-from .approve_options_modal import (
-    ApproveOptionsEditPrompt,
-    ApproveOptionsModal,
-    ApproveOptionsResult,
-    CustomApprovalEditPrompt,
-    CustomApprovalModal,
-    CustomApprovalResult,
-)
-from .auto_approve_modal import AutoApproveChoice, AutoApproveModal
-from .custom_model_input_modal import CustomModelInputModal
-from .model_picker_modal import ModelPickerModal
-from .launch_approval_modal import LaunchApprovalModal, LaunchApprovalResult
-from .gate_debug_modal import GateDebugModal
-from .plan_approval_modal import PlanApprovalModal, PlanApprovalResult
-from .user_question_modal import UserQuestionModal, UserQuestionResult
-from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
-from .custom_gate_modal import (
-    CustomGateModal,
-    CustomGateModalData,
-    CustomGateModalResult,
-)
-from .gate_action_controls import GateActionControls, GateActionsData
-from .gate_action_output_modal import GateActionOutputModal
-from .gate_action_runner import (
-    GateActionRunner,
-    GateCommandOutcome,
-    GateEditOutcome,
-)
-from .gate_branch_controls import GateBranchControls, GateBranchData
-from .gate_retry_modal import GateRetryModal
-from .workflow_select_modal import WorkflowSelectModal
-from .workspace_input_modal import WorkspaceInputModal
-from .zoom_panel_modal import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
-from .models_panel import ModelsPanel, ModelsPanelResult
-from .models_panel_edit import AliasEditPreviewModal
-from .mentor_profile_select_modal import MentorProfileSelectModal
-from .mentor_review_models import (
-    MentorApplyResult,
-    MentorInfo,
-    MentorKillResult,
-    MentorReviewData,
-    MentorRunResult,
-    build_mentor_review_data,
-)
-from .mentor_review_modal import MentorReviewModal
-from .add_xprompt_modal import AddXPromptModal
-from .agent_run_log_modal import AgentRunLogModal
-from .input_collection_modal import InputCollectionModal
-from .config_center_modal import ConfigCenterModal
-from .plugin_action_confirm_modal import (
-    PluginActionConfirmModal,
-    PluginActionConfirmResult,
-    PluginActionVariant,
-)
-from .xprompt_item_modal import XPromptItemModal
-from .xprompt_config_modal import XPromptConfigEntry, XPromptConfigEntryModal
-from .xprompt_filename_modal import XPromptFilenameModal
-from .xprompt_location_modal import XPromptLocation, XPromptLocationModal
-from .xprompt_write_conflict_modal import XPromptWriteConflictModal
-from .unified_xprompt_save_modal import (
-    UnifiedSaveLocation,
-    UnifiedXPromptSaveModal,
-    UnifiedXPromptSaveResult,
-)
-from .xprompt_select_modal import XPromptSelection, XPromptSelectModal
+from __future__ import annotations
+
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .add_xprompt_modal import AddXPromptModal as AddXPromptModal
+    from .axe_add_modals import (
+        validate_axe_new_entry_identity as validate_axe_new_entry_identity,
+    )
+    from .command_input_modal import CommandInputModal as CommandInputModal
+    from .config_transaction import (
+        ConfigTransactionConflict as ConfigTransactionConflict,
+    )
+    from .input_item_modal import InputItemModal as InputItemModal
+    from .local_xprompt_name_modal import LocalXPromptNameModal as LocalXPromptNameModal
+    from .project_select_modal import ProjectSelectModal as ProjectSelectModal
+    from .schema_object_form import SchemaFieldDiagnostic as SchemaFieldDiagnostic
+    from .snippet_config_location_modal import (
+        SnippetConfigLocation as SnippetConfigLocation,
+    )
+    from .xprompt_item_modal import XPromptItemModal as XPromptItemModal
+
+_LAZY_EXPORTS = {
+    "AddPropertyModal": (".add_property_modal", "AddPropertyModal"),
+    "AddXPromptModal": (".add_xprompt_modal", "AddXPromptModal"),
+    "AddableProperty": (".add_property_modal", "AddableProperty"),
+    "AgentCleanupAction": (".agent_cleanup_modal", "AgentCleanupAction"),
+    "AgentCleanupClanKey": (".agent_cleanup_modal", "AgentCleanupClanKey"),
+    "AgentCleanupClanModal": (".agent_cleanup_modal", "AgentCleanupClanModal"),
+    "AgentCleanupClanResult": (".agent_cleanup_modal", "AgentCleanupClanResult"),
+    "AgentCleanupCustomModal": (".agent_cleanup_modal", "AgentCleanupCustomModal"),
+    "AgentCleanupCustomResult": (".agent_cleanup_modal", "AgentCleanupCustomResult"),
+    "AgentCleanupModal": (".agent_cleanup_modal", "AgentCleanupModal"),
+    "AgentCleanupPanelState": (".agent_cleanup_modal", "AgentCleanupPanelState"),
+    "AgentCleanupResult": (".agent_cleanup_modal", "AgentCleanupResult"),
+    "AgentCleanupTribeModal": (".agent_cleanup_modal", "AgentCleanupTribeModal"),
+    "AgentCleanupTribeResult": (".agent_cleanup_modal", "AgentCleanupTribeResult"),
+    "AgentNameModal": (".agent_name_modal", "AgentNameModal"),
+    "AgentNeighborChoice": (".agent_neighbor_modal", "AgentNeighborChoice"),
+    "AgentNeighborModal": (".agent_neighbor_modal", "AgentNeighborModal"),
+    "AgentRunLogModal": (".agent_run_log_modal", "AgentRunLogModal"),
+    "AgentTribeModal": (".agent_tribe_modal", "AgentTribeModal"),
+    "AgentTribeModalResult": (".agent_tribe_modal", "AgentTribeModalResult"),
+    "AgentWorkspaceTmuxChoice": (
+        ".agent_workspace_tmux_modal",
+        "AgentWorkspaceTmuxChoice",
+    ),
+    "AgentWorkspaceTmuxModal": (
+        ".agent_workspace_tmux_modal",
+        "AgentWorkspaceTmuxModal",
+    ),
+    "AliasEditPreviewModal": (".models_panel_edit", "AliasEditPreviewModal"),
+    "ApproveOptionsEditPrompt": (
+        ".approve_options_modal",
+        "ApproveOptionsEditPrompt",
+    ),
+    "ApproveOptionsModal": (".approve_options_modal", "ApproveOptionsModal"),
+    "ApproveOptionsResult": (".approve_options_modal", "ApproveOptionsResult"),
+    "ArtifactFileSelectionModal": (
+        ".artifact_files_modal",
+        "ArtifactFileSelectionModal",
+    ),
+    "ArtifactFileSelectionResult": (
+        ".artifact_files_modal",
+        "ArtifactFileSelectionResult",
+    ),
+    "AutoApproveChoice": (".auto_approve_modal", "AutoApproveChoice"),
+    "AutoApproveModal": (".auto_approve_modal", "AutoApproveModal"),
+    "AxeAddChooserModal": (".axe_add_modals", "AxeAddChooserModal"),
+    "AxeAddKind": (".axe_add_modals", "AxeAddKind"),
+    "AxeEntryEditorModal": (".axe_entry_editor_modal", "AxeEntryEditorModal"),
+    "AxeEntryEditorResult": (".axe_entry_editor_modal", "AxeEntryEditorResult"),
+    "AxeEntryEditorSeed": (".axe_entry_editor_modal", "AxeEntryEditorSeed"),
+    "AxeEntryIdentity": (".axe_entry_editor_modal", "AxeEntryIdentity"),
+    "AxeEntryKind": (".axe_entry_editor_modal", "AxeEntryKind"),
+    "AxeEntryMutationRequest": (
+        ".axe_entry_editor_modal",
+        "AxeEntryMutationRequest",
+    ),
+    "AxeLumberjackPickerModal": (".axe_add_modals", "AxeLumberjackPickerModal"),
+    "AxeNewEntryDraft": (".axe_add_modals", "AxeNewEntryDraft"),
+    "AxeNewEntryIdentityModal": (".axe_add_modals", "AxeNewEntryIdentityModal"),
+    "AxeScriptChoice": (".axe_add_modals", "AxeScriptChoice"),
+    "AxeScriptPickerModal": (".axe_add_modals", "AxeScriptPickerModal"),
+    "AxeWritableScope": (".axe_entry_editor_modal", "AxeWritableScope"),
+    "BackgroundTaskEntry": (".runners_modal", "BackgroundTaskEntry"),
+    "BeadCloseModal": (".bead_close_modal", "BeadCloseModal"),
+    "BeadCloseResult": (".bead_close_modal", "BeadCloseResult"),
+    "BeadCreateModal": (".bead_create_modal", "BeadCreateModal"),
+    "BeadCreateResult": (".bead_create_modal", "BeadCreateResult"),
+    "BeadEditModal": (".bead_edit_modal", "BeadEditModal"),
+    "BeadEditResult": (".bead_edit_modal", "BeadEditResult"),
+    "BeadEditorModal": (".bead_editor_modal", "BeadEditorModal"),
+    "BeadEditorResult": (".bead_editor_modal", "BeadEditorResult"),
+    "BeadNoteModal": (".bead_note_modal", "BeadNoteModal"),
+    "CommandHistoryModal": (".command_history_modal", "CommandHistoryModal"),
+    "CommandInputModal": (".command_input_modal", "CommandInputModal"),
+    "CommandPaletteModal": (".command_palette_modal", "CommandPaletteModal"),
+    "CommitViewModal": (".commit_view_modal", "CommitViewModal"),
+    "ConfigCenterModal": (".config_center_modal", "ConfigCenterModal"),
+    "ConfigTransactionApplyResult": (
+        ".config_transaction",
+        "ConfigTransactionApplyResult",
+    ),
+    "ConfigTransactionConflict": (".config_transaction", "ConfigTransactionConflict"),
+    "ConfigTransactionMetadata": (".config_transaction", "ConfigTransactionMetadata"),
+    "ConfigTransactionPreview": (
+        ".config_transaction_preview",
+        "ConfigTransactionPreview",
+    ),
+    "ConfigTransactionRequest": (".config_transaction", "ConfigTransactionRequest"),
+    "ConfirmActionModal": (".confirm_action_modal", "ConfirmActionModal"),
+    "ConfirmDeleteModal": (".confirm_delete_modal", "ConfirmDeleteModal"),
+    "ConfirmDialog": (".confirm_dialog", "ConfirmDialog"),
+    "ConfirmDismissAllModal": (".confirm_kill_modal", "ConfirmDismissAllModal"),
+    "ConfirmKind": (".confirm_dialog", "ConfirmKind"),
+    "ConfirmKillAllModal": (".confirm_kill_modal", "ConfirmKillAllModal"),
+    "ConfirmKillModal": (".confirm_kill_modal", "ConfirmKillModal"),
+    "ConfirmRerunModal": (".confirm_rerun_modal", "ConfirmRerunModal"),
+    "ConfirmRevertAgentModal": (
+        ".confirm_revert_agent_modal",
+        "ConfirmRevertAgentModal",
+    ),
+    "CopyAsContext": (".copy_as_types", "CopyAsContext"),
+    "CopyAsModal": (".copy_as_modal", "CopyAsModal"),
+    "CopyAsRow": (".copy_as_types", "CopyAsRow"),
+    "CustomApprovalEditPrompt": (
+        ".approve_options_modal",
+        "CustomApprovalEditPrompt",
+    ),
+    "CustomApprovalModal": (".approve_options_modal", "CustomApprovalModal"),
+    "CustomApprovalResult": (".approve_options_modal", "CustomApprovalResult"),
+    "CustomGateModal": (".custom_gate_modal", "CustomGateModal"),
+    "CustomGateModalData": (".custom_gate_modal", "CustomGateModalData"),
+    "CustomGateModalResult": (".custom_gate_modal", "CustomGateModalResult"),
+    "CustomModelInputModal": (".custom_model_input_modal", "CustomModelInputModal"),
+    "DismissedAgentSelectModal": (".revive_agent_modal", "DismissedAgentSelectModal"),
+    "GateActionControls": (".gate_action_controls", "GateActionControls"),
+    "GateActionOutputModal": (".gate_action_output_modal", "GateActionOutputModal"),
+    "GateActionRunner": (".gate_action_runner", "GateActionRunner"),
+    "GateActionsData": (".gate_action_controls", "GateActionsData"),
+    "GateBranchControls": (".gate_branch_controls", "GateBranchControls"),
+    "GateBranchData": (".gate_branch_controls", "GateBranchData"),
+    "GateCommandOutcome": (".gate_action_runner", "GateCommandOutcome"),
+    "GateDebugModal": (".gate_debug_modal", "GateDebugModal"),
+    "GateEditOutcome": (".gate_action_runner", "GateEditOutcome"),
+    "GateRetryModal": (".gate_retry_modal", "GateRetryModal"),
+    "HelpModal": (".help_modal", "HelpModal"),
+    "HookHistoryAction": (".hook_history_modal", "HookHistoryAction"),
+    "HookHistoryModal": (".hook_history_modal", "HookHistoryModal"),
+    "HookHistoryResult": (".hook_history_modal", "HookHistoryResult"),
+    "InputCollectionModal": (".input_collection_modal", "InputCollectionModal"),
+    "InputItemModal": (".input_item_modal", "InputItemModal"),
+    "InventoryProjectChoice": (".inventory_project_picker", "InventoryProjectChoice"),
+    "InventoryProjectPicker": (".inventory_project_picker", "InventoryProjectPicker"),
+    "InventoryProjectPickerResult": (
+        ".inventory_project_picker",
+        "InventoryProjectPickerResult",
+    ),
+    "IssueEditModal": (".issue_edit_modal", "IssueEditModal"),
+    "IssueEditResult": (".issue_edit_modal", "IssueEditResult"),
+    "JumpActionModal": (".jump_action_modal", "JumpActionModal"),
+    "JumpAllModal": (".jump_all_modal", "JumpAllModal"),
+    "JumpAllResult": (".jump_all_modal", "JumpAllResult"),
+    "JumpChoice": (".jump_action_modal", "JumpChoice"),
+    "LaunchApprovalModal": (".launch_approval_modal", "LaunchApprovalModal"),
+    "LaunchApprovalResult": (".launch_approval_modal", "LaunchApprovalResult"),
+    "LocalXPromptNameModal": (".local_xprompt_name_modal", "LocalXPromptNameModal"),
+    "MentorApplyResult": (".mentor_review_models", "MentorApplyResult"),
+    "MentorInfo": (".mentor_review_models", "MentorInfo"),
+    "MentorKillResult": (".mentor_review_models", "MentorKillResult"),
+    "MentorProfileSelectModal": (
+        ".mentor_profile_select_modal",
+        "MentorProfileSelectModal",
+    ),
+    "MentorReviewData": (".mentor_review_models", "MentorReviewData"),
+    "MentorReviewModal": (".mentor_review_modal", "MentorReviewModal"),
+    "MentorRunResult": (".mentor_review_models", "MentorRunResult"),
+    "ModelPickerModal": (".model_picker_modal", "ModelPickerModal"),
+    "ModelsPanel": (".models_panel", "ModelsPanel"),
+    "ModelsPanelResult": (".models_panel", "ModelsPanelResult"),
+    "NotificationModal": (".notification_modal", "NotificationModal"),
+    "ParentSelectModal": (".parent_select_modal", "ParentSelectModal"),
+    "PlanApprovalModal": (".plan_approval_modal", "PlanApprovalModal"),
+    "PlanApprovalResult": (".plan_approval_modal", "PlanApprovalResult"),
+    "PluginActionConfirmModal": (
+        ".plugin_action_confirm_modal",
+        "PluginActionConfirmModal",
+    ),
+    "PluginActionConfirmResult": (
+        ".plugin_action_confirm_modal",
+        "PluginActionConfirmResult",
+    ),
+    "PluginActionVariant": (".plugin_action_confirm_modal", "PluginActionVariant"),
+    "PostWriteActionsModal": (".post_write_actions_modal", "PostWriteActionsModal"),
+    "ProcessSelectModal": (".process_select_modal", "ProcessSelectModal"),
+    "ProcessSelection": (".process_select_modal", "ProcessSelection"),
+    "ProjectAliasEditorModal": (
+        ".project_alias_editor_modal",
+        "ProjectAliasEditorModal",
+    ),
+    "ProjectSelectModal": (".project_select_modal", "ProjectSelectModal"),
+    "ProjectSelectResult": (".project_selection_types", "ProjectSelectResult"),
+    "PromptHistoryAction": (".prompt_history_modal", "PromptHistoryAction"),
+    "PromptHistoryModal": (".prompt_history_modal", "PromptHistoryModal"),
+    "PromptHistoryResult": (".prompt_history_modal", "PromptHistoryResult"),
+    "PromptSubmitChoice": (".prompt_submit_choice_modal", "PromptSubmitChoice"),
+    "PromptSubmitChoiceModal": (
+        ".prompt_submit_choice_modal",
+        "PromptSubmitChoiceModal",
+    ),
+    "PropertyPickerItem": (".property_picker_modal", "PropertyPickerItem"),
+    "PropertyPickerModal": (".property_picker_modal", "PropertyPickerModal"),
+    "PropertyPickerRecord": (".property_picker_modal", "PropertyPickerRecord"),
+    "QueryEditModal": (".query_edit_modal", "QueryEditModal"),
+    "QuitConfirmModal": (".quit_confirm_modal", "QuitConfirmModal"),
+    "QuitOption": (".quit_options_modal", "QuitOption"),
+    "QuitOptionsModal": (".quit_options_modal", "QuitOptionsModal"),
+    "RecursiveFileFinderModal": (
+        ".recursive_finder_modal",
+        "RecursiveFileFinderModal",
+    ),
+    "RenamePatchModal": (".rename_patch_modal", "RenamePatchModal"),
+    "ReportModal": (".report_modal", "ReportModal"),
+    "RunnerJumpTarget": (".runners_modal", "RunnerJumpTarget"),
+    "RunnersModal": (".runners_modal", "RunnersModal"),
+    "SavedAgentGroupRevivalModal": (
+        ".saved_agent_group_revival_modal",
+        "SavedAgentGroupRevivalModal",
+    ),
+    "SavedAgentGroupRevivalResult": (
+        ".saved_agent_group_revival_modal",
+        "SavedAgentGroupRevivalResult",
+    ),
+    "SavedQueryPickerModal": (".saved_query_picker", "SavedQueryPickerModal"),
+    "SaveAgentGroupModal": (".save_agent_group_modal", "SaveAgentGroupModal"),
+    "SaveAgentGroupResult": (".save_agent_group_modal", "SaveAgentGroupResult"),
+    "SchemaFieldDiagnostic": (".schema_object_form", "SchemaFieldDiagnostic"),
+    "SchemaFieldOperation": (".schema_object_form", "SchemaFieldOperation"),
+    "SchemaFormModel": (".schema_object_form", "SchemaFormModel"),
+    "SchemaObjectField": (".schema_object_form", "SchemaObjectField"),
+    "SchemaObjectForm": (".schema_object_form", "SchemaObjectForm"),
+    "SchemaObjectFormModel": (".schema_object_form", "SchemaObjectFormModel"),
+    "SelectionItem": (".project_selection_types", "SelectionItem"),
+    "SnippetConfigLocation": (
+        ".snippet_config_location_modal",
+        "SnippetConfigLocation",
+    ),
+    "SnoozeDurationModal": (".snooze_duration_modal", "SnoozeDurationModal"),
+    "StashRestoreResult": (".stashed_prompts_modal", "StashRestoreResult"),
+    "StashedPromptsModal": (".stashed_prompts_modal", "StashedPromptsModal"),
+    "StatisticsHelpModal": (".statistics_help_modal", "StatisticsHelpModal"),
+    "StatisticsXPromptPickerModal": (
+        ".statistics_xprompt_picker_modal",
+        "StatisticsXPromptPickerModal",
+    ),
+    "StatusModal": (".status_modal", "StatusModal"),
+    "TabName": (".help_modal", "TabName"),
+    "TagInputModal": (".tag_input_modal", "TagInputModal"),
+    "TransactionDiagnostic": (
+        ".config_transaction_preview",
+        "TransactionDiagnostic",
+    ),
+    "TransactionEffectivePreview": (
+        ".config_transaction_preview",
+        "TransactionEffectivePreview",
+    ),
+    "UnifiedSaveLocation": (".unified_xprompt_save_modal", "UnifiedSaveLocation"),
+    "UnifiedXPromptSaveModal": (
+        ".unified_xprompt_save_modal",
+        "UnifiedXPromptSaveModal",
+    ),
+    "UnifiedXPromptSaveResult": (
+        ".unified_xprompt_save_modal",
+        "UnifiedXPromptSaveResult",
+    ),
+    "UpdatePinnedStashModal": (
+        ".update_pinned_stash_modal",
+        "UpdatePinnedStashModal",
+    ),
+    "UserQuestionModal": (".user_question_modal", "UserQuestionModal"),
+    "UserQuestionResult": (".user_question_modal", "UserQuestionResult"),
+    "WaitAgentCandidate": (".wait_modal", "WaitAgentCandidate"),
+    "WaitModal": (".wait_modal", "WaitModal"),
+    "WaitModalResult": (".wait_modal", "WaitModalResult"),
+    "WorkflowHITLInput": (".workflow_hitl_modal", "WorkflowHITLInput"),
+    "WorkflowHITLModal": (".workflow_hitl_modal", "WorkflowHITLModal"),
+    "WorkflowSelectModal": (".workflow_select_modal", "WorkflowSelectModal"),
+    "WorkspaceInputModal": (".workspace_input_modal", "WorkspaceInputModal"),
+    "XPromptConfigEntry": (".xprompt_config_modal", "XPromptConfigEntry"),
+    "XPromptConfigEntryModal": (".xprompt_config_modal", "XPromptConfigEntryModal"),
+    "XPromptFilenameModal": (".xprompt_filename_modal", "XPromptFilenameModal"),
+    "XPromptFocusChoice": (
+        ".statistics_xprompt_picker_modal",
+        "XPromptFocusChoice",
+    ),
+    "XPromptItemModal": (".xprompt_item_modal", "XPromptItemModal"),
+    "XPromptLocation": (".xprompt_location_modal", "XPromptLocation"),
+    "XPromptLocationModal": (".xprompt_location_modal", "XPromptLocationModal"),
+    "XPromptSelectModal": (".xprompt_select_modal", "XPromptSelectModal"),
+    "XPromptSelection": (".xprompt_select_modal", "XPromptSelection"),
+    "XPromptWriteConflictModal": (
+        ".xprompt_write_conflict_modal",
+        "XPromptWriteConflictModal",
+    ),
+    "ZoomPanelModal": (".zoom_panel_modal", "ZoomPanelModal"),
+    "ZoomPanelSeed": (".zoom_panel_modal", "ZoomPanelSeed"),
+    "ZoomPanelTarget": (".zoom_panel_modal", "ZoomPanelTarget"),
+    "axe_entry_schema": (".axe_entry_editor_modal", "axe_entry_schema"),
+    "build_agent_workspace_tmux_choices": (
+        ".agent_workspace_tmux_modal",
+        "build_agent_workspace_tmux_choices",
+    ),
+    "build_mentor_review_data": (
+        ".mentor_review_models",
+        "build_mentor_review_data",
+    ),
+    "get_runner_count": (".runners_modal", "get_runner_count"),
+    "load_snippet_config_locations": (
+        ".snippet_config_location_modal",
+        "load_snippet_config_locations",
+    ),
+    "render_transaction_preview": (
+        ".config_transaction_preview",
+        "render_transaction_preview",
+    ),
+    "stable_chop_name": (".axe_add_modals", "stable_chop_name"),
+    "validate_axe_new_entry_identity": (
+        ".axe_add_modals",
+        "validate_axe_new_entry_identity",
+    ),
+}
 
 __all__ = [
     "BeadCloseModal",
@@ -428,3 +545,24 @@ __all__ = [
     "ZoomPanelSeed",
     "ZoomPanelTarget",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        module_name, attr = _LAZY_EXPORTS[name]
+    except KeyError as error:
+        raise AttributeError(
+            f"module {__name__!r} has no attribute {name!r}"
+        ) from error
+    module = import_module(module_name, __name__)
+    value = getattr(module, attr)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *__all__})
+
+
+# PEP 562 entry points are called by Python, not by normal in-file code.
+_PEP562_HOOKS = (__getattr__, __dir__)

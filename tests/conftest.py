@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 import os
+import sys
 import tempfile
 import warnings
 from pathlib import Path
@@ -16,7 +17,6 @@ from sase.ace.patch import (
 )
 from sase.directory_map_assets import DIRECTORY_MAP_ASSET_OVERRIDE_ENV
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
-from sase.llm_provider.launch_alias_overrides import SASE_MODEL_ALIAS_OVERRIDES_ENV
 from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
 from tests._tmp_leak_guard import (
     check_tmp_env_leak_guard,
@@ -37,6 +37,8 @@ _DIRECTORY_MAP_PLACEHOLDER = (
     _REPO_ROOT / "tests" / "fixtures" / "directory-map-placeholder.bin"
 )
 _PYTEST_SANDBOX_DIR_ENV_VAR = "SASE_PYTEST_SANDBOX_DIR"
+SASE_MODEL_ALIAS_OVERRIDES_ENV = "SASE_MODEL_ALIAS_OVERRIDES"
+_HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL: object | None = None
 
 _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
     Path(path)
@@ -115,6 +117,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
 def pytest_sessionfinish(session: pytest.Session) -> None:
     """Fail the run when the suite leaked system temp-directory entries."""
+    _restore_hypothesis_local_constant_prescan()
     finish_tmp_leak_guard(session)
 
 
@@ -145,15 +148,61 @@ def pytest_terminal_summary(
     report_tmp_leak_guard(config, terminalreporter)
 
 
-def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(
+    config: pytest.Config,
+    items: list[pytest.Item],
+) -> None:
     """Attach the named plan/questions golden harness marker."""
+    _disable_hypothesis_local_constant_prescan_for_collect_only(config)
     for item in items:
+        path = Path(item.path)
         try:
-            relpath = Path(item.path).resolve().relative_to(_REPO_ROOT)
+            relpath = path.relative_to(_REPO_ROOT) if path.is_absolute() else path
         except ValueError:
             continue
         if relpath in _PLAN_CHAIN_GOLDEN_TEST_FILES:
             item.add_marker(pytest.mark.plan_chain_golden)
+
+
+def _disable_hypothesis_local_constant_prescan_for_collect_only(
+    config: pytest.Config,
+) -> None:
+    """Avoid Hypothesis' local-constant scan in collection-only diagnostics."""
+    global _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL
+
+    if not bool(getattr(config.option, "collectonly", False)):
+        return
+    if "hypothesis" not in sys.modules:
+        return
+    if _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL is not None:
+        return
+    try:
+        from hypothesis.internal.conjecture import providers
+    except ImportError:
+        return
+
+    _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL = providers._get_local_constants
+
+    def _cached_local_constants_only() -> object:
+        return providers._local_constants
+
+    providers._get_local_constants = _cached_local_constants_only
+
+
+def _restore_hypothesis_local_constant_prescan() -> None:
+    """Restore Hypothesis internals after a collection-only diagnostics run."""
+    global _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL
+
+    if _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL is None:
+        return
+    try:
+        from hypothesis.internal.conjecture import providers
+    except ImportError:
+        _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL = None
+        return
+    providers._get_local_constants = _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL
+    _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL = None
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

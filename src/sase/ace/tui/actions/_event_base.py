@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from ..util.nav_gate import NavigationGate
-from ..widgets import PromptInputBar
 
 if TYPE_CHECKING:
     from ...patch import Patch
@@ -97,5 +96,7 @@ class EventHandlersBase:
         query = getattr(self, "query", None)
         if query is None:
             return False
+
+        from ..widgets.prompt_input_bar import PromptInputBar
 
         return bool(query(PromptInputBar))

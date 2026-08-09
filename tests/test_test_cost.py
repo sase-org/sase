@@ -29,6 +29,13 @@ def test_build_cost_record_merges_workers_and_files() -> None:
                 "cpu_seconds": 7.0,
                 "collection_seconds": 1.25,
                 "peak_rss_kib": 500000,
+                "rss_curve_kib": {
+                    "start": 300000,
+                    "post_collection": 400000,
+                    "median": 450000,
+                    "peak": 500000,
+                    "sample_count": 4,
+                },
                 "causes": {"parser_create": {"count": 2, "seconds": 0.5}},
                 "files": {
                     "tests/test_a.py": {
@@ -45,6 +52,13 @@ def test_build_cost_record_merges_workers_and_files() -> None:
                 "cpu_seconds": 6.0,
                 "collection_seconds": 1.0,
                 "peak_rss_kib": 750000,
+                "rss_curve_kib": {
+                    "start": 350000,
+                    "post_collection": 500000,
+                    "median": 600000,
+                    "peak": 750000,
+                    "sample_count": 5,
+                },
                 "causes": {"yaml_load": {"count": 1, "seconds": 0.25}},
                 "files": {
                     "tests/test_a.py": {
@@ -69,6 +83,13 @@ def test_build_cost_record_merges_workers_and_files() -> None:
     assert record["summary"]["idle_seconds"] == 2.0
     assert record["summary"]["collection_seconds"] == 2.25
     assert record["summary"]["peak_worker_rss_kib"] == 750000
+    assert record["summary"]["worker_rss_curve_kib"] == {
+        "start": 350000,
+        "post_collection": 500000,
+        "median": 475000,
+        "peak": 750000,
+        "sample_count": 9,
+    }
     assert record["summary"]["causes"]["parser_create"] == {
         "count": 2,
         "seconds": 0.5,
@@ -111,6 +132,13 @@ def test_format_cost_report_includes_diff_and_top_files() -> None:
                 "cpu_seconds": 1.0,
                 "collection_seconds": 0.5,
                 "peak_rss_kib": 100,
+                "rss_curve_kib": {
+                    "start": 80,
+                    "post_collection": 90,
+                    "median": 95,
+                    "peak": 100,
+                    "sample_count": 4,
+                },
                 "causes": {"parser_create": {"count": 1, "seconds": 1.0}},
                 "files": {
                     "tests/test_a.py": {
@@ -135,6 +163,13 @@ def test_format_cost_report_includes_diff_and_top_files() -> None:
                 "cpu_seconds": 1.0,
                 "collection_seconds": 0.25,
                 "peak_rss_kib": 100,
+                "rss_curve_kib": {
+                    "start": 70,
+                    "post_collection": 80,
+                    "median": 90,
+                    "peak": 100,
+                    "sample_count": 4,
+                },
                 "causes": {"parser_create": {"count": 1, "seconds": 0.5}},
                 "files": {
                     "tests/test_a.py": {
@@ -155,6 +190,10 @@ def test_format_cost_report_includes_diff_and_top_files() -> None:
     report = format_cost_report(current, baseline=baseline, top=1)
 
     assert "per-test wall: current 1.000s; baseline 2.000s" in report
+    assert (
+        "worker RSS curve: start=70 KiB, post_collection=80 KiB, "
+        "median=85 KiB, peak=100 KiB, samples=4"
+    ) in report
     assert "sase.main.parser.create_parser: 0.500s (1x)" in report
     assert "by wall:" in report
     assert "tests/test_a.py" in report
@@ -175,3 +214,5 @@ def test_cost_recorder_attributes_causes_to_current_file(tmp_path: Path) -> None
     assert payload["files"]["tests/test_a.py"]["node_count"] == 1
     assert payload["files"]["tests/test_a.py"]["causes"]["parser_create"]["count"] == 1
     assert payload["causes"]["parser_create"]["count"] == 1
+    assert payload["rss_curve_kib"]["sample_count"] >= 2
+    assert payload["rss_curve_kib"]["peak"] >= payload["rss_curve_kib"]["start"]

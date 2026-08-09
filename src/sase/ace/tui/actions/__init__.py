@@ -1,30 +1,38 @@
 """Action mixins for the ace TUI app."""
 
-from .agent_workflow import AgentWorkflowMixin
-from .agents import AgentMarkingMixin, AgentsMixin
-from .agents_sync import AgentsSyncActionsMixin
-from .axe import AxeMixin
-from .artifacts import ArtifactsMixin
-from .artifact_bugs import ArtifactBugsMixin
-from .base import BaseActionsMixin
-from .patch import PatchMixin
-from .clipboard import ClipboardMixin
-from .custom_modes import CustomModeMixin
-from .event_handlers import EventHandlersMixin
-from .hints import HintActionsMixin
-from .lifecycle import LifecycleMixin
-from .marking import MarkingMixin
-from .navigation import NavigationMixin
-from .post_update_toast import PostUpdateToastMixin
-from .proposal_rebase import ProposalRebaseMixin
-from .rename import RenameMixin
-from .repro import ReproActionsMixin
-from .startup import StartupMixin
-from .status import StatusActionsMixin
-from .sync import SyncMixin
-from .task_actions import TaskActionsMixin
-from .update_toast import UpdateToastMixin
-from .workspace import WorkspaceActionsMixin
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
+
+_LAZY_EXPORTS = {
+    "AgentMarkingMixin": (".agents", "AgentMarkingMixin"),
+    "AgentsMixin": (".agents", "AgentsMixin"),
+    "AgentsSyncActionsMixin": (".agents_sync", "AgentsSyncActionsMixin"),
+    "AgentWorkflowMixin": (".agent_workflow", "AgentWorkflowMixin"),
+    "ArtifactBugsMixin": (".artifact_bugs", "ArtifactBugsMixin"),
+    "ArtifactsMixin": (".artifacts", "ArtifactsMixin"),
+    "AxeMixin": (".axe", "AxeMixin"),
+    "BaseActionsMixin": (".base", "BaseActionsMixin"),
+    "ClipboardMixin": (".clipboard", "ClipboardMixin"),
+    "CustomModeMixin": (".custom_modes", "CustomModeMixin"),
+    "EventHandlersMixin": (".event_handlers", "EventHandlersMixin"),
+    "HintActionsMixin": (".hints", "HintActionsMixin"),
+    "LifecycleMixin": (".lifecycle", "LifecycleMixin"),
+    "MarkingMixin": (".marking", "MarkingMixin"),
+    "NavigationMixin": (".navigation", "NavigationMixin"),
+    "PatchMixin": (".patch", "PatchMixin"),
+    "PostUpdateToastMixin": (".post_update_toast", "PostUpdateToastMixin"),
+    "ProposalRebaseMixin": (".proposal_rebase", "ProposalRebaseMixin"),
+    "RenameMixin": (".rename", "RenameMixin"),
+    "ReproActionsMixin": (".repro", "ReproActionsMixin"),
+    "StartupMixin": (".startup", "StartupMixin"),
+    "StatusActionsMixin": (".status", "StatusActionsMixin"),
+    "SyncMixin": (".sync", "SyncMixin"),
+    "TaskActionsMixin": (".task_actions", "TaskActionsMixin"),
+    "UpdateToastMixin": (".update_toast", "UpdateToastMixin"),
+    "WorkspaceActionsMixin": (".workspace", "WorkspaceActionsMixin"),
+}
 
 __all__ = [
     "AgentMarkingMixin",
@@ -54,3 +62,24 @@ __all__ = [
     "UpdateToastMixin",
     "WorkspaceActionsMixin",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        module_name, attr = _LAZY_EXPORTS[name]
+    except KeyError as error:
+        raise AttributeError(
+            f"module {__name__!r} has no attribute {name!r}"
+        ) from error
+    module = import_module(module_name, __name__)
+    value = getattr(module, attr)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *__all__})
+
+
+# PEP 562 entry points are called by Python, not by normal in-file code.
+_PEP562_HOOKS = (__getattr__, __dir__)
