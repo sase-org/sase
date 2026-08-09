@@ -59,6 +59,8 @@ from tests._test_selection_report import (  # noqa: E402
     gear_line,
     summary_line,
 )
+from tests._test_cost import cost_directory  # noqa: E402
+from tests._test_cost_plugin import TEST_COST_RECORD_ENV  # noqa: E402
 from tests._test_selection_timings import (  # noqa: E402
     timings_directory,
     timings_enabled,
@@ -96,6 +98,7 @@ SCOPED_MODE = "scoped"
 #: Records the per-test coverage baseline the diff-scoped selector consumes.
 CONTEXTS_MODE = "cov-contexts"
 CONTEXTS_COVERAGE_CONFIG = "coverage_contexts.toml"
+TEST_COST_MODE = "cost"
 #: coverage's measurement-core selector, and the one value that attributes every
 #: line to every test that ran it. See `_apply_contexts_environment`.
 COVERAGE_CORE_ENV = "COVERAGE_CORE"
@@ -137,6 +140,7 @@ TIMINGS_PLUGIN_MODULE = "tests._test_selection_timings_plugin"
 #: lanes cover every test file in one pass, which is what bootstraps the table;
 #: a scoped run refreshes the handful of files the lane touches most.
 TIMINGS_RECORDING_MODES = frozenset({*FULL_LANE_MODES, SCOPED_MODE})
+TEST_COST_PLUGIN_MODULE = "tests._test_cost_plugin"
 PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
 DEFAULT_PYTEST_DIST = "worksteal"
 SUPPORTED_PYTEST_DIST_MODES = ("loadfile", "worksteal")
@@ -319,7 +323,7 @@ def _pytest_command(
         command.extend(["-m", VISUAL_MARKER_EXPRESSION])
     elif mode == "terminal-smoke":
         command.extend(["-m", TERMINAL_SMOKE_MARKER_EXPRESSION])
-    elif mode in ("fast", SCOPED_MODE, CONTENTION_MODE):
+    elif mode in ("fast", SCOPED_MODE, CONTENTION_MODE, TEST_COST_MODE):
         command.extend(["-m", FAST_MARKER_EXPRESSION])
     elif mode == "cov":
         command.extend(
@@ -390,7 +394,11 @@ def _configured_pytest_tmpdir() -> Path:
         scratch_root = REPO_ROOT / scratch_root
     resolved = scratch_root.resolve()
     broad_roots = {Path("/"), Path("/tmp"), Path("/var/tmp")}
-    if resolved in broad_roots or resolved == REPO_ROOT or resolved in REPO_ROOT.parents:
+    if (
+        resolved in broad_roots
+        or resolved == REPO_ROOT
+        or resolved in REPO_ROOT.parents
+    ):
         raise pytest.UsageError(
             f"{PYTEST_TMPDIR_ENV} must name a dedicated scratch directory, "
             f"not broad target {resolved}"
@@ -753,6 +761,22 @@ def _arm_timings_recorder(mode: str, *, worker_count: int | None) -> None:
     )
 
 
+def _test_cost_pytest_args(mode: str) -> list[str]:
+    if mode != TEST_COST_MODE:
+        return []
+    return ["-p", TEST_COST_PLUGIN_MODULE]
+
+
+def _arm_test_cost_recorder(mode: str, *, worker_count: int | None) -> None:
+    os.environ[TEST_COST_RECORD_ENV] = json.dumps(
+        {
+            "directory": str(cost_directory(_health_store())),
+            "mode": mode,
+            "worker_count": worker_count,
+        }
+    )
+
+
 def _reject_scoped_worker_overrides(args: list[str]) -> None:
     """Keep rejecting the width knobs, now that scoped runs are not all serial.
 
@@ -929,6 +953,7 @@ def main(argv: list[str] | None = None) -> int:
             "visual",
             "cov",
             CONTEXTS_MODE,
+            TEST_COST_MODE,
             "terminal-smoke",
             SCOPED_MODE,
             CONTENTION_MODE,
@@ -1010,6 +1035,8 @@ def main(argv: list[str] | None = None) -> int:
         pytest_args = [*_full_lane_recording_args(mode), *pytest_args]
         timings_args = _timings_pytest_args(mode)
         pytest_args = [*timings_args, *pytest_args]
+        cost_args = _test_cost_pytest_args(mode)
+        pytest_args = [*cost_args, *pytest_args]
 
         if scoped_worker_count is not None:
             # The gear already holds `lease`; the width is the gate's answer.
@@ -1038,6 +1065,8 @@ def main(argv: list[str] | None = None) -> int:
         _apply_contexts_environment(mode)
         if timings_args:
             _arm_timings_recorder(mode, worker_count=worker_count)
+        if cost_args:
+            _arm_test_cost_recorder(mode, worker_count=worker_count)
         os.chdir(REPO_ROOT)
         if scoped_manifest is not None:
             if scoped_worker_count is None:

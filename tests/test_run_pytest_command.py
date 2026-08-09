@@ -96,6 +96,18 @@ def test_fast_mode_selects_not_slow_and_not_visual_marker(
     assert result[-1] == "not slow and not visual"
 
 
+def test_cost_mode_selects_the_fast_suite_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = load_run_pytest()
+    monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
+
+    result = runner._pytest_command("cost", [], worker_count=3)
+
+    assert result[3:6] == ["-n", "3", "--dist=worksteal"]
+    assert result[-2:] == ["-m", runner.FAST_MARKER_EXPRESSION]
+
+
 def test_command_uses_granted_worker_count_and_worksteal_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""Print and diff opt-in pytest suite-cost recordings."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests._test_cost import (  # noqa: E402
+    TEST_COST_DIR_ENV,
+    cost_directory,
+    format_cost_report,
+    latest_cost_record,
+    load_cost_record,
+)
+from tests._test_selection_health_store import store_directory  # noqa: E402
+from tests._test_selection_timings import (  # noqa: E402
+    load_timing_table,
+    timings_directory,
+)
+
+
+DEFAULT_BASELINE_PATH = (
+    REPO_ROOT / "tests" / "perf" / "baselines" / "test_cost_baseline.json"
+)
+
+
+def _default_recording_path() -> Path:
+    directory = cost_directory(store_directory(REPO_ROOT))
+    path = latest_cost_record(directory)
+    if path is None:
+        raise SystemExit(
+            "no test-cost recordings found; run `just test-cost` first or pass "
+            f"--recording (override directory with {TEST_COST_DIR_ENV})"
+        )
+    return path
+
+
+def _timing_table_total_for_record(
+    record: dict[str, object],
+) -> tuple[Path, int, int, float] | None:
+    files = record.get("files")
+    if not isinstance(files, dict) or not files:
+        return None
+    directory = timings_directory(store_directory(REPO_ROOT))
+    table = load_timing_table(directory)
+    if table.empty:
+        return None
+    selected = sorted(str(path) for path in files)
+    known = [path for path in selected if path in table.durations]
+    total = sum(table.durations[path] for path in known)
+    return directory, len(known), len(selected), total
+
+
+def _cost_wall_seconds(record: dict[str, object]) -> float | None:
+    summary = record.get("summary")
+    if not isinstance(summary, dict):
+        return None
+    value = summary.get("total_file_wall_seconds")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--recording",
+        type=Path,
+        help="cost recording to report; defaults to the newest host-local one",
+    )
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=DEFAULT_BASELINE_PATH,
+        help="baseline JSON for diff output",
+    )
+    parser.add_argument(
+        "--no-baseline",
+        action="store_true",
+        help="suppress baseline diff output",
+    )
+    parser.add_argument("--top", type=int, default=10, help="top file count per table")
+    parser.add_argument("--json", action="store_true", help="print raw JSON")
+    args = parser.parse_args(argv)
+
+    record_path = args.recording or _default_recording_path()
+    record = load_cost_record(record_path)
+    if args.json:
+        print(json.dumps(record, indent=2, sort_keys=True))
+        return 0
+
+    baseline = None
+    if not args.no_baseline and args.baseline.exists():
+        baseline = load_cost_record(args.baseline)
+
+    print(f"recording: {record_path}")
+    if baseline is not None:
+        print(f"baseline:  {args.baseline}")
+    timing_total = _timing_table_total_for_record(record)
+    cost_total = _cost_wall_seconds(record)
+    if timing_total is not None and cost_total is not None:
+        timing_path, known_count, selected_count, total = timing_total
+        delta = cost_total - total
+        ratio = "n/a" if total == 0 else f"{delta / total:+.1%}"
+        print(
+            f"timings:   {timing_path} covers {known_count}/{selected_count} "
+            f"files total={total:.3f}s cost-delta={delta:+.3f}s ({ratio})"
+        )
+    print(format_cost_report(record, baseline=baseline, top=max(args.top, 1)), end="")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

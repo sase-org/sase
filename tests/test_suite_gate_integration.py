@@ -89,6 +89,8 @@ def _build_scoped_repo(root: Path) -> None:
     for module in (
         "_contention.py",
         "_suite_gate.py",
+        "_test_cost.py",
+        "_test_cost_plugin.py",
         "_test_selection.py",
         "_test_selection_changes.py",
         "_test_selection_contexts.py",

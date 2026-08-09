@@ -354,6 +354,15 @@ test *args: _setup-visual (_header "test")
     @printf "\n---------- Running pytest (parallel, no coverage)... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest fast "$@"
 
+# Run the default fast suite with opt-in cost attribution, then print the
+# latest attribution report. This loads the heavier cost plugin only for this
+# lane; ordinary fast/cov/scoped runs keep the cheap timing recorder.
+[positional-arguments]
+test-cost *args: _setup-visual (_header "test-cost")
+    @printf "\n---------- Running pytest cost attribution lane... ----------\n"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cost "$@"
+    @{{ venv_bin }}/python tools/test_cost_report
+
 # Diff-scoped test lane: selects tests from the change set, runs them serially
 # without taking a suite-gate lease, and escalates to the governed full lane
 # when the selection is too large or a broadening rule fires.

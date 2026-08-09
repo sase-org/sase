@@ -8,6 +8,7 @@ and assert on the state it would have handed over.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,7 @@ def test_pinned_env_vars_cover_every_request_main_writes_for_its_plugins() -> No
         runner.COVERAGE_CORE_ENV,
         runner.RECORD_ENV,
         runner.TIMINGS_RECORD_ENV,
+        runner.TEST_COST_RECORD_ENV,
     } <= set(PINNED_ENV_VARS)
 
 
@@ -211,6 +213,43 @@ def test_main_rejects_invalid_distribution_before_worker_acquisition(
         "pytest runner configuration error: SASE_PYTEST_DIST must be one of: "
         "loadfile, worksteal; got 'loadscope'"
     ) in capsys.readouterr().err
+
+
+def test_main_cost_mode_arms_only_the_cost_recorder(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(tmp_path / "scratch"))
+    monkeypatch.setenv("SASE_TEST_GATE_DIR", str(tmp_path / "gate"))
+    monkeypatch.setattr(runner, "_parallel_worker_grant", lambda: (2, None))
+    observed: dict[str, object] = {}
+
+    class ExecCalled(Exception):
+        pass
+
+    def _execv(_executable: str, command: list[str]) -> None:
+        observed["command"] = command
+        observed["timings_request"] = runner.os.environ.get(runner.TIMINGS_RECORD_ENV)
+        observed["cost_request"] = runner.os.environ.get(runner.TEST_COST_RECORD_ENV)
+        raise ExecCalled
+
+    monkeypatch.setattr(runner.os, "execv", _execv)
+
+    with pytest.raises(ExecCalled):
+        runner.main(["cost", "tests/test_run_pytest_main.py"])
+
+    command = observed["command"]
+    assert isinstance(command, list)
+    assert runner.TIMINGS_PLUGIN_MODULE not in command
+    assert runner.TEST_COST_PLUGIN_MODULE in command
+    assert runner.HEALTH_PLUGIN_MODULE not in command
+
+    assert observed["timings_request"] is None
+
+    cost_request = json.loads(str(observed["cost_request"]))
+    assert cost_request["mode"] == "cost"
+    assert cost_request["worker_count"] == 2
+    assert Path(cost_request["directory"]).name == "cost"
 
 
 def _token_descriptors(directory: Path) -> list[int]:

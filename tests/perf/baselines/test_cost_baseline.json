@@ -1,0 +1,82 @@
+{
+  "files": {},
+  "host": "athena",
+  "identity": "fast-test-suite-20260809",
+  "measurements": {
+    "ace_tui_modals_serial": {
+      "cpu_seconds": 42.0,
+      "cpu_utilization": 0.47,
+      "wall_seconds": 91.8
+    },
+    "collection_single_process_seconds": 27.6,
+    "commit": "957219ef2",
+    "notes": [
+      "Baseline values are the measured starting numbers recorded in the sase-ib epic design.",
+      "The cost plugin records the same summary keys for future before/after diffs."
+    ],
+    "test_outcome": {
+      "passed": 27978,
+      "skipped": 10
+    },
+    "timing_table": {
+      "file_count": 2470,
+      "mode": "fast",
+      "total_seconds": 3719.0
+    },
+    "wall_seconds_by_granted_width": {
+      "28": 220.0,
+      "4": 1007.0
+    },
+    "worker_rss_kib": {
+      "peak_high": 1126400,
+      "peak_low": 716800,
+      "post_collection": 512000
+    }
+  },
+  "mode": "baseline",
+  "recorded_at": "2026-08-09T14:30:00+00:00",
+  "schema": 1,
+  "summary": {
+    "causes": {
+      "ace_page_enter": {
+        "count": 506,
+        "seconds": 390.0
+      },
+      "config_load_merged": {
+        "count": 4924,
+        "seconds": 0.0
+      },
+      "gettext_find": {
+        "count": 348472,
+        "seconds": 0.0
+      },
+      "parser_create": {
+        "count": 410,
+        "seconds": 60.0
+      },
+      "subprocess_run": {
+        "count": 5586,
+        "seconds": 260.0
+      },
+      "textual_app_run_test_enter": {
+        "count": 2148,
+        "seconds": 422.0
+      },
+      "yaml_load": {
+        "count": 0,
+        "seconds": 65.0
+      }
+    },
+    "collection_seconds": 27.6,
+    "file_count": 2470,
+    "idle_seconds": null,
+    "node_count": 27988,
+    "peak_worker_rss_kib": 1126400,
+    "total_file_cpu_seconds": null,
+    "total_file_wall_seconds": 3719.0,
+    "worker_cpu_seconds": null,
+    "worker_wall_seconds": null
+  },
+  "worker_count": null,
+  "workers": []
+}
