@@ -6,6 +6,7 @@ import fcntl
 import json
 import os
 import stat
+import subprocess
 import zipfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -455,3 +456,34 @@ def test_successful_producer_writes_stamp_last_and_prunes_to_two(
     assert (
         produced / "artifacts" / prebuild.EXTENSION_FILENAME
     ).read_bytes() == b"extension"
+
+
+def test_run_command_bounds_builds_and_maps_timeouts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_run_noninteractive(
+        argv: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append({"argv": tuple(argv), "cwd": cwd, "env": env, "timeout": timeout})
+        raise subprocess.TimeoutExpired(list(argv), timeout or 0.0)
+
+    monkeypatch.setattr(prebuild, "run_noninteractive", fake_run_noninteractive)
+
+    result = prebuild._run_command(("cargo", "build"))  # noqa: SLF001
+
+    assert result.returncode == 124
+    assert result.stderr == "command timed out"
+    assert calls == [
+        {
+            "argv": ("cargo", "build"),
+            "cwd": None,
+            "env": None,
+            "timeout": prebuild.COMMAND_TIMEOUT_SECONDS,
+        }
+    ]

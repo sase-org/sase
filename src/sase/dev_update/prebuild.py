@@ -25,6 +25,7 @@ from sase.dev_update.models import (
     DevCommandRunner,
     DevRustPrebuildResult,
 )
+from sase.noninteractive_subprocess import run_noninteractive
 from sase.version._git import classify_git_upstream
 
 log = logging.getLogger(__name__)
@@ -36,6 +37,9 @@ EXTENSION_FILENAME = "sase_core_rs.abi3.so"
 LSP_BINARY_NAME = "sase-xprompt-lsp.exe" if os.name == "nt" else "sase-xprompt-lsp"
 PREBUILD_MARKER_KEY = "rust_prebuild"
 COMPLETED_SET_RETENTION = 2
+# A background cargo build is the longest command here, and a wedged one would
+# otherwise hold the producer lock forever and silently disable the cache.
+COMMAND_TIMEOUT_SECONDS = 3600.0
 
 MISS_STAMP_MISSING = "stamp-missing"
 MISS_COMMIT_MISMATCH = "commit-mismatch"
@@ -879,16 +883,16 @@ def _run_command(
 ) -> DevCommandResult:
     command_env = None if env is None else {**os.environ, **dict(env)}
     try:
-        completed = subprocess.run(
+        completed = run_noninteractive(
             list(argv),
             cwd=cwd,
-            capture_output=True,
-            text=True,
             env=command_env,
-            stdin=subprocess.DEVNULL,
+            timeout=COMMAND_TIMEOUT_SECONDS,
         )
     except FileNotFoundError as exc:
         return DevCommandResult(127, stderr=str(exc))
+    except subprocess.TimeoutExpired:
+        return DevCommandResult(124, stderr="command timed out")
     except OSError as exc:
         return DevCommandResult(1, stderr=str(exc))
     return DevCommandResult(
