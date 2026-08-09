@@ -5,7 +5,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.axe.run_agent_wait_deps import refresh_bead_wait_store
+from sase.axe.run_agent_wait_deps import (
+    initial_dependencies_resolved,
+    refresh_bead_wait_store,
+    waiting_marker_dependencies_resolved,
+)
+from tests._agent_names_fixtures import make_agent
+from tests._axe_chop_wait_checks_helpers import make_waiting_agent
 
 
 def test_refresh_bead_wait_store_honors_off_mode(
@@ -43,3 +49,86 @@ def test_refresh_bead_wait_store_contains_refresh_exceptions(
     refresh_bead_wait_store("proj")
 
     refresh.assert_called_once_with(beads_dir)
+
+
+@pytest.mark.parametrize(
+    ("outcome", "should_resolve"),
+    [
+        ("completed", True),
+        ("noop", True),
+        ("epic_approved", True),
+        ("plan_committed", True),
+        ("failed", False),
+        ("killed", False),
+        ("stopped", False),
+        ("epic_launch_failed", False),
+        ("plan_rejected", False),
+    ],
+)
+def test_initial_dependencies_resolved_matches_terminal_outcome_semantics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+    should_resolve: bool,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, "foo")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome=outcome,
+    )
+
+    assert (
+        initial_dependencies_resolved(
+            ["foo"],
+            [],
+            project_name="proj",
+            artifacts_dir=str(waiter_dir),
+        )
+        is should_resolve
+    )
+
+
+@pytest.mark.parametrize(
+    ("outcome", "should_resolve"),
+    [
+        ("completed", True),
+        ("noop", True),
+        ("epic_approved", True),
+        ("plan_committed", True),
+        ("failed", False),
+        ("killed", False),
+        ("stopped", False),
+        ("epic_launch_failed", False),
+        ("plan_rejected", False),
+    ],
+)
+def test_waiting_marker_dependencies_resolved_matches_terminal_outcome_semantics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+    should_resolve: bool,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, "foo")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome=outcome,
+    )
+
+    assert (
+        waiting_marker_dependencies_resolved(
+            waiter_dir / "waiting.json",
+            project_name="proj",
+            artifacts_dir=str(waiter_dir),
+        )
+        is should_resolve
+    )

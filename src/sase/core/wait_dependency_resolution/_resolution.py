@@ -25,10 +25,12 @@ def dependency_resolution_status(
     waiter_launch_cutoff = (
         Path(self_artifact_dir).name if self_artifact_dir is not None else None
     )
+    blocked_on: list[str] = []
     identity_names: set[str] = set()
     for dependency in wait_identity_deps:
         if not isinstance(dependency, Mapping):
-            return WaitDependencyStatus("waiting")
+            _append_blocked_dependency(blocked_on, _dependency_label(dependency))
+            continue
         dependency_name = dependency.get("name")
         if isinstance(dependency_name, str) and dependency_name:
             identity_names.add(dependency_name)
@@ -39,11 +41,12 @@ def dependency_resolution_status(
             exclude_artifact_dir=self_artifact_dir,
         )
         if not status.resolved:
-            return WaitDependencyStatus("waiting")
+            _append_blocked_dependency(blocked_on, _dependency_label(dependency))
 
     for name in wait_names:
         if not isinstance(name, str):
-            return WaitDependencyStatus("waiting")
+            _append_blocked_dependency(blocked_on, _dependency_label(name))
+            continue
         if name in identity_names:
             continue
         if name in resolved_dep_items:
@@ -53,18 +56,22 @@ def dependency_resolution_status(
             exclude_artifact_dir=self_artifact_dir,
             newer_than=waiter_launch_cutoff if name.startswith("@") else None,
         ):
-            return WaitDependencyStatus("waiting")
+            _append_blocked_dependency(blocked_on, name)
 
     wait_bead_items = tuple(wait_beads)
     for bead_id in wait_bead_items:
         if not isinstance(bead_id, str) or not bead_id:
-            return WaitDependencyStatus("waiting")
+            _append_blocked_dependency(blocked_on, _dependency_label(bead_id))
     if wait_bead_items and closed_bead_ids is None:
-        return WaitDependencyStatus("waiting")
+        for bead_id in wait_bead_items:
+            if isinstance(bead_id, str) and bead_id:
+                _append_blocked_dependency(blocked_on, bead_id)
     if closed_bead_ids is not None:
         for bead_id in wait_bead_items:
-            if bead_id not in closed_bead_ids:
-                return WaitDependencyStatus("waiting")
+            if isinstance(bead_id, str) and bead_id and bead_id not in closed_bead_ids:
+                _append_blocked_dependency(blocked_on, bead_id)
+    if blocked_on:
+        return WaitDependencyStatus("waiting", tuple(blocked_on))
     return WaitDependencyStatus("resolved")
 
 
@@ -97,3 +104,31 @@ def _identity_dependency_is_memoized(
         ):
             return True
     return False
+
+
+def _append_blocked_dependency(blocked_on: list[str], label: str) -> None:
+    if label not in blocked_on:
+        blocked_on.append(label)
+
+
+def _dependency_label(dependency: object) -> str:
+    if isinstance(dependency, Mapping):
+        artifact_dir = dependency.get("artifact_dir")
+        if isinstance(artifact_dir, str) and artifact_dir:
+            return artifact_dir
+        project_name = dependency.get("project_name")
+        timestamp = dependency.get("timestamp")
+        if (
+            isinstance(project_name, str)
+            and project_name
+            and isinstance(timestamp, str)
+            and timestamp
+        ):
+            return f"{project_name}:{timestamp}"
+        name = dependency.get("name")
+        if isinstance(name, str) and name:
+            return name
+        return "<artifact dependency>"
+    if isinstance(dependency, str) and dependency:
+        return dependency
+    return f"<{type(dependency).__name__} dependency>"

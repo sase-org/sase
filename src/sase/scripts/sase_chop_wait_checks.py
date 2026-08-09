@@ -8,6 +8,7 @@ dependencies for a waiting agent are satisfied.
 
 import json
 from dataclasses import dataclass
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -17,10 +18,14 @@ from sase.chops.sdk import ChopResultBuilder
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_projects_dir
 from sase.core.wait_dependency_resolution import (
+    KNOWN_DONE_OUTCOMES,
     WaitDependencyIndex,
     dependency_resolution_status,
     read_json_dict as _read_json_dict,
 )
+from sase.core.wait_dependency_resolution._types import ArtifactCandidate
+
+_MAX_TERMINAL_BLOCKER_LOGS = 10
 
 
 @dataclass(frozen=True)
@@ -28,6 +33,13 @@ class _WaitingMarker:
     project_name: str
     ready_path: Path
     waiting_path: Path
+
+
+@dataclass(frozen=True)
+class _TerminalBlocker:
+    dependency: str
+    artifact_dir: str
+    outcome: str
 
 
 @builtin_chop("wait_checks")
@@ -51,6 +63,9 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     skipped_ready = 0
     skipped_invalid = 0
     unresolved = 0
+    unknown_outcome = 0
+    terminal_blocker_logs = 0
+    terminal_blocker_suppressed = 0
     dependency_index = WaitDependencyIndex.empty()
     pending_waiting_markers: list[_WaitingMarker] = []
     artifact_rows: list[tuple[Path, dict[str, Any], str]] = []
@@ -162,6 +177,40 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                 ready_written += 1
         else:
             unresolved += 1
+            terminal_blockers = _terminal_blockers(
+                dependency_index,
+                waiting_for,
+                wait_for_artifacts,
+                status.blocked_on,
+                self_artifact_dir=waiting_marker.waiting_path.parent,
+            )
+            for blocker in terminal_blockers:
+                if blocker.outcome not in KNOWN_DONE_OUTCOMES:
+                    unknown_outcome += 1
+                    runtime.log(
+                        "[wait_checks] Unknown done outcome blocks waiter "
+                        f"{waiting_marker.waiting_path.parent}: "
+                        f"dependency={blocker.dependency} "
+                        f"artifact={blocker.artifact_dir} "
+                        f"outcome={blocker.outcome!r}",
+                    )
+                if terminal_blocker_logs < _MAX_TERMINAL_BLOCKER_LOGS:
+                    terminal_blocker_logs += 1
+                    runtime.log(
+                        "[wait_checks] Terminal dependency still blocks waiter "
+                        f"{waiting_marker.waiting_path.parent}: "
+                        f"dependency={blocker.dependency} "
+                        f"artifact={blocker.artifact_dir} "
+                        f"outcome={blocker.outcome!r}",
+                    )
+                else:
+                    terminal_blocker_suppressed += 1
+
+    if terminal_blocker_suppressed:
+        runtime.log(
+            "[wait_checks] Suppressed "
+            f"{terminal_blocker_suppressed} additional terminal blocker log(s)",
+        )
 
     reason = None
     if ready_written == 0:
@@ -184,9 +233,110 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "already_ready": skipped_ready,
             "invalid": skipped_invalid,
             "unresolved": unresolved,
+            "unknown_outcome": unknown_outcome,
         },
         reason=reason,
     )
+
+
+def _terminal_blockers(
+    dependency_index: WaitDependencyIndex,
+    waiting_for: list[object],
+    wait_for_artifacts: list[object],
+    blocked_on: tuple[str, ...],
+    *,
+    self_artifact_dir: Path,
+) -> tuple[_TerminalBlocker, ...]:
+    blocked_labels = frozenset(blocked_on)
+    blockers: list[_TerminalBlocker] = []
+    identity_names: set[str] = set()
+
+    for dependency in wait_for_artifacts:
+        if not isinstance(dependency, Mapping):
+            continue
+        name = dependency.get("name")
+        if isinstance(name, str) and name:
+            identity_names.add(name)
+        label = _dependency_label(dependency)
+        if label not in blocked_labels:
+            continue
+        candidate = _artifact_candidate_for_identity(dependency_index, dependency)
+        if candidate is not None and _identity_terminal_blocker(candidate):
+            outcome = candidate.outcome
+            assert outcome is not None
+            blockers.append(
+                _TerminalBlocker(
+                    dependency=label,
+                    artifact_dir=candidate.artifact_dir,
+                    outcome=outcome,
+                )
+            )
+
+    waiter_launch_cutoff = self_artifact_dir.name
+    for name in waiting_for:
+        if not isinstance(name, str) or name in identity_names:
+            continue
+        if name not in blocked_labels:
+            continue
+        for candidate in dependency_index.terminal_blocking_artifacts_for_name(
+            name,
+            exclude_artifact_dir=self_artifact_dir,
+            newer_than=waiter_launch_cutoff if name.startswith("@") else None,
+        ):
+            assert candidate.outcome is not None
+            blockers.append(
+                _TerminalBlocker(
+                    dependency=name,
+                    artifact_dir=candidate.artifact_dir,
+                    outcome=candidate.outcome,
+                )
+            )
+
+    return tuple(blockers)
+
+
+def _artifact_candidate_for_identity(
+    dependency_index: WaitDependencyIndex,
+    dependency: Mapping[str, Any],
+) -> ArtifactCandidate | None:
+    artifact_dir = dependency.get("artifact_dir")
+    if isinstance(artifact_dir, str) and artifact_dir:
+        candidate = dependency_index.artifacts_by_dir.get(artifact_dir)
+        if candidate is not None:
+            return candidate
+
+    project_name = dependency.get("project_name")
+    timestamp = dependency.get("timestamp")
+    if isinstance(project_name, str) and isinstance(timestamp, str):
+        return dependency_index.artifacts.get((project_name, timestamp))
+    return None
+
+
+def _identity_terminal_blocker(candidate: ArtifactCandidate) -> bool:
+    return (
+        candidate.has_done_marker
+        and candidate.outcome is not None
+        and not candidate.is_identity_success
+    )
+
+
+def _dependency_label(dependency: Mapping[str, Any]) -> str:
+    artifact_dir = dependency.get("artifact_dir")
+    if isinstance(artifact_dir, str) and artifact_dir:
+        return artifact_dir
+    project_name = dependency.get("project_name")
+    timestamp = dependency.get("timestamp")
+    if (
+        isinstance(project_name, str)
+        and project_name
+        and isinstance(timestamp, str)
+        and timestamp
+    ):
+        return f"{project_name}:{timestamp}"
+    name = dependency.get("name")
+    if isinstance(name, str) and name:
+        return name
+    return "<artifact dependency>"
 
 
 def main() -> None:

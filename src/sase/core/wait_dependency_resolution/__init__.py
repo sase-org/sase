@@ -14,12 +14,14 @@ from ._tribe_binding import (
     TribeWaitBinding,
     resolve_tribe_wait_binding,
 )
-from ._types import TribeCandidate
+from ._types import KNOWN_DONE_OUTCOMES, WAIT_SUCCESS_OUTCOMES, TribeCandidate
 
 __all__ = [
+    "KNOWN_DONE_OUTCOMES",
     "TribeMemberRow",
     "TribeWaitBinding",
     "WaitDependencyIndex",
+    "WAIT_SUCCESS_OUTCOMES",
     "TribeCandidate",
     "build_wait_dependency_index",
     "dependency_resolution_status",

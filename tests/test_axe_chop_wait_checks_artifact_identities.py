@@ -56,6 +56,29 @@ def test_identity_wait_completed_parent_writes_ready(
     assert ready == {"resolved_deps": ["foo"]}
 
 
+def test_identity_wait_epic_approved_parent_writes_ready(
+    tmp_path: Path, monkeypatch
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="epic_approved",
+    )
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "foo",
+        wait_for_artifacts=[_identity_dep(parent_dir)],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["foo"]}
+
+
 def test_identity_wait_ignores_newer_same_named_agent(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -79,7 +102,10 @@ def test_identity_wait_ignores_newer_same_named_agent(
     assert not (waiter_dir / "ready.json").exists()
 
 
-@pytest.mark.parametrize("outcome", ["failed", "killed", "stopped"])
+@pytest.mark.parametrize(
+    "outcome",
+    ["failed", "killed", "stopped", "epic_launch_failed"],
+)
 def test_identity_wait_failed_parent_keeps_waiting(
     tmp_path: Path, monkeypatch, outcome: str
 ) -> None:
@@ -128,8 +154,11 @@ def test_identity_wait_repeat_stopped_parent_keeps_waiting(
     assert not (waiter_dir / "ready.json").exists()
 
 
+@pytest.mark.parametrize(
+    "outcome", ["failed", "killed", "stopped", "epic_launch_failed"]
+)
 def test_identity_wait_resolves_after_failed_parent_is_relaunched(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, outcome: str
 ) -> None:
     parent_dir = make_agent(
         tmp_path,
@@ -137,7 +166,7 @@ def test_identity_wait_resolves_after_failed_parent_is_relaunched(
         "20260506010101",
         "foo",
         done=True,
-        outcome="killed",
+        outcome=outcome,
     )
     waiter_dir = make_waiting_agent(
         tmp_path,

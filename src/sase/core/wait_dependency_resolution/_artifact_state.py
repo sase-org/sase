@@ -18,6 +18,7 @@ from ._types import (
     HANDOFF_TERMINAL_STEP_STATUSES,
     IDENTITY_SUCCESS_OUTCOMES,
     SUCCESS_OUTCOME,
+    WAIT_SUCCESS_OUTCOMES,
 )
 
 
@@ -68,7 +69,7 @@ def artifact_is_resolved(
     outcome: str | None,
 ) -> bool:
     if outcome is not None:
-        return outcome == SUCCESS_OUTCOME
+        return outcome in WAIT_SUCCESS_OUTCOMES
     if not is_plan_chain_artifact_meta(meta):
         return False
     return _completed_handoff_workflow_state(artifact_dir)

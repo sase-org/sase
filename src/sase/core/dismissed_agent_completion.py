@@ -15,18 +15,24 @@ from pathlib import Path
 from typing import Any
 
 SUCCESS_OUTCOME = "completed"
-IDENTITY_SUCCESS_OUTCOMES = frozenset({"completed", "plan_rejected"})
-FAILURE_OUTCOMES = frozenset({"failed", "killed", "stopped"})
-
-_SUCCESS_STATUSES = frozenset(
-    {
-        "DONE",
-        "EPIC CREATED",
-        "PLAN COMMITTED",
-        "PLAN DONE",
-        "TALE DONE",
-    }
+WAIT_SUCCESS_OUTCOMES = frozenset(
+    {"completed", "noop", "epic_approved", "plan_committed"}
 )
+FAILURE_OUTCOMES = frozenset({"failed", "killed", "stopped", "epic_launch_failed"})
+IDENTITY_SUCCESS_OUTCOMES = WAIT_SUCCESS_OUTCOMES | frozenset({"plan_rejected"})
+KNOWN_DONE_OUTCOMES = (
+    WAIT_SUCCESS_OUTCOMES | FAILURE_OUTCOMES | frozenset({"plan_rejected"})
+)
+
+_STATUS_OUTCOMES = {
+    "DONE": SUCCESS_OUTCOME,
+    "FEEDBACK": SUCCESS_OUTCOME,
+    "PLAN DONE": SUCCESS_OUTCOME,
+    "TALE DONE": SUCCESS_OUTCOME,
+    "EPIC APPROVED": "epic_approved",
+    "EPIC CREATED": "epic_approved",
+    "PLAN COMMITTED": "plan_committed",
+}
 
 
 @dataclass(frozen=True)
@@ -44,11 +50,11 @@ class ArchivedAgentCompletion:
 
     @property
     def is_resolved(self) -> bool:
-        return self.outcome == SUCCESS_OUTCOME
+        return self.outcome in WAIT_SUCCESS_OUTCOMES
 
     @property
     def is_done(self) -> bool:
-        return self.outcome == SUCCESS_OUTCOME
+        return self.outcome in WAIT_SUCCESS_OUTCOMES
 
     @property
     def is_identity_success(self) -> bool:
@@ -178,8 +184,8 @@ def _archived_outcome_from_status(status: object) -> str | None:
     if not isinstance(status, str) or not status.strip():
         return None
     normalized = status.strip().upper()
-    if normalized in _SUCCESS_STATUSES:
-        return SUCCESS_OUTCOME
+    if outcome := _STATUS_OUTCOMES.get(normalized):
+        return outcome
     if normalized == "PLAN REJECTED":
         return "plan_rejected"
     if normalized == "STOPPED":
@@ -276,7 +282,9 @@ __all__ = [
     "ArchivedAgentCompletion",
     "FAILURE_OUTCOMES",
     "IDENTITY_SUCCESS_OUTCOMES",
+    "KNOWN_DONE_OUTCOMES",
     "SUCCESS_OUTCOME",
+    "WAIT_SUCCESS_OUTCOMES",
     "archived_response_path",
     "load_archived_agent_completions",
 ]

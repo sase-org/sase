@@ -8,7 +8,9 @@ from typing import Literal
 from sase.core.dismissed_agent_completion import (
     FAILURE_OUTCOMES,
     IDENTITY_SUCCESS_OUTCOMES,
+    KNOWN_DONE_OUTCOMES,
     SUCCESS_OUTCOME,
+    WAIT_SUCCESS_OUTCOMES,
     ArchivedAgentCompletion,
 )
 
@@ -24,6 +26,8 @@ class WaitCandidate:
     name: str = ""
     project_name: str = ""
     artifact_dir: str = ""
+    outcome: str | None = None
+    has_done_marker: bool = False
 
 
 @dataclass(frozen=True)
@@ -43,6 +47,8 @@ class ArtifactCandidate:
     clan_generation: str | None = None
     clan_tribe: str | None = None
     archived_completion: ArchivedAgentCompletion | None = None
+    outcome: str | None = None
+    has_done_marker: bool = False
 
 
 @dataclass(frozen=True)
@@ -69,6 +75,7 @@ class FamilyCandidate:
 @dataclass(frozen=True)
 class WaitDependencyStatus:
     state: str
+    blocked_on: tuple[str, ...] = ()
 
     @property
     def resolved(self) -> bool:

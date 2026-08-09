@@ -8,6 +8,7 @@ import pytest
 
 from sase.ace.dismissed_agents import mark_bundles_revived_by_suffixes
 from sase.core.wait_dependency_resolution import (
+    WaitDependencyIndex,
     build_wait_dependency_index,
     dependency_resolution_status,
 )
@@ -39,6 +40,88 @@ def _identity_dependency(artifact_dir: Path, name: str = "worker") -> dict[str, 
         "artifact_dir": str(artifact_dir),
         "name": name,
     }
+
+
+def _wait_classification(
+    index: WaitDependencyIndex,
+    *,
+    artifact_dir: Path,
+    name: str,
+) -> tuple[bool, bool]:
+    name_wait_resolved = index.is_resolved(name)
+    identity_wait_resolved = dependency_resolution_status(
+        index,
+        [],
+        [_identity_dependency(artifact_dir, name)],
+    ).resolved
+    return name_wait_resolved, identity_wait_resolved
+
+
+@pytest.mark.parametrize(
+    (
+        "outcome",
+        "archived_status",
+        "expected_name_wait",
+        "expected_identity_wait",
+        "suffix",
+    ),
+    [
+        ("completed", "DONE", True, True, "20260720160100"),
+        ("completed", "PLAN DONE", True, True, "20260720160200"),
+        ("completed", "TALE DONE", True, True, "20260720160300"),
+        ("completed", "FEEDBACK", True, True, "20260720160400"),
+        ("plan_committed", "PLAN COMMITTED", True, True, "20260720160500"),
+        ("epic_approved", "EPIC APPROVED", True, True, "20260720160600"),
+        ("epic_approved", "EPIC CREATED", True, True, "20260720160700"),
+        ("noop", "DONE", True, True, "20260720160800"),
+        ("plan_rejected", "PLAN REJECTED", False, True, "20260720160900"),
+        ("failed", "FAILED", False, False, "20260720161000"),
+        ("killed", "KILLED", False, False, "20260720161100"),
+        ("stopped", "STOPPED", False, False, "20260720161200"),
+        ("epic_launch_failed", "FAILED", False, False, "20260720161300"),
+    ],
+)
+def test_live_done_and_archived_status_wait_classification_parity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+    archived_status: str,
+    expected_name_wait: bool,
+    expected_identity_wait: bool,
+    suffix: str,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    live_name = f"live-{suffix}"
+    archived_name = f"archived-{suffix}"
+    live = make_agent(
+        tmp_path,
+        "proj",
+        suffix,
+        live_name,
+        done=True,
+        outcome=outcome,
+    )
+    archived = _archived_agent(
+        tmp_path,
+        status=archived_status,
+        name=archived_name,
+        suffix=f"{int(suffix) + 100}",
+    )
+    rebuild_completion_archive()
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert _wait_classification(index, artifact_dir=live, name=live_name) == (
+        expected_name_wait,
+        expected_identity_wait,
+    )
+    assert _wait_classification(index, artifact_dir=archived, name=archived_name) == (
+        expected_name_wait,
+        expected_identity_wait,
+    )
 
 
 def test_plan_rejected_archive_is_identity_terminal_but_not_wait_success(

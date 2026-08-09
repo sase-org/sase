@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,9 +16,18 @@ from ._types import (
     ArtifactCandidate,
     FamilyCandidate,
     TribeCandidate,
+    WAIT_SUCCESS_OUTCOMES,
     WaitCandidate,
     WaitDependencyStatus,
 )
+
+
+@dataclass(frozen=True)
+class _WaitEntity:
+    timestamp: str
+    is_resolved: bool
+    is_done: bool
+    members: tuple[ArtifactCandidate, ...] = ()
 
 
 class WaitDependencyIndexQueries:
@@ -31,6 +41,124 @@ class WaitDependencyIndexQueries:
     effective_clan_tribes: dict[tuple[str, str], str]
     artifacts: dict[tuple[str, str], ArtifactCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
+
+    def _clan_entity(
+        self,
+        name: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> _WaitEntity | None:
+        generations = self.clans.get(name)
+        if not generations:
+            return None
+        generation = max(generations)
+        members = tuple(
+            self._aggregate_candidates(
+                generations[generation],
+                exclude_artifact_dir=exclude_artifact_dir,
+                exclude_queued=False,
+            )
+        )
+        if not members:
+            return None
+        return _WaitEntity(
+            timestamp=max(member.timestamp for member in members),
+            is_resolved=all(member.is_resolved for member in members),
+            is_done=all(member.is_done for member in members),
+            members=members,
+        )
+
+    def _family_entity(
+        self,
+        name: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> _WaitEntity | None:
+        family_agents = self._aggregate_candidates(
+            self.families.get(name),
+            exclude_artifact_dir=exclude_artifact_dir,
+            exclude_queued=False,
+        )
+        if not family_agents:
+            return None
+
+        roots = [
+            candidate for candidate in family_agents if not candidate.parent_timestamp
+        ]
+        if roots:
+            root = max(roots, key=lambda candidate: candidate.timestamp)
+            generation = tuple(self._family_generation(family_agents, root))
+            newest_timestamp = max(
+                (candidate.timestamp for candidate in generation),
+                default=root.timestamp,
+            )
+            return _WaitEntity(
+                timestamp=newest_timestamp,
+                is_resolved=all(candidate.is_resolved for candidate in generation),
+                is_done=any(candidate.is_done for candidate in generation),
+                members=generation,
+            )
+
+        return _WaitEntity(
+            timestamp=max(candidate.timestamp for candidate in family_agents),
+            is_resolved=all(candidate.is_resolved for candidate in family_agents),
+            is_done=any(candidate.is_done for candidate in family_agents),
+            members=tuple(family_agents),
+        )
+
+    def _workflow_entity(
+        self,
+        name: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> _WaitEntity | None:
+        workflow_agents = self._aggregate_candidates(
+            self.workflows.get(name),
+            exclude_artifact_dir=exclude_artifact_dir,
+        )
+        if not workflow_agents:
+            return None
+
+        roots = [
+            candidate for candidate in workflow_agents if not candidate.parent_timestamp
+        ]
+        if not roots:
+            latest = max(workflow_agents, key=lambda candidate: candidate.timestamp)
+            return _WaitEntity(
+                timestamp=latest.timestamp,
+                is_resolved=latest.is_resolved,
+                is_done=latest.is_done,
+                members=(latest,),
+            )
+
+        root = max(roots, key=lambda candidate: candidate.timestamp)
+        generation = (
+            root,
+            *[
+                child
+                for child in workflow_agents
+                if child.parent_timestamp == root.timestamp
+            ],
+        )
+        return _WaitEntity(
+            timestamp=root.timestamp,
+            is_resolved=all(candidate.is_resolved for candidate in generation),
+            is_done=any(candidate.is_done for candidate in generation),
+            members=generation,
+        )
+
+    def _named_entity(self, name: str) -> _WaitEntity | None:
+        candidate = self.named.get(name)
+        if candidate is None:
+            return None
+        member = self.artifacts_by_dir.get(candidate.artifact_dir)
+        members = (member,) if member is not None else ()
+        return _WaitEntity(
+            timestamp=candidate.timestamp,
+            is_resolved=candidate.is_resolved,
+            is_done=candidate.is_done,
+            members=members,
+        )
 
     def tribe_candidate(
         self,
@@ -138,23 +266,17 @@ class WaitDependencyIndexQueries:
         exclude_artifact_dir: str | Path | None = None,
     ) -> FamilyCandidate | None:
         """Return aggregate completion for the newest rootless clan generation."""
-        generations = self.clans.get(name)
-        if not generations:
-            return None
-        generation = max(generations)
-        members = self._aggregate_candidates(
-            generations[generation],
-            exclude_artifact_dir=exclude_artifact_dir,
-            exclude_queued=False,
-        )
-        if not members:
+        entity = self._clan_entity(name, exclude_artifact_dir=exclude_artifact_dir)
+        if entity is None:
             return None
         return FamilyCandidate(
-            timestamp=max(member.timestamp for member in members),
-            is_resolved=all(member.is_resolved for member in members),
-            is_done=all(member.is_done for member in members),
-            is_identity_success=all(member.is_identity_success for member in members),
-            is_failed=any(member.is_failed for member in members),
+            timestamp=entity.timestamp,
+            is_resolved=entity.is_resolved,
+            is_done=entity.is_done,
+            is_identity_success=all(
+                member.is_identity_success for member in entity.members
+            ),
+            is_failed=any(member.is_failed for member in entity.members),
         )
 
     def family_candidate(
@@ -163,45 +285,17 @@ class WaitDependencyIndexQueries:
         *,
         exclude_artifact_dir: str | Path | None = None,
     ) -> FamilyCandidate | None:
-        family_agents = self._aggregate_candidates(
-            self.families.get(name),
-            exclude_artifact_dir=exclude_artifact_dir,
-            exclude_queued=False,
-        )
-        if not family_agents:
+        entity = self._family_entity(name, exclude_artifact_dir=exclude_artifact_dir)
+        if entity is None:
             return None
-
-        roots = [
-            candidate for candidate in family_agents if not candidate.parent_timestamp
-        ]
-        if roots:
-            root = max(roots, key=lambda candidate: candidate.timestamp)
-            generation = self._family_generation(family_agents, root)
-            newest_timestamp = max(
-                (candidate.timestamp for candidate in generation),
-                default=root.timestamp,
-            )
-            return FamilyCandidate(
-                timestamp=newest_timestamp,
-                is_resolved=all(candidate.is_resolved for candidate in generation),
-                is_done=any(candidate.is_done for candidate in generation),
-                is_identity_success=any(
-                    candidate.is_identity_success for candidate in generation
-                ),
-                is_failed=any(candidate.is_failed for candidate in generation),
-            )
-
-        # Legacy recovery path: if only child artifacts remain, judge the known
-        # generation by all retained family members.
-        newest_timestamp = max(candidate.timestamp for candidate in family_agents)
         return FamilyCandidate(
-            timestamp=newest_timestamp,
-            is_resolved=all(candidate.is_resolved for candidate in family_agents),
-            is_done=any(candidate.is_done for candidate in family_agents),
+            timestamp=entity.timestamp,
+            is_resolved=entity.is_resolved,
+            is_done=entity.is_done,
             is_identity_success=any(
-                candidate.is_identity_success for candidate in family_agents
+                candidate.is_identity_success for candidate in entity.members
             ),
-            is_failed=any(candidate.is_failed for candidate in family_agents),
+            is_failed=any(candidate.is_failed for candidate in entity.members),
         )
 
     def family_candidate_for_root(
@@ -243,40 +337,14 @@ class WaitDependencyIndexQueries:
     ) -> WaitCandidate | None:
         # Workflow-name aggregates intentionally retain the queued exclusion:
         # including sequential workflow steps here can deadlock their promotion.
-        workflow_agents = self._aggregate_candidates(
-            self.workflows.get(name),
-            exclude_artifact_dir=exclude_artifact_dir,
-        )
-        if not workflow_agents:
+        entity = self._workflow_entity(name, exclude_artifact_dir=exclude_artifact_dir)
+        if entity is None:
             return None
 
-        roots = [
-            candidate for candidate in workflow_agents if not candidate.parent_timestamp
-        ]
-        if not roots:
-            # Some older/renamed runs may only retain workflow_name on child
-            # artifacts. Preserve the recovery path by judging the newest such
-            # artifact, while still requiring an explicit successful done marker.
-            latest = max(workflow_agents, key=lambda candidate: candidate.timestamp)
-            return WaitCandidate(
-                timestamp=latest.timestamp,
-                is_resolved=latest.is_resolved,
-                is_done=latest.is_done,
-            )
-
-        root = max(roots, key=lambda candidate: candidate.timestamp)
-        generation = [
-            root,
-            *[
-                child
-                for child in workflow_agents
-                if child.parent_timestamp == root.timestamp
-            ],
-        ]
         return WaitCandidate(
-            timestamp=root.timestamp,
-            is_resolved=all(candidate.is_resolved for candidate in generation),
-            is_done=any(candidate.is_done for candidate in generation),
+            timestamp=entity.timestamp,
+            is_resolved=entity.is_resolved,
+            is_done=entity.is_done,
         )
 
     @staticmethod
@@ -375,6 +443,41 @@ class WaitDependencyIndexQueries:
             (newer_than is None or latest.timestamp > newer_than)
             and latest.is_resolved
             and latest.is_done
+        )
+
+    def terminal_blocking_artifacts_for_name(
+        self,
+        name: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+        newer_than: str | None = None,
+    ) -> tuple[ArtifactCandidate, ...]:
+        if name.startswith("@"):
+            return ()
+
+        entities = [
+            entity
+            for entity in (
+                self._clan_entity(name, exclude_artifact_dir=exclude_artifact_dir),
+                self._family_entity(name, exclude_artifact_dir=exclude_artifact_dir),
+                self._workflow_entity(name, exclude_artifact_dir=exclude_artifact_dir),
+                self._named_entity(name),
+            )
+            if entity is not None
+        ]
+        if not entities:
+            return ()
+        latest = max(entities, key=lambda entity: entity.timestamp)
+        if newer_than is not None and latest.timestamp <= newer_than:
+            return ()
+        if latest.is_resolved and latest.is_done:
+            return ()
+        return tuple(
+            member
+            for member in latest.members
+            if member.has_done_marker
+            and member.outcome is not None
+            and member.outcome not in WAIT_SUCCESS_OUTCOMES
         )
 
     def identity_status(

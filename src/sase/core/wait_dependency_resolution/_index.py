@@ -32,7 +32,7 @@ from ._index_queries import WaitDependencyIndexQueries
 from ._json_io import read_json_dict
 from ._submitted_plans import plan_path_marker, submitted_plan_artifact
 from ._types import (
-    SUCCESS_OUTCOME,
+    WAIT_SUCCESS_OUTCOMES,
     ArtifactCandidate,
     WaitCandidate,
 )
@@ -163,22 +163,25 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         if done_data is not None:
             outcome = done_outcome_from_data(done_data)
             is_resolved = artifact_is_resolved(artifact_dir, meta, outcome)
-            is_done = outcome == SUCCESS_OUTCOME
+            is_done = outcome in WAIT_SUCCESS_OUTCOMES
             is_identity_success = artifact_succeeded_for_identity(done_data)
             is_failed = artifact_failed_for_identity(done_data)
             archived_completion = None
+            has_done_marker = True
         elif archived_completion is not None:
             outcome = archived_completion.outcome
             is_resolved = archived_completion.is_resolved
             is_done = archived_completion.is_done
             is_identity_success = archived_completion.is_identity_success
             is_failed = archived_completion.is_failed
+            has_done_marker = False
         else:
             outcome = None
             is_resolved = artifact_is_resolved(artifact_dir, meta, outcome)
             is_done = False
             is_identity_success = False
             is_failed = False
+            has_done_marker = False
         is_queued = (
             (artifact_dir / "waiting.json").exists()
             and not done_path.exists()
@@ -198,6 +201,8 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
                     name=name,
                     project_name=project_name,
                     artifact_dir=str(artifact_dir),
+                    outcome=outcome,
+                    has_done_marker=has_done_marker,
                 ),
             )
 
@@ -261,6 +266,8 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             clan_generation=generation,
             clan_tribe=clan_tribe,
             archived_completion=archived_completion,
+            outcome=outcome,
+            has_done_marker=has_done_marker,
         )
         if project_name:
             self.artifacts[(project_name, timestamp)] = artifact

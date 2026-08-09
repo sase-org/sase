@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 import sase.scripts.sase_chop_wait_checks as wait_checks_module
 from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
@@ -307,6 +309,101 @@ def test_completed_named_agent_success_path_writes_ready(
     assert "wait_checks: projects=1 artifacts=2 waiting=1 ready_written=1" in out
 
 
+@pytest.mark.parametrize(
+    ("outcome", "should_resolve"),
+    [
+        ("completed", True),
+        ("noop", True),
+        ("epic_approved", True),
+        ("plan_committed", True),
+        ("failed", False),
+        ("killed", False),
+        ("stopped", False),
+        ("epic_launch_failed", False),
+        ("plan_rejected", False),
+    ],
+)
+def test_named_agent_terminal_done_outcome_classification(
+    tmp_path: Path,
+    monkeypatch,
+    outcome: str,
+    should_resolve: bool,
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "foo")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome=outcome,
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready_path = waiter_dir / "ready.json"
+    assert ready_path.exists() is should_resolve
+    if should_resolve:
+        assert json.loads(ready_path.read_text(encoding="utf-8")) == {
+            "resolved_deps": ["foo"]
+        }
+
+
+def test_epic_approved_land_member_resolves_next_wait_cycle(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "sase-i1.land")
+    dependency_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260809074248",
+        "sase-i1.land",
+        done=True,
+        outcome="epic_approved",
+    )
+    meta_path = dependency_dir / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta.update(
+        {
+            "agent_clan": "sase-i1",
+            "agent_clan_generation": "20260809074248",
+        }
+    )
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8")) == {
+        "resolved_deps": ["sase-i1.land"]
+    }
+
+
+def test_unknown_terminal_done_outcome_is_reported(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "foo")
+    dependency_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="mystery_success",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+    out = capsys.readouterr().out
+    assert "unknown_outcome=1" in out
+    assert "Unknown done outcome blocks waiter" in out
+    assert str(dependency_dir) in out
+    assert "mystery_success" in out
+
+
 def test_dependency_launched_after_waiter_eventually_resolves(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -464,4 +561,6 @@ def test_wait_checks_unresolved_dependency_emits_noop_reason(
 
     out = capsys.readouterr().out
     assert "wait_checks: projects=1 artifacts=1 waiting=1 ready_written=0" in out
-    assert "unresolved=1 reason=dependencies_not_ready" in out
+    assert "unresolved=1" in out
+    assert "unknown_outcome=0" in out
+    assert "reason=dependencies_not_ready" in out
