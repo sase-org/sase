@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace.changespec.project_spec_migration import (
+from sase.ace.patch.project_spec_migration import (
     migrate_all_projects,
     migrate_project_dir,
 )
@@ -121,7 +121,7 @@ def test_migrate_all_projects_with_default_root(tmp_path: Path, monkeypatch) -> 
     _write(fake_projects / "demo" / "demo.gp", "demo")
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setattr(
-        "sase.ace.changespec.project_spec_migration.Path.home",
+        "sase.ace.patch.project_spec_migration.Path.home",
         lambda: fake_home,
     )
 
@@ -147,7 +147,7 @@ def test_migrate_compares_and_replaces_under_both_path_locks(
     original_replace = os.replace
 
     @contextmanager
-    def fake_changespec_lock(project_file: str) -> Iterator[None]:
+    def fake_patch_lock(project_file: str) -> Iterator[None]:
         active_locks.add(project_file)
         try:
             yield
@@ -167,12 +167,12 @@ def test_migrate_compares_and_replaces_under_both_path_locks(
         original_replace(src, dst)
 
     monkeypatch.setattr(
-        "sase.ace.changespec.project_spec_migration.changespec_lock",
-        fake_changespec_lock,
+        "sase.ace.patch.project_spec_migration.patch_lock",
+        fake_patch_lock,
     )
     monkeypatch.setattr(Path, "read_bytes", checked_read_bytes)
     monkeypatch.setattr(
-        "sase.ace.changespec.project_spec_migration.os.replace",
+        "sase.ace.patch.project_spec_migration.os.replace",
         checked_replace,
     )
 

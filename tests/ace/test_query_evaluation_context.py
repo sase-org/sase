@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.query import build_query_context, evaluate_query_with_context
 from sase.ace.query import context as context_mod
 from sase.ace.query.parser import parse_query
@@ -16,8 +16,8 @@ def _cs(
     description: str = "desc",
     status: str = "Ready",
     parent: str | None = None,
-) -> ChangeSpec:
-    return ChangeSpec(
+) -> Patch:
+    return Patch(
         name=name,
         description=description,
         parent=parent,
@@ -28,7 +28,7 @@ def _cs(
     )
 
 
-def _make_chain(n: int) -> list[ChangeSpec]:
+def _make_chain(n: int) -> list[Patch]:
     """root <- root_1 <- root_2 ... <- root_{n-1}."""
     specs = [_cs("root")]
     for i in range(1, n):
@@ -45,7 +45,7 @@ def test_context_status_and_name_maps_built_eagerly() -> None:
     assert ctx.status_map["beta"] == "Mailed"
 
 
-def test_context_caches_searchable_text_per_changespec() -> None:
+def test_context_caches_searchable_text_per_patch() -> None:
     specs = [_cs("alpha"), _cs("beta")]
     ctx = build_query_context(specs)
     q = parse_query("alpha")
@@ -56,7 +56,7 @@ def test_context_caches_searchable_text_per_changespec() -> None:
         for _ in range(5):
             evaluate_query_with_context(q, specs[0], ctx)
             evaluate_query_with_context(q, specs[1], ctx)
-    # get_searchable_text should be called at most once per changespec.
+    # get_searchable_text should be called at most once per patch.
     assert spy.call_count == 2
 
 

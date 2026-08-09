@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace.changespec.models import ChangeSpec, DeltaEntry, DeltaLineStats
+from sase.ace.patch.models import Patch, DeltaEntry, DeltaLineStats
 from sase.ace.deltas import (
     DeltaComputationError,
     apply_status_mapping,
@@ -14,18 +14,18 @@ from sase.ace.deltas import (
 from sase.vcs_provider import VCSOperationError, VCSProvider
 
 
-def _make_changespec(
+def _make_patch(
     name: str,
     parent: str | None = None,
     project: str = "myproject",
     tmp_path: Path | None = None,
-) -> ChangeSpec:
+) -> Patch:
     file_path = (
         str(tmp_path / project / f"{project}.sase")
         if tmp_path
         else f"/tmp/{project}/{project}.sase"
     )
-    return ChangeSpec(
+    return Patch(
         name=name,
         description="x",
         parent=parent,
@@ -193,7 +193,7 @@ def test_compute_deltas_no_parent_uses_default_parent_ref() -> None:
         default_parent="origin/master",
         resolved={"my_cl": "feature-branch"},
     )
-    cs = _make_changespec("my_cl", parent=None)
+    cs = _make_patch("my_cl", parent=None)
     result = compute_deltas(cs, provider, cwd="/repo")
     assert provider.calls["diff_name_status"] == (
         "origin/master",
@@ -215,7 +215,7 @@ def test_compute_deltas_with_unknown_parent_falls_back_to_default(
         default_parent="origin/develop",
         resolved={"child": "child-branch"},
     )
-    cs = _make_changespec("child", parent="missing_parent")
+    cs = _make_patch("child", parent="missing_parent")
     compute_deltas(cs, provider, cwd="/repo")
     assert provider.calls["diff_name_status"][0] == "origin/develop"
 
@@ -223,7 +223,7 @@ def test_compute_deltas_with_unknown_parent_falls_back_to_default(
 def test_compute_deltas_with_known_parent_resolves_parent_branch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    parent_cs = _make_changespec("parent_cl")
+    parent_cs = _make_patch("parent_cl")
     monkeypatch.setattr(
         "sase.ace.deltas.compute.find_all_patches",
         lambda: [parent_cs],
@@ -232,7 +232,7 @@ def test_compute_deltas_with_known_parent_resolves_parent_branch(
         diff_result=[("M", "x.py")],
         resolved={"parent_cl": "parent-branch", "child_cl": "child-branch"},
     )
-    cs = _make_changespec("child_cl", parent="parent_cl")
+    cs = _make_patch("child_cl", parent="parent_cl")
     compute_deltas(cs, provider, cwd="/repo")
     assert provider.calls["diff_name_status"] == (
         "parent-branch",
@@ -248,7 +248,7 @@ def test_compute_deltas_renames_split_correctly() -> None:
             ("M", "other.py"),
         ],
     )
-    cs = _make_changespec("cl", parent=None)
+    cs = _make_patch("cl", parent=None)
     result = compute_deltas(cs, provider, cwd="/repo")
     assert result == [
         DeltaEntry(path="new.py", change_type="A"),
@@ -273,7 +273,7 @@ def test_compute_deltas_attaches_semantic_line_stats() -> None:
         ],
         resolved={"cl": "branch"},
     )
-    cs = _make_changespec("cl", parent=None)
+    cs = _make_patch("cl", parent=None)
     result = compute_deltas(cs, provider, cwd="/repo")
     assert provider.calls["diff_line_stats"] == ("origin/main", "branch", "/repo")
     assert result == [
@@ -305,7 +305,7 @@ def test_compute_deltas_attaches_rename_line_stats_to_target_only() -> None:
         diff_result=[("R100", "old.py\tnew.py")],
         line_stats_result=[("0", "0", "new.py")],
     )
-    cs = _make_changespec("cl", parent=None)
+    cs = _make_patch("cl", parent=None)
     result = compute_deltas(cs, provider, cwd="/repo")
     assert result == [
         DeltaEntry(path="new.py", change_type="A", line_stats=DeltaLineStats()),
@@ -318,7 +318,7 @@ def test_compute_deltas_line_stats_failure_keeps_file_deltas() -> None:
         diff_result=[("A", "new.py")],
         line_stats_result=VCSOperationError("diff_line_stats", "boom"),
     )
-    cs = _make_changespec("cl", parent=None)
+    cs = _make_patch("cl", parent=None)
     assert compute_deltas(cs, provider, cwd="/repo") == [
         DeltaEntry(path="new.py", change_type="A")
     ]
@@ -328,7 +328,7 @@ def test_compute_deltas_wraps_vcs_failure_in_typed_error() -> None:
     provider = _FakeProvider(
         diff_result=VCSOperationError("diff_name_status", "boom"),
     )
-    cs = _make_changespec("cl", parent=None)
+    cs = _make_patch("cl", parent=None)
     with pytest.raises(DeltaComputationError) as exc:
         compute_deltas(cs, provider, cwd="/repo")
     assert exc.value.changespec_name == "cl"
@@ -339,6 +339,6 @@ def test_compute_deltas_wraps_not_implemented_in_typed_error() -> None:
     provider = _FakeProvider(
         diff_result=NotImplementedError("nope"),
     )
-    cs = _make_changespec("cl", parent=None)
+    cs = _make_patch("cl", parent=None)
     with pytest.raises(DeltaComputationError):
         compute_deltas(cs, provider, cwd="/repo")

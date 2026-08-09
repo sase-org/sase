@@ -1,4 +1,4 @@
-"""Lifecycle filtering for broad ChangeSpec discovery."""
+"""Lifecycle filtering through the legacy compatibility facade."""
 
 from __future__ import annotations
 
@@ -6,8 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.changespec import find_all_changespecs
-from sase.ace.changespec.cache import ChangeSpecSnapshotCache
+from sase.ace.changespec import (
+    find_all_changespecs as find_all_patches,  # legacy compatibility alias
+)
+from sase.ace.changespec.cache import PatchSnapshotCache
 
 
 def _write_project(projects_root: Path, project: str, content: str) -> Path:
@@ -18,7 +20,7 @@ def _write_project(projects_root: Path, project: str, content: str) -> Path:
     return project_file
 
 
-def test_find_all_changespecs_defaults_to_active_projects(
+def test_find_all_patches_defaults_to_active_projects(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -38,14 +40,14 @@ def test_find_all_changespecs_defaults_to_active_projects(
         "NAME: archived_change\nDESCRIPTION:\n  archived\nSTATUS: Ready\n",
     )
 
-    assert [cs.name for cs in find_all_changespecs()] == ["active_change"]
-    assert [cs.name for cs in find_all_changespecs(include_states="all")] == [
+    assert [cs.name for cs in find_all_patches()] == ["active_change"]
+    assert [cs.name for cs in find_all_patches(include_states="all")] == [
         "active_change",
         "archived_change",
     ]
 
 
-def test_find_all_changespecs_cached_defaults_to_active_projects(
+def test_find_all_patches_cached_defaults_to_active_projects(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -65,12 +67,10 @@ def test_find_all_changespecs_cached_defaults_to_active_projects(
         "NAME: closed_change\nDESCRIPTION:\n  closed\nSTATUS: Ready\n",
     )
 
-    cache = ChangeSpecSnapshotCache()
+    cache = PatchSnapshotCache()
 
-    assert [cs.name for cs in cache.find_all_changespecs_cached()] == ["active_change"]
-    assert [
-        cs.name for cs in cache.find_all_changespecs_cached(include_states="all")
-    ] == [
+    assert [cs.name for cs in cache.find_all_patches_cached()] == ["active_change"]
+    assert [cs.name for cs in cache.find_all_patches_cached(include_states="all")] == [
         "active_change",
         "closed_change",
     ]

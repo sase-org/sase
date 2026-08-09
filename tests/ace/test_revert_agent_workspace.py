@@ -1,7 +1,7 @@
 """Claimed-workspace orchestration tests for :mod:`sase.ace.revert_agent`.
 
 These cover the property that the Agents-tab revert flow claims a *fresh*
-short-lived workspace for each preview/execute, prepares it on the ChangeSpec
+short-lived workspace for each preview/execute, prepares it on the Patch
 branch, and releases the claim on every completion and failure path — never
 reusing (or blocking on) the directory the agent originally ran in.
 """

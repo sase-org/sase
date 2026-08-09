@@ -90,7 +90,7 @@ def test_stitch_reference_aliases() -> None:
         )
 
 
-def test_parser_accepts_patch_and_changespec_headings_and_stitch_sections(
+def test_parser_accepts_patch_and_legacy_headings_and_stitch_sections(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "mixed.sase"

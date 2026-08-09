@@ -1,4 +1,4 @@
-"""Tests for ChangeSpec archive file operations."""
+"""Tests for Patch archive file operations through the compatibility facade."""
 
 import os
 import tempfile
@@ -6,11 +6,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.changespec.archive import (
-    _extract_changespec_block,
+    _extract_changespec_block as _extract_patch_block,  # legacy compatibility alias
     get_archive_file_path,
     get_main_file_path,
     is_archive_file,
-    move_changespec_to_file,
+    move_changespec_to_file as move_patch_to_file,  # legacy compatibility alias
 )
 from sase.ace.changespec.parser import parse_project_file
 
@@ -66,23 +66,23 @@ def test_is_archive_file() -> None:
     assert is_archive_file("/tmp/archive.gp") is False
 
 
-def test__extract_changespec_block_single() -> None:
-    """Test extracting a single ChangeSpec from a file."""
+def test_extract_patch_block_single() -> None:
+    """Test extracting a single Patch from a file."""
     lines = [
         "NAME: my_change\n",
         "DESCRIPTION:\n",
         "  Some description\n",
         "STATUS: Submitted\n",
     ]
-    extracted, remaining = _extract_changespec_block(lines, "my_change")
+    extracted, remaining = _extract_patch_block(lines, "my_change")
     assert extracted is not None
     assert any("NAME: my_change" in line for line in extracted)
     assert any("STATUS: Submitted" in line for line in extracted)
     assert not any("NAME: my_change" in line for line in remaining)
 
 
-def test__extract_changespec_block_multiple() -> None:
-    """Test extracting one ChangeSpec from a file with multiple."""
+def test_extract_patch_block_multiple() -> None:
+    """Test extracting one Patch from a file with multiple."""
     lines = [
         "NAME: first_change\n",
         "DESCRIPTION:\n",
@@ -99,7 +99,7 @@ def test__extract_changespec_block_multiple() -> None:
         "  Third description\n",
         "STATUS: WIP\n",
     ]
-    extracted, remaining = _extract_changespec_block(lines, "second_change")
+    extracted, remaining = _extract_patch_block(lines, "second_change")
     assert extracted is not None
     assert any("NAME: second_change" in line for line in extracted)
     # first and third should remain
@@ -108,8 +108,8 @@ def test__extract_changespec_block_multiple() -> None:
     assert not any("NAME: second_change" in line for line in remaining)
 
 
-def test__extract_changespec_block_with_header() -> None:
-    """Test extracting a ChangeSpec that has a ## ChangeSpec header."""
+def test_extract_patch_block_with_legacy_header() -> None:
+    """Test extracting a Patch that has a legacy ChangeSpec header."""
     lines = [
         "## ChangeSpec\n",
         "NAME: my_change\n",
@@ -117,26 +117,26 @@ def test__extract_changespec_block_with_header() -> None:
         "  Some description\n",
         "STATUS: Archived\n",
     ]
-    extracted, remaining = _extract_changespec_block(lines, "my_change")
+    extracted, remaining = _extract_patch_block(lines, "my_change")
     assert extracted is not None
     assert any("## ChangeSpec" in line for line in extracted)
     assert any("NAME: my_change" in line for line in extracted)
 
 
-def test__extract_changespec_block_not_found() -> None:
-    """Test extraction when ChangeSpec name is not in the file."""
+def test_extract_patch_block_not_found() -> None:
+    """Test extraction when Patch name is not in the file."""
     lines = [
         "NAME: other_change\n",
         "DESCRIPTION:\n",
         "  Other description\n",
         "STATUS: Ready\n",
     ]
-    extracted, remaining = _extract_changespec_block(lines, "nonexistent")
+    extracted, remaining = _extract_patch_block(lines, "nonexistent")
     assert extracted is None
     assert len(remaining) == len(lines)
 
 
-def test_move_changespec_to_archive() -> None:
+def test_move_patch_to_archive() -> None:
     """Test end-to-end move from main to archive file."""
     main_content = """NAME: active_change
 DESCRIPTION:
@@ -155,7 +155,7 @@ STATUS: Submitted
         with open(main_file, "w") as f:
             f.write(main_content)
 
-        result = move_changespec_to_file(main_file, archive_file, "archived_change")
+        result = move_patch_to_file(main_file, archive_file, "archived_change")
         assert result is True
 
         # Verify archived_change is in the archive file
@@ -172,7 +172,7 @@ STATUS: Submitted
         assert "NAME: active_change" in main_content_after
 
 
-def test_move_changespec_from_archive() -> None:
+def test_move_patch_from_archive() -> None:
     """Test end-to-end move from archive back to main file."""
     main_content = """NAME: active_change
 DESCRIPTION:
@@ -193,7 +193,7 @@ STATUS: Draft
         with open(archive_file, "w") as f:
             f.write(archive_content)
 
-        result = move_changespec_to_file(archive_file, main_file, "restored_change")
+        result = move_patch_to_file(archive_file, main_file, "restored_change")
         assert result is True
 
         # Verify restored_change is in the main file
@@ -224,7 +224,7 @@ STATUS: Submitted
 
         assert not os.path.exists(archive_file)
 
-        result = move_changespec_to_file(main_file, archive_file, "my_change")
+        result = move_patch_to_file(main_file, archive_file, "my_change")
         assert result is True
         assert os.path.exists(archive_file)
 
@@ -233,8 +233,8 @@ STATUS: Submitted
         assert "NAME: my_change" in content
 
 
-def test_move_changespec_not_found() -> None:
-    """Test move returns False when ChangeSpec is not in source."""
+def test_move_patch_not_found() -> None:
+    """Test move returns False when Patch is not in source."""
     with tempfile.TemporaryDirectory() as tmpdir:
         main_file = os.path.join(tmpdir, "test.sase")
         archive_file = os.path.join(tmpdir, "test-archive.sase")
@@ -242,13 +242,13 @@ def test_move_changespec_not_found() -> None:
         with open(main_file, "w") as f:
             f.write("NAME: other\nDESCRIPTION:\n  x\nSTATUS: WIP\n")
 
-        result = move_changespec_to_file(main_file, archive_file, "nonexistent")
+        result = move_patch_to_file(main_file, archive_file, "nonexistent")
         assert result is False
         assert not os.path.exists(archive_file)
 
 
-def test_find_all_changespecs_reads_archive() -> None:
-    """Test that find_all_changespecs reads both main and archive files."""
+def test_find_all_patches_reads_archive() -> None:
+    """Test that the legacy discovery alias reads main and archive files."""
     main_content = """NAME: active_cl
 DESCRIPTION:
   Active
@@ -278,9 +278,11 @@ STATUS: Submitted
             patch.dict(os.environ, {"SASE_HOME": str(Path(tmpdir) / ".sase")}),
             patch("pathlib.Path.home", return_value=Path(tmpdir)),
         ):
-            from sase.ace.changespec import find_all_changespecs
+            from sase.ace.changespec import (
+                find_all_changespecs as find_all_patches,  # legacy compatibility alias
+            )
 
-            result = find_all_changespecs()
+            result = find_all_patches()
 
         names = {cs.name for cs in result}
         assert "active_cl" in names

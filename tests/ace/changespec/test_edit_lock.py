@@ -13,7 +13,7 @@ import pytest
 from sase.ace.changespec.locking import (
     LockTimeoutError,
     acquire_edit_lock,
-    changespec_lock,
+    changespec_lock as legacy_changespec_lock,  # legacy compatibility alias
     is_edit_locked,
     release_edit_lock,
     wait_for_edit_lock_release,
@@ -208,8 +208,8 @@ def test_wait_timeout_raises(tmp_path: Path) -> None:
             pass
 
 
-def test_changespec_lock_waits_for_edit_lock(tmp_path: Path) -> None:
-    """Integration: edit lock held → changespec_lock blocks until released."""
+def test_patch_lock_waits_for_edit_lock(tmp_path: Path) -> None:
+    """Integration: edit lock held → patch_lock blocks until released."""
     with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     lock_file = f"{project_file}.edit_lock"
@@ -224,7 +224,7 @@ def test_changespec_lock_waits_for_edit_lock(tmp_path: Path) -> None:
         acquired = threading.Event()
 
         def acquire_in_thread() -> None:
-            with changespec_lock(project_file):
+            with legacy_changespec_lock(project_file):
                 acquired.set()
 
         t = threading.Thread(target=acquire_in_thread)
@@ -241,7 +241,7 @@ def test_changespec_lock_waits_for_edit_lock(tmp_path: Path) -> None:
         except FileNotFoundError:
             pass
 
-        # Now the changespec_lock should proceed
+        # Now the patch lock should proceed
         assert acquired.wait(timeout=2.0)
         t.join(timeout=2.0)
     finally:

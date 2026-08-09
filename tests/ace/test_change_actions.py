@@ -14,7 +14,7 @@ def testdelete_proposal_entry_file_not_found() -> None:
 
 
 def testdelete_proposal_entry_wrong_cl_name(tmp_path: Path) -> None:
-    """Test that we don't delete entries from wrong ChangeSpec."""
+    """Test that we don't delete entries from wrong Patch."""
     project_content = """NAME: feature_a
 COMMITS:
   (1a) [fix]

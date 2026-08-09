@@ -46,9 +46,9 @@ TIMESTAMPS:
         path = f.name
 
     try:
-        changespecs = parse_project_file(path)
-        assert len(changespecs) == 1
-        cs = changespecs[0]
+        patches = parse_project_file(path)
+        assert len(patches) == 1
+        cs = patches[0]
         assert cs.timestamps is not None
         assert len(cs.timestamps) == 9
 
@@ -105,9 +105,9 @@ TIMESTAMPS:
         path = f.name
 
     try:
-        changespecs = parse_project_file(path)
-        assert len(changespecs) == 1
-        cs = changespecs[0]
+        patches = parse_project_file(path)
+        assert len(patches) == 1
+        cs = patches[0]
         assert cs.timestamps is not None
         assert len(cs.timestamps) == 2
 
@@ -142,9 +142,9 @@ TIMESTAMPS:
         path = f.name
 
     try:
-        changespecs = parse_project_file(path)
-        assert len(changespecs) == 1
-        cs = changespecs[0]
+        patches = parse_project_file(path)
+        assert len(patches) == 1
+        cs = patches[0]
         assert cs.timestamps is not None
         assert len(cs.timestamps) == 2
 
@@ -160,7 +160,7 @@ TIMESTAMPS:
 
 
 def test_parse_no_timestamps_section(tmp_path: Path) -> None:
-    """ChangeSpec without TIMESTAMPS should have timestamps=None."""
+    """Patch without TIMESTAMPS should have timestamps=None."""
     content = """\
 NAME: my-cl
 DESCRIPTION:
@@ -177,9 +177,9 @@ STATUS: WIP
         path = f.name
 
     try:
-        changespecs = parse_project_file(path)
-        assert len(changespecs) == 1
-        assert changespecs[0].timestamps is None
+        patches = parse_project_file(path)
+        assert len(patches) == 1
+        assert patches[0].timestamps is None
     finally:
         os.unlink(path)
 
@@ -347,7 +347,7 @@ TIMESTAMPS:
 
 
 def test_add_timestamp_entry_atomic_after_name_change(tmp_path: Path) -> None:
-    """Timestamp recording works when ChangeSpec name was changed by suffix strip."""
+    """Timestamp recording works when Patch name was changed by suffix strip."""
     # Simulate post-suffix-strip state: file has NAME: foo (not foo__1)
     content = """\
 NAME: foo
@@ -403,9 +403,9 @@ TIMESTAMPS:
         path = f.name
 
     try:
-        changespecs = parse_project_file(path)
-        assert len(changespecs) == 1
-        cs = changespecs[0]
+        patches = parse_project_file(path)
+        assert len(patches) == 1
+        cs = patches[0]
         assert cs.timestamps is not None
         assert len(cs.timestamps) == 2
 
@@ -490,7 +490,7 @@ TIMESTAMPS:
 
 
 def test_add_timestamp_entry_wrong_cl_returns_false(tmp_path: Path) -> None:
-    """Returns False when ChangeSpec name not found."""
+    """Returns False when Patch name not found."""
     content = """\
 NAME: my-cl
 STATUS: WIP

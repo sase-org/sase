@@ -1,4 +1,4 @@
-"""Tests for ChangeSpecSnapshotCache."""
+"""Tests for the legacy compatibility cache facade."""
 
 from __future__ import annotations
 
@@ -10,7 +10,9 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.changespec import cache as cache_mod
-from sase.ace.changespec.cache import ChangeSpecSnapshotCache
+from sase.ace.changespec.cache import (
+    ChangeSpecSnapshotCache as PatchSnapshotCache,  # legacy compatibility alias
+)
 
 
 _GP_HEADER = """\
@@ -43,7 +45,7 @@ def test_cached_get_file_specs_returns_same_specs(tmp_path: Path) -> None:
     f = tmp_path / "p.sase"
     _write(f, _GP_HEADER)
 
-    cache = ChangeSpecSnapshotCache()
+    cache = PatchSnapshotCache()
     a = cache.get_file_specs(f)
     b = cache.get_file_specs(f)
 
@@ -56,7 +58,7 @@ def test_warm_cache_makes_zero_parse_calls(tmp_path: Path) -> None:
     f = tmp_path / "p.sase"
     _write(f, _GP_TWO_SPECS)
 
-    cache = ChangeSpecSnapshotCache()
+    cache = PatchSnapshotCache()
     cache.get_file_specs(f)  # Cold
 
     real = cache_mod.parse_project_file
@@ -73,7 +75,7 @@ def test_editing_one_file_reparses_only_that_file(tmp_path: Path) -> None:
     _write(a, _GP_HEADER)
     _write(b, _GP_HEADER.replace("alpha", "beta"))
 
-    cache = ChangeSpecSnapshotCache()
+    cache = PatchSnapshotCache()
     cache.get_file_specs(a)
     cache.get_file_specs(b)
 
@@ -92,7 +94,7 @@ def test_editing_one_file_reparses_only_that_file(tmp_path: Path) -> None:
     assert spy.call_args.args[0] == os.fspath(a)
 
 
-def test_find_all_changespecs_cached_uses_projects_dir(
+def test_find_all_patches_cached_uses_projects_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     home = tmp_path / "home"
@@ -102,12 +104,12 @@ def test_find_all_changespecs_cached_uses_projects_dir(
     proj = home / ".sase" / "projects" / "demo"
     _write(proj / "demo.sase", _GP_TWO_SPECS)
 
-    cache = ChangeSpecSnapshotCache()
-    first = cache.find_all_changespecs_cached()
+    cache = PatchSnapshotCache()
+    first = cache.find_all_patches_cached()
     assert {cs.name for cs in first} == {"alpha", "beta"}
 
     real = cache_mod.parse_project_file
     with patch.object(cache_mod, "parse_project_file", side_effect=real) as spy:
-        second = cache.find_all_changespecs_cached()
+        second = cache.find_all_patches_cached()
     assert spy.call_count == 0
     assert {cs.name for cs in second} == {"alpha", "beta"}

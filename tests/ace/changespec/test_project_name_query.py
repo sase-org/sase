@@ -10,9 +10,13 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.changespec import cache as cache_mod
-from sase.ace.changespec import find_all_changespecs
-from sase.ace.changespec.cache import ChangeSpecSnapshotCache
-from sase.ace.changespec.models import ChangeSpec
+from sase.ace.changespec import (
+    find_all_changespecs as find_all_patches,  # legacy compatibility alias
+)
+from sase.ace.changespec.cache import (
+    ChangeSpecSnapshotCache as PatchSnapshotCache,  # legacy compatibility alias
+)
+from sase.ace.changespec.models import Patch
 from sase.ace.query import parse_query
 from sase.core.query_facade import evaluate_query, evaluate_query_many
 from sase.main.search_handler import handle_search_command
@@ -42,14 +46,14 @@ def _write_project(
     return project_file, archive_file
 
 
-def _names(query: str, changespecs: list[ChangeSpec]) -> list[str]:
-    mask = evaluate_query_many(query, changespecs)
-    return [cs.name for cs, keep in zip(changespecs, mask, strict=True) if keep]
+def _names(query: str, patches: list[Patch]) -> list[str]:
+    mask = evaluate_query_many(query, patches)
+    return [cs.name for cs, keep in zip(patches, mask, strict=True) if keep]
 
 
-def _reference_names(query: str, changespecs: list[ChangeSpec]) -> list[str]:
+def _reference_names(query: str, patches: list[Patch]) -> list[str]:
     expr = parse_query(query)
-    return [cs.name for cs in changespecs if evaluate_query(expr, cs, changespecs)]
+    return [cs.name for cs in patches if evaluate_query(expr, cs, patches)]
 
 
 def test_lifecycle_discovery_attaches_project_name_to_active_and_archive(
@@ -64,25 +68,25 @@ def test_lifecycle_discovery_attaches_project_name_to_active_and_archive(
         project_name="Widgets",
     )
 
-    changespecs = find_all_changespecs()
-    assert {cs.name for cs in changespecs} == {
+    patches = find_all_patches()
+    assert {cs.name for cs in patches} == {
         "active_change",
         "archived_change",
     }
-    assert {cs.project_name for cs in changespecs} == {"gh_acme__widgets"}
-    assert {cs.project_basename for cs in changespecs} == {"gh_acme__widgets"}
-    assert {cs.project_query_name for cs in changespecs} == {"Widgets"}
+    assert {cs.project_name for cs in patches} == {"gh_acme__widgets"}
+    assert {cs.project_basename for cs in patches} == {"gh_acme__widgets"}
+    assert {cs.project_query_name for cs in patches} == {"Widgets"}
 
     for query in ("project:widgets", "project:WIDGETS", "+Widgets"):
-        assert _names(query, changespecs) == [
+        assert _names(query, patches) == [
             "active_change",
             "archived_change",
         ]
-        assert _reference_names(query, changespecs) == _names(query, changespecs)
+        assert _reference_names(query, patches) == _names(query, patches)
 
     for query in ("project:gh_acme__widgets", "+gh_acme__widgets", "+legacy-alias"):
-        assert _names(query, changespecs) == []
-        assert _reference_names(query, changespecs) == []
+        assert _names(query, patches) == []
+        assert _reference_names(query, patches) == []
 
 
 def test_project_query_falls_back_to_directory_key_without_project_name(
@@ -93,12 +97,12 @@ def test_project_query_falls_back_to_directory_key_without_project_name(
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     _write_project(sase_home / "projects", "plain-project", project_name=None)
 
-    changespecs = find_all_changespecs()
-    assert _names("project:PLAIN-PROJECT", changespecs) == [
+    patches = find_all_patches()
+    assert _names("project:PLAIN-PROJECT", patches) == [
         "active_change",
         "archived_change",
     ]
-    assert _names("+plain-project", changespecs) == [
+    assert _names("+plain-project", patches) == [
         "active_change",
         "archived_change",
     ]
@@ -117,8 +121,8 @@ def test_snapshot_cache_refreshes_archive_query_name_when_metadata_changes(
     )
     archive_stat = archive_file.stat()
 
-    cache = ChangeSpecSnapshotCache()
-    first = cache.find_all_changespecs_cached()
+    cache = PatchSnapshotCache()
+    first = cache.find_all_patches_cached()
     assert _names("+widgets", first) == ["active_change", "archived_change"]
 
     project_file.write_text(
@@ -134,7 +138,7 @@ def test_snapshot_cache_refreshes_archive_query_name_when_metadata_changes(
     with patch.object(
         cache_mod, "parse_project_file", side_effect=real_parse
     ) as parse_spy:
-        second = cache.find_all_changespecs_cached()
+        second = cache.find_all_patches_cached()
 
     assert archive_file.stat().st_mtime_ns == archive_stat.st_mtime_ns
     assert any(
@@ -152,7 +156,7 @@ def test_snapshot_cache_refreshes_archive_query_name_when_metadata_changes(
         ("project:gh_acme__widgets", set()),
     ],
 )
-def test_changespec_search_cli_uses_effective_project_name(
+def test_patch_search_cli_uses_effective_project_name(
     query: str,
     expected: set[str],
     tmp_path: Path,

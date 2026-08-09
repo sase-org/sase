@@ -12,7 +12,7 @@ from pathlib import Path
 import pluggy
 import pytest
 
-from sase.ace.changespec.models import ChangeSpec, DeltaEntry, DeltaLineStats
+from sase.ace.patch.models import Patch, DeltaEntry, DeltaLineStats
 from sase.ace.deltas import compute_deltas
 from sase.core.git_query_facade import parse_git_name_status_z, parse_git_numstat_z
 from sase.vcs_provider import VCSOperationError
@@ -188,7 +188,7 @@ def test_compute_deltas_reports_cumulative_pr_state(repo: str, tmp_path: Path) -
     _git(["commit", "-m", "add b"], repo)
 
     project_file = tmp_path / "myproject.sase"
-    changespec = ChangeSpec(
+    patch_record = Patch(
         name="feature",
         description="x",
         parent=None,
@@ -198,7 +198,7 @@ def test_compute_deltas_reports_cumulative_pr_state(repo: str, tmp_path: Path) -
         line_number=1,
     )
 
-    result = compute_deltas(changespec, _make_git_provider(), repo)
+    result = compute_deltas(patch_record, _make_git_provider(), repo)
 
     assert result == [
         DeltaEntry(
@@ -214,7 +214,7 @@ def test_compute_deltas_reports_cumulative_pr_state(repo: str, tmp_path: Path) -
     ]
 
 
-def test_resolve_current_changespec_head_ref_prefers_fetched_remote(
+def test_resolve_current_patch_head_ref_prefers_fetched_remote(
     tmp_path: Path,
 ) -> None:
     origin = tmp_path / "origin.git"
@@ -252,7 +252,7 @@ def test_resolve_current_changespec_head_ref_prefers_fetched_remote(
     _git(["push"], str(source))
 
     provider = _make_git_provider()
-    head_ref = provider.resolve_current_changespec_head_ref(
+    head_ref = provider.resolve_current_patch_head_ref(
         "feature", "myproject", str(observer)
     )
 
