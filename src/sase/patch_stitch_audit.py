@@ -19,11 +19,80 @@ LEGACY_TOKEN_RE = re.compile(
     r"|COMMITS:"
 )
 
+_EXPECTED_LINKED_REPOS = (
+    "sase-core",
+    "sase-github",
+    "sase-telegram",
+    "sase-nvim",
+    "chezmoi",
+)
+
+_COMPATIBILITY_SHIM_PATHS = frozenset(
+    {
+        "src/sase/core/changespec.py",
+        "src/sase/main/changespec_handler.py",
+        "src/sase/main/parser_changespec.py",
+        "src/sase/workflows/commit/changespec_operations.py",
+        "src/sase/workflows/commit/changespec_queries.py",
+        "src/sase/workspace_provider/changespec.py",
+    }
+)
+
+_DECLARED_COMPATIBILITY_MARKERS = (
+    "legacy",
+    "compat",
+    "alias",
+    "deprecated",
+    "retained",
+    "mixed-version",
+    "older supported",
+    "backward",
+    "fallback",
+)
+
+_RETAINED_SERIALIZED_MARKERS = (
+    "COMMITS:",
+    "## ChangeSpec",
+    "CommitEntry",
+    "commit_entry",
+    "changespec_name",
+    "changespec_bug_id",
+    "commit_changespec_name",
+    "meta_changespec",
+    "all_changespecs.json",
+    "filtered_changespecs.json",
+    "changespec_subcommand",
+)
+
+_RETAINED_PUBLIC_MARKERS = (
+    "sase.ace.changespec",
+    "sase changespec",
+    "--changespec",
+    "sase_changespecs",
+    "/sase_changespecs",
+    "docs/change_spec.md",
+    "changespec-tags",
+    "changespecs-in-practice",
+)
+
+_STABLE_PUBLIC_REFERENCE_RE = re.compile(
+    r"\b(?:from|import)\s+sase[\w.]*?(?:change_spec|changespec)[\w.]*\b"
+    r"|['\"](?:src/|docs/|tests/|tools/|sase/)[^'\"]*"
+    r"(?:change_spec|changespec)[^'\"]*['\"]",
+    re.IGNORECASE,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class _RepoSpec:
     name: str
     root: Path
+
+
+@dataclass(frozen=True, slots=True)
+class _RepoDiscovery:
+    repos: tuple[_RepoSpec, ...]
+    missing: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +112,7 @@ class _Rule:
     name: str
     classification: str
     reason: str
-    predicate: Callable[[str, str, str, str], bool]
+    predicate: Callable[[str, str, str, str, str], bool]
     required: bool = False
 
 
@@ -51,6 +120,8 @@ class _Rule:
 class _AuditReport:
     candidates: tuple[_Candidate, ...]
     stale_rules: tuple[str, ...]
+    scanned_repos: tuple[str, ...] = ()
+    missing_repos: tuple[str, ...] = ()
 
     @property
     def defects(self) -> tuple[_Candidate, ...]:
@@ -69,15 +140,18 @@ class _AuditReport:
         return dict(Counter(candidate.rule for candidate in self.candidates))
 
 
-def _default_repo_specs(repo_root: Path) -> tuple[_RepoSpec, ...]:
-    """Return the maintained repositories visible from a SASE workspace."""
+def _discover_default_repo_specs(repo_root: Path) -> _RepoDiscovery:
+    """Return visible maintained repositories plus expected linked repos missing."""
     linked_root = repo_root / "sase" / "repos" / "linked"
     specs = [_RepoSpec("main", repo_root)]
-    for name in ("sase-core", "sase-github", "sase-telegram", "sase-nvim", "chezmoi"):
+    missing: list[str] = []
+    for name in _EXPECTED_LINKED_REPOS:
         root = linked_root / name
         if root.is_dir():
             specs.append(_RepoSpec(name, root))
-    return tuple(specs)
+        else:
+            missing.append(name)
+    return _RepoDiscovery(tuple(specs), tuple(missing))
 
 
 def _parse_repo_spec(value: str) -> _RepoSpec:
@@ -107,16 +181,41 @@ def _text_lines(path: Path) -> tuple[str, ...] | None:
         return None
 
 
-def _path_contains(path: str, *needles: str) -> bool:
-    return any(needle in path for needle in needles)
-
-
 def _line_contains(line: str, *needles: str) -> bool:
     return any(needle in line for needle in needles)
 
 
-def _is_audit_contract(repo: str, path: str, line: str, match: str) -> bool:
-    del repo, line, match
+def _context_contains(context: str, *needles: str) -> bool:
+    folded = context.casefold()
+    return any(needle.casefold() in folded for needle in needles)
+
+
+def _declares_compatibility_boundary(context: str) -> bool:
+    return _context_contains(context, *_DECLARED_COMPATIBILITY_MARKERS)
+
+
+def _mentions_retained_serialized_marker(text: str, match: str) -> bool:
+    if match in {"COMMITS:"} or match.startswith(("CommitEntry", "commit_entry")):
+        return True
+    return _context_contains(text, *_RETAINED_SERIALIZED_MARKERS)
+
+
+def _mentions_retained_public_marker(text: str) -> bool:
+    return _context_contains(text, *_RETAINED_PUBLIC_MARKERS) or bool(
+        _STABLE_PUBLIC_REFERENCE_RE.search(text)
+    )
+
+
+def _is_compatibility_shim_path(path: str) -> bool:
+    return path in _COMPATIBILITY_SHIM_PATHS or path.startswith(
+        "src/sase/ace/changespec/"
+    )
+
+
+def _is_audit_contract(
+    repo: str, path: str, line: str, match: str, context: str
+) -> bool:
+    del repo, line, match, context
     return path in {
         "src/sase/patch_stitch_audit.py",
         "tests/test_patch_stitch_terminology_audit.py",
@@ -124,8 +223,10 @@ def _is_audit_contract(repo: str, path: str, line: str, match: str) -> bool:
     }
 
 
-def _is_generated_provider_copy(repo: str, path: str, line: str, match: str) -> bool:
-    del line, match
+def _is_generated_provider_copy(
+    repo: str, path: str, line: str, match: str, context: str
+) -> bool:
+    del line, match, context
     if repo == "main" and path in {
         "AGENTS.md",
         "CLAUDE.md",
@@ -139,8 +240,10 @@ def _is_generated_provider_copy(repo: str, path: str, line: str, match: str) -> 
     return False
 
 
-def _is_immutable_history(repo: str, path: str, line: str, match: str) -> bool:
-    del repo, line, match
+def _is_immutable_history(
+    repo: str, path: str, line: str, match: str, context: str
+) -> bool:
+    del repo, line, match, context
     return (
         path.endswith("CHANGELOG.md")
         or path.startswith(".beads/")
@@ -150,9 +253,9 @@ def _is_immutable_history(repo: str, path: str, line: str, match: str) -> bool:
 
 
 def _is_stable_documentation_reference(
-    repo: str, path: str, line: str, match: str
+    repo: str, path: str, line: str, match: str, context: str
 ) -> bool:
-    del repo, match
+    del repo, match, context
     if not (
         path in {"INSTALL.md", "Justfile", "README.md", "mkdocs.yml"}
         or path.startswith("docs/")
@@ -177,150 +280,77 @@ def _is_stable_documentation_reference(
 
 
 def _is_legacy_compatibility_boundary(
-    repo: str, path: str, line: str, match: str
+    repo: str, path: str, line: str, match: str, context: str
 ) -> bool:
-    del repo, match
-    if path in {
-        "src/sase/core/changespec.py",
-        "src/sase/main/changespec_handler.py",
-        "src/sase/main/parser_changespec.py",
-        "src/sase/workflows/commit/changespec_operations.py",
-        "src/sase/workflows/commit/changespec_queries.py",
-        "src/sase/workspace_provider/changespec.py",
-    }:
-        return True
-    if path.startswith("src/sase/ace/changespec/"):
-        return True
-    return _line_contains(
-        line,
-        "legacy",
-        "Legacy",
-        "compat",
-        "Compat",
-        "alias",
-        "aliases=",
-        "Older supported SASE releases",
-        "mixed-version",
-        "fallback",
-    )
-
-
-def _is_source_legacy_api_boundary(repo: str, path: str, line: str, match: str) -> bool:
     del repo, line, match
-    if path.startswith("tools/"):
+    if _is_compatibility_shim_path(path):
         return True
-    if not path.startswith("src/sase/"):
+    return _declares_compatibility_boundary(context)
+
+
+def _is_source_legacy_api_boundary(
+    repo: str, path: str, line: str, match: str, context: str
+) -> bool:
+    del line, match, context
+    if repo != "main" or not path.startswith("src/sase/"):
         return False
-    return path.startswith(
-        (
-            "src/sase/ace/",
-            "src/sase/agent/",
-            "src/sase/agents/",
-            "src/sase/axe/",
-            "src/sase/bead/",
-            "src/sase/bug_links.py",
-            "src/sase/chops/",
-            "src/sase/config/",
-            "src/sase/core/",
-            "src/sase/doctor/",
-            "src/sase/history/",
-            "src/sase/integrations/",
-            "src/sase/llm_provider/",
-            "src/sase/logs/",
-            "src/sase/main/",
-            "src/sase/notifications/",
-            "src/sase/plugins/",
-            "src/sase/project_",
-            "src/sase/prompt/",
-            "src/sase/running_field/",
-            "src/sase/scripts/",
-            "src/sase/sdd/",
-            "src/sase/stats/",
-            "src/sase/status_state_machine/",
-            "src/sase/vcs_provider/",
-            "src/sase/workflows/",
-            "src/sase/workspace_provider/",
-            "src/sase/xprompt/",
-        )
-    )
+    return _is_compatibility_shim_path(path)
 
 
-def _is_legacy_serialized_data(repo: str, path: str, line: str, match: str) -> bool:
-    del repo, path, match
-    return _line_contains(
-        line,
-        "COMMITS:",
-        "commits",
-        "CommitEntry",
-        "commit_entry",
-        "changespec_name",
-        "changespec_bug_id",
-        "commit_changespec_name",
-        "meta_changespec",
-        "all_changespecs.json",
-        "filtered_changespecs.json",
-        "SASE_AGENT_CL_NAME",
-        "changespec_subcommand",
-        "--changespec",
-        "sase changespec",
-        "sase_changespecs",
-        "sase.ace.changespec",
-    )
+def _is_legacy_serialized_data(
+    repo: str, path: str, line: str, match: str, context: str
+) -> bool:
+    del repo, path, context
+    return _mentions_retained_serialized_marker(line, match)
 
 
-def _is_stable_public_path(repo: str, path: str, line: str, match: str) -> bool:
-    del repo, line, match
-    return _path_contains(
-        path,
-        "changespec",
-        "change_spec",
-        "sase_changespecs",
-        "changespec-tags",
-    )
+def _is_stable_public_path(
+    repo: str, path: str, line: str, match: str, context: str
+) -> bool:
+    del repo, path, match, context
+    return _mentions_retained_public_marker(line)
 
 
 def _is_compatibility_test_or_fixture(
-    repo: str, path: str, line: str, match: str
+    repo: str, path: str, line: str, match: str, context: str
 ) -> bool:
-    del repo, line, match
-    return path.startswith("tests/") or path.startswith("smoke/")
+    del repo
+    if not (path.startswith("tests/") or path.startswith("smoke/")):
+        return False
+    return (
+        _declares_compatibility_boundary(context)
+        or _mentions_retained_serialized_marker(line, match)
+        or _mentions_retained_public_marker(line)
+    )
 
 
-def _is_external_legacy_boundary(repo: str, path: str, line: str, match: str) -> bool:
-    del match
-    if repo in {"sase-core", "sase-github", "sase-telegram", "sase-nvim"}:
-        return "changespec" in line.lower() or _line_contains(
-            line, "ChangeSpec", "CommitEntry", "commit_entry", "COMMITS:"
-        )
-    if repo in {"sase-github", "sase-telegram"}:
-        return _line_contains(
-            line,
-            "Older supported SASE releases",
-            "legacy",
-            "changespec_name",
-            "sase.ace.changespec",
-            "changespec_tags",
-            "_list_changespec_xprompt_tags",
-        )
-    if repo == "sase-nvim":
-        return _line_contains(line, "COMMITS:", 'kind = "changespec"')
+def _is_external_legacy_boundary(
+    repo: str, path: str, line: str, match: str, context: str
+) -> bool:
+    if repo not in _EXPECTED_LINKED_REPOS:
+        return False
+    if _declares_compatibility_boundary(context):
+        return True
+    if _mentions_retained_serialized_marker(line, match):
+        return True
+    if _mentions_retained_public_marker(line):
+        return True
     if repo == "sase-core":
         return _line_contains(
             line,
             "ChangeSpecWire",
-            "ChangeSpec metadata",
-            "changespec_name",
-            "changespec_bug_id",
-            "commit_changespec_name",
-            "commit_entry",
-            "COMMITS:",
-            "commits",
-            "serde",
             'alias = "changespec"',
             '"changespec"',
-            "legacy",
-            "Legacy",
-        ) or path.startswith("crates/sase_core/tests/")
+            "serde",
+        )
+    if repo in {"sase-github", "sase-telegram"}:
+        return _line_contains(
+            line,
+            "changespec_tags",
+            "_list_changespec_xprompt_tags",
+        )
+    if repo == "sase-nvim":
+        return _line_contains(line, 'kind = "changespec"')
     return False
 
 
@@ -348,6 +378,12 @@ _RULES: tuple[_Rule, ...] = (
         "stable-public-path",
         "Maintained docs may mention stable legacy file names, routes, tab IDs, and API identifiers.",
         _is_stable_documentation_reference,
+    ),
+    _Rule(
+        "compatibility_test_or_fixture",
+        "legacy-data-test-fixture",
+        "Tests and smoke fixtures exercise retained old inputs and public aliases.",
+        _is_compatibility_test_or_fixture,
     ),
     _Rule(
         "legacy_compatibility_boundary",
@@ -382,21 +418,16 @@ _RULES: tuple[_Rule, ...] = (
         _is_stable_public_path,
         required=True,
     ),
-    _Rule(
-        "compatibility_test_or_fixture",
-        "legacy-data-test-fixture",
-        "Tests and smoke fixtures exercise retained old inputs and public aliases.",
-        _is_compatibility_test_or_fixture,
-    ),
 )
 
 
 def _classify_candidate(
-    repo: str, path: str, line: str, match: str
+    repo: str, path: str, line: str, match: str, context: str | None = None
 ) -> tuple[str, str, str]:
     """Classify one audited token occurrence."""
+    context = line if context is None else context
     for rule in _RULES:
-        if rule.predicate(repo, path, line, match):
+        if rule.predicate(repo, path, line, match, context):
             return rule.classification, rule.name, rule.reason
     return (
         "defect",
@@ -413,10 +444,12 @@ def _iter_candidates(repo: _RepoSpec) -> Iterable[_Candidate]:
         if lines is None:
             continue
         rel_path = path.relative_to(root).as_posix()
-        for line_number, line in enumerate(lines, start=1):
+        for index, line in enumerate(lines):
+            line_number = index + 1
+            context = "\n".join(lines[max(0, index - 1) : min(len(lines), index + 2)])
             for match in LEGACY_TOKEN_RE.finditer(line):
                 classification, rule, reason = _classify_candidate(
-                    repo.name, rel_path, line, match.group(0)
+                    repo.name, rel_path, line, match.group(0), context
                 )
                 yield _Candidate(
                     repo=repo.name,
@@ -430,7 +463,9 @@ def _iter_candidates(repo: _RepoSpec) -> Iterable[_Candidate]:
                 )
 
 
-def _audit_repositories(repos: Sequence[_RepoSpec]) -> _AuditReport:
+def _audit_repositories(
+    repos: Sequence[_RepoSpec], *, missing_repos: Sequence[str] = ()
+) -> _AuditReport:
     """Scan repositories and return candidates plus stale required rules."""
     candidates = tuple(
         candidate for repo in repos for candidate in _iter_candidates(repo)
@@ -439,12 +474,21 @@ def _audit_repositories(repos: Sequence[_RepoSpec]) -> _AuditReport:
     stale_rules = tuple(
         rule.name for rule in _RULES if rule.required and rule.name not in used_rules
     )
-    return _AuditReport(candidates=candidates, stale_rules=stale_rules)
+    return _AuditReport(
+        candidates=candidates,
+        stale_rules=stale_rules,
+        scanned_repos=tuple(repo.name for repo in repos),
+        missing_repos=tuple(missing_repos),
+    )
 
 
 def _retained_report(report: _AuditReport) -> str:
     """Render a concise retained-token summary for handoffs."""
     lines = ["Patch/stitch terminology audit retained-token summary:"]
+    scanned = ", ".join(report.scanned_repos) if report.scanned_repos else "(none)"
+    lines.append(f"- scanned repos: {scanned}")
+    if report.missing_repos:
+        lines.append(f"- missing expected repos: {', '.join(report.missing_repos)}")
     for classification, count in sorted(report.counts_by_classification.items()):
         lines.append(f"- {classification}: {count}")
     if report.defects:
@@ -481,10 +525,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="print every retained candidate instead of only defects",
     )
+    parser.add_argument(
+        "--allow-missing-linked-repos",
+        action="store_true",
+        help="do not fail when default linked-repo discovery cannot find every expected repo",
+    )
     args = parser.parse_args(argv)
 
-    repos = tuple(args.repo) if args.repo else _default_repo_specs(args.repo_root)
-    report = _audit_repositories(repos)
+    if args.repo:
+        repos = tuple(args.repo)
+        missing_repos: tuple[str, ...] = ()
+    else:
+        discovery = _discover_default_repo_specs(args.repo_root)
+        repos = discovery.repos
+        missing_repos = discovery.missing
+    report = _audit_repositories(repos, missing_repos=missing_repos)
 
     if args.json:
         print(
@@ -492,6 +547,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 {
                     "counts_by_classification": report.counts_by_classification,
                     "counts_by_rule": report.counts_by_rule,
+                    "missing_repos": list(report.missing_repos),
+                    "scanned_repos": list(report.scanned_repos),
                     "stale_rules": list(report.stale_rules),
                     "defects": [_candidate_to_json(item) for item in report.defects],
                     "candidates": [
@@ -513,7 +570,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"({candidate.rule}) {candidate.text}"
             )
 
-    return 1 if report.defects or report.stale_rules else 0
+    missing_repos_error = (
+        bool(report.missing_repos) and not args.allow_missing_linked_repos
+    )
+    return 1 if report.defects or report.stale_rules or missing_repos_error else 0
 
 
 __all__ = [
