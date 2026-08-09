@@ -101,6 +101,41 @@ def test_project_template_override_renders_and_round_trips(
     }
 
 
+def test_nested_memory_agents_template_override_renders_and_round_trips(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        "is_sase_managed: true\n"
+        "memory:\n"
+        '  h1_title: "Project Instructions"\n'
+        "  agents_template: templates/project-agents.md\n",
+    )
+    write(
+        project_root / "templates" / "project-agents.md",
+        _managed_template("Nested project template frame."),
+    )
+
+    assert run_handler() == 0
+
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents.startswith(
+        "# Project Instructions\n\nNested project template frame.\n"
+    )
+
+
 def test_root_config_template_beats_user_template(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

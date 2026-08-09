@@ -10,10 +10,10 @@ memory:
   #       - clan
   #     definition: >-
   #       A named, rootless container for agents that run in parallel.
-amd_agents_template: null
-amd_agents_minimal_template: null
-memory_sase_template: null
-memory_readme_template: null
+  agents_template: null
+  agents_minimal_template: null
+  sase_template: null
+  readme_template: null
 is_sase_managed: false
 use_chezmoi: false
 commit_hooks:

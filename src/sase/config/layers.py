@@ -29,8 +29,12 @@ UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
 # (non-fatally) via ``sase config layers`` and ``sase doctor`` so users get a
 # nudge to migrate without breaking launched agents with repeated warnings.
 DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {
+    "amd_agents_minimal_template": "memory.agents_minimal_template",
+    "amd_agents_template": "memory.agents_template",
     "linked_repos": "repos.linked",
     "machine_name": "id.machine_name",
+    "memory_readme_template": "memory.readme_template",
+    "memory_sase_template": "memory.sase_template",
     "sibling_repos": "repos.linked",
 }
 

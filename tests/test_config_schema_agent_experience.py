@@ -100,21 +100,28 @@ def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
 def test_config_schema_accepts_markdown_template_paths_or_null() -> None:
     public_schema = schema()
 
-    for key in (
-        "amd_agents_template",
-        "amd_agents_minimal_template",
-        "memory_sase_template",
-        "memory_readme_template",
+    for memory_key, legacy_key in (
+        ("agents_template", "amd_agents_template"),
+        ("agents_minimal_template", "amd_agents_minimal_template"),
+        ("sase_template", "memory_sase_template"),
+        ("readme_template", "memory_readme_template"),
     ):
         for value in (None, "templates/AGENTS.md"):
-            errors = sorted(
-                Draft7Validator(public_schema).iter_errors({key: value}),
-                key=lambda error: list(error.absolute_path),
-            )
+            for config in (
+                {"memory": {memory_key: value}},
+                # Legacy top-level form keeps validating.
+                {legacy_key: value},
+            ):
+                errors = sorted(
+                    Draft7Validator(public_schema).iter_errors(config),
+                    key=lambda error: list(error.absolute_path),
+                )
 
-            assert errors == [], "\n".join(
-                format_schema_error(error) for error in errors
-            )
+                assert errors == [], "\n".join(
+                    format_schema_error(error) for error in errors
+                )
+
+        assert public_schema["properties"][legacy_key]["deprecated"] is True
 
 
 def test_config_schema_accepts_boolean_sase_management_marker() -> None:

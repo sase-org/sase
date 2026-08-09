@@ -16,8 +16,10 @@ from ._shared import load_yaml_mapping
 
 _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
 _PROJECT_TITLE_SUFFIX = "Agent Instructions"
-_MANAGED_TEMPLATE_KEY = "amd_agents_template"
-_MINIMAL_TEMPLATE_KEY = "amd_agents_minimal_template"
+_MEMORY_MANAGED_TEMPLATE_KEY = "agents_template"
+_MEMORY_MINIMAL_TEMPLATE_KEY = "agents_minimal_template"
+_LEGACY_MANAGED_TEMPLATE_KEY = "amd_agents_template"
+_LEGACY_MINIMAL_TEMPLATE_KEY = "amd_agents_minimal_template"
 _MEMORY_H1_TITLE_KEY = "h1_title"
 _MEMORY_H1_TITLE_PATH = f"{MEMORY_CONFIG_KEY}.{_MEMORY_H1_TITLE_KEY}"
 
@@ -124,27 +126,73 @@ def _validate_template_path(
     return resolved_path, None
 
 
+@dataclass(frozen=True)
+class _TemplateOverrideResolution:
+    value: Any | None = None
+    display_path: str = ""
+    declared: bool = False
+    error: str | None = None
+
+
+def _resolve_template_override_config(
+    data: Mapping[str, Any], *, memory_key: str, legacy_key: str
+) -> _TemplateOverrideResolution:
+    memory_path = f"{MEMORY_CONFIG_KEY}.{memory_key}"
+    if MEMORY_CONFIG_KEY in data:
+        memory = data[MEMORY_CONFIG_KEY]
+        if not isinstance(memory, Mapping):
+            return _TemplateOverrideResolution(
+                declared=True,
+                display_path=MEMORY_CONFIG_KEY,
+                error=f"{MEMORY_CONFIG_KEY} must be a mapping",
+            )
+        if memory_key in memory:
+            return _TemplateOverrideResolution(
+                value=memory[memory_key],
+                display_path=memory_path,
+                declared=True,
+            )
+    if legacy_key in data:
+        return _TemplateOverrideResolution(
+            value=data[legacy_key],
+            display_path=legacy_key,
+            declared=True,
+        )
+    return _TemplateOverrideResolution(display_path=memory_path)
+
+
 def resolve_markdown_template_override(
     root: Path,
     *,
-    key: str,
+    memory_key: str,
+    legacy_key: str,
     user_filename: str,
 ) -> tuple[Path | None, str | None]:
-    """Resolve a project or user override for a Markdown template."""
+    """Resolve a project or user override for a Markdown template.
+
+    Reads ``memory.<memory_key>`` first, falling back to the deprecated
+    top-level *legacy_key* when the nested form is not declared.
+    """
     project_config = resolve_project_config_read_path(root)
     if project_config is not None:
         data, load_error = load_yaml_mapping(project_config)
         if load_error is not None:
             return None, load_error
-        if data is not None and key in data:
-            path, path_error = _validate_template_path(
-                data[key],
-                root=root,
-                config_path=project_config,
-                key=key,
+        if data is not None:
+            resolved = _resolve_template_override_config(
+                data, memory_key=memory_key, legacy_key=legacy_key
             )
-            if path is not None or path_error is not None:
-                return path, path_error
+            if resolved.error is not None:
+                return None, f"{project_config}: {resolved.error}"
+            if resolved.declared:
+                path, path_error = _validate_template_path(
+                    resolved.value,
+                    root=root,
+                    config_path=project_config,
+                    key=resolved.display_path,
+                )
+                if path is not None or path_error is not None:
+                    return path, path_error
 
     config_dir = _user_config_dir_for_home_root(root)
     if config_dir is None:
@@ -161,12 +209,18 @@ def resolve_amd_template_override(
     minimal: bool = False,
 ) -> tuple[Path | None, str | None]:
     """Resolve a project or user override for an AMD agent template."""
-    key = _MINIMAL_TEMPLATE_KEY if minimal else _MANAGED_TEMPLATE_KEY
+    memory_key = (
+        _MEMORY_MINIMAL_TEMPLATE_KEY if minimal else _MEMORY_MANAGED_TEMPLATE_KEY
+    )
+    legacy_key = (
+        _LEGACY_MINIMAL_TEMPLATE_KEY if minimal else _LEGACY_MANAGED_TEMPLATE_KEY
+    )
     user_filename = "AGENTS.minimal.template.md" if minimal else "AGENTS.template.md"
 
     return resolve_markdown_template_override(
         root,
-        key=key,
+        memory_key=memory_key,
+        legacy_key=legacy_key,
         user_filename=user_filename,
     )
 

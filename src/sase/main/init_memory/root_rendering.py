@@ -68,7 +68,8 @@ def _render_sase_memory(
 ) -> tuple[str | None, str | None]:
     override, resolve_error = resolve_markdown_template_override(
         root,
-        key="memory_sase_template",
+        memory_key="sase_template",
+        legacy_key="memory_sase_template",
         user_filename=MEMORY_SASE_TEMPLATE_FILENAME,
     )
     if resolve_error is not None:
@@ -270,7 +271,8 @@ def _render_memory_readme(
     )
     override, resolve_error = resolve_markdown_template_override(
         root,
-        key="memory_readme_template",
+        memory_key="readme_template",
+        legacy_key="memory_readme_template",
         user_filename=MEMORY_README_TEMPLATE_FILENAME,
     )
     if resolve_error is not None:

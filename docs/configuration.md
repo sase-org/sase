@@ -467,18 +467,23 @@ memory Markdown. Managed projects can replace them with root-relative files name
 their own `sase/sase.yml`:
 
 ```yaml
-amd_agents_template: templates/AGENTS.template.md
-amd_agents_minimal_template: templates/AGENTS.minimal.template.md
-memory_sase_template: templates/memory-sase.template.md
-memory_readme_template: templates/memory-README.template.md
+memory:
+  agents_template: templates/AGENTS.template.md
+  agents_minimal_template: templates/AGENTS.minimal.template.md
+  sase_template: templates/memory-sase.template.md
+  readme_template: templates/memory-README.template.md
 ```
 
-| Field                         | Required Jinja variables                                                                  | Generated target or use               |
-| ----------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------- |
-| `amd_agents_template`         | `title`, `tier1_sections`, `tier2_entries`                                                | Managed root `AGENTS.md`              |
-| `amd_agents_minimal_template` | `title`, `tier1_sections`                                                                 | Create-if-missing minimal `AGENTS.md` |
-| `memory_sase_template`        | `project_name`, `linked_repo_entries`                                                     | Generated `sase/memory/sase.md`       |
-| `memory_readme_template`      | `memory_notes`, `total_notes`, `short_notes`, `long_notes`, `total_lines`, `total_tokens` | Generated `sase/memory/README.md`     |
+| Field                            | Required Jinja variables                                                                  | Generated target or use               |
+| -------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------- |
+| `memory.agents_template`         | `title`, `tier1_sections`, `tier2_entries`                                                | Managed root `AGENTS.md`              |
+| `memory.agents_minimal_template` | `title`, `tier1_sections`                                                                 | Create-if-missing minimal `AGENTS.md` |
+| `memory.sase_template`           | `project_name`, `linked_repo_entries`                                                     | Generated `sase/memory/sase.md`       |
+| `memory.readme_template`         | `memory_notes`, `total_notes`, `short_notes`, `long_notes`, `total_lines`, `total_tokens` | Generated `sase/memory/README.md`     |
+
+The legacy top-level `amd_agents_template`, `amd_agents_minimal_template`,
+`memory_sase_template`, and `memory_readme_template` keys are deprecated but still read
+as aliases; when both paths appear in one file, the nested `memory.*` form wins.
 
 Every configured path must remain inside the project root. Rendering uses strict
 variables: required placeholders must appear, unknown placeholders are rejected, and the

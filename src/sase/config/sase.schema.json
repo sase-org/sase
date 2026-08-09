@@ -459,27 +459,51 @@
           "additionalProperties": {
             "$ref": "#/definitions/glossaryEntry"
           }
+        },
+        "agents_template": {
+          "type": ["string", "null"],
+          "description": "Optional root-relative path to the Jinja2 template used for AMD-managed AGENTS.md files.",
+          "default": null
+        },
+        "agents_minimal_template": {
+          "type": ["string", "null"],
+          "description": "Optional root-relative path to the Jinja2 template used for create-if-missing minimal AGENTS.md files.",
+          "default": null
+        },
+        "sase_template": {
+          "type": ["string", "null"],
+          "description": "Optional root-relative path to the Jinja2 template used for generated sase/memory/sase.md files.",
+          "default": null
+        },
+        "readme_template": {
+          "type": ["string", "null"],
+          "description": "Optional root-relative path to the Jinja2 template used for generated sase/memory/README.md files.",
+          "default": null
         }
       }
     },
     "amd_agents_template": {
       "type": ["string", "null"],
-      "description": "Optional root-relative path to the Jinja2 template used for AMD-managed AGENTS.md files.",
+      "deprecated": true,
+      "description": "Deprecated top-level alias for memory.agents_template. Optional root-relative path to the Jinja2 template used for AMD-managed AGENTS.md files. New configuration must use memory.agents_template.",
       "default": null
     },
     "amd_agents_minimal_template": {
       "type": ["string", "null"],
-      "description": "Optional root-relative path to the Jinja2 template used for create-if-missing minimal AGENTS.md files.",
+      "deprecated": true,
+      "description": "Deprecated top-level alias for memory.agents_minimal_template. Optional root-relative path to the Jinja2 template used for create-if-missing minimal AGENTS.md files. New configuration must use memory.agents_minimal_template.",
       "default": null
     },
     "memory_sase_template": {
       "type": ["string", "null"],
-      "description": "Optional root-relative path to the Jinja2 template used for generated sase/memory/sase.md files.",
+      "deprecated": true,
+      "description": "Deprecated top-level alias for memory.sase_template. Optional root-relative path to the Jinja2 template used for generated sase/memory/sase.md files. New configuration must use memory.sase_template.",
       "default": null
     },
     "memory_readme_template": {
       "type": ["string", "null"],
-      "description": "Optional root-relative path to the Jinja2 template used for generated sase/memory/README.md files.",
+      "deprecated": true,
+      "description": "Deprecated top-level alias for memory.readme_template. Optional root-relative path to the Jinja2 template used for generated sase/memory/README.md files. New configuration must use memory.readme_template.",
       "default": null
     },
     "is_sase_managed": {

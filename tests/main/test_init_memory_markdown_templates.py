@@ -166,6 +166,36 @@ def test_user_memory_templates_resolve_from_chezmoi_source_config_dir(
     assert chezmoi_home / "sase" / "memory" / "sase.md" in deployed
 
 
+def test_nested_memory_sase_and_readme_templates_override_render(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _patch_roots(tmp_path, monkeypatch)
+    write(
+        project_root / "sase.yml",
+        "is_sase_managed: true\n"
+        "memory:\n"
+        "  sase_template: templates/sase.md\n"
+        "  readme_template: templates/readme.md\n",
+    )
+    write(project_root / "templates" / "sase.md", _sase_template("Nested SASE."))
+    write(
+        project_root / "templates" / "readme.md",
+        _readme_template("Nested README."),
+    )
+
+    assert run_handler() == 0
+
+    sase_memory = (project_root / "sase" / "memory" / "sase.md").read_text(
+        encoding="utf-8"
+    )
+    readme = (project_root / "sase" / "memory" / "README.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Nested SASE." in sase_memory
+    assert "Nested README." in readme
+
+
 def test_default_sase_template_names_linked_and_sidecar_repositories(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
