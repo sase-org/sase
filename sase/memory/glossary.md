@@ -87,8 +87,6 @@ that. The system-managed `home` project remains hidden.
 
 ## Sase Repo
 
-ALIASES: repository
-
 A sase repo is any repository SASE knows: a project's primary repo, an SDD sidecar repo
 (`<project>--plans` or `<project>--research`), or a repo declared through
 `linked_repos:`.
