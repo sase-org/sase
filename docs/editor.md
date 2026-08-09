@@ -73,7 +73,7 @@ The xprompt language server is focused on prompt and xprompt editing:
 | Snippets              | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                                                                                                                                                           |
 | Hover                 | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints. Memory entries also show their kind and tier (`short`/`long`).                                                                                                                                      |
 | Diagnostics           | Reports xprompt/directive issues plus malformed or unresolved filesystem-backed artifact references outside prompt literal zones.                                                                                                                                                                       |
-| Semantic highlighting | Highlights the kind, payload, and supported fragment of known artifact references outside prompt literal zones using standard LSP semantic tokens.                                                                                                                                                      |
+| Semantic highlighting | Highlights the kind, payload, and supported fragment of known artifact references, plus glossary phrases, outside prompt literal zones using standard LSP semantic tokens.                                                                                                                              |
 | Definition            | Jumps from xprompt and slash-skill references to real source files when the catalog provides a resolvable path, including the backing note for `#memory/<stem>`.                                                                                                                                        |
 
 Snippet completions come from the same registry ACE uses: xprompts with `snippet` front
@@ -162,10 +162,10 @@ body when one is available.
 Artifact-reference semantic tokens use the standard LSP legend: `namespace` for the
 kind, `string` for the payload, and `number` for the fragment. Dynamic document-role
 references carry the standard `documentation` modifier; builtin references do not.
-Editors therefore use their normal semantic-token theme without SASE-specific client
-configuration. The provider currently emits artifact-reference tokens only. Neovim's
-native LSP semantic-token support consumes this capability directly, so the `sase-nvim`
-plugin needs no matching syntax or capability changes.
+Glossary phrases are emitted as standard `type` semantic tokens. Other editors style
+those tokens with their normal semantic-token theme; `sase-nvim` keeps that color and
+adds an overridable `SaseGlossaryTerm` underline on top through Neovim's
+`LspTokenUpdate` hook.
 
 ## Helper Bridge
 
