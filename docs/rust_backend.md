@@ -665,8 +665,10 @@ equivalent change in the corresponding `sase-core` Rust parity test
 
 ACE can opportunistically prebuild editable `sase-core` Rust artifacts while an update
 is only being advertised. The producer runs detached from the automatic update-status
-worker when `ace.updates.prebuild_rust` is true and the cached status reports an
-editable core checkout behind its upstream.
+worker when `ace.updates.prebuild_rust` is true (the default) and the cached status
+reports an editable core checkout behind its upstream. Set
+`ace.updates.prebuild_rust: false` in config to disable it; `sase update` then always
+runs the normal `just rust-dev-install-uv-tool` build path.
 
 The cache lives under `~/.sase/cache/rust-prebuild/`. Each completed set is stamped with
 the exact upstream core commit, `Cargo.lock` digest, `rustc --version`, Rust dev

@@ -348,6 +348,31 @@ def test_producer_lock_refuses_overlap(tmp_path: Path) -> None:
     assert runner.calls == []
 
 
+def test_produce_refuses_while_update_writer_lock_held(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    locks_dir = tmp_path / "locks"
+    locks_dir.mkdir()
+    (locks_dir / "code-swap.lock").write_text(
+        json.dumps({"pid": 999, "op": "dev.update", "command": [], "blocking": True}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(prebuild, "sase_subdir", lambda name: tmp_path / name)
+    runner = FakeRunner(core_root=tmp_path / "live")
+
+    outcome = prebuild._produce_prebuild(  # noqa: SLF001
+        source_root=tmp_path / "live",
+        upstream_ref="origin/main",
+        target_python=runner.python,
+        root=tmp_path / "cache",
+        run=runner,
+    )
+
+    assert outcome.hit is False
+    assert runner.calls == []
+
+
 def test_successful_producer_writes_stamp_last_and_prunes_to_two(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
