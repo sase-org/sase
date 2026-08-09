@@ -1,6 +1,6 @@
 """sase.core facade for the provider-agnostic VCS-log parser/aggregator.
 
-The two helpers shared by the ``vcs_log`` provider hook and the
+The helpers shared by the ``vcs_log`` provider hook and the
 ``sase vcs log`` collection service:
 
 - :func:`parse_git_log` — parse the pinned, separator-delimited
@@ -8,11 +8,14 @@ The two helpers shared by the ``vcs_log`` provider hook and the
 - :func:`aggregate_commit_log` — interleave ``(repo_label, commits)``
   pairs into a single newest-first ``list[AggregatedCommitWire]``,
   truncated to a limit.
+- :func:`merge_summary` — strictly summarize a recognized merge-commit
+  subject into a :class:`MergeSummary`, or ``None`` for anything not
+  fully recognized.
 
-Both are *pure functions* over data the host already collected (a
-``git log`` stdout string, or per-repo commit lists); the host stays
-responsible for running the command, resolving repos, handling process
-errors, and rendering.
+Both parser/aggregator helpers are *pure functions* over data the host
+already collected (a ``git log`` stdout string, or per-repo commit
+lists); the host stays responsible for running the command, resolving
+repos, handling process errors, and rendering.
 
 Rust-backed helpers call ``sase_core_rs`` directly through
 :func:`sase.core.rust.require_rust_binding`. The ``*_python`` helpers
@@ -27,7 +30,8 @@ The unit/record separators pinned here MUST match the ``git log``
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
+from typing import Literal
 
 from sase.core.rust import require_rust_binding
 from sase.core.vcs_log_wire import (
@@ -44,18 +48,36 @@ VCS_LOG_UNIT_SEP = "\x1f"
 VCS_LOG_RECORD_SEP = "\x1e"
 
 #: The pinned ``git log --format=<...>`` string: full id, short id, author
-#: name, author email, epoch author time, subject, body — unit-separated,
-#: record-terminated. Multi-line bodies never corrupt parsing because the
-#: record separator is a control character git never emits inside a
-#: message.
+#: name, author email, epoch author time, parent ids, subject, body —
+#: unit-separated, record-terminated. Multi-line bodies never corrupt
+#: parsing because the record separator is a control character git never
+#: emits inside a message. ``%P`` MUST stay immediately before ``%s``:
+#: the parser uses a bounded split, so the final field absorbs any extra
+#: separators, and only the message fields are safe to put last.
 VCS_LOG_GIT_FORMAT = (
     f"%H{VCS_LOG_UNIT_SEP}%h{VCS_LOG_UNIT_SEP}%an{VCS_LOG_UNIT_SEP}"
-    f"%ae{VCS_LOG_UNIT_SEP}%at{VCS_LOG_UNIT_SEP}%s{VCS_LOG_UNIT_SEP}%b"
-    f"{VCS_LOG_RECORD_SEP}"
+    f"%ae{VCS_LOG_UNIT_SEP}%at{VCS_LOG_UNIT_SEP}%P{VCS_LOG_UNIT_SEP}%s"
+    f"{VCS_LOG_UNIT_SEP}%b{VCS_LOG_RECORD_SEP}"
 )
 
-#: Number of unit-separated fields per record.
-_FIELD_COUNT = 7
+#: Number of unit-separated fields in the current record layout (with
+#: ``%P``).
+_FIELD_COUNT = 8
+#: Number of unit-separated fields in the legacy record layout (without
+#: ``%P``), still accepted so a newer wheel paired with an older host
+#: keeps working.
+_LEGACY_FIELD_COUNT = 7
+
+
+def _parse_parent_ids(value: str) -> tuple[str, ...]:
+    """Split a ``%P``-style space-separated parent-id field.
+
+    An empty field means zero parents (a root commit), which is normal,
+    not malformed.
+    """
+    if not value:
+        return ()
+    return tuple(part for part in value.split(" ") if part)
 
 
 def _parse_git_log_python(stdout: str) -> list[VcsCommitWire]:
@@ -63,9 +85,10 @@ def _parse_git_log_python(stdout: str) -> list[VcsCommitWire]:
 
     Splits the stream on the record separator, tolerates the newline git
     inserts after each record, and drops any record that does not split
-    into exactly seven fields or whose timestamp is not an integer, so one
-    malformed record cannot poison the list. ``subject`` and ``body`` are
-    preserved verbatim; only the id and timestamp fields are trimmed.
+    into exactly seven (legacy) or eight (current) fields or whose
+    timestamp is not an integer, so one malformed record cannot poison the
+    list. ``subject`` and ``body`` are preserved verbatim; only the id,
+    timestamp, and parent-id fields are trimmed/parsed.
     """
     if not stdout:
         return []
@@ -75,12 +98,20 @@ def _parse_git_log_python(stdout: str) -> list[VcsCommitWire]:
         if not chunk.strip():
             continue
         fields = chunk.split(VCS_LOG_UNIT_SEP, _FIELD_COUNT - 1)
-        if len(fields) != _FIELD_COUNT:
+        if len(fields) not in (_LEGACY_FIELD_COUNT, _FIELD_COUNT):
             continue
         try:
             timestamp = int(fields[4].strip())
         except ValueError:
             continue
+        if len(fields) == _FIELD_COUNT:
+            parent_ids = _parse_parent_ids(fields[5])
+            subject = fields[6]
+            body = fields[7]
+        else:
+            parent_ids = ()
+            subject = fields[5]
+            body = fields[6]
         commits.append(
             VcsCommitWire(
                 full_id=fields[0].strip(),
@@ -88,8 +119,9 @@ def _parse_git_log_python(stdout: str) -> list[VcsCommitWire]:
                 author_name=fields[2],
                 author_email=fields[3],
                 timestamp=timestamp,
-                subject=fields[5],
-                body=fields[6],
+                parent_ids=parent_ids,
+                subject=subject,
+                body=body,
             )
         )
     return commits
@@ -188,11 +220,65 @@ def classify_commit_presence(
     return result if result == golden else result
 
 
+#: Recognized merge-subject family, mirroring the Rust
+#: ``MergeSummaryKindWire`` enum's ``snake_case`` serialization.
+MergeSummaryKind = Literal["pull_request", "branch", "remote_branch"]
+
+
+@dataclass(frozen=True)
+class MergeSummary:
+    """Structured summary for a recognized merge-commit subject.
+
+    Attributes:
+        kind: Which recognized merge-subject family matched.
+        reference: The PR number for a ``pull_request`` summary, ``None``
+            otherwise.
+        source: The source branch (``org/feature`` for a PR merge, the
+            bare branch name otherwise).
+        target: The ``into <target>`` branch, when the subject names one.
+        headline: The first non-empty body line (a PR's title), or
+            ``None`` when the body has none.
+    """
+
+    kind: MergeSummaryKind
+    reference: str | None
+    source: str | None
+    target: str | None
+    headline: str | None
+
+
+def merge_summary(subject: str, body: str) -> MergeSummary | None:
+    """Strictly summarize a recognized merge-commit subject.
+
+    Calls ``sase_core_rs.parse_merge_summary`` directly. Returns ``None``
+    for any subject that is not fully recognized — callers must render the
+    raw subject in that case rather than risk a misleading condensation.
+    """
+    binding = require_rust_binding("parse_merge_summary")
+    raw: dict[str, object] | None = binding(subject, body)
+    if raw is None:
+        return None
+    return MergeSummary(
+        kind=str(raw["kind"]),  # type: ignore[arg-type]
+        reference=_optional_str(raw.get("reference")),
+        source=_optional_str(raw.get("source")),
+        target=_optional_str(raw.get("target")),
+        headline=_optional_str(raw.get("headline")),
+    )
+
+
+def _optional_str(value: object) -> str | None:
+    return None if value is None else str(value)
+
+
 __all__ = [
     "VCS_LOG_GIT_FORMAT",
     "VCS_LOG_RECORD_SEP",
     "VCS_LOG_UNIT_SEP",
+    "MergeSummary",
+    "MergeSummaryKind",
     "aggregate_commit_log",
     "classify_commit_presence",
+    "merge_summary",
     "parse_git_log",
 ]

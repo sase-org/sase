@@ -29,11 +29,13 @@ from sase.core.vcs_log_facade import (
     VCS_LOG_GIT_FORMAT,
     VCS_LOG_RECORD_SEP,
     VCS_LOG_UNIT_SEP,
+    MergeSummary,
     _aggregate_commit_log_python,
     _classify_commit_presence_python,
     _parse_git_log_python,
     aggregate_commit_log,
     classify_commit_presence,
+    merge_summary,
     parse_git_log,
 )
 from sase.core.vcs_log_wire import (
@@ -64,19 +66,39 @@ def _record(
     name: str,
     email: str,
     ts: str,
+    parents: str,
     subject: str,
     body: str,
 ) -> str:
+    return (
+        f"{full}{US}{short}{US}{name}{US}{email}{US}{ts}{US}{parents}{US}"
+        f"{subject}{US}{body}{RS}"
+    )
+
+
+def _legacy_record(
+    full: str,
+    short: str,
+    name: str,
+    email: str,
+    ts: str,
+    subject: str,
+    body: str,
+) -> str:
+    """A pre-schema-3 record: no ``%P`` field."""
     return f"{full}{US}{short}{US}{name}{US}{email}{US}{ts}{US}{subject}{US}{body}{RS}"
 
 
-def _commit(full: str, ts: int, subject: str = "s") -> VcsCommitWire:
+def _commit(
+    full: str, ts: int, subject: str = "s", parent_ids: tuple[str, ...] = ()
+) -> VcsCommitWire:
     return VcsCommitWire(
         full_id=full,
         short_id=full[:7],
         author_name="bryan",
         author_email="bryan@example.com",
         timestamp=ts,
+        parent_ids=parent_ids,
         subject=subject,
         body="",
     )
@@ -98,6 +120,7 @@ def test_parse_single_commit_all_fields() -> None:
         "bryan",
         "bryan@example.com",
         "1700000000",
+        "parent0",
         "fix(sdd): link store",
         "",
     )
@@ -108,17 +131,40 @@ def test_parse_single_commit_all_fields() -> None:
             author_name="bryan",
             author_email="bryan@example.com",
             timestamp=1700000000,
+            parent_ids=("parent0",),
             subject="fix(sdd): link store",
             body="",
         )
     ]
 
 
+def test_parse_root_commit_has_empty_parent_ids() -> None:
+    stream = _record("r1", "r1", "bryan", "b@x", "300", "", "root", "")
+    parsed = parse_git_log(stream)
+    assert parsed[0].parent_ids == ()
+    assert parsed[0].is_merge is False
+
+
+def test_parse_octopus_merge_has_all_parent_ids() -> None:
+    stream = _record("m1", "m1", "bryan", "b@x", "300", "p1 p2 p3", "Merge octopus", "")
+    parsed = parse_git_log(stream)
+    assert parsed[0].parent_ids == ("p1", "p2", "p3")
+    assert parsed[0].is_merge is True
+
+
+def test_parse_legacy_seven_field_record_has_no_parent_ids() -> None:
+    stream = _legacy_record("h1", "s1", "bryan", "b@x", "300", "legacy", "body")
+    parsed = parse_git_log(stream)
+    assert parsed[0].parent_ids == ()
+    assert parsed[0].subject == "legacy"
+    assert parsed[0].body == "body"
+
+
 def test_parse_strips_newline_git_inserts_between_records() -> None:
     stream = (
-        _record("h1", "s1", "bryan", "b@x", "300", "first", "")
+        _record("h1", "s1", "bryan", "b@x", "300", "", "first", "")
         + "\n"
-        + _record("h2", "s2", "bryan", "b@x", "200", "second", "")
+        + _record("h2", "s2", "bryan", "b@x", "200", "", "second", "")
         + "\n"
     )
     parsed = parse_git_log(stream)
@@ -127,21 +173,21 @@ def test_parse_strips_newline_git_inserts_between_records() -> None:
 
 def test_parse_multiline_body_preserved() -> None:
     body = "detail line one\ndetail line two"
-    stream = _record("h1", "s1", "bryan", "b@x", "300", "subject", body)
+    stream = _record("h1", "s1", "bryan", "b@x", "300", "", "subject", body)
     parsed = parse_git_log(stream)
     assert parsed[0].body == body
 
 
 def test_parse_drops_record_with_too_few_fields() -> None:
     malformed = f"h1{US}s1{US}bryan{US}b@x{US}300{US}subject{RS}"
-    good = _record("h2", "s2", "bryan", "b@x", "200", "ok", "")
+    good = _record("h2", "s2", "bryan", "b@x", "200", "", "ok", "")
     parsed = parse_git_log(malformed + good)
     assert [c.full_id for c in parsed] == ["h2"]
 
 
 def test_parse_drops_record_with_bad_timestamp() -> None:
-    bad = _record("h1", "s1", "bryan", "b@x", "not-a-number", "x", "")
-    good = _record("h2", "s2", "bryan", "b@x", "200", "ok", "")
+    bad = _record("h1", "s1", "bryan", "b@x", "not-a-number", "", "x", "")
+    good = _record("h2", "s2", "bryan", "b@x", "200", "", "ok", "")
     parsed = parse_git_log(bad + good)
     assert [c.full_id for c in parsed] == ["h2"]
 
@@ -198,14 +244,17 @@ def test_aggregate_negative_limit_is_unlimited() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_vcs_log_wire_schema_version_is_two() -> None:
-    assert VCS_LOG_WIRE_SCHEMA_VERSION == 2
+def test_vcs_log_wire_schema_version_is_three() -> None:
+    assert VCS_LOG_WIRE_SCHEMA_VERSION == 3
 
 
 def test_vcs_commit_round_trips_through_dict() -> None:
     from dataclasses import asdict, replace
 
-    commit = replace(_commit("deadbeef", 42, "subject"), presence="local_only")
+    commit = replace(
+        _commit("deadbeef", 42, "subject", parent_ids=("parent0",)),
+        presence="local_only",
+    )
     assert vcs_commit_from_dict(asdict(commit)) == commit
 
 
@@ -222,6 +271,19 @@ def test_vcs_commit_missing_presence_defaults_unknown() -> None:
     assert vcs_commit_from_dict(data).presence == "unknown"
 
 
+def test_vcs_commit_missing_parent_ids_defaults_empty_tuple() -> None:
+    data = {
+        "full_id": "deadbeef",
+        "short_id": "deadbee",
+        "author_name": "bryan",
+        "author_email": "bryan@example.com",
+        "timestamp": 42,
+        "subject": "subject",
+        "body": "",
+    }
+    assert vcs_commit_from_dict(data).parent_ids == ()
+
+
 def test_aggregated_commit_from_flat_dict() -> None:
     flat = {
         "repo": "sase",
@@ -230,6 +292,7 @@ def test_aggregated_commit_from_flat_dict() -> None:
         "author_name": "bryan",
         "author_email": "bryan@example.com",
         "timestamp": 1700000000,
+        "parent_ids": ["parent0", "parent1"],
         "subject": "fix: thing",
         "body": "",
         "presence": "remote_only",
@@ -243,6 +306,7 @@ def test_aggregated_commit_from_flat_dict() -> None:
             author_name="bryan",
             author_email="bryan@example.com",
             timestamp=1700000000,
+            parent_ids=("parent0", "parent1"),
             subject="fix: thing",
             body="",
             presence="remote_only",
@@ -251,9 +315,11 @@ def test_aggregated_commit_from_flat_dict() -> None:
 
 
 def test_git_format_uses_pinned_separators() -> None:
-    # The format string must pin exactly seven fields terminated by the
+    # The format string must pin exactly eight fields terminated by the
     # record separator, so the parser and the git command stay in sync.
-    assert VCS_LOG_GIT_FORMAT == (f"%H{US}%h{US}%an{US}%ae{US}%at{US}%s{US}%b{RS}")
+    assert VCS_LOG_GIT_FORMAT == (
+        f"%H{US}%h{US}%an{US}%ae{US}%at{US}%P{US}%s{US}%b{RS}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -263,11 +329,26 @@ def test_git_format_uses_pinned_separators() -> None:
 
 def test_parse_matches_python_golden() -> None:
     stream = (
-        _record("h1", "s1", "bryan", "b@x", "300", "first", "body\nmore")
+        _record("h1", "s1", "bryan", "b@x", "300", "p0", "first", "body\nmore")
         + "\n"
-        + _record("h2", "s2", "amy", "a@x", "200", "second", "")
+        + _record("h2", "s2", "amy", "a@x", "200", "", "second", "")
         + "\n"
     )
+    assert parse_git_log(stream) == _parse_git_log_python(stream)
+
+
+def test_parse_matches_python_golden_legacy_seven_field_record() -> None:
+    stream = _legacy_record("h1", "s1", "bryan", "b@x", "300", "legacy", "body")
+    assert parse_git_log(stream) == _parse_git_log_python(stream)
+
+
+def test_parse_matches_python_golden_root_commit_zero_parents() -> None:
+    stream = _record("h1", "s1", "bryan", "b@x", "300", "", "root", "")
+    assert parse_git_log(stream) == _parse_git_log_python(stream)
+
+
+def test_parse_matches_python_golden_octopus_merge() -> None:
+    stream = _record("h1", "s1", "bryan", "b@x", "300", "p1 p2 p3", "octopus", "")
     assert parse_git_log(stream) == _parse_git_log_python(stream)
 
 
@@ -412,3 +493,92 @@ def test_classify_routes_through_registered_binding(
     assert captured["behind_ids"] == []
     assert captured["commits"][0]["full_id"] == "a"
     assert result[0].presence == "local_only"
+
+
+# ---------------------------------------------------------------------------
+# merge_summary
+# ---------------------------------------------------------------------------
+
+
+def test_merge_summary_recognizes_pull_request() -> None:
+    summary = merge_summary(
+        "Merge pull request #123 from org/feature-branch",
+        "\nFeature title\n\nDetails",
+    )
+    assert summary == MergeSummary(
+        kind="pull_request",
+        reference="123",
+        source="org/feature-branch",
+        target=None,
+        headline="Feature title",
+    )
+
+
+def test_merge_summary_recognizes_branch_into_target() -> None:
+    summary = merge_summary("Merge branch 'feature' into master", "")
+    assert summary == MergeSummary(
+        kind="branch",
+        reference="feature",
+        source="feature",
+        target="master",
+        headline=None,
+    )
+
+
+def test_merge_summary_recognizes_remote_tracking_branch() -> None:
+    summary = merge_summary("Merge remote-tracking branch 'origin/feature'", "")
+    assert summary == MergeSummary(
+        kind="remote_branch",
+        reference="origin/feature",
+        source="origin/feature",
+        target=None,
+        headline=None,
+    )
+
+
+def test_merge_summary_returns_none_for_unrecognized_subject() -> None:
+    assert merge_summary("Merge unknown shape", "") is None
+
+
+def test_merge_summary_missing_wheel_raises_import_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _force_no_rust_extension(monkeypatch)
+    with pytest.raises(ImportError):
+        merge_summary("Merge branch 'feature'", "")
+
+
+def test_merge_summary_routes_through_registered_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_parse_merge_summary(subject: str, body: str) -> dict[str, object] | None:
+        captured["subject"] = subject
+        captured["body"] = body
+        return {
+            "kind": "branch",
+            "reference": "feature",
+            "source": "feature",
+            "target": None,
+            "headline": None,
+        }
+
+    _install_fake_module(monkeypatch, parse_merge_summary=fake_parse_merge_summary)
+    result = merge_summary("Merge branch 'feature'", "")
+
+    assert captured == {"subject": "Merge branch 'feature'", "body": ""}
+    assert result == MergeSummary(
+        kind="branch",
+        reference="feature",
+        source="feature",
+        target=None,
+        headline=None,
+    )
+
+
+def test_merge_summary_routes_none_through_registered_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_module(monkeypatch, parse_merge_summary=lambda _s, _b: None)
+    assert merge_summary("Merge unknown shape", "") is None

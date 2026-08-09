@@ -34,7 +34,7 @@ JSON shape conventions
   job.
 - ``AggregatedCommitWire`` JSON is flat:
   ``{"repo", "full_id", "short_id", "author_name", "author_email",
-  "timestamp", "subject", "body", "presence"}``.
+  "timestamp", "parent_ids", "subject", "body", "presence"}``.
 
 Schema version
 --------------
@@ -46,10 +46,10 @@ its serde structs; mismatches surface immediately in the rehydrators.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
-VCS_LOG_WIRE_SCHEMA_VERSION = 2
+VCS_LOG_WIRE_SCHEMA_VERSION = 3
 
 CommitPresence = Literal["synced", "remote_only", "local_only", "unknown"]
 
@@ -70,6 +70,9 @@ class VcsCommitWire:
         timestamp: Epoch author time in seconds. Used for
             timezone-independent sorting; the host formats wall-clock time
             from this.
+        parent_ids: Full parent commit ids (git: ``%P``). Empty for a root
+            commit, one entry for an ordinary commit, two or more for a
+            merge.
         subject: First line of the commit message.
         body: Remaining commit-message body (may be empty or multi-line).
         presence: Local/remote presence classification.
@@ -80,9 +83,15 @@ class VcsCommitWire:
     author_name: str
     author_email: str
     timestamp: int
+    parent_ids: tuple[str, ...] = field(default=(), kw_only=True)
     subject: str
     body: str
     presence: CommitPresence = "unknown"
+
+    @property
+    def is_merge(self) -> bool:
+        """Whether this commit has more than one parent."""
+        return len(self.parent_ids) > 1
 
 
 @dataclass(frozen=True)
@@ -111,6 +120,7 @@ def vcs_commit_from_dict(data: dict[str, Any]) -> VcsCommitWire:
         author_name=str(data["author_name"]),
         author_email=str(data["author_email"]),
         timestamp=int(data["timestamp"]),
+        parent_ids=_parent_ids_from_dict(data),
         subject=str(data["subject"]),
         body=str(data["body"]),
         presence=_presence_from_dict(data),
@@ -145,3 +155,10 @@ def _presence_from_dict(data: dict[str, Any]) -> CommitPresence:
     if raw in _PRESENCE_VALUES:
         return raw  # type: ignore[return-value]
     return "unknown"
+
+
+def _parent_ids_from_dict(data: dict[str, Any]) -> tuple[str, ...]:
+    raw = data.get("parent_ids")
+    if raw is None:
+        return ()
+    return tuple(str(item) for item in raw)

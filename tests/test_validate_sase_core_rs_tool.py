@@ -166,6 +166,34 @@ def test_validate_sase_core_rs_requires_current_artifact_ref_contract() -> None:
         )
 
 
+def test_validate_sase_core_rs_requires_vcs_log_bindings() -> None:
+    validator = _load_validate_sase_core_rs()
+    vcs_log_bindings = {"vcs_log_wire_schema_version", "parse_merge_summary"}
+
+    assert vcs_log_bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in vcs_log_bindings:
+        assert not validator._validate_bindings(
+            _module_with_required_bindings(validator, missing={binding})
+        )
+
+
+def test_validate_sase_core_rs_requires_vcs_log_wire_schema_three() -> None:
+    validator = _load_validate_sase_core_rs()
+
+    def _raise() -> int:
+        raise RuntimeError("stale wheel")
+
+    assert validator._validate_vcs_log_wire_schema(
+        SimpleNamespace(vcs_log_wire_schema_version=lambda: 3)
+    )
+    assert not validator._validate_vcs_log_wire_schema(
+        SimpleNamespace(vcs_log_wire_schema_version=lambda: 2)
+    )
+    assert not validator._validate_vcs_log_wire_schema(
+        SimpleNamespace(vcs_log_wire_schema_version=_raise)
+    )
+
+
 def _skill_layout_payload(
     *,
     schema_version: int = 5,
