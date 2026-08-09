@@ -218,8 +218,107 @@ jobs:
           /tmp/smoke-venv/bin/python -c "import sase_core_rs; print(sase_core_rs.__file__); print(getattr(sase_core_rs, '__version__', '<no __version__>'))" || true
           echo "::endgroup::"
 
+  install-smoke-core-floor:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: astral-sh/setup-uv@v4
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install built sase wheel with exact core floor
+        run: |
+          set -euo pipefail
+          core_minimum="$(python3 tools/smoke_sase_core_rs_telemetry --print-minimum pyproject.toml)"
+          echo "CORE_MINIMUM=$core_minimum" >> "$GITHUB_ENV"
+          uv venv --python 3.12 /tmp/smoke-floor-venv
+          uv pip install --python /tmp/smoke-floor-venv/bin/python "sase-core-rs==${core_minimum}" dist/sase-*.whl
+      - name: Assert exact core floor is installed
+        run: |
+          /tmp/smoke-floor-venv/bin/python - <<'PY'
+          import importlib.metadata
+          import os
+          import sys
+
+          expected = os.environ["CORE_MINIMUM"]
+          actual = importlib.metadata.version("sase-core-rs")
+          if actual != expected:
+              print(f"expected sase-core-rs=={expected}, got {actual}", file=sys.stderr)
+              sys.exit(1)
+          print(f"sase-core-rs floor confirmed: {actual}")
+          PY
+      - name: Health check (Rust extension loadable)
+        run: /tmp/smoke-floor-venv/bin/sase core health --json
+      - name: Smoke public install commands
+        run: |
+          set -euo pipefail
+
+          /tmp/smoke-floor-venv/bin/sase version
+
+          doctor_json="$(mktemp)"
+          doctor_status=0
+          clean_home="$(mktemp -d)"
+          SASE_HOME="$clean_home" HOME="$clean_home" PATH="/tmp/smoke-floor-venv/bin:/usr/bin:/bin" \
+            /tmp/smoke-floor-venv/bin/sase doctor -C llm.default -j > "$doctor_json" || doctor_status=$?
+          cat "$doctor_json"
+          /tmp/smoke-floor-venv/bin/python - "$doctor_json" "$doctor_status" <<'PY'
+          import json
+          import sys
+
+          path = sys.argv[1]
+          doctor_status = int(sys.argv[2])
+          with open(path, encoding="utf-8") as fp:
+              payload = json.load(fp)
+
+          checks = payload.get("checks", [])
+          summary = checks[0].get("summary", "") if checks else ""
+          expected_missing_provider = (
+              payload.get("status") == "ERROR"
+              and "no usable default LLM provider executable was found" in summary
+          )
+
+          if doctor_status == 0 and payload.get("status") == "OK":
+              print("Provider readiness smoke passed.")
+          elif doctor_status == 1 and expected_missing_provider:
+              print("Provider readiness smoke produced the expected CI diagnostic.")
+          else:
+              print(
+                  "Unexpected provider readiness result: "
+                  f"exit={doctor_status}, status={payload.get('status')!r}, summary={summary!r}",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          PY
+
+          /tmp/smoke-floor-venv/bin/sase run --help | tee /tmp/sase-run-help.txt
+          grep -Fq "[PROMPT]" /tmp/sase-run-help.txt
+          grep -Fq 'sase run "#git:home summarize what this repository does; do not change files"' /tmp/sase-run-help.txt
+          grep -Fq "sase chat list" /tmp/sase-run-help.txt
+      # Surface platform / extension version details when the smoke
+      # step above fails so the build log is enough to diagnose a
+      # missing-wheel or ABI-mismatch issue without a manual repro step.
+      - name: Report extension diagnostics on failure
+        if: failure()
+        run: |
+          echo "::group::sase core health --json"
+          /tmp/smoke-floor-venv/bin/sase core health --json || true
+          echo "::endgroup::"
+          echo "::group::installed packages"
+          /tmp/smoke-floor-venv/bin/python -m pip list || true
+          echo "::endgroup::"
+          echo "::group::python / platform"
+          /tmp/smoke-floor-venv/bin/python -c "import platform, sys; print(sys.version); print(platform.platform()); print(platform.machine())"
+          echo "::endgroup::"
+          echo "::group::sase_core_rs module probe"
+          /tmp/smoke-floor-venv/bin/python -c "import sase_core_rs; print(sase_core_rs.__file__); print(getattr(sase_core_rs, '__version__', '<no __version__>'))" || true
+          echo "::endgroup::"
+
   publish:
-    needs: [release, build, install-smoke]
+    needs: [release, build, install-smoke, install-smoke-core-floor]
     if: ${{ needs.release.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == true) }}
     runs-on: ubuntu-latest
     environment: pypi

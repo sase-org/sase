@@ -33,9 +33,20 @@ def _load_ci_workflow() -> dict[str, Any]:
     return yaml.safe_load(workflow_path.read_text())
 
 
+def _load_publish_workflow() -> dict[str, Any]:
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "publish.yml"
+    return yaml.safe_load(workflow_path.read_text())
+
+
 def _load_setup_sase_action() -> dict[str, Any]:
     action_path = REPO_ROOT / ".github" / "actions" / "setup-sase" / "action.yml"
     return yaml.safe_load(action_path.read_text())
+
+
+def _job_run_text(job: dict[str, Any]) -> str:
+    return "\n".join(
+        step.get("run", "") for step in job["steps"] if isinstance(step.get("run"), str)
+    )
 
 
 def _setup_sase_install_script() -> str:
@@ -242,6 +253,43 @@ def test_contexts_databases_are_portable_between_machines() -> None:
     assert "branch = false" in config
 
 
+def test_release_branch_core_floor_lane_uses_published_floor() -> None:
+    workflow = _load_ci_workflow()
+    job = workflow["jobs"]["release-core-floor-smoke"]
+
+    assert job["if"] == (
+        "github.event_name == 'pull_request' && "
+        "github.event.pull_request.head.ref == "
+        "'release-please--branches--master'"
+    )
+    assert "needs" not in job
+    assert job["timeout-minutes"] == 30
+    assert not any(
+        step.get("uses") == "./.github/actions/setup-sase" for step in job["steps"]
+    )
+    assert not any(
+        step.get("with", {}).get("name") == "sase-core-wheel"
+        for step in job["steps"]
+        if step.get("uses") == "actions/download-artifact@v4"
+    )
+
+    run_text = _job_run_text(job)
+    assert (
+        "tools/smoke_sase_core_rs_telemetry --print-minimum pyproject.toml" in run_text
+    )
+    assert '"sase-core-rs==${core_minimum}"' in run_text
+    assert 'importlib.metadata.version("sase-core-rs")' in run_text
+    assert "actual != expected" in run_text
+    assert "tools/check_sase_core_rs_bindings" in run_text
+    assert "tools/validate_sase_core_rs" in run_text
+    assert "tools/smoke_sase_core_rs_telemetry" in run_text
+    assert "tools/smoke_sase_core_rs_at_reference_file_gate" in run_text
+    assert "tools/smoke_sase_core_rs_bead_resolution" in run_text
+    assert "tools/smoke_sase_core_rs_plan_header" in run_text
+    assert "mapfile -t contract_files < tests/contract_manifest.txt" in run_text
+    assert "python -m pytest -m contract" in run_text
+
+
 def test_ci_never_runs_the_diff_scoped_test_lane() -> None:
     """CI always exercises the exhaustive lane; the scoped lane is a local, agent-only fast path.
 
@@ -340,6 +388,37 @@ def test_setup_sase_action_exports_wheel_for_the_whole_job() -> None:
     install_script = _setup_sase_install_script()
 
     assert 'echo "SASE_CORE_WHEEL=${wheels[0]}" >> "$GITHUB_ENV"' in install_script
+
+
+def test_publish_depends_on_floor_exact_install_smoke() -> None:
+    workflow = _load_publish_workflow()
+    jobs = workflow["jobs"]
+
+    assert "install-smoke-core-floor" in jobs
+    assert jobs["install-smoke-core-floor"]["needs"] == "build"
+    assert jobs["publish"]["needs"] == [
+        "release",
+        "build",
+        "install-smoke",
+        "install-smoke-core-floor",
+    ]
+
+    free_resolution = _job_run_text(jobs["install-smoke"])
+    floor_exact = _job_run_text(jobs["install-smoke-core-floor"])
+    assert '"sase-core-rs==${core_minimum}"' not in free_resolution
+    assert (
+        "tools/smoke_sase_core_rs_telemetry --print-minimum pyproject.toml"
+        in floor_exact
+    )
+    assert '"sase-core-rs==${core_minimum}"' in floor_exact
+    assert 'importlib.metadata.version("sase-core-rs")' in floor_exact
+    assert "actual != expected" in floor_exact
+    assert "/tmp/smoke-floor-venv/bin/sase core health --json" in floor_exact
+    assert "/tmp/smoke-floor-venv/bin/sase version" in floor_exact
+    assert "/tmp/smoke-floor-venv/bin/sase doctor -C llm.default -j" in floor_exact
+    assert "/tmp/smoke-floor-venv/bin/sase run --help" in floor_exact
+    assert 'grep -Fq "[PROMPT]"' in floor_exact
+    assert 'grep -Fq "sase chat list"' in floor_exact
 
 
 def test_wheel_consumer_jobs_run_just_recipes_after_setup() -> None:

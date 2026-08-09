@@ -398,3 +398,57 @@ jobs:
         run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_bead_resolution
       - name: Smoke plan-header binding round trip
         run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_plan_header
+
+  # The release-please branch carries the package metadata that will be
+  # published. Test it against the declared PyPI floor, not the source-built
+  # core artifact used by feature and master source lanes.
+  release-core-floor-smoke:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'release-please--branches--master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install SASE with exact published core floor
+        run: |
+          set -euo pipefail
+          core_minimum="$(python3 tools/smoke_sase_core_rs_telemetry --print-minimum pyproject.toml)"
+          echo "CORE_MINIMUM=$core_minimum" >> "$GITHUB_ENV"
+          uv venv --python 3.12 /tmp/release-core-floor
+          uv pip install --python /tmp/release-core-floor/bin/python -e '.[dev]' "sase-core-rs==${core_minimum}"
+      - name: Assert exact core floor is installed
+        run: |
+          /tmp/release-core-floor/bin/python - <<'PY'
+          import importlib.metadata
+          import os
+          import sys
+
+          expected = os.environ["CORE_MINIMUM"]
+          actual = importlib.metadata.version("sase-core-rs")
+          if actual != expected:
+              print(f"expected sase-core-rs=={expected}, got {actual}", file=sys.stderr)
+              sys.exit(1)
+          print(f"sase-core-rs floor confirmed: {actual}")
+          PY
+      - name: Check required bindings and core contracts
+        run: |
+          set -euo pipefail
+          /tmp/release-core-floor/bin/python tools/check_sase_core_rs_bindings
+          /tmp/release-core-floor/bin/python tools/validate_sase_core_rs
+      - name: Smoke Rust core public probes
+        run: |
+          set -euo pipefail
+          /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_telemetry
+          /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_at_reference_file_gate
+          /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_bead_resolution
+          /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_plan_header
+      - name: Run contract set
+        run: |
+          set -euo pipefail
+          mapfile -t contract_files < tests/contract_manifest.txt
+          /tmp/release-core-floor/bin/python -m pytest -m contract "${contract_files[@]}"
