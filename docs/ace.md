@@ -1574,10 +1574,12 @@ each cycle:
 In `BY_DATE` mode, ACE chooses one L1 subgroup style from the L0 date bucket: one-hour
 windows (`09:00`) for `Today` and `Yesterday`, calendar-day labels for `This Week`, and
 Monday-start week ranges for `Earlier`. The time anchor is `stop_time` for terminal
-agents and `start_time` otherwise; both buckets and their subgroups sort newest-first.
-Workflow children inherit the parent's anchor so they stay adjacent regardless of their
-own start time, and agents with no usable timestamp fall into a `(no time)` subgroup
-that sorts last.
+agents and `start_time` otherwise. The same anchor selects the L0 date bucket, so an
+agent that started Friday evening and finished Saturday morning renders under Saturday's
+bucket, matching the finish timestamp on its row. Buckets and their subgroups sort
+newest-first. Workflow children inherit the parent's anchor so they stay adjacent
+regardless of their own start time, and agents with no usable timestamp fall into a
+`(no time)` subgroup that sorts last.
 
 In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the
 same singleton-suppression rule as `STANDARD`. Status priority fixes the bucket order:

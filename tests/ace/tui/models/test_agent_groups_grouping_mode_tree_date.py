@@ -10,7 +10,7 @@ from sase.ace.tui.models.agent_groups import (
     enumerate_group_keys,
 )
 
-from ._agent_groups_helpers import _NOW, _agent
+from ._agent_groups_helpers import _NOW, _agent, _group_keys
 
 
 def test_build_agent_tree_by_date_buckets_at_l0() -> None:
@@ -59,6 +59,35 @@ def test_build_agent_tree_by_date_orders_buckets_newest_first_regardless_of_inpu
         if e.kind == "group" and e.group is not None and e.group.level == 0
     ]
     assert l0_banners == [("Today",), ("Earlier",)]
+
+
+def test_build_agent_tree_by_date_overnight_done_agent_buckets_with_its_subgroup() -> (
+    None
+):
+    overnight = _agent(
+        cl_name="x",
+        agent_name="coder.overnight",
+        status="DONE",
+        start_time=datetime(2026, 4, 24, 18, 9, 0),
+        stop_time=datetime(2026, 4, 25, 10, 56, 0),
+    )
+    same_day = _agent(
+        cl_name="y",
+        agent_name="coder.same-day",
+        status="DONE",
+        start_time=datetime(2026, 4, 25, 20, 0, 0),
+        stop_time=datetime(2026, 4, 25, 21, 35, 0),
+    )
+    entries = build_agent_tree(
+        [overnight, same_day], mode=GroupingMode.BY_DATE, now=_NOW
+    )
+
+    assert _group_keys(entries, level=0) == [("Yesterday",)]
+    assert _group_keys(entries, level=1) == [
+        ("Yesterday", "21:00"),
+        ("Yesterday", "10:00"),
+    ]
+    assert ("This Week", "Sat Apr 25") not in _group_keys(entries, level=1)
 
 
 def test_build_agent_tree_by_date_drops_patch_and_project_levels() -> None:

@@ -46,3 +46,50 @@ def test_date_bucket_uses_local_calendar_date_not_24h_window() -> None:
     a = _agent(start_time=datetime(2026, 4, 25, 13, 0, 0))
     now = datetime(2026, 4, 26, 12, 0, 0)
     assert _date_bucket_for(a, now) == "Yesterday"
+
+
+def test_date_bucket_terminal_agent_uses_stop_time_not_start_time() -> None:
+    a = _agent(
+        status="DONE",
+        start_time=datetime(2026, 4, 24, 18, 9, 0),
+        stop_time=datetime(2026, 4, 25, 10, 56, 0),
+    )
+    assert _date_bucket_for(a, _NOW) == "Yesterday"
+
+
+def test_date_bucket_terminal_agent_that_finished_today_is_today() -> None:
+    a = _agent(
+        status="DONE",
+        start_time=datetime(2026, 4, 25, 13, 8, 0),
+        stop_time=datetime(2026, 4, 26, 0, 10, 0),
+    )
+    assert _date_bucket_for(a, _NOW) == "Today"
+
+
+def test_date_bucket_terminal_agent_without_stop_time_falls_back_to_start_time() -> (
+    None
+):
+    a = _agent(
+        status="DONE",
+        start_time=datetime(2026, 4, 25, 15, 0, 0),
+        stop_time=None,
+    )
+    assert _date_bucket_for(a, _NOW) == "Yesterday"
+
+
+def test_date_bucket_running_agent_still_uses_start_time() -> None:
+    a = _agent(
+        status="RUNNING",
+        start_time=datetime(2026, 4, 25, 23, 0, 0),
+        stop_time=None,
+    )
+    assert _date_bucket_for(a, _NOW) == "Yesterday"
+
+
+def test_date_bucket_terminal_agent_without_start_time_uses_stop_time() -> None:
+    a = _agent(
+        status="DONE",
+        start_time=None,
+        stop_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
+    assert _date_bucket_for(a, _NOW) == "Today"

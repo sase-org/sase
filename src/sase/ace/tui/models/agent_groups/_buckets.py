@@ -40,7 +40,8 @@ class GroupingMode(Enum):
     - ``STANDARD``: existing behavior — L0 is the project; Patch
       level is added per-panel when at least one agent has a ``cl_name``.
     - ``BY_DATE``: L0 is a date bucket (``Today`` / ``Yesterday`` /
-      ``This Week`` / ``Earlier``) derived from each agent's ``start_time``.
+      ``This Week`` / ``Earlier``) derived from each agent's shared
+      BY_DATE anchor.
     - ``BY_STATUS``: L0 is a status bucket (``Stopped`` / ``Failed`` /
       ``Running`` / ``Queued`` / ``Waiting`` / ``Done`` / ``Starting``)
       derived from each agent's ``status``.
@@ -72,43 +73,41 @@ _STATUS_BUCKETS: tuple[str, ...] = (
 )
 
 
+def date_anchor_time(agent: Agent) -> datetime | None:
+    """Return the shared BY_DATE anchor for an agent.
+
+    Terminal agents anchor on ``stop_time`` (falling back to
+    ``start_time`` when missing); everything else anchors on ``start_time``.
+    The same anchor decides the L0 bucket, L1 subgroup label, and sort
+    position so the BY_DATE tree remains internally consistent.
+    """
+    if (agent.status or "") in _TERMINAL_STATUSES:
+        return agent.stop_time or agent.start_time
+    return agent.start_time
+
+
 def date_bucket_for(agent: Agent, now: datetime) -> str:
-    """Map ``agent.start_time`` to one of the date buckets.
+    """Map an agent's BY_DATE anchor to one of the date buckets.
 
     Buckets compare on calendar dates in ``now``'s local frame:
 
     - ``Today``: same calendar date as ``now``.
     - ``Yesterday``: the day before ``now``.
     - ``This Week``: within the prior six days, but not Today/Yesterday.
-    - ``Earlier``: anything older, plus agents with no ``start_time``.
+    - ``Earlier``: anything older, plus agents with no BY_DATE anchor.
     """
-    start = agent.start_time
-    if start is None:
+    anchor = date_anchor_time(agent)
+    if anchor is None:
         return "Earlier"
     today = now.date()
-    start_date = start.date()
-    if start_date == today:
+    anchor_date = anchor.date()
+    if anchor_date == today:
         return "Today"
-    if start_date == today - timedelta(days=1):
+    if anchor_date == today - timedelta(days=1):
         return "Yesterday"
-    if start_date > today - timedelta(days=7):
+    if anchor_date > today - timedelta(days=7):
         return "This Week"
     return "Earlier"
-
-
-def hour_anchor_time(agent: Agent) -> datetime | None:
-    """Return the datetime an agent's time window should anchor on.
-
-    Terminal agents (``DONE`` / ``PLAN DONE`` / ``PLAN REJECTED`` /
-    ``EPIC CREATED``) anchor on
-    ``stop_time`` (falling back to ``start_time`` when missing); everything
-    else anchors on ``start_time``.  Mirrors :func:`walk_anchors` so the
-    time-window banner emitted for an agent always agrees with the anchor used
-    to sort it inside its date bucket.
-    """
-    if (agent.status or "") in _TERMINAL_STATUSES:
-        return agent.stop_time or agent.start_time
-    return agent.start_time
 
 
 def date_subgroup_bucket_for(agent: Agent, date_bucket: str) -> str:
@@ -120,15 +119,14 @@ def date_subgroup_bucket_for(agent: Agent, date_bucket: str) -> str:
     - ``This Week`` → calendar-day label (e.g. ``Fri Apr 24``).
     - ``Earlier`` → Monday-start week range (e.g. ``Apr 21-27``).
 
-    Uses ``stop_time`` for terminal agents (falling back to ``start_time``
-    when missing) and ``start_time`` otherwise — same rule as
-    :func:`walk_anchors` so subgroup banners agree with the sort order
-    inside each date bucket.
+    Uses :func:`date_anchor_time`, the same rule used for the L0 bucket
+    and walk-order anchor, so subgroup banners agree with the bucket and sort
+    position.
 
     Returns :data:`NO_HOUR_LABEL` for agents with no usable anchor; that
     sub-bucket sorts last within its date bucket.
     """
-    anchor = hour_anchor_time(agent)
+    anchor = date_anchor_time(agent)
     if anchor is None:
         return NO_HOUR_LABEL
     if date_bucket in {"Today", "Yesterday"}:
@@ -146,7 +144,9 @@ def date_subgroup_sort_key(
     """Sort key for BY_DATE L1 subgroups within a date bucket.
 
     Newest-first within real labels, with ``NO_HOUR_LABEL`` placed last.
-    Mirrors the Patches tab's sort rule so both tabs agree on subgroup order.
+    ``anchor`` should be the value from :func:`date_anchor_time`, which also
+    decides the L0 bucket. Mirrors the Patches tab's sort rule so both tabs
+    agree on subgroup order.
     """
     if not subgroup:
         return (0, 0)

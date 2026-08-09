@@ -20,10 +20,10 @@ from ._buckets import (
     NO_PROJECT,
     GroupingMode,
     bucket_sort_index,
+    date_anchor_time,
     date_bucket_for,
     date_subgroup_bucket_for,
     date_subgroup_sort_key,
-    hour_anchor_time,
     status_bucket_for,
 )
 
@@ -226,7 +226,7 @@ def grouping_keys_for(
         date_subgroup=(
             date_subgroup_bucket_for(target, l0) if mode is GroupingMode.BY_DATE else ""
         ),
-        anchor=(hour_anchor_time(target) if mode is GroupingMode.BY_DATE else None),
+        anchor=(date_anchor_time(target) if mode is GroupingMode.BY_DATE else None),
     )
 
 
@@ -288,11 +288,11 @@ def walk_anchors(
     remains available to legacy callers; clustered walks preserve projected
     preorder directly rather than sorting descendants by depth.
 
-    Under ``BY_DATE``, terminal agents (``DONE`` / ``PLAN DONE`` /
-    ``EPIC CREATED``) anchor on ``stop_time`` so a recently-finished agent
-    floats to the top of its date segment regardless of when it started; they
-    fall back to ``start_time`` when ``stop_time`` is missing. Non-terminal
-    agents anchor on ``start_time``.
+    Under ``BY_DATE``, the same anchor decides the L0 bucket, L1 subgroup, and
+    walk position. Terminal agents anchor on ``stop_time`` so a
+    recently-finished agent floats to the top of its date segment regardless
+    of when it started; they fall back to ``start_time`` when ``stop_time`` is
+    missing. Non-terminal agents anchor on ``start_time``.
 
     Under ``BY_STATUS``, every display unit anchors on the outer presentation
     root's ``start_time``. :func:`walk_order` then shares one effective value
@@ -315,7 +315,7 @@ def walk_anchors(
         target = presentation_anchor(agent, parent_lookup, anchor_lookup)
         is_child = agent_tree_depth(agent) if target is not agent else 0
         anchor_time = (
-            hour_anchor_time(target)
+            date_anchor_time(target)
             if mode is GroupingMode.BY_DATE
             else target.start_time
         )
