@@ -69,8 +69,9 @@ glossary:
     assert "sase_generated: glossary" in glossary_text
     assert "# Glossary of Terms" in glossary_text
     assert "## Agent Clan" in glossary_text
-    assert "ALIASES: agent clans, clan" in glossary_text
-    assert "Aliases: agent clans, clan" not in glossary_text
+    assert "ALIASES: clan" in glossary_text
+    assert "agent clans" not in glossary_text
+    assert "Aliases: clan" not in glossary_text
 
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
     assert "### 1. Glossary of Terms (glossary)" in agents
@@ -82,6 +83,36 @@ glossary:
     )
     assert "### `sase/memory/glossary.md`" in readme
     assert "Project-local glossary generated from sase.yml." in readme
+
+
+def test_memory_plan_omits_alias_line_when_only_alias_is_term_plural(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(
+        tmp_path,
+        monkeypatch,
+        project_config="""
+is_sase_managed: true
+glossary:
+  Patch:
+    aliases:
+      - patches
+    definition: A tracked unit of change.
+""",
+    )
+
+    plan = plan_memory()
+
+    assert plan.blockers == ()
+    glossary = next(
+        action for action in plan.actions if action.path.name == "glossary.md"
+    )
+    glossary_text = str(glossary.new_content)
+    assert "## Patch\n\nA tracked unit of change." in glossary_text
+    assert "## Patch\n\n\nA tracked unit of change." not in glossary_text
+    assert "ALIASES:" not in glossary_text
+    assert "Aliases:" not in glossary_text
 
 
 def test_memory_apply_generates_glossary_idempotently_and_copies_provider_shims(

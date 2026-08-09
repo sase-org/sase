@@ -519,6 +519,7 @@ def _catalog_for_text(
         normalized_term=term.casefold(),
         definition="A named, rootless container for coordinated agents.",
         configured_aliases=("clan", "agent clans"),
+        display_aliases=("clan",),
         effective_aliases=("agent clan", "clan", "agent clans"),
         source={
             "config_path": str(config_path),

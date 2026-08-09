@@ -88,6 +88,7 @@ class GlossaryEntry:
     normalized_term: str
     definition: str
     configured_aliases: tuple[str, ...]
+    display_aliases: tuple[str, ...]
     effective_aliases: tuple[str, ...]
     source: Mapping[str, Any] | None
 
@@ -99,6 +100,7 @@ class GlossaryEntry:
             normalized_term=str(payload["normalized_term"]),
             definition=str(payload["definition"]),
             configured_aliases=tuple(payload["configured_aliases"]),
+            display_aliases=tuple(payload["display_aliases"]),
             effective_aliases=tuple(payload["effective_aliases"]),
             source=payload.get("source"),
         )

@@ -12,6 +12,12 @@ from sase.bead.model import IssueType, PhaseSize, Status
 from sase.bead.project import BeadProject
 
 UNTIL = "2026-08-09T09:00:00-04:00"
+FROZEN_NOW = "2026-08-06T13:00:00Z"
+
+
+@pytest.fixture(autouse=True)
+def frozen_snooze_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sase.bead.project._now", lambda: FROZEN_NOW)
 
 
 def _ready_task(project: BeadProject) -> str:

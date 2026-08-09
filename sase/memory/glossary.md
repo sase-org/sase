@@ -9,15 +9,11 @@ sase_generated: glossary
 
 ## Agent Clan
 
-ALIASES: agent clans
-
 An agent clan is a named, rootless container for agents that run in parallel. Every
 member is named inside the clan's hood (`<clan>.<suffix>`) and declares `%clan:<clan>`;
 the clan name is reserved and is never itself an agent.
 
 ## Agent Family
-
-ALIASES: agent families
 
 An agent family is a strictly sequential chain whose members use `<family>--<suffix>`
 names. The first `%n(parent, suffix)` attachment renames the original agent with its own
@@ -35,8 +31,6 @@ same `foo` agent hood. The agent `foo`, if it exists, is also considered part of
 
 ## Agent Lane
 
-ALIASES: agent lanes
-
 An agent lane is a term that describes either an agent family or a single agent that
 does not belong to a family. Agent lanes never have a name that ends with `--<suffix>`
 since that suffix is reserved for family members. We think of an agent lane like an
@@ -48,7 +42,7 @@ and the original agent, which is renamed with its own `--<suffix>`.
 
 ## Agent Instruction Files
 
-ALIASES: agent instruction file, agents.md files, agents.md file
+ALIASES: agent instruction file, agents.md file
 
 An agent instruction file is a `.md` file that an agent CLI reads automatically when
 working in a directory that contains it. For example, the `AGENTS.md` file is the name
@@ -69,15 +63,11 @@ because they are all in the same `foo` agent hood.
 
 ## Agent Tribe
 
-ALIASES: agent tribes
-
 An agent tribe is a user-facing label for related agents across clans and families.
 Tribes are assigned with `%tribe:<name>` (alias `%t`), managed with `sase agent tribe`,
 and displayed with an `@` prefix.
 
 ## Patch
-
-ALIASES: patches
 
 A Patch is SASE's local unit of change. Every PR created or managed by SASE is
 associated with exactly one Patch, but a Patch may exist without a PR, represented by an
@@ -88,8 +78,6 @@ STITCHES, HOOKS, COMMENTS, MENTORS. Status lifecycle: WIP -> Draft -> Ready -> M
 Submitted.
 
 ## Project
-
-ALIASES: projects
 
 A project is a named unit of work registered with SASE. A project is created only when a
 new VCS xprompt argument resolves to a valid project: `#git:<name>` accepts any valid
@@ -103,15 +91,13 @@ that. The system-managed `home` project remains hidden.
 
 ## Repo
 
-ALIASES: repos, repository, repositories
+ALIASES: repository
 
 A repo is any repository SASE knows: a project's primary repo, an SDD sidecar repo
 (`<project>--plans` or `<project>--research`), or a repo declared through
 `linked_repos:`.
 
 ## Stitch
-
-ALIASES: stitches
 
 A stitch is the lightweight ordered change record inside a Patch's `STITCHES:` section.
 Every VCS commit made through the tracked workflow has an associated numeric stitch, but
@@ -121,8 +107,6 @@ commits.
 
 ## Workspace
 
-ALIASES: workspaces
-
 A workspace is a numbered clone of a project's primary repo, managed by the workspace
 store and tracked in that project's `registry.json`. Each SASE agent claims exactly one
 workspace until completion. Workspace directories are not repos. Linked-repo clones
@@ -130,34 +114,26 @@ materialized for a workspace are repo checkouts, not additional workspaces.
 
 ## xprompt
 
-ALIASES: xprompts
-
 Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/ directory (.md or
 .yml file) or in ~/.config/sase/sase.yml (`xprompts` field).
 
 ## xprompt Memory
 
-ALIASES: xprompt memories, memory xprompt, memory xprompts
+ALIASES: memory xprompt
 
 A flat SASE memory note exposed as a namespaced xprompt: `sase/memory/foo.md` expands
 with `#memory/foo`, and the `memory/` prefix is required.
 
 ## xprompt Part
 
-ALIASES: xprompt parts
-
 .md file -> single `prompt_part` step with the file's content.
 
 ## xprompt Swarm
-
-ALIASES: xprompt swarms
 
 An xprompt whose body contains top-level `---` segment separators outside fenced blocks
 and fans out into one agent per segment at launch. Literal user prompts can also use
 `---`, but those are generic multi-agent prompts rather than xprompt swarms.
 
 ## xprompt Workflow
-
-ALIASES: xprompt workflows
 
 .yml file -> multiple steps (`prompt_part`, `python`, `bash`, etc.).

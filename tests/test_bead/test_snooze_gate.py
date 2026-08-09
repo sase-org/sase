@@ -8,6 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from sase.bead.model import IssueType, Status, TaskPlusOneEvidence
 from sase.bead.project import BeadProject
 from sase.bead.snooze_gate import (
@@ -21,6 +23,13 @@ from sase.notifications import pending_actions
 from sase.notifications.priority import is_priority
 from sase.notifications.store import load_notifications
 from tests.test_bead.snooze_gate_test_helpers import WAKE_TIME, snooze_record
+
+FROZEN_NOW = "2026-08-06T13:00:00Z"
+
+
+@pytest.fixture(autouse=True)
+def frozen_snooze_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sase.bead.project._now", lambda: FROZEN_NOW)
 
 
 def test_bead_snooze_gate_builds_canonical_spec_and_snoozed_notification(

@@ -499,35 +499,35 @@ another project.
 ```yaml
 glossary:
   Agent Clan:
-    aliases:
-      - agent clans
     definition: >-
       A named, rootless container for agents that run in parallel.
 ```
 
-| Field        | Type              | Default | Description                                                           |
-| ------------ | ----------------- | ------- | --------------------------------------------------------------------- |
-| `glossary`   | object \| omitted | omitted | Mapping from canonical displayed term to one glossary entry.          |
-| `definition` | string            | n/a     | Required nonblank Markdown definition, generated into project memory. |
-| `aliases`    | string[]          | `[]`    | Optional single-line aliases matched after the canonical term itself. |
+| Field        | Type              | Default | Description                                                                                                 |
+| ------------ | ----------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `glossary`   | object \| omitted | omitted | Mapping from canonical displayed term to one glossary entry.                                                |
+| `definition` | string            | n/a     | Required nonblank Markdown definition, generated into project memory.                                       |
+| `aliases`    | string[]          | `[]`    | Optional single-line aliases matched after the canonical term itself; derivable plurals need not be listed. |
 
 Run `sase memory init` after editing glossary entries. A nonempty glossary generates
 `sase/memory/glossary.md` with `sase_generated: glossary` frontmatter, adds that short
 note to `sase/memory/README.md`, and inlines it into `AGENTS.md` plus the provider
-instruction copies. Entries with `aliases:` render an `ALIASES: <comma-separated>` line
-in the generated note and inlined agent instructions. `sase memory init --check`
-verifies that the generated glossary and agent instructions are current. If an existing
-`sase/memory/glossary.md` lacks the generated marker, initialization refuses to
-overwrite it; migrate the definitions into `sase/sase.yml` or remove the manual note
-intentionally before rerunning the command.
+instruction copies. The plural of the term and of each alias is matched automatically.
+Derivable plurals are omitted from the generated `ALIASES: <comma-separated>` line, and
+the line is omitted entirely when no configured aliases remain to display.
+`sase memory init --check` verifies that the generated glossary and agent instructions
+are current. If an existing `sase/memory/glossary.md` lacks the generated marker,
+initialization refuses to overwrite it; migrate the definitions into `sase/sase.yml` or
+remove the manual note intentionally before rerunning the command.
 
-The canonical term is always the first effective alias. Matching is case-insensitive,
-Unicode-aware, bounded by word-like edges, allows horizontal whitespace runs inside
-multiword phrases, and does not cross a line. Inline and fenced code are skipped.
-Overlapping phrases are allowed; the longest match wins, with authored order breaking
-ties. Blank terms, blank definitions, multiline aliases, duplicate normalized terms, and
-one alias claimed by more than one term fail validation consistently for config loading,
-memory generation, ACE, and the xprompt LSP.
+The canonical term is always the first effective alias, followed by configured aliases
+and accepted derived plurals. Matching is case-insensitive, Unicode-aware, bounded by
+word-like edges, allows horizontal whitespace runs inside multiword phrases, and does
+not cross a line. Inline and fenced code are skipped. Overlapping phrases are allowed;
+the longest match wins, with authored order breaking ties. Blank terms, blank
+definitions, multiline aliases, duplicate normalized terms, and one alias claimed by
+more than one term fail validation consistently for config loading, memory generation,
+ACE, and the xprompt LSP.
 
 ACE highlights warm glossary matches in prompt text as bold, theme-accent, underlined
 terms you can preview with `K` or jump to with `Ctrl+]`. In NORMAL mode, `K` previews

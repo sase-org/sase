@@ -401,6 +401,7 @@ def _visual_glossary_entry(
         normalized_term=term.casefold(),
         definition=definition,
         configured_aliases=(),
+        display_aliases=(),
         effective_aliases=(term.casefold(),),
         source={
             "config_path": str(config_path),

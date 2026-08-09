@@ -147,8 +147,8 @@ def _render_glossary_memory(catalog: GlossaryCatalog) -> GeneratedGlossaryMemory
     lines = [f"# {GLOSSARY_MEMORY_TITLE}"]
     for entry in catalog.entries:
         lines.extend(["", f"## {md_escape(entry.term)}"])
-        if entry.configured_aliases:
-            aliases = ", ".join(md_escape(alias) for alias in entry.configured_aliases)
+        if entry.display_aliases:
+            aliases = ", ".join(md_escape(alias) for alias in entry.display_aliases)
             lines.extend(["", f"{GLOSSARY_ALIASES_LABEL}: {aliases}"])
         lines.extend(["", entry.definition.rstrip()])
     body = format_generated_memory_markdown("\n".join(lines))

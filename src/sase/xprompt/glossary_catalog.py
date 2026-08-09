@@ -556,6 +556,7 @@ def _entry_to_wire(entry: GlossaryEntry) -> dict[str, object]:
         "normalized_term": entry.normalized_term,
         "definition": entry.definition,
         "configured_aliases": list(entry.configured_aliases),
+        "display_aliases": list(entry.display_aliases),
         "effective_aliases": list(entry.effective_aliases),
         "source": entry.source,
     }

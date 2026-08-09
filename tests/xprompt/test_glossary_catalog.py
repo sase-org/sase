@@ -66,6 +66,7 @@ def _fake_build_catalog(entries: tuple[GlossaryInputEntry, ...]) -> GlossaryCata
                 normalized_term=entry.term.casefold(),
                 definition=entry.definition,
                 configured_aliases=entry.aliases,
+                display_aliases=entry.aliases,
                 effective_aliases=(entry.term, *entry.aliases),
                 source=_source_wire(entry.source),
             )
@@ -128,6 +129,7 @@ def test_catalog_for_project_uses_project_alias_and_source_ranges(
 
     entry = result.catalog.entries[0]
     assert entry.term == "Agent Clan"
+    assert entry.display_aliases == ("clan",)
     assert entry.effective_aliases == ("Agent Clan", "clan")
     assert entry.source == {
         "config_path": str(config_path),
@@ -259,3 +261,4 @@ def test_lsp_payload_materializes_enabled_project_catalogs_and_default(
     assert [project["project"]["key"] for project in projects] == ["alpha", "beta"]
     assert projects[1]["project"]["aliases"] == ["b"]
     assert projects[1]["entries"][0]["term"] == "Beta Term"
+    assert projects[1]["entries"][0]["display_aliases"] == []

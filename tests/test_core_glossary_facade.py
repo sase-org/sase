@@ -24,6 +24,7 @@ def test_glossary_facade_normalizes_catalog_entries(monkeypatch) -> None:
                         "normalized_term": "Agent Clan",
                         "definition": "A clan.",
                         "configured_aliases": ["agent clans"],
+                        "display_aliases": [],
                         "effective_aliases": ["Agent Clan", "agent clans"],
                     }
                 ],
@@ -48,7 +49,21 @@ def test_glossary_facade_normalizes_catalog_entries(monkeypatch) -> None:
     )
 
     assert seen["entries"][0]["source"]["config_path"] == "/repo/sase/sase.yml"
+    assert catalog.entries[0].display_aliases == ()
     assert catalog.entries[0].effective_aliases == ("Agent Clan", "agent clans")
+
+
+def test_glossary_facade_compiled_catalog_matches_derived_plural() -> None:
+    handle = glossary.compile_glossary_catalog(
+        [{"term": "Widget Box", "definition": "A widget container."}]
+    )
+
+    spans = glossary.scan_glossary_spans(handle, "Inspect the Widget Boxes today.")
+
+    assert spans
+    assert spans[0].term == "Widget Box"
+    assert spans[0].alias == "Widget Boxes"
+    assert spans[0].matched_text == "Widget Boxes"
 
 
 def test_glossary_facade_scans_and_looks_up_with_compiled_handle(monkeypatch) -> None:

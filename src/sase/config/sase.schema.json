@@ -364,7 +364,7 @@
         },
         "aliases": {
           "type": "array",
-          "description": "Additional single-line aliases matched after the canonical term.",
+          "description": "Additional single-line aliases matched after the canonical term. Plurals are derived automatically and need not be listed.",
           "default": [],
           "items": {
             "type": "string",
