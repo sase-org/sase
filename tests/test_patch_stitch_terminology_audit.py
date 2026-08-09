@@ -72,6 +72,18 @@ def test_classifier_accepts_explicit_compatibility_comment() -> None:
     assert rule == "legacy_compatibility_boundary"
 
 
+def test_classifier_accepts_config_schema_legacy_chop_provider_enum() -> None:
+    classification, rule, _reason = _classify_candidate(
+        "main",
+        "src/sase/config/sase.schema.json",
+        '              "propertyNames": { "enum": ["patch", "changespec", "agent_hood", "agent_clan"] },',
+        "changespec",
+    )
+
+    assert classification == "legacy-compatibility-boundary"
+    assert rule == "legacy_compatibility_boundary"
+
+
 def test_classifier_accepts_legacy_wire_key() -> None:
     classification, rule, _reason = _classify_candidate(
         "main",

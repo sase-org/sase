@@ -231,6 +231,16 @@ def _is_compatibility_shim_path(path: str) -> bool:
     )
 
 
+def _is_config_schema_legacy_chop_provider_enum(
+    repo: str, path: str, line: str
+) -> bool:
+    return (
+        repo == "main"
+        and path == "src/sase/config/sase.schema.json"
+        and '"enum": ["patch", "changespec", "agent_hood", "agent_clan"]' in line
+    )
+
+
 def _is_audit_contract(
     repo: str, path: str, line: str, match: str, context: str
 ) -> bool:
@@ -301,7 +311,9 @@ def _is_stable_documentation_reference(
 def _is_legacy_compatibility_boundary(
     repo: str, path: str, line: str, match: str, context: str
 ) -> bool:
-    del repo, line, match
+    del match
+    if _is_config_schema_legacy_chop_provider_enum(repo, path, line):
+        return True
     if _is_compatibility_shim_path(path):
         return True
     return _declares_compatibility_boundary(context)

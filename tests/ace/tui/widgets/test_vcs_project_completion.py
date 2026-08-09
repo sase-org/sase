@@ -9,7 +9,6 @@ parity contract and is exhaustively asserted at the helper level in
 
 from __future__ import annotations
 
-from typing import Literal
 from unittest.mock import patch
 
 import pytest
@@ -22,7 +21,7 @@ from sase.ace.tui.widgets.vcs_project_completion import (
     build_no_active_projects_placeholder,
     vcs_project_completion_candidates,
 )
-from sase.xprompt.vcs_project_completion import VcsProjectEntry
+from sase.xprompt.vcs_project_completion import VcsProjectEntry, VcsProjectEntryKind
 
 from ._completion_helpers import CompletionTestApp
 
@@ -42,7 +41,7 @@ def _entry(
     provider: str = "GitHub",
     description: str = "",
     aliases: tuple[str, ...] = (),
-    kind: Literal["project", "patch", "patch"] = "project",
+    kind: VcsProjectEntryKind = "project",
     project: str | None = None,
     status: str = "",
 ) -> VcsProjectEntry:
