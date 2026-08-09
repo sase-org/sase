@@ -67,13 +67,13 @@ glossary:
     glossary = action_by_path[project_root / "sase" / "memory" / "glossary.md"]
     glossary_text = str(glossary.new_content)
     assert "sase_generated: glossary" in glossary_text
-    assert "# Glossary" in glossary_text
+    assert "# Glossary of Terms" in glossary_text
     assert "## Agent Clan" in glossary_text
     assert "ALIASES: agent clans, clan" in glossary_text
     assert "Aliases: agent clans, clan" not in glossary_text
 
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
-    assert "### 1. Glossary (glossary)" in agents
+    assert "### 1. Glossary of Terms (glossary)" in agents
     assert "#### Agent Clan" in agents
     assert "A named, rootless container" in agents
 
@@ -104,7 +104,7 @@ glossary:
     assert run_memory() == 0
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "### 1. Glossary (glossary)" in agents
+    assert "### 1. Glossary of Terms (glossary)" in agents
     for filename in PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == agents
 
@@ -199,7 +199,7 @@ glossary:
 
     assert run_memory() == 0
     assert not (project_root / "sase" / "memory" / "glossary.md").exists()
-    assert "Glossary (glossary)" not in (project_root / "AGENTS.md").read_text(
+    assert "Glossary of Terms (glossary)" not in (project_root / "AGENTS.md").read_text(
         encoding="utf-8"
     )
 

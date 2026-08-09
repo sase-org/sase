@@ -24,6 +24,7 @@ from sase.project_management import load_local_config
 from .formatting import format_generated_memory_markdown
 
 GLOSSARY_CONFIG_KEY = "glossary"
+GLOSSARY_MEMORY_TITLE = "Glossary of Terms"
 GENERATED_GLOSSARY_MARKER_KEY = "sase_generated"
 GENERATED_GLOSSARY_MARKER_VALUE = "glossary"
 GENERATED_GLOSSARY_DESCRIPTION = "Project-local glossary generated from sase.yml."
@@ -143,7 +144,7 @@ def _glossary_entries(
 
 
 def _render_glossary_memory(catalog: GlossaryCatalog) -> GeneratedGlossaryMemory:
-    lines = ["# Glossary"]
+    lines = [f"# {GLOSSARY_MEMORY_TITLE}"]
     for entry in catalog.entries:
         lines.extend(["", f"## {md_escape(entry.term)}"])
         if entry.configured_aliases:

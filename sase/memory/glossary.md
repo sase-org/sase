@@ -5,7 +5,7 @@ description: Project-local glossary generated from sase.yml.
 sase_generated: glossary
 ---
 
-# Glossary
+# Glossary of Terms
 
 ## Agent Clan
 

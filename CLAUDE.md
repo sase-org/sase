@@ -66,7 +66,7 @@ to accept intentional visual changes. Local runs use exact pixel equality by def
 while CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin
 color and fontconfig/Fira Code to keep rendering deterministic.
 
-### 2. Glossary (glossary)
+### 2. Glossary of Terms (glossary)
 
 #### Agent Clan
 
