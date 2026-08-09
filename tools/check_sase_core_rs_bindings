@@ -154,11 +154,26 @@ def collect_binding_names(src_root: Path) -> tuple[set[str], list[str]]:
     """Return (binding names, unanalyzable-call-site problems) for a tree."""
     names: set[str] = set()
     problems: list[str] = []
-    for path in sorted(src_root.rglob("*.py")):
+    for path in _candidate_python_files(src_root):
         scan = _scan_file(path)
         names.update(scan.names)
         problems.extend(scan.problems)
     return names, problems
+
+
+def _candidate_python_files(src_root: Path) -> list[Path]:
+    """Return Python files that can contain locally analyzable binding calls."""
+
+    candidates: list[Path] = []
+    for path in sorted(src_root.rglob("*.py")):
+        try:
+            if RUST_BINDING_FUNCTION not in path.read_text(encoding="utf-8"):
+                continue
+        except (OSError, UnicodeError):
+            # Let the normal parser path produce the actionable error.
+            pass
+        candidates.append(path)
+    return candidates
 
 
 def main(argv: list[str] | None = None) -> int:

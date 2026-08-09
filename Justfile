@@ -572,6 +572,7 @@ check: _setup
     @tools/run_silent "lint (symvision)"   just _lint-symvision
     @tools/run_silent "lint (toobig)"      just _lint-toobig
     @tools/run_silent "SASE validation"     just validate
+    @{{ venv_bin }}/python tools/probe_core_floor --advisory --sase-core-dir "{{ sase_core_dir }}"
     @tools/run_silent "committed plans"      just validate-committed-plans
     @tools/run_silent "test (scoped)"      just test-scoped
     @{{ venv_bin }}/python tools/print_scoped_summary
@@ -591,6 +592,7 @@ check-full: _setup
     @tools/run_silent "lint (symvision)"   just _lint-symvision
     @tools/run_silent "lint (toobig)"      just _lint-toobig
     @tools/run_silent "SASE validation"     just validate
+    @{{ venv_bin }}/python tools/probe_core_floor --advisory --sase-core-dir "{{ sase_core_dir }}"
     @tools/run_silent "committed plans"      just validate-committed-plans
     @tools/run_silent "test"               just test
     @tools/run_silent "flake baseline"     just selection-health --fail-on-new-flake

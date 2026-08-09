@@ -1,0 +1,695 @@
+#!/usr/bin/env python3
+"""Advisory probe for the published ``sase-core-rs`` floor.
+
+The probe installs the declared ``sase-core-rs`` floor into a scratch virtualenv,
+runs the two stdlib compatibility probes against that wheel, and diagnoses missing
+capabilities from the local ``sase-core`` git history. Results of the expensive wheel
+probe are cached under ``$XDG_CACHE_HOME/sase`` and keyed by the declared floor, the
+collected binding-name set, and the probe script contents.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import hashlib
+import importlib.util
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+from types import ModuleType
+from typing import Any, NoReturn
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEPENDENCY_NAME = "sase-core-rs"
+CHECK_BINDINGS = REPO_ROOT / "tools" / "check_sase_core_rs_bindings"
+VALIDATE_CORE = REPO_ROOT / "tools" / "validate_sase_core_rs"
+VALIDATE_VERSION = REPO_ROOT / "tools" / "validate_sase_core_rs_version"
+DEFAULT_PYPROJECT = REPO_ROOT / "pyproject.toml"
+DEFAULT_SRC_ROOT = REPO_ROOT / "src" / "sase"
+CACHE_SCHEMA_VERSION = 1
+
+EXIT_OK = 0
+EXIT_COULD_NOT_DETERMINE = 1
+EXIT_STALE_ACTIONABLE = 3
+EXIT_BLOCKED_UNPUBLISHED = 4
+
+_MISSING_BINDING_LINE_RE = re.compile(r"^  ([A-Za-z_][A-Za-z0-9_]*)$")
+_VALIDATE_MISSING_RE = re.compile(r"missing required binding\(s\): (?P<names>.+)$")
+_VALIDATE_BINDING_RE = re.compile(r"\] (?P<name>[A-Za-z_][A-Za-z0-9_]*)\(")
+_VALIDATE_NAMED_BINDINGS = {
+    "agent statistics": "agent_stats_query_runs",
+    "project lifecycle": "read_project_lifecycle_from_content",
+    "saved-group archive": "save_dismissed_agent_group",
+    "scan_agent_artifacts": "scan_agent_artifacts",
+    "sase_content_layout": "sase_content_layout",
+}
+
+
+class ProbeSkipped(RuntimeError):
+    """Raised when the published-floor probe cannot run in this environment."""
+
+
+class CouldNotDetermine(RuntimeError):
+    """Raised when local inputs are malformed enough to make the verdict unsafe."""
+
+
+@dataclass(frozen=True)
+class CommandResult:
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+@dataclass(frozen=True)
+class RawProbeResult:
+    bindings: CommandResult
+    validator: CommandResult
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "bindings": self.bindings.__dict__,
+            "validator": self.validator.__dict__,
+        }
+
+    @classmethod
+    def from_json(cls, payload: object) -> RawProbeResult | None:
+        if not isinstance(payload, dict):
+            return None
+        bindings = _command_result_from_json(payload.get("bindings"))
+        validator = _command_result_from_json(payload.get("validator"))
+        if bindings is None or validator is None:
+            return None
+        return cls(bindings=bindings, validator=validator)
+
+
+@dataclass(frozen=True)
+class CapabilityDiagnosis:
+    name: str
+    commit: str | None
+    subject: str | None
+    release: str | None
+
+    def to_json(self) -> dict[str, str | None]:
+        return {
+            "name": self.name,
+            "commit": self.commit,
+            "subject": self.subject,
+            "release": self.release,
+        }
+
+
+@dataclass(frozen=True)
+class Verdict:
+    status: str
+    exit_code: int
+    floor: str
+    cache_hit: bool
+    message: str | None = None
+    capabilities: tuple[CapabilityDiagnosis, ...] = ()
+    probe_excerpt: str | None = None
+
+    def advisory(self) -> Verdict:
+        if self.exit_code == EXIT_OK:
+            return self
+        return Verdict(
+            status=self.status,
+            exit_code=EXIT_OK,
+            floor=self.floor,
+            cache_hit=self.cache_hit,
+            message=self.message,
+            capabilities=self.capabilities,
+            probe_excerpt=self.probe_excerpt,
+        )
+
+    def to_json(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "status": self.status,
+            "declared_floor": self.floor,
+            "exit_code": self.exit_code,
+            "cache_hit": self.cache_hit,
+        }
+        if self.message:
+            payload["message"] = self.message
+        if self.capabilities:
+            payload["capabilities"] = [
+                capability.to_json() for capability in self.capabilities
+            ]
+        if self.probe_excerpt:
+            payload["probe_excerpt"] = self.probe_excerpt
+        return payload
+
+
+def _command_result_from_json(payload: object) -> CommandResult | None:
+    if not isinstance(payload, dict):
+        return None
+    returncode = payload.get("returncode")
+    stdout = payload.get("stdout")
+    stderr = payload.get("stderr")
+    if not isinstance(returncode, int):
+        return None
+    if not isinstance(stdout, str) or not isinstance(stderr, str):
+        return None
+    return CommandResult(returncode=returncode, stdout=stdout, stderr=stderr)
+
+
+def _run(
+    command: list[str],
+    *,
+    cwd: Path = REPO_ROOT,
+    env: dict[str, str] | None = None,
+    timeout: float = 60.0,
+) -> CommandResult:
+    completed = subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    return CommandResult(
+        returncode=completed.returncode,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+    )
+
+
+def _load_version_validator() -> ModuleType:
+    loader = SourceFileLoader("probe_core_floor_version_validator", str(VALIDATE_VERSION))
+    spec = importlib.util.spec_from_file_location(
+        "probe_core_floor_version_validator",
+        VALIDATE_VERSION,
+        loader=loader,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _declared_floor(pyproject: Path) -> str:
+    version_validator = _load_version_validator()
+    try:
+        specifier = version_validator._read_dependency_specifier(pyproject)
+        return version_validator._inclusive_minimum(
+            version_validator._parse_specifier(specifier)
+        ).raw
+    except version_validator.ValidationError as exc:
+        raise CouldNotDetermine(str(exc)) from exc
+
+
+def _default_sase_core_dir() -> Path:
+    for env_name in (
+        "SASE_CORE_DIR",
+        "SASE_LINKED_REPO_SASE_CORE_DIR",
+        "SASE_SIBLING_REPO_SASE_CORE_DIR",
+        "SASE_SIBLING_REPO_CORE_DIR",
+    ):
+        value = os.environ.get(env_name)
+        if value:
+            return Path(value)
+    workspace_link = REPO_ROOT / "sase" / "repos" / "linked" / "sase-core"
+    if workspace_link.exists():
+        return workspace_link
+    return REPO_ROOT.parent / "sase-core"
+
+
+def _cache_file_default() -> Path:
+    cache_home = os.environ.get("XDG_CACHE_HOME")
+    base = Path(cache_home) if cache_home else Path.home() / ".cache"
+    return base / "sase" / "core-floor-probe.json"
+
+
+def _hash_file(digest: Any, label: str, path: Path) -> None:
+    digest.update(label.encode())
+    digest.update(b"\0")
+    try:
+        with path.open("rb") as stream:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+    except FileNotFoundError:
+        digest.update(b"<missing>")
+    digest.update(b"\0")
+
+
+def _collect_binding_names(src_root: Path) -> tuple[str, ...]:
+    try:
+        result = _run(
+            [sys.executable, str(CHECK_BINDINGS), "--src", str(src_root), "--list"]
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CouldNotDetermine(f"could not collect core binding names: {exc}") from exc
+    if result.returncode != 0:
+        detail = _last_nonempty_lines(result.stderr or result.stdout)
+        raise CouldNotDetermine(
+            "could not collect core binding names"
+            + (f": {detail}" if detail else "")
+        )
+    names = tuple(
+        sorted(line.strip() for line in result.stdout.splitlines() if line.strip())
+    )
+    if not names:
+        raise CouldNotDetermine("no required core bindings were collected")
+    return names
+
+
+def _fingerprint(*, floor: str, binding_names: tuple[str, ...]) -> str:
+    digest = hashlib.sha256()
+    digest.update(f"schema:{CACHE_SCHEMA_VERSION}".encode())
+    digest.update(b"\0floor:")
+    digest.update(floor.encode())
+    digest.update(b"\0bindings:")
+    for name in binding_names:
+        digest.update(name.encode())
+        digest.update(b"\0")
+    _hash_file(digest, "probe:check-bindings", CHECK_BINDINGS)
+    _hash_file(digest, "probe:validate-core", VALIDATE_CORE)
+    return digest.hexdigest()
+
+
+def _load_cache(cache_path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    if payload.get("schema_version") != CACHE_SCHEMA_VERSION:
+        return {}
+    entries = payload.get("entries")
+    return entries if isinstance(entries, dict) else {}
+
+
+def _write_cache(cache_path: Path, entries: dict[str, Any]) -> None:
+    payload = {
+        "schema_version": CACHE_SCHEMA_VERSION,
+        "entries": entries,
+    }
+    temporary = cache_path.with_name(f".{cache_path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(payload, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary, cache_path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _venv_python(venv_dir: Path) -> Path:
+    if os.name == "nt":
+        return venv_dir / "Scripts" / "python.exe"
+    return venv_dir / "bin" / "python"
+
+
+def _run_floor_probe(*, floor: str, src_root: Path) -> RawProbeResult:
+    with tempfile.TemporaryDirectory(prefix="sase-core-floor-probe-") as tmp:
+        venv_dir = Path(tmp) / "venv"
+        try:
+            create = _run(
+                [sys.executable, "-m", "venv", str(venv_dir)],
+                timeout=60.0,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProbeSkipped(f"could not create scratch venv: {exc}") from exc
+        if create.returncode != 0:
+            detail = _last_nonempty_lines(create.stderr or create.stdout)
+            raise ProbeSkipped(
+                "could not create scratch venv"
+                + (f": {detail}" if detail else "")
+            )
+
+        python = _venv_python(venv_dir)
+        env = os.environ.copy()
+        env.update(
+            {
+                "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+                "PIP_DEFAULT_TIMEOUT": "5",
+                "PIP_RETRIES": "0",
+            }
+        )
+        install_command = [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--quiet",
+            "--timeout",
+            "5",
+            "--retries",
+            "0",
+            f"{DEPENDENCY_NAME}=={floor}",
+        ]
+        try:
+            install = _run(install_command, env=env, timeout=120.0)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProbeSkipped(
+                f"could not install {DEPENDENCY_NAME}=={floor}: {exc}"
+            ) from exc
+        if install.returncode != 0:
+            detail = _last_nonempty_lines(install.stderr or install.stdout)
+            raise ProbeSkipped(
+                f"could not install {DEPENDENCY_NAME}=={floor} from PyPI"
+                + (f": {detail}" if detail else "")
+            )
+
+        bindings = _run(
+            [str(python), str(CHECK_BINDINGS), "--src", str(src_root)],
+            env=env,
+            timeout=60.0,
+        )
+        validator = _run(
+            [str(python), str(VALIDATE_CORE)],
+            env=env,
+            timeout=60.0,
+        )
+        return RawProbeResult(bindings=bindings, validator=validator)
+
+
+def _cached_or_run_probe(
+    *,
+    cache_path: Path,
+    key: str,
+    floor: str,
+    src_root: Path,
+) -> tuple[RawProbeResult, bool]:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = cache_path.with_suffix(f"{cache_path.suffix}.lock")
+    with lock_path.open("a", encoding="utf-8") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        entries = _load_cache(cache_path)
+        cached = RawProbeResult.from_json(entries.get(key))
+        if cached is not None:
+            return cached, True
+        result = _run_floor_probe(floor=floor, src_root=src_root)
+        entries[key] = result.to_json() | {
+            "created_at": int(time.time()),
+            "floor": floor,
+        }
+        _write_cache(cache_path, entries)
+        return result, False
+
+
+def _last_nonempty_lines(text: str, *, limit: int = 3) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return " / ".join(lines[-limit:])
+
+
+def _extract_capabilities(raw: RawProbeResult) -> tuple[str, ...]:
+    names: set[str] = set()
+    for line in raw.bindings.stderr.splitlines():
+        match = _MISSING_BINDING_LINE_RE.fullmatch(line)
+        if match:
+            names.add(match.group(1))
+
+    for line in raw.validator.stderr.splitlines():
+        missing_match = _VALIDATE_MISSING_RE.search(line)
+        if missing_match:
+            for raw_name in missing_match.group("names").split(","):
+                name = raw_name.strip()
+                if name:
+                    names.add(name)
+            continue
+
+        binding_match = _VALIDATE_BINDING_RE.search(line)
+        if binding_match:
+            names.add(binding_match.group("name"))
+            continue
+
+        for marker, binding_name in _VALIDATE_NAMED_BINDINGS.items():
+            if marker in line:
+                names.add(binding_name)
+                break
+    return tuple(sorted(names))
+
+
+def _git_output(core_dir: Path, args: list[str]) -> str:
+    try:
+        result = _run(["git", "-C", str(core_dir), *args], timeout=30.0)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CouldNotDetermine(f"could not query sase-core history: {exc}") from exc
+    if result.returncode != 0:
+        detail = _last_nonempty_lines(result.stderr or result.stdout)
+        raise CouldNotDetermine(
+            "could not query sase-core history" + (f": {detail}" if detail else "")
+        )
+    return result.stdout
+
+
+def _diagnose_capability(core_dir: Path, name: str) -> CapabilityDiagnosis:
+    log = _git_output(
+        core_dir,
+        [
+            "log",
+            "--format=%H%x00%s",
+            "--reverse",
+            f"-S{name}",
+            "--",
+            "crates/sase_core_py/src/lib.rs",
+        ],
+    )
+    first_line = next((line for line in log.splitlines() if line.strip()), "")
+    if not first_line:
+        return CapabilityDiagnosis(name=name, commit=None, subject=None, release=None)
+    if "\0" in first_line:
+        commit, subject = first_line.split("\0", 1)
+    else:
+        commit, subject = first_line, None
+
+    tags = _git_output(
+        core_dir,
+        ["tag", "--contains", commit, "--sort=v:refname"],
+    )
+    release = next(
+        (tag.strip() for tag in tags.splitlines() if _is_release_tag(tag.strip())),
+        None,
+    )
+    return CapabilityDiagnosis(
+        name=name,
+        commit=commit[:7],
+        subject=subject,
+        release=release,
+    )
+
+
+def _is_release_tag(tag: str) -> bool:
+    return bool(re.fullmatch(r"v\d+(?:\.\d+)+", tag))
+
+
+def _probe_excerpt(raw: RawProbeResult) -> str:
+    text = "\n".join(
+        part
+        for part in (
+            raw.bindings.stderr,
+            raw.bindings.stdout,
+            raw.validator.stderr,
+            raw.validator.stdout,
+        )
+        if part
+    )
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return "\n".join(lines[:12])
+
+
+def _evaluate(namespace: argparse.Namespace) -> Verdict:
+    try:
+        floor = _declared_floor(namespace.pyproject)
+    except CouldNotDetermine as exc:
+        return Verdict(
+            status="could_not_determine",
+            exit_code=EXIT_COULD_NOT_DETERMINE,
+            floor="<unknown>",
+            cache_hit=False,
+            message=str(exc),
+        )
+
+    try:
+        binding_names = _collect_binding_names(namespace.src)
+        key = _fingerprint(floor=floor, binding_names=binding_names)
+        raw, cache_hit = _cached_or_run_probe(
+            cache_path=namespace.cache_file,
+            key=key,
+            floor=floor,
+            src_root=namespace.src,
+        )
+    except ProbeSkipped as exc:
+        return Verdict(
+            status="skipped",
+            exit_code=EXIT_OK,
+            floor=floor,
+            cache_hit=False,
+            message=str(exc),
+        )
+    except CouldNotDetermine as exc:
+        return Verdict(
+            status="could_not_determine",
+            exit_code=EXIT_COULD_NOT_DETERMINE,
+            floor=floor,
+            cache_hit=False,
+            message=str(exc),
+        )
+
+    if raw.bindings.returncode == 0 and raw.validator.returncode == 0:
+        return Verdict(status="ok", exit_code=EXIT_OK, floor=floor, cache_hit=cache_hit)
+
+    capabilities = _extract_capabilities(raw)
+    if not capabilities:
+        return Verdict(
+            status="could_not_determine",
+            exit_code=EXIT_COULD_NOT_DETERMINE,
+            floor=floor,
+            cache_hit=cache_hit,
+            message=(
+                f"{DEPENDENCY_NAME}=={floor} failed the published-floor probes, "
+                "but the output did not name a binding or schema capability."
+            ),
+            probe_excerpt=_probe_excerpt(raw),
+        )
+
+    core_dir = namespace.sase_core_dir
+    if not (core_dir / "Cargo.toml").is_file():
+        return Verdict(
+            status="skipped",
+            exit_code=EXIT_OK,
+            floor=floor,
+            cache_hit=cache_hit,
+            message=(
+                f"{DEPENDENCY_NAME}=={floor} failed the published-floor probes, "
+                f"but no sase-core checkout was found at {core_dir} for diagnostics."
+            ),
+            probe_excerpt=_probe_excerpt(raw),
+        )
+
+    try:
+        diagnoses = tuple(
+            _diagnose_capability(core_dir, capability)
+            for capability in capabilities
+        )
+    except CouldNotDetermine as exc:
+        return Verdict(
+            status="could_not_determine",
+            exit_code=EXIT_COULD_NOT_DETERMINE,
+            floor=floor,
+            cache_hit=cache_hit,
+            message=str(exc),
+            probe_excerpt=_probe_excerpt(raw),
+        )
+
+    if all(diagnosis.release for diagnosis in diagnoses):
+        return Verdict(
+            status="stale_actionable",
+            exit_code=EXIT_STALE_ACTIONABLE,
+            floor=floor,
+            cache_hit=cache_hit,
+            message=(
+                f"{DEPENDENCY_NAME}=={floor} is missing "
+                f"{len(diagnoses)} capability(s) that exist in a published "
+                "sase-core release."
+            ),
+            capabilities=diagnoses,
+        )
+    return Verdict(
+        status="blocked_unpublished",
+        exit_code=EXIT_BLOCKED_UNPUBLISHED,
+        floor=floor,
+        cache_hit=cache_hit,
+        message=(
+            f"{DEPENDENCY_NAME}=={floor} is missing {len(diagnoses)} "
+            "capability(s), and at least one has no containing sase-core "
+            "release tag yet."
+        ),
+        capabilities=diagnoses,
+    )
+
+
+def _human_lines(verdict: Verdict) -> list[str]:
+    prefix = "[core-floor-probe]"
+    if verdict.status == "ok":
+        return []
+
+    lines = [
+        f"{prefix} {verdict.status}: {verdict.message or 'no detail available'}"
+    ]
+    for capability in verdict.capabilities:
+        if capability.commit is None:
+            lines.append(
+                f"{prefix} {capability.name}: no introducing commit found in sase-core."
+            )
+            continue
+        detail = f"{capability.name}: first appears in sase-core {capability.commit}"
+        if capability.subject:
+            detail += f" ({capability.subject})"
+        if capability.release:
+            detail += f"; release {capability.release} contains it."
+        else:
+            detail += "; no release tag contains it yet."
+        lines.append(f"{prefix} {detail}")
+    if verdict.probe_excerpt:
+        lines.append(f"{prefix} probe output excerpt:")
+        lines.extend(f"{prefix}   {line}" for line in verdict.probe_excerpt.splitlines())
+    return lines
+
+
+def _emit(verdict: Verdict, *, print_json: bool) -> None:
+    for line in _human_lines(verdict):
+        print(line, file=sys.stderr)
+    if print_json or verdict.status != "ok":
+        print(json.dumps(verdict.to_json(), sort_keys=True))
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--pyproject", type=Path, default=DEFAULT_PYPROJECT)
+    parser.add_argument("--src", type=Path, default=DEFAULT_SRC_ROOT)
+    parser.add_argument(
+        "--sase-core-dir",
+        type=Path,
+        default=_default_sase_core_dir(),
+        help="local sase-core checkout used only to diagnose failed probes",
+    )
+    parser.add_argument("--cache-file", type=Path, default=_cache_file_default())
+    parser.add_argument(
+        "--advisory",
+        action="store_true",
+        help="force exit 0 while still printing non-ok diagnostics",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print the JSON verdict even when the status is ok",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    namespace = _parse_args(argv)
+    verdict = _evaluate(namespace)
+    _emit(verdict, print_json=namespace.json)
+    if namespace.advisory and verdict.exit_code != EXIT_OK:
+        return EXIT_OK
+    return verdict.exit_code
+
+
+def _die(message: str) -> NoReturn:
+    print(f"[core-floor-probe] {message}", file=sys.stderr)
+    raise SystemExit(EXIT_COULD_NOT_DETERMINE)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        _die("interrupted")
