@@ -20,6 +20,31 @@ pytestmark = pytest.mark.contract
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _just_recipe_body(recipe_name: str) -> str:
+    lines = (ROOT / "Justfile").read_text(encoding="utf-8").splitlines()
+    header = f"{recipe_name}:"
+    start = next(index for index, line in enumerate(lines) if line.startswith(header))
+    body: list[str] = []
+    for line in lines[start + 1 :]:
+        if line and not line.startswith((" ", "\t")):
+            break
+        body.append(line)
+    return "\n".join(body)
+
+
+def test_just_gate_missing_repo_policy() -> None:
+    lint_body = _just_recipe_body("_lint-patch-stitch-terminology")
+    audit_body = _just_recipe_body("audit-patch-stitch-terminology")
+
+    assert (
+        "tools/audit_patch_stitch_terminology --repo-root . --allow-missing-linked-repos"
+        in lint_body
+    )
+    assert "tools/audit_patch_stitch_terminology --repo-root ." in audit_body
+    assert "--allow-missing-linked-repos" not in audit_body
+    assert "_lint-patch-stitch-terminology" not in audit_body
+
+
 def test_classifier_rejects_ordinary_source_regression() -> None:
     classification, rule, reason = _classify_candidate(
         "main",
@@ -89,6 +114,35 @@ def test_classifier_accepts_test_tree_fixture_tokens() -> None:
         "tests/ace/tui/test_changespec_grouping.py",
         "def test_changespec_grouping_keeps_legacy_fixture() -> None:",
         "changespec_grouping",
+    )
+
+    assert classification == "legacy-data-test-fixture"
+    assert rule == "compatibility_test_or_fixture"
+
+
+def test_strict_classifier_rejects_test_tree_current_concept_prose() -> None:
+    classification, rule, reason = _classify_candidate(
+        "main",
+        "tests/ace/tui/test_patch_grouping.py",
+        '"""Current ChangeSpec grouping renders by Patch."""',
+        "ChangeSpec",
+        strict_test_fixtures=True,
+    )
+
+    assert classification == "defect"
+    assert rule == "unclassified"
+    assert "Patch/stitch" in reason
+
+
+def test_strict_classifier_accepts_test_tree_declared_legacy_alias() -> None:
+    classification, rule, _reason = _classify_candidate(
+        "main",
+        "tests/ace/tui/test_patch_tab_state.py",
+        'initial_tab = "changespecs"',
+        "changespecs",
+        "# legacy alias fixture for the retained changespecs tab id\n"
+        'initial_tab = "changespecs"',
+        strict_test_fixtures=True,
     )
 
     assert classification == "legacy-data-test-fixture"

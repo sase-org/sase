@@ -339,6 +339,19 @@ def _is_compatibility_test_or_fixture(
     return True
 
 
+def _is_strict_compatibility_test_or_fixture(
+    repo: str, path: str, line: str, match: str, context: str
+) -> bool:
+    del repo
+    if not (path.startswith("tests/") or path.startswith("smoke/")):
+        return False
+    return (
+        _declares_compatibility_boundary(context)
+        or _mentions_retained_serialized_marker(line, match)
+        or _mentions_retained_public_marker(line)
+    )
+
+
 def _is_external_legacy_boundary(
     repo: str, path: str, line: str, match: str, context: str
 ) -> bool:
@@ -445,12 +458,36 @@ _RULES: tuple[_Rule, ...] = (
 )
 
 
+_STRICT_TEST_FIXTURE_RULES: tuple[_Rule, ...] = tuple(
+    _Rule(
+        rule.name,
+        rule.classification,
+        rule.reason,
+        _is_strict_compatibility_test_or_fixture,
+        rule.required,
+    )
+    if rule.name == "compatibility_test_or_fixture"
+    else rule
+    for rule in _RULES
+)
+
+
+def _rules_for(strict_test_fixtures: bool) -> tuple[_Rule, ...]:
+    return _STRICT_TEST_FIXTURE_RULES if strict_test_fixtures else _RULES
+
+
 def _classify_candidate(
-    repo: str, path: str, line: str, match: str, context: str | None = None
+    repo: str,
+    path: str,
+    line: str,
+    match: str,
+    context: str | None = None,
+    *,
+    strict_test_fixtures: bool = False,
 ) -> tuple[str, str, str]:
     """Classify one audited token occurrence."""
     context = line if context is None else context
-    for rule in _RULES:
+    for rule in _rules_for(strict_test_fixtures):
         if rule.predicate(repo, path, line, match, context):
             return rule.classification, rule.name, rule.reason
     return (
@@ -460,7 +497,9 @@ def _classify_candidate(
     )
 
 
-def _iter_candidates(repo: _RepoSpec) -> Iterable[_Candidate]:
+def _iter_candidates(
+    repo: _RepoSpec, *, strict_test_fixtures: bool = False
+) -> Iterable[_Candidate]:
     """Yield audited token candidates in tracked text files for one repo."""
     root = repo.root.resolve()
     for path in _tracked_files(root):
@@ -473,7 +512,12 @@ def _iter_candidates(repo: _RepoSpec) -> Iterable[_Candidate]:
             context = "\n".join(lines[max(0, index - 1) : min(len(lines), index + 2)])
             for match in LEGACY_TOKEN_RE.finditer(line):
                 classification, rule, reason = _classify_candidate(
-                    repo.name, rel_path, line, match.group(0), context
+                    repo.name,
+                    rel_path,
+                    line,
+                    match.group(0),
+                    context,
+                    strict_test_fixtures=strict_test_fixtures,
                 )
                 yield _Candidate(
                     repo=repo.name,
@@ -488,15 +532,24 @@ def _iter_candidates(repo: _RepoSpec) -> Iterable[_Candidate]:
 
 
 def _audit_repositories(
-    repos: Sequence[_RepoSpec], *, missing_repos: Sequence[str] = ()
+    repos: Sequence[_RepoSpec],
+    *,
+    missing_repos: Sequence[str] = (),
+    strict_test_fixtures: bool = False,
 ) -> _AuditReport:
     """Scan repositories and return candidates plus stale required rules."""
     candidates = tuple(
-        candidate for repo in repos for candidate in _iter_candidates(repo)
+        candidate
+        for repo in repos
+        for candidate in _iter_candidates(
+            repo, strict_test_fixtures=strict_test_fixtures
+        )
     )
     used_rules = {candidate.rule for candidate in candidates}
     stale_rules = tuple(
-        rule.name for rule in _RULES if rule.required and rule.name not in used_rules
+        rule.name
+        for rule in _rules_for(strict_test_fixtures)
+        if rule.required and rule.name not in used_rules
     )
     return _AuditReport(
         candidates=candidates,
@@ -554,6 +607,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="do not fail when default linked-repo discovery cannot find every expected repo",
     )
+    parser.add_argument(
+        "--strict-test-fixtures",
+        action="store_true",
+        help=(
+            "temporary sweep instrument: require tests/ and smoke/ matches to declare "
+            "a retained legacy boundary instead of blanket-classifying the tree as fixtures"
+        ),
+    )
     args = parser.parse_args(argv)
 
     if args.repo:
@@ -563,7 +624,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         discovery = _discover_default_repo_specs(args.repo_root)
         repos = discovery.repos
         missing_repos = discovery.missing
-    report = _audit_repositories(repos, missing_repos=missing_repos)
+    report = _audit_repositories(
+        repos,
+        missing_repos=missing_repos,
+        strict_test_fixtures=args.strict_test_fixtures,
+    )
 
     if args.json:
         print(
