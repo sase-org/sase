@@ -9,6 +9,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 
 from sase.config.core import load_merged_config
+from sase.dev_update.prebuild import schedule_rust_prebuild
 from sase.updates import (
     UpdateStatus,
     fetch_incoming_commits,
@@ -138,12 +139,27 @@ class UpdateToastMixin:
     ) -> _AutomaticUpdateCheckResult | None:
         """Compute one automatic update result without touching mounted widgets."""
         config = _load_update_toast_config()
-        if periodic and not config.indicator:
-            return None
-        if not config.startup_toast and not config.indicator:
+        status_required = (
+            config.prebuild_rust
+            or config.indicator
+            or (config.startup_toast and not periodic)
+        )
+        if not status_required:
             return None
         status = _get_automatic_update_status(config, periodic=periodic)
         if status is None:
+            return None
+
+        if config.prebuild_rust:
+            try:
+                _schedule_rust_prebuild(status, config)
+            except Exception:
+                log.debug("Failed to schedule Rust prebuild", exc_info=True)
+
+        ui_enabled = config.indicator or config.startup_toast
+        if periodic and not config.indicator:
+            ui_enabled = False
+        if not ui_enabled:
             return None
 
         sections = None
@@ -355,6 +371,7 @@ def _build_startup_toast_sections(
 
 
 _fetch_incoming_commits = fetch_incoming_commits
+_schedule_rust_prebuild = schedule_rust_prebuild
 
 
 __all__ = [

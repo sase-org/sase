@@ -195,6 +195,10 @@ ace:
     agent_cli_history: true
     agent_cli_history_max_rows: 8
     indicator: true
+    # Prebuild matching Rust dev artifacts in the background when an editable
+    # sase-core checkout is behind; confirmed updates fall back to the normal
+    # build path on every miss.
+    prebuild_rust: true
     check_interval_minutes: 10
     check_ttl_minutes: 10
     recompute_interval_minutes: 60

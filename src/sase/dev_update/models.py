@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -25,6 +25,7 @@ DevPackagePlanStatus = Literal["actionable", "skipped"]
 DevUpdateOutcomeStatus = Literal["updated", "skipped", "failed"]
 DevReconcileStepKind = Literal[
     "uv_tool_install",
+    "rust_prebuild_install",
     "rust_dev_install",
     "rust_install_uv_tool",
     "rust_health_check",
@@ -210,6 +211,15 @@ class DevExecutedCommand:
 
 
 @dataclass(frozen=True)
+class DevRustPrebuildResult:
+    """Outcome of attempting to install cached Rust dev artifacts."""
+
+    attempted: bool = False
+    hit: bool = False
+    reason: str = "not-attempted"
+
+
+@dataclass(frozen=True)
 class DevUpdateResult:
     """Complete editable-install update result."""
 
@@ -217,3 +227,4 @@ class DevUpdateResult:
     outcomes: tuple[DevUpdateOutcome, ...]
     commands: tuple[DevExecutedCommand, ...] = ()
     duration_seconds: float = 0.0
+    rust_prebuild: DevRustPrebuildResult = field(default_factory=DevRustPrebuildResult)

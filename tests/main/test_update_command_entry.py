@@ -37,7 +37,7 @@ def test_update_accepts_each_flag() -> None:
 
 
 def test_update_json_schema_version_is_pinned_to_dev_schema() -> None:
-    assert UPDATE_JSON_SCHEMA_VERSION == 2
+    assert UPDATE_JSON_SCHEMA_VERSION == 3
 
 
 def test_not_uv_tool_install_renders_error_and_exits_one() -> None:

@@ -118,7 +118,7 @@ def _print_table(rows: list[tuple[str, str, list[float]]]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Summarize schema-2 dev-update reconcile-step durations from "
+            "Summarize schema-2+ dev-update reconcile-step durations from "
             "~/.sase/logs/dev_update.jsonl and its .1 rotation."
         )
     )

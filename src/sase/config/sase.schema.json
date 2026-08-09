@@ -731,6 +731,11 @@
               "description": "Show a segmented top-bar badge while SASE core, installed plugins, or supported agent CLIs have updates available",
               "default": true
             },
+            "prebuild_rust": {
+              "type": "boolean",
+              "description": "Prebuild matching editable sase-core Rust artifacts in a background cache when ACE observes a safe core update; confirmed updates fall back to the normal Rust build on every miss",
+              "default": true
+            },
             "check_interval_minutes": {
               "type": "number",
               "description": "Interval between update-check attempts in a running ACE session. Ordinary attempts only revalidate the cached composite snapshot; in-flight guards may suppress overlapping work.",

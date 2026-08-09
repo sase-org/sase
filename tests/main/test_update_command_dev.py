@@ -138,7 +138,7 @@ def test_dev_update_json_includes_dev_outcomes_and_restart(
 
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["mode"] == "dev"
     assert payload["command"] == []
     assert payload["changed"] is True
@@ -158,6 +158,11 @@ def test_dev_update_json_includes_dev_outcomes_and_restart(
     assert payload["dev"]["plan"]["packages"][0]["fetch_error"] is None
     assert payload["dev"]["plan"]["roots"][0]["fetch_error"] is None
     assert payload["dev"]["plan"]["reconcile_steps"][0]["kind"] == "uv_tool_install"
+    assert payload["dev"]["rust_prebuild"] == {
+        "attempted": False,
+        "hit": False,
+        "reason": "not-attempted",
+    }
     assert payload["dev"]["packages"][0]["name"] == "sase"
     assert payload["dev"]["packages"][0]["status"] == "updated"
     assert payload["restart"] == {

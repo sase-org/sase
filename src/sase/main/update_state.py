@@ -29,6 +29,14 @@ def dev_counts(result: DevUpdateResult | None) -> dict[str, int]:
     }
 
 
+def rust_prebuild_summary(result: DevUpdateResult | None) -> str | None:
+    if result is None or not result.rust_prebuild.attempted:
+        return None
+    if result.rust_prebuild.hit:
+        return "rust prebuild: hit"
+    return f"rust prebuild: miss ({result.rust_prebuild.reason})"
+
+
 def plural(count: int, singular: str) -> str:
     if count == 1:
         return singular

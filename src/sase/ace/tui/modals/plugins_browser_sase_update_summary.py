@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from sase.ace.tui.task_subprocess import TaskReporter
+from sase.main.update_state import rust_prebuild_summary
 from sase.main.update_types import CombinedUpdateResult
 from sase.dev_update.timings import slowest_reconcile_command
 from sase.plugins.render_common import humanize_duration
@@ -202,6 +203,8 @@ def log_combined_update_result(
                 f"({humanize_duration(slowest.duration_seconds)})",
                 stream="result",
             )
+        if prebuild := rust_prebuild_summary(result.dev_result):
+            reporter.log(prebuild, stream="result")
     if result.managed_summary is not None:
         for managed_outcome in result.managed_summary.updated:
             reporter.log(

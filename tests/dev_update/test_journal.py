@@ -13,6 +13,7 @@ from sase.dev_update.journal import (
 from sase.dev_update.models import (
     DevExecutedCommand,
     DevReconcileStep,
+    DevRustPrebuildResult,
     DevUpdateOutcome,
     DevUpdatePackagePlan,
     DevUpdatePlan,
@@ -117,6 +118,11 @@ def _result(plan: DevUpdatePlan) -> DevUpdateResult:
             ),
         ),
         duration_seconds=301.5,
+        rust_prebuild=DevRustPrebuildResult(
+            attempted=True,
+            hit=False,
+            reason="commit-mismatch",
+        ),
     )
 
 
@@ -124,7 +130,7 @@ def test_dev_update_journal_record_summarizes_plan_result_and_command_tails() ->
     plan = _plan()
     record = _dev_update_journal_record(plan, _result(plan))
 
-    assert record["schema_version"] == 2
+    assert record["schema_version"] == 3
     assert record["plan"]["packages"][0]["fetch_error"] == "network down"
     assert record["plan"]["roots"][0]["fetch_error"] == "network down"
     assert record["plan"]["reconcile_steps"][0]["kind"] == "rust_health_check"
@@ -134,6 +140,11 @@ def test_dev_update_journal_record_summarizes_plan_result_and_command_tails() ->
     assert record["result"]["status"] == "failed"
     assert record["result"]["duration_seconds"] == 301.5
     assert record["result"]["counts"] == {"updated": 0, "skipped": 0, "failed": 1}
+    assert record["result"]["rust_prebuild"] == {
+        "attempted": True,
+        "hit": False,
+        "reason": "commit-mismatch",
+    }
     assert record["commands"][0]["duration_seconds"] == 294.25
     assert len(record["commands"][0]["stdout_tail"]) == 12_000
 
@@ -190,5 +201,5 @@ def test_append_dev_update_journal_rotates_existing_file(
     assert append_dev_update_journal(_plan(), _result(_plan()), path=path) == path
 
     assert json.loads(rotated.read_text(encoding="utf-8")) == {"generation": "current"}
-    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 2
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 3
     assert not path.with_name(f"{path.name}.2").exists()

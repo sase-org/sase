@@ -16,6 +16,7 @@ from sase.dev_update.models import (
     DevCommandRunner,
     DevExecutedCommand,
     DevReconcileStep,
+    DevRustPrebuildResult,
     DevUpdateOutcome,
     DevUpdatePackagePlan,
     DevUpdatePlan,
@@ -25,6 +26,7 @@ from sase.dev_update.models import (
     RepoCommitLog,
     RepoDiffStat,
 )
+from sase.dev_update.prebuild import parse_outcome_marker
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.version._git import GitUpstreamStatus, fetch_git_upstream, merge_git_ff_only
 from sase.workspace_provider.utils import non_interactive_git_env
@@ -46,6 +48,7 @@ def execute_dev_update(
     """Execute ``plan`` with a fully injected subprocess runner."""
     start = clock()
     commands: list[DevExecutedCommand] = []
+    rust_prebuild = DevRustPrebuildResult()
 
     def finish(result: DevUpdateResult) -> DevUpdateResult:
         return replace(result, duration_seconds=max(0.0, clock() - start))
@@ -59,18 +62,35 @@ def execute_dev_update(
                 changed=False,
                 outcomes=_skipped_outcomes(plan),
                 commands=(),
+                rust_prebuild=rust_prebuild,
             )
         )
 
     fetch_failure = _fetch_actionable_roots(plan.actionable_roots, run, commands, clock)
     if fetch_failure is not None:
-        return finish(_failed_result(plan, fetch_failure, commands, changed=False))
+        return finish(
+            _failed_result(
+                plan,
+                fetch_failure,
+                commands,
+                changed=False,
+                rust_prebuild=rust_prebuild,
+            )
+        )
 
     preflight_failure = _preflight_actionable_roots(
         plan.actionable_roots, run, commands, clock
     )
     if preflight_failure is not None:
-        return finish(_failed_result(plan, preflight_failure, commands, changed=False))
+        return finish(
+            _failed_result(
+                plan,
+                preflight_failure,
+                commands,
+                changed=False,
+                rust_prebuild=rust_prebuild,
+            )
+        )
 
     with code_swap_writer_lock() as lock:
         if not lock.acquired:
@@ -80,6 +100,7 @@ def execute_dev_update(
                     _code_swap_deferred_reason(lock.blocked_by),
                     commands,
                     changed=False,
+                    rust_prebuild=rust_prebuild,
                 )
             )
 
@@ -91,10 +112,16 @@ def execute_dev_update(
         ) = _merge_actionable_roots(plan.actionable_roots, run, commands, clock)
         if merge_failure is not None:
             return finish(
-                _failed_result(plan, merge_failure, commands, changed=merged_any)
+                _failed_result(
+                    plan,
+                    merge_failure,
+                    commands,
+                    changed=merged_any,
+                    rust_prebuild=rust_prebuild,
+                )
             )
 
-        reconcile_failure = _run_reconcile_steps(
+        reconcile_failure, rust_prebuild = _run_reconcile_steps(
             plan.reconcile_steps, run, commands, clock
         )
         if reconcile_failure is not None:
@@ -104,6 +131,7 @@ def execute_dev_update(
                     reconcile_failure,
                     commands,
                     changed=merged_any or bool(commands),
+                    rust_prebuild=rust_prebuild,
                 )
             )
 
@@ -112,6 +140,7 @@ def execute_dev_update(
                 changed=True,
                 outcomes=_success_outcomes(plan, root_diffstats, root_commits),
                 commands=tuple(commands),
+                rust_prebuild=rust_prebuild,
             )
         )
 
@@ -302,8 +331,10 @@ def _run_reconcile_steps(
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
     clock: Callable[[], float],
-) -> str | None:
+) -> tuple[str | None, DevRustPrebuildResult]:
     pending_failure: str | None = None
+    rust_prebuild = DevRustPrebuildResult()
+    skip_next_rust_build = False
     for index, step in enumerate(steps):
         if step.kind == "rust_health_check":
             health_failure = _run_rust_health_check_step(
@@ -314,7 +345,20 @@ def _run_reconcile_steps(
                 prior_failure=pending_failure,
             )
             if health_failure is not None:
-                return health_failure
+                return health_failure, rust_prebuild
+            continue
+
+        if step.kind == "rust_prebuild_install":
+            rust_prebuild, skip_next_rust_build = _run_rust_prebuild_step(
+                step,
+                run,
+                commands,
+                clock,
+            )
+            continue
+
+        if skip_next_rust_build and _is_rust_build_step(step):
+            skip_next_rust_build = False
             continue
 
         if not step.available:
@@ -322,7 +366,7 @@ def _run_reconcile_steps(
             if _is_rust_build_step(step) and _has_later_rust_health_check(steps, index):
                 pending_failure = _join_failures(pending_failure, failure)
                 continue
-            return failure
+            return failure, rust_prebuild
         result = _run(
             run,
             step.command,
@@ -337,8 +381,46 @@ def _run_reconcile_steps(
             if _is_rust_build_step(step) and _has_later_rust_health_check(steps, index):
                 pending_failure = _join_failures(pending_failure, failure)
                 continue
-            return failure
-    return pending_failure
+            return failure, rust_prebuild
+    return pending_failure, rust_prebuild
+
+
+def _run_rust_prebuild_step(
+    step: DevReconcileStep,
+    run: DevCommandRunner,
+    commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
+) -> tuple[DevRustPrebuildResult, bool]:
+    if not step.available:
+        return (
+            DevRustPrebuildResult(
+                attempted=True,
+                hit=False,
+                reason=step.reason or "stamp-missing",
+            ),
+            False,
+        )
+    result = _run(
+        run,
+        step.command,
+        cwd=Path(step.cwd) if step.cwd else None,
+        env=step.env,
+        label=step.label,
+        commands=commands,
+        clock=clock,
+    )
+    parsed = parse_outcome_marker("\n".join((result.stdout, result.stderr)))
+    if parsed is None:
+        return (
+            DevRustPrebuildResult(
+                attempted=True,
+                hit=False,
+                reason="stamp-missing",
+            ),
+            False,
+        )
+    dev_result = parsed.to_dev_result()
+    return dev_result, result.returncode == 0 and parsed.hit
 
 
 def _is_rust_build_step(step: DevReconcileStep) -> bool:
@@ -676,7 +758,9 @@ def _failed_result(
     commands: list[DevExecutedCommand],
     *,
     changed: bool,
+    rust_prebuild: DevRustPrebuildResult | None = None,
 ) -> DevUpdateResult:
+    rust_prebuild = rust_prebuild or DevRustPrebuildResult()
     outcomes = [
         DevUpdateOutcome(
             record=pkg.record,
@@ -693,6 +777,7 @@ def _failed_result(
         changed=changed,
         outcomes=tuple(outcomes),
         commands=tuple(commands),
+        rust_prebuild=rust_prebuild,
     )
 
 

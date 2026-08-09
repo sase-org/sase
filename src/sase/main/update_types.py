@@ -16,7 +16,7 @@ from sase.uv_tool.render import UpdateSummary
 from sase.version.inventory import RuntimeVersionInventory, VersionPackageRecord
 
 #: Bump when the ``-j|--json`` payload shape changes incompatibly.
-UPDATE_JSON_SCHEMA_VERSION = 2
+UPDATE_JSON_SCHEMA_VERSION = 3
 
 ProbeFn = Callable[[], UvToolInstall | NotUvToolInstall]
 RunUvFn = Callable[[list[str]], UvChangeSet]

@@ -19,7 +19,12 @@ from sase.dev_update import (
 )
 from sase.dev_update.code_swap_lock import code_swap_advisory_warning
 from sase.dev_update.timings import slowest_reconcile_command
-from sase.main.update_state import dev_counts, humanize_duration, plural
+from sase.main.update_state import (
+    dev_counts,
+    humanize_duration,
+    plural,
+    rust_prebuild_summary,
+)
 from sase.uv_tool.render import PlannedPackage
 
 
@@ -89,6 +94,8 @@ def render_dev_update_result(
         body.append(_dev_executed_commands_table(reconcile))
         if (slowest := _slowest_reconcile_line(result)) is not None:
             body.append(slowest)
+    if (prebuild := _rust_prebuild_line(result)) is not None:
+        body.append(prebuild)
     if (advisory := _advisory_warning_line()) is not None:
         body.append(Text(""))
         body.append(advisory)
@@ -182,8 +189,13 @@ def _dev_executed_commands_table(commands: tuple[Any, ...]) -> Table:
     table.add_column()
     for command in commands:
         rendered = " ".join(command.command)
+        status = "ran" if command.returncode == 0 else "failed"
+        style = "cyan"
+        if _is_prebuild_consume_command(command):
+            status = "hit" if command.returncode == 0 else "miss"
+            style = "green" if command.returncode == 0 else "dim"
         table.add_row(
-            Text("ran" if command.returncode == 0 else "failed", style="cyan"),
+            Text(status, style=style),
             Text(command.label),
             Text(rendered, style="dim"),
         )
@@ -259,6 +271,17 @@ def _slowest_reconcile_line(result: DevUpdateResult) -> Text | None:
         f"slowest: {command.label} ({humanize_duration(command.duration_seconds)})",
         style="dim",
     )
+
+
+def _rust_prebuild_line(result: DevUpdateResult) -> Text | None:
+    summary = rust_prebuild_summary(result)
+    if summary is None:
+        return None
+    return Text(summary, style="green" if result.rust_prebuild.hit else "dim")
+
+
+def _is_prebuild_consume_command(command: Any) -> bool:
+    return str(getattr(command, "label", "")).startswith("Install prebuilt Rust")
 
 
 def _dev_quiet_line(result: DevUpdateResult, elapsed: float, *, failed: bool) -> Text:

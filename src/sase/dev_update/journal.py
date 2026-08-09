@@ -60,7 +60,7 @@ def _dev_update_journal_record(
 ) -> dict[str, Any]:
     """Build the serializable journal record for a dev-update run."""
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "timestamp": datetime.now(get_timezone()).isoformat(timespec="seconds"),
         "plan": {
             "packages": [
@@ -96,6 +96,11 @@ def _dev_update_journal_record(
             "changed": result.changed,
             "duration_seconds": round(result.duration_seconds, 3),
             "counts": _result_counts(result),
+            "rust_prebuild": {
+                "attempted": result.rust_prebuild.attempted,
+                "hit": result.rust_prebuild.hit,
+                "reason": result.rust_prebuild.reason,
+            },
             "outcomes": [
                 {
                     "name": outcome.record.name,

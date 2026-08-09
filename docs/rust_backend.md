@@ -661,6 +661,31 @@ reference: any change to the Rust output that breaks a snapshot must be matched 
 equivalent change in the corresponding `sase-core` Rust parity test
 (`../sase-core/.../tests/`) before either side ships.
 
+## Editable Dev Prebuild Cache
+
+ACE can opportunistically prebuild editable `sase-core` Rust artifacts while an update
+is only being advertised. The producer runs detached from the automatic update-status
+worker when `ace.updates.prebuild_rust` is true and the cached status reports an
+editable core checkout behind its upstream.
+
+The cache lives under `~/.sase/cache/rust-prebuild/`. Each completed set is stamped with
+the exact upstream core commit, `Cargo.lock` digest, `rustc --version`, Rust dev
+profile, target interpreter, and Python ABI. `sase update` consumes a set only when all
+of those fields still match the live checkout and tool venv; otherwise it reports a miss
+reason and runs the normal `just rust-dev-install-uv-tool` path. The install step copies
+the extension and LSP binary atomically, purges stale extension copies, and then probes
+`import sase_core_rs` before it counts as a hit.
+
+Only the two newest completed sets are retained. It is safe to remove the whole cache
+directory manually:
+
+```bash
+rm -rf ~/.sase/cache/rust-prebuild
+```
+
+The next eligible ACE update check recreates it, and confirmed updates continue to fall
+back to the normal build path while the cache is empty or stale.
+
 ## Rollback
 
 After Phase 8 the rollback model is **wheel/package fix, not env-var workaround**. There

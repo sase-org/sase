@@ -12,6 +12,7 @@ from sase.updates import ProviderUpdateCandidate, UpdateStatus
 from tests.ace.tui._update_toast_helpers import (
     _AutomaticCheckApp,
     _core_status,
+    _editable_component,
     _status,
 )
 
@@ -129,6 +130,74 @@ def test_periodic_update_check_releases_guard_on_exception(
     app.workers[0][0]()
 
     assert app._automatic_update_check_in_flight is False
+
+
+def test_background_prebuild_schedules_without_visible_ui(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    status = UpdateStatus(
+        checked_at=100.0,
+        components=(
+            _editable_component(
+                "sase-core-rs",
+                role="core",
+                root="/repo/sase-core",
+            ),
+        ),
+    )
+    scheduled: list[tuple[UpdateStatus, bool]] = []
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(
+            startup_toast=False,
+            indicator=False,
+            prebuild_rust=True,
+        ),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "get_cached_update_status",
+        lambda **_kwargs: status,
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "_schedule_rust_prebuild",
+        lambda status, config: scheduled.append((status, config.prebuild_rust)),
+    )
+
+    result = _AutomaticCheckApp()._compute_automatic_update_check(periodic=False)
+
+    assert result is None
+    assert scheduled == [(status, True)]
+
+
+def test_background_prebuild_disabled_with_no_ui_skips_status_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(
+            startup_toast=False,
+            indicator=False,
+            prebuild_rust=False,
+        ),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "get_cached_update_status",
+        lambda **_kwargs: pytest.fail("status should not be loaded"),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "_schedule_rust_prebuild",
+        lambda *_args: pytest.fail("prebuild should not be scheduled"),
+    )
+
+    result = _AutomaticCheckApp()._compute_automatic_update_check(periodic=False)
+
+    assert result is None
 
 
 def test_periodic_update_revalidates_each_tick_but_shows_toast_once(
@@ -327,7 +396,10 @@ def test_cached_revalidation_clears_state_when_indicator_is_disabled(
     monkeypatch.setattr(
         update_toast,
         "_load_update_toast_config",
-        lambda: update_toast._UpdateToastConfig(indicator=False),
+        lambda: update_toast._UpdateToastConfig(
+            indicator=False,
+            prebuild_rust=False,
+        ),
     )
     app = _AutomaticCheckApp(indicator_count=2)
     app.indicator.core = True
@@ -345,7 +417,10 @@ def test_indicator_disabled_skips_periodic_status_but_keeps_startup_toast(
     monkeypatch.setattr(
         update_toast,
         "_load_update_toast_config",
-        lambda: update_toast._UpdateToastConfig(indicator=False),
+        lambda: update_toast._UpdateToastConfig(
+            indicator=False,
+            prebuild_rust=False,
+        ),
     )
 
     def get_status(**_kwargs: object) -> UpdateStatus:

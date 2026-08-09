@@ -176,6 +176,8 @@ def dev_update_blocking_reason(plan: DevUpdatePlan) -> str | None:
     if not plan.actionable_roots and not plan.reconcile_steps:
         return _dev_update_skipped_message(plan)
     for step in plan.reconcile_steps:
+        if step.kind == "rust_prebuild_install":
+            continue
         if not step.available:
             return step.reason or f"{step.label} unavailable"
     if active_reader := code_swap_readers_active():

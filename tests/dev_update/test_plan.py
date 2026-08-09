@@ -343,19 +343,36 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
     plan = plan_dev_update([core], host_record=host, tool_python="/tool/bin/python")
 
     assert [step.kind for step in plan.reconcile_steps] == [
+        "rust_prebuild_install",
         "rust_dev_install",
         "rust_health_check",
     ]
-    assert plan.reconcile_steps[0].command == ("just", "rust-dev-install-uv-tool")
+    assert plan.reconcile_steps[0].command == (
+        "/tool/bin/python",
+        "-m",
+        "sase.dev_update.prebuild",
+        "consume",
+        "--core-root",
+        "/repo/sase-core",
+        "--host-root",
+        str(host_root),
+        "--python",
+        "/tool/bin/python",
+        "--profile",
+        "dev-update",
+    )
     assert plan.reconcile_steps[0].cwd == str(host_root)
     assert plan.reconcile_steps[0].env == {"SASE_RUST_DEV_PROFILE": "dev-update"}
-    assert plan.reconcile_steps[1].command == (
+    assert plan.reconcile_steps[1].command == ("just", "rust-dev-install-uv-tool")
+    assert plan.reconcile_steps[1].cwd == str(host_root)
+    assert plan.reconcile_steps[1].env == {"SASE_RUST_DEV_PROFILE": "dev-update"}
+    assert plan.reconcile_steps[2].command == (
         "/tool/bin/python",
         "-c",
         "import importlib.metadata as m; import sase_core_rs; "
         "print(m.version('sase-core-rs'))",
     )
-    assert plan.reconcile_steps[1].repair_command == (
+    assert plan.reconcile_steps[2].repair_command == (
         "uv",
         "pip",
         "install",
@@ -392,6 +409,7 @@ def test_plan_dev_update_threads_rust_dev_profile_override(
     plan = plan_dev_update([core], host_record=host, tool_python="/tool/bin/python")
 
     assert plan.reconcile_steps[0].env == {"SASE_RUST_DEV_PROFILE": "release"}
+    assert plan.reconcile_steps[1].env == {"SASE_RUST_DEV_PROFILE": "release"}
 
 
 def test_plan_dev_update_rebuilds_current_dev_core_after_uv_tool_install(
@@ -425,6 +443,7 @@ def test_plan_dev_update_rebuilds_current_dev_core_after_uv_tool_install(
 
     assert [step.kind for step in plan.reconcile_steps] == [
         "uv_tool_install",
+        "rust_prebuild_install",
         "rust_dev_install",
         "rust_health_check",
     ]
@@ -482,6 +501,7 @@ def test_plan_dev_update_restores_stale_core_from_buildable_checkout(
     assert core_plans[0].git_root is None
     assert [step.kind for step in plan.reconcile_steps] == [
         "uv_tool_install",
+        "rust_prebuild_install",
         "rust_dev_install",
         "rust_health_check",
     ]
@@ -544,11 +564,14 @@ def test_plan_dev_update_core_rebuild_steps_need_host_source_root(
     plan = plan_dev_update([core], host_record=host, tool_python="/tool/bin/python")
 
     assert [step.kind for step in plan.reconcile_steps] == [
+        "rust_prebuild_install",
         "rust_dev_install",
         "rust_health_check",
     ]
     assert plan.reconcile_steps[0].available is False
     assert plan.reconcile_steps[0].reason == "host checkout source root unavailable"
+    assert plan.reconcile_steps[1].available is False
+    assert plan.reconcile_steps[1].reason == "host checkout source root unavailable"
 
 
 @pytest.mark.parametrize(

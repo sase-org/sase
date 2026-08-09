@@ -16,6 +16,7 @@ def test_load_update_toast_config_defaults_to_ten_minutes(
 
     assert config.startup_toast is True
     assert config.indicator is True
+    assert config.prebuild_rust is True
     assert config.post_update_toast_diffstat is True
     assert config.post_update_toast_commits is True
     assert config.post_update_toast_max_commits == 5
@@ -73,6 +74,20 @@ def test_load_update_toast_config_indicator_override(
     config = update_toast._load_update_toast_config()
 
     assert config.indicator is False
+
+
+def test_load_update_toast_config_prebuild_rust_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "load_merged_config",
+        lambda: {"ace": {"updates": {"prebuild_rust": False}}},
+    )
+
+    config = update_toast._load_update_toast_config()
+
+    assert config.prebuild_rust is False
 
 
 def test_load_update_toast_config_incoming_commits_overrides(

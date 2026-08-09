@@ -49,6 +49,7 @@ def test_startup_update_check_respects_disabled_config(
         lambda: update_toast._UpdateToastConfig(
             startup_toast=False,
             indicator=False,
+            prebuild_rust=False,
         ),
     )
     monkeypatch.setattr(

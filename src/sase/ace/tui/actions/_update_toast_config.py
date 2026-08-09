@@ -33,6 +33,7 @@ class UpdateToastConfig:
     recompute_interval_seconds: float = _DEFAULT_RECOMPUTE_INTERVAL_SECONDS
     incoming_commits_enabled: bool = True
     startup_toast_max_commits: int = _DEFAULT_STARTUP_TOAST_MAX_COMMITS
+    prebuild_rust: bool = True
 
 
 def parse_update_toast_config(data: object) -> UpdateToastConfig:
@@ -68,6 +69,7 @@ def parse_update_toast_config(data: object) -> UpdateToastConfig:
             updates.get("startup_toast_max_commits"),
             default=_DEFAULT_STARTUP_TOAST_MAX_COMMITS,
         ),
+        prebuild_rust=_coerce_bool(updates.get("prebuild_rust"), default=True),
     )
 
 

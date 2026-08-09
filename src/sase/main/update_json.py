@@ -135,6 +135,7 @@ def _dev_result_json(
                 "changed": result.changed,
                 "duration_seconds": round(result.duration_seconds, 3),
                 "counts": dev_counts(result),
+                "rust_prebuild": _dev_rust_prebuild_json(result),
                 "packages": [_dev_outcome_json(outcome) for outcome in result.outcomes],
                 "commands": [_dev_command_json(command) for command in result.commands],
             }
@@ -209,6 +210,14 @@ def _dev_command_json(command: Any) -> dict[str, Any]:
         "duration_seconds": round(float(command.duration_seconds or 0.0), 3),
         "stdout": command.stdout,
         "stderr": command.stderr,
+    }
+
+
+def _dev_rust_prebuild_json(result: DevUpdateResult) -> dict[str, Any]:
+    return {
+        "attempted": result.rust_prebuild.attempted,
+        "hit": result.rust_prebuild.hit,
+        "reason": result.rust_prebuild.reason,
     }
 
 

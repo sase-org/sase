@@ -645,6 +645,7 @@ ace:
     agent_cli_history: true # show Agent CLIs update history in the Updates tab
     agent_cli_history_max_rows: 8 # history rows/runs shown; 0 shows all
     indicator: true # show the segmented SASE + agent-CLI update badge
+    prebuild_rust: true # background-cache editable sase-core Rust artifacts
     incoming_commits:
       enabled: true # show incoming commit subjects in the Updates tab
       max_per_repo: 7 # cap subjects per repository
@@ -878,6 +879,7 @@ remaining tabs collapse into a single dim `+N` chip. Must be at least 1; default
 | `agent_cli_history`                     | bool   | `true`  | Show the durable update-history panel beneath the selected CLI's details on the Agent CLIs sub-tab.                               |
 | `agent_cli_history_max_rows`            | int    | `8`     | Maximum rows in the this-CLI view or runs in the all-CLIs view; `0` shows all history loaded for the pane.                        |
 | `indicator`                             | bool   | `true`  | Show the segmented SASE and agent-CLI badge when cached status reports available updates.                                         |
+| `prebuild_rust`                         | bool   | `true`  | Prebuild exact-match editable `sase-core` Rust artifacts in the background; update confirmation falls back on every cache miss.   |
 | `incoming_commits.enabled`              | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                                    |
 | `incoming_commits.max_per_repo`         | int    | `7`     | Maximum incoming commit subjects to show per repository in Updates-tab details.                                                   |
 | `incoming_commits.confirm_max_per_repo` | int    | `250`   | Maximum subjects fetched per repository in update confirmations; larger ranges show an explicit `+N more` marker.                 |

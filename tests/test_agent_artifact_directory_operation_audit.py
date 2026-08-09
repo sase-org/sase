@@ -83,6 +83,19 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             ),
         )
     ),
+    "src/sase/dev_update/prebuild.py:_produce_prebuild": DirOpReview(
+        exemption=(
+            "Removes only an incomplete Rust prebuild cache staging directory "
+            "under SASE_HOME/cache/rust-prebuild, not an agent artifact "
+            "directory."
+        ),
+    ),
+    "src/sase/dev_update/prebuild.py:_prune_completed_sets": DirOpReview(
+        exemption=(
+            "Prunes only completed and temporary Rust prebuild cache sets under "
+            "SASE_HOME/cache/rust-prebuild, not agent artifact directories."
+        ),
+    ),
     "src/sase/agents_sync/v1_retirement.py:_apply_v1_retirement": DirOpReview(
         exemption=(
             "Removes only evidence-covered legacy-v1 transport bundles inside "

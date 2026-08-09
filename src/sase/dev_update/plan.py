@@ -141,11 +141,13 @@ def plan_dev_update(
     if stale_core_plan is not None:
         packages.append(stale_core_plan)
 
+    editable_core_record = _editable_core_record(records)
     reconcile_steps = _reconcile_steps(
         [pkg.record for pkg in packages if pkg.status == "actionable"],
         host_record=host_record,
         receipt=receipt,
         tool_python=tool_python,
+        editable_core_record=editable_core_record,
         dev_core_present=any(
             record.role == "core" and record.install_type == "editable"
             for record in records
@@ -261,6 +263,7 @@ def _reconcile_steps(
     host_record: VersionPackageRecord,
     receipt: ToolReceipt | None,
     tool_python: str | None,
+    editable_core_record: VersionPackageRecord | None = None,
     dev_core_present: bool = False,
 ) -> tuple[DevReconcileStep, ...]:
     steps: list[DevReconcileStep] = []
@@ -312,6 +315,14 @@ def _reconcile_steps(
                 )
 
     if rebuild_core:
+        steps.append(
+            _rust_prebuild_install_step(
+                host_record,
+                actionable_records=actionable_records,
+                editable_core_record=editable_core_record,
+                tool_python=tool_python,
+            )
+        )
         if host_record.source_root:
             steps.append(
                 DevReconcileStep(
@@ -334,6 +345,15 @@ def _reconcile_steps(
         steps.append(_rust_health_check_step(host_record, tool_python=tool_python))
 
     return tuple(steps)
+
+
+def _editable_core_record(
+    records: tuple[VersionPackageRecord, ...] | list[VersionPackageRecord],
+) -> VersionPackageRecord | None:
+    for record in records:
+        if record.role == "core" and record.install_type == "editable":
+            return record
+    return None
 
 
 def _stale_core_plan(
@@ -387,8 +407,78 @@ def _core_checkout_dir(host_record: VersionPackageRecord) -> Path | None:
 
 
 def _rust_dev_install_env() -> dict[str, str]:
-    profile = os.environ.get(_RUST_DEV_PROFILE_ENV) or _DEFAULT_RUST_DEV_PROFILE
+    profile = _rust_dev_profile()
     return {_RUST_DEV_PROFILE_ENV: profile}
+
+
+def _rust_dev_profile() -> str:
+    return os.environ.get(_RUST_DEV_PROFILE_ENV) or _DEFAULT_RUST_DEV_PROFILE
+
+
+def _rust_prebuild_install_step(
+    host_record: VersionPackageRecord,
+    *,
+    actionable_records: list[VersionPackageRecord],
+    editable_core_record: VersionPackageRecord | None,
+    tool_python: str | None,
+) -> DevReconcileStep:
+    python = tool_python or sys.executable
+    host_root = host_record.source_root
+    core_root = _rust_prebuild_core_root(
+        actionable_records,
+        host_record=host_record,
+        editable_core_record=editable_core_record,
+    )
+    label = "Install prebuilt Rust dev artifacts into the uv-tool venv"
+    if host_root is None:
+        return DevReconcileStep(
+            kind="rust_prebuild_install",
+            label=label,
+            command=(),
+            reason="host checkout source root unavailable",
+        )
+    if core_root is None:
+        return DevReconcileStep(
+            kind="rust_prebuild_install",
+            label=label,
+            command=(),
+            reason="core checkout source root unavailable",
+        )
+    profile = _rust_dev_profile()
+    return DevReconcileStep(
+        kind="rust_prebuild_install",
+        label=label,
+        command=(
+            python,
+            "-m",
+            "sase.dev_update.prebuild",
+            "consume",
+            "--core-root",
+            str(core_root),
+            "--host-root",
+            host_root,
+            "--python",
+            python,
+            "--profile",
+            profile,
+        ),
+        cwd=host_root,
+        env={_RUST_DEV_PROFILE_ENV: profile},
+    )
+
+
+def _rust_prebuild_core_root(
+    actionable_records: list[VersionPackageRecord],
+    *,
+    host_record: VersionPackageRecord,
+    editable_core_record: VersionPackageRecord | None,
+) -> Path | None:
+    for record in actionable_records:
+        if record.role == "core" and record.source_root:
+            return Path(record.source_root)
+    if editable_core_record is not None and editable_core_record.source_root:
+        return Path(editable_core_record.source_root)
+    return _core_checkout_dir(host_record)
 
 
 def _core_checkout_version(checkout: Path) -> str | None:
