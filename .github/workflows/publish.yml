@@ -60,14 +60,15 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  sync-lockfile:
+  sync-release-metadata:
     needs: release
     # release-please updates the pending release PR's pyproject.toml on
-    # every push to master, but never touches uv.lock, so the editable
-    # root package version in uv.lock drifts until the next unrelated
-    # `just install` rewrites it as a stray one-line diff (sase-gx). Run
-    # regardless of the release job's own retry outcome so a transient
-    # release-please failure doesn't also skip the lockfile sync.
+    # every push to master, but never touches uv.lock or the published
+    # sase-core-rs floor. Reconcile release metadata on that branch so
+    # release-please regeneration remains idempotent instead of leaving
+    # stray follow-up diffs. Run regardless of the release job's own retry
+    # outcome so a transient release-please failure doesn't also skip this
+    # reconciliation.
     if: ${{ always() && github.event_name == 'push' }}
     runs-on: ubuntu-latest
     permissions:
@@ -97,19 +98,26 @@ jobs:
       - name: Set up Python
         if: ${{ steps.check_branch.outputs.exists == 'true' }}
         run: uv python install 3.12
-      - name: Refresh uv.lock for the pending release
+      - name: Reconcile release metadata
         if: ${{ steps.check_branch.outputs.exists == 'true' }}
         run: |
           set -euo pipefail
+          ratchet_status=0
+          python tools/ratchet_core_window --report-only || ratchet_status=$?
+          if [ "$ratchet_status" -eq 2 ]; then
+            echo "sase-core-rs ratchet is in report-only mode; no dependency metadata was changed."
+          elif [ "$ratchet_status" -ne 0 ]; then
+            exit "$ratchet_status"
+          fi
           uv lock
-          if git diff --quiet -- uv.lock; then
-            echo "uv.lock already matches the pending release version."
+          if git diff --quiet -- pyproject.toml uv.lock; then
+            echo "release metadata already matches the pending release branch."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add uv.lock
-          git commit -m "chore: sync uv.lock with release-please version bump"
+          git add pyproject.toml uv.lock
+          git commit -m "chore: sync release metadata"
           git push origin HEAD:release-please--branches--master
 
   build:

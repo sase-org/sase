@@ -421,6 +421,40 @@ def test_publish_depends_on_floor_exact_install_smoke() -> None:
     assert 'grep -Fq "sase chat list"' in floor_exact
 
 
+def test_publish_sync_release_metadata_reports_ratchet_before_lock_refresh() -> None:
+    workflow = _load_publish_workflow()
+    jobs = workflow["jobs"]
+
+    assert "sync-lockfile" not in jobs
+    job = jobs["sync-release-metadata"]
+    assert job["needs"] == "release"
+    assert job["if"] == "${{ always() && github.event_name == 'push' }}"
+    assert workflow["concurrency"] == {
+        "group": "${{ github.workflow }}-${{ github.ref }}",
+        "cancel-in-progress": False,
+    }
+
+    check_branch = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "Check for a pending release-please branch"
+    )
+    assert "release-please--branches--master" in check_branch["run"]
+    assert check_branch["env"]["GH_TOKEN"] == "${{ secrets.SASE_RELEASE_TOKEN }}"
+
+    run_text = _job_run_text(job)
+    assert "python tools/ratchet_core_window --report-only" in run_text
+    assert 'if [ "$ratchet_status" -eq 2 ]; then' in run_text
+    assert "uv lock" in run_text
+    assert (
+        "python tools/ratchet_core_window --report-only" in run_text.split("uv lock")[0]
+    )
+    assert "git diff --quiet -- pyproject.toml uv.lock" in run_text
+    assert "git add pyproject.toml uv.lock" in run_text
+    assert 'git commit -m "chore: sync release metadata"' in run_text
+    assert "git push origin HEAD:release-please--branches--master" in run_text
+
+
 def test_wheel_consumer_jobs_run_just_recipes_after_setup() -> None:
     """The export matters only because later steps re-enter `_setup`."""
     jobs = _load_ci_workflow()["jobs"]
