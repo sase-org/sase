@@ -82,13 +82,24 @@ def test_config_schema_rejects_retired_memory_keywords() -> None:
 def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
     public_schema = schema()
 
-    for config in ({"amd_h1_title": None}, {"amd_h1_title": "Agent Instructions"}):
+    for config in (
+        {"memory": {"h1_title": None}},
+        {"memory": {"h1_title": "Agent Instructions"}},
+        # Legacy top-level form keeps validating.
+        {"amd_h1_title": None},
+        {"amd_h1_title": "Agent Instructions"},
+    ):
         errors = sorted(
             Draft7Validator(public_schema).iter_errors(config),
             key=lambda error: list(error.absolute_path),
         )
 
         assert errors == [], "\n".join(format_schema_error(error) for error in errors)
+
+    assert public_schema["properties"]["amd_h1_title"]["deprecated"] is True
+
+    with pytest.raises(ValidationError):
+        Draft7Validator(public_schema).validate({"memory": {"unknown": True}})
 
 
 def test_config_schema_accepts_markdown_template_paths_or_null() -> None:

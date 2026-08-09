@@ -383,3 +383,47 @@ def test_inventory_diagnoses_glossary_outside_project_local_config(
         diagnostic.code == "glossary_scope" and diagnostic.layer == "local"
         for diagnostic in inventory.diagnostics
     )
+
+
+def test_inventory_diagnoses_nested_glossary_outside_project_local_config(
+    tmp_path,
+) -> None:
+    local_file = tmp_path / "sase.yml"
+    local_file.write_text(
+        "memory:\n  glossary:\n    Workspace:\n      definition: A numbered checkout.\n",
+        encoding="utf-8",
+    )
+    layers = [
+        ConfigLayer(
+            name="default",
+            path=None,
+            exists=True,
+            list_strategy="concatenate",
+            data={},
+        ),
+        ConfigLayer(
+            name="user",
+            path="/home/u/.config/sase/sase.yml",
+            exists=True,
+            list_strategy="concatenate",
+            data={
+                "memory": {
+                    "glossary": {"Agent Clan": {"definition": "A named container."}}
+                }
+            },
+        ),
+    ]
+
+    with patch("sase.config.inventory.load_config_layers", return_value=layers):
+        inventory = build_config_inventory(local_paths=(local_file,))
+
+    assert any(
+        diagnostic.code == "glossary_scope"
+        and diagnostic.layer == "user"
+        and diagnostic.path == "memory.glossary"
+        for diagnostic in inventory.diagnostics
+    )
+    assert not any(
+        diagnostic.code == "glossary_scope" and diagnostic.layer == "local"
+        for diagnostic in inventory.diagnostics
+    )

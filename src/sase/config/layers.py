@@ -27,6 +27,8 @@ UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({"workflows"})
 # (non-fatally) via ``sase config layers`` and ``sase doctor`` so users get a
 # nudge to migrate without breaking launched agents with repeated warnings.
 DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {
+    "amd_h1_title": "memory.h1_title",
+    "glossary": "memory.glossary",
     "linked_repos": "repos.linked",
     "machine_name": "id.machine_name",
     "sibling_repos": "repos.linked",

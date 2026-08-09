@@ -152,19 +152,19 @@ def test_config_schema_allows_base_config_without_identity() -> None:
 def test_config_schema_validates_project_glossary_shape() -> None:
     validator = Draft7Validator(schema())
 
-    validator.validate(
-        {
-            "glossary": {
-                "Agent Clan": {
-                    "aliases": ["agent clans", "clan"],
-                    "definition": "A named, rootless container.",
-                },
-                "Workspace": {
-                    "definition": "A numbered project checkout.",
-                },
-            }
-        }
-    )
+    valid_glossary = {
+        "Agent Clan": {
+            "aliases": ["agent clans", "clan"],
+            "definition": "A named, rootless container.",
+        },
+        "Workspace": {
+            "definition": "A numbered project checkout.",
+        },
+    }
+    validator.validate({"memory": {"glossary": valid_glossary}})
+    # Legacy top-level form keeps validating.
+    validator.validate({"glossary": valid_glossary})
+
     for invalid in (
         {"Agent Clan": {"aliases": ["clan"]}},
         {"Agent Clan": {"definition": ""}},
@@ -173,7 +173,11 @@ def test_config_schema_validates_project_glossary_shape() -> None:
         {"": {"definition": "Blank term"}},
     ):
         with pytest.raises(ValidationError):
+            validator.validate({"memory": {"glossary": invalid}})
+        with pytest.raises(ValidationError):
             validator.validate({"glossary": invalid})
+
+    assert schema()["properties"]["glossary"]["deprecated"] is True
 
 
 def test_config_schema_validates_nested_owner_and_legacy_machine_name() -> None:

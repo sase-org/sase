@@ -439,9 +439,33 @@
     }
   },
   "properties": {
+    "memory": {
+      "type": "object",
+      "description": "Configuration for agent memory and generated agent-instruction files (AGENTS.md and its provider shims).",
+      "additionalProperties": false,
+      "properties": {
+        "h1_title": {
+          "type": ["string", "null"],
+          "description": "Optional H1 title used by generated AMD-managed AGENTS.md. SASE-managed projects derive a stable project title when this is null.",
+          "default": null
+        },
+        "glossary": {
+          "type": "object",
+          "description": "Project-local domain glossary. Valid only in a project's canonical sase/sase.yml; user, overlay, plugin, and builtin layers are diagnosed by the Rust config backend.",
+          "propertyNames": {
+            "description": "Canonical displayed glossary term.",
+            "pattern": "\\S"
+          },
+          "additionalProperties": {
+            "$ref": "#/definitions/glossaryEntry"
+          }
+        }
+      }
+    },
     "amd_h1_title": {
       "type": ["string", "null"],
-      "description": "Optional H1 title used by generated AMD-managed AGENTS.md. SASE-managed projects derive a stable project title when this is null.",
+      "deprecated": true,
+      "description": "Deprecated top-level alias for memory.h1_title. Optional H1 title used by generated AMD-managed AGENTS.md; SASE-managed projects derive a stable project title when this is null. New configuration must use memory.h1_title.",
       "default": null
     },
     "amd_agents_template": {
@@ -466,7 +490,8 @@
     },
     "glossary": {
       "type": "object",
-      "description": "Project-local domain glossary. Valid only in a project's canonical sase/sase.yml; user, overlay, plugin, and builtin layers are diagnosed by the Rust config backend.",
+      "deprecated": true,
+      "description": "Deprecated top-level alias for memory.glossary. Project-local domain glossary, valid only in a project's canonical sase/sase.yml; user, overlay, plugin, and builtin layers are diagnosed by the Rust config backend. New configuration must use memory.glossary.",
       "propertyNames": {
         "description": "Canonical displayed glossary term.",
         "pattern": "\\S"
