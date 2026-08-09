@@ -396,7 +396,10 @@ def test_bead_project_search_delegates_to_rust_read(
 
         monkeypatch.setattr(bead_read_facade, "search", fake_search)
 
-        assert project.search("delegated", statuses=[Status.OPEN], limit=1) is expected
+        assert (
+            project.search("delegated", statuses=[Status.OPEN], limit=1, regex=True)
+            is expected
+        )
         assert calls == [
             {
                 "beads_dir": project.beads_dir,
@@ -405,5 +408,6 @@ def test_bead_project_search_delegates_to_rust_read(
                 "issue_types": None,
                 "tiers": None,
                 "limit": 1,
+                "regex": True,
             }
         ]

@@ -1204,13 +1204,16 @@ irreversible.
 
 ### `sase bead search <query>`
 
-Find beads whose indexed text fields contain a case-insensitive literal substring. This
-is substring search, not regex or glob matching. Current indexed fields include ID,
-title, description, notes, design/plan path, artifact references, owner, assignee,
-model, phase/task size, Patch name/bug ID, status, type, and tier; timestamps are not
-searched. Unlike `sase bead list`, search includes `open`, `claimed`, `ready`,
-`in_progress`, and `closed` beads by default, so it is the quickest way to recover older
-context.
+Find beads whose indexed text fields contain a case-insensitive literal substring by
+default. Pass `-e`/`--regex` to interpret the query as a regular expression; regex
+search is case-insensitive unless the pattern starts with `(?-i)`. Regex matching is
+unanchored, and `^`/`$` anchor the whole field unless the pattern uses `(?m)`. A pattern
+that starts with `-` needs the `--` separator, such as
+`sase bead search --regex -- '-x'`. Current indexed fields include ID, title,
+description, notes, design/plan path, artifact references, owner, assignee, model,
+phase/task size, Patch name/bug ID, status, type, and tier; timestamps are not searched.
+Unlike `sase bead list`, search includes `open`, `claimed`, `ready`, `in_progress`, and
+`closed` beads by default, so it is the quickest way to recover older context.
 
 Compact output prints each matching bead with a short snippet. For multi-line fields
 such as descriptions or notes, the snippet uses the line that matched the query when
@@ -1219,6 +1222,7 @@ possible instead of always showing the first line. JSON output exposes the exact
 
 ```bash
 sase bead search auth
+sase bead search '^sase-g' --regex
 sase bead search auth --format json
 sase bead search auth --format full --limit 3
 sase bead search auth --status open --type phase
@@ -1230,6 +1234,7 @@ sase bead search auth --type plan --tier epic
 | `-c, --color`  | `auto`, `always`, `never`                                      | Color mode for compact output                   |
 | `-f, --format` | `compact`, `json`, `full`                                      | Output format; defaults to `compact`            |
 | `-n, --limit`  | non-negative integer                                           | Maximum results; omitted or `0` means unlimited |
+| `-e, --regex`  | flag                                                           | Interpret the query as a regular expression     |
 | `-s, --status` | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                   |
 | `--tier`       | `plan`, `epic`                                                 | Filter by plan-bead tier (repeatable)           |
 | `-t, --type`   | `plan`, `phase`, `task`                                        | Filter by type (repeatable)                     |

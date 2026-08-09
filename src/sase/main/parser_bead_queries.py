@@ -168,12 +168,15 @@ def register_bead_search_parser(
         "search",
         help="Search issues by text",
         description=(
-            "Find beads whose human-readable fields contain a literal query "
-            "string. Searches every bead status by default."
+            "Find beads whose human-readable fields contain a case-insensitive "
+            "literal substring by default. With --regex, interpret the query as a "
+            "regular expression that is case-insensitive unless the pattern starts "
+            "with (?-i). Searches every bead status by default."
         ),
         epilog=(
             "Examples:\n"
             "  sase bead search auth\n"
+            "  sase bead search '^sase-g' --regex\n"
             "  sase bead search auth --format json\n"
             "  sase bead search auth --format full --limit 3\n"
             "  sase bead search auth --status open --type phase"
@@ -204,6 +207,12 @@ def register_bead_search_parser(
         type=nonnegative_int,
         default=None,
         help="Maximum results to print; 0 means unlimited",
+    )
+    parser.add_argument(
+        "-e",
+        "--regex",
+        action="store_true",
+        help="Interpret query as a regular expression",
     )
     parser.add_argument(
         "-s",

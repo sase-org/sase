@@ -70,6 +70,9 @@ def test_read_facade_matches_bead_project_queries(
         assert _match_pairs(rust_beads.search(beads_dir, "alpha")) == _match_pairs(
             project.search("alpha")
         )
+        assert _match_pairs(
+            rust_beads.search(beads_dir, "alp.*", regex=True)
+        ) == _match_pairs(project.search("alp.*", regex=True))
         assert rust_beads.stats(beads_dir) == project.stats()
         assert _ids(rust_beads.get_epic_children(beads_dir, issues["epic"].id)) == _ids(
             project.get_epic_children(issues["epic"].id)
@@ -89,6 +92,31 @@ def test_read_facade_missing_issue_raises_key_error(
             rust_beads.show_issue_detail(beads_dir, "missing")
     finally:
         project.__exit__()
+
+
+def test_read_facade_search_forwards_regex_keyword(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def binding(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        calls.append((args, kwargs))
+        return []
+
+    monkeypatch.setattr(
+        rust_beads,
+        "require_rust_binding",
+        lambda name: binding if name == "bead_search" else None,
+    )
+
+    assert rust_beads.search(tmp_path, "needle", limit=2, regex=True) == []
+    assert calls == [
+        (
+            (str(tmp_path), "needle", None, None, None, 2),
+            {"regex": True},
+        )
+    ]
 
 
 def test_doctor_reads_jsonl_without_requiring_sqlite(tmp_path: Path) -> None:

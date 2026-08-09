@@ -118,6 +118,7 @@ def search(
     issue_types: list[IssueType] | tuple[IssueType, ...] | None = None,
     tiers: list[BeadTier] | tuple[BeadTier, ...] | None = None,
     limit: int | None = None,
+    regex: bool = False,
 ) -> list[BeadSearchMatch]:
     binding = require_rust_binding("bead_search")
     payload: list[dict[str, Any]] = binding(
@@ -127,6 +128,7 @@ def search(
         issue_type_values(issue_types),
         tier_values(tiers),
         limit,
+        regex=regex,
     )
     return search_matches_from_list(payload)
 

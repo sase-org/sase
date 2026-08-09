@@ -42,9 +42,17 @@ def test_search_parser_sets_query_filters_and_output_options() -> None:
     assert args.color == "never"
     assert args.format == "json"
     assert args.limit == 2
+    assert args.regex is False
     assert args.status == ["open", "closed"]
     assert args.tier == ["epic"]
     assert args.type == ["phase"]
+
+
+@pytest.mark.parametrize("flag", ["-e", "--regex"])
+def test_search_parser_sets_regex_flag(flag: str) -> None:
+    args = create_parser().parse_args(["bead", "search", "Needle", flag])
+
+    assert args.regex is True
 
 
 def test_search_parser_rejects_negative_limit(
@@ -100,6 +108,59 @@ def test_handle_bead_search_compact_snippet_uses_matching_line(
     out = capsys.readouterr().out
     assert "Multiline Description" in out
     assert "Needle appears later" in out
+    assert "Overview line" not in out
+
+
+def test_handle_bead_search_regex_matches_when_literal_cannot(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        proj.create("Needle Epic", IssueType.PLAN)
+
+    literal_args = create_parser().parse_args(["bead", "search", "^Needle"])
+    bead_cli.handle_bead_search(literal_args)
+    assert capsys.readouterr().out == 'No beads match "^Needle".\n'
+
+    regex_args = create_parser().parse_args(["bead", "search", "^Needle", "--regex"])
+    bead_cli.handle_bead_search(regex_args)
+    out = capsys.readouterr().out
+    assert "Needle Epic" in out
+
+
+def test_handle_bead_search_literal_mode_treats_metacharacters_literally(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        proj.create("Literal a.c", IssueType.PLAN)
+        proj.create("Letters abc", IssueType.PLAN)
+
+    args = create_parser().parse_args(["bead", "search", "a.c"])
+    bead_cli.handle_bead_search(args)
+
+    out = capsys.readouterr().out
+    assert "Literal a.c" in out
+    assert "Letters abc" not in out
+
+
+def test_handle_bead_search_regex_compact_snippet_uses_matching_line(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        proj.create(
+            "Multiline Description",
+            IssueType.PLAN,
+            description="Overview line\nNeedle-42 appears later",
+        )
+
+    args = create_parser().parse_args(["bead", "search", r"Needle-\d+", "--regex"])
+    bead_cli.handle_bead_search(args)
+
+    out = capsys.readouterr().out
+    assert "Multiline Description" in out
+    assert "Needle-42 appears later" in out
     assert "Overview line" not in out
 
 
@@ -165,9 +226,29 @@ def test_handle_bead_search_json_outputs_envelope(
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["query"] == "needle"
+    assert payload["regex"] is False
     assert payload["count"] == 1
     assert payload["results"][0]["issue"]["id"] == issue.id
     assert payload["results"][0]["matched_fields"] == ["title"]
+
+
+def test_handle_bead_search_json_outputs_regex_mode(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        issue = proj.create("Needle Epic", IssueType.PLAN)
+
+    args = create_parser().parse_args(
+        ["bead", "search", "^needle", "--regex", "--format", "json"]
+    )
+    bead_cli.handle_bead_search(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["query"] == "^needle"
+    assert payload["regex"] is True
+    assert payload["count"] == 1
+    assert payload["results"][0]["issue"]["id"] == issue.id
 
 
 def test_handle_bead_search_full_reuses_show_rendering(
@@ -211,6 +292,23 @@ def test_handle_bead_search_whitespace_query_exits_usage_error(
 
     assert excinfo.value.code == 2
     assert capsys.readouterr().err == "Error: search query cannot be empty\n"
+
+
+def test_handle_bead_search_invalid_regex_exits_usage_error(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        proj.create("Present", IssueType.PLAN)
+    args = create_parser().parse_args(["bead", "search", "[", "--regex"])
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_search(args)
+
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("Error: invalid search regex: ")
 
 
 def test_handle_bead_search_compact_appends_the_bead_created_cell(

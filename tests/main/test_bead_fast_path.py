@@ -68,6 +68,45 @@ def test_fast_path_routes_search_through_rust_executor(
     ]
 
 
+def test_fast_path_routes_regex_search_through_rust_executor(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    read_dir = tmp_path / "sdd/beads"
+    read_dir.mkdir(parents=True)
+    context = bead_fast_path._FastPathContext(
+        read_beads_dirs=[read_dir],
+        write_beads_dir=read_dir,
+        relativize_design_paths=True,
+    )
+    calls: list[list[str]] = []
+
+    def fake_binding(
+        argv: list[str],
+        _read_beads_dirs: list[str],
+        _write_beads_dir: str,
+        _cwd: str,
+        _relativize_design_paths: bool,
+    ) -> dict[str, object]:
+        calls.append(argv)
+        return {"handled": True, "stdout": "rust regex search\n", "exit_code": 0}
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        bead_fast_path,
+        "_resolve_fast_path_context",
+        lambda argv: context,
+    )
+    monkeypatch.setattr(
+        "sase.core.rust.require_rust_binding",
+        lambda name: fake_binding,
+    )
+
+    assert try_handle_bead_fast_path(["search", "x", "--regex"]) == 0
+
+    assert capsys.readouterr().out == "rust regex search\n"
+    assert calls == [["search", "x", "--regex"]]
+
+
 def test_fast_path_guards_mutations_but_not_reads(tmp_path: Path, monkeypatch) -> None:
     read_dir = tmp_path / "production" / "beads"
     context = bead_fast_path._FastPathContext(
@@ -378,6 +417,10 @@ def test_fast_path_defers_full_search_to_argparse(monkeypatch) -> None:
     monkeypatch.setattr(bead_fast_path, "_resolve_fast_path_context", fail_context)
 
     assert try_handle_bead_fast_path(["search", "needle", "--format", "full"]) is None
+    assert (
+        try_handle_bead_fast_path(["search", "needle", "--regex", "--format", "full"])
+        is None
+    )
     assert try_handle_bead_fast_path(["search", "needle", "--format=full"]) is None
     assert try_handle_bead_fast_path(["search", "needle", "-f", "full"]) is None
     assert try_handle_bead_fast_path(["search", "needle", "-ffull"]) is None

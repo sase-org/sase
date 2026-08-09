@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from rich.cells import cell_len
@@ -206,17 +208,25 @@ def handle_bead_search(args: argparse.Namespace) -> None:
         sys.exit(2)
 
     use_color = resolve_color(getattr(args, "color", "auto"))
+    regex = bool(getattr(args, "regex", False))
     with get_read_view() as view:
         statuses = [Status(s) for s in args.status] if args.status else None
         issue_types = [IssueType(t) for t in args.type] if args.type else None
         tiers = [BeadTier(t) for t in args.tier] if args.tier else None
-        matches = view.search(
-            args.query,
-            statuses=statuses,
-            issue_types=issue_types,
-            tiers=tiers,
-            limit=args.limit,
-        )
+        try:
+            matches = view.search(
+                args.query,
+                statuses=statuses,
+                issue_types=issue_types,
+                tiers=tiers,
+                limit=args.limit,
+                regex=regex,
+            )
+        except ValueError as exc:
+            if message := _invalid_search_regex_message(exc):
+                print(f"Error: {message}", file=sys.stderr)
+                sys.exit(2)
+            raise
 
         match args.format:
             case "compact":
@@ -224,12 +234,13 @@ def handle_bead_search(args: argparse.Namespace) -> None:
                     _render_search_compact(
                         matches,
                         args.query,
+                        regex,
                         use_color=use_color,
                     ),
                     end="",
                 )
             case "json":
-                print(_render_search_json(matches, args.query), end="")
+                print(_render_search_json(matches, args.query, regex), end="")
             case "full":
                 print(
                     _render_search_full(
@@ -371,6 +382,7 @@ def _render_list_json(
 def _render_search_compact(
     matches: list[BeadSearchMatch],
     query: str,
+    regex: bool = False,
     *,
     use_color: bool,
 ) -> str:
@@ -393,18 +405,18 @@ def _render_search_compact(
             f"{issue.title}{_row_badges(issue, use_color=use_color)}"
             f"{created_cell(issue, use_color=use_color)}"
         )
-        snippet = _compact_snippet(match, query)
+        snippet = _compact_snippet(match, query, regex)
         if snippet:
             lines.append(f"  {snippet}")
     return "\n".join(lines) + "\n"
 
 
-def _compact_snippet(match: BeadSearchMatch, query: str) -> str:
+def _compact_snippet(match: BeadSearchMatch, query: str, regex: bool) -> str:
     issue = match.issue
     has_title_or_description_match = any(
         field in {"title", "description"} for field in match.matched_fields
     )
-    description = _single_line_snippet(issue.description, query)
+    description = _single_line_snippet(issue.description, query, regex=regex)
     if has_title_or_description_match and description:
         return description
 
@@ -412,26 +424,32 @@ def _compact_snippet(match: BeadSearchMatch, query: str) -> str:
         if field == "title":
             continue
         value = _search_field_value(issue, field)
-        snippet = _single_line_snippet(value, query)
+        snippet = _single_line_snippet(value, query, regex=regex)
         if snippet:
             return f'{field}: "{snippet}"'
     return ""
 
 
-def _single_line_snippet(value: str, query: str, max_chars: int = 96) -> str:
+def _single_line_snippet(
+    value: str,
+    query: str,
+    *,
+    regex: bool = False,
+    max_chars: int = 96,
+) -> str:
     lines = [line.strip() for line in value.splitlines() if line.strip()]
     if not lines:
         return ""
 
-    lowered_query = query.lower()
+    matches_line = _line_matcher(query, regex=regex)
     line = next(
-        (line for line in lines if lowered_query in line.lower()),
+        (line for line in lines if matches_line(line)),
         lines[0],
     )
     if len(line) <= max_chars:
         return line
 
-    index = line.lower().find(lowered_query)
+    index = _line_match_start(line, query, regex=regex)
     if index < 0:
         return line[: max_chars - 1].rstrip() + "…"
     start = max(0, index - max_chars // 2)
@@ -440,6 +458,40 @@ def _single_line_snippet(value: str, query: str, max_chars: int = 96) -> str:
     prefix = "…" if start > 0 else ""
     suffix = "…" if end < len(line) else ""
     return f"{prefix}{line[start:end].strip()}{suffix}"
+
+
+def _line_matcher(query: str, *, regex: bool) -> Callable[[str], bool]:
+    if regex:
+        try:
+            pattern = re.compile(query, re.IGNORECASE)
+        except re.error:
+            return lambda _line: False
+        return lambda line: pattern.search(line) is not None
+
+    lowered_query = query.lower()
+    return lambda line: lowered_query in line.lower()
+
+
+def _line_match_start(line: str, query: str, *, regex: bool) -> int:
+    if regex:
+        try:
+            match = re.search(query, line, re.IGNORECASE)
+        except re.error:
+            return -1
+        return -1 if match is None else match.start()
+
+    return line.lower().find(query.lower())
+
+
+def _invalid_search_regex_message(exc: ValueError) -> str | None:
+    message = str(exc)
+    if message.startswith("validation: "):
+        message = message.removeprefix("validation: ")
+    if "invalid search regex:" in message:
+        return message
+    if "invalid regex:" in message:
+        return message.replace("invalid regex:", "invalid search regex:", 1)
+    return None
 
 
 def _search_field_value(issue: Issue, field: str) -> str:
@@ -465,9 +517,14 @@ def _search_field_value(issue: Issue, field: str) -> str:
     return values.get(field, "")
 
 
-def _render_search_json(matches: list[BeadSearchMatch], query: str) -> str:
+def _render_search_json(
+    matches: list[BeadSearchMatch],
+    query: str,
+    regex: bool,
+) -> str:
     envelope = {
         "query": query,
+        "regex": regex,
         "count": len(matches),
         "results": [
             {

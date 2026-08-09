@@ -79,6 +79,7 @@ class BeadProjectQueryMixin:
         issue_types: list[IssueType] | None = None,
         tiers: list[BeadTier] | None = None,
         limit: int | None = None,
+        regex: bool = False,
     ) -> list[BeadSearchMatch]:
         """Search issues with optional filters."""
         from sase.core import bead_read_facade as rust_beads
@@ -90,6 +91,7 @@ class BeadProjectQueryMixin:
             issue_types=issue_types,
             tiers=tiers,
             limit=limit,
+            regex=regex,
         )
 
     def ready(self) -> list[Issue]:
