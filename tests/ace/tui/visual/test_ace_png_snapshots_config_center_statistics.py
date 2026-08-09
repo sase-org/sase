@@ -15,7 +15,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_xprompt_sources,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -39,7 +39,7 @@ async def test_config_center_statistics_overview_png_snapshot(
     _patch_siblings(monkeypatch)
     _patch_statistics_populated(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -61,7 +61,7 @@ async def test_config_center_statistics_xprompts_png_snapshot(
     _patch_siblings(monkeypatch)
     _patch_statistics_populated(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -83,7 +83,7 @@ async def test_config_center_statistics_xprompts_model_png_snapshot(
     _patch_siblings(monkeypatch)
     _patch_statistics_populated(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -106,7 +106,7 @@ async def test_config_center_statistics_xprompts_focus_png_snapshot(
     _patch_siblings(monkeypatch)
     _patch_statistics_populated(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -139,7 +139,7 @@ async def test_config_center_statistics_xprompts_narrow_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         size=(90, 30),
     ) as page:
         await wait_for_startup(page)
@@ -164,7 +164,7 @@ async def test_config_center_statistics_runners_png_snapshot(
     _patch_siblings(monkeypatch)
     _patch_statistics_populated(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -191,7 +191,7 @@ async def test_config_center_statistics_runners_narrow_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         size=(90, 30),
     ) as page:
         await wait_for_startup(page)
@@ -216,7 +216,7 @@ async def test_config_center_statistics_help_png_snapshot(
     _patch_siblings(monkeypatch)
     _patch_statistics_populated(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -241,7 +241,7 @@ async def test_config_center_statistics_narrow_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         size=(90, 30),
     ) as page:
         await wait_for_startup(page)
@@ -264,7 +264,7 @@ async def test_config_center_statistics_projects_png_snapshot(
     _patch_siblings(monkeypatch)
     _patch_statistics_populated(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -286,7 +286,7 @@ async def test_config_center_statistics_projects_drilldown_png_snapshot(
     _patch_siblings(monkeypatch)
     _patch_statistics_populated(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -310,7 +310,7 @@ async def test_config_center_statistics_empty_png_snapshot(
     _patch_siblings(monkeypatch)
     _patch_statistics_empty(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -332,7 +332,7 @@ async def test_config_center_statistics_loading_png_snapshot(
     _patch_siblings(monkeypatch)
     _patch_statistics_loading(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

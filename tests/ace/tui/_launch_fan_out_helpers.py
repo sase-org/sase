@@ -196,7 +196,7 @@ class _RepeatApp(_FanOutHarness, RepeatLaunchMixin):
 class _BulkApp(_FanOutHarness, BulkLaunchMixin):
     def __init__(self) -> None:
         super().__init__()
-        self._bulk_changespecs = None
+        self._bulk_patches = None
         self._prompt_context = None
         self.marked_indices = set()
 

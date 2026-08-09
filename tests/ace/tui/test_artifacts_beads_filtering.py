@@ -40,8 +40,8 @@ def _matched_ids(tmp_path: Path, query: str) -> list[str]:
     value = snapshot(tmp_path)
     value.epics[0].issue.is_ready_to_work = True
     value.epics[0].issue.model = "codex/gpt-5"
-    value.epics[0].issue.changespec_name = "sase-dd"
-    value.epics[0].issue.changespec_bug_id = "42"
+    value.epics[0].issue.patch_name = "sase-dd"
+    value.epics[0].issue.patch_bug_id = "42"
     value.tasks[1].issue.assignee = "worker.alpha"
     value.phases_by_epic[("alpha", "alpha-1")][0].issue.notes = "Closed phase notes."
     value = replace(value, blocked_ids=frozenset({("alpha", "alpha-open")}))
@@ -253,7 +253,7 @@ async def test_hide_closed_default_is_visible_and_clearable(
         lambda _project, **_kwargs: value,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("2")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)

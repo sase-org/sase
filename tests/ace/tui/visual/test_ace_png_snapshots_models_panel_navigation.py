@@ -16,7 +16,7 @@ from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     override_views,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -60,7 +60,7 @@ async def test_models_panel_alias_picker_filtered_png_snapshot(
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: calm_views())
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_alias_edit_picker(page)
         picker_input = page.app.screen.query_one("#model-picker-filter", Input)
         picker_input.value = "@coder"
@@ -92,7 +92,7 @@ async def test_models_panel_alias_picker_reordered_png_snapshot(
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: calm_views())
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_alias_edit_picker(page)
         picker_input = page.app.screen.query_one("#model-picker-filter", Input)
         picker_input.value = "fable"
@@ -126,7 +126,7 @@ async def test_models_panel_alias_picker_reordered_narrow_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(70, 32),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await _open_alias_edit_picker(page)
         picker_input = page.app.screen.query_one("#model-picker-filter", Input)
@@ -154,7 +154,7 @@ async def test_models_panel_builtin_selection_effort_step_png_snapshot(
         lambda self: (effort_snapshot(), True),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_override_picker(page)
         await page.press("enter")
         await page.expect_modal("DefaultEffortLevelModal")
@@ -181,7 +181,7 @@ async def test_models_panel_alias_selection_effort_step_png_snapshot(
         lambda self: (effort_snapshot(), True),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_override_picker(page)
         picker_input = page.app.screen.query_one("#model-picker-filter", Input)
         picker_input.value = "@coder"
@@ -217,7 +217,7 @@ async def test_models_panel_coders_drilled_in_png_snapshot(
     )
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -241,7 +241,7 @@ async def test_models_panel_phase_worker_drilled_in_png_snapshot(
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: calm_views())
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -271,7 +271,7 @@ async def test_models_panel_bucket_png_snapshot(
     )
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -301,7 +301,7 @@ async def test_models_panel_bucket_drilled_in_png_snapshot(
     )
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -327,7 +327,7 @@ async def test_models_panel_mixed_builtin_bucket_png_snapshot(
     )
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

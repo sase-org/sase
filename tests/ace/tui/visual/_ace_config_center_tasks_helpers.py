@@ -89,7 +89,7 @@ def _seed_tasks_tab_queue(app: Any) -> None:
                 label="accept sase-39",
                 status="success",
                 age_seconds=580,
-                output="Accepted mentor proposal and refreshed ChangeSpec.\n",
+                output="Accepted mentor proposal and refreshed Patch.\n",
             ),
         )
     }

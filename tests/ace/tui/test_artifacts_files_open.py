@@ -63,7 +63,7 @@ class _FakeApp(ArtifactsFilesActionsMixin):
             "other": set()
         }
         self.toggle_result = False
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.current_idx = 0
         self._agents: list[Any] = []
         self._dismissed_agent_objects: list[Any] = []
@@ -335,7 +335,7 @@ def test_files_open_agent_without_local_match_preserves_tab() -> None:
 
     app.action_files_open_agent()
 
-    assert app.current_tab == "changespecs"
+    assert app.current_tab == "patches"
     assert app.saved_positions == 0
     assert app.notifications == [
         ("No local agent artifact backs this file.", "warning")

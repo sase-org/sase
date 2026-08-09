@@ -10,7 +10,7 @@ from typing import Any
 import pluggy
 import pytest
 
-from sase.ace.testing import AcePage, make_changespec
+from sase.ace.testing import AcePage, make_patch
 from sase.ace.tui.artifacts_bugs import BugSnapshot, _BugScope
 from sase.ace.tui.modals import IssueEditModal, IssueEditResult
 from sase.ace.tui.widgets import ArtifactsBugsPane, PromptInputBar
@@ -76,20 +76,20 @@ async def _open_bugs(page: AcePage) -> ArtifactsBugsPane:
 async def test_bugs_load_lazily_navigate_filter_and_jump_links(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    linked_pr = make_changespec(name="linked_pr")
+    linked_pr = make_patch(name="linked_pr")
     linked_pr.bug = "42"
-    other_pr = make_changespec(name="other_pr")
+    other_pr = make_patch(name="other_pr")
     epic = Issue(
         id="sase-42",
         title="Linked epic",
         issue_type=IssueType.PLAN,
         tier=BeadTier.EPIC,
-        changespec_name="linked_pr",
-        changespec_bug_id="42",
     )
+    epic.patch_name = "linked_pr"
+    epic.patch_bug_id = "42"
     calls: list[str] = []
 
-    def collect(_project: str, state: str, _changespecs: object) -> BugSnapshot:
+    def collect(_project: str, state: str, _patches: object) -> BugSnapshot:
         calls.append(state)
         if state == "closed":
             return _snapshot((_issue(7, state="closed"),), state_filter="closed")
@@ -106,9 +106,9 @@ async def test_bugs_load_lazily_navigate_filter_and_jump_links(
         "sase.workspace_provider.detect_workflow_type", lambda _path: "gh"
     )
 
-    async with AcePage(changespecs=[other_pr, linked_pr]) as page:
+    async with AcePage(patches=[other_pr, linked_pr]) as page:
         await page.pause()
-        page.app.changespecs = [other_pr, linked_pr]
+        page.app.patches = [other_pr, linked_pr]
         assert calls == []
         pane = await _open_bugs(page)
         await page.wait_for(lambda _state: pane.selected_issue == _issue(42))
@@ -166,7 +166,7 @@ async def test_bugs_automatic_load_is_pump_free_and_coalesces_bursts(
     release = threading.Event()
     calls: list[bool] = []
 
-    def collect(_project: str, _state: str, _changespecs: object) -> BugSnapshot:
+    def collect(_project: str, _state: str, _patches: object) -> BugSnapshot:
         call_number = len(calls) + 1
         calls.append(call_number > 1)
         if call_number == 1:

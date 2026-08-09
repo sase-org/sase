@@ -44,8 +44,8 @@ def test_collapsed_l0_hides_descendants_but_emits_banner() -> None:
     assert agent_indices == [1]
 
 
-def test_collapsed_changespec_hides_only_its_agents() -> None:
-    """A collapsed L1 ChangeSpec banner suppresses only its own agents."""
+def test_collapsed_patch_hides_only_its_agents() -> None:
+    """A collapsed L1 Patch banner suppresses only its own agents."""
     registry = AgentGroupFoldRegistry()
     registry.collapse(("proj", "fix-a"))
     entries = build_agent_tree(
@@ -202,7 +202,7 @@ def test_enumerate_group_keys_three_level_mode() -> None:
 
 
 def test_enumerate_group_keys_two_level_mode() -> None:
-    """When no agent has a ChangeSpec only L0 + L1 (name-root) keys appear."""
+    """When no agent has a Patch only L0 + L1 (name-root) keys appear."""
     keys = enumerate_group_keys(
         [
             _agent(
@@ -215,7 +215,7 @@ def test_enumerate_group_keys_two_level_mode() -> None:
     )
     assert ("proj",) in keys
     assert ("proj", "coder") in keys
-    # No ChangeSpec key since panel is in 2-level mode.
+    # No Patch key since panel is in 2-level mode.
     assert all(len(k) <= 2 for k in keys)
 
 
@@ -245,13 +245,13 @@ def test_enumerate_group_keys_per_panel_mode() -> None:
     """Each panel decides its own mode; keys from both shapes coexist."""
     keys = enumerate_group_keys(
         [
-            # Panel A (tribe=tag1) has a ChangeSpec → 3-level mode.
+            # Panel A (tribe=tag1) has a Patch → 3-level mode.
             _agent(cl_name="cs", project_file="/r/proj/proj.sase", tribe="tag1"),
-            # Panel B (tribe=tag2) has no ChangeSpec → 2-level mode.
+            # Panel B (tribe=tag2) has no Patch → 2-level mode.
             _agent(cl_name="", project_file="/r/proj/proj.sase", tribe="tag2"),
         ]
     )
-    # Panel A emits a ChangeSpec key.
+    # Panel A emits a Patch key.
     assert ("proj", "cs") in keys
     # Panel B does NOT emit any (project, "") key — its mode is 2-level
     # and there's no name-root group to emit.

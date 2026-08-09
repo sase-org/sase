@@ -87,7 +87,7 @@ async def test_project_management_modal_edit_opens_selected_project_spec(
         await pilot.pause()
 
         monkeypatch.setattr(pilot.app, "suspend", lambda: suspend)
-        pilot.app._schedule_changespecs_async_refresh = MagicMock()
+        pilot.app._schedule_patches_async_refresh = MagicMock()
         pilot.app._schedule_agents_async_refresh = MagicMock()
         pilot.app._schedule_axe_async_refresh = MagicMock()
         pilot.app._refresh_current_tab = MagicMock()
@@ -106,7 +106,7 @@ async def test_project_management_modal_edit_opens_selected_project_spec(
         option_list = pane.query_one("#projects-list", OptionList)
         assert option_list.highlighted == 1
         assert pane._status_message == "Editor closed for alpha"
-        pilot.app._schedule_changespecs_async_refresh.assert_called_once_with()
+        pilot.app._schedule_patches_async_refresh.assert_called_once_with()
         pilot.app._schedule_agents_async_refresh.assert_called_once_with(
             source="project_lifecycle",
             full_history=False,
@@ -154,7 +154,7 @@ async def test_project_management_modal_alias_editor_updates_selected_project(
     async with app.run_test() as pilot:
         pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
-        pilot.app._schedule_changespecs_async_refresh = MagicMock()
+        pilot.app._schedule_patches_async_refresh = MagicMock()
         pilot.app._schedule_agents_async_refresh = MagicMock()
         pilot.app._schedule_axe_async_refresh = MagicMock()
         pilot.app._refresh_current_tab = MagicMock()
@@ -179,7 +179,7 @@ async def test_project_management_modal_alias_editor_updates_selected_project(
         assert option_list.highlighted == 1
         assert pane._status_message == "alpha aliases: docs, new"
         pane.notify.assert_called_once_with("Updated aliases for 'alpha'")
-        pilot.app._schedule_changespecs_async_refresh.assert_called_once_with()
+        pilot.app._schedule_patches_async_refresh.assert_called_once_with()
         pilot.app._schedule_agents_async_refresh.assert_called_once_with(
             source="project_lifecycle",
             full_history=False,
@@ -537,7 +537,7 @@ async def test_project_management_modal_edit_launch_failure_releases_lock(
         await pilot.pause()
         monkeypatch.setattr(pilot.app, "suspend", lambda: _SuspendRecorder())
         monkeypatch.setattr(pane, "notify", MagicMock())
-        pilot.app._schedule_changespecs_async_refresh = MagicMock()
+        pilot.app._schedule_patches_async_refresh = MagicMock()
         pilot.app._refresh_current_tab = MagicMock()
 
         await pilot.press("e")
@@ -550,5 +550,5 @@ async def test_project_management_modal_edit_launch_failure_releases_lock(
             severity="error",
         )
         assert list_calls == 1
-        pilot.app._schedule_changespecs_async_refresh.assert_not_called()
+        pilot.app._schedule_patches_async_refresh.assert_not_called()
         pilot.app._refresh_current_tab.assert_not_called()

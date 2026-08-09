@@ -12,7 +12,7 @@ from ._event_handlers_dirty_flags_helpers import _FakeApp
 
 
 def test_auto_refresh_skips_all_background_work_during_prompt_input() -> None:
-    """Prompt entry should block axe, notifications, agents, and changespecs."""
+    """Prompt entry should block axe, notifications, agents, and patches."""
     app = _FakeApp(watcher_active=False)
     app._prompt_context = object()
     app._on_auto_refresh()
@@ -44,7 +44,7 @@ def test_artifact_change_defers_refresh_work_during_prompt_input() -> None:
     app = _FakeApp(watcher_active=True)
     app._plan_feedback_context = object()
     app._on_artifact_change()
-    assert app._dirty_changespecs is True
+    assert app._dirty_patches is True
     assert app._dirty_agents is True
     assert app._dirty_axe is True
     assert app.refresh_calls == []
@@ -99,6 +99,6 @@ def test_artifact_change_deferred_resumes_refresh_after_prompt_closes() -> None:
     app = _FakeApp(watcher_active=True)
     app._artifact_change_defer_pending = True
     app._on_artifact_change_deferred()
-    assert "schedule_changespecs" in app.refresh_calls
+    assert "schedule_patches" in app.refresh_calls
     assert "schedule_agents" not in app.refresh_calls
     assert app._artifact_change_defer_pending is False

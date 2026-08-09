@@ -13,7 +13,7 @@ from sase.ace.tui.modals.unified_xprompt_save_support import UnifiedSaveInput
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -138,7 +138,7 @@ async def test_xprompt_save_create_png_snapshot(
         snippet_body="Check the selected concern.",
         pane_count=3,
     )
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -168,7 +168,7 @@ async def test_xprompt_save_collision_armed_diff_png_snapshot(
         snippet_body="Review this pane",
         pane_count=2,
     )
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -200,7 +200,7 @@ async def test_xprompt_save_snippet_mode_png_snapshot(
         snippet_body="Review only the selected pane$0",
         pane_count=3,
     )
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -235,7 +235,7 @@ async def test_xprompt_save_no_writable_locations_png_snapshot(
         initial_name="review",
         body="Nothing can be written from this environment.",
     )
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

@@ -1,13 +1,13 @@
-"""Tests for the ChangeSpec REFS detail builder."""
+"""Tests for the Patch REFS detail builder."""
 
 from rich.text import Text
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.tui.widgets.refs_builder import build_refs_section
 
 
 def test_refs_builder_renders_stored_values_without_resolution() -> None:
-    changespec = ChangeSpec(
+    patch = Patch(
         name="example",
         description="Example",
         parent=None,
@@ -16,6 +16,6 @@ def test_refs_builder_renders_stored_values_without_resolution() -> None:
     )
     text = Text()
 
-    build_refs_section(text, changespec)
+    build_refs_section(text, patch)
 
     assert text.plain == ("REFS:\n  research:202607/report.md\n  file:default:abc123\n")

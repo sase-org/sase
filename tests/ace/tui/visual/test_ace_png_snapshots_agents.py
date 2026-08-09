@@ -29,7 +29,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     agents,
     agents_with_stopped_status,
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -45,7 +45,7 @@ async def test_agent_list_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -67,7 +67,7 @@ async def test_agent_reverted_indicator_png_snapshot(
     rows[0].reverted = True
     patch_startup_loaders(monkeypatch, agents=rows)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -88,7 +88,7 @@ async def test_agent_stopped_status_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=agents_with_stopped_status())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -109,7 +109,7 @@ async def test_agent_plan_handoff_status_colors_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=plan_handoff_status_agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -138,7 +138,7 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
     monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 10)
     patch_startup_loaders(monkeypatch, agents=runner_slot_wait_agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -188,7 +188,7 @@ async def test_reserved_tribe_wait_row_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=reserved_tribe_wait_agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -217,7 +217,7 @@ async def test_runner_slot_queue_window_png_snapshot(
     monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 10)
     patch_startup_loaders(monkeypatch, agents=rows)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -259,7 +259,7 @@ async def test_agent_output_variables_multi_agent_png_snapshot(
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 8, 9, 9, 0))
     patch_startup_loaders(monkeypatch, agents=output_variable_family_agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -283,7 +283,7 @@ async def test_agents_selected_row_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

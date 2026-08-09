@@ -76,7 +76,7 @@ def _anchored_clan_agents() -> list[Agent]:
     """Return a clan whose grandchildren carry conflicting presentation data."""
     generation = "20260718080000"
     phase = _agent(
-        cl_name="phase-changespec",
+        cl_name="phase-patch",
         project_file="/r/root/root.sase",
         tribe="epic",
         agent_name="sase-6r.phase-plan",
@@ -87,7 +87,7 @@ def _anchored_clan_agents() -> list[Agent]:
     phase.agent_clan = "sase-6r"
     phase.agent_clan_generation = generation
     ordinary = _agent(
-        cl_name="descendant-changespec",
+        cl_name="descendant-patch",
         project_file="/r/other/other.sase",
         tribe="review",
         agent_name="detached.family.step",
@@ -98,7 +98,7 @@ def _anchored_clan_agents() -> list[Agent]:
         start_time=datetime(2026, 4, 26, 11, 0, 0),
     )
     hidden = _agent(
-        cl_name="hidden-changespec",
+        cl_name="hidden-patch",
         project_file="/r/hidden/hidden.sase",
         tribe="hidden",
         agent_name="hidden.family.step",
@@ -110,7 +110,7 @@ def _anchored_clan_agents() -> list[Agent]:
     )
     hidden.is_hidden_step = True
     peer = _agent(
-        cl_name="peer-changespec",
+        cl_name="peer-patch",
         project_file="/r/root/root.sase",
         tribe="review",
         agent_name="sase-6r.phase-review",

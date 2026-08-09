@@ -27,7 +27,7 @@ from sase.ace.tui.modals.notification_modal_tags import (
 )
 from sase.ace.tui.widgets.notification_indicator import NotificationIndicator
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -74,7 +74,7 @@ async def _drive_indicator(
     await wait_for_startup(page)
     await page.press("4")
     await page.expect_state("artifacts_subtab", "prs")
-    await page.expect_state("tab", "changespecs")
+    await page.expect_state("tab", "patches")
     await wait_for_svg_contains(page, "visual_auth")
     indicator = page.app.query_one("#notification-indicator", NotificationIndicator)
     indicator.set_tabs(tabs)
@@ -95,7 +95,7 @@ async def test_notification_indicator_chips_png_snapshot(
     """Each populated tab contributes a self-identifying icon chip."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _drive_indicator(page, _BUILTIN_TABS, " ⚑2 ✖3 ◈1 ✉4 ")
         ace_png_visual.assert_page_png(
             page,
@@ -111,7 +111,7 @@ async def test_notification_indicator_kind_chips_png_snapshot(
     """Unknown tabs still get a glyph that says what kind of tab they are."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _drive_indicator(page, _KIND_TABS, " ◆2 #3 ⊘1 •5 ")
         ace_png_visual.assert_page_png(
             page,
@@ -127,7 +127,7 @@ async def test_notification_indicator_snoozed_png_snapshot(
     """A snoozed-only backlog reads as a dim moon, never the old ``z``."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _drive_indicator(page, _SNOOZED_TABS, " ☾4 ")
         ace_png_visual.assert_page_png(
             page,

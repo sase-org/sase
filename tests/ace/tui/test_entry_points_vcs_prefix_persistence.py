@@ -12,7 +12,7 @@ from sase.ace.tui.actions.agent_workflow import _entry_points
 from ._entry_points_vcs_prefix_helpers import _App, _patch_save_recorder
 
 
-def test_quick_changespec_skips_save_for_non_launchable_project(
+def test_quick_patch_skips_save_for_non_launchable_project(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A bogus project_basename must not be persisted, but the prompt bar still mounts."""
@@ -27,7 +27,7 @@ def test_quick_changespec_skips_save_for_non_launchable_project(
     saved = _patch_save_recorder(monkeypatch)
 
     app = _App()
-    app.changespecs = [
+    app.patches = [
         SimpleNamespace(
             name="branch",
             file_path="/tmp/project/project.sase",
@@ -35,7 +35,7 @@ def test_quick_changespec_skips_save_for_non_launchable_project(
         )
     ]
 
-    app._start_agent_from_changespec_quick()
+    app._start_agent_from_patch_quick()
 
     assert saved == []
     assert app._last_custom_agent_selection is None

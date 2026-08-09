@@ -17,7 +17,7 @@ from sase.updates import (
     UpdateStatus,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_visual_idle,
 )
@@ -167,7 +167,7 @@ async def test_startup_update_toast_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         notifications=True,
         startup_policy="real",
     ) as page:
@@ -217,7 +217,7 @@ async def test_startup_update_toast_grouped_commits_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         notifications=True,
         startup_policy="real",
     ) as page:

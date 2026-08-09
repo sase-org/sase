@@ -18,7 +18,7 @@ from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
 from sase.ace.tui.models.agent_tribe_summary import CollapsedAgentPanelFocus
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
 )
@@ -314,7 +314,7 @@ async def test_confirming_last_panel_member_preserves_neighbors_and_valid_focus(
         lambda _self, *args, **_kwargs: persistence_submissions.append(args),
     )
 
-    async with AcePage(query='"demo"', changespecs=changespecs()) as page:
+    async with AcePage(query='"demo"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

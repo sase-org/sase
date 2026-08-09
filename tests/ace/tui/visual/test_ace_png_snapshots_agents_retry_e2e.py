@@ -14,7 +14,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -91,7 +91,7 @@ async def test_real_fakey_retry_countdown_png_snapshot(
         _patch_sentinel_pid_liveness(monkeypatch)
         monkeypatch.setattr(time, "time", lambda: _VISUAL_NOW.timestamp())
 
-        async with AcePage(query='"fakey"', changespecs=changespecs()) as page:
+        async with AcePage(query='"fakey"', patches=patches()) as page:
             await _open_agents_tab(page, agent_count=1)
 
             loaded = page.app._agents[0]
@@ -144,7 +144,7 @@ async def test_real_loader_plan_family_retry_countdown_png_snapshot(
     )
     patch_startup_loaders(monkeypatch, use_real_agent_loader=True)
 
-    async with AcePage(query='"retry-family"', changespecs=changespecs()) as page:
+    async with AcePage(query='"retry-family"', patches=patches()) as page:
         await _open_agents_tab(page, agent_count=1)
 
         loaded = page.app._agents[0]
@@ -200,7 +200,7 @@ async def test_real_fakey_running_fallback_png_snapshot(
         harness.normalize_visual_timestamps(_VISUAL_NOW)
         _patch_sentinel_pid_liveness(monkeypatch)
 
-        async with AcePage(query='"fakey"', changespecs=changespecs()) as page:
+        async with AcePage(query='"fakey"', patches=patches()) as page:
             await _open_agents_tab(page, agent_count=1)
 
             loaded = page.app._agents[0]
@@ -270,7 +270,7 @@ async def test_real_fakey_completed_retry_chain_png_snapshot(
     _patch_sentinel_pid_liveness(monkeypatch)
     patch_startup_loaders(monkeypatch, use_real_agent_loader=True)
 
-    async with AcePage(query='"fakey"', changespecs=changespecs()) as page:
+    async with AcePage(query='"fakey"', patches=patches()) as page:
         await _open_agents_tab(page, agent_count=2)
 
         loaded_states = [

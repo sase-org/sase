@@ -125,7 +125,7 @@ def test_delta_loader_normalizes_exact_artifact_dirs_without_broad_load(
         result = load_agent_artifact_delta_from_disk_with_state(
             set(),
             artifact_dirs,
-            changespec_snapshot=[],
+            patch_snapshot=[],
         )
 
     agents = result.all_agents
@@ -158,7 +158,7 @@ def test_delta_loader_marks_missing_exact_dir_for_broad_fallback(
         result = load_agent_artifact_delta_from_disk_with_state(
             set(),
             [missing_dir],
-            changespec_snapshot=[],
+            patch_snapshot=[],
             update_index=False,
         )
 
@@ -180,7 +180,7 @@ def test_delta_loader_accepts_expected_deleted_exact_dir(
         result = load_agent_artifact_delta_from_disk_with_state(
             set(),
             [deleted_dir],
-            changespec_snapshot=[],
+            patch_snapshot=[],
             update_index=False,
             deleted_artifact_dirs=[deleted_dir],
         )

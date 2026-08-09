@@ -203,7 +203,7 @@ async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_openi
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
@@ -252,7 +252,7 @@ async def test_bugs_fast_navigation_restores_issue_focus_and_ignores_links(
         lambda *_args, **_kwargs: snapshot,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         page.app._set_artifacts_project_scope("alpha", picked=True)
         page.app.current_artifacts_subtab = "bugs"
         pane = page.query_one_widget("#artifacts-bugs-pane", ArtifactsBugsPane)
@@ -293,7 +293,7 @@ async def test_bugs_two_character_jump_waits_for_complete_hint(
         lambda *_args, **_kwargs: snapshot,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         page.app._set_artifacts_project_scope("alpha", picked=True)
         page.app.current_artifacts_subtab = "bugs"
         pane = page.query_one_widget("#artifacts-bugs-pane", ArtifactsBugsPane)
@@ -330,7 +330,7 @@ async def test_plans_fast_navigation_skips_document_section_headings(
         lambda _project, **_kwargs: snapshot,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
@@ -391,7 +391,7 @@ async def test_files_implements_shared_stable_target_navigation(
         lambda _project, _limit: snapshot,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("5", "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
@@ -431,7 +431,7 @@ async def test_non_pr_jump_history_is_isolated_and_model_changes_cancel_hints(
         lambda *_args, **_kwargs: bugs,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         page.app._set_artifacts_project_scope("alpha", picked=True)
         await page.press("1")
         commits_pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
@@ -485,7 +485,7 @@ async def test_configured_navigation_actions_route_to_non_pr_list(
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)

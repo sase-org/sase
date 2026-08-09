@@ -111,7 +111,7 @@ async def test_cold_agent_hint_render_keeps_view_mode_open_for_enrichment() -> N
     app.notify.assert_not_called()
     app._refresh_agents_display.assert_not_called()
     assert app._hint_mode_active
-    assert app._hint_changespec_name == "pending-agent"
+    assert app._hint_patch_name == "pending-agent"
     assert len(app.container.mounted) == 1
     assert isinstance(app.container.mounted[0], HintInputBar)
 
@@ -200,7 +200,7 @@ class _ImmediateSubmitAgentViewApp(InputProcessingMixin, FileViewingMixin):
         self._hint_mappings = {}
         self._hint_tool_call_reports = {}
         self._hint_commit_views = {}
-        self._hint_changespec_name = ""
+        self._hint_patch_name = ""
         self.notify = MagicMock()
         self._refresh_agents_display = MagicMock()
         self._view_files_with_pager = MagicMock()

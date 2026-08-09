@@ -305,7 +305,7 @@ def test_jk_at_l0_banner_moves_highlight_to_deeper_banner() -> None:
         _agent(project="p1", cl="cl1", name="sase-q.second"),
     ]
     # Collapse the L0 *and* both L2 name-root banners so every banner is
-    # selectable once L0 expands (the L1 ChangeSpec banner stays
+    # selectable once L0 expands (the L1 Patch banner stays
     # expanded, so its children — the two collapsed L2 banners — become
     # the only selectable stops).
     app = _StubApp(

@@ -14,7 +14,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation import (
     get_cached_clan_section_snapshot,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -70,7 +70,7 @@ def _mounted_clan_agents(tmp_path: Path) -> list[Agent]:
 
 
 @pytest.mark.asyncio
-async def test_mounted_clan_fold_chords_zoom_and_changespec_isolation(
+async def test_mounted_clan_fold_chords_zoom_and_patch_isolation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -78,12 +78,12 @@ async def test_mounted_clan_fold_chords_zoom_and_changespec_isolation(
 
     async with AcePage(
         query='"mounted"',
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        changespec_folds = (
+        patch_folds = (
             page.app.commits_collapsed,
             page.app.hooks_collapsed,
             page.app.mentors_collapsed,
@@ -144,7 +144,7 @@ async def test_mounted_clan_fold_chords_zoom_and_changespec_isolation(
             page.app.mentors_collapsed,
             page.app.timestamps_collapsed,
             page.app.deltas_collapsed,
-        ) == changespec_folds
+        ) == patch_folds
 
         await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
@@ -152,6 +152,6 @@ async def test_mounted_clan_fold_chords_zoom_and_changespec_isolation(
         await page.expect_no_modal()
 
         await page.press("tab")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await page.press("z", "c")
-        assert page.app.commits_collapsed is cycle_forward(changespec_folds[0])
+        assert page.app.commits_collapsed is cycle_forward(patch_folds[0])

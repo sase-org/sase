@@ -1,4 +1,4 @@
-"""Tests for ChangeSpecs TUI persistent query-corpus routing."""
+"""Tests for Patches TUI persistent query-corpus routing."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 
 from sase.ace.query import parse_query
-from sase.ace.testing import make_changespec
-from sase.ace.tui.actions.changespec import ChangeSpecMixin
+from sase.ace.testing import make_patch
+from sase.ace.tui.actions.patch import PatchMixin
 from sase.core.query_corpus_facade import QueryCorpus
 
 
@@ -21,28 +21,28 @@ class _FakeRustCorpus:
         return self.length
 
 
-class _FakeApp(ChangeSpecMixin):
+class _FakeApp(PatchMixin):
     def __init__(
         self,
-        changespecs: list[Any],
+        patches: list[Any],
         *,
         query: str = '"feature"',
         hide_reverted: bool = False,
         hide_submitted: bool = False,
     ) -> None:
-        self.changespecs = changespecs
+        self.patches = patches
         self.current_idx = 0
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.parsed_query = parse_query(query)
         self.query_string = query
         self.hide_reverted = hide_reverted
         self.hide_submitted = hide_submitted
-        self._all_changespecs = changespecs
+        self._all_patches = patches
         self._query_corpus: QueryCorpus | None = None
         self._query_corpus_source_list_id: int | None = None
         self.marked_indices: set[int] = set()
-        self._changespecs_last_idx = 0
-        self._changespecs_last_name: str | None = None
+        self._patches_last_idx = 0
+        self._patches_last_name: str | None = None
         self._hidden_reverted_count = 0
         self._hidden_submitted_count = 0
         self.restored_selection = False
@@ -56,7 +56,7 @@ class _FakeApp(ChangeSpecMixin):
     def _refresh_display(self) -> None:
         return
 
-    def _changespec_banner_focus_still_valid(self) -> bool:
+    def _patch_banner_focus_still_valid(self) -> bool:
         return True
 
     def _restore_selection_for_current_query(self) -> None:
@@ -67,12 +67,12 @@ class _FakeApp(ChangeSpecMixin):
 def fake_query_corpus(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]]:
     calls: dict[str, list[Any]] = {"compile": [], "evaluate": []}
 
-    def compile_query_corpus(changespecs: list[Any]) -> QueryCorpus:
-        calls["compile"].append(changespecs)
+    def compile_query_corpus(patches: list[Any]) -> QueryCorpus:
+        calls["compile"].append(patches)
         return QueryCorpus(
-            source_list_id=id(changespecs),
-            expected_length=len(changespecs),
-            rust_handle=_FakeRustCorpus([cs.name for cs in changespecs]),
+            source_list_id=id(patches),
+            expected_length=len(patches),
+            rust_handle=_FakeRustCorpus([cs.name for cs in patches]),
         )
 
     def evaluate_query_many_with_corpus(query: str, corpus: QueryCorpus) -> list[bool]:
@@ -100,17 +100,17 @@ def test_initial_load_builds_corpus_and_reuses_it_per_query(
     fake_query_corpus: dict[str, list[Any]],
 ) -> None:
     specs = [
-        make_changespec(name="feature_a"),
-        make_changespec(name="other_b"),
+        make_patch(name="feature_a"),
+        make_patch(name="other_b"),
     ]
     app = _FakeApp(specs, query='"feature"')
 
-    app._apply_changespecs(specs)
-    assert [cs.name for cs in app.changespecs] == ["feature_a"]
+    app._apply_patches(specs)
+    assert [cs.name for cs in app.patches] == ["feature_a"]
 
     app.query_string = '"other"'
     app.parsed_query = parse_query('"other"')
-    refiltered = app._filter_changespecs(specs)
+    refiltered = app._filter_patches(specs)
 
     assert [cs.name for cs in refiltered] == ["other_b"]
     assert fake_query_corpus["compile"] == [specs]
@@ -123,17 +123,17 @@ def test_initial_load_builds_corpus_and_reuses_it_per_query(
 def test_reload_replaces_corpus_for_new_list_identity(
     fake_query_corpus: dict[str, list[Any]],
 ) -> None:
-    first = [make_changespec(name="feature_a")]
+    first = [make_patch(name="feature_a")]
     second = [
-        make_changespec(name="other_b"),
-        make_changespec(name="feature_c"),
+        make_patch(name="other_b"),
+        make_patch(name="feature_c"),
     ]
     app = _FakeApp(first, query='"feature"')
 
-    app._apply_changespecs(first)
-    app._apply_reloaded_changespecs(second, current_name=None)
+    app._apply_patches(first)
+    app._apply_reloaded_patches(second, current_name=None)
 
-    assert [cs.name for cs in app.changespecs] == ["feature_c"]
+    assert [cs.name for cs in app.patches] == ["feature_c"]
     assert fake_query_corpus["compile"] == [first, second]
     assert app._query_corpus_source_list_id == id(second)
 
@@ -143,19 +143,19 @@ async def test_async_reload_prepares_corpus_inside_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     specs = [
-        make_changespec(name="feature_a"),
-        make_changespec(name="other_b"),
+        make_patch(name="feature_a"),
+        make_patch(name="other_b"),
     ]
     app = _FakeApp([], query='"feature"')
     compile_contexts: list[bool] = []
     worker_active = False
 
-    def compile_query_corpus(changespecs: list[Any]) -> QueryCorpus:
+    def compile_query_corpus(patches: list[Any]) -> QueryCorpus:
         compile_contexts.append(worker_active)
         return QueryCorpus(
-            source_list_id=id(changespecs),
-            expected_length=len(changespecs),
-            rust_handle=_FakeRustCorpus([cs.name for cs in changespecs]),
+            source_list_id=id(patches),
+            expected_length=len(patches),
+            rust_handle=_FakeRustCorpus([cs.name for cs in patches]),
         )
 
     def evaluate_query_many_with_corpus(query: str, corpus: QueryCorpus) -> list[bool]:
@@ -171,7 +171,7 @@ async def test_async_reload_prepares_corpus_inside_worker(
             worker_active = False
 
     monkeypatch.setattr(
-        "sase.ace.changespec.find_all_changespecs_cached",
+        "sase.ace.patch.find_all_patches_cached",
         lambda: specs,
     )
     monkeypatch.setattr(
@@ -186,7 +186,7 @@ async def test_async_reload_prepares_corpus_inside_worker(
 
     await app._reload_and_reposition_async()
 
-    assert [cs.name for cs in app.changespecs] == ["feature_a"]
+    assert [cs.name for cs in app.patches] == ["feature_a"]
     assert compile_contexts == [True]
     assert app._query_corpus_source_list_id == id(specs)
 
@@ -195,10 +195,10 @@ def test_hide_counts_are_preserved_on_corpus_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     specs = [
-        make_changespec(name="ready", status="Ready"),
-        make_changespec(name="submitted", status="Submitted"),
-        make_changespec(name="reverted", status="Reverted"),
-        make_changespec(name="archived", status="Archived"),
+        make_patch(name="ready", status="Ready"),
+        make_patch(name="submitted", status="Submitted"),
+        make_patch(name="reverted", status="Reverted"),
+        make_patch(name="archived", status="Archived"),
     ]
     app = _FakeApp(
         specs,
@@ -209,10 +209,10 @@ def test_hide_counts_are_preserved_on_corpus_route(
 
     monkeypatch.setattr(
         "sase.core.query_corpus_facade.compile_query_corpus",
-        lambda changespecs: QueryCorpus(
-            source_list_id=id(changespecs),
-            expected_length=len(changespecs),
-            rust_handle=_FakeRustCorpus([cs.name for cs in changespecs]),
+        lambda patches: QueryCorpus(
+            source_list_id=id(patches),
+            expected_length=len(patches),
+            rust_handle=_FakeRustCorpus([cs.name for cs in patches]),
         ),
     )
     monkeypatch.setattr(
@@ -220,9 +220,9 @@ def test_hide_counts_are_preserved_on_corpus_route(
         lambda _query, corpus: [True] * len(corpus.rust_handle),
     )
 
-    app._apply_changespecs(specs)
+    app._apply_patches(specs)
 
-    assert [cs.name for cs in app.changespecs] == ["ready"]
+    assert [cs.name for cs in app.patches] == ["ready"]
     assert app._hidden_submitted_count == 1
     assert app._hidden_reverted_count == 2
 
@@ -230,7 +230,7 @@ def test_hide_counts_are_preserved_on_corpus_route(
 def test_forced_stale_handle_fails_before_returning_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    specs = [make_changespec(name="feature_a")]
+    specs = [make_patch(name="feature_a")]
     app = _FakeApp(specs, query='"feature"')
     app._query_corpus = QueryCorpus(
         source_list_id=id(specs),
@@ -250,4 +250,4 @@ def test_forced_stale_handle_fails_before_returning_results(
     )
 
     with pytest.raises(ValueError, match="stale query corpus wrapper"):
-        app._filter_changespecs(specs)
+        app._filter_patches(specs)

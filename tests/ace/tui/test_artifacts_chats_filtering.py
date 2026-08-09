@@ -81,7 +81,7 @@ async def test_filter_bar_and_provenance_cycle_update_rows_and_summary(
         lambda **_kwargs: catalog(entries),
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("5", ")")
         pane = page.query_one_widget("#artifacts-chats-pane", ArtifactsChatsPane)
         await page.wait_for(lambda _state: pane.snapshot is not None)
@@ -133,7 +133,7 @@ async def test_enter_pushes_full_transcript_preview(
         lambda **_kwargs: catalog((entry,)),
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("5", ")")
         pane = page.query_one_widget("#artifacts-chats-pane", ArtifactsChatsPane)
         await page.wait_for(lambda _state: pane.selected_entry is entry)

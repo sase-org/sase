@@ -66,7 +66,7 @@ def test_sync_agents_search_load_stays_visible_inbox() -> None:
 
     with (
         patch.object(app, "_merge_external_dismissals"),
-        patch("sase.ace.changespec.find_all_changespecs_cached", return_value=[]),
+        patch("sase.ace.patch.find_all_patches_cached", return_value=[]),
         patch(
             "sase.ace.tui.actions.agents._loading.load_agents_from_disk_with_state",
             side_effect=fake_load_agents,
@@ -97,7 +97,7 @@ async def test_async_agents_search_load_stays_visible_inbox() -> None:
             "_compute_external_dismissal_merge",
             return_value=None,
         ),
-        patch("sase.ace.changespec.find_all_changespecs_cached", return_value=[]),
+        patch("sase.ace.patch.find_all_patches_cached", return_value=[]),
         patch(
             "sase.ace.tui.actions.agents._loading.load_agents_from_disk_with_state",
             side_effect=fake_load_agents,

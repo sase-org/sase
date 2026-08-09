@@ -16,7 +16,7 @@ from sase.ace.tui.modals.input_collection_modal import InputCollectionModal
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.agent.prompt_placeholder_inputs import build_prompt_input_plan
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -56,11 +56,11 @@ async def test_input_collection_modal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         modal = _push_modal(page)
         await page.expect_modal("InputCollectionModal")
         await wait_for_svg_contains(page, "target service to refactor")
@@ -85,11 +85,11 @@ async def test_input_collection_modal_error_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         modal = _push_modal(page)
         await page.expect_modal("InputCollectionModal")
         await wait_for_svg_contains(page, "target service to refactor")

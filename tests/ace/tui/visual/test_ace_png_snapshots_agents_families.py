@@ -21,7 +21,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -37,7 +37,7 @@ async def test_waiting_family_child_row_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=waiting_family_child_agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -64,9 +64,7 @@ async def test_python_step_parent_family_footer_png_snapshot(
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 22, 6, 30, 0))
     patch_startup_loaders(monkeypatch, agents=parent_navigation_family_agents())
 
-    async with AcePage(
-        query='"visual-house-navigation"', changespecs=changespecs()
-    ) as page:
+    async with AcePage(query='"visual-house-navigation"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -101,7 +99,7 @@ async def test_renamed_generic_family_root_png_snapshot(
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 11, 10, 0))
     patch_startup_loaders(monkeypatch, agents=renamed_generic_family_agents())
 
-    async with AcePage(query='"visual-family"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual-family"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -128,7 +126,7 @@ async def test_parallel_family_root_counts_png_snapshot(
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 16, 10, 10, 0))
     patch_startup_loaders(monkeypatch, agents=parallel_family_agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -158,7 +156,7 @@ async def test_family_and_lone_planner_color_png_snapshot(
     assert lone_planner.is_family_container_row is False
     patch_startup_loaders(monkeypatch, agents=rows)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

@@ -18,7 +18,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -138,7 +138,7 @@ async def test_tribe_panel_display_config_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=_tribe_display_agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -233,7 +233,7 @@ async def test_tribe_panel_four_level_png_snapshots(
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 15, 0, 0))
     patch_startup_loaders(monkeypatch, agents=_tribe_agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

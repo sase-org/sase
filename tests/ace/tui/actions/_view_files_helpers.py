@@ -30,7 +30,7 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
         self._hint_mappings = hint_mappings
         self._hint_tool_call_reports = {}
         self._hint_commit_views = {}
-        self._hint_changespec_name = "cs"
+        self._hint_patch_name = "cs"
         self.notify = MagicMock()
         self.app = SimpleNamespace(push_screen=MagicMock())
         self.suspend_recorder = _SuspendRecorder()

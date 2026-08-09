@@ -69,8 +69,8 @@ def test_editor_result_submits_only_changed_type_valid_fields() -> None:
         model="",
         size="medium",
         design="",
-        changespec_name="must-not-submit",
-        changespec_bug_id="99",
+        patch_name="must-not-submit",
+        patch_bug_id="99",
     )
 
     assert result.changed_fields(issue) == {

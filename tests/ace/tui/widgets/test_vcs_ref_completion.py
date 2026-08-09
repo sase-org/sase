@@ -41,7 +41,7 @@ def _entry(
     provider: str = "GitHub",
     description: str = "",
     aliases: tuple[str, ...] = (),
-    kind: Literal["project", "changespec"] = "project",
+    kind: Literal["project", "patch"] = "project",
     project: str | None = None,
     status: str = "",
 ) -> VcsProjectEntry:
@@ -62,7 +62,7 @@ _REF_SOURCE = [
     _entry("sase", description="Structured agentic software engineering"),
     _entry(
         "ship-completion",
-        kind="changespec",
+        kind="patch",
         project="sase",
         status="Ready",
     ),
@@ -273,7 +273,7 @@ async def test_accept_project_applies_token_local_paren_transform() -> None:
         assert ta._file_completion_active is False
 
 
-async def test_accept_changespec_applies_terminal_colon_transform() -> None:
+async def test_accept_patch_applies_terminal_colon_transform() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)

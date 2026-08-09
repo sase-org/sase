@@ -11,7 +11,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import AgentInfoPanel, AgentList
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -119,7 +119,7 @@ async def test_agents_overflowing_panel_uses_full_height_png_snapshot(
     rows = _overflowing_panel_agents()
     patch_startup_loaders(monkeypatch, agents=rows)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -153,7 +153,7 @@ async def test_agents_unread_highlight_png_snapshot(
     done = _done_agents()
     patch_startup_loaders(monkeypatch, agents=done)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         identities = {agent.identity for agent in done}
         page.app._unread_completed_agent_ids = set(identities)

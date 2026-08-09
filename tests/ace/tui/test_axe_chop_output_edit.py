@@ -8,11 +8,11 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.tui.actions.agents._panel_detail import AgentPanelDetailMixin
 from sase.ace.tui.actions.axe_chop_run import AxeChopRunMixin
 from sase.ace.tui.actions.axe_display import ChopRunSnapshot, ChopSnapshot
-from sase.ace.tui.actions.changespec._core import ChangeSpecMixin
+from sase.ace.tui.actions.patch._core import PatchMixin
 from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
 from sase.axe.state import ChopRunEntry, chop_run_log_path
 
@@ -203,10 +203,10 @@ def test_edit_panel_on_axe_missing_log_warns(tmp_path: Path) -> None:
     assert app.notifications == [("No output log found for chop 'fast'", "warning")]
 
 
-class _FakeChangeSpecApp(ChangeSpecMixin):
+class _FakePatchApp(PatchMixin):
     def __init__(self) -> None:
-        self.changespecs = [
-            ChangeSpec(
+        self.patches = [
+            Patch(
                 name="test",
                 description="",
                 parent=None,
@@ -224,12 +224,12 @@ class _FakeChangeSpecApp(ChangeSpecMixin):
         self.current_idx = 10
         self.opened = False
 
-    def _open_spec_in_editor(self, changespec: ChangeSpec) -> None:
+    def _open_spec_in_editor(self, patch: Patch) -> None:
         self.opened = True
 
 
-def test_changespec_edit_spec_ignores_stale_current_idx() -> None:
-    app = _FakeChangeSpecApp()
+def test_patch_edit_spec_ignores_stale_current_idx() -> None:
+    app = _FakePatchApp()
 
     app.action_edit_spec()
 

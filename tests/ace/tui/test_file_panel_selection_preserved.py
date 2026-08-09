@@ -10,7 +10,7 @@ import types
 from datetime import datetime
 from unittest.mock import MagicMock
 
-from sase.ace.changespec.models import DeltaEntry
+from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent import LinkedRepoMetadata
 from sase.ace.tui.widgets.file_panel import _LIVE_DIFF_SENTINEL, AgentFilePanel

@@ -63,7 +63,7 @@ async def test_bench_admin_center_home_first_paint(
         _populate_fixture()
 
     samples: list[float] = []
-    async with AcePage(query="!!!", changespecs=[]) as page:
+    async with AcePage(query="!!!", patches=[]) as page:
         for _index in range(_SAMPLES):
             started = time.perf_counter()
             await page.press("number_sign")

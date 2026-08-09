@@ -7,7 +7,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -69,12 +69,12 @@ async def test_prompt_todo_restored_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, TODO_RESTORED_PROMPT)
 
         assert "TODO 4" in str(bar.border_title)
@@ -88,11 +88,11 @@ async def test_prompt_todo_stack_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, TODO_HIGHLIGHT_STACK)
 
         assert "TODO 2" in str(bar.border_title)
@@ -132,12 +132,12 @@ async def test_prompt_bullet_highlight_solo_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, BULLET_HIGHLIGHT_SOLO)
 
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
@@ -167,12 +167,12 @@ async def test_prompt_ordered_highlight_solo_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, ORDERED_HIGHLIGHT_SOLO)
 
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
@@ -184,11 +184,11 @@ async def test_prompt_search_highlight_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, SEARCH_PROMPT)
 
         await page.press("escape", "slash", "a", "l", "p", "h", "a")
@@ -217,11 +217,11 @@ async def test_prompt_placeholder_raw_only_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, PLACEHOLDER_RAW_ONLY_PROMPT)
 
         ace_png_visual.assert_page_png(
@@ -238,12 +238,12 @@ async def test_prompt_xprompt_highlight_solo_light_png_snapshot(
     patch_startup_loaders(monkeypatch)
     patch_visual_skill_catalog(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         page.app.theme = "textual-light"
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, XPROMPT_HIGHLIGHT_SOLO)
 
         ace_png_visual.assert_page_png(
@@ -260,11 +260,11 @@ async def test_prompt_xprompt_highlight_stack_png_snapshot(
     patch_startup_loaders(monkeypatch)
     patch_visual_skill_catalog(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, XPROMPT_HIGHLIGHT_STACK)
 
         ace_png_visual.assert_page_png(
@@ -281,11 +281,11 @@ async def test_prompt_artifact_ref_highlight_png_snapshot(
     patch_startup_loaders(monkeypatch)
     patch_visual_artifact_ref_kinds(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, ARTIFACT_REF_HIGHLIGHT)
         seed_visual_artifact_ref_kinds(bar.active_text_area())
         await wait_for_visual_idle(page)
@@ -305,11 +305,11 @@ async def test_prompt_glossary_highlight_png_snapshot(
     patch_visual_glossary_catalog(monkeypatch)
     patch_visual_artifact_ref_kinds(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, GLOSSARY_HIGHLIGHT_PROMPT)
         text_area = bar.active_text_area()
         text_area._refresh_prompt_glossary_context(schedule=False)
@@ -358,12 +358,12 @@ async def test_prompt_misspelling_highlight_png_snapshot(
     record_misspelling("recieve")
     record_misspelling("reciept")
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, MISSPELLING_HIGHLIGHT_PROMPT)
 
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
@@ -393,12 +393,12 @@ async def test_prompt_codeblock_highlight_solo_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, CODEBLOCK_HIGHLIGHT_SOLO)
 
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
@@ -430,14 +430,14 @@ async def test_prompt_codeblock_highlight_stack_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         startup_policy="real",
     ) as page:
         page.app.theme = theme
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, CODEBLOCK_HIGHLIGHT_STACK)
 
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)

@@ -17,7 +17,7 @@ from tests.ace.tui.visual._ace_axe_png_snapshot_fixtures import (
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     axe_collected_data,
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -33,7 +33,7 @@ async def test_axe_selected_row_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, axe_data=axe_bgcmd_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
@@ -54,7 +54,7 @@ async def test_axe_lumberjack_tree_png_snapshot(
     """Lumberjack tree with expanded chops and a bgcmd row below."""
     patch_startup_loaders(monkeypatch, axe_data=axe_lumberjack_tree_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
@@ -74,7 +74,7 @@ async def test_axe_disabled_chop_row_png_snapshot(
     """Disabled chops stay visible and clearly marked in the AXE tree."""
     patch_startup_loaders(monkeypatch, axe_data=axe_disabled_chop_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
@@ -97,7 +97,7 @@ async def test_axe_empty_png_snapshot(
     """AXE tab with no lumberjacks and no bgcmds (empty-state placeholder)."""
     patch_startup_loaders(monkeypatch, axe_data=axe_collected_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")

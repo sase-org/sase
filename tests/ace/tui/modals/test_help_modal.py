@@ -12,7 +12,7 @@ from sase.ace.tui.modals.help_modal.query_sections import add_saved_queries_sect
 
 def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     modal = HelpModal(
-        current_tab="changespecs",
+        current_tab="patches",
         active_query='"feature"',
         registry=load_keymap_registry({}),
         saved_queries={"1": '"feature"'},
@@ -77,7 +77,7 @@ async def test_help_digits_do_not_load_saved_queries(monkeypatch) -> None:
         )
         page.app.push_screen(
             HelpModal(
-                current_tab="changespecs",
+                current_tab="patches",
                 active_query=page.app.canonical_query_string,
                 registry=page.app._keymap_registry,
                 saved_queries={"7": '"other"'},

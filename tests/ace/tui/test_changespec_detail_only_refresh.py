@@ -1,4 +1,4 @@
-"""Tests for the Phase 2 ChangeSpec j/k hot path: detail-only refresh and
+"""Tests for the Phase 2 Patch j/k hot path: detail-only refresh and
 single-row patching. Acceptance criteria from
 ``sdd/plans/202604/tui_perf_overhaul_1.md`` Phase 2.
 """
@@ -10,8 +10,8 @@ from typing import Any
 
 from textual.css.query import NoMatches as _NoMatches
 
-from sase.ace.testing import make_changespec
-from sase.ace.tui.actions.changespec import ChangeSpecMixin
+from sase.ace.testing import make_patch
+from sase.ace.tui.actions.patch import PatchMixin
 from sase.ace.tui.actions.marking import MarkingMixin
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
@@ -23,7 +23,7 @@ class _Timer:
 
 
 class _RecordingList:
-    """Stand-in for ChangeSpecList that records hot-path calls."""
+    """Stand-in for PatchList that records hot-path calls."""
 
     def __init__(self) -> None:
         self.update_list_calls = 0
@@ -45,7 +45,7 @@ class _RecordingList:
     def clear_options(self) -> None:
         self.clear_options_calls += 1
 
-    def patch_changespec_row(
+    def patch_patch_row(
         self,
         idx: int,
         cs: Any,
@@ -123,16 +123,16 @@ class _RecordingSearchPanel:
         del args, kwargs
 
 
-class _FakeApp(ChangeSpecMixin, MarkingMixin):
-    """Minimal app exercising the changespecs display + marking flow."""
+class _FakeApp(PatchMixin, MarkingMixin):
+    """Minimal app exercising the patches display + marking flow."""
 
     def __init__(self, count: int = 5) -> None:
         from sase.ace.query import parse_query
 
-        self.changespecs = [make_changespec(name=f"feat_{i}") for i in range(count)]
-        self._all_changespecs = list(self.changespecs)
+        self.patches = [make_patch(name=f"feat_{i}") for i in range(count)]
+        self._all_patches = list(self.patches)
         self.current_idx = 0
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.parsed_query = parse_query('"feature"')
         self.canonical_query_string = '"feature"'
         self.query_string = '"feature"'
@@ -166,15 +166,15 @@ class _FakeApp(ChangeSpecMixin, MarkingMixin):
         self.footer_widget = _RecordingFooter()
         self.search_panel = _RecordingSearchPanel()
 
-        self._w_changespec_list: Any = self.list_widget
-        self._w_changespec_detail: Any = self.detail_widget
+        self._w_patch_list: Any = self.list_widget
+        self._w_patch_detail: Any = self.detail_widget
         self._w_ancestors_children: Any = self.ancestors_panel
         self._w_footer: Any = self.footer_widget
         self._w_search_query_panel: Any = self.search_panel
-        self._w_changespec_info_panel: Any = None  # info panel falls through
+        self._w_patch_info_panel: Any = None  # info panel falls through
 
         self.scheduled: list[tuple[float, Callable[[], None]]] = []
-        self._changespec_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
+        self._patch_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
         self.notifications: list[tuple[str, str]] = []
 
     def query_one(self, selector: str, _type: Any = None) -> Any:
@@ -194,7 +194,7 @@ def test_debounced_refresh_50_idx_changes_zero_update_list() -> None:
     app = _FakeApp(count=10)
 
     for _ in range(50):
-        app._refresh_changespecs_display_debounced()
+        app._refresh_patches_display_debounced()
 
     assert app.list_widget.update_list_calls == 0
     assert app.list_widget.clear_options_calls == 0
@@ -205,14 +205,14 @@ def test_debounced_refresh_50_idx_changes_zero_update_list() -> None:
 def test_debounced_refresh_does_not_call_clear_options() -> None:
     """Pure j/k navigation must never clear the OptionList."""
     app = _FakeApp()
-    app._refresh_changespecs_display_debounced()
+    app._refresh_patches_display_debounced()
     assert app.list_widget.clear_options_calls == 0
 
 
 def test_detail_only_refresh_skips_update_list() -> None:
-    """``_refresh_changespec_detail_only`` updates detail/ancestors/footer only."""
+    """``_refresh_patch_detail_only`` updates detail/ancestors/footer only."""
     app = _FakeApp()
-    app._refresh_changespec_detail_only()
+    app._refresh_patch_detail_only()
 
     assert app.list_widget.update_list_calls == 0
     assert app.detail_widget.update_display_calls == 1
@@ -231,12 +231,12 @@ def test_full_refresh_still_calls_update_list() -> None:
     assert app.footer_widget.update_bindings_calls == 1
 
 
-def test_mark_toggle_calls_patch_changespec_row_once_no_clear_options() -> None:
+def test_mark_toggle_calls_patch_patch_row_once_no_clear_options() -> None:
     """Toggling mark on one visible row patches once, never clears options."""
     app = _FakeApp(count=3)
     app.current_idx = 0
 
-    app._toggle_mark_changespec()
+    app._toggle_mark_patch()
 
     assert len(app.list_widget.patch_calls) == 1
     idx, name, selected, marked = app.list_widget.patch_calls[0]
@@ -250,7 +250,7 @@ def test_mark_toggle_calls_patch_changespec_row_once_no_clear_options() -> None:
 
 
 def test_refresh_display_off_tab_does_not_touch_shared_footer() -> None:
-    """ChangeSpec display refresh must not write the shared footer when off-tab.
+    """Patch display refresh must not write the shared footer when off-tab.
 
     Regression for the Agents-tab flicker where the inotify-driven CL
     reload kept stomping the agents bindings with ``show_empty()``'s
@@ -281,7 +281,7 @@ def test_detail_only_refresh_off_tab_does_not_touch_shared_footer() -> None:
     app = _FakeApp(count=3)
     app.current_tab = "agents"
 
-    app._refresh_changespec_detail_only()
+    app._refresh_patch_detail_only()
 
     assert app.footer_widget.update_bindings_calls == 0
     assert app.footer_widget.show_empty_calls == 0
@@ -292,7 +292,7 @@ def test_mark_toggle_falls_back_to_full_refresh_on_patch_failure() -> None:
     app = _FakeApp(count=3)
     app.list_widget.patch_returns = False
 
-    app._toggle_mark_changespec()
+    app._toggle_mark_patch()
 
     assert len(app.list_widget.patch_calls) == 1
     # Fallback fires update_list exactly once.

@@ -8,7 +8,7 @@ import pytest
 from textual.app import App
 from textual.widgets import OptionList, Static
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.tui.modals.project_discovery import (
     is_launchable_project,
     list_launchable_projects,
@@ -33,7 +33,7 @@ def _static_text(modal: ProjectSelectModal, selector: str) -> str:
 def _data(
     *,
     projects: tuple[tuple[str, str], ...] = (("home", "home"), ("valid", "valid")),
-    changespecs: tuple[ChangeSpec, ...] = (),
+    patches: tuple[Patch, ...] = (),
 ) -> _ProjectSelectData:
     snapshot = ProjectDisplaySnapshot(dict(projects))
     return _ProjectSelectData(
@@ -41,7 +41,7 @@ def _data(
             ProjectDisplayProjection(project_key=key, project_label=label)
             for key, label in projects
         ),
-        changespecs=changespecs,
+        patches=patches,
         project_display_snapshot=snapshot,
     )
 
@@ -68,8 +68,8 @@ def _write_project(
     return project_file
 
 
-def _changespec(name: str, status: str, project_name: str = "valid") -> ChangeSpec:
-    return ChangeSpec(
+def _patch(name: str, status: str, project_name: str = "valid") -> Patch:
+    return Patch(
         name=name,
         description="description",
         parent=None,
@@ -158,14 +158,12 @@ def test_home_project_must_be_real_enabled_and_launchable(
     assert is_launchable_project("home", projects_dir) is False
 
 
-def test_project_select_modal_loads_launchable_projects_and_active_changespecs() -> (
-    None
-):
+def test_project_select_modal_loads_launchable_projects_and_active_patches() -> None:
     modal = ProjectSelectModal(
         _data(
-            changespecs=(
-                _changespec("valid_active", "Ready"),
-                _changespec("valid_submitted", "Submitted"),
+            patches=(
+                _patch("valid_active", "Ready"),
+                _patch("valid_submitted", "Submitted"),
             )
         ),
         include_all=True,
@@ -182,9 +180,9 @@ def test_project_select_modal_loads_launchable_projects_and_active_changespecs()
 def test_project_select_modal_excludes_named_project_rows_only() -> None:
     modal = ProjectSelectModal(
         _data(
-            changespecs=(
-                _changespec("home_active", "WIP", project_name="home"),
-                _changespec("valid_active", "Ready"),
+            patches=(
+                _patch("home_active", "WIP", project_name="home"),
+                _patch("valid_active", "Ready"),
             )
         ),
         include_all=True,
@@ -200,9 +198,7 @@ def test_project_select_modal_excludes_named_project_rows_only() -> None:
 
 
 async def test_filter_updates_match_count_and_highlights_first() -> None:
-    modal = ProjectSelectModal(
-        _data(changespecs=(_changespec("valid_active", "Ready"),))
-    )
+    modal = ProjectSelectModal(_data(patches=(_patch("valid_active", "Ready"),)))
 
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal)
@@ -223,9 +219,7 @@ async def test_filter_updates_match_count_and_highlights_first() -> None:
 
 
 async def test_empty_state_toggles_with_no_matches() -> None:
-    modal = ProjectSelectModal(
-        _data(changespecs=(_changespec("valid_active", "Ready"),))
-    )
+    modal = ProjectSelectModal(_data(patches=(_patch("valid_active", "Ready"),)))
 
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal)
@@ -261,9 +255,9 @@ def test_picker_separates_labels_from_canonical_identity_and_duplicates(
                 (canonical_b, project_display_case.project_label),
                 (canonical_a, project_display_case.project_label),
             ),
-            changespecs=(
-                _changespec(
-                    project_display_case.changespec_key,
+            patches=(
+                _patch(
+                    project_display_case.patch_key,
                     "Ready",
                     project_name=canonical_a,
                 ),
@@ -274,12 +268,12 @@ def test_picker_separates_labels_from_canonical_identity_and_duplicates(
     assert [item.display_name for item in modal.all_items] == [
         f"[P] {project_display_case.project_label}",
         f"[P] {project_display_case.project_label}",
-        f"[PR] {project_display_case.changespec_label} [Ready]",
+        f"[PR] {project_display_case.patch_label} [Ready]",
     ]
     assert [item.project_name for item in modal.all_items[:2]] == [
         canonical_a,
         canonical_b,
     ]
     assert modal.all_items[2].project_name == canonical_a
-    assert modal.all_items[2].cl_name == project_display_case.changespec_key
+    assert modal.all_items[2].cl_name == project_display_case.patch_key
     assert len({item.option_id for item in modal.all_items}) == 3

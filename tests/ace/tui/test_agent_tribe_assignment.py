@@ -127,7 +127,7 @@ class _FakeApp(AgentTribeAssignmentMixin, AgentDisplayMixin):
 
 def test_action_no_op_when_not_on_agents_tab(tmp_path: Path) -> None:
     app = _FakeApp([_make_agent()])
-    app.current_tab = "changespecs"
+    app.current_tab = "patches"
     with patch(
         "sase.ace.agent_tribes._AGENT_TRIBES_FILE",
         tmp_path / "agent_tribes.json",

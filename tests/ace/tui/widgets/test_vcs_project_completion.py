@@ -42,7 +42,7 @@ def _entry(
     provider: str = "GitHub",
     description: str = "",
     aliases: tuple[str, ...] = (),
-    kind: Literal["project", "patch", "changespec"] = "project",
+    kind: Literal["project", "patch", "patch"] = "project",
     project: str | None = None,
     status: str = "",
 ) -> VcsProjectEntry:
@@ -70,7 +70,7 @@ _PROJECTS_AND_PRS = [
     *_PROJECTS,
     _entry(
         "ship-completion",
-        kind="changespec",
+        kind="patch",
         project="sase",
         status="Ready",
     ),
@@ -119,7 +119,7 @@ def test_placeholder_is_non_selectable() -> None:
     assert "no enabled projects or PRs" in placeholder.display
 
 
-def test_candidates_include_changespec_metadata() -> None:
+def test_candidates_include_patch_metadata() -> None:
     candidates, catalog_empty = vcs_project_completion_candidates(
         "ship",
         entries=_PROJECTS_AND_PRS,
@@ -178,7 +178,7 @@ async def test_bare_plus_at_bof_auto_opens_menu() -> None:
         assert "telegram" in rendered
 
 
-async def test_menu_renders_project_and_changespec_badges() -> None:
+async def test_menu_renders_project_and_patch_badges() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
@@ -195,12 +195,12 @@ async def test_menu_renders_project_and_changespec_badges() -> None:
         assert "· sase" in rendered
 
 
-async def test_menu_renders_changespec_project_display_name() -> None:
+async def test_menu_renders_patch_project_display_name() -> None:
     app = CompletionTestApp()
     entries = [
         _entry(
             "ship-completion",
-            kind="changespec",
+            kind="patch",
             project="gh_acme__widgets",
             status="Ready",
         )

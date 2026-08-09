@@ -24,7 +24,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_xprompt_sources,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -43,7 +43,7 @@ async def test_config_center_config_tab_png_snapshot(
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -66,7 +66,7 @@ async def test_config_center_config_empty_png_snapshot(
     empty_schema = {"type": "object", "additionalProperties": False, "properties": {}}
     _patch_config_view(monkeypatch, _build_view(empty_schema, _config_layers()))
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -95,7 +95,7 @@ async def test_config_center_config_loading_png_snapshot(
     # Suppress the worker so the pane stays in its initial loading state.
     monkeypatch.setattr(ConfigPane, "_start_load", lambda self, *, force=False: None)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -118,7 +118,7 @@ async def test_config_center_config_long_value_png_snapshot(
     view = _build_view(_config_schema(), _config_layers(long_value=True))
     _patch_config_view(monkeypatch, view)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -148,7 +148,7 @@ async def test_config_center_config_object_value_png_snapshot(
     )
     _patch_config_view(monkeypatch, view)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -173,7 +173,7 @@ async def test_config_center_xprompts_tab_png_snapshot(
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

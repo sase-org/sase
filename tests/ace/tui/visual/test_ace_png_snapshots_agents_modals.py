@@ -14,7 +14,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     visual_agents,
     wait_for_startup,
@@ -123,9 +123,7 @@ async def test_auto_approve_modal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=visual_agents())
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(60, 30)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(60, 30)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -159,9 +157,7 @@ async def test_agent_workspace_tmux_modal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=visual_agents())
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(100, 28)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(100, 28)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -196,9 +192,7 @@ async def test_wait_modal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=visual_agents())
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(100, 32)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(100, 32)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -262,9 +256,7 @@ async def test_agent_cleanup_clan_modal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=visual_agents())
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(100, 32)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(100, 32)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

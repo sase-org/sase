@@ -41,7 +41,7 @@ def test_app_default_initial_tab_is_agents() -> None:
     [
         ("artifacts", "artifacts"),
         ("patches", "artifacts"),
-        ("changespecs", "artifacts"),
+        ("patches", "artifacts"),
         ("agents", "agents"),
         ("axe", "axe"),
     ],

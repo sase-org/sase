@@ -56,8 +56,8 @@ def _stub_commits_collector(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
-        view = page.query_one_widget("#changespecs-view", ArtifactsView)
+    async with AcePage(initial_tab="patches") as page:
+        view = page.query_one_widget("#artifacts-view", ArtifactsView)
         prs = page.query_one_widget("#artifacts-prs-pane", ArtifactsPrsPane)
         commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
 
@@ -70,7 +70,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
         assert switcher.current == ARTIFACTS_PANE_IDS["commits"]
         assert page.app.check_action("change_status", ()) is False
-        assert page.app.check_action("next_changespec", ()) is False
+        assert page.app.check_action("next_patch", ()) is False
         assert page.app.check_action("commits_refresh", ()) is True
         assert page.app.check_action("start_leader_mode", ()) is not False
         assert page.app.check_action("refresh_bugs", ()) is False
@@ -150,13 +150,13 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
 
 
 async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         calls: list[str] = []
 
         def record_repeat_agent() -> None:
             calls.append(page.app.current_artifacts_subtab)
 
-        page.app.action_start_agent_from_changespec = record_repeat_agent  # type: ignore[method-assign]
+        page.app.action_start_agent_from_patch = record_repeat_agent  # type: ignore[method-assign]
 
         expected = ("commits", "beads", "bugs", "prs", "files")
         for index, (key, subtab) in enumerate(
@@ -165,14 +165,14 @@ async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
         ):
             await page.press(key)
             await page.expect_state("artifacts_subtab", subtab)
-            assert page.app.check_action("start_agent_from_changespec", ()) is True
+            assert page.app.check_action("start_agent_from_patch", ()) is True
 
             await page.press("ctrl+@")
             assert calls == list(expected[:index])
 
 
 async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
         expected = ("commits", "beads", "bugs", "prs", "files")
 
@@ -205,7 +205,7 @@ async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> 
 
 
 async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         strip = page.query_one_widget("#artifacts-subtabs", PanelTabStrip)
         commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         assert (
@@ -253,7 +253,7 @@ async def test_first_artifacts_entry_activates_default_without_hidden_collection
 
     async with AcePage(initial_tab="agents") as page:
         await page.pause()
-        view = page.query_one_widget("#changespecs-view", ArtifactsView)
+        view = page.query_one_widget("#artifacts-view", ArtifactsView)
         commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
         strip = page.query_one_widget("#artifacts-subtabs", PanelTabStrip)
@@ -267,7 +267,7 @@ async def test_first_artifacts_entry_activates_default_without_hidden_collection
         assert calls == []
 
         await page.press("tab")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await page.wait_for(lambda _state: calls == ["commits"])
 
         assert page.app.current_artifacts_subtab == "commits"
@@ -296,7 +296,7 @@ async def test_direct_artifacts_start_initializes_default_non_pr_state(
         collect,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(
             lambda _state: page.app._artifacts_project_choices is result
@@ -462,7 +462,7 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
         ] == ["1", "2", "3", "4", "5"]
 
         execute_command(page.app, by_id["artifacts.bugs"])
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await page.expect_state("artifacts_subtab", "bugs")
 
         context = extract_command_context(page.app)
@@ -493,7 +493,7 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
 
 
 def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
-    view = ArtifactsView(id="changespecs-view")
+    view = ArtifactsView(id="patches-view")
     # The mounted interaction tests cover rendering; this unit assertion keeps
     # the public pane-id map exhaustive for later feature phases.
     assert ARTIFACTS_SUBTAB_ORDER[:5] == (

@@ -14,7 +14,7 @@ from sase.ace.tui.widgets.vcs_ref_completion import (
 from sase.workspace_provider import VcsNamespaceEntry
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -39,7 +39,7 @@ _VCS_REF_SOURCE = [
         vcs_prefix="gh",
         display_tag="#gh:ship-completion",
         provider_display="GitHub",
-        kind="changespec",
+        kind="patch",
         project="sase",
         status="Ready",
     ),
@@ -59,7 +59,7 @@ _VCS_REF_SOURCE_NO_ORGS = [
         vcs_prefix="git",
         display_tag="#git:ship-completion",
         provider_display="Git",
-        kind="changespec",
+        kind="patch",
         project="sase",
         status="Ready",
     ),
@@ -86,11 +86,11 @@ async def test_vcs_ref_completion_panel_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, "#gh:")
         rows, _source_empty, _has_namespaces = vcs_ref_completion_candidates(
             "gh",
@@ -127,11 +127,11 @@ async def test_vcs_ref_completion_panel_no_orgs_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, "#git:")
         rows, _source_empty, _has_namespaces = vcs_ref_completion_candidates(
             "git",
@@ -168,11 +168,11 @@ async def test_vcs_ref_completion_panel_placeholder_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, "#git:")
 
         bar.show_file_completions(

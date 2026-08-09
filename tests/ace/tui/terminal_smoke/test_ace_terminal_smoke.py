@@ -14,7 +14,7 @@ pytestmark = [pytest.mark.slow, pytest.mark.terminal_smoke]
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
-def test_ace_cli_paints_changespec_in_real_pty(tmp_path: Path) -> None:
+def test_ace_cli_paints_patch_in_real_pty(tmp_path: Path) -> None:
     """Launch `sase ace` in a PTY and assert a decoded terminal grid."""
     pexpect = pytest.importorskip("pexpect")
     pyte = pytest.importorskip("pyte")
@@ -88,11 +88,11 @@ def _write_project(home: Path, *, name: str) -> None:
     (project_dir / "terminal.sase").write_text(
         f"""# Terminal Smoke Project
 
-## ChangeSpec
+## Patch
 
 NAME: {name}
 DESCRIPTION:
-  Deterministic ChangeSpec for real-terminal ACE smoke coverage.
+  Deterministic Patch for real-terminal ACE smoke coverage.
 STATUS: Ready
 
 ---

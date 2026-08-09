@@ -28,7 +28,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -276,7 +276,7 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
     assert build_slow_tool_sources(agent)
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"slow-tools"', changespecs=changespecs()) as page:
+    async with AcePage(query='"slow-tools"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

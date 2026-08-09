@@ -33,7 +33,7 @@ def _help_title(page: AcePage) -> str:
 
 
 async def test_slash_opens_and_focuses_filter_bar() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = _modal(page)
@@ -51,7 +51,7 @@ async def test_slash_opens_and_focuses_filter_bar() -> None:
 
 
 async def test_typing_live_filters_columns_and_status() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = _modal(page)
@@ -69,7 +69,7 @@ async def test_typing_live_filters_columns_and_status() -> None:
 
 
 async def test_typing_q_while_focused_does_not_close_modal() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = _modal(page)
@@ -84,7 +84,7 @@ async def test_typing_q_while_focused_does_not_close_modal() -> None:
 
 
 async def test_enter_applies_filter_and_focuses_results() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = _modal(page)
@@ -105,7 +105,7 @@ async def test_enter_applies_filter_and_focuses_results() -> None:
 
 
 async def test_escape_clears_filter_before_closing_modal() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = _modal(page)
@@ -122,7 +122,7 @@ async def test_escape_clears_filter_before_closing_modal() -> None:
 
 
 async def test_slash_on_guide_tab_switches_to_keymaps_and_focuses() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = _modal(page)
@@ -141,7 +141,7 @@ async def test_slash_on_guide_tab_switches_to_keymaps_and_focuses() -> None:
 
 
 async def test_nonsense_query_shows_empty_state() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = _modal(page)
@@ -157,7 +157,7 @@ async def test_nonsense_query_shows_empty_state() -> None:
 
 
 async def test_filter_persists_across_ace_tab_switch() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = _modal(page)
@@ -174,7 +174,7 @@ async def test_filter_persists_across_ace_tab_switch() -> None:
 
 
 async def test_reopen_after_close_starts_unfiltered() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = _modal(page)
@@ -196,7 +196,7 @@ async def test_reopen_after_close_starts_unfiltered() -> None:
 
 
 async def test_filter_then_clear_restores_byte_identical_columns() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         modal = _modal(page)

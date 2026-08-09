@@ -1,7 +1,7 @@
 """Phase-5 wiring tests for the agent loader.
 
 Verifies that ``load_agents_from_disk_with_state`` accepts a pre-fetched
-ChangeSpec snapshot and forwards it through to ``load_all_agents`` so the
+Patch snapshot and forwards it through to ``load_all_agents`` so the
 loader does not call ``find_all_patches()`` itself.
 """
 
@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
@@ -36,9 +36,9 @@ def load_agents_from_disk(*args, **kwargs):
     return result.all_agents, result.dismissed_from_loader
 
 
-def _make_snapshot() -> list[ChangeSpec]:
+def _make_snapshot() -> list[Patch]:
     return [
-        ChangeSpec(
+        Patch(
             name="my_cl",
             description="",
             parent=None,
@@ -140,7 +140,7 @@ def test_load_agents_from_disk_passes_snapshot_through() -> None:
             return_value=[],
         ),
     ):
-        load_agents_from_disk_with_state(set(), changespec_snapshot=snapshot)
+        load_agents_from_disk_with_state(set(), patch_snapshot=snapshot)
 
     mock_find.assert_not_called()
 

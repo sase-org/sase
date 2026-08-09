@@ -1,4 +1,4 @@
-"""Phase 2 tests for grouped rendering in ``ChangeSpecList``.
+"""Phase 2 tests for grouped rendering in ``PatchList``.
 
 Drives the widget directly (no Pilot) so the assertions stay focused on
 row mapping and Option emission rather than Textual paint timing.
@@ -11,26 +11,26 @@ from typing import Any
 
 from textual.message import Message
 
-from sase.ace.changespec import ChangeSpec, TimestampEntry
-from sase.ace.tui._changespec_list_layout import CL_LIST_MAX_CONTENT_WIDTH
-from sase.ace.tui.models.changespec_groups import (
-    ChangeSpecGroupingMode,
-    ChangeSpecGroupRow,
+from sase.ace.patch import Patch, TimestampEntry
+from sase.ace.tui._patch_list_layout import CL_LIST_MAX_CONTENT_WIDTH
+from sase.ace.tui.models.patch_groups import (
+    PatchGroupingMode,
+    PatchGroupRow,
 )
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
-from sase.ace.tui.widgets import ChangeSpecList
+from sase.ace.tui.widgets import PatchList
 from sase.ace.tui.widgets._agent_list_styling import (
-    _CHANGESPEC_BANNER_BAR_STYLE,
-    _CHANGESPEC_BANNER_RULE_STYLE,
+    _PATCH_BANNER_BAR_STYLE,
+    _PATCH_BANNER_RULE_STYLE,
 )
-from sase.ace.tui.widgets._changespec_list_banner import banner_natural_width
-from sase.ace.tui.widgets.changespec_list import _BANNER_ROW
+from sase.ace.tui.widgets._patch_list_banner import banner_natural_width
+from sase.ace.tui.widgets.patch_list import _BANNER_ROW
 
-from ..models._changespec_groups_helpers import _NOW
+from ..models._patch_groups_helpers import _NOW
 
 
-def _wire_widget(monkeypatch: Any) -> tuple[ChangeSpecList, list[Message]]:
-    widget = ChangeSpecList()
+def _wire_widget(monkeypatch: Any) -> tuple[PatchList, list[Message]]:
+    widget = PatchList()
     posted: list[Message] = []
 
     def _call_later(callback: Callable[[], None]) -> None:
@@ -51,8 +51,8 @@ def _cs(
     project: str = "demo",
     status: str = "WIP",
     timestamps: list[TimestampEntry] | None = None,
-) -> ChangeSpec:
-    return ChangeSpec(
+) -> Patch:
+    return Patch(
         name=name,
         description="",
         parent=None,
@@ -74,7 +74,7 @@ def test_default_mode_is_by_project(monkeypatch: Any) -> None:
 
     widget.update_list(css, current_idx=1)
 
-    assert widget._grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert widget._grouping_mode is PatchGroupingMode.BY_PROJECT
 
 
 # ── BY_STATUS / BY_DATE banners ────────────────────────────────────────
@@ -91,10 +91,10 @@ def test_by_status_emits_l0_banners_and_cl_rows(monkeypatch: Any) -> None:
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
     )
 
-    # 2 banners (WIP, Ready) + 1 inter-L0 spacer + 3 ChangeSpec rows = 6 options.
+    # 2 banners (WIP, Ready) + 1 inter-L0 spacer + 3 Patch rows = 6 options.
     assert widget.option_count == 6
     banner_rows = [
         i
@@ -119,7 +119,7 @@ def test_by_date_renders_l1_subgroup_banner_rows(monkeypatch: Any) -> None:
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_DATE,
+        grouping_mode=PatchGroupingMode.BY_DATE,
         now=_NOW,
     )
 
@@ -143,15 +143,15 @@ def test_by_date_renders_l1_subgroup_banner_rows(monkeypatch: Any) -> None:
     window_plain = window_text.plain  # type: ignore[union-attr]
     assert window_plain.startswith("▎ 21:00 ")
     window_styles = {s.style for s in window_text.spans}  # type: ignore[union-attr]
-    assert _CHANGESPEC_BANNER_BAR_STYLE in window_styles
-    assert _CHANGESPEC_BANNER_RULE_STYLE in window_styles
+    assert _PATCH_BANNER_BAR_STYLE in window_styles
+    assert _PATCH_BANNER_RULE_STYLE in window_styles
 
 
 def test_banner_natural_width_uses_two_cell_prefix_for_l1() -> None:
-    group = ChangeSpecGroupRow(
+    group = PatchGroupRow(
         level=1,
         group_key=("Yesterday", "21:00"),
-        changespec_indices=(0, 1),
+        patch_indices=(0, 1),
     )
 
     assert banner_natural_width(group, hint_char="x") == (
@@ -171,7 +171,7 @@ def test_by_date_collapsed_l1_banner_maps_to_group_key(monkeypatch: Any) -> None
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_DATE,
+        grouping_mode=PatchGroupingMode.BY_DATE,
         fold_registry=fold,
         current_group_key=("Yesterday", "21:00"),
         now=_NOW,
@@ -195,7 +195,7 @@ def test_grouped_render_marks_l0_banners_disabled_when_expanded(
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
     )
 
     # No collapsed banners → _banner_at_row stays empty even though
@@ -218,7 +218,7 @@ def test_collapsed_banner_is_selectable_and_hides_descendants(
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
         fold_registry=fold,
     )
 
@@ -246,10 +246,10 @@ def test_by_project_emits_l1_only_for_grouped_siblings(
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_PROJECT,
+        grouping_mode=PatchGroupingMode.BY_PROJECT,
     )
 
-    # 1 L0 (proj) + 1 L1 (foobar siblings) + 3 ChangeSpec rows.
+    # 1 L0 (proj) + 1 L1 (foobar siblings) + 3 Patch rows.
     assert widget.option_count == 5
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
     assert len(banner_rows) == 2  # L0 + L1
@@ -263,10 +263,10 @@ def test_by_project_singleton_root_skips_l1_banner(monkeypatch: Any) -> None:
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_PROJECT,
+        grouping_mode=PatchGroupingMode.BY_PROJECT,
     )
 
-    # 1 L0 banner + 1 ChangeSpec row, no L1.
+    # 1 L0 banner + 1 Patch row, no L1.
     assert widget.option_count == 2
     assert widget._row_entries[0] == _BANNER_ROW
     assert widget._row_entries[1] == 0
@@ -284,7 +284,7 @@ def test_current_group_key_highlights_collapsed_banner(monkeypatch: Any) -> None
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
         fold_registry=fold,
         current_group_key=("Ready",),
     )
@@ -306,7 +306,7 @@ def test_selection_message_carries_group_key_for_banner_row(
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
         fold_registry=fold,
     )
     posted.clear()
@@ -322,13 +322,13 @@ def test_selection_message_for_cl_row_has_no_group_key(monkeypatch: Any) -> None
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
     )
 
     cl_rows = [i for i, e in enumerate(widget._row_entries) if e != _BANNER_ROW]
     index, group_key = widget._resolve_row(cl_rows[1])
     assert group_key is None
-    # Second ChangeSpec row resolves to changespec idx 1.
+    # Second Patch row resolves to patch idx 1.
     assert index == 1
 
 
@@ -343,10 +343,10 @@ def test_grouped_render_respects_min_banner_width(monkeypatch: Any) -> None:
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
     )
 
-    width_msgs = [m for m in posted if isinstance(m, ChangeSpecList.WidthChanged)]
+    width_msgs = [m for m in posted if isinstance(m, PatchList.WidthChanged)]
     assert width_msgs, "expected at least one WidthChanged message"
     # Banner content + padding always lands above the minimum.
     assert width_msgs[-1].width >= 40
@@ -363,7 +363,7 @@ def test_update_highlight_with_group_key_moves_to_banner(monkeypatch: Any) -> No
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
         fold_registry=fold,
     )
 
@@ -379,7 +379,7 @@ def test_update_highlight_walks_row_map_in_grouped_mode(monkeypatch: Any) -> Non
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
     )
 
     widget.update_highlight(1)
@@ -395,18 +395,18 @@ def test_update_highlight_walks_row_map_in_grouped_mode(monkeypatch: Any) -> Non
 # ── Long names / narrow widths: layout regressions ────────────────────
 
 
-def _option_cell_len(widget: ChangeSpecList, row: int) -> int:
+def _option_cell_len(widget: PatchList, row: int) -> int:
     """Cell length of the rendered Rich Text for the given option row."""
     opt = widget.get_option_at_index(row)
     prompt = opt.prompt
-    # ``prompt`` is a ``Text`` for grouped-mode banners and ChangeSpec rows.
+    # ``prompt`` is a ``Text`` for grouped-mode banners and Patch rows.
     return prompt.cell_len if hasattr(prompt, "cell_len") else len(str(prompt))
 
 
 def test_long_cl_name_does_not_force_banner_past_panel(
     monkeypatch: Any,
 ) -> None:
-    """Long ChangeSpec rows still request width, but banner prompts stay bounded."""
+    """Long Patch rows still request width, but banner prompts stay bounded."""
     widget, posted = _wire_widget(monkeypatch)
     long_name = "a" * 100
     css = [_cs(long_name, status="WIP"), _cs("short", status="WIP")]
@@ -414,7 +414,7 @@ def test_long_cl_name_does_not_force_banner_past_panel(
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
     )
 
     assert _option_cell_len(widget, 0) <= CL_LIST_MAX_CONTENT_WIDTH
@@ -424,7 +424,7 @@ def test_long_cl_name_does_not_force_banner_past_panel(
 
     # The width broadcast to the parent container still accounts for the
     # long row; the parent will clamp it to the side-panel max.
-    width_msgs = [m for m in posted if isinstance(m, ChangeSpecList.WidthChanged)]
+    width_msgs = [m for m in posted if isinstance(m, PatchList.WidthChanged)]
     assert width_msgs
     assert width_msgs[-1].width >= len(long_name)
 
@@ -440,7 +440,7 @@ def test_long_status_label_truncates_without_clipping_chip(
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
     )
 
     opt = widget.get_option_at_index(0)
@@ -461,12 +461,12 @@ def test_banner_rule_stays_at_least_two_cells(monkeypatch: Any) -> None:
     widget, _ = _wire_widget(monkeypatch)
     # Single PR with a moderately long name to push the banner width
     # right up to the natural width of its label + chip.
-    css = [_cs("medium_length_changespec_name_for_layout_check", status="WIP")]
+    css = [_cs("medium_length_patch_name_for_layout_check", status="WIP")]
 
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
     )
 
     # The banner is the first option.  Its rendered string must contain
@@ -495,7 +495,7 @@ def test_jump_hint_prefix_does_not_overflow_banner(monkeypatch: Any) -> None:
     widget.update_list(
         css,
         current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        grouping_mode=PatchGroupingMode.BY_STATUS,
         fold_registry=fold,
         banner_jump_hints={("WIP",): "x"},
     )

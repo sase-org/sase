@@ -98,7 +98,7 @@ def test_agents_toggle_all_uses_active_scale_extremes(
 ) -> None:
     app.panel_fold_level = level
     app._panel_fold_overrides.set("errors", FoldLevel.EXPANDED)
-    changespec_folds = (
+    patch_folds = (
         app.commits_collapsed,
         app.hooks_collapsed,
         app.mentors_collapsed,
@@ -117,7 +117,7 @@ def test_agents_toggle_all_uses_active_scale_extremes(
         app.mentors_collapsed,
         app.timestamps_collapsed,
         app.deltas_collapsed,
-    ) == changespec_folds
+    ) == patch_folds
 
 
 @pytest.mark.parametrize(
@@ -157,7 +157,7 @@ def test_valid_direct_panel_level_clears_overrides_and_notifies_regular_scope() 
     ]
 
 
-def test_direct_dispatch_uses_configured_agent_and_changespec_subkeys() -> None:
+def test_direct_dispatch_uses_configured_agent_and_patch_subkeys() -> None:
     registry = load_keymap_registry(
         {
             "keymaps": {
@@ -174,15 +174,15 @@ def test_direct_dispatch_uses_configured_agent_and_changespec_subkeys() -> None:
     )
     tribe = _FoldApp(panel_focused=True)
     tribe._keymap_registry = registry
-    changespec = _FoldApp(tab="changespecs")
-    changespec._keymap_registry = registry
+    patch = _FoldApp(tab="patches")
+    patch._keymap_registry = registry
 
     _press(tribe, "x")
-    _press(changespec, "w")
+    _press(patch, "w")
 
     assert tribe.panel_fold_level is FoldLevel.EXHAUSTIVE
-    assert changespec.commits_collapsed is FoldLevel.EXPANDED
-    assert changespec.deltas_collapsed is FoldLevel.EXPANDED
+    assert patch.commits_collapsed is FoldLevel.EXPANDED
+    assert patch.deltas_collapsed is FoldLevel.EXPANDED
 
 
 def test_invalid_family_direct_level_preserves_state_and_overrides() -> None:
@@ -264,7 +264,7 @@ def test_agents_section_fold_noops_without_a_current_cached_section() -> None:
     assert app.refresh_count == 1
 
 
-def test_agents_fold_does_not_mutate_changespec_fold_state() -> None:
+def test_agents_fold_does_not_mutate_patch_fold_state() -> None:
     app = _FoldApp()
 
     _press(app, "z")
@@ -273,8 +273,8 @@ def test_agents_fold_does_not_mutate_changespec_fold_state() -> None:
     assert app.hooks_collapsed is FoldLevel.COLLAPSED
 
 
-def test_changespec_fold_dispatch_remains_unchanged() -> None:
-    app = _FoldApp(tab="changespecs")
+def test_patch_fold_dispatch_remains_unchanged() -> None:
+    app = _FoldApp(tab="patches")
 
     _press(app, "c")
 
@@ -290,11 +290,11 @@ def test_changespec_fold_dispatch_remains_unchanged() -> None:
         ("3", FoldLevel.FULLY_EXPANDED),
     ],
 )
-def test_changespec_direct_level_sets_every_section_exactly(
+def test_patch_direct_level_sets_every_section_exactly(
     key: str,
     expected: FoldLevel,
 ) -> None:
-    app = _FoldApp(tab="changespecs")
+    app = _FoldApp(tab="patches")
     app.commits_collapsed = FoldLevel.EXPANDED
     app.hooks_collapsed = FoldLevel.FULLY_EXPANDED
     app.mentors_collapsed = FoldLevel.COLLAPSED
@@ -313,8 +313,8 @@ def test_changespec_direct_level_sets_every_section_exactly(
     assert app.panel_fold_level is FoldLevel.COLLAPSED
 
 
-def test_changespec_invalid_level_and_non_pr_context_preserve_all_state() -> None:
-    app = _FoldApp(tab="changespecs")
+def test_patch_invalid_level_and_non_pr_context_preserve_all_state() -> None:
+    app = _FoldApp(tab="patches")
     before = (
         app.commits_collapsed,
         app.hooks_collapsed,
@@ -343,14 +343,14 @@ def test_changespec_invalid_level_and_non_pr_context_preserve_all_state() -> Non
     ) == before
 
 
-def test_exhaustive_panel_state_does_not_enter_changespec_cyclers() -> None:
+def test_exhaustive_panel_state_does_not_enter_patch_cyclers() -> None:
     app = _FoldApp(panel_focused=True)
     _press(app, "z")
     _press(app, "z")
     _press(app, "z")
     assert app.panel_fold_level is FoldLevel.EXHAUSTIVE
 
-    app.current_tab = "changespecs"
+    app.current_tab = "patches"
     _press(app, "c")
 
     assert app.commits_collapsed is FoldLevel.EXPANDED

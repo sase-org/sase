@@ -1,4 +1,4 @@
-"""Regression tests for ChangeSpecList one-line option rendering."""
+"""Regression tests for PatchList one-line option rendering."""
 
 from __future__ import annotations
 
@@ -8,16 +8,16 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.containers import Container
 
-from sase.ace.changespec import ChangeSpec
-from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
-from sase.ace.tui.widgets import ChangeSpecList
+from sase.ace.patch import Patch
+from sase.ace.tui.models.patch_groups import PatchGroupingMode
+from sase.ace.tui.widgets import PatchList
 
 
 _ROOT = Path(__file__).resolve().parents[4]
 
 
-def _cs(name: str, *, status: str = "WIP") -> ChangeSpec:
-    return ChangeSpec(
+def _cs(name: str, *, status: str = "WIP") -> Patch:
+    return Patch(
         name=name,
         description="",
         parent=None,
@@ -28,8 +28,8 @@ def _cs(name: str, *, status: str = "WIP") -> ChangeSpec:
     )
 
 
-class _NarrowChangeSpecListApp(App[None]):
-    """Mount ChangeSpecList with the production stylesheet."""
+class _NarrowPatchListApp(App[None]):
+    """Mount PatchList with the production stylesheet."""
 
     CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
     CSS = """
@@ -38,7 +38,7 @@ class _NarrowChangeSpecListApp(App[None]):
         height: 12;
     }
 
-    #changespec-list {
+    #patch-list {
         width: 100%;
         height: 100%;
     }
@@ -46,22 +46,22 @@ class _NarrowChangeSpecListApp(App[None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="harness"):
-            yield ChangeSpecList(id="changespec-list")
+            yield PatchList(id="patch-list")
 
 
 @pytest.mark.asyncio
-async def test_changespec_list_options_stay_single_line_when_narrow() -> None:
+async def test_patch_list_options_stay_single_line_when_narrow() -> None:
     """Textual's OptionList line cache should assign one visual row per option."""
-    app = _NarrowChangeSpecListApp()
+    app = _NarrowPatchListApp()
     async with app.run_test(size=(36, 16)) as pilot:
-        widget = app.query_one(ChangeSpecList)
+        widget = app.query_one(PatchList)
         widget.update_list(
             [
-                _cs("very-long-change-spec-name-alpha"),
-                _cs("very-long-change-spec-name-beta"),
+                _cs("very-long-patch-name-alpha"),
+                _cs("very-long-patch-name-beta"),
             ],
             current_idx=0,
-            grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+            grouping_mode=PatchGroupingMode.BY_STATUS,
         )
         await pilot.pause()
 

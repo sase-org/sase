@@ -54,7 +54,7 @@ def _load_family(
     ):
         result = load_agents_from_disk_with_state(
             set(),
-            changespec_snapshot=[],
+            patch_snapshot=[],
             full_history=True,
         )
 

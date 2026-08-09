@@ -1,4 +1,4 @@
-"""Regression tests for ChangeSpecs j/k fast-highlight navigation."""
+"""Regression tests for Patches j/k fast-highlight navigation."""
 
 from __future__ import annotations
 
@@ -8,16 +8,16 @@ from typing import Any
 from textual.message import Message
 from textual.widgets import OptionList
 
-from sase.ace.testing import make_changespec
-from sase.ace.tui.actions.changespec import ChangeSpecMixin
+from sase.ace.testing import make_patch
+from sase.ace.tui.actions.patch import PatchMixin
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.ace.tui.widgets import ChangeSpecList
+from sase.ace.tui.widgets import PatchList
 
 
-def test_changespec_list_update_highlight_suppresses_programmatic_selection(
+def test_patch_list_update_highlight_suppresses_programmatic_selection(
     monkeypatch: Any,
 ) -> None:
-    widget = ChangeSpecList()
+    widget = PatchList()
     posted: list[Message] = []
 
     def _post_message(message: Message) -> None:
@@ -26,8 +26,8 @@ def test_changespec_list_update_highlight_suppresses_programmatic_selection(
     monkeypatch.setattr(widget, "post_message", _post_message)
     widget.update_list(
         [
-            make_changespec(name="alpha"),
-            make_changespec(name="beta"),
+            make_patch(name="alpha"),
+            make_patch(name="beta"),
         ],
         current_idx=0,
     )
@@ -40,7 +40,7 @@ def test_changespec_list_update_highlight_suppresses_programmatic_selection(
     # ``watch_highlighted`` is the synchronous gate that swallows the
     # would-be SelectionChanged.
     widget.update_highlight(1)
-    # Grouped render emits a project banner before the ChangeSpec rows, so CL
+    # Grouped render emits a project banner before the Patch rows, so CL
     # idx 1 lives at option row 2.
     target_row = next(i for i, e in enumerate(widget._row_entries) if e == 1)
     assert widget.highlighted == target_row
@@ -58,22 +58,22 @@ def test_changespec_list_update_highlight_suppresses_programmatic_selection(
     # happens in ``watch_highlighted``, which short-circuits before
     # Textual queues an OptionHighlighted message in the first place.
     assert len(posted) == 1
-    assert isinstance(posted[0], ChangeSpecList.SelectionChanged)
+    assert isinstance(posted[0], PatchList.SelectionChanged)
     assert posted[0].index == 1
 
 
-def test_changespec_list_user_highlight_still_posts_selection(
+def test_patch_list_user_highlight_still_posts_selection(
     monkeypatch: Any,
 ) -> None:
-    widget = ChangeSpecList()
+    widget = PatchList()
     posted: list[Message] = []
 
     monkeypatch.setattr(widget, "call_later", lambda callback: None)
     monkeypatch.setattr(widget, "post_message", posted.append)
     widget.update_list(
         [
-            make_changespec(name="alpha"),
-            make_changespec(name="beta"),
+            make_patch(name="alpha"),
+            make_patch(name="beta"),
         ],
         current_idx=0,
     )
@@ -86,7 +86,7 @@ def test_changespec_list_user_highlight_still_posts_selection(
     widget.on_option_list_option_highlighted(event)
 
     assert len(posted) == 1
-    assert isinstance(posted[0], ChangeSpecList.SelectionChanged)
+    assert isinstance(posted[0], PatchList.SelectionChanged)
     assert posted[0].index == 1
 
 
@@ -114,18 +114,18 @@ class _FakeList:
         self.update_highlight_calls.append(current_idx)
 
 
-class _FakeChangeSpecApp(ChangeSpecMixin):
+class _FakePatchApp(PatchMixin):
     def __init__(self) -> None:
-        self.changespecs = [
-            make_changespec(name="alpha"),
-            make_changespec(name="beta"),
+        self.patches = [
+            make_patch(name="alpha"),
+            make_patch(name="beta"),
         ]
         self.current_idx = 1
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.list_widget = _FakeList()
         self.info_panel_updates = 0
         self.scheduled: list[tuple[float, Callable[[], None]]] = []
-        self._changespec_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
+        self._patch_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
 
     def query_one(self, selector: str, _type: Any = None) -> _FakeList:
         assert selector == "#list-panel"
@@ -142,10 +142,10 @@ class _FakeChangeSpecApp(ChangeSpecMixin):
         return
 
 
-def test_changespec_debounced_refresh_uses_guarded_highlight_api() -> None:
-    app = _FakeChangeSpecApp()
+def test_patch_debounced_refresh_uses_guarded_highlight_api() -> None:
+    app = _FakePatchApp()
 
-    app._refresh_changespecs_display_debounced()
+    app._refresh_patches_display_debounced()
 
     assert app.list_widget.update_highlight_calls == [1]
     assert app.list_widget.highlighted_assignments == []

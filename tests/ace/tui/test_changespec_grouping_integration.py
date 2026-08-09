@@ -1,10 +1,10 @@
-"""End-to-end-ish integration coverage for the ChangeSpecs-tab grouping feature.
+"""End-to-end-ish integration coverage for the Patches-tab grouping feature.
 
-Phase 5 of ``sdd/plans/202604/changespec_group_headings.md``.  These tests
+Phase 5 of ``sdd/plans/202604/patch_group_headings.md``.  These tests
 intentionally combine three previously-isolated layers — the
 :class:`AgentGroupingMixin` cycle action, the
-:class:`ChangeSpecGroupingNavMixin` fold/navigation helpers, and the
-real :class:`ChangeSpecList` widget render — so we catch regressions
+:class:`PatchGroupingNavMixin` fold/navigation helpers, and the
+real :class:`PatchList` widget render — so we catch regressions
 that only surface when the layers handshake (e.g. cycling to a new
 mode forgets to swap the registry the widget reads from, or filtering
 out a group leaves a stale banner-focus key that crashes the next
@@ -23,21 +23,21 @@ from typing import Any
 
 from textual.message import Message
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.tui.actions.agents._grouping import AgentGroupingMixin
-from sase.ace.tui.actions.changespec._grouping_nav import (
-    ChangeSpecGroupingNavMixin,
+from sase.ace.tui.actions.patch._grouping_nav import (
+    PatchGroupingNavMixin,
 )
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
-from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
+from sase.ace.tui.models.patch_groups import PatchGroupingMode
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
-from sase.ace.tui.widgets import ChangeSpecList
-from sase.ace.tui.widgets.changespec_list import _BANNER_ROW
+from sase.ace.tui.widgets import PatchList
+from sase.ace.tui.widgets.patch_list import _BANNER_ROW
 
 
-def _cs(name: str, *, project: str = "demo", status: str = "WIP") -> ChangeSpec:
-    return ChangeSpec(
+def _cs(name: str, *, project: str = "demo", status: str = "WIP") -> Patch:
+    return Patch(
         name=name,
         description="",
         parent=None,
@@ -48,8 +48,8 @@ def _cs(name: str, *, project: str = "demo", status: str = "WIP") -> ChangeSpec:
     )
 
 
-def _wire_widget(monkeypatch: Any) -> tuple[ChangeSpecList, list[Message]]:
-    widget = ChangeSpecList()
+def _wire_widget(monkeypatch: Any) -> tuple[PatchList, list[Message]]:
+    widget = PatchList()
     posted: list[Message] = []
 
     def _call_later(callback: Callable[[], None]) -> None:
@@ -60,25 +60,25 @@ def _wire_widget(monkeypatch: Any) -> tuple[ChangeSpecList, list[Message]]:
     return widget, posted
 
 
-class _IntegrationApp(AgentGroupingMixin, ChangeSpecGroupingNavMixin):
+class _IntegrationApp(AgentGroupingMixin, PatchGroupingNavMixin):
     """Combined harness wiring the grouping mixin into the navigation mixin.
 
     Mirrors the attribute surface of the real ``AceApp`` for both the
-    Agents and ChangeSpecs tabs, but drives only the slice the integration
+    Agents and Patches tabs, but drives only the slice the integration
     tests need.  The grouped widget is owned by the harness so the
     test can assert on the post-render option list directly.
     """
 
     def __init__(
         self,
-        widget: ChangeSpecList,
-        changespecs: list[ChangeSpec],
+        widget: PatchList,
+        patches: list[Patch],
         *,
-        current_tab: Any = "changespecs",
+        current_tab: Any = "patches",
     ) -> None:
         self._widget = widget
         self.current_tab = current_tab
-        self.changespecs = changespecs
+        self.patches = patches
         self.current_idx = 0
         # Agents-side state.
         self._agents: list[Any] = []
@@ -88,15 +88,15 @@ class _IntegrationApp(AgentGroupingMixin, ChangeSpecGroupingNavMixin):
         }
         self._group_fold_registry = self._group_fold_registries[GroupingMode.STANDARD]
         self._current_group_key: tuple[str, ...] | None = None
-        # ChangeSpec-side state.
-        self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
-        self._changespec_group_fold_registries: dict[
-            ChangeSpecGroupingMode, GroupFoldRegistry
-        ] = {ChangeSpecGroupingMode.BY_PROJECT: GroupFoldRegistry()}
-        self._changespec_group_fold_registry = self._changespec_group_fold_registries[
-            ChangeSpecGroupingMode.BY_PROJECT
+        # Patch-side state.
+        self._patch_grouping_mode = PatchGroupingMode.BY_PROJECT
+        self._patch_group_fold_registries: dict[
+            PatchGroupingMode, GroupFoldRegistry
+        ] = {PatchGroupingMode.BY_PROJECT: GroupFoldRegistry()}
+        self._patch_group_fold_registry = self._patch_group_fold_registries[
+            PatchGroupingMode.BY_PROJECT
         ]
-        self._current_changespec_group_key: tuple[str, ...] | None = None
+        self._current_patch_group_key: tuple[str, ...] | None = None
         self.refresh_calls = 0
         self.refilter_calls = 0
         self.notifications: list[str] = []
@@ -111,11 +111,11 @@ class _IntegrationApp(AgentGroupingMixin, ChangeSpecGroupingNavMixin):
         """Drive a real widget render so tests exercise the production path."""
         self.refresh_calls += 1
         self._widget.update_list(
-            self.changespecs,
+            self.patches,
             self.current_idx,
-            grouping_mode=self._changespec_grouping_mode,
-            fold_registry=self._changespec_group_fold_registry,
-            current_group_key=self._current_changespec_group_key,
+            grouping_mode=self._patch_grouping_mode,
+            fold_registry=self._patch_group_fold_registry,
+            current_group_key=self._current_patch_group_key,
         )
 
 
@@ -124,7 +124,7 @@ class _IntegrationApp(AgentGroupingMixin, ChangeSpecGroupingNavMixin):
 # ---------------------------------------------------------------------------
 
 
-def _three_project_specs() -> list[ChangeSpec]:
+def _three_project_specs() -> list[Patch]:
     return [
         _cs("alpha_one", project="alpha"),
         _cs("alpha_two", project="alpha"),
@@ -144,10 +144,10 @@ def test_o_cycles_widget_through_every_grouping_mode(monkeypatch: Any) -> None:
     # ``alpha_one`` and ``alpha_two`` sharing root ``alpha``) + beta L0.
     assert len(banner_rows) >= 2
 
-    # BY_PROJECT → BY_DATE: undated ChangeSpecs land under Earlier plus the
+    # BY_PROJECT → BY_DATE: undated Patches land under Earlier plus the
     # final ``(no timestamp)`` subgroup.
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_DATE
     # All test CSs have no TIMESTAMPS so they all land in ``Earlier``.
     assert app.notifications[-1] == "PR grouping: by date"
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
@@ -155,7 +155,7 @@ def test_o_cycles_widget_through_every_grouping_mode(monkeypatch: Any) -> None:
 
     # BY_DATE → BY_STATUS: WIP and Ready buckets.
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_STATUS
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_STATUS
     banner_rows = [
         i
         for i in range(widget.option_count)
@@ -166,7 +166,7 @@ def test_o_cycles_widget_through_every_grouping_mode(monkeypatch: Any) -> None:
 
     # BY_STATUS → BY_PROJECT (wrap).
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
     assert len(banner_rows) >= 2
 
@@ -177,8 +177,8 @@ def test_per_mode_fold_state_survives_cycle_round_trip(monkeypatch: Any) -> None
     app = _IntegrationApp(widget, _three_project_specs())
 
     # Collapse the alpha L0 group via the navigation mixin.
-    app._current_changespec_group_key = ("alpha",)
-    assert app._collapse_changespec_group_fold() is True
+    app._current_patch_group_key = ("alpha",)
+    assert app._collapse_patch_group_fold() is True
     app._refresh_display()
     # Render now shows the collapsed alpha banner + beta CL/banner.
     assert any(
@@ -213,31 +213,29 @@ def test_query_change_drops_collapsed_group_without_crash(
     app = _IntegrationApp(widget, _three_project_specs())
 
     # User collapses alpha and the focus moves to its banner.
-    app._current_changespec_group_key = ("alpha",)
-    app._changespec_group_fold_registry.collapse(("alpha",))
+    app._current_patch_group_key = ("alpha",)
+    app._patch_group_fold_registry.collapse(("alpha",))
     app._refresh_display()
     assert ("alpha",) in widget._banner_row_by_key
 
     # Simulate a query change that filters out everything from alpha.
-    app.changespecs = [_cs("beta_one", project="beta", status="Ready")]
+    app.patches = [_cs("beta_one", project="beta", status="Ready")]
     app.current_idx = 0
     # The renderer's ``clear_unknown`` would normally run here; mirror
     # that contract on the test fold registry.
-    from sase.ace.tui.models.changespec_groups import (
-        enumerate_changespec_group_keys,
+    from sase.ace.tui.models.patch_groups import (
+        enumerate_patch_group_keys,
     )
 
-    app._changespec_group_fold_registry.clear_unknown(
-        enumerate_changespec_group_keys(
-            app.changespecs, mode=app._changespec_grouping_mode
-        )
+    app._patch_group_fold_registry.clear_unknown(
+        enumerate_patch_group_keys(app.patches, mode=app._patch_grouping_mode)
     )
     # Stale banner focus must report invalid so the caller can clear it.
-    assert app._changespec_banner_focus_still_valid() is False
-    app._current_changespec_group_key = None
+    assert app._patch_banner_focus_still_valid() is False
+    app._current_patch_group_key = None
 
     # A refresh after clearing the focus must not raise — and must
-    # render the surviving beta ChangeSpec row.
+    # render the surviving beta Patch row.
     app._refresh_display()
     cs_rows = [i for i, e in enumerate(widget._row_entries) if e != _BANNER_ROW]
     assert len(cs_rows) == 1
@@ -251,55 +249,53 @@ def test_collapse_then_filter_reload_does_not_resurrect_stale_collapse(
     back collapsed automatically."""
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs())
-    app._changespec_group_fold_registry.collapse(("alpha",))
+    app._patch_group_fold_registry.collapse(("alpha",))
 
     # Filter out alpha entirely.
-    app.changespecs = [_cs("beta_one", project="beta", status="Ready")]
-    from sase.ace.tui.models.changespec_groups import (
-        enumerate_changespec_group_keys,
+    app.patches = [_cs("beta_one", project="beta", status="Ready")]
+    from sase.ace.tui.models.patch_groups import (
+        enumerate_patch_group_keys,
     )
 
-    app._changespec_group_fold_registry.clear_unknown(
-        enumerate_changespec_group_keys(
-            app.changespecs, mode=app._changespec_grouping_mode
-        )
+    app._patch_group_fold_registry.clear_unknown(
+        enumerate_patch_group_keys(app.patches, mode=app._patch_grouping_mode)
     )
 
     # Bring alpha back via a new query.
-    app.changespecs = _three_project_specs()
+    app.patches = _three_project_specs()
     app._refresh_display()
-    # alpha is rendered expanded — i.e. its ChangeSpec rows are visible.
+    # alpha is rendered expanded — i.e. its Patch rows are visible.
     cs_rows = [i for i, e in enumerate(widget._row_entries) if e != _BANNER_ROW]
     assert len(cs_rows) == 3
 
 
 # ---------------------------------------------------------------------------
-# Independence between Agents and ChangeSpecs grouping state
+# Independence between Agents and Patches grouping state
 # ---------------------------------------------------------------------------
 
 
 def test_agents_cycle_does_not_swap_cl_widget_render(monkeypatch: Any) -> None:
-    """Pressing ``o`` while the Agents tab owns focus must not redraw ChangeSpecs."""
+    """Pressing ``o`` while the Agents tab owns focus must not redraw Patches."""
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs(), current_tab="agents")
 
-    # ChangeSpecs start at the default BY_PROJECT and never got a refresh.
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    # Patches start at the default BY_PROJECT and never got a refresh.
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
     assert widget.option_count == 0
 
     app.action_cycle_grouping_mode()  # Agents-side cycle.
 
-    # Agents grouping advanced; ChangeSpecs untouched.
+    # Agents grouping advanced; Patches untouched.
     assert app._grouping_mode is GroupingMode.BY_DATE
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
     assert widget.option_count == 0  # No PR refresh happened.
 
 
 def test_tab_switch_preserves_each_tabs_grouping_mode(monkeypatch: Any) -> None:
-    """Switching between Agents and ChangeSpecs must not bleed grouping state.
+    """Switching between Agents and Patches must not bleed grouping state.
 
-    After a ChangeSpecs cycle the Agents mode stays at its own default; after
-    flipping focus to Agents and cycling there, the ChangeSpecs mode stays at
+    After a Patches cycle the Agents mode stays at its own default; after
+    flipping focus to Agents and cycling there, the Patches mode stays at
     the value the user picked.
     """
     widget, _ = _wire_widget(monkeypatch)
@@ -307,7 +303,7 @@ def test_tab_switch_preserves_each_tabs_grouping_mode(monkeypatch: Any) -> None:
 
     # PR user cycles to BY_DATE.
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_DATE
     assert app._grouping_mode is GroupingMode.STANDARD
 
     # User flips to Agents and cycles there.
@@ -315,25 +311,23 @@ def test_tab_switch_preserves_each_tabs_grouping_mode(monkeypatch: Any) -> None:
     app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.BY_DATE
     # PR state untouched.
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_DATE
 
-    # Flip back to ChangeSpecs — the previous BY_DATE mode is preserved.
-    app.current_tab = "changespecs"  # type: ignore[assignment]
+    # Flip back to Patches — the previous BY_DATE mode is preserved.
+    app.current_tab = "patches"  # type: ignore[assignment]
     app._refresh_display()
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
-    assert banner_rows, (
-        "ChangeSpecs should still render banners after returning to the tab"
-    )
+    assert banner_rows, "Patches should still render banners after returning to the tab"
 
 
 def test_axe_cycle_is_silent_noop_for_both_tabs(monkeypatch: Any) -> None:
-    """Cycling on AXE leaves both Agents and ChangeSpecs grouping state untouched."""
+    """Cycling on AXE leaves both Agents and Patches grouping state untouched."""
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs(), current_tab="axe")
 
     app.action_cycle_grouping_mode()
 
     assert app._grouping_mode is GroupingMode.STANDARD
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
     assert app.refresh_calls == 0
     assert app.refilter_calls == 0

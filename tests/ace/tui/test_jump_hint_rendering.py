@@ -3,20 +3,20 @@
 from typing import Any
 
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
-from sase.ace.tui.widgets._changespec_list_helpers import format_changespec_option
+from sase.ace.tui.widgets._patch_list_helpers import format_patch_option
 from sase.ace.tui.widgets.agent_list import AgentList
 from sase.ace.tui.widgets.bgcmd_list import BgCmdList
-from sase.ace.tui.widgets.changespec_list import ChangeSpecList
+from sase.ace.tui.widgets.patch_list import PatchList
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from tests.ace.tui._jump_to_entry_hints_helpers import (
     _make_agent,
-    _make_changespec,
+    _make_patch,
 )
 
 
-def test_changespec_list_hint_marker_rendered() -> None:
-    option = format_changespec_option(
-        _make_changespec(),
+def test_patch_list_hint_marker_rendered() -> None:
+    option = format_patch_option(
+        _make_patch(),
         is_selected=False,
         is_marked=False,
         hint_char="a",
@@ -24,21 +24,21 @@ def test_changespec_list_hint_marker_rendered() -> None:
     assert "[a]" in str(option.prompt)
 
 
-def test_changespec_list_update_renders_uppercase_hint_marker(
+def test_patch_list_update_renders_uppercase_hint_marker(
     monkeypatch: Any,
 ) -> None:
-    widget = ChangeSpecList()
+    widget = PatchList()
     monkeypatch.setattr(widget, "call_later", lambda callback: None)
     monkeypatch.setattr(widget, "post_message", lambda message: None)
 
     widget.update_list(
-        [_make_changespec("uppercase_hint")],
+        [_make_patch("uppercase_hint")],
         current_idx=0,
         jump_hints={0: "A"},
     )
 
-    # Grouped render emits a project banner before the ChangeSpec row, so the
-    # ChangeSpec row sits at row index 1.
+    # Grouped render emits a project banner before the Patch row, so the
+    # Patch row sits at row index 1.
     cs_row = next(i for i, e in enumerate(widget._row_entries) if e == 0)
     option = widget.get_option_at_index(cs_row)
     assert "[A]" in str(option.prompt)

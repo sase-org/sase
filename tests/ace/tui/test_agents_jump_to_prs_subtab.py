@@ -1,4 +1,4 @@
-"""Pilot coverage: cross-tab ChangeSpec jumps land on the Artifacts PRs sub-tab.
+"""Pilot coverage: cross-tab Patch jumps land on the Artifacts PRs sub-tab.
 
 Regression coverage for the migration miss where switching to the Artifacts
 tab left whichever sub-tab was last visible (``commits`` by default) instead
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase.ace.testing import DEFAULT_CHANGESPECS, AcePage, make_changespec
+from sase.ace.testing import DEFAULT_PATCHES, AcePage, make_patch
 from sase.ace.tui.widgets import ArtifactsView
 from tests.ace.tui._agents_zoom_panel_helpers import _make_agent
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -18,10 +18,10 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 )
 
 
-async def test_enter_from_agents_lands_on_prs_subtab_for_matching_changespec(
+async def test_enter_from_agents_lands_on_prs_subtab_for_matching_patch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """<enter> on an agent whose ChangeSpec is already in view selects PRs."""
+    """<enter> on an agent whose Patch is already in view selects PRs."""
     agent = _make_agent(
         cl_name="feature_a",
         project_file="/tmp/projects/demoproj/demoproj.sase",
@@ -35,19 +35,19 @@ async def test_enter_from_agents_lands_on_prs_subtab_for_matching_changespec(
         await page.press("enter")
         await page.pause()
 
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         assert page.state["artifacts_subtab"] == "prs"
         assert page.state["selected"]["name"] == "feature_a"
 
-        artifacts_view = page.query_one_widget("#changespecs-view", ArtifactsView)
+        artifacts_view = page.query_one_widget("#artifacts-view", ArtifactsView)
         assert artifacts_view.current_subtab == "prs"
 
 
 async def test_enter_from_agents_rewrites_query_and_lands_on_prs_subtab(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When the target ChangeSpec is outside the query, the swap lands on PRs."""
-    target = make_changespec(
+    """When the target Patch is outside the query, the swap lands on PRs."""
+    target = make_patch(
         name="chore_cleanup", file_path="/tmp/projects/otherproj/otherproj.sase"
     )
     agent = _make_agent(
@@ -58,7 +58,7 @@ async def test_enter_from_agents_rewrites_query_and_lands_on_prs_subtab(
 
     async with AcePage(
         initial_tab="agents",
-        changespecs=[*DEFAULT_CHANGESPECS, target],
+        patches=[*DEFAULT_PATCHES, target],
     ) as page:
         await wait_for_startup(page)
         await page.expect_state("agent_count", 1)
@@ -66,12 +66,12 @@ async def test_enter_from_agents_rewrites_query_and_lands_on_prs_subtab(
         await page.press("enter")
         await page.pause()
 
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         assert page.state["artifacts_subtab"] == "prs"
         assert page.state["query"] == "project:otherproj"
         assert page.state["selected"]["name"] == "chore_cleanup"
 
-        artifacts_view = page.query_one_widget("#changespecs-view", ArtifactsView)
+        artifacts_view = page.query_one_widget("#artifacts-view", ArtifactsView)
         assert artifacts_view.current_subtab == "prs"
 
 
@@ -84,15 +84,15 @@ async def test_load_saved_query_from_agents_lands_on_prs_subtab(
     async with AcePage(initial_tab="agents") as page:
         await wait_for_startup(page)
 
-        # DEFAULT_CHANGESPECS all live under the "tmp" project directory.
+        # DEFAULT_PATCHES all live under the "tmp" project directory.
         page.app._saved_queries["1"] = "project:tmp"
 
         page.app.action_load_saved_query_1()
         await page.pause()
 
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         assert page.state["artifacts_subtab"] == "prs"
         assert page.state["query"] == "project:tmp"
 
-        artifacts_view = page.query_one_widget("#changespecs-view", ArtifactsView)
+        artifacts_view = page.query_one_widget("#artifacts-view", ArtifactsView)
         assert artifacts_view.current_subtab == "prs"

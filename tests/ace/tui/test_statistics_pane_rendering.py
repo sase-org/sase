@@ -23,15 +23,13 @@ def test_renderers_use_projected_labels_and_canonical_project_colors(
     project_display_case: ProjectDisplayCase,
 ) -> None:
     widgets_key = project_display_case.project_key
-    changespec_key, changespec_label = project_display_case.changespec(
-        "statistics-projects"
-    )
+    patch_key, patch_label = project_display_case.patch("statistics-projects")
     snapshot = project_display_case.snapshot
     payload = _run_payload(StatsRange(0, 100, "absolute", "Test"), "project")
     payload["workspaces"][0]["project"] = widgets_key
     payload["work"]["projects"][0]["project"] = widgets_key
-    payload["work"]["changespecs"][0].update(
-        {"project": widgets_key, "name": changespec_key}
+    payload["work"]["changespecs"][0].update(  # legacy stats wire key
+        {"project": widgets_key, "name": patch_key}
     )
     payload["runtime_groups"][0]["group"] = widgets_key
     views = build_statistics_views(
@@ -54,7 +52,7 @@ def test_renderers_use_projected_labels_and_canonical_project_colors(
     overview = _render_plain(pane._overview_renderable(views.overview))
     activity = _render_plain(pane._activity_renderable(views.activity))
     project_surfaces: list[str] = []
-    for group_by in ("project", "changespec", "drilldown"):
+    for group_by in ("project", "patch", "drilldown"):
         pane._projects_group_by = group_by  # type: ignore[assignment]
         project_surfaces.append(
             _render_plain(pane._projects_renderable(views.projects))
@@ -66,7 +64,7 @@ def test_renderers_use_projected_labels_and_canonical_project_colors(
     assert all(
         project_display_case.project_label in rendered for rendered in project_surfaces
     )
-    assert changespec_label in "\n".join(project_surfaces)
+    assert patch_label in "\n".join(project_surfaces)
     assert widgets_key not in "\n".join((overview, activity, *project_surfaces))
     assert widgets_key in color_keys
 

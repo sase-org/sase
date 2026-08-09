@@ -5,21 +5,19 @@ from unittest.mock import MagicMock
 
 from textual.app import App, ComposeResult
 
-from sase.ace.changespec import ChangeSpec
-from sase.ace.tui.actions.changespec._grouping_nav import (
-    ChangeSpecGroupingNavMixin,
+from sase.ace.patch import Patch
+from sase.ace.tui.actions.patch._grouping_nav import (
+    PatchGroupingNavMixin,
 )
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
 from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
+from sase.ace.tui.models.patch_groups import PatchGroupingMode
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
 
 
-def _make_changespec(
-    name: str = "test_feature", *, project: str = "test"
-) -> ChangeSpec:
-    return ChangeSpec(
+def _make_patch(name: str = "test_feature", *, project: str = "test") -> Patch:
+    return Patch(
         name=name,
         description="Test description",
         parent=None,
@@ -41,13 +39,13 @@ def _make_agent(cl_name: str = "test_feature", *, status: str = "RUNNING") -> Ag
     )
 
 
-class _InlineJumpApp(AdvancedNavigationMixin, ChangeSpecGroupingNavMixin):
-    """Minimal changespec-tab harness for inline jump mode."""
+class _InlineJumpApp(AdvancedNavigationMixin, PatchGroupingNavMixin):
+    """Minimal patch-tab harness for inline jump mode."""
 
-    def __init__(self, changespecs: list[ChangeSpec]) -> None:
-        self.changespecs = changespecs
+    def __init__(self, patches: list[Patch]) -> None:
+        self.patches = patches
         self.current_idx = 0
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self._axe_items: list[Any] = []
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_target: dict[str, object] = {}
@@ -56,15 +54,15 @@ class _InlineJumpApp(AdvancedNavigationMixin, ChangeSpecGroupingNavMixin):
         self._entry_jump_index_to_hint: dict[int, str] = {}
         self._entry_jump_hint_to_banner: dict[str, Any] = {}
         self._entry_jump_banner_to_hint: dict[Any, str] = {}
-        self._entry_jump_hint_to_changespec_banner: dict[str, Any] = {}
-        self._entry_jump_changespec_banner_to_hint: dict[Any, str] = {}
+        self._entry_jump_hint_to_patch_banner: dict[str, Any] = {}
+        self._entry_jump_patch_banner_to_hint: dict[Any, str] = {}
         self._entry_jump_index_stack: dict[str, list[int]] = {}
         self._entry_jump_forward_index_stack: dict[str, list[Any]] = {}
         self._entry_jump_agents_anchor_stack: list[Any] = []
         self._entry_jump_agents_forward_anchor_stack: list[Any] = []
-        self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
-        self._changespec_group_fold_registry = GroupFoldRegistry()
-        self._current_changespec_group_key: tuple[str, ...] | None = None
+        self._patch_grouping_mode = PatchGroupingMode.BY_PROJECT
+        self._patch_group_fold_registry = GroupFoldRegistry()
+        self._current_patch_group_key: tuple[str, ...] | None = None
         self.refreshes = 0
         self.jump_footer_updates = 0
         self.notify = MagicMock()

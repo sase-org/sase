@@ -1,12 +1,12 @@
-"""Tests for ChangeSpecGraphIndex + ancestors panel index path."""
+"""Tests for PatchGraphIndex + ancestors panel index path."""
 
 from __future__ import annotations
 
 from unittest.mock import patch
 
-from sase.ace.changespec import ChangeSpec
-from sase.ace.tui.models.changespec_graph_index import (
-    build_changespec_graph_index,
+from sase.ace.patch import Patch
+from sase.ace.tui.models.patch_graph_index import (
+    build_patch_graph_index,
 )
 from sase.ace.tui.widgets.ancestors_children_panel import AncestorsChildrenPanel
 
@@ -16,8 +16,8 @@ def _cs(
     *,
     parent: str | None = None,
     status: str = "Ready",
-) -> ChangeSpec:
-    return ChangeSpec(
+) -> Patch:
+    return Patch(
         name=name,
         description="d",
         parent=parent,
@@ -35,7 +35,7 @@ def test_index_builds_children_status_and_terminal_counts() -> None:
         _cs("c2", parent="root", status="Reverted"),
         _cs("g1", parent="c1", status="Submitted"),
     ]
-    idx = build_changespec_graph_index(specs)
+    idx = build_patch_graph_index(specs)
 
     assert idx.status_by_name["root"] == "Ready"
     assert {c.name for c in idx.get_children("root")} == {"c1", "c2"}
@@ -50,7 +50,7 @@ def test_index_groups_siblings_by_base_name() -> None:
         _cs("foo__1", status="Reverted"),
         _cs("foo__2", status="Reverted"),
     ]
-    idx = build_changespec_graph_index(specs)
+    idx = build_patch_graph_index(specs)
     family = idx.siblings_by_base_name["foo"]
     # Sorted ascending by suffix number, plain "foo" first (suffix 0).
     assert [cs.name for cs in family] == ["foo", "foo__1", "foo__2"]
@@ -82,17 +82,17 @@ def test_update_relationships_from_index_avoids_per_row_rebuilds() -> None:
     specs = [_cs("root")]
     for i in range(1, 101):
         specs.append(_cs(f"c{i}", parent="root"))
-    idx = build_changespec_graph_index(specs)
+    idx = build_patch_graph_index(specs)
     panel = _FakePanel()
 
-    real = build_changespec_graph_index
+    real = build_patch_graph_index
     with patch(
-        "sase.ace.tui.widgets.ancestors_children_panel.build_changespec_graph_index",
+        "sase.ace.tui.widgets.ancestors_children_panel.build_patch_graph_index",
         side_effect=real,
     ) as spy:
         for cs in specs[1:]:
             panel.update_relationships_from_index(cs, idx)
-    # Selecting 100 different ChangeSpecs should not rebuild the children
+    # Selecting 100 different Patches should not rebuild the children
     # map / status map / siblings map: the index is reused as-is.
     assert spy.call_count == 0
     assert panel._refresh_calls == 100

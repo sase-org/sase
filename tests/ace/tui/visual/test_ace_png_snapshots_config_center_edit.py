@@ -17,7 +17,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_xprompt_sources,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -64,7 +64,7 @@ async def test_config_center_edit_modal_png_snapshot(
     monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -89,7 +89,7 @@ async def test_config_center_edit_preview_png_snapshot(
     monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -121,7 +121,7 @@ async def test_config_center_edit_normal_mode_png_snapshot(
     monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -154,7 +154,7 @@ async def test_config_center_edit_enum_png_snapshot(
     monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -184,7 +184,7 @@ async def test_config_center_edit_object_value_png_snapshot(
         ),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

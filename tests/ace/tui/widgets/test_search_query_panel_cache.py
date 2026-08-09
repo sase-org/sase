@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from textual.app import App, ComposeResult
 
-from sase.ace.tui.widgets.changespec_detail import SearchQueryPanel
+from sase.ace.tui.widgets.patch_detail import SearchQueryPanel
 
 
 class _Host(App):

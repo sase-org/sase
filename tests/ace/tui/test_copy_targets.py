@@ -12,7 +12,7 @@ import yaml
 from sase.ace.tui.actions.clipboard import (
     _artifact_reference_resolution as _resolution,
 )
-from sase.ace.tui.actions.clipboard import _artifacts, _changespec
+from sase.ace.tui.actions.clipboard import _artifacts, _patch
 from sase.ace.tui.actions.clipboard._helpers import (
     MAX_COPY_CONTENT_BYTES,
     cap_copy_content,
@@ -227,38 +227,38 @@ def test_content_caps_bound_each_item_and_the_total_with_a_banner() -> None:
 
 
 @pytest.mark.parametrize("pr_url", [None, ""])
-def test_changespec_link_warns_without_a_pr_url(pr_url: str | None) -> None:
+def test_patch_link_warns_without_a_pr_url(pr_url: str | None) -> None:
     app = _CopyHarness()
     app.current_idx = 0
-    app.changespecs = [SimpleNamespace(name="sase_copy", pr_url=pr_url)]
+    app.patches = [SimpleNamespace(name="sase_copy", pr_url=pr_url)]
 
-    app._copy_changespec_link()
+    app._copy_patch_link()
 
     assert app.notifications[-1] == ("No PR URL available", "warning")
 
 
-def test_changespec_link_uses_humanized_name_and_pr_url(
+def test_patch_link_uses_humanized_name_and_pr_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = _CopyHarness()
     app.current_idx = 0
-    app.changespecs = [
+    app.patches = [
         SimpleNamespace(
             name="sase_copy",
             pr_url="https://github.com/sase-org/sase/pull/42",
         )
     ]
     scheduled: list[tuple[str, str]] = []
-    monkeypatch.setattr(_changespec, "humanize_cl_name", lambda _name: "SASE copy")
+    monkeypatch.setattr(_patch, "humanize_cl_name", lambda _name: "SASE copy")
     monkeypatch.setattr(
-        _changespec,
+        _patch,
         "schedule_copy_delivery",
         lambda _owner, value, *, copied_label, **_kwargs: scheduled.append(
             (value, copied_label)
         ),
     )
 
-    app._copy_changespec_link()
+    app._copy_patch_link()
 
     assert scheduled == [
         (

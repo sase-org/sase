@@ -18,7 +18,7 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -95,11 +95,11 @@ async def test_vcs_project_completion_panel_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, "Describe this repo. +")
 
         # Render the project menu deterministically (the on-disk catalog is not

@@ -19,7 +19,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -119,7 +119,7 @@ async def test_artifacts_plans_populated_png_snapshot(
         lambda _project, **_kwargs: snapshot,
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("5")
         await page.expect_state("files_subtab", "plans")
@@ -165,7 +165,7 @@ async def test_plans_filter_bar_prefilled_png_snapshot(
         lambda _project, **_kwargs: snapshot,
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         pane, bar = await _open_plans(page, snapshot)
         query = "kind:active Active"
         await _commit_plan_filter_query(page, pane, bar, query)
@@ -198,7 +198,7 @@ async def test_plans_filter_completion_png_snapshot(
         lambda _project, **_kwargs: snapshot,
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         pane, bar = await _open_plans(page, snapshot)
         pane.show_filters()
         bar.open("status:")
@@ -238,7 +238,7 @@ async def test_plans_narrowed_filter_chips_png_snapshot(
         lambda _project, **_kwargs: snapshot,
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         pane, bar = await _open_plans(page, snapshot)
         await _commit_plan_filter_query(page, pane, bar, "Active")
         options = pane.query_one("#plans-list", OptionList)
@@ -289,7 +289,7 @@ async def test_plans_filter_parse_error_png_snapshot(
         lambda _project, **_kwargs: snapshot,
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         _pane, bar = await _open_plans(page, snapshot)
         await page.press("slash")
         await page.wait_for(lambda _state: bar.display)

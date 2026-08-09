@@ -170,7 +170,7 @@ async def test_watcher_active_dirty_agents_runs_only_agent_path() -> None:
     assert "axe" not in app.refresh_calls
     assert "notifications" not in app.refresh_calls
     assert "agents" in app.refresh_calls
-    assert "changespecs" not in app.refresh_calls
+    assert "patches" not in app.refresh_calls
     assert app._dirty_agents is False
 
 
@@ -204,7 +204,7 @@ async def test_new_notification_schedules_agents_refresh_on_agents_tab() -> None
 @pytest.mark.asyncio
 async def test_new_notification_does_not_schedule_agents_refresh_off_tab() -> None:
     app = _FakeApp(watcher_active=True)
-    app.current_tab = "changespecs"
+    app.current_tab = "patches"
     app._dirty_notifications = True
     app._poll_agent_completions_result = True
 
@@ -255,7 +255,7 @@ async def test_off_tab_dirty_agents_does_not_load_and_keeps_flag_set() -> None:
     sanity floor) picks up the deferred load.
     """
     app = _FakeApp(watcher_active=True)
-    app.current_tab = "changespecs"
+    app.current_tab = "patches"
     app._dirty_agents = True
     await app._run_auto_refresh()
     assert "agents" not in app.refresh_calls
@@ -266,7 +266,7 @@ async def test_off_tab_dirty_agents_does_not_load_and_keeps_flag_set() -> None:
 async def test_off_tab_sanity_tick_still_loads_agents() -> None:
     """Sanity-floor refresh runs the loader even when off the agents tab."""
     app = _FakeApp(watcher_active=True)
-    app.current_tab = "changespecs"
+    app.current_tab = "patches"
     app._dirty_agents = True
     app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1.0
     await app._run_auto_refresh()

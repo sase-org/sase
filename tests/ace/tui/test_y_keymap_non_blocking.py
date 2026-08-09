@@ -1,12 +1,12 @@
-"""Tests that `y` (refresh) on the ChangeSpecs tab does not block the event loop.
+"""Tests that `y` (refresh) on the Patches tab does not block the event loop.
 
 The regression guarded here is the `y` keymap (and the timer-driven
 auto-refresh) calling the synchronous `_reload_and_reposition()` on the
-event-loop thread. With many project spec files on disk, `find_all_changespecs()`
+event-loop thread. With many project spec files on disk, `find_all_patches()`
 is several seconds of I/O — during that time Textual cannot dispatch any
 keypresses (j/k/tab-switch), so the TUI appears frozen.
 
-The fix routes the ChangeSpecs tab through `_reload_and_reposition_async()`, which
+The fix routes the Patches tab through `_reload_and_reposition_async()`, which
 pushes the disk scan to a background thread via `asyncio.to_thread`. These
 tests exercise that async path directly and verify the event loop stays
 responsive while the load is in flight.
@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.ace.tui.actions.changespec import ChangeSpecMixin
+from sase.ace.tui.actions.patch import PatchMixin
 from sase.core.query_corpus_facade import QueryCorpus
 
 
@@ -39,31 +39,31 @@ class _FakeRustCorpus:
         return self.length
 
 
-def _fake_query_corpus(changespecs: list[MagicMock]) -> QueryCorpus:
+def _fake_query_corpus(patches: list[MagicMock]) -> QueryCorpus:
     return QueryCorpus(
-        source_list_id=id(changespecs),
-        expected_length=len(changespecs),
-        rust_handle=_FakeRustCorpus(len(changespecs)),
+        source_list_id=id(patches),
+        expected_length=len(patches),
+        rust_handle=_FakeRustCorpus(len(patches)),
     )
 
 
-class FakeApp(ChangeSpecMixin):
-    """Minimal AceApp stand-in for exercising the changespec refresh path."""
+class FakeApp(PatchMixin):
+    """Minimal AceApp stand-in for exercising the patch refresh path."""
 
-    def __init__(self, changespecs: list[MagicMock]) -> None:
-        self.changespecs: list = changespecs  # type: ignore[assignment]
+    def __init__(self, patches: list[MagicMock]) -> None:
+        self.patches: list = patches  # type: ignore[assignment]
         self.current_idx: int = 0
         self.parsed_query = MagicMock()
         self.query_string = ""
         self.hide_reverted = False
         self.hide_submitted = False
-        self._all_changespecs: list = changespecs  # type: ignore[assignment]
+        self._all_patches: list = patches  # type: ignore[assignment]
         self.marked_indices: set[int] = set()
         self._hidden_reverted_count = 0
         self._hidden_submitted_count = 0
-        self._changespecs_loading: bool = False
-        self._changespecs_refresh_scheduled: bool = False
-        self._changespecs_refresh_pending: bool = False
+        self._patches_loading: bool = False
+        self._patches_refresh_scheduled: bool = False
+        self._patches_refresh_pending: bool = False
         self._query_corpus: QueryCorpus | None = None
         self._query_corpus_source_list_id: int | None = None
         self._scheduled: list[Any] = []
@@ -71,9 +71,9 @@ class FakeApp(ChangeSpecMixin):
     def _refresh_display(self) -> None:
         pass
 
-    def _spawn_changespecs_refresh_task(self) -> None:
+    def _spawn_patches_refresh_task(self) -> None:
         """Record scheduling without starting a task in narrow unit tests."""
-        self._scheduled.append(self._run_changespecs_async_refresh)
+        self._scheduled.append(self._run_patches_async_refresh)
 
     def notify(self, *args: Any, **kwargs: Any) -> None:
         pass
@@ -87,7 +87,7 @@ class FakeApp(ChangeSpecMixin):
 async def test_reload_does_not_block_event_loop() -> None:
     """While the disk scan is in flight, other coroutines must still run.
 
-    On the old synchronous implementation, `find_all_changespecs()` runs on
+    On the old synchronous implementation, `find_all_patches()` runs on
     the event-loop thread — so nothing else (including a navigation
     keypress) can progress until it returns. The async variant pushes the
     call to `asyncio.to_thread`, leaving the loop free.
@@ -103,12 +103,12 @@ async def test_reload_does_not_block_event_loop() -> None:
 
     with (
         patch(
-            "sase.ace.changespec.find_all_changespecs_cached",
+            "sase.ace.patch.find_all_patches_cached",
             side_effect=slow_find_all,
         ),
         patch.object(
-            ChangeSpecMixin,
-            "_filter_changespecs",
+            PatchMixin,
+            "_filter_patches",
             side_effect=lambda _all: disk_cs,
         ),
         patch(
@@ -134,7 +134,7 @@ async def test_reload_does_not_block_event_loop() -> None:
     # After the reload, the cursor should have been repositioned onto the
     # element whose name matched the *post-await* selection (gamma, index 2).
     # This proves the async path re-captured state after the await.
-    assert app.changespecs[app.current_idx].name == "gamma"
+    assert app.patches[app.current_idx].name == "gamma"
 
 
 @pytest.mark.asyncio
@@ -149,12 +149,12 @@ async def test_run_async_refresh_sets_and_clears_loading_flag() -> None:
 
     with (
         patch(
-            "sase.ace.changespec.find_all_changespecs_cached",
+            "sase.ace.patch.find_all_patches_cached",
             side_effect=fast_find_all,
         ),
         patch.object(
-            ChangeSpecMixin,
-            "_filter_changespecs",
+            PatchMixin,
+            "_filter_patches",
             side_effect=lambda _all: disk_cs,
         ),
         patch(
@@ -162,9 +162,9 @@ async def test_run_async_refresh_sets_and_clears_loading_flag() -> None:
             side_effect=_fake_query_corpus,
         ),
     ):
-        assert not app._changespecs_loading
-        await app._run_changespecs_async_refresh()
-        assert not app._changespecs_loading
+        assert not app._patches_loading
+        await app._run_patches_async_refresh()
+        assert not app._patches_loading
 
 
 @pytest.mark.asyncio
@@ -175,16 +175,16 @@ async def test_schedule_coalesces_in_flight_refreshes() -> None:
     in-flight load plus one follow-up.
     """
     app = FakeApp([_make_cs("alpha")])
-    app._changespecs_loading = True
+    app._patches_loading = True
 
-    app._schedule_changespecs_async_refresh()
-    app._schedule_changespecs_async_refresh()
-    app._schedule_changespecs_async_refresh()
+    app._schedule_patches_async_refresh()
+    app._schedule_patches_async_refresh()
+    app._schedule_patches_async_refresh()
 
     # Nothing was spawned because a refresh is already running.
     assert app._scheduled == []
     # But a single follow-up is pending.
-    assert app._changespecs_refresh_pending is True
+    assert app._patches_refresh_pending is True
 
 
 @pytest.mark.asyncio
@@ -192,8 +192,8 @@ async def test_schedule_when_idle_spawns_pump_free_task() -> None:
     """When no refresh is in flight, scheduling invokes the task spawner."""
     app = FakeApp([_make_cs("alpha")])
 
-    app._schedule_changespecs_async_refresh()
+    app._schedule_patches_async_refresh()
 
     assert len(app._scheduled) == 1
-    assert app._scheduled[0] == app._run_changespecs_async_refresh
-    assert app._changespecs_refresh_pending is False
+    assert app._scheduled[0] == app._run_patches_async_refresh
+    assert app._patches_refresh_pending is False

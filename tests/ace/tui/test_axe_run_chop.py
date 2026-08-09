@@ -32,7 +32,7 @@ class _FakeChopApp(AxeChopRunMixin, AxeBgCmdMixin, BaseActionsMixin):
         self.current_tab: Any = "axe"
         self.current_idx = 0
         self.axe_running = False
-        self.changespecs = []  # type: ignore[assignment]
+        self.patches = []  # type: ignore[assignment]
         self._bgcmd_slots = []
         self._axe_items: list[Any] = []
         self.notifications: list[tuple[str, str]] = []
@@ -126,7 +126,7 @@ def test_action_run_workflow_axe_done_bgcmd_does_not_launch_chop() -> None:
 def test_run_selected_chop_outside_axe_tab_is_noop() -> None:
     """Calling the helper on a non-axe tab is a defensive no-op."""
     app = _FakeChopApp()
-    app.current_tab = "changespecs"
+    app.current_tab = "patches"
     app._axe_items = [ChopItem(lumberjack_name="hooks", chop_name="fast")]
     app.current_idx = 0
 

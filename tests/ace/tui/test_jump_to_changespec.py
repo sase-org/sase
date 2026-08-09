@@ -1,4 +1,4 @@
-"""Tests for _resolve_agent_cl_name and action_jump_to_agent_changespec."""
+"""Tests for _resolve_agent_cl_name and action_jump_to_agent_patch."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._notification_navigation import (
-    navigate_to_changespec_tab,
+    navigate_to_patch_tab,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.query_history import QueryHistoryStacks
-from test_utils import build_changespec
+from test_utils import build_patch
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -30,7 +30,7 @@ def _make_agent(**overrides: object) -> Agent:
 
 
 class FakeApp(AgentsMixinCore):
-    """Minimal stand-in for AceApp with what jump-to-changespec needs."""
+    """Minimal stand-in for AceApp with what jump-to-patch needs."""
 
     def __init__(
         self,
@@ -53,16 +53,16 @@ class FakeApp(AgentsMixinCore):
 
 
 class FakeNavigationApp:
-    """Minimal stand-in for navigate_to_changespec_tab tests."""
+    """Minimal stand-in for navigate_to_patch_tab tests."""
 
     def __init__(
         self,
-        changespecs: list[object],
+        patches: list[object],
         *,
-        reloaded_changespecs: list[object] | None = None,
+        reloaded_patches: list[object] | None = None,
     ) -> None:
-        self.changespecs = changespecs
-        self.reloaded_changespecs = reloaded_changespecs
+        self.patches = patches
+        self.reloaded_patches = reloaded_patches
         self.current_tab = "agents"
         self.current_artifacts_subtab = "commits"
         self.current_idx = 0
@@ -74,10 +74,10 @@ class FakeNavigationApp:
         self.save_count = 0
         self.notifications: list[tuple[str, str]] = []
 
-    def _load_changespecs(self) -> None:
+    def _load_patches(self) -> None:
         self.load_count += 1
-        if self.reloaded_changespecs is not None:
-            self.changespecs = self.reloaded_changespecs
+        if self.reloaded_patches is not None:
+            self.patches = self.reloaded_patches
 
     def _save_current_query(self) -> None:
         self.save_count += 1
@@ -100,13 +100,13 @@ class TestWorkflowChildResolution:
         """Child step's cl_name is the step name; resolution returns parent's."""
         parent = _make_agent(
             agent_type=AgentType.WORKFLOW,
-            cl_name="real_changespec",
+            cl_name="real_patch",
             workflow="my_workflow",
             raw_suffix="20240101142345",
         )
         child = _make_agent(
             agent_type=AgentType.WORKFLOW,
-            cl_name="run_agent",  # step name, not a real ChangeSpec
+            cl_name="run_agent",  # step name, not a real Patch
             workflow="my_workflow",
             raw_suffix="20240101142345",
             parent_workflow="my_workflow",
@@ -114,7 +114,7 @@ class TestWorkflowChildResolution:
             step_name="run_agent",
         )
         app = FakeApp(agents_with_children=[parent, child])
-        assert app._resolve_agent_cl_name(child) == "real_changespec"
+        assert app._resolve_agent_cl_name(child) == "real_patch"
 
     def test_child_falls_back_to_workflow_state_json(self, tmp_path: Path) -> None:
         """When parent is not in the list, read workflow_state.json."""
@@ -185,24 +185,24 @@ class TestProjectAgentNoMeta:
         app = FakeApp()
         assert app._resolve_agent_cl_name(agent) is None
 
-    def test_project_agent_with_meta_changespec(self) -> None:
-        """Project agent with meta_changespec returns the ChangeSpec name."""
+    def test_project_agent_with_meta_patch(self) -> None:
+        """Project agent with meta_patch returns the Patch name."""
         agent = _make_agent(
             cl_name="myproj",
             project_file="/tmp/projects/myproj/myproj.sase",
-            step_output={"meta_changespec": "new_feature"},
+            step_output={"meta_patch": "new_feature"},
         )
         app = FakeApp()
         assert app._resolve_agent_cl_name(agent) == "new_feature"
 
-    def test_action_notifies_on_no_changespec(self) -> None:
-        """action_jump_to_agent_changespec shows notification for project agent."""
+    def test_action_notifies_on_no_patch(self) -> None:
+        """action_jump_to_agent_patch shows notification for project agent."""
         agent = _make_agent(
             cl_name="myproj",
             project_file="/tmp/projects/myproj/myproj.sase",
         )
         app = FakeApp(agents=[agent])
-        app.action_jump_to_agent_changespec()
+        app.action_jump_to_agent_patch()
         assert any("No Patch" in msg for msg, _ in app._notifications)
 
 
@@ -227,7 +227,7 @@ class TestUnknownClName:
     def test_action_notifies_on_unknown(self) -> None:
         agent = _make_agent(cl_name="unknown")
         app = FakeApp(agents=[agent])
-        app.action_jump_to_agent_changespec()
+        app.action_jump_to_agent_patch()
         assert any("No Patch" in msg for msg, _ in app._notifications)
 
 
@@ -290,51 +290,47 @@ class TestFooterVisibility:
         assert app._resolve_agent_cl_name(child) == "valid_cl"
 
 
-class TestNavigateToChangespecExactFirst:
-    """ChangeSpec tab navigation should prefer exact names over suffix fallback."""
+class TestNavigateToPatchExactFirst:
+    """Patch tab navigation should prefer exact names over suffix fallback."""
 
     def test_exact_target_wins_over_earlier_suffixed_sibling(self) -> None:
         app = FakeNavigationApp(
             [
-                build_changespec(name="feature_1"),
-                build_changespec(name="feature"),
+                build_patch(name="feature_1"),
+                build_patch(name="feature"),
             ]
         )
 
-        assert navigate_to_changespec_tab(
-            app, "feature", "/tmp/projects/proj/proj.sase"
-        )
-        assert app.current_tab == "changespecs"
+        assert navigate_to_patch_tab(app, "feature", "/tmp/projects/proj/proj.sase")
+        assert app.current_tab == "patches"
         assert app.current_artifacts_subtab == "prs"
         assert app.current_idx == 1
         assert app.load_count == 0
 
     def test_suffix_fallback_still_matches_when_exact_is_absent(self) -> None:
-        app = FakeNavigationApp([build_changespec(name="feature_1")])
+        app = FakeNavigationApp([build_patch(name="feature_1")])
 
-        assert navigate_to_changespec_tab(
-            app, "feature", "/tmp/projects/proj/proj.sase"
-        )
-        assert app.current_tab == "changespecs"
+        assert navigate_to_patch_tab(app, "feature", "/tmp/projects/proj/proj.sase")
+        assert app.current_tab == "patches"
         assert app.current_artifacts_subtab == "prs"
         assert app.current_idx == 0
         assert app.load_count == 0
 
     def test_exact_target_wins_after_switching_to_project_query(self) -> None:
         app = FakeNavigationApp(
-            [build_changespec(name="unrelated")],
-            reloaded_changespecs=[
-                build_changespec(name="feature_1"),
-                build_changespec(name="feature"),
+            [build_patch(name="unrelated")],
+            reloaded_patches=[
+                build_patch(name="feature_1"),
+                build_patch(name="feature"),
             ],
         )
 
         with patch("sase.ace.query_history.save_query_history", return_value=True):
-            assert navigate_to_changespec_tab(
+            assert navigate_to_patch_tab(
                 app, "feature", "/tmp/projects/myproj/myproj.sase"
             )
 
-        assert app.current_tab == "changespecs"
+        assert app.current_tab == "patches"
         assert app.current_artifacts_subtab == "prs"
         assert app.current_idx == 1
         assert app.load_count == 1

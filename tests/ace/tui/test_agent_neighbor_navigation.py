@@ -8,14 +8,14 @@ from sase.ace.tui.modals import AgentNeighborModal
 from ._agent_neighbor_navigation_helpers import NeighborApp, make_agent
 
 
-class _ChangespecSiblingApp(TreeNavigationMixin):
+class _PatchSiblingApp(TreeNavigationMixin):
     def __init__(self) -> None:
-        self.current_tab = "changespecs"
-        self.changespecs = [object()]
+        self.current_tab = "patches"
+        self.patches = [object()]
         self._sibling_keys = {"~": "target"}
         self.navigated: list[tuple[str, bool, bool]] = []
 
-    def _navigate_to_changespec(
+    def _navigate_to_patch(
         self,
         target_name: str,
         is_ancestor: bool,
@@ -24,8 +24,8 @@ class _ChangespecSiblingApp(TreeNavigationMixin):
         self.navigated.append((target_name, is_ancestor, is_sibling))
 
 
-def test_changespec_sibling_navigation_still_direct_jumps() -> None:
-    app = _ChangespecSiblingApp()
+def test_patch_sibling_navigation_still_direct_jumps() -> None:
+    app = _PatchSiblingApp()
 
     app.action_start_sibling_mode()
 

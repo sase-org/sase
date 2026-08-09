@@ -185,11 +185,11 @@ async def test_ctrl_space_leaves_frontmatter_focused_prompt_intact() -> None:
 async def test_ctrl_space_action_is_gated_only_while_prompt_is_mounted() -> None:
     with _patch_config():
         async with AcePage() as page:
-            assert page.app.check_action("start_agent_from_changespec", ()) is not False
+            assert page.app.check_action("start_agent_from_patch", ()) is not False
 
             await _mount_home_prompt(page, "hello world")
 
-            assert page.app.check_action("start_agent_from_changespec", ()) is False
+            assert page.app.check_action("start_agent_from_patch", ()) is False
 
 
 async def test_other_main_screen_vim_hosts_contain_normal_space() -> None:

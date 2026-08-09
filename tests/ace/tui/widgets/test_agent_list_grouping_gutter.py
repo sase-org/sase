@@ -6,8 +6,8 @@ from datetime import datetime
 
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets._agent_list_styling import (
-    _CHANGESPEC_BANNER_BAR_STYLE,
-    _CHANGESPEC_BANNER_RULE_STYLE,
+    _PATCH_BANNER_BAR_STYLE,
+    _PATCH_BANNER_RULE_STYLE,
     _PROJECT_BANNER_RULE_STYLE,
 )
 from sase.ace.tui.widgets.agent_list import AgentList
@@ -28,8 +28,8 @@ def test_l0_banner_carries_no_tier_gutter() -> None:
     assert proj_plain.startswith("▌ ")
 
 
-def test_changespec_banner_carries_one_project_gutter_segment() -> None:
-    """L1 ChangeSpec banner threads a single project-blue gutter segment."""
+def test_patch_banner_carries_one_project_gutter_segment() -> None:
+    """L1 Patch banner threads a single project-blue gutter segment."""
     widget = AgentList()
     widget.update_list(
         [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.sase")],
@@ -38,14 +38,14 @@ def test_changespec_banner_carries_one_project_gutter_segment() -> None:
     options = list(widget._options)
     cs_text = options[1].prompt
     cs_plain = cs_text.plain  # type: ignore[union-attr]
-    # One ``│  `` segment (3 cells) before the ``▎`` ChangeSpec bar.
+    # One ``│  `` segment (3 cells) before the ``▎`` Patch bar.
     assert cs_plain.startswith("│  ▎ ")
     cs_styles = {s.style for s in cs_text.spans}  # type: ignore[union-attr]
     assert _PROJECT_BANNER_RULE_STYLE in cs_styles
 
 
-def test_changespec_banner_uses_light_rule() -> None:
-    """L1 ChangeSpec rule is the light ``─`` so weight matches L2 name-roots."""
+def test_patch_banner_uses_light_rule() -> None:
+    """L1 Patch rule is the light ``─`` so weight matches L2 name-roots."""
     widget = AgentList()
     widget.update_list(
         [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.sase")],
@@ -58,7 +58,7 @@ def test_changespec_banner_uses_light_rule() -> None:
 
 
 def test_name_root_banner_in_3_level_carries_two_gutter_segments() -> None:
-    """L2 name-root threads project + ChangeSpec gutter segments."""
+    """L2 name-root threads project + Patch gutter segments."""
     widget = AgentList()
     widget.update_list(
         [
@@ -73,11 +73,11 @@ def test_name_root_banner_in_3_level_carries_two_gutter_segments() -> None:
     assert nr_plain.startswith("│  │  ▸ coder ")
     nr_styles = {s.style for s in nr_text.spans}  # type: ignore[union-attr]
     assert _PROJECT_BANNER_RULE_STYLE in nr_styles
-    assert _CHANGESPEC_BANNER_RULE_STYLE in nr_styles
+    assert _PATCH_BANNER_RULE_STYLE in nr_styles
 
 
 def test_agent_row_under_3_level_carries_two_gutter_segments() -> None:
-    """Agent rows beneath project + ChangeSpec carry both gutter segments."""
+    """Agent rows beneath project + Patch carry both gutter segments."""
     widget = AgentList()
     widget.update_list(
         [
@@ -145,7 +145,7 @@ def test_by_status_prefix_group_promotes_name_root_to_middle_tier() -> None:
 
 
 def test_by_date_subgroup_banner_uses_level2_visual_style() -> None:
-    """BY_DATE subgroup headings use the promoted L1/ChangeSpec register."""
+    """BY_DATE subgroup headings use the promoted L1/Patch register."""
     widget = AgentList()
     widget.update_list(
         [make_agent(start_time=datetime(2026, 4, 25, 9, 0, 0))],
@@ -159,8 +159,8 @@ def test_by_date_subgroup_banner_uses_level2_visual_style() -> None:
     assert window_plain.startswith("│  ▎ 09:00 ")
     window_styles = {s.style for s in window_text.spans}  # type: ignore[union-attr]
     assert _PROJECT_BANNER_RULE_STYLE in window_styles
-    assert _CHANGESPEC_BANNER_BAR_STYLE in window_styles
-    assert _CHANGESPEC_BANNER_RULE_STYLE in window_styles
+    assert _PATCH_BANNER_BAR_STYLE in window_styles
+    assert _PATCH_BANNER_RULE_STYLE in window_styles
 
 
 def test_by_date_agent_row_carries_bucket_and_subgroup_gutters() -> None:

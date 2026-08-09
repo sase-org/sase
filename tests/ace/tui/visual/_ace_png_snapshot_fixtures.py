@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
-from sase.ace.testing import make_changespec
+from sase.ace.testing import make_patch
 from sase.ace.tui.actions.axe_display._data import (
     AxeCollectedData,
     BgCmdSnapshot,
@@ -21,9 +21,9 @@ from sase.axe.state import LumberjackMetrics, LumberjackStatus
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 
 
-def changespecs() -> list[Any]:
+def patches() -> list[Any]:
     return [
-        make_changespec(
+        make_patch(
             name="visual_auth",
             description="Adds deterministic login review coverage.",
             status="Ready",
@@ -31,7 +31,7 @@ def changespecs() -> list[Any]:
             parent="root_plan",
             file_path="/tmp/visual_project.sase",
         ),
-        make_changespec(
+        make_patch(
             name="visual_billing",
             description="Exercises the selected row visual state.",
             status="Draft",
@@ -39,7 +39,7 @@ def changespecs() -> list[Any]:
             parent="visual_auth",
             file_path="/tmp/visual_project.sase",
         ),
-        make_changespec(
+        make_patch(
             name="visual_cli",
             description="Keeps the list tall enough for stable layout.",
             status="WIP",

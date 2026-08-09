@@ -512,7 +512,7 @@ def test_save_marked_agents_dispatches_on_agents_tab() -> None:
 
 
 def test_bulk_change_status_does_not_save_marked_agents_on_agents_tab() -> None:
-    """The uppercase bulk-status action is ChangeSpec-only."""
+    """The uppercase bulk-status action is Patch-only."""
     a1 = _make_agent()
     app = _FakeMarkApp([a1])
 
@@ -522,15 +522,15 @@ def test_bulk_change_status_does_not_save_marked_agents_on_agents_tab() -> None:
     mock_save.assert_not_called()
 
 
-def test_bulk_change_status_keeps_changespec_status_flow() -> None:
-    """The ChangeSpecs tab still opens the bulk status modal."""
+def test_bulk_change_status_keeps_patch_status_flow() -> None:
+    """The Patches tab still opens the bulk status modal."""
 
     class _Spec:
         status = "WIP"
 
     app = _FakeMarkApp([])
-    app.current_tab = "changespecs"
-    app.changespecs = [_Spec()]  # type: ignore[list-item]
+    app.current_tab = "patches"
+    app.patches = [_Spec()]  # type: ignore[list-item]
     app.marked_indices = {0}
 
     app.action_bulk_change_status()
@@ -547,16 +547,16 @@ def test_toggle_mark_dispatches_to_agents_tab_from_action() -> None:
     app.action_toggle_mark()
 
     assert a1.identity in app._marked_agents
-    # ChangeSpec mark set is independent
+    # Patch mark set is independent
     assert app.marked_indices == set()
 
 
-def test_toggle_mark_on_changespecs_does_not_touch_agent_marks() -> None:
-    """action_toggle_mark on changespecs tab leaves _marked_agents alone."""
+def test_toggle_mark_on_patches_does_not_touch_agent_marks() -> None:
+    """action_toggle_mark on patches tab leaves _marked_agents alone."""
     a1 = _make_agent()
     app = _FakeMarkApp([a1])
-    app.current_tab = "changespecs"
-    app.changespecs = [object()]  # type: ignore[list-item]
+    app.current_tab = "patches"
+    app.patches = [object()]  # type: ignore[list-item]
 
     app.action_toggle_mark()
 

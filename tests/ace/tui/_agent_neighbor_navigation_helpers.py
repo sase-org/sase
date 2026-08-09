@@ -38,7 +38,7 @@ class NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMixi
         collapsed_panel_keys: set[str | None] | None = None,
     ) -> None:
         self.current_tab = "agents"
-        self.changespecs = []
+        self.patches = []
         self.current_idx = current_idx
         self.current_attempt_number: int | None = 7
         self._agents_with_children = list(agents)
@@ -69,8 +69,8 @@ class NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMixi
         self._entry_jump_index_to_hint: dict[int, str] = {}
         self._entry_jump_hint_to_banner: dict[str, Any] = {}
         self._entry_jump_banner_to_hint: dict[Any, str] = {}
-        self._entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]] = {}
-        self._entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str] = {}
+        self._entry_jump_hint_to_patch_banner: dict[str, tuple[str, ...]] = {}
+        self._entry_jump_patch_banner_to_hint: dict[tuple[str, ...], str] = {}
         self._entry_jump_index_stack: dict[str, list[int]] = {}
         self._entry_jump_agents_anchor_stack: list[Any] = []
         self._entry_jump_agents_forward_anchor_stack: list[Any] = []

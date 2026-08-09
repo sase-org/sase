@@ -12,7 +12,7 @@ from sase.ace.tui.widgets import (
 
 
 async def test_parenthesis_keys_cycle_only_inside_files_with_wraparound() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         assert page.app.current_artifacts_subtab == "commits"
         assert page.app.current_files_subtab == "plans"
 
@@ -31,7 +31,7 @@ async def test_parenthesis_keys_cycle_only_inside_files_with_wraparound() -> Non
 
 
 async def test_files_child_is_remembered_and_only_visible_child_is_active() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         files_view = page.query_one_widget("#artifacts-files-view", ArtifactsFilesView)
         plans = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         chats = page.query_one_widget("#artifacts-chats-pane", ArtifactsChatsPane)
@@ -62,7 +62,7 @@ async def test_files_child_is_remembered_and_only_visible_child_is_active() -> N
 
 
 async def test_marks_and_jump_history_are_isolated_by_leaf_pane_key() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("5")
         plan_target = ("plan", "sase", "archive", "one")
         chat_target = ("chat", "/tmp/chat.md")

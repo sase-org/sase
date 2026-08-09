@@ -8,7 +8,7 @@ from typing import Any, cast
 import pytest
 from textual.worker import Worker, WorkerState
 
-from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
+from sase.ace.patch.models import DeltaEntry, DeltaLineStats
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_associated_plan import PhaseBeadSummary

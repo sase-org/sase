@@ -17,11 +17,11 @@ from sase.bead.model import Issue, IssueType
 
 class PaletteHarness:
     def __init__(self) -> None:
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.current_artifacts_subtab = "commits"
         self.current_files_subtab = "plans"
         self.current_idx = 0
-        self.changespecs: list[Any] = []
+        self.patches: list[Any] = []
         self._axe_items: list[Any] = []
         self._artifacts_marked_targets: dict[str, set[tuple[str, ...]]] = {}
         self._keymap_registry = load_keymap_registry({})
@@ -221,7 +221,7 @@ class CopyAsModalApp(App[None]):
 
 def modal_context(*rows: CopyAsRow) -> CopyAsContext:
     return CopyAsContext(
-        group="changespecs",
+        group="patches",
         subtitle="SASE · copy_as_palette",
         unknown_context="Patches",
         rows=rows,

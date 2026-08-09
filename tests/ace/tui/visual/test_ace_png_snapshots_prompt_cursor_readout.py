@@ -7,7 +7,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -29,11 +29,11 @@ async def test_prompt_cursor_readout_solo_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_READOUT_SOLO_PROMPT)
         text_area = bar.active_text_area()
         text_area.cursor_location = (2, 10)
@@ -62,11 +62,11 @@ async def test_prompt_cursor_readout_stack_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_READOUT_STACK_PROMPT)
 
         items = bar._stack.items

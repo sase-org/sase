@@ -18,7 +18,7 @@ from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     runner_limit_snapshot,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -39,7 +39,7 @@ async def test_models_panel_empty_custom_png_snapshot(
     )
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -62,7 +62,7 @@ async def test_models_panel_default_png_snapshot(
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: calm_views())
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -91,7 +91,7 @@ async def test_models_panel_default_effort_override_png_snapshot(
         lambda self: (effort_snapshot(), True),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -120,7 +120,7 @@ async def test_models_panel_runner_limit_override_png_snapshot(
         lambda self: (runner_limit_snapshot(), True),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -144,7 +144,7 @@ async def test_models_panel_smartest_max_effort_png_snapshot(
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: calm_views())
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -172,7 +172,7 @@ async def test_models_panel_pool_effort_png_snapshot(
     monkeypatch.setattr(models_panel, "default_reasoning_effort", lambda: "xhigh")
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -199,7 +199,7 @@ async def test_models_panel_effort_provenance_png_snapshot(
     monkeypatch.setattr(models_panel, "default_reasoning_effort", lambda: "xhigh")
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -228,7 +228,7 @@ async def test_models_panel_pool_suspended_png_snapshot(
     monkeypatch.setattr(models_panel, "default_reasoning_effort", lambda: "xhigh")
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -254,7 +254,7 @@ async def test_models_panel_overrides_png_snapshot(
     )
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -282,7 +282,7 @@ async def test_models_panel_custom_builtin_warning_png_snapshot(
     )
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

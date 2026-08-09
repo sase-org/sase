@@ -61,7 +61,7 @@ def test_render_toasts_groups_sessions_newest_first(log_dir: Path) -> None:
                 session_id="20260706T220100Z-98111",
                 session_started_at="2026-07-06T22:01:00Z",
                 pid=98111,
-                message="ChangeSpec must be Ready to mail",
+                message="Patch must be Ready to mail",
                 severity="warning",
             ),
             _toast_json(

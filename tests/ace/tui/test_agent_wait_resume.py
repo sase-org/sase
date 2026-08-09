@@ -103,7 +103,7 @@ def test_apply_wait_run_now_projects_notification_but_keeps_agent_identity(
     monkeypatch,
     project_display_case: ProjectDisplayCase,
 ) -> None:
-    agent = make_waiting_agent(cl_name=project_display_case.changespec_key)
+    agent = make_waiting_agent(cl_name=project_display_case.patch_key)
     app = FakeWaitResumeApp()
     monkeypatch.setattr(
         "sase.project_display_names._project_display_name_map_cached",
@@ -121,9 +121,9 @@ def test_apply_wait_run_now_projects_notification_but_keeps_agent_identity(
         )
 
     assert app.notifications == [
-        (f"Wait: {project_display_case.changespec_label}", "information")
+        (f"Wait: {project_display_case.patch_label}", "information")
     ]
-    assert agent.cl_name == project_display_case.changespec_key
+    assert agent.cl_name == project_display_case.patch_key
 
 
 def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> None:

@@ -15,11 +15,11 @@ class _TabNavigationApp(BasicNavigationMixin):
     ) -> None:
         self.current_tab: Any = current_tab
         self.current_idx = 0
-        self.changespecs = [SimpleNamespace(name="cl")]
+        self.patches = [SimpleNamespace(name="cl")]
         self._agents = []
         self._axe_items = []
-        self._changespecs_last_idx = 0
-        self._changespecs_last_name = None
+        self._patches_last_idx = 0
+        self._patches_last_name = None
         self._agents_last_idx = 0
         self._agents_last_identity = None
         self._axe_last_idx = 0
@@ -51,13 +51,13 @@ def test_next_tab_switches_from_agents_when_no_live_artifact_pane() -> None:
 
     app.action_next_tab()
 
-    assert app.current_tab == "changespecs"
+    assert app.current_tab == "artifacts"
     assert app.focus_calls == 1
     assert app.activity_calls == 1
 
 
-def test_next_tab_changespecs_moves_to_axe() -> None:
-    app = _TabNavigationApp(current_tab="changespecs", focus_result=True)
+def test_next_tab_patches_moves_to_axe() -> None:
+    app = _TabNavigationApp(current_tab="patches", focus_result=True)
 
     app.action_next_tab()
 
@@ -87,18 +87,18 @@ def test_prev_tab_from_agents_goes_to_axe() -> None:
     assert app.activity_calls == 1
 
 
-def test_prev_tab_from_axe_goes_to_changespecs() -> None:
+def test_prev_tab_from_axe_goes_to_artifacts() -> None:
     app = _TabNavigationApp(current_tab="axe", focus_result=True)
 
     app.action_prev_tab()
 
-    assert app.current_tab == "changespecs"
+    assert app.current_tab == "artifacts"
     assert app.focus_calls == 0
     assert app.activity_calls == 1
 
 
-def test_prev_tab_from_changespecs_cycles_back_to_agents() -> None:
-    app = _TabNavigationApp(current_tab="changespecs", focus_result=True)
+def test_prev_tab_from_artifacts_cycles_back_to_agents() -> None:
+    app = _TabNavigationApp(current_tab="artifacts", focus_result=True)
 
     app.action_prev_tab()
 

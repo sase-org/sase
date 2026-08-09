@@ -16,7 +16,7 @@ from tests.ace.tui.visual._ace_axe_png_snapshot_fixtures import (
     axe_running_chop_data,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -50,7 +50,7 @@ async def test_axe_chop_run_info_panel_png_snapshot(
     """Chop row selected → chop-run-detail view exercises update_chop_status."""
     patch_startup_loaders(monkeypatch, axe_data=axe_lumberjack_tree_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
@@ -92,7 +92,7 @@ async def test_axe_lumberjack_error_png_snapshot(
     """Errored lumberjack exercises red/warning styling in tree row + panel."""
     patch_startup_loaders(monkeypatch, axe_data=axe_lumberjack_error_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
@@ -112,7 +112,7 @@ async def test_axe_chop_run_info_panel_running_png_snapshot(
     """Chop detail view for an in-flight manual run: ● running + Source: manual."""
     patch_startup_loaders(monkeypatch, axe_data=axe_running_chop_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
@@ -143,7 +143,7 @@ async def test_axe_chop_report_rich_png_snapshot(
     """Rich structured reports render above the OUTPUT tail on the AXE tab."""
     patch_startup_loaders(monkeypatch, axe_data=axe_chop_report_rich_120x40())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         selected = await _select_first_chop(page)
         assert (selected.lumberjack_name, selected.chop_name) == ("reports", "ci_watch")
 
@@ -161,7 +161,7 @@ async def test_axe_chop_report_absent_png_snapshot(
     """A run without ``report`` still has a complete RESULT card and OUTPUT."""
     patch_startup_loaders(monkeypatch, axe_data=axe_chop_report_absent_120x40())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         selected = await _select_first_chop(page)
         assert (selected.lumberjack_name, selected.chop_name) == ("reports", "cleanup")
 
@@ -179,7 +179,7 @@ async def test_axe_chop_report_error_png_snapshot(
     """A check_error run surfaces reason and error in the RESULT card."""
     patch_startup_loaders(monkeypatch, axe_data=axe_chop_report_error_120x40())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         selected = await _select_first_chop(page)
         assert (selected.lumberjack_name, selected.chop_name) == (
             "reports",
@@ -200,9 +200,7 @@ async def test_axe_chop_report_narrow_png_snapshot(
     """Narrow AXE panes stack report rows and kv pairs without mid-value cuts."""
     patch_startup_loaders(monkeypatch, axe_data=axe_chop_report_narrow_70x36())
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(70, 36)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(70, 36)) as page:
         selected = await _select_first_chop(page)
         assert (selected.lumberjack_name, selected.chop_name) == ("reports", "ci_watch")
 

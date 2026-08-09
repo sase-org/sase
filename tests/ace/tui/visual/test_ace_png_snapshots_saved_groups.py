@@ -1,6 +1,6 @@
 """ACE TUI PNG visual snapshot coverage for the saved agent group revival modal.
 
-ChangeSpecs-tab and footer snapshots live in ``test_ace_png_snapshots``.
+Patches-tab and footer snapshots live in ``test_ace_png_snapshots``.
 Shared fixtures live in ``_ace_png_snapshot_helpers``.
 """
 
@@ -20,7 +20,7 @@ from sase.core.agent_group_archive_wire import (
     SavedAgentGroupWire,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -83,7 +83,7 @@ async def test_saved_agent_group_modal_normal_png_snapshot(
         ),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -139,7 +139,7 @@ async def test_saved_agent_group_modal_jump_mode_png_snapshot(
         ),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -168,7 +168,7 @@ async def test_saved_agent_group_modal_empty_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -192,7 +192,7 @@ async def test_saved_agent_group_modal_load_more_png_snapshot(
     patch_startup_loaders(monkeypatch)
     groups = tuple(_saved_group_summary(idx) for idx in range(20))
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -233,7 +233,7 @@ async def test_saved_agent_group_modal_preview_rich_png_snapshot(
     )
     group = _saved_group_from_summary(summary, ref_count=6)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

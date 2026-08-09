@@ -21,7 +21,7 @@ from sase.ace.tui.widgets._agent_list_rendering import agent_render_key
 
 class _ApplyHarness(AgentLoadingApplyMixin):
     def __init__(self) -> None:
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.current_idx = 0
         self.hide_non_run_agents = False
         self._agents: list[Agent] = []

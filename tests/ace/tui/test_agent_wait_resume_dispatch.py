@@ -8,7 +8,7 @@ class _FakeAgentForkDispatchApp(BaseActionsMixin, HookEditingMixin):
     def __init__(self) -> None:
         self.current_tab = "agents"
         self.current_idx = 0
-        self.changespecs = [object()]
+        self.patches = [object()]
         self.fork_calls = 0
         self.retry_edit_calls = 0
 

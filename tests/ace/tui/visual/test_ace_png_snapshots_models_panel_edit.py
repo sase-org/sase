@@ -25,7 +25,7 @@ from sase.ace.tui.modals.models_panel_runner_limit_edit import (
 from sase.config import ConfigEditOp
 from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -170,7 +170,7 @@ async def test_models_panel_edit_preview_png_snapshot(
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _edit_plan()
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -199,7 +199,7 @@ async def test_models_panel_default_effort_edit_preview_png_snapshot(
         lambda *a, **k: _effort_edit_plan(),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -228,7 +228,7 @@ async def test_models_panel_runner_limit_edit_preview_png_snapshot(
         lambda *a, **k: _runner_limit_edit_plan(),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

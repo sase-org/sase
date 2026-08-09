@@ -7,7 +7,7 @@ from datetime import datetime
 
 import pytest
 
-from sase.ace.changespec.models import DeltaEntry
+from sase.ace.patch.models import DeltaEntry
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
@@ -16,7 +16,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -87,7 +87,7 @@ async def test_agents_external_repo_diff_file_panel_png_snapshot(
     _seed_external_repo_visual_delta(monkeypatch, agent)
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

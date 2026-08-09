@@ -55,7 +55,7 @@ async def test_first_page_paints_before_full_extension(
     monkeypatch.setattr(chats_pane, "load_chat_catalog", load)
 
     try:
-        async with AcePage(initial_tab="changespecs") as page:
+        async with AcePage(initial_tab="patches") as page:
             await page.press("5", ")")
             pane = page.query_one_widget(
                 "#artifacts-chats-pane",
@@ -109,7 +109,7 @@ async def test_jk_navigation_skips_headers_without_highlight_echoes(
         lambda **_kwargs: catalog(entries),
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("5", ")")
         pane = page.query_one_widget("#artifacts-chats-pane", ArtifactsChatsPane)
         await page.wait_for(lambda _state: pane.selected_entry is entries[0])

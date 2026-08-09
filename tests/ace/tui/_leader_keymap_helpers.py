@@ -11,21 +11,21 @@ from sase.ace.tui.actions.agents._unread_state import (
     BulkUnreadToggleOutcome,
     _BulkUnreadToggleResult,
 )
-from sase.ace.tui.actions.changespec._core import ChangeSpecMixin
+from sase.ace.tui.actions.patch._core import PatchMixin
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets import KeybindingFooter
 
 
-class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
+class _FakeApp(LeaderModeMixin, PatchMixin):
     """Minimal app stand-in for leader dispatch."""
 
     def __init__(
         self,
         *,
-        changespecs: list[Any] | None = None,
-        current_tab: str = "changespecs",
+        patches: list[Any] | None = None,
+        current_tab: str = "patches",
     ) -> None:
-        self.changespecs = changespecs or []
+        self.patches = patches or []
         self.current_idx = 0
         self.current_tab = current_tab  # type: ignore[assignment]
         self.marked_indices = set()
@@ -57,7 +57,7 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         )
         self.prompt_history_calls: list[dict[str, bool]] = []
         self.home_agent_count = 0
-        self.quick_changespec_agent_count = 0
+        self.quick_patch_agent_count = 0
         self.quick_selected_agent_count = 0
         self.marked_agent_run_count = 0
         self.update_sase_shortcut_count = 0
@@ -125,8 +125,8 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
     def _show_prompt_input_bar_for_home(self) -> None:
         self.home_agent_count += 1
 
-    def _start_agent_from_changespec_quick(self) -> None:
-        self.quick_changespec_agent_count += 1
+    def _start_agent_from_patch_quick(self) -> None:
+        self.quick_patch_agent_count += 1
 
     def _start_agent_from_agent_quick(self) -> None:
         self.quick_selected_agent_count += 1

@@ -8,8 +8,8 @@ from sase.ace.tui.widgets.agent_list import AgentList
 from ._agent_list_grouping_helpers import BR, make_agent
 
 
-def test_main_panel_emits_project_and_changespec_banners() -> None:
-    """A project banner + ChangeSpec banner precede every agent on the main panel."""
+def test_main_panel_emits_project_and_patch_banners() -> None:
+    """A project banner + Patch banner precede every agent on the main panel."""
     widget = AgentList()
     widget.update_list([make_agent()], current_idx=0)
     assert widget._row_entries == [BR, BR, (0, None)]
@@ -24,9 +24,9 @@ def test_two_agents_with_distinct_projects_get_two_project_banners() -> None:
         ],
         current_idx=0,
     )
-    # projA: project banner + changespec banner + agent
+    # projA: project banner + patch banner + agent
     # spacer
-    # projB: project banner + changespec banner + agent
+    # projB: project banner + patch banner + agent
     assert widget._row_entries == [
         BR,
         BR,
@@ -39,7 +39,7 @@ def test_two_agents_with_distinct_projects_get_two_project_banners() -> None:
 
 
 def test_singleton_name_root_emits_no_deepest_banner_in_main_panel() -> None:
-    """A lone dotted-name agent renders project + changespec banners only."""
+    """A lone dotted-name agent renders project + patch banners only."""
     widget = AgentList()
     widget.update_list(
         [make_agent(cl_name="demo", agent_name="coder.claude")],
@@ -57,7 +57,7 @@ def test_named_agents_share_name_root_banner() -> None:
         ],
         current_idx=0,
     )
-    # Project + changespec + name-root banners, then the two agent rows.
+    # Project + patch + name-root banners, then the two agent rows.
     assert widget._row_entries == [BR, BR, BR, (0, None), (1, None)]
 
 
@@ -102,7 +102,7 @@ def test_banner_options_are_disabled() -> None:
     """Banner Options are disabled so OptionList cursor navigation skips them."""
     widget = AgentList()
     widget.update_list([make_agent()], current_idx=0)
-    # First two Options are project + changespec banners; agent row is third.
+    # First two Options are project + patch banners; agent row is third.
     options = list(widget._options)
     assert options[0].disabled is True
     assert options[1].disabled is True
@@ -124,7 +124,7 @@ def test_expanded_banner_renders_fold_hint_while_remaining_disabled() -> None:
     assert "[2] " in options[1].prompt.plain  # type: ignore[union-attr]
 
 
-def test_banner_label_renders_separately_for_project_and_changespec() -> None:
+def test_banner_label_renders_separately_for_project_and_patch() -> None:
     widget = AgentList()
     widget.update_list(
         [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.sase")],
@@ -147,7 +147,7 @@ def test_resolve_row_routes_banner_clicks_to_first_agent() -> None:
         ],
         current_idx=0,
     )
-    # Layout: project banner + changespec(a) banner + agent 0 + changespec(b) banner + agent 1
+    # Layout: project banner + patch(a) banner + agent 0 + patch(b) banner + agent 1
     assert widget._resolve_row(0) == (0, None, None)
 
 
@@ -161,23 +161,23 @@ def test_highlighted_row_skips_banner_offset() -> None:
         ],
         current_idx=1,
     )
-    # Expected: projA banner, changespec(a) banner, agent 0, spacer,
-    # projB banner, changespec(b) banner, agent 1 → highlight row 6.
+    # Expected: projA banner, patch(a) banner, agent 0, spacer,
+    # projB banner, patch(b) banner, agent 1 → highlight row 6.
     assert widget.highlighted == 6
 
 
-# --- Two-level fallback (panel has no ChangeSpec) ---
+# --- Two-level fallback (panel has no Patch) ---
 
 
-def test_no_changespec_panel_renders_two_level_layout() -> None:
-    """Regression guard: when no agent has a ChangeSpec, the UI matches today's."""
+def test_no_patch_panel_renders_two_level_layout() -> None:
+    """Regression guard: when no agent has a Patch, the UI matches today's."""
     widget = AgentList()
     widget.update_list([make_agent(cl_name="")], current_idx=0)
-    # Just the project banner + agent — no ChangeSpec banner inserted.
+    # Just the project banner + agent — no Patch banner inserted.
     assert widget._row_entries == [BR, (0, None)]
 
 
-def test_no_changespec_panel_label_omits_changespec_suffix() -> None:
+def test_no_patch_panel_label_omits_patch_suffix() -> None:
     """The level-0 banner label is the project name only — no ``/`` separator."""
     widget = AgentList()
     widget.update_list(
@@ -204,7 +204,7 @@ def test_project_scoped_agent_renders_single_project_banner() -> None:
     assert len(options) == 2
 
 
-def test_mixed_project_scoped_agent_uses_no_changespec_bucket() -> None:
+def test_mixed_project_scoped_agent_uses_no_patch_bucket() -> None:
     widget = AgentList()
     widget.update_list(
         [

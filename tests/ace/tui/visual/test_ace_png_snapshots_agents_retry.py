@@ -14,7 +14,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     retry_agent,
     wait_for_startup,
@@ -56,7 +56,7 @@ async def test_retry_countdown_png_snapshot(
     ]
     patch_startup_loaders(monkeypatch, agents=rows)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents_tab(page, agent_count=1)
 
         await wait_for_svg_contains(page, "RETRYING (9s)")
@@ -90,7 +90,7 @@ async def test_running_fallback_png_snapshot(
     ]
     patch_startup_loaders(monkeypatch, agents=rows)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents_tab(page, agent_count=1)
 
         await wait_for_svg_contains(page, "claude-sonnet-4-5")
@@ -150,7 +150,7 @@ async def test_completed_retry_chain_png_snapshot(
     _apply_status_overrides(rows, classify_diff_badges=False)
     patch_startup_loaders(monkeypatch, agents=rows)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents_tab(page, agent_count=3)
 
         await wait_for_svg_contains(page, "(RETRIED)")
@@ -185,7 +185,7 @@ async def test_retries_exhausted_png_snapshot(
     ]
     patch_startup_loaders(monkeypatch, agents=rows)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents_tab(page, agent_count=1)
 
         await wait_for_svg_contains(page, "3/3")
@@ -236,7 +236,7 @@ async def test_selected_retry_metadata_png_snapshot(
     ]
     patch_startup_loaders(monkeypatch, agents=rows)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents_tab(page, agent_count=1)
 
         await wait_for_svg_contains(page, "Attempt 1")

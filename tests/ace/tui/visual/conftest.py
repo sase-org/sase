@@ -86,7 +86,7 @@ def _pin_agent_list_clock_for_visual_snapshots(
         "sase.ace.tui.models.agent_groups._keys.local_now",
         "sase.ace.tui.models.agent_groups._tree.local_now",
         "sase.ace.tui.models.agent_time.local_now",
-        "sase.ace.tui.models.changespec_groups._tree.local_now",
+        "sase.ace.tui.models.patch_groups._tree.local_now",
         "sase.ace.tui.modals.logs_pane_render.local_now",
     ):
         monkeypatch.setattr(target, fixed_now)

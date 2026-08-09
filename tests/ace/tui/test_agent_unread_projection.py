@@ -105,7 +105,7 @@ def test__active_completion_agent_keys_ignores_unrelated_actions() -> None:
         [
             _make_notification(action="PlanApproval"),
             _make_notification(action="UserQuestion"),
-            _make_notification(action="JumpToChangeSpec"),
+            _make_notification(action="JumpToPatch"),
             _make_notification(sender="fix-hook"),
             _make_notification(cl_name=None),
         ]

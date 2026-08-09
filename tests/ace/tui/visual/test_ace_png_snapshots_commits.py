@@ -19,7 +19,7 @@ import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.vcs_log.filter_query import parse_commit_filter_query, to_query_string
 from tests.ace.tui._commits_pane_helpers import _DIFF, _result, _result_with_sidecar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_state,
     wait_for_startup,
@@ -108,8 +108,8 @@ async def test_commits_timeline_and_detail_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
-        initial_tab="changespecs",
+        patches=patches(),
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await page.expect_state("artifacts_subtab", "commits")
@@ -144,8 +144,8 @@ async def test_commits_empty_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
-        initial_tab="changespecs",
+        patches=patches(),
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await page.expect_state("artifacts_subtab", "commits")
@@ -196,8 +196,8 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(80, 24),
-        changespecs=changespecs(),
-        initial_tab="changespecs",
+        patches=patches(),
+        initial_tab="patches",
     ) as page:
         pane, bar = await _open_commits(page, result)
         assert (
@@ -242,8 +242,8 @@ async def test_commits_jump_hints_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
-        initial_tab="changespecs",
+        patches=patches(),
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await page.expect_state("artifacts_subtab", "commits")
@@ -279,8 +279,8 @@ async def test_commits_filter_bar_prefilled_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
-        initial_tab="changespecs",
+        patches=patches(),
+        initial_tab="patches",
     ) as page:
         pane, bar = await _open_commits(page, result)
         query = "repo:alpha-platform-repository feat"
@@ -320,8 +320,8 @@ async def test_commits_filter_completion_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
-        initial_tab="changespecs",
+        patches=patches(),
+        initial_tab="patches",
     ) as page:
         pane, bar = await _open_commits(page, result)
         pane.show_filters()
@@ -358,8 +358,8 @@ async def test_commits_sidecar_filter_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
-        initial_tab="changespecs",
+        patches=patches(),
+        initial_tab="patches",
     ) as page:
         pane, bar = await _open_commits(page, narrow)
         await page.press("slash")
@@ -399,8 +399,8 @@ async def test_commits_narrowed_filter_chips_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
-        initial_tab="changespecs",
+        patches=patches(),
+        initial_tab="patches",
     ) as page:
         pane, bar = await _open_commits(page, result)
         query = (
@@ -441,8 +441,8 @@ async def test_commits_filter_parse_error_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
-        initial_tab="changespecs",
+        patches=patches(),
+        initial_tab="patches",
     ) as page:
         _pane, bar = await _open_commits(page, result)
         await page.press("slash")

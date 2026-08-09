@@ -55,10 +55,10 @@ def test_agent_onboarding_inspect_card_uses_active_keymap_registry() -> None:
         {
             "keymaps": {
                 "app": {
-                    "next_changespec": "f1",
-                    "prev_changespec": "f2",
+                    "next_patch": "f1",
+                    "prev_patch": "f2",
                     "edit_spec": "f3",
-                    "jump_to_agent_changespec": "f4",
+                    "jump_to_agent_patch": "f4",
                     "open_artifact_files": "f5",
                 }
             }

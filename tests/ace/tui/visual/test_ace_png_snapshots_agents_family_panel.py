@@ -18,7 +18,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -132,7 +132,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         agents=_family_agents(tmp_path, member_count=3, with_content=True),
     )
 
-    async with AcePage(query='"visual-family"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual-family"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -231,7 +231,7 @@ async def test_family_member_panel_shows_sibling_roster_png_snapshot(
         agents=_family_agents(tmp_path, member_count=3, with_content=False),
     )
 
-    async with AcePage(query='"visual-family"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual-family"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -275,7 +275,7 @@ async def test_family_two_digit_roster_and_pending_footer_png_snapshots(
         agents=_family_agents(tmp_path, member_count=11, with_content=False),
     )
 
-    async with AcePage(query='"visual-family"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual-family"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

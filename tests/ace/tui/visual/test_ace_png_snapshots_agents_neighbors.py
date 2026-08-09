@@ -18,7 +18,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     hood_neighbor_agents,
     patch_startup_loaders,
     wait_for_startup,
@@ -216,7 +216,7 @@ async def test_agents_neighbor_badge_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=hood_neighbor_agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -242,7 +242,7 @@ async def test_agents_neighbor_jump_expands_target_panel_png_snapshot(
     target = agents[1]
     patch_startup_loaders(monkeypatch, agents=agents)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -287,9 +287,7 @@ async def test_agent_neighbor_modal_folded_clan_and_tribe_png_snapshot(
     agents = _folded_clan_neighbor_modal_agents()
     patch_startup_loaders(monkeypatch, agents=agents)
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(70, 32)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(70, 32)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -332,9 +330,7 @@ async def test_agent_neighbor_modal_narrow_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=hood_neighbor_agents())
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(60, 30)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(60, 30)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -400,9 +396,7 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
     )
     patch_startup_loaders(monkeypatch, agents=[parent, child])
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(60, 30)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(60, 30)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -461,9 +455,7 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
     pin_agents_visual_now(monkeypatch, _LANE_NOW)
     patch_startup_loaders(monkeypatch, agents=_single_lane_neighbor_agents())
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(160, 50)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(160, 50)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -534,9 +526,7 @@ async def test_agents_lane_neighbors_above_sase_context_png_snapshot(
     pin_agents_visual_now(monkeypatch, _LANE_NOW)
     patch_startup_loaders(monkeypatch, agents=_lane_neighbor_agents_with_plan(tmp_path))
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(160, 50)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(160, 50)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -573,9 +563,7 @@ async def test_agents_family_lane_neighbors_png_snapshot(
     pin_agents_visual_now(monkeypatch, _LANE_NOW)
     patch_startup_loaders(monkeypatch, agents=_family_lane_neighbor_agents())
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(160, 50)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(160, 50)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

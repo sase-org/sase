@@ -104,7 +104,7 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
                     "failed": 1,
                     "success_rate": 0.75,
                     "commits": 5,
-                    "distinct_changespecs": 1,
+                    "distinct_changespecs": 1,  # legacy stats wire field
                     "unattributed_runs": 1,
                     "total_runtime_seconds": 500.0,
                     "last_run_ts": _NOW,
@@ -116,13 +116,13 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
                     "failed": 0,
                     "success_rate": 1.0,
                     "commits": 2,
-                    "distinct_changespecs": 1,
+                    "distinct_changespecs": 1,  # legacy stats wire field
                     "unattributed_runs": 0,
                     "total_runtime_seconds": 100.0,
                     "last_run_ts": _NOW - 60,
                 },
             ],
-            "changespecs": [
+            "changespecs": [  # legacy stats wire key
                 {
                     "project": "sase",
                     "name": "statistics-projects",
@@ -147,7 +147,7 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
                 },
             ],
             "unattributed_runs": 1,
-            "truncated_changespec_rows": 0,
+            "truncated_patch_rows": 0,
             "malformed_spec_files_skipped": 0,
         },
         "runners": {
@@ -308,18 +308,16 @@ def _result(
     if project_display_case is not None and run_payload:
         run_payload["workspaces"][0]["project"] = project_display_case.project_key
         run_payload["work"]["projects"][0]["project"] = project_display_case.project_key
-        run_payload["work"]["changespecs"][0].update(
+        run_payload["work"]["changespecs"][0].update(  # legacy stats wire key
             {
                 "project": project_display_case.project_key,
-                "name": project_display_case.changespec_key,
+                "name": project_display_case.patch_key,
             }
         )
         if runtime_group_by == "project":
             run_payload["runtime_groups"][0]["group"] = project_display_case.project_key
-        elif runtime_group_by == "changespec":
-            run_payload["runtime_groups"][0]["group"] = (
-                project_display_case.changespec_key
-            )
+        elif runtime_group_by == "patch":
+            run_payload["runtime_groups"][0]["group"] = project_display_case.patch_key
     activity_payload = {} if empty else _activity_payload()
     display_snapshot = (
         project_display_snapshot

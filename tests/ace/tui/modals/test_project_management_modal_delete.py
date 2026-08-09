@@ -101,7 +101,7 @@ async def test_project_management_modal_delete_confirm_reloads_and_removes_row(
         pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
-        pilot.app._schedule_changespecs_async_refresh = MagicMock()
+        pilot.app._schedule_patches_async_refresh = MagicMock()
         pilot.app._refresh_current_tab = MagicMock()
 
         await pilot.press("ctrl+d")
@@ -112,7 +112,7 @@ async def test_project_management_modal_delete_confirm_reloads_and_removes_row(
         assert calls == [("alpha", tmp_path)]
         assert [r.project_name for r in pane._filtered_records] == ["beta"]
         assert pane._status_message == "Deleted alpha"
-        pilot.app._schedule_changespecs_async_refresh.assert_called_once_with()
+        pilot.app._schedule_patches_async_refresh.assert_called_once_with()
         pilot.app._refresh_current_tab.assert_called_once_with()
 
 
@@ -277,7 +277,7 @@ async def test_project_management_modal_bulk_delete_deletes_once_and_preserves_f
         pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
-        pilot.app._schedule_changespecs_async_refresh = MagicMock()
+        pilot.app._schedule_patches_async_refresh = MagicMock()
         pilot.app._refresh_current_tab = MagicMock()
 
         await pilot.press("m")
@@ -305,5 +305,5 @@ async def test_project_management_modal_bulk_delete_deletes_once_and_preserves_f
         assert "1 deleted" in pane._status_message
         assert "1 blocked" in pane._status_message
         assert "1 failed" in pane._status_message
-        pilot.app._schedule_changespecs_async_refresh.assert_called_once_with()
+        pilot.app._schedule_patches_async_refresh.assert_called_once_with()
         pilot.app._refresh_current_tab.assert_called_once_with()

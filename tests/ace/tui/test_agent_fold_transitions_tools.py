@@ -32,17 +32,17 @@ class _ToolsDetail:
 
 
 class _OtherTabExpandApp(AgentFoldingMixin):
-    def __init__(self, current_tab: Literal["axe", "changespecs"]) -> None:
+    def __init__(self, current_tab: Literal["axe", "patches"]) -> None:
         self.current_tab = current_tab
         self.axe_expand_calls = 0
-        self.changespec_expand_calls = 0
+        self.patch_expand_calls = 0
         self.refresh_calls = 0
 
     def _expand_all_axe_folds(self) -> None:
         self.axe_expand_calls += 1
 
-    def _expand_all_changespec_group_folds(self) -> bool:
-        self.changespec_expand_calls += 1
+    def _expand_all_patch_group_folds(self) -> bool:
+        self.patch_expand_calls += 1
         return True
 
     def _refresh_display(self) -> None:
@@ -85,12 +85,12 @@ def test_tools_panel_detail_clamp_does_not_fall_through_to_folds() -> None:
 
 def test_capital_l_still_expands_all_folds_on_other_tabs() -> None:
     axe = _OtherTabExpandApp("axe")
-    changespecs = _OtherTabExpandApp("changespecs")
+    patches = _OtherTabExpandApp("patches")
 
     axe.action_expand_all_folds()
-    changespecs.action_expand_all_folds()
+    patches.action_expand_all_folds()
 
     assert axe.axe_expand_calls == 1
     assert axe.refresh_calls == 0
-    assert changespecs.changespec_expand_calls == 1
-    assert changespecs.refresh_calls == 1
+    assert patches.patch_expand_calls == 1
+    assert patches.refresh_calls == 1

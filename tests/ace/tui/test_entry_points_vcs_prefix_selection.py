@@ -29,7 +29,7 @@ def test_repeat_last_selection_reports_vcs_detection_error_without_launching(
         cl_name="fix_bug",
     )
 
-    app.action_start_agent_from_changespec()
+    app.action_start_agent_from_patch()
 
     assert app.notifications == [
         (
@@ -139,10 +139,10 @@ def test_project_selection_without_project_name_is_unchanged(
     ]
 
 
-def test_cl_selection_keeps_changespec_name(
+def test_cl_selection_keeps_patch_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The PR branch is untouched: it prefills the changespec name verbatim."""
+    """The PR branch is untouched: it prefills the patch name verbatim."""
     monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
     monkeypatch.setattr(
         _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
@@ -181,7 +181,7 @@ def test_start_custom_agent_selector_hides_home_project_row(
                 ProjectDisplayProjection("home", "home"),
                 ProjectDisplayProjection("sase", "sase"),
             ),
-            changespecs=(),
+            patches=(),
             project_display_snapshot=ProjectDisplaySnapshot(
                 {"home": "home", "sase": "sase"}
             ),
@@ -225,7 +225,7 @@ def test_repeat_last_selection_clears_stale_missing_project_without_launching(
 
     app = _App()
 
-    app.action_start_agent_from_changespec()
+    app.action_start_agent_from_patch()
 
     assert app.notifications == [
         (
@@ -269,7 +269,7 @@ def test_repeat_last_selection_clears_stale_default_home_without_launching(
 
     app = _App()
 
-    app.action_start_agent_from_changespec()
+    app.action_start_agent_from_patch()
 
     assert app.notifications == [
         (
@@ -304,7 +304,7 @@ def test_repeat_last_selection_replays_non_default_launchable_project(
 
     app = _App()
 
-    app.action_start_agent_from_changespec()
+    app.action_start_agent_from_patch()
 
     assert app.prompt_launches == [
         {
@@ -318,7 +318,7 @@ def test_repeat_last_selection_replays_non_default_launchable_project(
     assert app._last_custom_agent_selection is not None
 
 
-def test_quick_current_changespec_reports_vcs_detection_error_without_saving(
+def test_quick_current_patch_reports_vcs_detection_error_without_saving(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_missing_workspace_plugin(monkeypatch)
@@ -327,7 +327,7 @@ def test_quick_current_changespec_reports_vcs_detection_error_without_saving(
         "sase.ace.last_agent_selection._save_last_agent_selection", saved.append
     )
     app = _App()
-    app.changespecs = [
+    app.patches = [
         SimpleNamespace(
             name="fix_bug",
             file_path="/tmp/proj/proj.sase",
@@ -335,7 +335,7 @@ def test_quick_current_changespec_reports_vcs_detection_error_without_saving(
         )
     ]
 
-    app._start_agent_from_changespec_quick()
+    app._start_agent_from_patch_quick()
 
     assert app.notifications == [
         (

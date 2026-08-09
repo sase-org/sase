@@ -6,8 +6,8 @@ from datetime import datetime
 
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets._agent_list_styling import (
-    _CHANGESPEC_BANNER_BAR_STYLE,
-    _CHANGESPEC_BANNER_RULE_STYLE,
+    _PATCH_BANNER_BAR_STYLE,
+    _PATCH_BANNER_RULE_STYLE,
     _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
     _PROJECT_BANNER_BAR_STYLE,
@@ -31,7 +31,7 @@ def _status_bucket_banner_labels(widget: AgentList) -> list[str]:
 
 
 def test_by_date_mode_emits_bucket_banner_per_date_group() -> None:
-    """In BY_DATE mode L0 banners are date buckets, ChangeSpec layer is dropped."""
+    """In BY_DATE mode L0 banners are date buckets, Patch layer is dropped."""
     now = datetime(2026, 4, 25, 12, 0, 0)
     widget = AgentList()
     widget.update_list(
@@ -84,7 +84,7 @@ def test_by_date_bucket_label_omits_project_bar() -> None:
 
 
 def test_by_status_mode_emits_status_bucket_banners() -> None:
-    """BY_STATUS mode buckets agents by status; L0 = bucket, no ChangeSpec layer."""
+    """BY_STATUS mode buckets agents by status; L0 = bucket, no Patch layer."""
     widget = AgentList()
     widget.update_list(
         [
@@ -200,8 +200,8 @@ def test_by_status_running_banner_carries_status_glyph() -> None:
     assert plain.startswith(f"{_STATUS_BUCKET_GLYPHS['Running']} Running")
 
 
-def test_by_date_mode_drops_changespec_banner_even_when_cl_name_present() -> None:
-    """The ChangeSpec banner disappears in BY_DATE mode regardless of cl_name."""
+def test_by_date_mode_drops_patch_banner_even_when_cl_name_present() -> None:
+    """The Patch banner disappears in BY_DATE mode regardless of cl_name."""
     now = datetime(2026, 4, 25, 12, 0, 0)
     widget = AgentList()
     widget.update_list(
@@ -210,7 +210,7 @@ def test_by_date_mode_drops_changespec_banner_even_when_cl_name_present() -> Non
         grouping_mode=GroupingMode.BY_DATE,
         now=now,
     )
-    # Bucket banner + subgroup banner + agent — no ChangeSpec banner inserted.
+    # Bucket banner + subgroup banner + agent — no Patch banner inserted.
     assert widget._row_entries == [BR, BR, (0, None)]
     options = list(widget._options)
     plain = options[0].prompt.plain  # type: ignore[union-attr]
@@ -253,5 +253,5 @@ def test_standard_mode_banner_unchanged_after_phase_2() -> None:
     assert proj_plain.startswith("▌ sase_100")
     assert "fix-bug-id" in cs_plain
     cs_styles = {s.style for s in options[1].prompt.spans}  # type: ignore[union-attr]
-    assert _CHANGESPEC_BANNER_BAR_STYLE in cs_styles
-    assert _CHANGESPEC_BANNER_RULE_STYLE in cs_styles
+    assert _PATCH_BANNER_BAR_STYLE in cs_styles
+    assert _PATCH_BANNER_RULE_STYLE in cs_styles

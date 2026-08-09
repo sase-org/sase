@@ -5,7 +5,7 @@ from pathlib import Path
 import pluggy
 import pytest
 
-from sase.ace.testing import make_changespec
+from sase.ace.testing import make_patch
 from sase.ace.tui.artifacts_bugs import (
     _BugScope,
     collect_bug_snapshot,
@@ -64,11 +64,11 @@ def test_snapshot_collects_provider_issues_and_local_links(
         title="Cache repair",
         issue_type=IssueType.PLAN,
         tier=BeadTier.EPIC,
-        changespec_name="cache_fix",
-        changespec_bug_id="42",
     )
-    changespec = make_changespec(name="cache_fix")
-    changespec.bug = "#42"
+    epic.patch_name = "cache_fix"
+    epic.patch_bug_id = "42"
+    patch = make_patch(name="cache_fix")
+    patch.bug = "#42"
 
     monkeypatch.setattr(
         "sase.core.project_lifecycle_facade.list_project_records",
@@ -81,13 +81,13 @@ def test_snapshot_collects_provider_issues_and_local_links(
     )
     monkeypatch.setattr("sase.core.bead_read_facade.list_issues", lambda _path: [epic])
 
-    snapshot = collect_bug_snapshot("a", "open", [changespec])
+    snapshot = collect_bug_snapshot("a", "open", [patch])
 
     assert snapshot.project_key == "alpha"
     assert snapshot.display_name == "Alpha Project"
     assert snapshot.issues == (issue,)
     assert snapshot.links_for(42).epics == (epic,)
-    assert snapshot.links_for(42).changespecs == (changespec,)
+    assert snapshot.links_for(42).patches == (patch,)
 
 
 def test_snapshot_capability_gate_does_not_call_remote_list(
@@ -150,8 +150,8 @@ def test_snapshot_resolves_display_name_scope_for_local_bead_links(
         title="Widget epic",
         issue_type=IssueType.PLAN,
         tier=BeadTier.EPIC,
-        changespec_bug_id="7",
     )
+    epic.patch_bug_id = "7"
     record = ProjectRecordWire(
         schema_version=3,
         project_name="gh_acme__widget",

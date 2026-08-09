@@ -156,10 +156,10 @@ def test_capture_agents_tab_out_of_band_writes_redacted_bundle(
     def load_agents(
         _dismissed: set[tuple[AgentType, str, str | None]],
         *,
-        changespec_snapshot: object = None,
+        patch_snapshot: object = None,
         full_history: bool = False,
     ) -> _LoadResult:
-        del changespec_snapshot
+        del patch_snapshot
         suffix = "20260513130000" if not full_history else "20260513130100"
         return _LoadResult(
             all_agents=[_agent("secret/customer/project", suffix)],

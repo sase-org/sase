@@ -7,7 +7,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import UpdatesAvailableIndicator
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -26,11 +26,11 @@ async def test_updates_indicator_routine_png_snapshot(
     """Routine updates retain the compact purple badge."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
         indicator = page.app.query_one(
             "#updates-indicator",
@@ -60,11 +60,11 @@ async def test_updates_indicator_core_rebuild_png_snapshot(
     """A pending core update adds a legible amber rebuild signal."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
         indicator = page.app.query_one(
             "#updates-indicator",
@@ -94,11 +94,11 @@ async def test_updates_indicator_agent_cli_only_png_snapshot(
     """Agent-CLI-only updates use an explicit cyan segment."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
         indicator = page.app.query_one(
             "#updates-indicator",
@@ -128,11 +128,11 @@ async def test_updates_indicator_mixed_routine_png_snapshot(
     """Mixed routine updates join purple and cyan segments."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
         indicator = page.app.query_one(
             "#updates-indicator",
@@ -162,11 +162,11 @@ async def test_updates_indicator_mixed_core_rebuild_png_snapshot(
     """Mixed core updates retain amber rebuild and cyan CLI segments."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
         indicator = page.app.query_one(
             "#updates-indicator",

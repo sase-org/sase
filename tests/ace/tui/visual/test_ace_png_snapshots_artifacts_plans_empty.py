@@ -11,7 +11,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from tests.ace.tui._artifacts_plans_helpers import _choices, _snapshot
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -45,7 +45,7 @@ async def test_artifacts_plans_empty_png_snapshot(
         lambda _project, **_kwargs: snapshot,
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("5")
         await page.expect_state("files_subtab", "plans")

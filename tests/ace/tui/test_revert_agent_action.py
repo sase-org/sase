@@ -81,7 +81,7 @@ def _bulk_app(marked: list[Agent], current_tab: str = "agents") -> _FakeApp:
 
 
 def test_noop_on_non_agents_tab() -> None:
-    app = _FakeApp(_agent("DONE"), current_tab="changespecs")
+    app = _FakeApp(_agent("DONE"), current_tab="patches")
     app._start_revert_selected_agent()
     assert app.submitted == []
     assert app.notifications == []
@@ -264,7 +264,7 @@ def test_no_marks_keeps_selected_agent_behavior(tmp_path: Path) -> None:
     app._start_revert_selected_agent()
     assert len(app.submitted) == 1
     dedup = app.submitted[0]["kwargs"]["dedup_key"]
-    # Stable intent data: agent + project file + ChangeSpec name, not the
+    # Stable intent data: agent + project file + Patch name, not the
     # short-lived workspace path the agent ran in.
     assert dedup == "revert_preview:foo:/proj/cl/spec:cl"
     assert str(tmp_path) not in dedup

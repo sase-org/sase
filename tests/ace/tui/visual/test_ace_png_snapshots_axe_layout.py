@@ -9,7 +9,7 @@ from sase.ace.tui.app import _MIN_BGCMD_LIST_WIDTH
 from sase.ace.tui.widgets import KeybindingFooter
 from tests.ace.tui.visual._ace_axe_png_snapshot_fixtures import axe_long_label_data
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -26,7 +26,7 @@ async def test_axe_long_label_widening_png_snapshot(
     """Long lumberjack/chop labels widen the sidebar without wrapping."""
     patch_startup_loaders(monkeypatch, axe_data=axe_long_label_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
@@ -62,9 +62,7 @@ async def test_axe_constrained_width_no_wrap_png_snapshot(
     # 60x30 is small enough that the sidebar gets clamped to its minimum and
     # the long lumberjack/chop labels can't fit — they must ellipsize on a
     # single line rather than wrap.
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(60, 30)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(60, 30)) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.changespec.models import DeltaEntry
+from sase.ace.patch.models import DeltaEntry
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.ace.tui.widgets.file_panel import _display as file_panel_display_mod
@@ -22,7 +22,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -213,7 +213,7 @@ async def test_agents_linked_repo_diff_file_panel_png_snapshot(
     _seed_linked_repo_visual_delta(monkeypatch, agent)
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -238,7 +238,7 @@ async def test_agents_commit_messages_panel_png_snapshot(
     agent = _linked_repo_commits_agent()
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

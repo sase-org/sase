@@ -117,7 +117,7 @@ async def test_unlimited_commits_status_follows_backend_coverage_without_a_query
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
@@ -164,7 +164,7 @@ async def test_explicit_limit_truncates_and_remains_visible(
     )
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
@@ -248,7 +248,7 @@ async def test_unchanged_relative_query_reuses_cache_and_refreshes_its_clock(
         lambda: clock[0],
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(
@@ -328,7 +328,7 @@ async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(
     monkeypatch.setattr(commits_module, "run_vcs_log", collect)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is narrow)

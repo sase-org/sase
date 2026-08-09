@@ -9,7 +9,7 @@ from sase.ace.tui.modals.spellcheck_panel_modal import SpellcheckPanelModal
 from sase.ace.tui.modals.word_definition_modal import WordDefinitionModal
 from sase.core.word_lookup import DefinitionSection
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -44,7 +44,7 @@ async def test_word_definition_modal_png_snapshot(
         ),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -73,7 +73,7 @@ async def test_spellcheck_panel_modal_png_snapshot(
         "accommodating",
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -107,7 +107,7 @@ async def test_spellcheck_panel_modal_full_png_snapshot(
         "accommodatingly",
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -130,7 +130,7 @@ async def test_spellcheck_panel_modal_no_suggestions_png_snapshot(
     """The single-line footer variant shown when ``aspell`` has no suggestions."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

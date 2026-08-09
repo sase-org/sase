@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.widgets._agent_list_styling import (
-    _CHANGESPEC_BANNER_BAR_STYLE,
-    _CHANGESPEC_BANNER_RULE_STYLE,
+    _PATCH_BANNER_BAR_STYLE,
+    _PATCH_BANNER_RULE_STYLE,
     _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
     _PROJECT_BANNER_BAR_STYLE,
@@ -63,7 +63,7 @@ def test_expanded_banner_stays_disabled_when_sibling_is_collapsed() -> None:
         fold_registry=registry,
     )
     # Layout: projA banner (collapsed, selectable), spacer, projB banner
-    # (expanded, disabled), changespec banner, agent (b).
+    # (expanded, disabled), patch banner, agent (b).
     options = list(widget._options)
     assert options[0].disabled is False  # collapsed projA banner
     assert options[2].disabled is True  # expanded projB banner
@@ -107,8 +107,8 @@ def test_current_group_key_drives_banner_highlight() -> None:
     assert widget.highlighted == 2
 
 
-def test_changespec_banner_uses_distinct_accent_style() -> None:
-    """The ChangeSpec banner gets its own bar+rule accent."""
+def test_patch_banner_uses_distinct_accent_style() -> None:
+    """The Patch banner gets its own bar+rule accent."""
     widget = AgentList()
     widget.update_list(
         [make_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.sase")],
@@ -119,8 +119,8 @@ def test_changespec_banner_uses_distinct_accent_style() -> None:
     cs_plain = cs_text.plain  # type: ignore[union-attr]
     assert "fix-bug-id" in cs_plain
     cs_styles = {s.style for s in cs_text.spans}  # type: ignore[union-attr]
-    assert _CHANGESPEC_BANNER_BAR_STYLE in cs_styles
-    assert _CHANGESPEC_BANNER_RULE_STYLE in cs_styles
+    assert _PATCH_BANNER_BAR_STYLE in cs_styles
+    assert _PATCH_BANNER_RULE_STYLE in cs_styles
 
 
 def test_name_root_banner_label_uses_distinct_accent_style() -> None:
@@ -134,7 +134,7 @@ def test_name_root_banner_label_uses_distinct_accent_style() -> None:
         current_idx=0,
     )
     options = list(widget._options)
-    # Layout: project banner (0), changespec banner (1), name-root banner (2),
+    # Layout: project banner (0), patch banner (1), name-root banner (2),
     # then the two agent rows.
     text = options[2].prompt
     plain = text.plain  # type: ignore[union-attr]
@@ -174,7 +174,7 @@ def test_two_level_panel_name_root_banner_uses_indent() -> None:
     plain = text.plain  # type: ignore[union-attr]
     # One ``│  `` gutter segment (3 cells) for the project ancestor,
     # then the ``▸`` branch glyph and label — no second gutter segment
-    # because there's no ChangeSpec tier in this panel.
+    # because there's no Patch tier in this panel.
     assert plain.startswith("│  ▸ coder ")
     spans = {s.style for s in text.spans}  # type: ignore[union-attr]
     assert _NAME_ROOT_BANNER_LABEL_STYLE in spans
@@ -212,8 +212,8 @@ def test_update_highlight_falls_back_to_agent_search_when_group_key_unmatched() 
         ],
         current_idx=0,
     )
-    # Layout: projA banner, changespec(a), agent0, spacer, projB banner,
-    # changespec(b), agent1 → row 6.
+    # Layout: projA banner, patch(a), agent0, spacer, projB banner,
+    # patch(b), agent1 → row 6.
     widget.update_highlight(1, group_key=("ghost",))
     assert widget.highlighted == 6
 

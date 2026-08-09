@@ -24,7 +24,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_state,
     wait_for_startup,
@@ -132,7 +132,7 @@ def _assert_collapsed_panel_summary(page: AcePage) -> None:
     assert "[view: tribe]" in info._build_display_text().plain
     svg = page.export_svg(title="ACE collapsed summary assertion")
     assert "Name:" in svg
-    assert "ChangeSpec:" not in svg
+    assert "Patch:" not in svg
 
 
 async def test_agents_sole_selected_panel_png_snapshot(
@@ -142,7 +142,7 @@ async def test_agents_sole_selected_panel_png_snapshot(
     agent = _sole_default_panel_agent()
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -208,7 +208,7 @@ async def test_agents_collapsed_panel_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=_panel_collapse_agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -422,7 +422,7 @@ async def test_agents_leader_jump_auto_expands_panel_png_snapshot(
     target = agents[2]
     patch_startup_loaders(monkeypatch, agents=agents)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

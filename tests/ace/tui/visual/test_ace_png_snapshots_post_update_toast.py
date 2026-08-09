@@ -20,7 +20,7 @@ from sase.ace.update_receipt import (
 )
 from sase.dev_update.models import RepoCommit, RepoCommitLog, RepoDiffStat
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_visual_idle,
 )
@@ -128,7 +128,7 @@ async def test_post_update_toast_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         notifications=True,
     ) as page:
         await page.press("4")
@@ -174,7 +174,7 @@ async def test_post_update_toast_diffstat_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         notifications=True,
     ) as page:
         await page.press("4")

@@ -122,7 +122,7 @@ def _seed_logs_tab_files() -> None:
                         "pid": 98111,
                         "severity": "warning",
                         "title": "",
-                        "message": "ChangeSpec must be Ready to mail",
+                        "message": "ChangeSpec must be Ready to mail",  # legacy PNG text
                     }
                 ),
                 json.dumps(

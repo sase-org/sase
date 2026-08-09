@@ -27,7 +27,7 @@ def test_run_log_loads_active_dismissed_and_meta_created_agents() -> None:
     active_meta_pr = make_agent(
         cl_name="source_pr",
         raw_suffix="20250101122000",
-        step_output={"meta_changespec": target, "meta_new_pr": "http://pr/1"},
+        step_output={"meta_patch": target, "meta_new_pr": "http://pr/1"},
     )
     dismissed_direct = make_agent(cl_name=target, raw_suffix="20250101123000")
     dismissed_meta_cl = make_agent(

@@ -119,7 +119,7 @@ def test_filter_matches_agent_label_and_response_content(tmp_path: Path) -> None
     assert modal._get_filtered_agents("missing") == []
 
 
-def test_filter_discriminates_shared_changespec_by_project_identity() -> None:
+def test_filter_discriminates_shared_patch_by_project_identity() -> None:
     widgets = make_agent(
         cl_name="shared-pr",
         raw_suffix="20260512120000",

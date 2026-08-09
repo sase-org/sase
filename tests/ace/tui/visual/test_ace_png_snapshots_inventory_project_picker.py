@@ -18,7 +18,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_xprompt_sources,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -42,7 +42,7 @@ async def test_inventory_project_picker_png_snapshot(
 ) -> None:
     _patch_admin_center(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

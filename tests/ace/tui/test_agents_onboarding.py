@@ -13,7 +13,7 @@ from sase.ace.tui.actions.agents._display_detail import DetailMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     agents,
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
 )
@@ -164,7 +164,7 @@ async def test_agents_onboarding_visible_after_empty_load_tab_switch(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -185,7 +185,7 @@ async def test_agents_onboarding_visible_after_empty_load_direct_agents_tab(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
@@ -218,7 +218,7 @@ async def test_agents_onboarding_launch_target_refresh_stores_true(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
@@ -250,7 +250,7 @@ async def test_agents_onboarding_launch_target_refresh_stores_false(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
@@ -283,7 +283,7 @@ async def test_agents_onboarding_plugin_refresh_stores_false(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
@@ -315,7 +315,7 @@ async def test_agents_onboarding_plugin_refresh_stores_true(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
@@ -336,7 +336,7 @@ async def test_agents_onboarding_visible_for_hidden_only_workflow(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
@@ -357,7 +357,7 @@ async def test_agents_onboarding_hidden_when_agents_exist(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=agents())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -377,7 +377,7 @@ async def test_agents_onboarding_reappears_after_last_visible_agent_disappears(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
@@ -401,7 +401,7 @@ async def test_agents_onboarding_hides_after_first_agent_arrives(
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

@@ -11,7 +11,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -33,7 +33,7 @@ async def test_agents_metadata_search_typing_and_committed_png_snapshots(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)

@@ -16,14 +16,14 @@ from tests.ace.tui._jump_to_entry_hints_helpers import (
     _JumpAllTestApp,
     _KeyEvent,
     _make_agent,
-    _make_changespec,
+    _make_patch,
 )
 
 
 def test_jump_all_modal_stores_last_position() -> None:
-    last_pos = JumpAllResult(tab="changespecs", index=2)
+    last_pos = JumpAllResult(tab="patches", index=2)
     modal = JumpAllModal(
-        changespecs=[],
+        patches=[],
         agents=[],
         axe_items=[],
         last_position=last_pos,
@@ -33,7 +33,7 @@ def test_jump_all_modal_stores_last_position() -> None:
 
 def test_jump_all_modal_no_last_position() -> None:
     modal = JumpAllModal(
-        changespecs=[],
+        patches=[],
         agents=[],
         axe_items=[],
     )
@@ -42,7 +42,7 @@ def test_jump_all_modal_no_last_position() -> None:
 
 def test_jump_all_modal_styles_stopped_agent_status() -> None:
     modal = JumpAllModal(
-        changespecs=[],
+        patches=[],
         agents=[_make_agent(status=STOPPED_STATUS)],
         axe_items=[],
     )
@@ -55,7 +55,7 @@ def test_jump_all_modal_on_key_uses_uppercase_event_character(
     monkeypatch: Any,
 ) -> None:
     modal = JumpAllModal(
-        changespecs=[_make_changespec(f"feature_{i:02d}") for i in range(37)],
+        patches=[_make_patch(f"feature_{i:02d}") for i in range(37)],
         agents=[],
         axe_items=[],
     )
@@ -65,7 +65,7 @@ def test_jump_all_modal_on_key_uses_uppercase_event_character(
 
     modal.on_key(event)  # type: ignore[arg-type]
 
-    assert dismissed == [JumpAllResult(tab="changespecs", index=36)]
+    assert dismissed == [JumpAllResult(tab="artifacts", index=36)]
     assert event.prevented is True
     assert event.stopped is True
 
@@ -74,7 +74,7 @@ def test_jump_all_modal_two_character_hint_dispatches_only_after_completion(
     monkeypatch: Any,
 ) -> None:
     modal = JumpAllModal(
-        changespecs=[_make_changespec(f"feature_{i:02d}") for i in range(63)],
+        patches=[_make_patch(f"feature_{i:02d}") for i in range(63)],
         agents=[],
         axe_items=[],
     )
@@ -90,7 +90,7 @@ def test_jump_all_modal_two_character_hint_dispatches_only_after_completion(
 
     second = _KeyEvent(key="0", character="0")
     modal.on_key(second)  # type: ignore[arg-type]
-    assert dismissed == [JumpAllResult(tab="changespecs", index=62)]
+    assert dismissed == [JumpAllResult(tab="artifacts", index=62)]
     assert modal._pending_hint_prefix == ""
 
 
@@ -99,7 +99,7 @@ def test_jump_all_backtick_remains_control_during_partial_hint(
 ) -> None:
     last_position = JumpAllResult(tab="agents", index=4)
     modal = JumpAllModal(
-        changespecs=[_make_changespec(f"feature_{i:02d}") for i in range(63)],
+        patches=[_make_patch(f"feature_{i:02d}") for i in range(63)],
         agents=[],
         axe_items=[],
         last_position=last_position,
@@ -129,7 +129,7 @@ async def test_jump_all_modal_ctrl_d_scrolls_without_dismissing() -> None:
             result = value
 
         modal = JumpAllModal(
-            changespecs=[_make_changespec(f"feature_{i:02d}") for i in range(62)],
+            patches=[_make_patch(f"feature_{i:02d}") for i in range(62)],
             agents=[],
             axe_items=[],
         )
@@ -158,7 +158,7 @@ async def test_jump_all_modal_ctrl_u_scrolls_up_without_dismissing() -> None:
             result = value
 
         modal = JumpAllModal(
-            changespecs=[_make_changespec(f"feature_{i:02d}") for i in range(62)],
+            patches=[_make_patch(f"feature_{i:02d}") for i in range(62)],
             agents=[],
             axe_items=[],
         )
@@ -194,7 +194,7 @@ def test_jump_all_modal_bgcmd_entry_includes_command(tmp_path: Path) -> None:
 
     with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", tmp_path):
         modal = JumpAllModal(
-            changespecs=[],
+            patches=[],
             agents=[],
             axe_items=[BgCmdItem(slot=2)],
         )
@@ -208,7 +208,7 @@ def test_jump_all_modal_bgcmd_entry_falls_back_without_info(
 ) -> None:
     with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", tmp_path):
         modal = JumpAllModal(
-            changespecs=[],
+            patches=[],
             agents=[],
             axe_items=[BgCmdItem(slot=3)],
         )

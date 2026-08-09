@@ -1,6 +1,6 @@
-"""Tests for the ChangeSpec info-panel grouping badge.
+"""Tests for the Patch info-panel grouping badge.
 
-The badge is always shown on the ChangeSpecs tab — there is no opt-out mode
+The badge is always shown on the Patches tab — there is no opt-out mode
 since FLAT was removed.  An empty label still hides the badge so test
 fixtures that don't seed a label don't render a stray ``[group:]``.
 """
@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from sase.ace.tui.widgets.changespec_info_panel import ChangeSpecInfoPanel
+from sase.ace.tui.widgets.patch_info_panel import PatchInfoPanel
 
 
-def _collect_text(panel: ChangeSpecInfoPanel) -> str:
+def _collect_text(panel: PatchInfoPanel) -> str:
     """Build the panel content without going through Textual's ``update`` path.
 
     ``Static.update`` walks the active-app context, which raises outside
@@ -24,7 +24,7 @@ def _collect_text(panel: ChangeSpecInfoPanel) -> str:
 
 
 def test_default_state_shows_by_project_badge() -> None:
-    panel = ChangeSpecInfoPanel()
+    panel = PatchInfoPanel()
     plain = _collect_text(panel)
     assert "group:" in plain
     assert "by project" in plain
@@ -32,7 +32,7 @@ def test_default_state_shows_by_project_badge() -> None:
 
 def test_empty_label_hides_badge() -> None:
     """An explicit empty label still hides the badge."""
-    panel = ChangeSpecInfoPanel()
+    panel = PatchInfoPanel()
     with patch.object(panel, "_refresh_content"):
         panel.update_grouping_mode("")
     assert panel._grouping_label == ""
@@ -40,7 +40,7 @@ def test_empty_label_hides_badge() -> None:
 
 
 def test_by_project_label_renders_badge_with_key_hint() -> None:
-    panel = ChangeSpecInfoPanel()
+    panel = PatchInfoPanel()
     panel._grouping_label = "by project"
     plain = _collect_text(panel)
     assert "group:" in plain
@@ -51,7 +51,7 @@ def test_by_project_label_renders_badge_with_key_hint() -> None:
 
 
 def test_by_status_label_renders_badge() -> None:
-    panel = ChangeSpecInfoPanel()
+    panel = PatchInfoPanel()
     panel._grouping_label = "by status"
     plain = _collect_text(panel)
     assert "group:" in plain
@@ -59,7 +59,7 @@ def test_by_status_label_renders_badge() -> None:
 
 
 def test_status_and_grouping_render_on_separate_lines() -> None:
-    panel = ChangeSpecInfoPanel()
+    panel = PatchInfoPanel()
     panel._current_position = 2
     panel._total_count = 5
     panel._hidden_reverted = 1
@@ -79,7 +79,7 @@ def test_status_and_grouping_render_on_separate_lines() -> None:
 
 
 def test_update_countdown_keeps_countdown_on_second_line() -> None:
-    panel = ChangeSpecInfoPanel()
+    panel = PatchInfoPanel()
 
     with patch.object(panel, "update") as update:
         panel.update_countdown(4, 10)

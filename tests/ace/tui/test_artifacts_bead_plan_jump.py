@@ -88,7 +88,7 @@ async def test_beads_open_plan_selects_unloaded_plans_pane(
     plans, beads = _linked_snapshots(tmp_path)
     _patch_loaders(monkeypatch, plans=plans, beads=beads)
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("2")
         beads_pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: beads_pane.snapshot is beads)
@@ -118,7 +118,7 @@ async def test_plans_open_bead_clears_filter_and_selects_closed_bead(
     plans, beads = _linked_snapshots(tmp_path)
     _patch_loaders(monkeypatch, plans=plans, beads=beads)
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("5")
         plans_pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: plans_pane.snapshot is plans)
@@ -149,7 +149,7 @@ async def test_crosslink_actions_warn_when_counterpart_is_missing(
     plans, beads = _linked_snapshots(tmp_path)
     _patch_loaders(monkeypatch, plans=plans, beads=beads)
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         messages: list[tuple[str, str]] = []
 
         def notify(

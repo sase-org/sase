@@ -11,7 +11,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
 )
@@ -95,7 +95,7 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
 
     async with AcePage(
         query='"demo"',
-        changespecs=changespecs(),
+        patches=patches(),
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)

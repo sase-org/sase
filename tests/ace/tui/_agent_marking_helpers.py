@@ -78,7 +78,7 @@ class _FakeMarkApp(
         self.async_refresh_sources: list[str] = []
         self.notification_count_refresh_calls = 0
         self.notification_refreshes_async = 0
-        self.changespecs: list = []  # type: ignore[assignment]
+        self.patches: list = []  # type: ignore[assignment]
         self.marked_indices: set[int] = set()
         self._init_tracked_task_recorder()
 
@@ -97,7 +97,7 @@ class _FakeMarkApp(
         self.patch_calls.append(agent)
         return self._patch_result
 
-    def _try_patch_changespec_row(self, idx: int) -> bool:
+    def _try_patch_patch_row(self, idx: int) -> bool:
         del idx
         return False
 

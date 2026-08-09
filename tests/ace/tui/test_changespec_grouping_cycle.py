@@ -1,13 +1,13 @@
-"""Tests for the ChangeSpecs-tab grouping-mode cycle action.
+"""Tests for the Patches-tab grouping-mode cycle action.
 
-Covers Phase 3 of the ChangeSpecs-tab ChangeSpec grouping feature
-(``sdd/plans/202604/changespec_group_headings.md``):
+Covers Phase 3 of the Patches-tab Patch grouping feature
+(``sdd/plans/202604/patch_group_headings.md``):
 
 * Cycle order ``BY_PROJECT → BY_DATE → BY_STATUS → BY_PROJECT``.
 * Per-mode fold-state preservation across cycles, with no leakage from
   the Agents-tab fold registries.
 * Banner focus is reset on every cycle.
-* Non-ChangeSpec tabs (Agents / AXE) ignore the PR cycle helper, and AXE is a
+* Non-Patch tabs (Agents / AXE) ignore the PR cycle helper, and AXE is a
   silent no-op for the public action even if the focused tab.
 * Cycling schedules per-tab grouping-mode persistence.
 """
@@ -21,14 +21,14 @@ from typing import Any
 from sase.ace.tui.actions.agents._grouping import AgentGroupingMixin
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
-from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
+from sase.ace.tui.models.patch_groups import PatchGroupingMode
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
 
 
 class _StubApp(AgentGroupingMixin):
     """Minimal harness exposing the grouping mixin for both tabs."""
 
-    def __init__(self, current_tab: str = "changespecs") -> None:
+    def __init__(self, current_tab: str = "patches") -> None:
         self.current_tab = current_tab  # type: ignore[assignment]
         self.current_idx = 0
         # Agents-side state — lets the dispatcher coexist with the
@@ -40,15 +40,15 @@ class _StubApp(AgentGroupingMixin):
         }
         self._group_fold_registry = self._group_fold_registries[GroupingMode.STANDARD]
         self._current_group_key: tuple[str, ...] | None = None
-        # ChangeSpec-side state.
-        self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
-        self._changespec_group_fold_registries: dict[
-            ChangeSpecGroupingMode, GroupFoldRegistry
-        ] = {ChangeSpecGroupingMode.BY_PROJECT: GroupFoldRegistry()}
-        self._changespec_group_fold_registry = self._changespec_group_fold_registries[
-            ChangeSpecGroupingMode.BY_PROJECT
+        # Patch-side state.
+        self._patch_grouping_mode = PatchGroupingMode.BY_PROJECT
+        self._patch_group_fold_registries: dict[
+            PatchGroupingMode, GroupFoldRegistry
+        ] = {PatchGroupingMode.BY_PROJECT: GroupFoldRegistry()}
+        self._patch_group_fold_registry = self._patch_group_fold_registries[
+            PatchGroupingMode.BY_PROJECT
         ]
-        self._current_changespec_group_key: tuple[str, ...] | None = None
+        self._current_patch_group_key: tuple[str, ...] | None = None
         # Recording stubs.
         self.refilter_calls = 0
         self.refresh_calls = 0
@@ -80,35 +80,35 @@ class _StubApp(AgentGroupingMixin):
 def test_cycle_advances_by_project_to_by_date() -> None:
     app = _StubApp()
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_DATE
     assert app.refresh_calls == 1
 
 
 def test_cycle_advances_by_date_to_by_status() -> None:
     app = _StubApp()
-    app._changespec_grouping_mode = ChangeSpecGroupingMode.BY_DATE
-    app._changespec_group_fold_registry = app._ensure_changespec_mode_registry(
-        ChangeSpecGroupingMode.BY_DATE
+    app._patch_grouping_mode = PatchGroupingMode.BY_DATE
+    app._patch_group_fold_registry = app._ensure_patch_mode_registry(
+        PatchGroupingMode.BY_DATE
     )
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_STATUS
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_STATUS
 
 
 def test_cycle_wraps_back_to_by_project() -> None:
     app = _StubApp()
-    app._changespec_grouping_mode = ChangeSpecGroupingMode.BY_STATUS
-    app._changespec_group_fold_registry = app._ensure_changespec_mode_registry(
-        ChangeSpecGroupingMode.BY_STATUS
+    app._patch_grouping_mode = PatchGroupingMode.BY_STATUS
+    app._patch_group_fold_registry = app._ensure_patch_mode_registry(
+        PatchGroupingMode.BY_STATUS
     )
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
 
 
 def test_three_cycles_returns_to_by_project() -> None:
     app = _StubApp()
     for _ in range(3):
         app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
     assert app.refresh_calls == 3
 
 
@@ -119,11 +119,11 @@ def test_three_cycles_returns_to_by_project() -> None:
 
 def test_fold_state_preserved_after_cycle_round_trip() -> None:
     app = _StubApp()
-    project_registry = app._changespec_group_fold_registry
+    project_registry = app._patch_group_fold_registry
     project_registry.collapse(("projA",))
 
     app.action_cycle_grouping_mode()  # BY_PROJECT → BY_DATE
-    by_date_registry = app._changespec_group_fold_registry
+    by_date_registry = app._patch_group_fold_registry
     assert by_date_registry is not project_registry
     # Fresh registry: BY_PROJECT collapse intent does not bleed across modes.
     assert by_date_registry.is_collapsed(("projA",)) is False
@@ -131,18 +131,16 @@ def test_fold_state_preserved_after_cycle_round_trip() -> None:
 
     app.action_cycle_grouping_mode()  # → BY_STATUS
     app.action_cycle_grouping_mode()  # → BY_PROJECT (round trip)
-    assert app._changespec_group_fold_registry is project_registry
-    assert app._changespec_group_fold_registry.is_collapsed(("projA",))
+    assert app._patch_group_fold_registry is project_registry
+    assert app._patch_group_fold_registry.is_collapsed(("projA",))
 
 
 def test_per_mode_registry_dict_grows_lazily() -> None:
     app = _StubApp()
-    assert set(app._changespec_group_fold_registries) == {
-        ChangeSpecGroupingMode.BY_PROJECT
-    }
+    assert set(app._patch_group_fold_registries) == {PatchGroupingMode.BY_PROJECT}
     app.action_cycle_grouping_mode()  # → BY_DATE
     app.action_cycle_grouping_mode()  # → BY_STATUS
-    assert set(app._changespec_group_fold_registries) == set(ChangeSpecGroupingMode)
+    assert set(app._patch_group_fold_registries) == set(PatchGroupingMode)
 
 
 # ---------------------------------------------------------------------------
@@ -150,12 +148,12 @@ def test_per_mode_registry_dict_grows_lazily() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cycle_clears_current_changespec_group_key() -> None:
+def test_cycle_clears_current_patch_group_key() -> None:
     """Banner focus from the previous mode is meaningless in the new mode."""
     app = _StubApp()
-    app._current_changespec_group_key = ("projA",)
+    app._current_patch_group_key = ("projA",)
     app.action_cycle_grouping_mode()
-    assert app._current_changespec_group_key is None
+    assert app._current_patch_group_key is None
 
 
 # ---------------------------------------------------------------------------
@@ -170,24 +168,24 @@ def test_cycle_on_axe_tab_is_silent_noop() -> None:
     assert app.refilter_calls == 0
     assert app.refresh_calls == 0
     assert app._grouping_mode is GroupingMode.STANDARD
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
 
 
 def test_cycle_on_agents_tab_does_not_touch_cl_state() -> None:
-    """Agents cycle leaves the ChangeSpec grouping mode untouched, and vice versa."""
+    """Agents cycle leaves the Patch grouping mode untouched, and vice versa."""
     app = _StubApp(current_tab="agents")
     app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.BY_DATE
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
     assert app.refresh_calls == 0
     assert app.refilter_calls == 1
 
 
 def test_cycle_on_cls_tab_does_not_touch_agents_state() -> None:
-    app = _StubApp(current_tab="changespecs")
+    app = _StubApp(current_tab="patches")
     app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.STANDARD
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_DATE
     assert app.refilter_calls == 0
     assert app.refresh_calls == 1
 
@@ -197,27 +195,25 @@ def test_cycle_on_cls_tab_does_not_touch_agents_state() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cycle_schedules_changespec_grouping_mode_save(
+def test_cycle_schedules_patch_grouping_mode_save(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     app = _StubApp()
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
-    assert not (tmp_path / ".sase" / "changespec_grouping_mode.txt").exists()
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_DATE
+    assert not (tmp_path / ".sase" / "patch_grouping_mode.txt").exists()
     assert not (tmp_path / ".sase" / "grouping_mode.txt").exists()
 
     callback, args, kwargs = app.scheduled[0]
     assert args == ()
     assert kwargs == {}
     asyncio.run(callback())
-    assert (
-        tmp_path / ".sase" / "changespec_grouping_mode.txt"
-    ).read_text() == "by_date\n"
+    assert (tmp_path / ".sase" / "patch_grouping_mode.txt").read_text() == "by_date\n"
     assert not (tmp_path / ".sase" / "grouping_mode.txt").exists()
 
 
-def test_rapid_changespec_cycles_save_latest_mode() -> None:
+def test_rapid_patch_cycles_save_latest_mode() -> None:
     app = _StubApp()
     saved: list[tuple[str, object]] = []
 
@@ -236,14 +232,14 @@ def test_rapid_changespec_cycles_save_latest_mode() -> None:
     assert args == ()
     assert kwargs == {}
     asyncio.run(callback())
-    assert saved == [("changespecs", ChangeSpecGroupingMode.BY_DATE)]
+    assert saved == [("patches", PatchGroupingMode.BY_DATE)]
 
     assert len(app.scheduled) == 1
     callback, _, _ = app.scheduled.pop(0)
     asyncio.run(callback())
     assert saved == [
-        ("changespecs", ChangeSpecGroupingMode.BY_DATE),
-        ("changespecs", ChangeSpecGroupingMode.BY_PROJECT),
+        ("patches", PatchGroupingMode.BY_DATE),
+        ("patches", PatchGroupingMode.BY_PROJECT),
     ]
 
 
@@ -267,35 +263,35 @@ def test_cycle_emits_cl_grouping_toast() -> None:
 def test_reverse_cycle_advances_by_project_to_by_status() -> None:
     app = _StubApp()
     app.action_cycle_grouping_mode_reverse()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_STATUS
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_STATUS
     assert app.refresh_calls == 1
 
 
 def test_reverse_cycle_advances_by_status_to_by_date() -> None:
     app = _StubApp()
-    app._changespec_grouping_mode = ChangeSpecGroupingMode.BY_STATUS
-    app._changespec_group_fold_registry = app._ensure_changespec_mode_registry(
-        ChangeSpecGroupingMode.BY_STATUS
+    app._patch_grouping_mode = PatchGroupingMode.BY_STATUS
+    app._patch_group_fold_registry = app._ensure_patch_mode_registry(
+        PatchGroupingMode.BY_STATUS
     )
     app.action_cycle_grouping_mode_reverse()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_DATE
 
 
 def test_reverse_cycle_wraps_back_to_by_project() -> None:
     app = _StubApp()
-    app._changespec_grouping_mode = ChangeSpecGroupingMode.BY_DATE
-    app._changespec_group_fold_registry = app._ensure_changespec_mode_registry(
-        ChangeSpecGroupingMode.BY_DATE
+    app._patch_grouping_mode = PatchGroupingMode.BY_DATE
+    app._patch_group_fold_registry = app._ensure_patch_mode_registry(
+        PatchGroupingMode.BY_DATE
     )
     app.action_cycle_grouping_mode_reverse()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
 
 
 def test_three_reverse_cycles_returns_to_by_project() -> None:
     app = _StubApp()
     for _ in range(3):
         app.action_cycle_grouping_mode_reverse()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
     assert app.refresh_calls == 3
 
 
@@ -303,7 +299,7 @@ def test_forward_then_reverse_returns_to_by_project() -> None:
     app = _StubApp()
     app.action_cycle_grouping_mode()
     app.action_cycle_grouping_mode_reverse()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
 
 
 def test_reverse_cycle_on_axe_tab_is_silent_noop() -> None:
@@ -312,4 +308,4 @@ def test_reverse_cycle_on_axe_tab_is_silent_noop() -> None:
     assert app.refilter_calls == 0
     assert app.refresh_calls == 0
     assert app._grouping_mode is GroupingMode.STANDARD
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT

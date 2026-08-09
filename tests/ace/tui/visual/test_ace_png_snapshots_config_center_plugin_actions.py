@@ -40,7 +40,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _wait_for_plugins_detail,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -63,7 +63,7 @@ async def test_config_center_plugins_install_preview_png_snapshot(
         pbp, "_plan_install_preview", lambda name, *, offline: _ready_preview(name)
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -94,7 +94,7 @@ async def test_config_center_plugins_marked_install_png_snapshot(
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -124,7 +124,7 @@ async def test_config_center_plugins_not_uv_tool_png_snapshot(
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch, uv_tool=_not_uv_tool())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -160,7 +160,7 @@ async def test_config_center_plugins_update_preview_png_snapshot(
         lambda query, *, all_plugins, offline: pbp._UpdatePreview(plan=plan),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -210,9 +210,7 @@ async def test_config_center_plugins_long_update_preview_png_snapshot(
         lambda *_args, **_kwargs: (long_group,),
     )
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(100, 24)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(100, 24)) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -250,7 +248,7 @@ async def test_config_center_plugins_uninstall_preview_png_snapshot(
         lambda query, *, offline: pbp._UninstallPreview(plan=plan),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -305,9 +303,7 @@ async def test_config_center_comprehensive_update_preview_png_snapshot(
         ),
     )
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(120, 32)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(120, 32)) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

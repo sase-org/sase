@@ -11,7 +11,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import QuitConfirmModal
 from sase.ace.tui.task_queue import TaskInfo
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -60,7 +60,10 @@ def _tasks() -> list[TaskInfo]:
             "sync-1",
             "sync",
             "visual-auth",
-            "Syncing workspace and applying reviewed ChangeSpec updates...",
+            (
+                "Syncing workspace and applying reviewed "
+                "ChangeSpec updates..."  # legacy compatibility retained PNG text
+            ),
             started_at="2026-06-23T12:00:00",
             display_name="sync visual-auth",
         ),
@@ -103,7 +106,7 @@ async def test_quit_confirm_modal_png_snapshot(
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(quit_confirm_modal, "_format_elapsed", _frozen_elapsed)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

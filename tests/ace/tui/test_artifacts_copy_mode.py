@@ -22,7 +22,7 @@ from tests.ace.tui._artifacts_copy_helpers import CopyHarness
 
 def test_copy_mode_rejects_empty_artifacts_without_using_hidden_pr_state() -> None:
     app = CopyHarness()
-    assert app.changespecs == []
+    assert app.patches == []
 
     app.action_start_copy_mode()
 
@@ -67,10 +67,10 @@ def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
     assert app.artifacts_footer_restores == 2
 
 
-def test_chats_percent_n_never_copies_a_changespec_name() -> None:
+def test_chats_percent_n_never_copies_a_patch_name() -> None:
     app = CopyHarness()
     app.current_artifacts_subtab = "chats"
-    app.changespecs = [SimpleNamespace(name="hidden-pr")]
+    app.patches = [SimpleNamespace(name="hidden-pr")]
     app._copy_cl_name = MagicMock()  # type: ignore[method-assign]
 
     assert app._handle_copy_key("n") is False
@@ -79,10 +79,10 @@ def test_chats_percent_n_never_copies_a_changespec_name() -> None:
     assert "Chats:" in app.notifications[-1][0]
 
 
-def test_files_percent_unknown_key_never_reaches_changespec_dispatch() -> None:
+def test_files_percent_unknown_key_never_reaches_patch_dispatch() -> None:
     app = CopyHarness()
     app.current_artifacts_subtab = "files"
-    app.changespecs = [SimpleNamespace(name="hidden-pr")]
+    app.patches = [SimpleNamespace(name="hidden-pr")]
     app._copy_cl_name = MagicMock()  # type: ignore[method-assign]
 
     assert app._handle_copy_key("n") is False
@@ -497,7 +497,7 @@ def test_copy_footer_uses_the_active_artifacts_subtab(
     footer.set_keymap_registry(load_keymap_registry({}))
     footer._update_display = MagicMock()  # type: ignore[method-assign]
 
-    footer.update_copy_bindings("changespecs", artifacts_pane_key=subtab)
+    footer.update_copy_bindings("patches", artifacts_pane_key=subtab)
 
     footer._update_display.assert_called_once_with(expected, mode_label="COPY")
 

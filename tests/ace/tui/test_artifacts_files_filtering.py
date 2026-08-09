@@ -171,7 +171,7 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
         lambda project, _limit: snapshot(rows, project=project),
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("5", "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(lambda _state: pane.snapshot is not None)

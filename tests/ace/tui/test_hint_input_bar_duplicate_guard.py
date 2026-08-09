@@ -27,9 +27,9 @@ class _DetailWithHints:
 class _HintBarDuplicateApp(FileViewingMixin, App[None]):
     def __init__(self) -> None:
         super().__init__()
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.current_idx = 0
-        self.changespecs = [SimpleNamespace(name="feature")]
+        self.patches = [SimpleNamespace(name="feature")]
         self.canonical_query_string = ""
         self.hooks_collapsed = None
         self.commits_collapsed = None

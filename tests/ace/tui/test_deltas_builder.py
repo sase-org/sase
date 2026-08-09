@@ -8,21 +8,21 @@ from pathlib import Path
 from pytest import MonkeyPatch
 from rich.text import Text
 
-from sase.ace.changespec.models import ChangeSpec, DeltaEntry, DeltaLineStats
+from sase.ace.patch.models import Patch, DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.deltas_builder import (
     build_delta_entries_section,
     build_deltas_section,
 )
-from sase.ace.tui.widgets.changespec_detail import ChangeSpecDetail
+from sase.ace.tui.widgets.patch_detail import PatchDetail
 from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
 from sase.ace.tui.widgets.hint_tracker import HintTracker
 
 
-def _make_changespec(
+def _make_patch(
     deltas: list[DeltaEntry] | None = None,
-) -> ChangeSpec:
-    return ChangeSpec(
+) -> Patch:
+    return Patch(
         name="test-cl",
         description="test",
         parent=None,
@@ -36,29 +36,29 @@ def _make_changespec(
 
 def _sample_deltas() -> list[DeltaEntry]:
     return [
-        DeltaEntry(path="src/sase/ace/changespec/deltas.py", change_type="A"),
+        DeltaEntry(path="src/sase/ace/patch/deltas.py", change_type="A"),
         DeltaEntry(path="tests/test_deltas_parsing.py", change_type="A"),
-        DeltaEntry(path="src/sase/ace/changespec/models.py", change_type="M"),
-        DeltaEntry(path="src/sase/ace/changespec/parser.py", change_type="M"),
+        DeltaEntry(path="src/sase/ace/patch/models.py", change_type="M"),
+        DeltaEntry(path="src/sase/ace/patch/parser.py", change_type="M"),
         DeltaEntry(path="src/sase/legacy/old_deltas.py", change_type="D"),
     ]
 
 
 class TestNoDeltas:
     def test_none_renders_nothing(self) -> None:
-        cs = _make_changespec(deltas=None)
+        cs = _make_patch(deltas=None)
         text = Text()
         build_deltas_section(text, cs, FoldLevel.FULLY_EXPANDED)
         assert text.plain == ""
 
     def test_empty_list_renders_nothing(self) -> None:
-        cs = _make_changespec(deltas=[])
+        cs = _make_patch(deltas=[])
         text = Text()
         build_deltas_section(text, cs, FoldLevel.FULLY_EXPANDED)
         assert text.plain == ""
 
 
-def test_default_entry_builder_options_match_changespec_output_byte_for_byte() -> None:
+def test_default_entry_builder_options_match_patch_output_byte_for_byte() -> None:
     deltas = [
         DeltaEntry(
             path="src/example.py",
@@ -66,12 +66,12 @@ def test_default_entry_builder_options_match_changespec_output_byte_for_byte() -
             line_stats=DeltaLineStats(modified=2),
         )
     ]
-    changespec_text = Text()
+    patch_text = Text()
     entries_text = Text()
 
     build_deltas_section(
-        changespec_text,
-        _make_changespec(deltas=deltas),
+        patch_text,
+        _make_patch(deltas=deltas),
         FoldLevel.FULLY_EXPANDED,
     )
     build_delta_entries_section(
@@ -80,32 +80,32 @@ def test_default_entry_builder_options_match_changespec_output_byte_for_byte() -
         FoldLevel.FULLY_EXPANDED,
     )
 
-    assert entries_text.plain == changespec_text.plain
-    assert entries_text.spans == changespec_text.spans
+    assert entries_text.plain == patch_text.plain
+    assert entries_text.spans == patch_text.spans
 
 
 class TestCollapsed:
     def test_collapsed_renders_summary(self) -> None:
-        cs = _make_changespec(deltas=_sample_deltas())
+        cs = _make_patch(deltas=_sample_deltas())
         text = Text()
         build_deltas_section(text, cs, FoldLevel.COLLAPSED)
         assert text.plain == "DELTAS:  +2 ~2 -1 (5 files)\n"
         assert "deltas.py" not in text.plain
 
     def test_default_renders_summary(self) -> None:
-        cs = _make_changespec(deltas=_sample_deltas())
+        cs = _make_patch(deltas=_sample_deltas())
         text = Text()
         build_deltas_section(text, cs)
         assert text.plain == "DELTAS:  +2 ~2 -1 (5 files)\n"
 
     def test_collapsed_singular_file_label(self) -> None:
-        cs = _make_changespec(deltas=[DeltaEntry(path="a.py", change_type="A")])
+        cs = _make_patch(deltas=[DeltaEntry(path="a.py", change_type="A")])
         text = Text()
         build_deltas_section(text, cs, FoldLevel.COLLAPSED)
         assert "(1 file)" in text.plain
 
     def test_collapsed_summary_includes_line_stats(self) -> None:
-        cs = _make_changespec(
+        cs = _make_patch(
             deltas=[
                 DeltaEntry(
                     path="a.py",
@@ -129,7 +129,7 @@ class TestCollapsed:
         assert text.plain == ("DELTAS:  +1 (+5) ~1 (+2 ~3 -1) -1 (-4) (3 files)\n")
 
     def test_summary_glyph_styles(self) -> None:
-        cs = _make_changespec(deltas=_sample_deltas())
+        cs = _make_patch(deltas=_sample_deltas())
         text = Text()
         build_deltas_section(text, cs, FoldLevel.COLLAPSED)
         plain = text.plain
@@ -154,27 +154,27 @@ class TestCollapsed:
 
 class TestExpanded:
     def test_lists_all_paths_alphabetically(self) -> None:
-        cs = _make_changespec(deltas=_sample_deltas())
+        cs = _make_patch(deltas=_sample_deltas())
         text = Text()
         build_deltas_section(text, cs, FoldLevel.EXPANDED)
         plain = text.plain
         assert plain.startswith("DELTAS:\n")
         # Alphabetical sort by path
         positions = [
-            plain.index("src/sase/ace/changespec/deltas.py"),
-            plain.index("src/sase/ace/changespec/models.py"),
-            plain.index("src/sase/ace/changespec/parser.py"),
+            plain.index("src/sase/ace/patch/deltas.py"),
+            plain.index("src/sase/ace/patch/models.py"),
+            plain.index("src/sase/ace/patch/parser.py"),
             plain.index("src/sase/legacy/old_deltas.py"),
             plain.index("tests/test_deltas_parsing.py"),
         ]
         assert positions == sorted(positions)
         # Glyphs match
-        assert "+ src/sase/ace/changespec/deltas.py" in plain
-        assert "~ src/sase/ace/changespec/models.py" in plain
+        assert "+ src/sase/ace/patch/deltas.py" in plain
+        assert "~ src/sase/ace/patch/models.py" in plain
         assert "- src/sase/legacy/old_deltas.py" in plain
 
     def test_expanded_suppresses_entry_line_stats(self) -> None:
-        cs = _make_changespec(
+        cs = _make_patch(
             deltas=[
                 DeltaEntry(
                     path="README.md",
@@ -205,10 +205,8 @@ class TestExpanded:
 
 class TestFullyExpanded:
     def test_basename_is_bold(self) -> None:
-        cs = _make_changespec(
-            deltas=[
-                DeltaEntry(path="src/sase/ace/changespec/deltas.py", change_type="A")
-            ]
+        cs = _make_patch(
+            deltas=[DeltaEntry(path="src/sase/ace/patch/deltas.py", change_type="A")]
         )
         text = Text()
         build_deltas_section(text, cs, FoldLevel.FULLY_EXPANDED)
@@ -227,14 +225,14 @@ class TestFullyExpanded:
         assert "#87AFFF" in dirname_styles
 
     def test_path_without_directory(self) -> None:
-        cs = _make_changespec(deltas=[DeltaEntry(path="README.md", change_type="M")])
+        cs = _make_patch(deltas=[DeltaEntry(path="README.md", change_type="M")])
         text = Text()
         build_deltas_section(text, cs, FoldLevel.FULLY_EXPANDED)
         plain = text.plain
         assert "~ README.md" in plain
 
     def test_entry_line_stats_render_inline(self) -> None:
-        cs = _make_changespec(
+        cs = _make_patch(
             deltas=[
                 DeltaEntry(
                     path="README.md",
@@ -259,7 +257,7 @@ class TestFullyExpanded:
         assert "+ rename.py  0 lines" in plain
 
     def test_glyph_styles(self) -> None:
-        cs = _make_changespec(
+        cs = _make_patch(
             deltas=[
                 DeltaEntry(path="a.py", change_type="A"),
                 DeltaEntry(path="b.py", change_type="M"),
@@ -282,7 +280,7 @@ class TestFullyExpanded:
 
 class TestFileHints:
     def test_visible_entries_emit_hints_and_mappings_when_expanded(self) -> None:
-        cs = _make_changespec(
+        cs = _make_patch(
             deltas=[
                 DeltaEntry(path="b.py", change_type="M"),
                 DeltaEntry(path="a.py", change_type="A"),
@@ -306,7 +304,7 @@ class TestFileHints:
         assert tracker.counter == 3
 
     def test_visible_entries_emit_hints_and_mappings_when_fully_expanded(self) -> None:
-        cs = _make_changespec(
+        cs = _make_patch(
             deltas=[
                 DeltaEntry(
                     path="b.py",
@@ -340,7 +338,7 @@ class TestFileHints:
     def test_relative_paths_resolve_under_workspace_dir(self, tmp_path: Path) -> None:
         workspace_dir = tmp_path / "workspace"
         workspace_dir.mkdir()
-        cs = _make_changespec(deltas=[DeltaEntry(path="src/foo.py", change_type="M")])
+        cs = _make_patch(deltas=[DeltaEntry(path="src/foo.py", change_type="M")])
         text = Text()
 
         tracker = build_deltas_section(
@@ -356,7 +354,7 @@ class TestFileHints:
     def test_absolute_and_home_paths_resolve_directly(self) -> None:
         abs_path = "/tmp/sase-abs.py"
         home_path = "~/sase-home.py"
-        cs = _make_changespec(
+        cs = _make_patch(
             deltas=[
                 DeltaEntry(path=home_path, change_type="A"),
                 DeltaEntry(path=abs_path, change_type="M"),
@@ -383,7 +381,7 @@ class TestFileHints:
             hint_to_entry_id={},
             mentor_hint_to_info={},
         )
-        cs = _make_changespec(deltas=[DeltaEntry(path="hidden.py", change_type="M")])
+        cs = _make_patch(deltas=[DeltaEntry(path="hidden.py", change_type="M")])
         text = Text()
 
         tracker = build_deltas_section(
@@ -406,7 +404,7 @@ class TestFileHints:
             hint_to_entry_id={8: "1a"},
             mentor_hint_to_info={7: ("mentor", "profile")},
         )
-        cs = _make_changespec(
+        cs = _make_patch(
             deltas=[
                 DeltaEntry(path="b.py", change_type="M"),
                 DeltaEntry(path="a.py", change_type="A"),
@@ -488,27 +486,35 @@ class TestFileHints:
         ]
 
 
-class TestChangeSpecDetailFileHints:
+class TestPatchDetailFileHints:
     def test_update_display_with_hints_includes_expanded_deltas(
         self, tmp_path: Path, monkeypatch: MonkeyPatch
     ) -> None:
         workspace_dir = tmp_path / "workspace"
         workspace_dir.mkdir()
         project_file = tmp_path / "proj.sase"
-        cs = _make_changespec(deltas=[DeltaEntry(path="src/foo.py", change_type="M")])
+        cs = _make_patch(deltas=[DeltaEntry(path="src/foo.py", change_type="M")])
         cs.file_path = str(project_file)
 
+        def workspace_resolver(_patch: object) -> str:
+            return str(workspace_dir)
+
         monkeypatch.setattr(
-            "sase.ace.tui.widgets.changespec_detail.get_claimed_workspaces",
+            "sase.ace.tui.widgets.patch_detail.get_claimed_workspaces",
             lambda _project_file: [],
         )
         monkeypatch.setattr(
-            "sase.ace.tui.widgets.changespec_detail."
-            "get_workspace_directory_for_changespec",
-            lambda _changespec: str(workspace_dir),
+            "sase.ace.tui.widgets.patch_detail.get_workspace_directory_for_patch",
+            workspace_resolver,
+        )
+        # legacy compatibility alias: keep the loaded shim in sync.
+        monkeypatch.setattr(
+            "sase.ace.tui.widgets.changespec_detail."  # legacy compatibility alias
+            "get_workspace_directory_for_changespec",  # legacy compatibility alias
+            workspace_resolver,
         )
 
-        detail = ChangeSpecDetail()
+        detail = PatchDetail()
         hint_mappings, _, _, _ = detail.update_display_with_hints(
             cs,
             query_string="",

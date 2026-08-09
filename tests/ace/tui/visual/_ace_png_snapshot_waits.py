@@ -61,7 +61,7 @@ async def wait_for_svg_contains(
 
 
 _VISUAL_DEBOUNCERS = (
-    "_changespec_detail_debouncer",
+    "_patch_detail_debouncer",
     "_agent_detail_debouncer",
     "_axe_detail_debouncer",
 )

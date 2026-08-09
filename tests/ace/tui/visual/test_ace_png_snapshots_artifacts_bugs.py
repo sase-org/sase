@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from sase.ace.testing import AcePage, make_changespec
+from sase.ace.testing import AcePage, make_patch
 from sase.ace.tui.artifacts_bugs import BugSnapshot
 from sase.ace.tui.widgets import ArtifactsBugsPane
 from sase.bead.model import BeadTier, Issue, IssueType
@@ -44,16 +44,16 @@ def _issue() -> IssueWire:
 
 
 def _snapshot(*, supported: bool = True, populated: bool = True) -> BugSnapshot:
-    linked_pr = make_changespec(name="fix_rotated_token")
+    linked_pr = make_patch(name="fix_rotated_token")
     linked_pr.bug = "42"
     epic = Issue(
         id="sase-69",
         title="Artifacts tab epic",
         issue_type=IssueType.PLAN,
         tier=BeadTier.EPIC,
-        changespec_name="fix_rotated_token",
-        changespec_bug_id="42",
     )
+    epic.patch_name = "fix_rotated_token"
+    epic.patch_bug_id = "42"
     issue = _issue()
     return BugSnapshot(
         project_key="alpha",

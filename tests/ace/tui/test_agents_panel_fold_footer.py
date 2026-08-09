@@ -90,7 +90,7 @@ def test_fold_footer_uses_configured_direct_subkeys_in_each_context() -> None:
     ]
 
     with patch.object(footer, "_update_display") as update:
-        footer.update_fold_bindings(current_tab="changespecs")
+        footer.update_fold_bindings(current_tab="patches")
     assert update.call_args.args[0][:3] == [
         ("1", "level 1"),
         ("w", "level 2"),

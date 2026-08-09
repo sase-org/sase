@@ -65,14 +65,14 @@ async def test_picker_digit_loads_query_and_preserves_history_semantics(
             lambda: pytest.fail("loading a chosen cached slot must not read disk"),
         )
         load_calls = 0
-        original_load = page.app._load_changespecs
+        original_load = page.app._load_patches
 
         def _tracked_load() -> None:
             nonlocal load_calls
             load_calls += 1
             original_load()
 
-        monkeypatch.setattr(page.app, "_load_changespecs", _tracked_load)
+        monkeypatch.setattr(page.app, "_load_patches", _tracked_load)
         page.app._query_history = QueryHistoryStacks(prev=[], next=[])
         active_query = page.app.canonical_query_string
         await _open_picker(

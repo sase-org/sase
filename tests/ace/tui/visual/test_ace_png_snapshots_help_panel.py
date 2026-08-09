@@ -11,7 +11,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     axe_collected_data,
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -38,16 +38,16 @@ async def test_help_panel_keymaps_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(120, 40),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
 
         page.app.push_screen(
             HelpModal(
-                current_tab="changespecs",
+                current_tab="patches",
                 active_query=page.app.canonical_query_string,
                 registry=page.app._keymap_registry,
             )
@@ -60,6 +60,7 @@ async def test_help_panel_keymaps_png_snapshot(
         assert_page_svg_contains(page, "Guide")
         ace_png_visual.assert_page_png(
             page,
+            # legacy compatibility retained PNG filename
             "help_keymaps_changespecs_120x40",
             title="ACE Help panel keymaps (PRs)",
         )
@@ -75,15 +76,15 @@ async def test_help_panel_filter_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(120, 40),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
 
         modal = HelpModal(
-            current_tab="changespecs",
+            current_tab="patches",
             active_query=page.app.canonical_query_string,
             registry=page.app._keymap_registry,
         )
@@ -115,7 +116,7 @@ async def test_help_guide_axe_png_snapshot(
     """The AXE guide is available inside the Help panel's Guide tab."""
     patch_startup_loaders(monkeypatch, axe_data=axe_collected_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -148,7 +149,7 @@ async def test_help_guide_agents_png_snapshot(
     """The Help panel reuses Agents onboarding content without internal footer."""
     patch_startup_loaders(monkeypatch, agents=[])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -176,23 +177,23 @@ async def test_help_guide_agents_png_snapshot(
         )
 
 
-async def test_help_guide_changespecs_png_snapshot(
+async def test_help_guide_patches_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The Artifacts guide remains available inside the Help panel's Guide tab."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
 
         await _open_help_guide(
             page,
             HelpModal(
-                current_tab="changespecs",
+                current_tab="patches",
                 active_query=page.app.canonical_query_string,
                 registry=page.app._keymap_registry,
             ),
@@ -202,6 +203,7 @@ async def test_help_guide_changespecs_png_snapshot(
         assert_page_svg_contains(page, "Know what each view shows")
         ace_png_visual.assert_page_png(
             page,
+            # legacy compatibility retained PNG filename
             "help_guide_changespecs_120x40",
             title="ACE Help panel guide (Artifacts)",
         )

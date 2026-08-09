@@ -152,5 +152,5 @@ class TestProjectDisplayNameRendering:
         keys = grouping_keys_for_agents([agent])
 
         assert keys[0].project == "widgets"
-        assert keys[0].changespec == ""
+        assert keys[0].patch == ""
         assert keys[0].name_root == ""

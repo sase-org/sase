@@ -86,7 +86,7 @@ def test_resolver_requires_agents_tab_and_live_focused_key() -> None:
     agents = [_agent("alpha", "alpha")]
     app = _SelectionApp(agents, focused_key="alpha", collapsed={"alpha"})
 
-    app.current_tab = "changespecs"
+    app.current_tab = "patches"
     assert app._resolve_focused_collapsed_panel() is None
     assert app._get_selected_agent() is agents[0]
 

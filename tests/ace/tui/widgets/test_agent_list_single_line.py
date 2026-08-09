@@ -65,12 +65,12 @@ async def test_agent_list_options_stay_single_line_when_narrow() -> None:
         widget.update_list(
             [
                 _agent(
-                    cl_name="very-long-change-spec-name-alpha",
+                    cl_name="very-long-patch-name-alpha",
                     raw_suffix="20260425140304",
                     agent_name="coder.codex.with.long.annotation",
                 ),
                 _agent(
-                    cl_name="very-long-change-spec-name-beta",
+                    cl_name="very-long-patch-name-beta",
                     raw_suffix="20260425140305",
                     agent_name="reviewer.claude.with.long.annotation",
                 ),

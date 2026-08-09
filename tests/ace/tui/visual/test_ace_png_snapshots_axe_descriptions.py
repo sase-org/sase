@@ -10,7 +10,7 @@ from tests.ace.tui.visual._ace_axe_png_snapshot_fixtures import (
     axe_lumberjack_tree_data,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -27,7 +27,7 @@ async def test_axe_lumberjack_description_png_snapshot(
     """A selected lumberjack keeps its description above scrolling output."""
     patch_startup_loaders(monkeypatch, axe_data=axe_lumberjack_tree_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
@@ -48,7 +48,7 @@ async def test_axe_chop_description_png_snapshot(
     """A selected chop keeps its description above scrolling run output."""
     patch_startup_loaders(monkeypatch, axe_data=axe_lumberjack_tree_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
@@ -70,7 +70,7 @@ async def test_axe_chop_description_collapsed_png_snapshot(
     """The session toggle collapses a chop body to its summary."""
     patch_startup_loaders(monkeypatch, axe_data=axe_lumberjack_tree_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
@@ -93,7 +93,7 @@ async def test_axe_description_overflow_png_snapshot(
     """A capped expanded panel states how many rendered rows were omitted."""
     patch_startup_loaders(monkeypatch, axe_data=axe_description_overflow_data())
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")

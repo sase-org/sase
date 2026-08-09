@@ -22,7 +22,7 @@ from sase.ace.tui.modals import StashedPromptsModal, UpdatePinnedStashModal
 from sase.ace.tui.widgets import StashedPromptsIndicator
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -132,11 +132,11 @@ async def test_stashed_prompts_indicator_badge_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
 
         # Drive the badge as if three prompts are stashed on disk so the
         # snowflake + count chrome renders in the top bar.
@@ -165,7 +165,7 @@ async def test_stashed_prompts_restore_modal_png_snapshot(
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(prompt_stash_row, "format_relative_time", _frozen_age)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -214,7 +214,7 @@ async def test_stashed_prompts_bundle_preview_png_snapshot(
         source="all",
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -254,9 +254,7 @@ async def test_stashed_prompts_narrow_modal_png_snapshot(
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(prompt_stash_row, "format_relative_time", _frozen_age)
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(100, 40)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(100, 40)) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -292,7 +290,7 @@ async def test_update_pinned_stash_preview_png_snapshot(
         for entry in _stash_entries()[:3]
     ]
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

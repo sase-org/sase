@@ -41,5 +41,5 @@ def test_kill_marked_edit_hidden_without_marks() -> None:
 
 
 def test_kill_marked_edit_absent_off_agents_tab() -> None:
-    bindings = _capture_leader(current_tab="changespecs", marked_agent_count=3)
+    bindings = _capture_leader(current_tab="patches", marked_agent_count=3)
     assert not any(label.startswith("kill marked & edit") for _, label in bindings)

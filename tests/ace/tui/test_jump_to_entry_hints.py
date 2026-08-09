@@ -12,7 +12,7 @@ from tests.ace.tui._jump_to_entry_hints_helpers import (
     _InlineJumpApp,
     _InlineJumpEventApp,
     _KeyEvent,
-    _make_changespec,
+    _make_patch,
 )
 
 
@@ -107,8 +107,8 @@ def test_normalize_jump_key_prefers_uppercase_hint_character() -> None:
 
 
 def test_inline_jump_to_entry_allocates_and_dispatches_uppercase_hint() -> None:
-    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(37)]
-    app = _InlineJumpApp(changespecs)
+    patches = [_make_patch(f"feature_{i:02d}") for i in range(37)]
+    app = _InlineJumpApp(patches)
 
     app.action_jump_to_entry()
 
@@ -123,7 +123,7 @@ def test_inline_jump_to_entry_allocates_and_dispatches_uppercase_hint() -> None:
 
 
 def test_inline_two_character_jump_waits_for_second_character() -> None:
-    app = _InlineJumpApp([_make_changespec(f"feature_{i:02d}") for i in range(63)])
+    app = _InlineJumpApp([_make_patch(f"feature_{i:02d}") for i in range(63)])
 
     app.action_jump_to_entry()
 
@@ -143,7 +143,7 @@ def test_inline_two_character_jump_waits_for_second_character() -> None:
 
 
 def test_inline_two_character_jump_escape_clears_partial_prefix() -> None:
-    app = _InlineJumpApp([_make_changespec(f"feature_{i:02d}") for i in range(63)])
+    app = _InlineJumpApp([_make_patch(f"feature_{i:02d}") for i in range(63)])
     app.action_jump_to_entry()
     assert app._handle_entry_jump_key("0") is True
 

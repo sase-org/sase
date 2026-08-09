@@ -22,7 +22,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -158,7 +158,7 @@ async def test_artifacts_files_populated_png_snapshot(
         lambda: datetime.fromisoformat("2026-07-24T20:00:00-04:00"),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("5", "(")
         await page.expect_state("artifacts_subtab", "files")

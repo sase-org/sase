@@ -86,7 +86,7 @@ class _EnterPassthroughApp(App[None]):
     """Minimal app to verify Enter reaches app-level bindings."""
 
     ENABLE_COMMAND_PALETTE = False
-    BINDINGS = [Binding("enter", "jump_to_agent_changespec", show=False)]
+    BINDINGS = [Binding("enter", "jump_to_agent_patch", show=False)]
 
     def __init__(self) -> None:
         super().__init__()
@@ -96,7 +96,7 @@ class _EnterPassthroughApp(App[None]):
     def compose(self) -> ComposeResult:
         yield AgentList(id="agent-list")
 
-    def action_jump_to_agent_changespec(self) -> None:
+    def action_jump_to_agent_patch(self) -> None:
         self.jump_count += 1
 
     def on_option_list_option_selected(self, _: OptionList.OptionSelected) -> None:

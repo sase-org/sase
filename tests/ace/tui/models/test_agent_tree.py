@@ -358,9 +358,9 @@ def test_project_clan_tree_retains_direct_tribe_fallback() -> None:
     assert container.clan_tribes == ("alpha", "beta")
 
 
-def test_clan_tree_does_not_invent_a_changespec_banner_from_one_member() -> None:
-    one = _agent("first-changespec", "one")
-    two = _agent("second-changespec", "two")
+def test_clan_tree_does_not_invent_a_patch_banner_from_one_member() -> None:
+    one = _agent("first-patch", "one")
+    two = _agent("second-patch", "two")
     projected = project_clan_tree([one, two])
 
     group_keys = [

@@ -9,7 +9,7 @@ import pytest
 from rich.style import Style as RichStyle
 from rich.text import Text
 
-from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
+from sase.ace.patch.models import DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.agent_associated_plan import (
     AssociatedPlanSummary,
     PhaseBeadSummary,

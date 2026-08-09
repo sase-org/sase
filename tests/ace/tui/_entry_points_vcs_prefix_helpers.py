@@ -51,7 +51,7 @@ class _App(EntryPointsMixin):
         self.editor_launches: list[dict[str, Any]] = []
         self.editor_prompts: list[str] = []
         self.finished_prompts: list[str] = []
-        self.changespecs: list[Any] = []
+        self.patches: list[Any] = []
         self.current_idx = 0
         self._last_custom_agent_selection = None
         self._prompt_context = None

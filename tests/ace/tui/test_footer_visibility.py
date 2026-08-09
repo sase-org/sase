@@ -11,7 +11,7 @@ from textual.widgets import Footer as TextualFooter
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import KeybindingFooter
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -36,7 +36,7 @@ async def test_custom_footer_status_visible_in_normal_one_line_state(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -58,13 +58,11 @@ async def test_leader_footer_final_grid_row_visible(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(80, 30)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(80, 30)) as page:
         await wait_for_startup(page)
 
         footer = page.app.query_one(KeybindingFooter)
-        footer.update_leader_bindings(current_tab="changespecs")
+        footer.update_leader_bindings(current_tab="patches")
         await wait_for_visual_idle(page)
 
         _assert_export_contains(

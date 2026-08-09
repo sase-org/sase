@@ -5,19 +5,19 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import patch
 
-from sase.ace.changespec import MentorEntry, MentorStatusLine
+from sase.ace.patch import MentorEntry, MentorStatusLine
 from sase.ace.tui.actions.agents._notification_handlers import (
     handle_jump_to_mentor_review,
 )
 from sase.notifications.models import Notification
-from test_utils import build_changespec
+from test_utils import build_patch
 
 
 class FakeApp:
     """Minimal AceApp stand-in for the JumpToMentorReview handler."""
 
-    def __init__(self, changespecs: list[Any] | None = None) -> None:
-        self.changespecs = changespecs or []
+    def __init__(self, patches: list[Any] | None = None) -> None:
+        self.patches = patches or []
         self.current_idx = 0
         self.opened_for_entry: tuple[Any, MentorEntry] | None = None
         self.notifications: list[tuple[str, str]] = []
@@ -33,7 +33,7 @@ class FakeApp:
 
 def _notification(
     *,
-    changespec_name: str = "cl-1",
+    patch_name: str = "cl-1",
     project_file: str = "/proj.sase",
     entry_id: str = "1",
 ) -> Notification:
@@ -45,7 +45,7 @@ def _notification(
         files=[project_file],
         action="JumpToMentorReview",
         action_data={
-            "changespec_name": changespec_name,
+            "patch_name": patch_name,
             "project_file": project_file,
             "entry_id": entry_id,
         },
@@ -89,12 +89,12 @@ def _no_status_entry(entry_id: str = "1") -> MentorEntry:
 
 
 def test_opens_mentor_review_when_comments_exist() -> None:
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase", name="cl-1", mentors=[_commented_entry("1")]
     )
-    app = FakeApp(changespecs=[cs])
+    app = FakeApp(patches=[cs])
     with patch(
-        "sase.ace.tui.actions.agents._notification_navigation.navigate_to_changespec_tab",
+        "sase.ace.tui.actions.agents._notification_navigation.navigate_to_patch_tab",
         return_value=True,
     ):
         ok = handle_jump_to_mentor_review(app, _notification())
@@ -106,12 +106,10 @@ def test_opens_mentor_review_when_comments_exist() -> None:
 
 
 def test_does_not_open_modal_when_passed_only() -> None:
-    cs = build_changespec(
-        file_path="/proj.sase", name="cl-1", mentors=[_passed_entry("1")]
-    )
-    app = FakeApp(changespecs=[cs])
+    cs = build_patch(file_path="/proj.sase", name="cl-1", mentors=[_passed_entry("1")])
+    app = FakeApp(patches=[cs])
     with patch(
-        "sase.ace.tui.actions.agents._notification_navigation.navigate_to_changespec_tab",
+        "sase.ace.tui.actions.agents._notification_navigation.navigate_to_patch_tab",
         return_value=True,
     ):
         ok = handle_jump_to_mentor_review(app, _notification())
@@ -123,12 +121,12 @@ def test_does_not_open_modal_when_passed_only() -> None:
 
 
 def test_does_not_open_modal_when_no_status_lines() -> None:
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase", name="cl-1", mentors=[_no_status_entry("1")]
     )
-    app = FakeApp(changespecs=[cs])
+    app = FakeApp(patches=[cs])
     with patch(
-        "sase.ace.tui.actions.agents._notification_navigation.navigate_to_changespec_tab",
+        "sase.ace.tui.actions.agents._notification_navigation.navigate_to_patch_tab",
         return_value=True,
     ):
         ok = handle_jump_to_mentor_review(app, _notification())
@@ -137,12 +135,12 @@ def test_does_not_open_modal_when_no_status_lines() -> None:
 
 
 def test_does_not_open_modal_when_navigation_fails() -> None:
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase", name="cl-1", mentors=[_commented_entry("1")]
     )
-    app = FakeApp(changespecs=[cs])
+    app = FakeApp(patches=[cs])
     with patch(
-        "sase.ace.tui.actions.agents._notification_navigation.navigate_to_changespec_tab",
+        "sase.ace.tui.actions.agents._notification_navigation.navigate_to_patch_tab",
         return_value=False,
     ):
         ok = handle_jump_to_mentor_review(app, _notification())
@@ -151,12 +149,12 @@ def test_does_not_open_modal_when_navigation_fails() -> None:
 
 
 def test_does_not_open_modal_when_entry_id_not_found() -> None:
-    cs = build_changespec(
+    cs = build_patch(
         file_path="/proj.sase", name="cl-1", mentors=[_commented_entry("2")]
     )
-    app = FakeApp(changespecs=[cs])
+    app = FakeApp(patches=[cs])
     with patch(
-        "sase.ace.tui.actions.agents._notification_navigation.navigate_to_changespec_tab",
+        "sase.ace.tui.actions.agents._notification_navigation.navigate_to_patch_tab",
         return_value=True,
     ):
         ok = handle_jump_to_mentor_review(app, _notification(entry_id="1"))
@@ -164,7 +162,7 @@ def test_does_not_open_modal_when_entry_id_not_found() -> None:
     assert app.opened_for_entry is None
 
 
-def test_returns_false_when_changespec_name_missing() -> None:
+def test_returns_false_when_patch_name_missing() -> None:
     app = FakeApp()
     notification = Notification(
         id="abc",

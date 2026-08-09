@@ -52,19 +52,19 @@ def test_artifacts_quickstart_advertises_every_subtab() -> None:
     registry = load_keymap_registry({})
 
     agents = TabQuickStart.render_content(registry, tab="agents")
-    changespecs = TabQuickStart.render_content(registry, tab="changespecs")
+    patches = TabQuickStart.render_content(registry, tab="patches")
     agents_card = _section_plain(agents, "#agent-quickstart-card")
-    artifacts_card = _section_plain(changespecs, "#changespec-quickstart-card")
+    artifacts_card = _section_plain(patches, "#patch-quickstart-card")
 
     assert "Jump: Commits · Beads · Bugs · PRs · Files" in artifacts_card
     assert "Cycle Artifacts: Commits · Beads · Bugs · PRs · Files" in artifacts_card
     assert "Inside Files: Plans · Chats · Other" in artifacts_card
     assert "Cycle Artifacts" not in agents_card
     assert _section_plain(agents, "#agent-quickstart-hero") != _section_plain(
-        changespecs, "#changespec-quickstart-hero"
+        patches, "#patch-quickstart-hero"
     )
     assert _section_plain(agents, "#agent-quickstart-footer") != _section_plain(
-        changespecs, "#changespec-quickstart-footer"
+        patches, "#patch-quickstart-footer"
     )
 
 
@@ -83,8 +83,8 @@ def test_artifacts_quickstart_uses_configured_subtab_keys() -> None:
         }
     )
 
-    sections = TabQuickStart.render_content(registry, tab="changespecs")
-    card = _section_plain(sections, "#changespec-quickstart-card")
+    sections = TabQuickStart.render_content(registry, tab="patches")
+    card = _section_plain(sections, "#patch-quickstart-card")
 
     assert "f8" in card
     assert "f9" in card
@@ -103,18 +103,18 @@ def test_tab_quickstart_no_match_callout_is_prs_only() -> None:
     )
     empty_prs = TabQuickStart.render_content(
         registry,
-        tab="changespecs",
+        tab="patches",
         no_match_total=0,
     )
     no_match_prs = TabQuickStart.render_content(
         registry,
-        tab="changespecs",
+        tab="patches",
         no_match_total=3,
     )
 
     assert _section_plain(agents, "#agent-quickstart-callout") == ""
-    assert _section_plain(empty_prs, "#changespec-quickstart-callout") == ""
-    callout = _section_plain(no_match_prs, "#changespec-quickstart-callout")
+    assert _section_plain(empty_prs, "#patch-quickstart-callout") == ""
+    callout = _section_plain(no_match_prs, "#patch-quickstart-callout")
     assert "No PRs match this query" in callout
     assert "3 exist" in callout
     assert "/ edits the query" in callout

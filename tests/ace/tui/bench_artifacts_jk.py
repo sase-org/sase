@@ -31,7 +31,7 @@ from tests.ace.tui.test_artifacts_list_navigation import (
 )
 from tests.ace.tui._commits_pane_helpers import _DIFF
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
 )
@@ -101,8 +101,8 @@ async def test_artifacts_subtabs_jk_p95(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
-        initial_tab="changespecs",
+        patches=patches(),
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await page.press("4")

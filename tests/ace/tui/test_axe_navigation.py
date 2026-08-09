@@ -218,7 +218,7 @@ def test_d_resolves_to_description_on_axe_and_diff_on_prs() -> None:
     axe_app = AceApp(auto_start_axe=False, initial_tab="axe")
     assert resolved(axe_app) == "toggle_axe_description"
 
-    prs_app = AceApp(auto_start_axe=False, initial_tab="changespecs")
+    prs_app = AceApp(auto_start_axe=False, initial_tab="patches")
     prs_app._reactive_current_artifacts_subtab = "prs"
     assert resolved(prs_app) == "show_diff"
 

@@ -7,7 +7,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.xprompt import jinja_inspect
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -31,11 +31,11 @@ async def test_prompt_vim_cursor_insert_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
         text_area = bar.active_text_area()
         text_area.cursor_location = (0, 9)
@@ -63,11 +63,11 @@ async def test_prompt_vim_cursor_normal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
         text_area = bar.active_text_area()
         text_area.cursor_location = (0, 9)
@@ -96,11 +96,11 @@ async def test_prompt_vim_cursor_visual_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
         text_area = bar.active_text_area()
         text_area.cursor_location = (0, 9)
@@ -130,11 +130,11 @@ async def test_prompt_jinja_valid_png_snapshot(
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, JINJA_VALID_PROMPT)
         compute_jinja_now(bar.active_text_area())
         await wait_for_visual_idle(page)
@@ -153,11 +153,11 @@ async def test_prompt_jinja_invalid_png_snapshot(
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, JINJA_INVALID_PROMPT)
         compute_jinja_now(bar.active_text_area())
         await wait_for_visual_idle(page)

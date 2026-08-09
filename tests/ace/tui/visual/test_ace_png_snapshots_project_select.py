@@ -2,7 +2,7 @@
 
 Locks in the compact, centered pop-up layout introduced for the custom-agent
 picker: icon'd title with a live match count, prominent filter bar, hint line,
-color-coded option list, and footer. Projects and ChangeSpecs are injected as
+color-coded option list, and footer. Projects and Patches are injected as
 one preloaded snapshot, so no real project state is read by the modal.
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.project_select_modal import (
     _ProjectSelectData,
@@ -18,7 +18,7 @@ from sase.ace.tui.modals.project_select_modal import (
 )
 from sase.project_display_names import ProjectDisplayProjection, ProjectDisplaySnapshot
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -35,9 +35,9 @@ def _select_projects() -> tuple[ProjectDisplayProjection, ...]:
     )
 
 
-def _select_changespecs() -> list[ChangeSpec]:
+def _select_patches() -> list[Patch]:
     return [
-        ChangeSpec(
+        Patch(
             name="filter_popup",
             description="Beautiful filterable pop-up for the @ picker.",
             parent=None,
@@ -46,7 +46,7 @@ def _select_changespecs() -> list[ChangeSpec]:
             file_path="/tmp/.sase/projects/ace-tui/ace-tui.sase",
             line_number=1,
         ),
-        ChangeSpec(
+        Patch(
             name="status_badges",
             description="Sibling project status badges.",
             parent=None,
@@ -55,7 +55,7 @@ def _select_changespecs() -> list[ChangeSpec]:
             file_path="/tmp/.sase/projects/ace-tui/ace-tui.sase",
             line_number=2,
         ),
-        ChangeSpec(
+        Patch(
             name="core_wire",
             description="Rust core wire update.",
             parent=None,
@@ -71,7 +71,7 @@ def _select_data() -> _ProjectSelectData:
     projects = _select_projects()
     return _ProjectSelectData(
         projects=projects,
-        changespecs=tuple(_select_changespecs()),
+        patches=tuple(_select_patches()),
         project_display_snapshot=ProjectDisplaySnapshot(
             {item.project_key: item.project_label for item in projects}
         ),
@@ -91,7 +91,7 @@ async def test_project_select_modal_default_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -109,7 +109,7 @@ async def test_project_select_modal_filtered_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

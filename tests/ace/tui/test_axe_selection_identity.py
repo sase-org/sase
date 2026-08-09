@@ -113,7 +113,7 @@ def test_off_tab_rebuild_does_not_mutate_current_idx() -> None:
     """Plan §4.4: an off-tab AXE rebuild leaves ``current_idx`` alone.
 
     ``current_idx`` belongs to the active tab. When the axe daemon
-    pushes a status update while the user is on Agents/ChangeSpecs,
+    pushes a status update while the user is on Agents/Patches,
     ``_build_axe_items`` must update only the AXE-tab saved fields
     (``_axe_last_idx`` / ``_axe_last_item_key``) and leave the
     cross-tab ``current_idx`` untouched.

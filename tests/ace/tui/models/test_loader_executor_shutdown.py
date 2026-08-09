@@ -171,7 +171,7 @@ def test_loader_consumers_return_empty_during_executor_shutdown(
 
 def _lifecycle_app(calls: list[str]) -> LifecycleMixin:
     app = LifecycleMixin.__new__(LifecycleMixin)
-    app.changespecs = []
+    app.patches = []
     app._stop_artifact_watcher = lambda: calls.append("watcher")
     app._cancel_pending_artifact_file_discovery = lambda: calls.append("discovery")
     app._cancel_pending_content_search_refresh = lambda: calls.append("content-search")

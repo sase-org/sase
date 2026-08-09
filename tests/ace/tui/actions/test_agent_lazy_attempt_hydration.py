@@ -67,7 +67,7 @@ def test_normal_disk_load_does_not_hydrate_attempt_history(tmp_path: Path) -> No
             ".attempt_history_for"
         ) as attempt_history_for,
     ):
-        result = load_agents_from_disk_with_state(set(), changespec_snapshot=[])
+        result = load_agents_from_disk_with_state(set(), patch_snapshot=[])
 
     attempt_history_for.assert_not_called()
     assert result.all_agents == [agent]

@@ -17,7 +17,7 @@ from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal
 from sase.notification_gates.model_operations import GateOperation
 from sase.notification_gates.models import GateGroup, GateOption
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -185,7 +185,7 @@ async def _snapshot_modal(
     async with AcePage(
         query='"visual"',
         size=size,
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         await page.press("4")
@@ -312,7 +312,7 @@ async def test_tale_plan_gate_five_controls_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(120, 40),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         await page.press("4")
@@ -348,7 +348,7 @@ async def test_tale_plan_gate_frontmatter_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(120, 40),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         await page.press("4")
@@ -374,7 +374,7 @@ async def test_epic_plan_gate_action_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(120, 40),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         await page.press("4")
@@ -403,7 +403,7 @@ async def test_narrow_plan_gate_stacked_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(90, 40),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         await page.press("4")

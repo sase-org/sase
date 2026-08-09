@@ -7,7 +7,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.jump_action_modal import JumpActionModal
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -23,11 +23,11 @@ async def test_jump_action_modal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
 
         page.app.push_screen(
             JumpActionModal(

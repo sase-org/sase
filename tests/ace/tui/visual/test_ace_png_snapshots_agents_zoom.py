@@ -22,7 +22,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_styled_text_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -257,7 +257,7 @@ async def test_agents_waiting_missing_target_row_png_snapshot(
         agents=_waiting_unknown_agents(),
     )
 
-    async with AcePage(query='"wait-unknown"', changespecs=changespecs()) as page:
+    async with AcePage(query='"wait-unknown"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -292,7 +292,7 @@ async def test_agents_waiting_tribe_target_png_snapshot(
         agents=_waiting_tribe_agents(),
     )
 
-    async with AcePage(query='"wait-tribe"', changespecs=changespecs()) as page:
+    async with AcePage(query='"wait-tribe"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -390,7 +390,7 @@ async def test_agents_file_zoom_modal_png_snapshot(
     _pin_zoom_file_header(monkeypatch)
     patch_startup_loaders(monkeypatch, agents=[_zoom_agent(tmp_path)])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -419,7 +419,7 @@ async def test_agents_multi_file_zoom_modal_png_snapshot(
     _pin_zoom_file_header(monkeypatch)
     patch_startup_loaders(monkeypatch, agents=[_zoom_multi_file_agent(tmp_path)])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -451,7 +451,7 @@ async def test_agents_file_zoom_search_png_snapshot(
     _pin_zoom_file_header(monkeypatch)
     patch_startup_loaders(monkeypatch, agents=[_zoom_agent(tmp_path)])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -494,7 +494,7 @@ async def test_agents_context_zoom_modal_png_snapshot(
         opened_workspaces=_context_opened_workspaces(),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -556,7 +556,7 @@ async def test_agents_metadata_zoom_modal_png_snapshot(
         agents=[_zoom_agent(tmp_path, include_xprompts=True)],
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -587,7 +587,7 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
         agents=_waiting_unknown_agents(),
     )
 
-    async with AcePage(query='"wait-unknown"', changespecs=changespecs()) as page:
+    async with AcePage(query='"wait-unknown"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

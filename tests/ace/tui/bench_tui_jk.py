@@ -7,7 +7,7 @@ default ``just test`` suite -- run explicitly with::
 
     pytest -s -m slow tests/ace/tui/bench_tui_jk.py
 
-Each test populates the relevant in-memory model (ChangeSpecs, Agents)
+Each test populates the relevant in-memory model (Patches, Agents)
 directly so the bench measures *navigation* latency, not disk I/O during
 startup. A short unmeasured warmup after fixture/fold changes keeps lazy
 Textual layout and renderer initialization out of the steady-state p95.
@@ -27,7 +27,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.tui.actions.axe_display._data import (
     AxeCollectedData,
     ChopSnapshot,
@@ -65,8 +65,8 @@ async def _wait_for_startup(app: AceApp, pilot: object) -> None:
         await pilot.pause()  # type: ignore[attr-defined]
 
 
-def _make_changespec(name: str, file_path: Path) -> ChangeSpec:
-    return ChangeSpec(
+def _make_patch(name: str, file_path: Path) -> Patch:
+    return Patch(
         name=name,
         description=f"synthetic {name}",
         parent=None,
@@ -272,21 +272,21 @@ async def _warm_axe_navigation(pilot: object) -> None:
         await pilot.pause(0.01)  # type: ignore[attr-defined]
 
 
-async def test_bench_changespecs_jk(_perf_jsonl: Path, tmp_path: Path) -> None:
-    """Measure j/k latency on the ChangeSpecs tab with 50 synthetic ChangeSpecs."""
+async def test_bench_patches_jk(_perf_jsonl: Path, tmp_path: Path) -> None:
+    """Measure j/k latency on the Patches tab with 50 synthetic Patches."""
     gp_file = tmp_path / "bench" / "bench.sase"
     gp_file.parent.mkdir(parents=True)
     gp_file.write_text("")
-    cs_list = [_make_changespec(f"cs_{i:03d}", gp_file) for i in range(50)]
+    cs_list = [_make_patch(f"cs_{i:03d}", gp_file) for i in range(50)]
 
     with patch(
-        "sase.ace.changespec.find_all_changespecs_cached",
+        "sase.ace.patch.find_all_patches_cached",
         return_value=cs_list,
     ):
         app = AceApp(
             query='"cs_"',
             auto_start_axe=False,
-            initial_tab="changespecs",
+            initial_tab="patches",
         )
         async with app.run_test() as pilot:
             await _wait_for_startup(app, pilot)
@@ -299,7 +299,7 @@ async def test_bench_changespecs_jk(_perf_jsonl: Path, tmp_path: Path) -> None:
 
     samples = _read_samples(_perf_jsonl)
     summary = _summarize(samples)
-    _print_table("ChangeSpecs tab j/k baseline:", summary)
+    _print_table("Patches tab j/k baseline:", summary)
     assert samples, "perf JSONL captured no samples; instrumentation may be broken"
 
 
@@ -308,9 +308,9 @@ async def test_bench_axe_jk(_perf_jsonl: Path) -> None:
     app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
     async with app.run_test() as pilot:
         await _wait_for_startup(app, pilot)
-        await pilot.press("tab")  # next_tab: agents -> changespecs
+        await pilot.press("tab")  # next_tab: agents -> patches
         await pilot.pause()
-        await pilot.press("tab")  # next_tab: changespecs -> axe
+        await pilot.press("tab")  # next_tab: patches -> axe
         await pilot.pause()
         _install_axe_fixture(app)
         await pilot.pause(0.2)

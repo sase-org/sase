@@ -13,7 +13,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _seed_logs_tab_files,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -33,7 +33,7 @@ async def test_config_center_logs_tab_png_snapshot(
     _patch_config_view(monkeypatch, None)
     _seed_logs_tab_files()
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -59,7 +59,7 @@ async def test_config_center_logs_tab_toasts_png_snapshot(
     _patch_config_view(monkeypatch, None)
     _seed_logs_tab_files()
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

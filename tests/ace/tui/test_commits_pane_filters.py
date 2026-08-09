@@ -49,7 +49,7 @@ async def test_custom_default_query_controls_first_collection(
     )
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
@@ -91,7 +91,7 @@ async def test_ace_query_project_overrides_config_and_cwd_before_first_collectio
 
     async with AcePage(
         query="project:ace-query",
-        initial_tab="changespecs",
+        initial_tab="patches",
     ) as page:
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         editor = pane.query_one(
@@ -128,7 +128,7 @@ async def test_inferred_project_is_visible_before_first_collection(
     )
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         editor = pane.query_one(
             "#commit-filter-input",
@@ -171,7 +171,7 @@ async def test_absent_project_token_collects_all_projects(
     )
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         assert pane.filters.project is None
         await page.wait_for(lambda _state: bool(calls))
@@ -188,7 +188,7 @@ async def test_commits_filter_bar_rejects_invalid_submit(
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs", notifications=True) as page:
+    async with AcePage(initial_tab="patches", notifications=True) as page:
         await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
@@ -240,7 +240,7 @@ async def test_committed_project_key_alias_and_unknown_ref_canonicalization(
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
@@ -288,7 +288,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
     )
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)

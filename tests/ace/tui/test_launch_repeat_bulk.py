@@ -103,8 +103,8 @@ def test_repeat_launch_failure_records_failed_history() -> None:
     assert outcome.severity == "error"
 
 
-def test_bulk_launch_takes_changespec_snapshot() -> None:
-    """Mutating ``_bulk_changespecs`` after dispatch must not affect the worker."""
+def test_bulk_launch_takes_patch_snapshot() -> None:
+    """Mutating ``_bulk_patches`` after dispatch must not affect the worker."""
 
     class _CS:
         def __init__(self, name: str) -> None:
@@ -112,7 +112,7 @@ def test_bulk_launch_takes_changespec_snapshot() -> None:
             self.project_basename = "proj"
 
     app = _BulkApp()
-    app._bulk_changespecs = [_CS("a"), _CS("b")]  # type: ignore[list-item]
+    app._bulk_patches = [_CS("a"), _CS("b")]  # type: ignore[list-item]
     app._prompt_context = _ctx()
 
     with patch("os.path.isfile", return_value=False):
@@ -120,7 +120,7 @@ def test_bulk_launch_takes_changespec_snapshot() -> None:
 
     # The bulk-launch entry zeros out the live ref before dispatch so a
     # subsequent mutation is impossible. The worker received its own local copy.
-    assert app._bulk_changespecs is None
+    assert app._bulk_patches is None
     # A tracked launch task was submitted to drive the worker.
     assert len(app.launch_tasks) == 1
     assert app.launch_tasks[0]["display_name"] == "launch bulk 2 Patches"
@@ -144,7 +144,7 @@ def test_bulk_partial_failure_leaves_stash_row(
             self.project_basename = "proj"
 
     app = _BulkApp()
-    # A single changespec whose project file is missing fails the whole launch.
+    # A single patch whose project file is missing fails the whole launch.
     with patch("os.path.isfile", return_value=False):
         outcome = app._run_bulk_launch("the bulk prompt", [_CS("a")])  # type: ignore[list-item]
 

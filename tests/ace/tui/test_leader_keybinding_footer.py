@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sase.ace.testing import make_changespec
+from sase.ace.testing import make_patch
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets import KeybindingFooter
 
@@ -17,7 +17,7 @@ def test_footer_surfaces_agent_run_log_only_on_cls_tab() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    footer.update_leader_bindings(current_tab="changespecs")
+    footer.update_leader_bindings(current_tab="patches")
     assert "A" in _last_keys(captured)
     assert "agent run log" in _last_labels(captured)
 
@@ -34,7 +34,7 @@ def test_footer_surfaces_panel_grouping_only_on_agents_tab() -> None:
     assert "g" in _last_keys(captured)
     assert "group panels" in _last_labels(captured)
 
-    footer.update_leader_bindings(current_tab="changespecs")
+    footer.update_leader_bindings(current_tab="patches")
     assert "group panels" not in _last_labels(captured)
 
 
@@ -45,7 +45,7 @@ def test_footer_does_not_surface_retired_fold_hint_toggle() -> None:
     footer.update_leader_bindings(current_tab="agents")
     assert "toggle folds" not in _last_labels(captured)
 
-    footer.update_leader_bindings(current_tab="changespecs")
+    footer.update_leader_bindings(current_tab="patches")
     assert "toggle folds" not in _last_labels(captured)
 
 
@@ -53,7 +53,7 @@ def test_footer_surfaces_repeat_last_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "," in _last_keys(captured)
         assert "repeat" in _last_labels(captured)
@@ -72,7 +72,7 @@ def test_footer_surfaces_configured_prompt_stash_key_on_all_tabs() -> None:
     )
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert ("P", "prompt stash") in captured[-1][0]
 
@@ -83,7 +83,7 @@ def test_footer_surfaces_leader_query_only_on_agents_and_retired_help_on_no_tabs
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         if tab == "agents":
             assert ("/", "edit query") in captured[-1][0]
@@ -102,7 +102,7 @@ def test_pr_footer_surfaces_configured_app_query_key() -> None:
     footer.show_empty()
     assert ("<f12>", "edit query") in captured[-1][0]
 
-    footer.update_bindings(make_changespec())
+    footer.update_bindings(make_patch())
     assert ("<f12>", "edit query") in captured[-1][0]
 
 
@@ -110,7 +110,7 @@ def test_footer_surfaces_update_sase_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "U" in _last_keys(captured)
         assert "update SASE + CLIs + hood cache" in _last_labels(captured)
@@ -120,7 +120,7 @@ def test_footer_surfaces_agent_home_as_h_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert ("h", "agent (home)") in captured[-1][0]
         assert ("<space>", "agent (home)") not in captured[-1][0]
@@ -132,7 +132,7 @@ def test_footer_omits_project_management_after_cutover() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "projects" not in _last_labels(captured)
 
@@ -143,7 +143,7 @@ def test_footer_omits_log_panel_after_cutover() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "log panel" not in _last_labels(captured)
 
@@ -154,7 +154,7 @@ def test_footer_omits_task_queue_after_cutover() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "task queue" not in _last_labels(captured)
 
@@ -163,7 +163,7 @@ def test_footer_surfaces_space_run_agent_on_cl_and_agents_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents"):
+    for tab in ("patches", "agents"):
         footer.update_leader_bindings(current_tab=tab)
         assert "<space>" in _last_keys(captured)
         assert "run agent (PR)" in _last_labels(captured)
@@ -251,7 +251,7 @@ def test_footer_omits_revert_on_non_agents_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "axe"):
+    for tab in ("patches", "axe"):
         footer.update_leader_bindings(current_tab=tab, has_revertable_agent=True)
         assert "revert agent" not in _last_labels(captured)
 

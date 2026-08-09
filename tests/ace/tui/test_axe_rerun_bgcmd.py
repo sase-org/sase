@@ -40,7 +40,7 @@ class _FakeRerunApp(AxeBgCmdMixin, BaseActionsMixin):
         self.current_tab: Any = "axe"
         self.current_idx = 0
         self.axe_running = False
-        self.changespecs = []  # type: ignore[assignment]
+        self.patches = []  # type: ignore[assignment]
         self._bgcmd_slots = []
         self._axe_items = []
         self.notifications: list[tuple[str, str]] = []

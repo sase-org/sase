@@ -347,7 +347,7 @@ def test_clan_build_header_path_is_aggregate_only() -> None:
     assert traceback is None
     assert header.plain.startswith("CLAN\nName: research\n")
     assert "AGENT PROMPT" not in header.plain
-    assert "ChangeSpec:" not in header.plain
+    assert "Patch:" not in header.plain
     assert "No prompt file found" not in header.plain
 
 

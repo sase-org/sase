@@ -241,7 +241,7 @@ async def test_inline_metadata_search_exits_when_identity_changes(
 
 def test_metadata_search_actions_are_agents_only() -> None:
     agents = AceApp(auto_start_axe=False, initial_tab="agents")
-    changespecs = AceApp(auto_start_axe=False, initial_tab="changespecs")
+    patches = AceApp(auto_start_axe=False, initial_tab="patches")
     axe = AceApp(auto_start_axe=False, initial_tab="axe")
 
     assert agents.check_action("search_forward", ()) is not False
@@ -251,7 +251,7 @@ def test_metadata_search_actions_are_agents_only() -> None:
     agents._agent_metadata_search.mode = "off"
 
     for action in ("search_forward", "search_reverse"):
-        assert changespecs.check_action(action, ()) is False
+        assert patches.check_action(action, ()) is False
         assert axe.check_action(action, ()) is False
 
 

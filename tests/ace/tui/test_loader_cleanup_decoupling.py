@@ -47,7 +47,7 @@ class _CleanupApp(AgentLoadingMixin):
 class _LoaderApplyApp(_CleanupApp):
     def __init__(self, dismissed_agent: Agent) -> None:
         super().__init__()
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.current_idx = 0
         self.hide_non_run_agents = False
         self._agents: list[Agent] = []
@@ -124,7 +124,7 @@ async def test_rows_apply_and_loading_clears_while_cleanup_is_blocked() -> None:
             "_compute_external_dismissal_merge",
             return_value=None,
         ),
-        patch("sase.ace.changespec.find_all_changespecs_cached", return_value=[]),
+        patch("sase.ace.patch.find_all_patches_cached", return_value=[]),
         patch(
             "sase.ace.tui.actions.agents._loading.load_agents_from_disk_with_state",
             return_value=_AgentDiskLoadResult(

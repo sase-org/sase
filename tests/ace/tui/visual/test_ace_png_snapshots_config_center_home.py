@@ -7,7 +7,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import CenterTab, ConfigCenterModal
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -37,7 +37,7 @@ async def test_config_center_home_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        changespecs=changespecs(),
+        patches=patches(),
         size=size,
     ) as page:
         await wait_for_startup(page)

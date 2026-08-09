@@ -1,6 +1,6 @@
-"""Regression: jump-all modal ChangeSpec jumps land on the Artifacts PRs sub-tab.
+"""Regression: jump-all modal Patch jumps land on the Artifacts PRs sub-tab.
 
-``action_jump_to_all_entries`` only lists ChangeSpec entries under the
+``action_jump_to_all_entries`` only lists Patch entries under the
 Artifacts tab, so PRs is unconditionally the right pane to land on there.
 """
 
@@ -19,7 +19,7 @@ class _FakeApp(NavigationModalMixin):
         self.current_tab = "agents"
         self.current_artifacts_subtab = "commits"
         self.current_idx = 0
-        self.changespecs: list[Any] = []
+        self.patches: list[Any] = []
         self._agents: list[Any] = []
         self._axe_items: list[Any] = []
         self._jump_all_last_position: JumpAllResult | None = None
@@ -33,14 +33,14 @@ class _FakeApp(NavigationModalMixin):
         self._save_current_tab_position_calls += 1
 
 
-def test_jump_to_changespec_entry_selects_prs_subtab() -> None:
+def test_jump_to_patch_entry_selects_prs_subtab() -> None:
     app = _FakeApp()
     app.action_jump_to_all_entries()
     assert app._on_dismiss is not None
 
-    app._on_dismiss(JumpAllResult(tab="changespecs", index=2))
+    app._on_dismiss(JumpAllResult(tab="patches", index=2))
 
-    assert app.current_tab == "changespecs"
+    assert app.current_tab == "patches"
     assert app.current_artifacts_subtab == "prs"
     assert app.current_idx == 2
 

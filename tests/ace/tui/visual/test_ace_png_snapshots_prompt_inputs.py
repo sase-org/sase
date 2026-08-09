@@ -8,7 +8,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals.input_collection_modal import InputCollectionModal
 from sase.agent.prompt_placeholder_inputs import build_prompt_input_plan
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -61,11 +61,11 @@ async def test_prompt_inputs_placeholders_only_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await _open_modal(page, _PLACEHOLDERS_ONLY)
         await wait_for_svg_contains(page, "Implement")
         await wait_for_visual_idle(page)
@@ -83,11 +83,11 @@ async def test_prompt_inputs_mixed_literal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         modal = await _open_modal(page, _MIXED)
         modal.action_toggle_literal()
         await wait_for_state(
@@ -111,11 +111,11 @@ async def test_prompt_inputs_long_value_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         modal = await _open_modal(page, "Implement <the plan> and report back.")
         editor = modal.query_one("#field-input-0")
         editor.text = _LONG_VALUE

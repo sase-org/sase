@@ -10,7 +10,7 @@ import pytest
 from sase.ace.tui.actions._event_refresh import (
     AGENT_ARTIFACT_DELTA_QUEUE_LIMIT,
 )
-from sase.ace.tui.widgets.changespec_list import ChangeSpecList
+from sase.ace.tui.widgets.patch_list import PatchList
 
 from ._event_handlers_dirty_flags_helpers import _FakeApp
 
@@ -19,10 +19,10 @@ def test_artifact_change_marks_all_surfaces_dirty() -> None:
     """A coalesced inotify burst flips every dirty flag."""
     app = _FakeApp(watcher_active=True)
     app._on_artifact_change()
-    assert app._dirty_changespecs is True
+    assert app._dirty_patches is True
     assert app._dirty_agents is True
     assert app._dirty_axe is True
-    assert app.refresh_calls == ["schedule_changespecs"]
+    assert app.refresh_calls == ["schedule_patches"]
 
 
 def test_artifact_change_marks_only_agents_dirty_for_done_marker() -> None:
@@ -34,7 +34,7 @@ def test_artifact_change_marks_only_agents_dirty_for_done_marker() -> None:
     assert app._dirty_agents is True
     assert app._dirty_agent_artifact_dirs == (path.parent,)
     assert app._dirty_agent_artifact_fallback_reason is None
-    assert app._dirty_changespecs is False
+    assert app._dirty_patches is False
     assert app.refresh_calls == []
 
 
@@ -61,7 +61,7 @@ def test_artifact_change_marks_agents_dirty_for_loader_visible_markers(
 
     assert app._dirty_agents is True
     assert app._dirty_agent_artifact_dirs == (path.parent,)
-    assert app._dirty_changespecs is False
+    assert app._dirty_patches is False
     assert app.refresh_calls == []
 
 
@@ -308,7 +308,7 @@ def test_artifact_change_ignores_non_loader_artifact_content(path: Path) -> None
     app._on_artifact_change((path,))
 
     assert app._dirty_agents is False
-    assert app._dirty_changespecs is False
+    assert app._dirty_patches is False
     assert app._dirty_axe is False
     assert app.refresh_calls == []
 
@@ -338,28 +338,28 @@ def test_artifact_change_mixed_marker_and_content_marks_agents_dirty() -> None:
     assert app.refresh_calls == []
 
 
-def test_artifact_change_schedules_only_changespecs_for_project_file() -> None:
+def test_artifact_change_schedules_only_patches_for_project_file() -> None:
     app = _FakeApp(watcher_active=True)
     path = Path.home() / ".sase" / "projects" / "sase" / "sase.gp"
 
     app._on_artifact_change((path,))
 
-    assert app._dirty_changespecs is True
+    assert app._dirty_patches is True
     assert app._dirty_axe is True
     assert app._dirty_agents is False
-    assert app.refresh_calls == ["schedule_changespecs"]
+    assert app.refresh_calls == ["schedule_patches"]
 
 
-def test_artifact_change_schedules_only_changespecs_for_bead_file() -> None:
+def test_artifact_change_schedules_only_patches_for_bead_file() -> None:
     app = _FakeApp(watcher_active=True)
     path = Path.cwd() / "sdd" / "beads" / "sase-u.1.md"
 
     app._on_artifact_change((path,))
 
-    assert app._dirty_changespecs is True
+    assert app._dirty_patches is True
     assert app._dirty_agents is False
     assert app._dirty_axe is False
-    assert app.refresh_calls == ["schedule_changespecs"]
+    assert app.refresh_calls == ["schedule_patches"]
 
 
 def test_artifact_change_uses_cached_sdd_beads_dir_for_local_store(
@@ -370,11 +370,11 @@ def test_artifact_change_uses_cached_sdd_beads_dir_for_local_store(
 
     app._on_artifact_change((beads_dir / "issues.jsonl",))
 
-    assert app._dirty_changespecs is True
+    assert app._dirty_patches is True
     assert app._dirty_agents is False
     assert app._dirty_agent_artifact_dirs == ()
     assert app._dirty_axe is False
-    assert app.refresh_calls == ["schedule_changespecs"]
+    assert app.refresh_calls == ["schedule_patches"]
 
 
 def test_artifact_change_does_not_schedule_agent_load_for_notifications() -> None:
@@ -395,11 +395,11 @@ def test_artifact_change_does_not_schedule_agent_load_for_notifications() -> Non
 
 def test_selection_navigation_does_not_trigger_refresh_work() -> None:
     app = _FakeApp(watcher_active=True)
-    app.current_tab = "changespecs"
-    app.changespecs = [object()]
+    app.current_tab = "artifacts"
+    app.patches = [object()]
     app.current_idx = 0
-    event = ChangeSpecList.SelectionChanged(0)
+    event = PatchList.SelectionChanged(0)
 
-    app.on_change_spec_list_selection_changed(event)
+    app.on_patch_list_selection_changed(event)
 
     assert app.refresh_calls == []

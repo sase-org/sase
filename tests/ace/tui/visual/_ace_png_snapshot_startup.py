@@ -37,7 +37,7 @@ def patch_startup_loaders(
     from sase.ace.tui.actions import update_toast
     from sase.ace.tui.actions.agents import _loading
     from sase.ace.tui.models.agent_groups import GroupingMode
-    from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
+    from sase.ace.tui.models.patch_groups import PatchGroupingMode
     from sase.ace.tui.widgets import llm_override_indicator
     from sase.llm_provider import temporary_override
     from sase.updates import IncomingCommits
@@ -118,10 +118,10 @@ def patch_startup_loaders(
     def _fake_load_agent_grouping_mode(*_args: Any, **_kwargs: Any) -> GroupingMode:
         return GroupingMode.STANDARD
 
-    def _fake_load_changespec_grouping_mode(
+    def _fake_load_patch_grouping_mode(
         *_args: Any, **_kwargs: Any
-    ) -> ChangeSpecGroupingMode:
-        return ChangeSpecGroupingMode.BY_PROJECT
+    ) -> PatchGroupingMode:
+        return PatchGroupingMode.BY_PROJECT
 
     def _fake_resolve_effective_default_provider_model(
         *_args: Any, **_kwargs: Any
@@ -164,8 +164,8 @@ def patch_startup_loaders(
     )
     monkeypatch.setattr(
         grouping_strategy,
-        "load_changespec_grouping_mode",
-        _fake_load_changespec_grouping_mode,
+        "load_patch_grouping_mode",
+        _fake_load_patch_grouping_mode,
     )
     monkeypatch.setattr(
         temporary_override,
@@ -212,7 +212,7 @@ def patch_startup_loaders(
 async def wait_for_startup(page: AcePage) -> None:
     await page.wait_for(
         lambda _state: (
-            page.app._changespecs_first_load_done
+            page.app._patches_first_load_done
             and page.app._agents_first_load_done
             and page.app._axe_first_load_done
             and not page.app._agent_detail_debouncer.is_pending

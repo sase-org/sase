@@ -12,9 +12,9 @@ class CopyHarness(ClipboardMixin):
     """Small synchronous harness around the copy dispatch mixins."""
 
     def __init__(self) -> None:
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.current_artifacts_subtab = "commits"
-        self.changespecs: list[Any] = []
+        self.patches: list[Any] = []
         self._keymap_registry = load_keymap_registry({})
         self._copy_mode_active = False
         self.copies: list[tuple[str, str]] = []

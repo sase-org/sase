@@ -10,7 +10,7 @@ from sase.ace.tui.widgets.artifacts.chats_pane import ArtifactsChatsPane
 from tests.ace.tui._artifacts_chats_helpers import catalog
 from tests.ace.tui._artifacts_plans_helpers import _choices
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -37,7 +37,7 @@ async def test_artifacts_chats_empty_png_snapshot(
         lambda **_kwargs: snapshot,
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("5", ")")
         await page.expect_state("files_subtab", "chats")

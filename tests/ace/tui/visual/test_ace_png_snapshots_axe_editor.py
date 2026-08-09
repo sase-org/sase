@@ -31,7 +31,7 @@ from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.axe.chop_inventory import ChopInventory
 from sase.vcs_log.models import LogRepo, RepoRemoteState, VcsLogResult
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -317,7 +317,7 @@ async def test_axe_add_chooser_png_snapshot(
 ) -> None:
     """The AXE add chooser prioritizes a contextual chop under the parent."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         page.app.push_screen(AxeAddChooserModal("hooks.main"))
         await page.expect_modal("AxeAddChooserModal")
@@ -336,7 +336,7 @@ async def test_axe_script_picker_png_snapshot(
 ) -> None:
     """Discovered installed chop scripts show source and configured metadata."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         page.app.push_screen(AxeScriptPickerModal(_visual_chop_inventory()))
         await page.expect_modal("AxeScriptPickerModal")
@@ -355,7 +355,7 @@ async def test_axe_new_lumberjack_identity_png_snapshot(
 ) -> None:
     """The new-lumberjack identity form validates exact mapping keys."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         page.app.push_screen(
             AxeNewEntryIdentityModal(
@@ -380,7 +380,7 @@ async def test_axe_chop_editor_basics_png_snapshot(
 ) -> None:
     """Chop Basics state: scopes, provenance badges, and typed string field."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await _push_visual_editor(page, _visual_chop_editor_seed())
 
@@ -397,7 +397,7 @@ async def test_axe_chop_editor_advanced_png_snapshot(
 ) -> None:
     """Chop Advanced state: raw-YAML compound fields remain reachable."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         modal = await _push_visual_editor(page, _visual_chop_editor_seed(advanced=True))
         modal._active_name = "for_each"
@@ -417,7 +417,7 @@ async def test_axe_generated_instance_warning_png_snapshot(
 ) -> None:
     """Editing a generated runtime row clearly names the shared base edit."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await _push_visual_editor(page, _visual_chop_editor_seed(generated=True))
 
@@ -434,7 +434,7 @@ async def test_axe_editor_validation_failure_png_snapshot(
 ) -> None:
     """Inline validation failures stay visible before preview."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         modal = await _push_visual_editor(page, _visual_chop_editor_seed())
         modal._active_name = "run_every"
@@ -455,7 +455,7 @@ async def test_axe_editor_diff_preview_png_snapshot(
 ) -> None:
     """Preview stage shows effective before/after, warnings, and file diff."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         modal = await _push_visual_editor(page, _visual_chop_editor_seed())
         modal._active_name = "description"
@@ -494,9 +494,7 @@ async def test_axe_editor_constrained_width_png_snapshot(
 ) -> None:
     """The AXE editor collapses to the narrow layout on constrained terminals."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(
-        query='"visual"', changespecs=changespecs(), size=(70, 36)
-    ) as page:
+    async with AcePage(query='"visual"', patches=patches(), size=(70, 36)) as page:
         await wait_for_startup(page)
         modal = await _push_visual_editor(page, _visual_new_lumberjack_seed())
         await wait_for_state(
@@ -519,7 +517,7 @@ async def test_axe_editor_single_line_cell_png_snapshot(
 ) -> None:
     """A scalar editor replaces only the active row's value cell."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         modal = await _push_visual_editor(page, _visual_chop_editor_seed())
         modal._active_name = "description"
@@ -545,7 +543,7 @@ async def test_axe_editor_multiline_yaml_cell_png_snapshot(
 ) -> None:
     """A YAML property expands its row without moving the detail dock."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         modal = await _push_visual_editor(
             page,
@@ -576,7 +574,7 @@ async def test_axe_editor_compact_lumberjack_sheet_png_snapshot(
 ) -> None:
     """A three-property lumberjack sheet shrinks to its content."""
     _patch_axe_editor_visual_loaders(monkeypatch)
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         seed = _visual_new_lumberjack_seed()
         seed = replace(seed, new_entry=False, initial_touched=())

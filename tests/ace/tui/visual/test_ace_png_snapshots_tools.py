@@ -23,7 +23,7 @@ from sase.ace.tui.widgets import tools_panel as tools_panel_module
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from sase.ace.tui.widgets.tools_panel import AgentToolsPanel, ToolDetailLevel
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     mark_current_visual_frame_converged,
     patch_startup_loaders,
     wait_for_startup,
@@ -376,7 +376,7 @@ async def test_agents_tools_panel_populated_png_snapshot(
     agent = _tools_agent(artifacts_dir)
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         panel = await _open_tools_panel(page)
         assert panel._last_entries is not None
         assert {entry.runtime for entry in panel._last_entries} == {"codex"}
@@ -420,7 +420,7 @@ async def test_agents_tools_panel_detail_level_png_snapshots(
     agent = _tools_agent(artifacts_dir)
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         panel = await _open_tools_panel(page)
         assert panel.set_detail_level(detail_level) is True
         page.app._refresh_agent_footer_bindings_only()

@@ -201,10 +201,10 @@ class _FakeApp(AxeBgCmdMixin):
     """Minimal fake exposing just what the dispatcher needs."""
 
     def __init__(self) -> None:
-        self.current_tab: Any = "changespecs"
+        self.current_tab: Any = "patches"
         self.current_idx = 0
         self.axe_running = False
-        self.changespecs = []  # type: ignore[assignment]
+        self.patches = []  # type: ignore[assignment]
         self._bgcmd_slots = []
         self.notifications: list[tuple[str, str]] = []
         self.submit_calls: list[dict[str, Any]] = []

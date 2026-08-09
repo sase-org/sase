@@ -4,7 +4,7 @@ Pin how :class:`FrontmatterPanel` renders above the prompt stack in three states
 the design calls out: a populated panel (scalar rows, the status chip, and the
 read-only ``input`` / ``xprompts`` sub-trees), the just-triggered empty panel,
 and an error state where a bad ``input`` type surfaces the core ``⟨! N⟩`` chip
-plus the inline red diagnostic.  The bar is mounted directly over the ChangeSpecs
+plus the inline red diagnostic.  The bar is mounted directly over the Patches
 tab so the full ``styles.tcss`` styling applies exactly as it does at runtime.
 """
 
@@ -21,7 +21,7 @@ from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -103,11 +103,11 @@ async def test_frontmatter_panel_populated_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
 
         # Focus the panel so its accent border + selected row are pinned too.
@@ -126,11 +126,11 @@ async def test_frontmatter_panel_empty_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, "")
 
         # An empty prompt + g= shows the just-triggered empty-state guidance.
@@ -149,11 +149,11 @@ async def test_frontmatter_panel_error_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page, _ERROR_PROMPT)
 
         # An invalid input type drives the ⟨! N⟩ chip + the inline red message.
@@ -172,7 +172,7 @@ async def test_frontmatter_panel_cell_edit_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -201,7 +201,7 @@ async def test_frontmatter_panel_ghost_row_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -235,7 +235,7 @@ async def test_frontmatter_panel_raw_diagnostics_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -272,7 +272,7 @@ async def test_frontmatter_panel_saved_feedback_png_snapshot(
     """Pin the saved feedback row with a still-visible prompt pane below it."""
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -306,11 +306,11 @@ async def test_frontmatter_input_item_modal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
 
         # The structured ``input`` editor, prefilled from an existing input so
         # the type rule + the four fields are all pinned.
@@ -341,11 +341,11 @@ async def test_frontmatter_xprompt_item_modal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
 
         # The structured ``xprompts`` editor, prefilled with a local helper that
         # declares an input, so the compact inputs field is pinned too.

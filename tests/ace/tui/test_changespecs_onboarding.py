@@ -6,8 +6,8 @@ import pytest
 from textual.widgets import Static
 
 from sase.ace.saved_queries import save_query
-from sase.ace.testing import AcePage, make_changespec
-from sase.ace.tui.actions.changespec._onboarding import ChangeSpecOnboardingMixin
+from sase.ace.testing import AcePage, make_patch
+from sase.ace.tui.actions.patch._onboarding import PatchOnboardingMixin
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     wait_for_startup,
@@ -15,7 +15,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 
 
 def _mounted_onboarding_plain(page: AcePage) -> str:
-    onboarding = page.query_one_widget("#changespec-quickstart-panel")
+    onboarding = page.query_one_widget("#patch-quickstart-panel")
     return "\n".join(
         getattr(child.render(), "plain", "") for child in onboarding.query(Static)
     )
@@ -31,91 +31,91 @@ async def _open_prs(page: AcePage) -> None:
     await page.expect_state("artifacts_subtab", "prs")
 
 
-def _assert_changespecs_onboarding_layout(page: AcePage, *, active: bool) -> None:
-    changespecs_view = page.query_one_widget("#changespecs-view")
+def _assert_patches_onboarding_layout(page: AcePage, *, active: bool) -> None:
+    patches_view = page.query_one_widget("#artifacts-view")
     list_container = page.query_one_widget("#list-container")
     search_query_panel = page.query_one_widget("#search-query-panel")
     detail_container = page.query_one_widget("#detail-container")
     detail_scroll = page.query_one_widget("#detail-scroll")
     expected_chrome_display = not active
 
-    assert changespecs_view.has_class("-onboarding-active") is active
+    assert patches_view.has_class("-onboarding-active") is active
     assert list_container.display is expected_chrome_display
     assert detail_container.display is True
     assert search_query_panel.display is True
     assert detail_scroll.display is expected_chrome_display
 
 
-class _PredicateApp(ChangeSpecOnboardingMixin):
+class _PredicateApp(PatchOnboardingMixin):
     def __init__(
         self,
         *,
         loaded: bool,
-        filtered_changespecs: list[object] | None = None,
-        all_changespecs: list[object] | None = None,
+        filtered_patches: list[object] | None = None,
+        all_patches: list[object] | None = None,
         saved_queries: dict[str, str] | None = None,
     ) -> None:
-        self._changespecs_first_load_done = loaded
-        self.changespecs = filtered_changespecs or []
-        self._all_changespecs = all_changespecs or []
+        self._patches_first_load_done = loaded
+        self.patches = filtered_patches or []
+        self._all_patches = all_patches or []
         self._saved_queries = saved_queries or {}
 
 
-def test_changespecs_onboarding_predicate_requires_loaded_filtered_empty() -> None:
+def test_patches_onboarding_predicate_requires_loaded_filtered_empty() -> None:
     app = _PredicateApp(loaded=True)
 
-    assert app._should_show_changespecs_onboarding() is True
+    assert app._should_show_patches_onboarding() is True
 
 
-def test_changespecs_onboarding_predicate_hides_before_first_load() -> None:
+def test_patches_onboarding_predicate_hides_before_first_load() -> None:
     app = _PredicateApp(loaded=False)
 
-    assert app._should_show_changespecs_onboarding() is False
+    assert app._should_show_patches_onboarding() is False
 
 
-def test_changespecs_onboarding_predicate_ignores_saved_queries() -> None:
+def test_patches_onboarding_predicate_ignores_saved_queries() -> None:
     app = _PredicateApp(loaded=True, saved_queries={"1": '"visual"'})
 
-    assert app._should_show_changespecs_onboarding() is True
+    assert app._should_show_patches_onboarding() is True
 
 
-def test_changespecs_onboarding_predicate_hides_when_filtered_specs_exist() -> None:
-    app = _PredicateApp(loaded=True, filtered_changespecs=[object()])
+def test_patches_onboarding_predicate_hides_when_filtered_specs_exist() -> None:
+    app = _PredicateApp(loaded=True, filtered_patches=[object()])
 
-    assert app._should_show_changespecs_onboarding() is False
-
-
-def test_changespecs_onboarding_predicate_uses_filtered_changespecs() -> None:
-    app = _PredicateApp(loaded=True, all_changespecs=[object()])
-
-    assert app._should_show_changespecs_onboarding() is True
+    assert app._should_show_patches_onboarding() is False
 
 
-async def test_changespecs_onboarding_visible_after_empty_startup(
+def test_patches_onboarding_predicate_uses_filtered_patches() -> None:
+    app = _PredicateApp(loaded=True, all_patches=[object()])
+
+    assert app._should_show_patches_onboarding() is True
+
+
+async def test_patches_onboarding_visible_after_empty_startup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
 
     async with AcePage(
         query='"visual"',
-        changespecs=[],
-        initial_tab="changespecs",
+        patches=[],
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await _open_prs(page)
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await page.expect_state("total", 0)
 
-        onboarding = page.query_one_widget("#changespec-quickstart-panel")
+        onboarding = page.query_one_widget("#patch-quickstart-panel")
         assert not onboarding.has_class("hidden")
-        _assert_changespecs_onboarding_layout(page, active=True)
+        _assert_patches_onboarding_layout(page, active=True)
         assert "Every PR your agents produce" in _mounted_onboarding_plain(page)
         search = _search_query_plain(page)
         assert "Search Query" in search
         assert '"visual"' in search
 
 
-async def test_changespecs_onboarding_visible_when_saved_queries_exist(
+async def test_patches_onboarding_visible_when_saved_queries_exist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
@@ -123,127 +123,127 @@ async def test_changespecs_onboarding_visible_when_saved_queries_exist(
 
     async with AcePage(
         query='"visual"',
-        changespecs=[],
-        initial_tab="changespecs",
+        patches=[],
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await _open_prs(page)
         await page.expect_state("total", 0)
 
-        onboarding = page.query_one_widget("#changespec-quickstart-panel")
+        onboarding = page.query_one_widget("#patch-quickstart-panel")
         assert not onboarding.has_class("hidden")
-        _assert_changespecs_onboarding_layout(page, active=True)
+        _assert_patches_onboarding_layout(page, active=True)
 
 
-async def test_changespecs_onboarding_hidden_when_changespecs_exist(
+async def test_patches_onboarding_hidden_when_patches_exist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
 
     async with AcePage(
         query='"visual"',
-        changespecs=[make_changespec(name="visual_first")],
-        initial_tab="changespecs",
+        patches=[make_patch(name="visual_first")],
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await _open_prs(page)
         await page.expect_state("total", 1)
 
-        onboarding = page.query_one_widget("#changespec-quickstart-panel")
+        onboarding = page.query_one_widget("#patch-quickstart-panel")
         assert onboarding.has_class("hidden")
-        _assert_changespecs_onboarding_layout(page, active=False)
+        _assert_patches_onboarding_layout(page, active=False)
 
 
-async def test_changespecs_onboarding_visible_when_specs_are_filtered_out(
+async def test_patches_onboarding_visible_when_specs_are_filtered_out(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
 
     async with AcePage(
         query='"missing"',
-        changespecs=[make_changespec(name="visual_first")],
-        initial_tab="changespecs",
+        patches=[make_patch(name="visual_first")],
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await _open_prs(page)
         await page.expect_state("total", 0)
-        assert page.app._all_changespecs
+        assert page.app._all_patches
 
-        onboarding = page.query_one_widget("#changespec-quickstart-panel")
+        onboarding = page.query_one_widget("#patch-quickstart-panel")
         assert not onboarding.has_class("hidden")
-        _assert_changespecs_onboarding_layout(page, active=True)
+        _assert_patches_onboarding_layout(page, active=True)
         assert "No PRs match this query" in _mounted_onboarding_plain(page)
         assert "1 exists" in _mounted_onboarding_plain(page)
         assert '"missing"' in _search_query_plain(page)
 
 
-async def test_changespecs_onboarding_hides_after_first_changespec_arrives(
+async def test_patches_onboarding_hides_after_first_patch_arrives(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
 
     async with AcePage(
         query='"visual"',
-        changespecs=[],
-        initial_tab="changespecs",
+        patches=[],
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await _open_prs(page)
         assert "Every PR your agents produce" in _mounted_onboarding_plain(page)
 
-        page.app._apply_reloaded_changespecs(
-            [make_changespec(name="visual_first")],
+        page.app._apply_reloaded_patches(
+            [make_patch(name="visual_first")],
             current_name=None,
         )
         await page.pause()
         await page.expect_state("total", 1)
 
-        onboarding = page.query_one_widget("#changespec-quickstart-panel")
+        onboarding = page.query_one_widget("#patch-quickstart-panel")
         assert onboarding.has_class("hidden")
-        _assert_changespecs_onboarding_layout(page, active=False)
+        _assert_patches_onboarding_layout(page, active=False)
 
 
-async def test_changespecs_onboarding_reappears_after_last_changespec_disappears(
+async def test_patches_onboarding_reappears_after_last_patch_disappears(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
 
     async with AcePage(
         query='"visual"',
-        changespecs=[make_changespec(name="visual_first")],
-        initial_tab="changespecs",
+        patches=[make_patch(name="visual_first")],
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await _open_prs(page)
         await page.expect_state("total", 1)
 
-        page.app._apply_reloaded_changespecs([], current_name="visual_first")
+        page.app._apply_reloaded_patches([], current_name="visual_first")
         await page.pause()
         await page.expect_state("total", 0)
 
-        onboarding = page.query_one_widget("#changespec-quickstart-panel")
+        onboarding = page.query_one_widget("#patch-quickstart-panel")
         assert not onboarding.has_class("hidden")
-        _assert_changespecs_onboarding_layout(page, active=True)
+        _assert_patches_onboarding_layout(page, active=True)
 
 
-async def test_changespecs_onboarding_ignores_saved_query_cache_invalidates(
+async def test_patches_onboarding_ignores_saved_query_cache_invalidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
 
     async with AcePage(
         query='"visual"',
-        changespecs=[],
-        initial_tab="changespecs",
+        patches=[],
+        initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
         await _open_prs(page)
-        _assert_changespecs_onboarding_layout(page, active=True)
+        _assert_patches_onboarding_layout(page, active=True)
 
         assert save_query("1", '"visual"')
         page.app._invalidate_saved_queries_cache()
         await page.pause()
 
-        onboarding = page.query_one_widget("#changespec-quickstart-panel")
+        onboarding = page.query_one_widget("#patch-quickstart-panel")
         assert not onboarding.has_class("hidden")
-        _assert_changespecs_onboarding_layout(page, active=True)
+        _assert_patches_onboarding_layout(page, active=True)

@@ -21,7 +21,7 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert registry.app.open_artifact_files == "a"
     assert registry.app.accept_proposal == "A"
     assert registry.app.start_agent_home == "space"
-    assert registry.app.start_agent_from_changespec == "ctrl+@"
+    assert registry.app.start_agent_from_patch == "ctrl+@"
     assert registry.leader_mode.keys["agent_run_log"] == "A"
     assert registry.leader_mode.keys["agent_home"] == "h"
     assert registry.leader_mode.keys["agent_from_cl"] == "space"
@@ -49,7 +49,7 @@ def test_action_start_agent_home_opens_home_prompt() -> None:
 
 
 def test_leader_a_opens_agent_run_log_for_selected_cl() -> None:
-    app = _FakeApp(changespecs=[_make_cs("alpha"), _make_cs("beta")])
+    app = _FakeApp(patches=[_make_cs("alpha"), _make_cs("beta")])
     app.current_idx = 1
 
     with patch(
@@ -68,7 +68,7 @@ def test_leader_a_opens_agent_run_log_for_selected_cl() -> None:
 
 
 def test_leader_a_noops_on_non_cls_tabs() -> None:
-    app = _FakeApp(changespecs=[_make_cs("alpha")], current_tab="agents")
+    app = _FakeApp(patches=[_make_cs("alpha")], current_tab="agents")
 
     handled = app._handle_leader_key("A")
 
@@ -78,7 +78,7 @@ def test_leader_a_noops_on_non_cls_tabs() -> None:
 
 
 def test_leader_a_noops_with_empty_cls_list() -> None:
-    app = _FakeApp(changespecs=[])
+    app = _FakeApp(patches=[])
 
     handled = app._handle_leader_key("A")
 

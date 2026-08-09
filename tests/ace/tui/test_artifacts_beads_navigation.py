@@ -22,7 +22,7 @@ async def test_selection_marks_jumps_and_reload_preserve_stable_target(
         lambda _project, **_kwargs: value,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("2")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
@@ -65,7 +65,7 @@ async def test_detail_scroll_reserves_its_gutter_so_the_width_never_oscillates(
         lambda _project, **_kwargs: value,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("2")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)

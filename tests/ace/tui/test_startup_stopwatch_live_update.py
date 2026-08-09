@@ -18,7 +18,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.ace.tui.actions.axe_display._data import AxeCollectedData
-from sase.ace.tui.actions.changespec import ChangeSpecMixin
+from sase.ace.tui.actions.patch import PatchMixin
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
 from sase.ace.tui.app import AceApp
@@ -37,7 +37,7 @@ def test_on_mount_seeds_current_tab_in_trace_context() -> None:
     """``on_mount`` seeds the trace context with ``current_tab`` up front.
 
     Without this seed, startup-phase spans (notifications read,
-    changespecs read, the first agents/axe loads) all emit
+    patches read, the first agents/axe loads) all emit
     ``current_tab=None`` because ``watch_current_tab`` only fires on
     later transitions.
     """
@@ -51,15 +51,15 @@ def test_on_mount_seeds_current_tab_in_trace_context() -> None:
     assert mounting_idx < seed_idx < first_query_idx
 
 
-def test_read_changespecs_from_disk_returns_list() -> None:
+def test_read_patches_from_disk_returns_list() -> None:
     """Pure read helper must return whatever the cached loader does."""
-    mixin = ChangeSpecMixin.__new__(ChangeSpecMixin)
+    mixin = PatchMixin.__new__(PatchMixin)
     sentinel = [MagicMock(), MagicMock()]
     with patch(
-        "sase.ace.changespec.find_all_changespecs_cached",
+        "sase.ace.patch.find_all_patches_cached",
         return_value=sentinel,
     ):
-        result = mixin._read_changespecs_from_disk()
+        result = mixin._read_patches_from_disk()
     assert result is sentinel
 
 

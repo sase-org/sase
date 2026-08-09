@@ -57,7 +57,7 @@ class _ClanViewApp(InputProcessingMixin, FileViewingMixin):
         self._hint_mappings: dict[int, str] = {}
         self._hint_tool_call_reports = {}
         self._hint_commit_views = {}
-        self._hint_changespec_name = ""
+        self._hint_patch_name = ""
         self.notify = MagicMock()
         self._refresh_agents_display = MagicMock()
         self._view_files_with_pager = MagicMock()

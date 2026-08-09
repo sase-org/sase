@@ -30,7 +30,7 @@ class _FakeApp(AgentLaunchMixin):
         self.unmount_calls: list[str] = []
         self.launch_tasks: list[dict[str, Any]] = []
         self._prompt_context: PromptContext | None = _fake_context()
-        self._bulk_changespecs = None
+        self._bulk_patches = None
         self._last_custom_agent_selection = None
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
@@ -97,7 +97,7 @@ class _LaunchBodyApp(AgentLaunchMixin):
         self.launch_thread_ids: list[int] = []
         self.refresh_count = 0
         self._prompt_context: PromptContext | None = _launch_body_context()
-        self._bulk_changespecs = None
+        self._bulk_patches = None
         self._last_custom_agent_selection = None
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:

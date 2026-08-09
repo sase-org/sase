@@ -229,7 +229,7 @@ def test_singleton_dotted_agent_sorts_above_grouped_name_root() -> None:
             _agent(cl_name="demo", agent_name="coder.codex"),
         ]
     )
-    # Project + ChangeSpec banners, the singleton, then the coder group.
+    # Project + Patch banners, the singleton, then the coder group.
     assert _kinds(entries) == [
         ("group", 0),
         ("group", 1),

@@ -16,7 +16,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -71,7 +71,7 @@ async def test_notification_sent_at_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(120, 40),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         page.app.push_screen(NotificationModal([notification]))
@@ -143,7 +143,7 @@ async def test_notification_selected_snooze_status_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(120, 40),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         page.app.push_screen(modal)

@@ -5,15 +5,15 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.tui.keymaps import load_keymap_registry
-from sase.ace.tui.widgets.changespec_onboarding import ChangeSpecOnboarding
+from sase.ace.tui.widgets.patch_onboarding import PatchOnboarding
 
 
 def _section_plain(sections: dict[str, Text], selector: str) -> str:
     return sections[selector].plain
 
 
-def test_changespec_onboarding_content_includes_docs_lifecycle_and_storage() -> None:
-    sections = ChangeSpecOnboarding.render_content(load_keymap_registry({}))
+def test_patch_onboarding_content_includes_docs_lifecycle_and_storage() -> None:
+    sections = PatchOnboarding.render_content(load_keymap_registry({}))
     rendered = "\n".join(text.plain for text in sections.values())
 
     assert "Everything your agents produce, in one place" in rendered
@@ -28,7 +28,7 @@ def test_changespec_onboarding_content_includes_docs_lifecycle_and_storage() -> 
         assert status in rendered
 
 
-def test_changespec_onboarding_uses_active_keymap_registry() -> None:
+def test_patch_onboarding_uses_active_keymap_registry() -> None:
     registry = load_keymap_registry(
         {
             "keymaps": {
@@ -45,7 +45,7 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
         }
     )
 
-    sections = ChangeSpecOnboarding.render_content(registry)
+    sections = PatchOnboarding.render_content(registry)
     tabs_text = _section_plain(sections, "#patch-onboarding-tabs")
     how_text = _section_plain(sections, "#patch-onboarding-how")
     learn_text = _section_plain(sections, "#patch-onboarding-learn")
@@ -84,13 +84,13 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
     assert "full keybinding reference" in learn_text
 
 
-def test_changespec_onboarding_queue_card_uses_active_keymap_registry() -> None:
+def test_patch_onboarding_queue_card_uses_active_keymap_registry() -> None:
     registry = load_keymap_registry(
         {
             "keymaps": {
                 "app": {
-                    "next_changespec": "f1",
-                    "prev_changespec": "f2",
+                    "next_patch": "f1",
+                    "prev_patch": "f2",
                     "show_diff": "f3",
                     "change_status": "f4",
                     "mail": "f5",
@@ -101,7 +101,7 @@ def test_changespec_onboarding_queue_card_uses_active_keymap_registry() -> None:
         }
     )
 
-    sections = ChangeSpecOnboarding.render_content(registry)
+    sections = PatchOnboarding.render_content(registry)
     queue_text = _section_plain(sections, "#patch-onboarding-queue")
 
     for key in ("f1", "f2", "f3", "f4", "f5", "f6", "f7"):
@@ -113,9 +113,9 @@ def test_changespec_onboarding_queue_card_uses_active_keymap_registry() -> None:
     assert "filter with a query" in queue_text
 
 
-def test_changespec_onboarding_omits_modal_footer() -> None:
+def test_patch_onboarding_omits_modal_footer() -> None:
     registry = load_keymap_registry({})
 
-    sections = ChangeSpecOnboarding.render_content(registry)
+    sections = PatchOnboarding.render_content(registry)
 
     assert "#patch-onboarding-footer" not in sections

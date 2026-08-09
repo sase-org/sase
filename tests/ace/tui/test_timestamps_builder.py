@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.ace.changespec.models import ChangeSpec, TimestampEntry
+from sase.ace.patch.models import Patch, TimestampEntry
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.timestamps_builder import build_timestamps_section
 
 
-def _make_changespec(
+def _make_patch(
     timestamps: list[TimestampEntry] | None = None,
-) -> ChangeSpec:
-    return ChangeSpec(
+) -> Patch:
+    return Patch(
         name="test-cl",
         description="test",
         parent=None,
@@ -52,7 +52,7 @@ def _make_entries() -> list[TimestampEntry]:
 class TestCollapsed:
     def test_collapsed_shows_folded_count(self) -> None:
         entries = _make_entries()
-        cs = _make_changespec(timestamps=entries)
+        cs = _make_patch(timestamps=entries)
         text = Text()
         build_timestamps_section(text, cs, FoldLevel.COLLAPSED)
         plain = text.plain
@@ -73,7 +73,7 @@ class TestCollapsed:
         assert any(span.style == "italic #808080" for span in spans_at_bracket)
 
     def test_collapsed_no_timestamps_shows_nothing(self) -> None:
-        cs = _make_changespec(timestamps=None)
+        cs = _make_patch(timestamps=None)
         text = Text()
         build_timestamps_section(text, cs, FoldLevel.COLLAPSED)
         assert text.plain == ""
@@ -86,7 +86,7 @@ class TestCollapsed:
                 detail="(1)",
             ),
         ]
-        cs = _make_changespec(timestamps=entries)
+        cs = _make_patch(timestamps=entries)
         text = Text()
         build_timestamps_section(text, cs, FoldLevel.COLLAPSED)
         plain = text.plain
@@ -95,7 +95,7 @@ class TestCollapsed:
 
     def test_collapsed_shows_last_entry_not_first(self) -> None:
         entries = _make_entries()
-        cs = _make_changespec(timestamps=entries)
+        cs = _make_patch(timestamps=entries)
         text = Text()
         build_timestamps_section(text, cs, FoldLevel.COLLAPSED)
         plain = text.plain
@@ -109,7 +109,7 @@ class TestCollapsed:
 class TestExpanded:
     def test_expanded_shows_commit_and_rewind_entries_only(self) -> None:
         entries = _make_entries()
-        cs = _make_changespec(timestamps=entries)
+        cs = _make_patch(timestamps=entries)
         text = Text()
         build_timestamps_section(text, cs, FoldLevel.EXPANDED)
         plain = text.plain
@@ -124,7 +124,7 @@ class TestExpanded:
 class TestFullyExpanded:
     def test_fully_expanded_shows_all_entries(self) -> None:
         entries = _make_entries()
-        cs = _make_changespec(timestamps=entries)
+        cs = _make_patch(timestamps=entries)
         text = Text()
         build_timestamps_section(text, cs, FoldLevel.FULLY_EXPANDED)
         plain = text.plain
@@ -142,7 +142,7 @@ class TestFullyExpanded:
                 detail="old-parent -> new-parent",
             )
         ]
-        cs = _make_changespec(timestamps=entries)
+        cs = _make_patch(timestamps=entries)
         text = Text()
         build_timestamps_section(text, cs, FoldLevel.FULLY_EXPANDED)
 

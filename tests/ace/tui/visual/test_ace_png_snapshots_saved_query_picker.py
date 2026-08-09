@@ -9,7 +9,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -29,7 +29,7 @@ async def test_saved_query_picker_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(100, 32),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         await wait_for_startup(page)
         await page.press("4")

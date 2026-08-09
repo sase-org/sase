@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase.ace.testing.fixtures import make_changespec
+from sase.ace.testing.fixtures import make_patch
 from sase.ace.tui.actions.clipboard._palette import build_copy_as_context
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.artifact_file_clipboard import artifact_file_clipboard_path
@@ -363,12 +363,12 @@ def test_marked_commit_context_uses_visible_order_and_plural_labels() -> None:
     assert message.preview == "Second visible · +1"
 
 
-def test_changespec_context_filters_missing_pr_fields_and_uses_display_name() -> None:
+def test_patch_context_filters_missing_pr_fields_and_uses_display_name() -> None:
     app = PaletteHarness()
     app.current_artifacts_subtab = "prs"
-    changespec = make_changespec(name="copy_as_palette", cl=None)
-    changespec.project_display_name = "SASE"  # type: ignore[attr-defined]
-    app.changespecs = [changespec]
+    patch = make_patch(name="copy_as_palette", cl=None)
+    patch.project_display_name = "SASE"  # type: ignore[attr-defined]
+    app.patches = [patch]
 
     context = build_copy_as_context(app)
 
@@ -384,14 +384,14 @@ def test_changespec_context_filters_missing_pr_fields_and_uses_display_name() ->
 def test_duplicate_and_rebound_accelerators_follow_dispatch_precedence() -> None:
     app = PaletteHarness()
     app.current_artifacts_subtab = "prs"
-    app.changespecs = [make_changespec(name="copy_as_palette")]
+    app.patches = [make_patch(name="copy_as_palette")]
     app._keymap_registry = load_keymap_registry(
         {
             "keymaps": {
                 "modes": {
                     "copy_mode": {
                         "keys": {
-                            "changespecs": {
+                            "patches": {
                                 "raw": "q",
                                 "name": "q",
                                 "spec": "j",

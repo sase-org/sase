@@ -61,7 +61,7 @@ def test_build_agent_tree_by_date_orders_buckets_newest_first_regardless_of_inpu
     assert l0_banners == [("Today",), ("Earlier",)]
 
 
-def test_build_agent_tree_by_date_drops_changespec_and_project_levels() -> None:
+def test_build_agent_tree_by_date_drops_patch_and_project_levels() -> None:
     """Two agents in the same date bucket from different projects share an L0."""
     a = _agent(
         cl_name="cl-a",
@@ -81,11 +81,11 @@ def test_build_agent_tree_by_date_drops_changespec_and_project_levels() -> None:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 0
     ]
-    # Single "Today" banner — project / changespec are no longer in the
+    # Single "Today" banner — project / patch are no longer in the
     # hierarchy, so two different projects collapse into one L0 group.
     assert l0_banners == [("Today",)]
     # L1 is the date-aware subgroup layer under BY_DATE; no project or
-    # ChangeSpec identity is retained in those keys.
+    # Patch identity is retained in those keys.
     l1_banners = [
         e.group.group_key  # type: ignore[union-attr]
         for e in entries

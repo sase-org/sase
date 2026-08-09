@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
+from sase.ace.patch.models import DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,

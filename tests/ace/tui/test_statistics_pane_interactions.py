@@ -362,7 +362,7 @@ async def test_project_filter_label_submits_canonical_key_across_reload_paths(
         payload = _run_payload(selected_range, "tribe")
         payload["workspaces"][0]["project"] = widgets_key
         payload["work"]["projects"][0]["project"] = widgets_key
-        payload["work"]["changespecs"][0]["project"] = widgets_key
+        payload["work"]["changespecs"][0]["project"] = widgets_key  # legacy wire key
         return StatisticsViewData(
             view=view,
             selected_range=selected_range,

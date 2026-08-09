@@ -16,7 +16,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_path_inventory import load_prompt_path_snapshot
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -105,11 +105,11 @@ async def test_at_reference_completion_panel_png_snapshot(
         *_workspace_rows(workspace),
     ]
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, "Attach a project reference")
         bar.show_file_completions(
             "artifact kinds",
@@ -152,7 +152,7 @@ async def test_fuzzy_at_reference_payload_panel_png_snapshot(
         ),
     ]
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         bar = await mount_prompt_bar(page, "Attach research")
         bar.show_file_completions(
@@ -191,7 +191,7 @@ async def test_truncated_at_reference_payload_panel_png_snapshot(
         ),
     ]
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         bar = await mount_prompt_bar(page, "Attach research")
         bar.show_file_completions(

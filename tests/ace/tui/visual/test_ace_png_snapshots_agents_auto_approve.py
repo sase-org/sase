@@ -15,7 +15,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -146,7 +146,7 @@ async def test_agents_auto_approve_icons_png_snapshot(
     agents = _auto_approve_agents()
     patch_startup_loaders(monkeypatch, agents=agents)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -172,7 +172,7 @@ async def test_agents_auto_approve_workflow_child_alignment_png_snapshot(
     agents = _auto_approve_workflow_child_agents()
     patch_startup_loaders(monkeypatch, agents=agents)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -221,7 +221,7 @@ async def test_agents_auto_approve_metadata_png_snapshots(
     agents = _auto_approve_agents()
     patch_startup_loaders(monkeypatch, agents=agents)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -293,7 +293,7 @@ async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
     agent = _auto_approve_xprompts_agent(tmp_path / "xprompt-artifacts")
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

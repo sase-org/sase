@@ -6,7 +6,7 @@ from pathlib import Path
 
 from rich.text import Text
 
-from sase.ace.changespec.models import DeltaEntry
+from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.models._agent_clan_sections import (
     ClanContextEntry,

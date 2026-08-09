@@ -544,7 +544,7 @@ def _issue(issue_id: str, title: str, updated_at: str) -> dict[str, object]:
         "notes": "",
         "design": "",
         "is_ready_to_work": False,
-        "changespec_name": "",
-        "changespec_bug_id": "",
+        "patch_name": "",
+        "patch_bug_id": "",
         "dependencies": [],
     }

@@ -468,9 +468,9 @@ def test_stream_subprocess_cancel_escalates_sigterm_resistant_process() -> None:
 
 class TestTaskQueueCustomKeyScoping:
     def test_custom_dedup_key_task_invisible_to_per_cl_dedup(self) -> None:
-        # Launch and cleanup tasks carry a real ChangeSpec name for display but a
-        # custom dedup key; they must never block ChangeSpec actions that
-        # dedup via get_running_for_cl on the same ChangeSpec.
+        # Launch and cleanup tasks carry a real Patch name for display but a
+        # custom dedup key; they must never block Patch actions that
+        # dedup via get_running_for_cl on the same Patch.
         q = TaskQueue()
         info = q.submit(
             "dismiss",

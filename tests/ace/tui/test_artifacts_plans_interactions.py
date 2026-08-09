@@ -57,7 +57,7 @@ async def test_plans_pane_navigates_three_document_sections(
         lambda _project, **_kwargs: snapshot,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("5")
         await page.expect_state("files_subtab", "plans")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
@@ -91,7 +91,7 @@ async def test_proposal_actions_keep_existing_approval_flow(
         handle,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("5")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)

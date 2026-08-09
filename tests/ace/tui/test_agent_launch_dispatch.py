@@ -314,7 +314,7 @@ def test_run_agent_launch_body_bulk_multi_prompt_rejection_records_failed_histor
     None
 ):
     app = _LaunchBodyApp()
-    app._bulk_changespecs = [SimpleNamespace()]
+    app._bulk_patches = [SimpleNamespace()]
 
     with patch("sase.history.prompt.record_failed_launch_prompt") as record_failed:
         outcome = app._run_agent_launch_body("first prompt\n---\nsecond prompt")

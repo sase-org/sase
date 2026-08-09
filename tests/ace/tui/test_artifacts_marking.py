@@ -25,7 +25,7 @@ class _Navigator:
 
 class _MarkHarness(MarkingMixin, ArtifactsMixin):
     def __init__(self, pane_key: str, target: ArtifactEntryTarget) -> None:
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.current_artifacts_subtab = (
             "files" if pane_key in {"plans", "chats", "other"} else pane_key
         )

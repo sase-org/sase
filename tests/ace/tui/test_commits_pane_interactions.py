@@ -45,7 +45,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         lambda value: copied.append(value) or True,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("1")
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
@@ -233,7 +233,7 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
     )
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("1")
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
@@ -273,7 +273,7 @@ async def test_commit_fetch_task_uses_visible_project_name_and_matching_file(
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         pane.set_project_scope(

@@ -38,7 +38,7 @@ class _Pane:
 class _FakeApp(ArtifactsChatsActionsMixin):
     def __init__(self, entry: ChatCatalogEntry | None) -> None:
         self.pane = _Pane(entry)
-        self.current_tab = "changespecs"
+        self.current_tab = "patches"
         self.current_idx = 0
         self._agents: list[Agent] = []
         self._dismissed_agent_objects: list[Agent] = []
@@ -109,7 +109,7 @@ def test_chat_without_agent_notifies_and_preserves_tab_state() -> None:
 
     app.action_chats_open_agent()
 
-    assert app.current_tab == "changespecs"
+    assert app.current_tab == "patches"
     assert app.current_idx == original_idx
     assert app.saved_positions == 0
     assert app.revived == []
@@ -127,7 +127,7 @@ def test_remote_chat_without_local_artifact_explains_source_machine() -> None:
 
     app.action_chats_open_agent()
 
-    assert app.current_tab == "changespecs"
+    assert app.current_tab == "patches"
     assert app.saved_positions == 0
     assert app.notifications == [
         (

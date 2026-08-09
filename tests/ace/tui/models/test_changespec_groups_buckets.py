@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sase.ace.changespec import TimestampEntry
-from sase.ace.tui.models.changespec_groups import (
-    date_bucket_for_changespec,
+from sase.ace.patch import TimestampEntry
+from sase.ace.tui.models.patch_groups import (
+    date_bucket_for_patch,
     date_bucket_sort_index,
-    date_subgroup_for_changespec,
+    date_subgroup_for_patch,
     date_subgroup_sort_key,
-    latest_changespec_timestamp,
-    sibling_root_for_changespec,
-    status_bucket_for_changespec,
+    latest_patch_timestamp,
+    sibling_root_for_patch,
+    status_bucket_for_patch,
     status_sort_index,
 )
 from sase.ace.tui.models.date_subgroups import (
@@ -25,7 +25,7 @@ from sase.ace.tui.models.date_subgroups import (
     week_subgroup_sort_key,
 )
 
-from ._changespec_groups_helpers import _NOW, _cs
+from ._patch_groups_helpers import _NOW, _cs
 
 
 def _ts(
@@ -39,12 +39,12 @@ def _ts(
 
 def test_latest_timestamp_parses_new_yymmdd_format() -> None:
     cs = _cs("a", timestamps=[_ts("260426_120000")])
-    assert latest_changespec_timestamp(cs) == datetime(2026, 4, 26, 12, 0, 0)
+    assert latest_patch_timestamp(cs) == datetime(2026, 4, 26, 12, 0, 0)
 
 
 def test_latest_timestamp_parses_old_yyyy_mm_dd_format() -> None:
     cs = _cs("a", timestamps=[_ts("2026-04-26 12:00:00")])
-    assert latest_changespec_timestamp(cs) == datetime(2026, 4, 26, 12, 0, 0)
+    assert latest_patch_timestamp(cs) == datetime(2026, 4, 26, 12, 0, 0)
 
 
 def test_latest_timestamp_picks_newest_across_hybrid_history() -> None:
@@ -57,7 +57,7 @@ def test_latest_timestamp_picks_newest_across_hybrid_history() -> None:
             _ts("2026-04-26 11:00:00"),
         ],
     )
-    assert latest_changespec_timestamp(cs) == datetime(2026, 4, 26, 11, 59, 59)
+    assert latest_patch_timestamp(cs) == datetime(2026, 4, 26, 11, 59, 59)
 
 
 def test_latest_timestamp_ignores_malformed_entries_but_keeps_others() -> None:
@@ -69,17 +69,17 @@ def test_latest_timestamp_ignores_malformed_entries_but_keeps_others() -> None:
             _ts("999999_999999"),  # parses regex but not strptime
         ],
     )
-    assert latest_changespec_timestamp(cs) == datetime(2026, 4, 26, 12, 0, 0)
+    assert latest_patch_timestamp(cs) == datetime(2026, 4, 26, 12, 0, 0)
 
 
 def test_latest_timestamp_returns_none_when_missing() -> None:
-    assert latest_changespec_timestamp(_cs("a", timestamps=None)) is None
-    assert latest_changespec_timestamp(_cs("a", timestamps=[])) is None
+    assert latest_patch_timestamp(_cs("a", timestamps=None)) is None
+    assert latest_patch_timestamp(_cs("a", timestamps=[])) is None
 
 
 def test_latest_timestamp_returns_none_when_all_malformed() -> None:
     cs = _cs("a", timestamps=[_ts("garbage"), _ts("also bad")])
-    assert latest_changespec_timestamp(cs) is None
+    assert latest_patch_timestamp(cs) is None
 
 
 # --- Date bucketing ---
@@ -87,33 +87,33 @@ def test_latest_timestamp_returns_none_when_all_malformed() -> None:
 
 def test_date_bucket_today() -> None:
     cs = _cs("a", timestamps=[_ts("260426_080000")])
-    assert date_bucket_for_changespec(cs, _NOW) == "Today"
+    assert date_bucket_for_patch(cs, _NOW) == "Today"
 
 
 def test_date_bucket_yesterday() -> None:
     cs = _cs("a", timestamps=[_ts("260425_120000")])
-    assert date_bucket_for_changespec(cs, _NOW) == "Yesterday"
+    assert date_bucket_for_patch(cs, _NOW) == "Yesterday"
 
 
 def test_date_bucket_this_week_within_six_days() -> None:
     cs = _cs("a", timestamps=[_ts("260422_120000")])
-    assert date_bucket_for_changespec(cs, _NOW) == "This Week"
+    assert date_bucket_for_patch(cs, _NOW) == "This Week"
 
 
 def test_date_bucket_earlier_past_week() -> None:
     cs = _cs("a", timestamps=[_ts("260418_120000")])
-    assert date_bucket_for_changespec(cs, _NOW) == "Earlier"
+    assert date_bucket_for_patch(cs, _NOW) == "Earlier"
 
 
 def test_date_bucket_missing_timestamps_lands_in_earlier() -> None:
     cs = _cs("a", timestamps=None)
-    assert date_bucket_for_changespec(cs, _NOW) == "Earlier"
+    assert date_bucket_for_patch(cs, _NOW) == "Earlier"
 
 
 def test_date_bucket_uses_calendar_date_not_24h_window() -> None:
     cs = _cs("a", timestamps=[_ts("260425_130000")])
     just_after_midnight = datetime(2026, 4, 26, 0, 0, 1)
-    assert date_bucket_for_changespec(cs, just_after_midnight) == "Yesterday"
+    assert date_bucket_for_patch(cs, just_after_midnight) == "Yesterday"
 
 
 def test_date_bucket_sort_index_orders_buckets() -> None:
@@ -166,18 +166,18 @@ def test_week_subgroup_label_cross_year_and_sort_key() -> None:
     ]
 
 
-def test_date_subgroup_for_changespec_by_bucket() -> None:
+def test_date_subgroup_for_patch_by_bucket() -> None:
     today = _cs("t", timestamps=[_ts("260426_100000")])
     yesterday = _cs("y", timestamps=[_ts("260425_210000")])
     this_week = _cs("w", timestamps=[_ts("260424_100000")])
     earlier = _cs("e", timestamps=[_ts("260415_100000")])
     undated = _cs("u", timestamps=None)
 
-    assert date_subgroup_for_changespec(today, "Today") == "10:00"
-    assert date_subgroup_for_changespec(yesterday, "Yesterday") == "21:00"
-    assert date_subgroup_for_changespec(this_week, "This Week") == "Fri Apr 24"
-    assert date_subgroup_for_changespec(earlier, "Earlier") == "Apr 13-19"
-    assert date_subgroup_for_changespec(undated, "Earlier") == NO_TIMESTAMP_LABEL
+    assert date_subgroup_for_patch(today, "Today") == "10:00"
+    assert date_subgroup_for_patch(yesterday, "Yesterday") == "21:00"
+    assert date_subgroup_for_patch(this_week, "This Week") == "Fri Apr 24"
+    assert date_subgroup_for_patch(earlier, "Earlier") == "Apr 13-19"
+    assert date_subgroup_for_patch(undated, "Earlier") == NO_TIMESTAMP_LABEL
 
 
 def test_no_timestamp_subgroup_sorts_last_in_earlier() -> None:
@@ -192,11 +192,11 @@ def test_no_timestamp_subgroup_sorts_last_in_earlier() -> None:
 
 def test_status_bucket_returns_literal_status_text() -> None:
     cs = _cs("a", status="Ready - (!: REVIEWERS PENDING)")
-    assert status_bucket_for_changespec(cs) == "Ready - (!: REVIEWERS PENDING)"
+    assert status_bucket_for_patch(cs) == "Ready - (!: REVIEWERS PENDING)"
 
 
 def test_status_bucket_handles_empty_status() -> None:
-    assert status_bucket_for_changespec(_cs("a", status="")) == ""
+    assert status_bucket_for_patch(_cs("a", status="")) == ""
 
 
 def test_status_sort_index_follows_display_order() -> None:
@@ -236,13 +236,13 @@ def test_status_sort_index_unknown_sorts_after_known() -> None:
 
 
 def test_sibling_root_strips_trailing_underscore_number() -> None:
-    assert sibling_root_for_changespec(_cs("foobar_1")) == "foobar"
-    assert sibling_root_for_changespec(_cs("foobar_2")) == "foobar"
+    assert sibling_root_for_patch(_cs("foobar_1")) == "foobar"
+    assert sibling_root_for_patch(_cs("foobar_2")) == "foobar"
 
 
 def test_sibling_root_strips_legacy_double_underscore_suffix() -> None:
-    assert sibling_root_for_changespec(_cs("foobar__3")) == "foobar"
+    assert sibling_root_for_patch(_cs("foobar__3")) == "foobar"
 
 
 def test_sibling_root_returns_name_when_no_suffix() -> None:
-    assert sibling_root_for_changespec(_cs("foobar")) == "foobar"
+    assert sibling_root_for_patch(_cs("foobar")) == "foobar"

@@ -44,14 +44,14 @@ class _FakeApp(EventHandlersMixin):
         self.refresh_calls.append("agents")
 
     async def _reload_and_reposition_async(self) -> None:
-        self.refresh_calls.append("changespecs")
+        self.refresh_calls.append("patches")
 
     def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
         del source
         self.refresh_calls.append("schedule_agents")
 
-    def _schedule_changespecs_async_refresh(self) -> None:
-        self.refresh_calls.append("schedule_changespecs")
+    def _schedule_patches_async_refresh(self) -> None:
+        self.refresh_calls.append("schedule_patches")
 
     def _update_agents_info_panel(self) -> None:
         self.countdown_calls.append("info")
@@ -128,10 +128,10 @@ def test_artifact_change_defers_when_navigating() -> None:
     assert callback == app._on_artifact_change
 
 
-def test_artifact_change_marks_dirty_and_dispatches_changespecs_when_idle() -> None:
+def test_artifact_change_marks_dirty_and_dispatches_patches_when_idle() -> None:
     app = _FakeApp()
     app._on_artifact_change()
     assert app._dirty_agents is True
-    assert app._dirty_changespecs is True
-    assert app.refresh_calls == ["schedule_changespecs"]
+    assert app._dirty_patches is True
+    assert app.refresh_calls == ["schedule_patches"]
     assert app.deferred_calls == []

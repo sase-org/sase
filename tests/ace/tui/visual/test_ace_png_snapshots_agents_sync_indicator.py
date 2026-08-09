@@ -12,7 +12,7 @@ from sase.agents_sync.models import (
     SyncStatusSnapshot,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
@@ -30,11 +30,11 @@ async def test_agents_sync_indicator_pending_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
         indicator = page.app.query_one(
             "#agents-sync-indicator",

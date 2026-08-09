@@ -75,7 +75,7 @@ class _FakeApp(EventHandlersMixin):
         self._mounted_prompt_bar = False
         self._fs_watcher = object() if watcher_active else None
         self._sdd_beads_dir = sdd_beads_dir
-        self._dirty_changespecs = False
+        self._dirty_patches = False
         self._dirty_agents = False
         self._dirty_agent_artifact_dirs: tuple[Path, ...] = ()
         self._dirty_deleted_agent_artifact_dirs: tuple[Path, ...] = ()
@@ -124,7 +124,7 @@ class _FakeApp(EventHandlersMixin):
         self.refresh_calls.append("agents")
 
     async def _reload_and_reposition_async(self) -> None:
-        self.refresh_calls.append("changespecs")
+        self.refresh_calls.append("patches")
 
     def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
         del source
@@ -153,5 +153,5 @@ class _FakeApp(EventHandlersMixin):
         self.refresh_calls.append(f"request_agents:{source}")
         self.refresh_requests.append(source)
 
-    def _schedule_changespecs_async_refresh(self) -> None:
-        self.refresh_calls.append("schedule_changespecs")
+    def _schedule_patches_async_refresh(self) -> None:
+        self.refresh_calls.append("schedule_patches")

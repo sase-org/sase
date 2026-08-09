@@ -22,7 +22,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_xprompt_sources,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_visual_idle,
@@ -48,7 +48,7 @@ async def test_config_center_projects_tab_png_snapshot(
     """Default Projects sub-tab with both lifecycle states and inventory counts."""
     _patch_admin_center(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -69,7 +69,7 @@ async def test_config_center_projects_marked_png_snapshot(
     """Two marked projects show the ``[✓]`` markers, count, and marked-set hint."""
     _patch_admin_center(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -94,7 +94,7 @@ async def test_config_center_projects_disabled_png_snapshot(
     """Disabled projects are visible by default with gold badges and warnings."""
     _patch_admin_center(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
@@ -134,7 +134,7 @@ async def test_config_center_projects_detail_png_snapshot(
     """A warning-heavy disabled row fills the redesigned detail pane."""
     _patch_admin_center(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")

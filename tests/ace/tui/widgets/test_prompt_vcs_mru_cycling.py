@@ -125,7 +125,7 @@ async def test_cycling_skips_persisted_default_git_home_entry(
         lambda *a, **k: {"foo": workspace, "bar": workspace},
     )
     monkeypatch.setattr(
-        "sase.ace.changespec.cache.find_all_changespecs_cached",
+        "sase.ace.patch.cache.find_all_patches_cached",
         lambda *a, **k: [],
     )
 
@@ -163,7 +163,7 @@ async def test_cycling_inserts_humanized_configured_project_name(
         lambda *a, **k: {"proj_widgets": workspace},
     )
     monkeypatch.setattr(
-        "sase.ace.changespec.cache.find_all_changespecs_cached",
+        "sase.ace.patch.cache.find_all_patches_cached",
         lambda *a, **k: [],
     )
     monkeypatch.setattr(

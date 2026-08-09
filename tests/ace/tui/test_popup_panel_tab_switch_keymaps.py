@@ -8,7 +8,7 @@ from textual.widgets import Static
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
 from sase.ace.tui.modals import HelpModal
-from sase.ace.tui.widgets import AxeOnboarding, ChangeSpecOnboarding
+from sase.ace.tui.widgets import AxeOnboarding, PatchOnboarding
 
 
 def _static_plain(modal: object, selector: str) -> str:
@@ -33,7 +33,7 @@ def _guide_is(page: AcePage, guide_type: type[object]) -> bool:
 
 
 async def test_help_modal_tab_switch_keys_change_tab_and_refresh_content() -> None:
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         assert "Artifacts Tab" in _help_title(page)
@@ -45,7 +45,7 @@ async def test_help_modal_tab_switch_keys_change_tab_and_refresh_content() -> No
 
         await page.press("shift+tab")
 
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "patches")
         await page.wait_for(lambda _state: "Artifacts Tab" in _help_title(page))
 
 
@@ -58,13 +58,13 @@ async def test_help_guide_tab_uses_configured_tab_switch_keys(
     )
     monkeypatch.setattr(AceApp, "_schedule_axe_async_refresh", lambda self: None)
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="patches") as page:
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         await page.press("]")
-        assert _guide_is(page, ChangeSpecOnboarding)
+        assert _guide_is(page, PatchOnboarding)
 
         await page.press("f2")
 
@@ -73,5 +73,5 @@ async def test_help_guide_tab_uses_configured_tab_switch_keys(
 
         await page.press("f1")
 
-        await page.expect_state("tab", "changespecs")
-        await page.wait_for(lambda _state: _guide_is(page, ChangeSpecOnboarding))
+        await page.expect_state("tab", "patches")
+        await page.wait_for(lambda _state: _guide_is(page, PatchOnboarding))

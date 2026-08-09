@@ -357,7 +357,7 @@ async def test_landing_is_keyboard_transparent_and_digits_work_immediately(
 
 
 async def test_landing_compact_class_tracks_viewport_size() -> None:
-    async with AcePage(query="!!!", changespecs=[], size=(120, 40)) as page:
+    async with AcePage(query="!!!", patches=[], size=(120, 40)) as page:
         modal = ConfigCenterModal()
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")

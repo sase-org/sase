@@ -1,11 +1,11 @@
-"""Shared helpers for the ``test_changespec_groups_*`` test modules."""
+"""Shared helpers for the ``test_patch_groups_*`` test modules."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sase.ace.changespec import ChangeSpec, TimestampEntry
-from sase.ace.tui.models.changespec_groups import ChangeSpecTreeEntry
+from sase.ace.patch import Patch, TimestampEntry
+from sase.ace.tui.models.patch_groups import PatchTreeEntry
 
 _NOW = datetime(2026, 4, 26, 12, 0, 0)
 
@@ -16,14 +16,14 @@ def _cs(
     project: str = "demo",
     status: str = "WIP",
     timestamps: list[TimestampEntry] | None = None,
-) -> ChangeSpec:
-    """Build a minimal ChangeSpec for grouping/tree tests.
+) -> Patch:
+    """Build a minimal Patch for grouping/tree tests.
 
     ``project`` controls both the ``file_path`` parent dir (used by the
     cached ``project_name`` property) and the file basename, mirroring
     on-disk shape ``~/.sase/projects/<project>/<project>.sase``.
     """
-    return ChangeSpec(
+    return Patch(
         name=name,
         description="",
         parent=None,
@@ -35,21 +35,19 @@ def _cs(
     )
 
 
-def _kinds(entries: list[ChangeSpecTreeEntry]) -> list[tuple[str, int | None]]:
-    """Reduce entries to ``(kind, level/changespec_idx)`` tuples."""
+def _kinds(entries: list[PatchTreeEntry]) -> list[tuple[str, int | None]]:
+    """Reduce entries to ``(kind, level/patch_idx)`` tuples."""
     out: list[tuple[str, int | None]] = []
     for e in entries:
         if e.kind == "group":
             assert e.group is not None
             out.append(("group", e.group.level))
         else:
-            out.append(("changespec", e.changespec_idx))
+            out.append(("patch", e.patch_idx))
     return out
 
 
-def _group_keys(
-    entries: list[ChangeSpecTreeEntry], level: int
-) -> list[tuple[str, ...]]:
+def _group_keys(entries: list[PatchTreeEntry], level: int) -> list[tuple[str, ...]]:
     return [
         e.group.group_key  # type: ignore[union-attr]
         for e in entries

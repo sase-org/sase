@@ -233,7 +233,7 @@ def test_open_menu_pushes_modal_marking_current_state(tmp_path: Any) -> None:
 def test_open_menu_no_op_off_agents_tab(tmp_path: Any) -> None:
     agent = _make_agent(str(tmp_path))
     app = FakeApproveApp(agent)
-    app.current_tab = "changespecs"
+    app.current_tab = "patches"
 
     app.action_open_auto_approve_menu()
 

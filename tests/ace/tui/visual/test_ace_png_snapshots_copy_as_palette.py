@@ -16,7 +16,7 @@ from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 from sase.ace.tui.widgets.artifacts import CommitsPane
 from tests.ace.tui._commits_pane_helpers import _DIFF, _result
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -72,7 +72,7 @@ async def test_copy_as_commits_selected_dark_png_snapshot(
     patch_startup_loaders(monkeypatch)
     result = _patch_commits(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_commits_palette(page, result)
 
         ace_png_visual.assert_page_png(
@@ -92,7 +92,7 @@ async def test_copy_as_commits_marked_light_narrow_png_snapshot(
     async with AcePage(
         query='"visual"',
         size=(80, 30),
-        changespecs=changespecs(),
+        patches=patches(),
     ) as page:
         page.app.theme = "textual-light"
         await wait_for_startup(page)
@@ -138,7 +138,7 @@ async def test_copy_as_over_preview_panel_png_snapshot(
         ),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
@@ -192,7 +192,7 @@ async def test_copy_as_over_artifact_files_modal_png_snapshot(
         ),
     ]
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         page.app.push_screen(ArtifactFileSelectionModal(artifact_files))
         await page.expect_modal("ArtifactFileSelectionModal")

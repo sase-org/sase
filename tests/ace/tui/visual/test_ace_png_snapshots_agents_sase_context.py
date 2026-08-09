@@ -21,7 +21,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    changespecs,
+    patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -69,7 +69,7 @@ async def test_agents_sase_plan_metadata_png_snapshot(
     )
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -146,7 +146,7 @@ async def test_agents_epic_phase_roadmap_png_snapshot(
     )
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -239,7 +239,7 @@ async def test_agents_phase_bead_context_png_snapshot(
     )
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -324,7 +324,7 @@ async def test_agents_task_bead_notes_png_snapshot(
     )
     patch_startup_loaders(monkeypatch, agents=[agent])
 
-    async with AcePage(query='"visual-task-notes"', changespecs=changespecs()) as page:
+    async with AcePage(query='"visual-task-notes"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -455,9 +455,7 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
     )
     patch_startup_loaders(monkeypatch, agents=[root, coder])
 
-    async with AcePage(
-        query='"visual-phase-plan-family"', changespecs=changespecs()
-    ) as page:
+    async with AcePage(query='"visual-phase-plan-family"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")

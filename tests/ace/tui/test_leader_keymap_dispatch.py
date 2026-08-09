@@ -12,13 +12,13 @@ from tests.ace.tui._leader_keymap_helpers import _FakeApp, _make_cs
 
 
 def test_leader_space_runs_agent_from_current_cl() -> None:
-    app = _FakeApp(changespecs=[_make_cs("alpha")])
+    app = _FakeApp(patches=[_make_cs("alpha")])
 
     handled = app._handle_leader_key("space")
 
     assert handled is True
     assert app._leader_mode_active is False
-    assert app.quick_changespec_agent_count == 1
+    assert app.quick_patch_agent_count == 1
     assert app.quick_selected_agent_count == 0
     assert app.marked_agent_run_count == 0
     assert app._last_leader_key == "space"
@@ -26,7 +26,7 @@ def test_leader_space_runs_agent_from_current_cl() -> None:
 
 
 def test_leader_question_mark_is_retired_on_all_tabs() -> None:
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         app = _FakeApp(current_tab=tab)
 
         handled = app._handle_leader_key("question_mark")
@@ -47,7 +47,7 @@ def test_leader_slash_edits_query_only_on_agents() -> None:
     assert app._last_leader_key == "slash"
     assert app.refresh_count == 1
 
-    for tab in ("changespecs", "axe"):
+    for tab in ("patches", "axe"):
         app = _FakeApp(current_tab=tab)
 
         assert app._handle_leader_key("slash") is True
@@ -59,7 +59,7 @@ def test_leader_slash_edits_query_only_on_agents() -> None:
 def test_leader_query_repeat_rechecks_agents_context() -> None:
     app = _FakeApp(current_tab="agents")
     app._handle_leader_key("slash")
-    app.current_tab = "changespecs"  # type: ignore[assignment]
+    app.current_tab = "patches"  # type: ignore[assignment]
 
     assert app._handle_leader_key("comma") is True
     assert app.edit_query_count == 1
@@ -74,31 +74,31 @@ def test_leader_space_runs_agent_from_selected_agent_on_agents_tab() -> None:
 
     assert handled is True
     assert app.quick_selected_agent_count == 1
-    assert app.quick_changespec_agent_count == 0
+    assert app.quick_patch_agent_count == 0
     assert app._last_leader_key == "space"
 
 
 def test_leader_space_runs_agents_from_marked_cls() -> None:
-    app = _FakeApp(changespecs=[_make_cs("alpha")])
+    app = _FakeApp(patches=[_make_cs("alpha")])
     app.marked_indices = {0}
 
     handled = app._handle_leader_key("space")
 
     assert handled is True
     assert app.marked_agent_run_count == 1
-    assert app.quick_changespec_agent_count == 0
+    assert app.quick_patch_agent_count == 0
     assert app._last_leader_key == "space"
 
 
 def test_leader_h_runs_agent_home() -> None:
-    app = _FakeApp(changespecs=[_make_cs("alpha")])
+    app = _FakeApp(patches=[_make_cs("alpha")])
 
     handled = app._handle_leader_key("h")
 
     assert handled is True
     assert app._leader_mode_active is False
     assert app.home_agent_count == 1
-    assert app.quick_changespec_agent_count == 0
+    assert app.quick_patch_agent_count == 0
     assert app.quick_selected_agent_count == 0
     assert app.marked_agent_run_count == 0
     assert app._last_leader_key == "h"
@@ -106,14 +106,14 @@ def test_leader_h_runs_agent_home() -> None:
 
 
 def test_leader_ctrl_space_no_longer_runs_agent_from_current_cl() -> None:
-    app = _FakeApp(changespecs=[_make_cs("alpha")])
+    app = _FakeApp(patches=[_make_cs("alpha")])
 
     handled = app._handle_leader_key("ctrl+@")
 
     assert handled is True
     assert app._leader_mode_active is False
     assert app.home_agent_count == 0
-    assert app.quick_changespec_agent_count == 0
+    assert app.quick_patch_agent_count == 0
     assert app._last_leader_key is None
     assert app.refresh_count == 1
 
@@ -130,7 +130,7 @@ def test_leader_g_toggles_agent_panel_grouping_on_agents_tab() -> None:
 
 
 def test_leader_g_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="changespecs")
+    app = _FakeApp(current_tab="patches")
 
     handled = app._handle_leader_key("g")
 
@@ -157,7 +157,7 @@ def test_leader_h_uppercase_no_longer_dispatches_selected_panel_toggle() -> None
 
 
 def test_leader_h_uppercase_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="changespecs")
+    app = _FakeApp(current_tab="patches")
 
     assert app._handle_leader_key("H") is True
     assert app.toggle_selected_panels_count == 0
@@ -235,7 +235,7 @@ def test_leader_r_reverts_selected_agent_on_agents_tab() -> None:
 
 
 def test_leader_r_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="changespecs")
+    app = _FakeApp(current_tab="patches")
 
     handled = app._handle_leader_key("r")
 
@@ -260,7 +260,7 @@ def test_leader_repeat_uses_raw_subkey_for_runners() -> None:
     app = _FakeApp(current_tab="agents")
     app._handle_leader_key("R")
 
-    app.current_tab = "changespecs"  # type: ignore[assignment]
+    app.current_tab = "patches"  # type: ignore[assignment]
     app._handle_leader_key("comma")
 
     assert app._last_leader_key == "R"
@@ -304,7 +304,7 @@ def test_leader_x_kills_and_edits_marked_set_when_marks_exist() -> None:
 
 
 def test_leader_x_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="changespecs")
+    app = _FakeApp(current_tab="patches")
     app._marked_agents = {("running", "my_feature", None)}
 
     handled = app._handle_leader_key("x")
@@ -346,7 +346,7 @@ def test_leader_j_notifies_when_no_unread_done_agent() -> None:
 
 
 def test_leader_j_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="changespecs")
+    app = _FakeApp(current_tab="patches")
 
     handled = app._handle_leader_key("j")
 
@@ -382,7 +382,7 @@ def test_leader_shift_j_notifies_when_no_stopped_agents() -> None:
 
 
 def test_leader_shift_j_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="changespecs")
+    app = _FakeApp(current_tab="patches")
 
     handled = app._handle_leader_key("J")
 
@@ -404,7 +404,7 @@ def test_leader_y_refreshes_agents_from_full_history() -> None:
 
 
 def test_leader_y_noops_on_non_agents_tabs() -> None:
-    app = _FakeApp(current_tab="changespecs")
+    app = _FakeApp(current_tab="patches")
 
     handled = app._handle_leader_key("y")
 

@@ -182,8 +182,8 @@ def test_xprompt_candidates_carry_assist_metadata() -> None:
 def test_slash_skill_completion_filters_to_skills_and_uses_slash_insertions() -> None:
     entries = [
         _entry("sase_plan", inputs=(_input("topic", "line"),), is_skill=True),
-        _entry("sase_changespecs", is_skill=True),
         _entry("sase_patches", is_skill=True),
+        _entry("sase_questions", is_skill=True),
         _entry("sase_regular"),
         _entry("review", is_skill=True),
     ]
@@ -194,11 +194,11 @@ def test_slash_skill_completion_filters_to_skills_and_uses_slash_insertions() ->
 
     assert shared == ""
     assert [(c.display, c.insertion, c.name) for c in candidates] == [
-        ("/sase_changespecs", "/sase_changespecs", "sase_changespecs"),
         ("/sase_patches", "/sase_patches", "sase_patches"),
         ("/sase_plan", "/sase_plan", "sase_plan"),
+        ("/sase_questions", "/sase_questions", "sase_questions"),
     ]
-    assert candidates[2].metadata is entries[0]
+    assert candidates[1].metadata is entries[0]
 
 
 def test_slash_skill_completion_finds_packaged_sase_skills() -> None:

@@ -341,7 +341,7 @@ def _populated_statistics_view(
                     "waiting": 0,
                     "success_rate": 15 / 17,
                     "commits": 26,
-                    "distinct_changespecs": 3,
+                    "distinct_changespecs": 3,  # legacy stats wire field
                     "unattributed_runs": 6,
                     "total_runtime_seconds": 9_480.0,
                     "last_run_ts": _STATISTICS_NOW - 320,
@@ -356,7 +356,7 @@ def _populated_statistics_view(
                     "waiting": 0,
                     "success_rate": 0.875,
                     "commits": 11,
-                    "distinct_changespecs": 2,
+                    "distinct_changespecs": 2,  # legacy stats wire field
                     "unattributed_runs": 4,
                     "total_runtime_seconds": 4_860.0,
                     "last_run_ts": _STATISTICS_NOW - 1_800,
@@ -371,13 +371,13 @@ def _populated_statistics_view(
                     "waiting": 0,
                     "success_rate": 0.6,
                     "commits": 4,
-                    "distinct_changespecs": 1,
+                    "distinct_changespecs": 1,  # legacy stats wire field
                     "unattributed_runs": 2,
                     "total_runtime_seconds": 1_670.0,
                     "last_run_ts": _STATISTICS_NOW - 7_200,
                 },
             ],
-            "changespecs": [
+            "changespecs": [  # legacy stats wire key
                 {
                     "project": _WIDGETS_KEY,
                     "name": f"{_WIDGETS_KEY}_statistics-project-views",
@@ -435,7 +435,7 @@ def _populated_statistics_view(
                 },
             ],
             "unattributed_runs": 12,
-            "truncated_changespec_rows": 0,
+            "truncated_patch_rows": 0,
             "malformed_spec_files_skipped": 0,
         },
         "runners": {

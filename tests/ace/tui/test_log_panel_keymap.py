@@ -243,7 +243,7 @@ def test_footer_omits_log_panel_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "log panel" not in _last_labels(captured)
 
@@ -252,6 +252,6 @@ def test_footer_omits_task_queue_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    for tab in ("changespecs", "agents", "axe"):
+    for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "task queue" not in _last_labels(captured)

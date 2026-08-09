@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
+from sase.ace.patch.models import DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
