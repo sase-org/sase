@@ -226,5 +226,5 @@ def write_patch_atomic(
         raise
 
 
-changespec_lock = patch_lock
-write_changespec_atomic = write_patch_atomic
+changespec_lock = patch_lock  # legacy compatibility alias
+write_changespec_atomic = write_patch_atomic  # legacy compatibility alias

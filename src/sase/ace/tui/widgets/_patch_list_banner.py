@@ -18,10 +18,10 @@ from sase.project_display_names import humanize_cl_name
 
 from ..models.patch_groups import PatchGroupRow
 from ._agent_list_styling import (
-    _CHANGESPEC_BANNER_BAR_STYLE,
-    _CHANGESPEC_BANNER_RULE_STYLE,
-    _CHANGESPEC_BAR_GLYPH,
-    _CHANGESPEC_RULE,
+    _PATCH_BANNER_BAR_STYLE,
+    _PATCH_BANNER_RULE_STYLE,
+    _PATCH_BAR_GLYPH,
+    _PATCH_RULE,
     _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
     _NAME_ROOT_BRANCH_GLYPH,
@@ -66,11 +66,11 @@ def _banner_parts(group: PatchGroupRow) -> tuple[str, str, str, str, str]:
         )
     if group.level == 1:
         return (
-            f"{_CHANGESPEC_BAR_GLYPH} ",
-            _CHANGESPEC_BANNER_BAR_STYLE,
-            _CHANGESPEC_BANNER_BAR_STYLE,
-            _CHANGESPEC_RULE,
-            _CHANGESPEC_BANNER_RULE_STYLE,
+            f"{_PATCH_BAR_GLYPH} ",
+            _PATCH_BANNER_BAR_STYLE,
+            _PATCH_BANNER_BAR_STYLE,
+            _PATCH_RULE,
+            _PATCH_BANNER_RULE_STYLE,
         )
     return (
         f"{_NAME_ROOT_BRANCH_GLYPH} ",

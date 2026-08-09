@@ -16,13 +16,13 @@ from ..patch_groups._tree import (
     build_patch_tree,
 )
 
-ChangeSpecGroupRow = PatchGroupRow
-ChangeSpecTreeEntry = PatchTreeEntry
-build_changespec_tree = build_patch_tree
-keys_for_changespecs = keys_for_patches
+ChangeSpecGroupRow = PatchGroupRow  # legacy compatibility alias
+ChangeSpecTreeEntry = PatchTreeEntry  # legacy compatibility alias
+build_changespec_tree = build_patch_tree  # legacy compatibility alias
+keys_for_changespecs = keys_for_patches  # legacy compatibility alias
 
 
-def enumerate_changespec_group_keys(
+def enumerate_changespec_group_keys(  # legacy compatibility alias
     patches: list[Any],
     mode: PatchGroupingMode = PatchGroupingMode.BY_PROJECT,
     now: datetime | None = None,
@@ -35,7 +35,10 @@ def enumerate_changespec_group_keys(
         if mode is PatchGroupingMode.BY_DATE
         else None
     )
-    keys = keys_for_changespecs(patches, mode, reference, latest_map=latest_map)
+    # legacy compatibility alias
+    keys = keys_for_changespecs(
+        patches, mode, reference, latest_map=latest_map
+    )  # legacy compatibility alias
     walk = walk_order(patches, keys, mode, latest_map=latest_map)
 
     seen: set[GroupKey] = set()
@@ -85,10 +88,10 @@ def enumerate_changespec_group_keys(
 
 
 __all__ = [
-    "ChangeSpecGroupRow",
-    "ChangeSpecTreeEntry",
-    "build_changespec_tree",
-    "enumerate_changespec_group_keys",
-    "keys_for_changespecs",
+    "ChangeSpecGroupRow",  # legacy compatibility alias
+    "ChangeSpecTreeEntry",  # legacy compatibility alias
+    "build_changespec_tree",  # legacy compatibility alias
+    "enumerate_changespec_group_keys",  # legacy compatibility alias
+    "keys_for_changespecs",  # legacy compatibility alias
     "local_now",
 ]

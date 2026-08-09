@@ -1,4 +1,4 @@
-"""Hook persistence - reading and writing hooks to ChangeSpec project files."""
+"""Hook persistence - reading and writing hooks to Patch project files."""
 
 import logging
 from collections.abc import Callable
@@ -11,8 +11,8 @@ from ..patch import (
     HookEntry,
     HookStatusLine,
     LockTimeoutError,
-    changespec_lock,
-    write_changespec_atomic,
+    patch_lock,
+    write_patch_atomic,
 )
 from .formatting import apply_hooks_update, format_hooks_field
 
@@ -21,7 +21,7 @@ def get_hook_output_path(name: str, timestamp: str) -> str:
     """Get the output file path for a hook run.
 
     Args:
-        name: The ChangeSpec name.
+        name: The Patch name.
         timestamp: The timestamp in YYmmdd_HHMMSS format.
 
     Returns:
@@ -34,14 +34,14 @@ def get_hook_output_path(name: str, timestamp: str) -> str:
 
 def write_hooks_unlocked(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     hooks: list[HookEntry],
 ) -> bool:
     """Write hooks to file. Must be called while holding the lock.
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         hooks: List of HookEntry objects to write.
 
     Returns:
@@ -50,22 +50,22 @@ def write_hooks_unlocked(
     with open(project_file, encoding="utf-8") as f:
         lines = f.readlines()
 
-    updated_lines = apply_hooks_update(lines, changespec_name, hooks)
+    updated_lines = apply_hooks_update(lines, patch_name, hooks)
     updated_content = "".join(updated_lines)
     if updated_content == "".join(lines):
         return False
 
-    write_changespec_atomic(
+    write_patch_atomic(
         project_file,
         updated_content,
-        f"Update HOOKS for {changespec_name}",
+        f"Update HOOKS for {patch_name}",
     )
     return True
 
 
-def update_changespec_hooks_field(
+def update_patch_hooks_field(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     hooks: list[HookEntry],
 ) -> bool:
     """Update the HOOKS field in the project file.
@@ -74,22 +74,19 @@ def update_changespec_hooks_field(
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         hooks: List of HookEntry objects to write.
 
     Returns:
         True if update succeeded, False otherwise.
     """
     try:
-        with changespec_lock(project_file):
-            write_hooks_unlocked(project_file, changespec_name, hooks)
+        with patch_lock(project_file):
+            write_hooks_unlocked(project_file, patch_name, hooks)
             return True
 
     except Exception:
         return False
-
-
-update_patch_hooks_field = update_changespec_hooks_field
 
 
 def _normalize_parsed_plain_suffix_types(hooks: list[HookEntry]) -> list[HookEntry]:
@@ -116,20 +113,20 @@ def _normalize_parsed_plain_suffix_types(hooks: list[HookEntry]) -> list[HookEnt
     return normalized_hooks
 
 
-def transform_changespec_hooks_field(
+def transform_patch_hooks_field(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     transform: Callable[[list[HookEntry]], list[HookEntry]],
 ) -> bool:
-    """Transform the current HOOKS field under the ChangeSpec lock.
+    """Transform the current HOOKS field under the Patch lock.
 
-    The ChangeSpec is parsed from disk after acquiring the lock. The transformed
+    The Patch is parsed from disk after acquiring the lock. The transformed
     hooks are persisted only when they differ from the current hooks, so ``True``
     means an actual write occurred rather than merely a successful no-op.
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         transform: Pure hook-list transformation to apply to current disk state.
 
     Returns:
@@ -138,16 +135,14 @@ def transform_changespec_hooks_field(
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
-            changespec = next(
-                (cs for cs in changespecs if cs.name == changespec_name), None
-            )
-            if changespec is None:
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
+            patch = next((cs for cs in patches if cs.name == patch_name), None)
+            if patch is None:
                 return False
 
             current_hooks = _normalize_parsed_plain_suffix_types(
-                list(changespec.hooks or [])
+                list(patch.hooks or [])
             )
             updated_hooks = transform(current_hooks)
             if updated_hooks == current_hooks:
@@ -155,26 +150,23 @@ def transform_changespec_hooks_field(
 
             return write_hooks_unlocked(
                 project_file,
-                changespec_name,
+                patch_name,
                 updated_hooks,
             )
 
     except LockTimeoutError:
         logging.warning(
-            f"Lock timeout transforming hooks for {changespec_name} in {project_file}"
+            f"Lock timeout transforming hooks for {patch_name} in {project_file}"
         )
         return False
     except Exception as e:
-        logging.error(f"Failed to transform hooks for {changespec_name}: {e}")
+        logging.error(f"Failed to transform hooks for {patch_name}: {e}")
         return False
-
-
-transform_patch_hooks_field = transform_changespec_hooks_field
 
 
 def merge_hook_updates(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     hook_updates: dict[str, HookEntry],
 ) -> bool:
     """Merge hook status updates with current disk state.
@@ -185,7 +177,7 @@ def merge_hook_updates(
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         hook_updates: Dict mapping hook command -> updated HookEntry.
             Only hooks in this dict will be updated; other hooks on disk
             are preserved unchanged.
@@ -196,12 +188,12 @@ def merge_hook_updates(
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             # Re-read current hooks from disk while holding lock
-            changespecs = parse_project_file(project_file)
+            patches = parse_project_file(project_file)
             current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
+            for cs in patches:
+                if cs.name == patch_name:
                     current_hooks = list(cs.hooks) if cs.hooks else []
                     break
 
@@ -223,7 +215,7 @@ def merge_hook_updates(
                 else:
                     merged_hooks.append(hook)
 
-            write_hooks_unlocked(project_file, changespec_name, merged_hooks)
+            write_hooks_unlocked(project_file, patch_name, merged_hooks)
 
             # Log hook completion events for terminal statuses
             try:
@@ -235,7 +227,7 @@ def merge_hook_updates(
                             log_event(
                                 event="hook_completed",
                                 hook=cmd,
-                                cl_name=changespec_name,
+                                cl_name=patch_name,
                                 status=sl.status,
                                 duration=sl.duration,
                             )
@@ -247,20 +239,20 @@ def merge_hook_updates(
     except LockTimeoutError:
         # Log lock timeout specifically - this is likely due to contention
         logging.warning(
-            f"Lock timeout updating hooks for {changespec_name} in {project_file}"
+            f"Lock timeout updating hooks for {patch_name} in {project_file}"
         )
         return False
     except Exception as e:
         # Log unexpected errors
-        logging.error(f"Failed to update hooks for {changespec_name}: {e}")
+        logging.error(f"Failed to update hooks for {patch_name}: {e}")
         return False
 
 
 def update_hook_status_line_suffix_type(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     hook_command: str,
-    commit_entry_num: str,
+    stitch_num: str,
     new_suffix_type: str,
 ) -> bool:
     """Update the suffix_type of a specific hook status line.
@@ -271,9 +263,9 @@ def update_hook_status_line_suffix_type(
 
     Args:
         project_file: Path to the project file.
-        changespec_name: NAME of the ChangeSpec.
+        patch_name: NAME of the Patch.
         hook_command: The hook command to find.
-        commit_entry_num: The history entry number of the status line.
+        stitch_num: The history entry number of the status line.
         new_suffix_type: The new suffix type ("error" or "plain").
 
     Returns:
@@ -292,7 +284,7 @@ def update_hook_status_line_suffix_type(
                 # Allow transitioning from "error" to other types, or to
                 # "plain" from any type.
                 if (
-                    status_line.commit_entry_num == commit_entry_num
+                    status_line.stitch_num == stitch_num
                     and status_line.suffix
                     and (
                         status_line.suffix_type == "error" or new_suffix_type == "plain"
@@ -307,8 +299,14 @@ def update_hook_status_line_suffix_type(
 
         return updated_hooks
 
-    return transform_changespec_hooks_field(
+    return transform_patch_hooks_field(
         project_file,
-        changespec_name,
+        patch_name,
         transform,
     )
+
+
+update_changespec_hooks_field = update_patch_hooks_field  # legacy compatibility alias
+transform_changespec_hooks_field = (
+    transform_patch_hooks_field  # legacy compatibility alias
+)

@@ -23,7 +23,7 @@ from sase.status_state_machine import (
 )
 from sase.workspace_provider import SUBMITTED_CHECK_EXIT_CODE_CLOSED
 
-from ..patch import ChangeSpec, CommentEntry, get_base_status, is_plain_suffix
+from ..patch import Patch, CommentEntry, get_base_status, is_plain_suffix
 from ..pr_status import is_parent_submitted
 from ..comments import (
     get_comments_file_path,
@@ -31,6 +31,11 @@ from ..comments import (
     update_patch_comments_field,
 )
 from ..sync_cache import update_last_checked
+
+transition_changespec_status = transition_patch_status  # legacy compatibility alias
+update_changespec_comments_field = (  # legacy compatibility alias
+    update_patch_comments_field
+)
 
 # Type alias for log callback
 LogCallback = Callable[[str, str], None]
@@ -59,7 +64,7 @@ _CRITIQUE_COMMENTS_EXIT_CODES: dict[int, str] = {
 class _PendingCheck:
     """Represents a pending background check."""
 
-    changespec_name: str
+    patch_name: str
     check_type: CheckType
     timestamp: str
     output_path: str
@@ -69,7 +74,7 @@ def _get_check_output_path(name: str, check_type: CheckType, timestamp: str) -> 
     """Get the output file path for a check run.
 
     Args:
-        name: The ChangeSpec name.
+        name: The Patch name.
         check_type: The type of check.
         timestamp: The timestamp in YYmmdd_HHMMSS format.
 
@@ -162,21 +167,21 @@ exit $exit_code
 
 
 def start_cl_submitted_check(
-    changespec: ChangeSpec,
+    patch: Patch,
     workspace_dir: str | None,
     log: LogCallback,
 ) -> str | None:
     """Start is_cl_submitted check as a background process.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         workspace_dir: The workspace directory to run the command in.
         log: Logging callback.
 
     Returns:
         Update message if check was started, None if failed.
     """
-    result = _extract_change_identifier(changespec.pr_url)
+    result = _extract_change_identifier(patch.pr_url)
     if not result:
         return None
 
@@ -189,20 +194,18 @@ def start_cl_submitted_check(
         return None
 
     timestamp = generate_timestamp()
-    output_path = _get_check_output_path(
-        changespec.name, CHECK_TYPE_CL_SUBMITTED, timestamp
-    )
+    output_path = _get_check_output_path(patch.name, CHECK_TYPE_CL_SUBMITTED, timestamp)
 
     try:
         _start_background_check(script_body, output_path, workspace_dir)
         return "Started cl_submitted check"
     except Exception as e:
-        log(f"Failed to start cl_submitted check for {changespec.name}: {e}", "red")
+        log(f"Failed to start cl_submitted check for {patch.name}: {e}", "red")
         return None
 
 
 def start_reviewer_comments_check(
-    changespec: ChangeSpec,
+    patch: Patch,
     workspace_dir: str,
     log: LogCallback,
 ) -> str | None:
@@ -212,7 +215,7 @@ def start_reviewer_comments_check(
     are supported and to generate the check script.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         workspace_dir: The workspace directory to run the command in.
         log: Logging callback.
 
@@ -226,18 +229,18 @@ def start_reviewer_comments_check(
 
     # When a PR URL is present, ask plugins whether reviewer comments are
     # supported.  Skip if the plugin explicitly returns False.
-    if changespec.pr_url is not None:
-        supported = supports_reviewer_comments(changespec.pr_url)
+    if patch.pr_url is not None:
+        supported = supports_reviewer_comments(patch.pr_url)
         if supported is False:
             return None
 
-    script_body = generate_reviewer_comments_script(changespec.name)
+    script_body = generate_reviewer_comments_script(patch.name)
     if script_body is None:
         return None
 
     timestamp = generate_timestamp()
     output_path = _get_check_output_path(
-        changespec.name, CHECK_TYPE_REVIEWER_COMMENTS, timestamp
+        patch.name, CHECK_TYPE_REVIEWER_COMMENTS, timestamp
     )
 
     try:
@@ -245,7 +248,7 @@ def start_reviewer_comments_check(
         return "Started reviewer_comments check"
     except Exception as e:
         log(
-            f"Failed to start reviewer_comments check for {changespec.name}: {e}",
+            f"Failed to start reviewer_comments check for {patch.name}: {e}",
             "red",
         )
         return None
@@ -267,7 +270,7 @@ _CHECK_FILENAME_RE = re.compile(
 def reap_orphan_check_files(log: LogCallback) -> int:
     """Delete check files with no completion marker older than _ORPHAN_AGE_SECONDS.
 
-    Called once per poll tick (not per ChangeSpec).  Returns the count reaped.
+    Called once per poll tick (not per Patch).  Returns the count reaped.
     """
     now = time.time()
     reaped = 0
@@ -295,10 +298,10 @@ def reap_orphan_check_files(log: LogCallback) -> int:
 
 
 def scan_all_pending_checks() -> dict[str, list[_PendingCheck]]:
-    """Walk ~/.sase/checks/ once and group pending checks by safe ChangeSpec name.
+    """Walk ~/.sase/checks/ once and group pending checks by safe Patch name.
 
     Keys are the filename-encoded safe_name (see :func:`make_safe_filename`),
-    not the raw ChangeSpec name.  Callers must look up ChangeSpecs by the
+    not the raw Patch name.  Callers must look up Patches by the
     same transform.
     """
     by_name: dict[str, list[_PendingCheck]] = {}
@@ -308,7 +311,7 @@ def scan_all_pending_checks() -> dict[str, list[_PendingCheck]]:
             continue
         by_name.setdefault(m["name"], []).append(
             _PendingCheck(
-                changespec_name=m["name"],
+                patch_name=m["name"],
                 check_type=m["type"],  # type: ignore[arg-type]
                 timestamp=m["timestamp"],
                 output_path=str(file_path),
@@ -317,19 +320,19 @@ def scan_all_pending_checks() -> dict[str, list[_PendingCheck]]:
     return by_name
 
 
-def _get_pending_checks(changespec: ChangeSpec) -> list[_PendingCheck]:
-    """Get all pending background checks for a ChangeSpec.
+def _get_pending_checks(patch: Patch) -> list[_PendingCheck]:
+    """Get all pending background checks for a Patch.
 
-    Scans ~/.sase/checks/ for files matching this changespec's name.
+    Scans ~/.sase/checks/ for files matching this patch's name.
 
     Args:
-        changespec: The ChangeSpec to find checks for.
+        patch: The Patch to find checks for.
 
     Returns:
         List of _PendingCheck objects.
     """
     # Create safe name pattern
-    safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", changespec.name)
+    safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", patch.name)
     pending: list[_PendingCheck] = []
 
     pattern = rf"^{re.escape(safe_name)}-(\w+)-(\d{{6}}_\d{{6}})\.txt$"
@@ -348,7 +351,7 @@ def _get_pending_checks(changespec: ChangeSpec) -> list[_PendingCheck]:
         ):
             pending.append(
                 _PendingCheck(
-                    changespec_name=changespec.name,
+                    patch_name=patch.name,
                     check_type=check_type_str,  # type: ignore[arg-type]
                     timestamp=timestamp,
                     output_path=str(file_path),
@@ -399,14 +402,14 @@ def _parse_check_completion(output_path: str) -> tuple[bool, int, str]:
 
 
 def _handle_cl_submitted_completion(
-    changespec: ChangeSpec,
+    patch: Patch,
     exit_code: int,
     log: LogCallback,
 ) -> str | None:
     """Handle completed is_cl_submitted check.
 
     Args:
-        changespec: The ChangeSpec to update.
+        patch: The Patch to update.
         exit_code: The exit code from the check.
         log: Logging callback.
 
@@ -414,49 +417,49 @@ def _handle_cl_submitted_completion(
         Update message if status changed, None otherwise.
     """
     # Update the last_checked timestamp
-    update_last_checked(changespec.name)
+    update_last_checked(patch.name)
 
     if exit_code == SUBMITTED_CHECK_EXIT_CODE_CLOSED:
-        base_status = remove_workspace_suffix(get_base_status(changespec.status))
+        base_status = remove_workspace_suffix(get_base_status(patch.status))
         if base_status not in ARCHIVE_STATUSES:
             from ..sync_cache import clear_cache_entry
 
-            success, old_status, _, _ = transition_patch_status(
-                changespec.file_path,
-                changespec.name,
-                "Archived",
-                validate=False,
+            success, old_status, _, _ = (
+                transition_changespec_status(  # legacy compatibility alias
+                    patch.file_path,
+                    patch.name,
+                    "Archived",
+                    validate=False,
+                )
             )
 
             if success:
-                clear_cache_entry(changespec.name)
+                clear_cache_entry(patch.name)
                 return f"Status changed {old_status} -> Archived"
         return None
 
     # Exit code 0 means submitted, but skip if already Submitted
-    if (
-        exit_code == 0
-        and is_parent_submitted(changespec)
-        and changespec.status != "Submitted"
-    ):
+    if exit_code == 0 and is_parent_submitted(patch) and patch.status != "Submitted":
         from ..sync_cache import clear_cache_entry
 
-        success, old_status, _, _ = transition_patch_status(
-            changespec.file_path,
-            changespec.name,
-            "Submitted",
-            validate=False,
+        success, old_status, _, _ = (
+            transition_changespec_status(  # legacy compatibility alias
+                patch.file_path,
+                patch.name,
+                "Submitted",
+                validate=False,
+            )
         )
 
         if success:
-            clear_cache_entry(changespec.name)
+            clear_cache_entry(patch.name)
             return f"Status changed {old_status} -> Submitted"
 
     return None
 
 
 def _handle_reviewer_comments_completion(
-    changespec: ChangeSpec,
+    patch: Patch,
     exit_code: int,
     content: str,
     log: LogCallback,
@@ -464,7 +467,7 @@ def _handle_reviewer_comments_completion(
     """Handle completed critique_comments check for reviewer comments.
 
     Args:
-        changespec: The ChangeSpec to update.
+        patch: The Patch to update.
         exit_code: The exit code from the check.
         content: The command output (comment content).
         log: Logging callback.
@@ -478,7 +481,7 @@ def _handle_reviewer_comments_completion(
     if exit_code != 0:
         meaning = _CRITIQUE_COMMENTS_EXIT_CODES.get(exit_code, "unknown error")
         log(
-            f"critique_comments failed for {changespec.name}: {meaning} "
+            f"critique_comments failed for {patch.name}: {meaning} "
             f"(exit code {exit_code})",
             "red",
         )
@@ -488,8 +491,8 @@ def _handle_reviewer_comments_completion(
 
     # Find existing [reviewer] entry
     existing_reviewer_entry: CommentEntry | None = None
-    if changespec.comments:
-        for entry in changespec.comments:
+    if patch.comments:
+        for entry in patch.comments:
             if entry.reviewer == "critique":
                 existing_reviewer_entry = entry
                 break
@@ -498,7 +501,7 @@ def _handle_reviewer_comments_completion(
         # If no existing entry, create a new one with the comments file
         if existing_reviewer_entry is None:
             timestamp = generate_timestamp()
-            file_path = get_comments_file_path(changespec.name, "critique", timestamp)
+            file_path = get_comments_file_path(patch.name, "critique", timestamp)
 
             # Save output to file
             with open(file_path, "w") as f:
@@ -511,11 +514,11 @@ def _handle_reviewer_comments_completion(
                 file_path=display_path,
                 suffix=None,
             )
-            new_comments = list(changespec.comments) if changespec.comments else []
+            new_comments = list(patch.comments) if patch.comments else []
             new_comments.append(new_entry)
             update_patch_comments_field(
-                changespec.file_path,
-                changespec.name,
+                patch.file_path,
+                patch.name,
                 new_comments,
             )
             updates.append("Added [reviewer] comment entry")
@@ -528,10 +531,10 @@ def _handle_reviewer_comments_completion(
             or is_plain_suffix(existing_reviewer_entry.suffix)
         ):
             remove_comment_entry(
-                changespec.file_path,
-                changespec.name,
+                patch.file_path,
+                patch.name,
                 "critique",
-                changespec.comments,
+                patch.comments,
             )
             updates.append("Removed [critique] comment entry (no comments)")
 
@@ -547,11 +550,11 @@ def _cleanup_check_file(output_path: str) -> None:
 
 
 def process_pending_checks_for(
-    changespec: ChangeSpec,
+    patch: Patch,
     pending: list[_PendingCheck],
     log: LogCallback,
 ) -> list[str]:
-    """Process a pre-scanned list of pending checks for a single ChangeSpec.
+    """Process a pre-scanned list of pending checks for a single Patch.
 
     Used by :func:`run_pending_checks_poll` after a single directory scan
     per tick.
@@ -565,12 +568,12 @@ def process_pending_checks_for(
             continue
 
         if check.check_type == CHECK_TYPE_CL_SUBMITTED:
-            update = _handle_cl_submitted_completion(changespec, exit_code, log)
+            update = _handle_cl_submitted_completion(patch, exit_code, log)
             if update:
                 updates.append(update)
         elif check.check_type == CHECK_TYPE_REVIEWER_COMMENTS:
             check_updates = _handle_reviewer_comments_completion(
-                changespec, exit_code, content, log
+                patch, exit_code, content, log
             )
             updates.extend(check_updates)
         _cleanup_check_file(check.output_path)
@@ -578,15 +581,15 @@ def process_pending_checks_for(
     return updates
 
 
-def has_pending_check(changespec: ChangeSpec, check_type: CheckType) -> bool:
-    """Check if a specific check type is already pending for a ChangeSpec.
+def has_pending_check(patch: Patch, check_type: CheckType) -> bool:
+    """Check if a specific check type is already pending for a Patch.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         check_type: The type of check to look for.
 
     Returns:
         True if a check of this type is pending, False otherwise.
     """
-    pending = _get_pending_checks(changespec)
+    pending = _get_pending_checks(patch)
     return any(check.check_type == check_type for check in pending)

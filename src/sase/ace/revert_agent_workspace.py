@@ -6,7 +6,7 @@ accumulate unrelated changes, which would make a revert fail for reasons
 unrelated to the commits being reverted.
 
 Instead every revert operation (preview and execute, single and bulk) claims a
-*fresh* short-lived workspace, prepares that checkout on the relevant ChangeSpec
+*fresh* short-lived workspace, prepares that checkout on the relevant Patch
 branch or project default branch, runs the existing preview/execute logic there,
 and releases the claim in all completion and failure paths.
 
@@ -288,7 +288,7 @@ def _prepare_revert_workspace(
             )
             continue
         # External repos are deliberately reused in place: they are ephemeral
-        # workspace-local clones with no ChangeSpec branch contract. Preview
+        # workspace-local clones with no Patch branch contract. Preview
         # inspects local changes and execution discards them without network I/O.
         repos.append(
             RevertRepo(

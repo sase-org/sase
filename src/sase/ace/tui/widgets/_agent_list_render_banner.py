@@ -20,10 +20,10 @@ from ..models.agent_groups import (
 from ._agent_list_render_cache import AgentRenderCache, banner_render_key
 from ._agent_list_render_layout import render_tier_gutter
 from ._agent_list_styling import (
-    _CHANGESPEC_BANNER_BAR_STYLE,
-    _CHANGESPEC_BANNER_RULE_STYLE,
-    _CHANGESPEC_BAR_GLYPH,
-    _CHANGESPEC_RULE,
+    _PATCH_BANNER_BAR_STYLE,
+    _PATCH_BANNER_RULE_STYLE,
+    _PATCH_BAR_GLYPH,
+    _PATCH_RULE,
     _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
     _NAME_ROOT_BRANCH_GLYPH,
@@ -114,11 +114,11 @@ def format_banner_option(
         label_style = _PROJECT_BANNER_BAR_STYLE
         rule_style = _PROJECT_BANNER_RULE_STYLE
     elif is_middle_tier_banner:
-        prefix = f"{_CHANGESPEC_BAR_GLYPH} "
-        rule_char = _CHANGESPEC_RULE
-        prefix_style = _CHANGESPEC_BANNER_BAR_STYLE
-        label_style = _CHANGESPEC_BANNER_BAR_STYLE
-        rule_style = _CHANGESPEC_BANNER_RULE_STYLE
+        prefix = f"{_PATCH_BAR_GLYPH} "
+        rule_char = _PATCH_RULE
+        prefix_style = _PATCH_BANNER_BAR_STYLE
+        label_style = _PATCH_BANNER_BAR_STYLE
+        rule_style = _PATCH_BANNER_RULE_STYLE
     else:
         prefix = f"{_NAME_ROOT_BRANCH_GLYPH} "
         rule_char = _NAME_ROOT_RULE

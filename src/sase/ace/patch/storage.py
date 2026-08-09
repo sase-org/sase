@@ -13,7 +13,9 @@ STITCH_SECTION_HEADERS = (
     LEGACY_STITCH_SECTION_HEADER,
 )
 
-_PATCH_HEADING_RE = re.compile(r"^##\s+(?:Patch|ChangeSpec)\b")
+_PATCH_HEADING_RE = re.compile(
+    r"^##\s+(?:Patch|ChangeSpec)\b"
+)  # legacy compatibility alias
 
 
 def is_patch_heading(line: str) -> bool:

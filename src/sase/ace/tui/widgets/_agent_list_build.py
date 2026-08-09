@@ -45,7 +45,7 @@ from ._agent_list_rendering import (
 )
 from ._agent_list_styling import (
     _BANNER_ROW,
-    _CHANGESPEC_BANNER_RULE_STYLE,
+    _PATCH_BANNER_RULE_STYLE,
     _MIN_BANNER_WIDTH,
     _PROJECT_BANNER_RULE_STYLE,
 )
@@ -112,15 +112,15 @@ def compute_tier_styles(
         if group.level == 0:
             return _PROJECT_BANNER_RULE_STYLE
         if group.level == 1 and panel_uses_cs and len(group.group_key) == 2:
-            return _CHANGESPEC_BANNER_RULE_STYLE
+            return _PATCH_BANNER_RULE_STYLE
         if (
             group.level == 1
             and mode is GroupingMode.BY_DATE
             and group.group_key[-1] != NO_HOUR_LABEL
         ):
-            return _CHANGESPEC_BANNER_RULE_STYLE
+            return _PATCH_BANNER_RULE_STYLE
         if group.has_child_groups:
-            return _CHANGESPEC_BANNER_RULE_STYLE
+            return _PATCH_BANNER_RULE_STYLE
         return None
 
     active: list[tuple[tuple[str, ...], str]] = []

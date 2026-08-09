@@ -2,6 +2,6 @@
 
 from .patch_info_panel import PatchInfoPanel
 
-ChangeSpecInfoPanel = PatchInfoPanel
+ChangeSpecInfoPanel = PatchInfoPanel  # legacy compatibility alias
 
-__all__ = ["ChangeSpecInfoPanel"]
+__all__ = ["ChangeSpecInfoPanel"]  # legacy compatibility alias

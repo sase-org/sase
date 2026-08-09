@@ -142,7 +142,11 @@ def run_agent_launch_body(
     # Check if this is a bulk run.
     bulk_patches = getattr(app, "_bulk_patches", None)
     if bulk_patches is None:
-        bulk_patches = getattr(app, "_bulk_changespecs", None)
+        bulk_patches = getattr(
+            app,
+            "_bulk_changespecs",  # legacy compatibility alias
+            None,
+        )
     if bulk_patches:
         app._bulk_patches = bulk_patches
         from sase.agent.multi_prompt import is_multi_prompt
@@ -152,8 +156,10 @@ def run_agent_launch_body(
 
             record_failed_launch_prompt(prompt)
             app._bulk_patches = None
+            if hasattr(app, "_bulk_patches"):
+                app._bulk_patches = None
             if hasattr(app, "_bulk_changespecs"):
-                app._bulk_changespecs = None
+                app._bulk_changespecs = None  # type: ignore[attr-defined] # legacy compatibility alias
             if owns_context:
                 app._prompt_context = None
             return _with_unresolved_warnings(

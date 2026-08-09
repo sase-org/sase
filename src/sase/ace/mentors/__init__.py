@@ -14,10 +14,12 @@ from sase.ace.mentors.status import (
     clear_mentor_status_lines,
     merge_mentor_status_lines,
     set_mentor_status,
-    update_changespec_mentors_field,
+    update_patch_mentors_field,
 )
 
-update_patch_mentors_field = update_changespec_mentors_field
+update_changespec_mentors_field = (
+    update_patch_mentors_field  # legacy compatibility alias
+)
 
 __all__ = [
     "add_mentor_entry",
@@ -29,6 +31,6 @@ __all__ = [
     "remove_mentor_data",
     "set_mentor_draft_flags",
     "set_mentor_status",
-    "update_changespec_mentors_field",
     "update_patch_mentors_field",
+    "update_changespec_mentors_field",  # legacy compatibility alias
 ]

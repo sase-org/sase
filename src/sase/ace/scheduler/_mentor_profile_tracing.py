@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from sase.config.mentor import MentorProfileConfig
 
-from ..patch import ChangeSpec, CommitEntry
+from ..patch import Patch, Stitch
 from ._mentor_profile_helpers import CommitMatchArtifact
 
 
@@ -31,23 +31,23 @@ class ProfileMatchTrace:
 
 def trace_profile_match(
     profile: MentorProfileConfig,
-    commits: list[CommitEntry],
-    changespec: ChangeSpec | None,
+    commits: list[Stitch],
+    patch: Patch | None,
     artifacts: list[CommitMatchArtifact],
 ) -> ProfileMatchTrace:
     """Trace how a profile matches against a set of commits, returning details."""
     trace = ProfileMatchTrace(profile_name=profile.profile_name)
 
     # projects scope
-    if profile.projects is not None and changespec is not None:
-        project_matched = changespec.project_basename in profile.projects
+    if profile.projects is not None and patch is not None:
+        project_matched = patch.project_basename in profile.projects
         trace.criteria_results.append(
             CriterionResult(
                 criterion="projects",
                 configured=True,
                 matched=project_matched,
                 details=(
-                    f"project '{changespec.project_basename}' "
+                    f"project '{patch.project_basename}' "
                     f"{'in' if project_matched else 'not in'} {profile.projects}"
                 ),
             )

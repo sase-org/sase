@@ -15,7 +15,7 @@ def get_comments_file_path(name: str, reviewer: str, timestamp: str) -> str:
     """Get the path for a comments JSON file.
 
     Args:
-        name: The ChangeSpec name.
+        name: The Patch name.
         reviewer: The reviewer identifier (e.g., "critique").
         timestamp: The timestamp in YYmmdd_HHMMSS format.
 

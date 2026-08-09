@@ -3,7 +3,7 @@
 Adapted from :mod:`sase.ace.query.tokenizer`. Differences:
 
 * Closed property-key allowlist tailored to ``Agent`` fields.
-* No ChangeSpec shorthand sigils (``%d``/``+proj``/``^anc``/``!!!``/``@@@`` etc.).
+* No Patch shorthand sigils (``%d``/``+proj``/``^anc``/``!!!``/``@@@`` etc.).
 * New token types for ``age`` comparison operators (``<``, ``<=``, ``>``,
   ``>=``, ``=``) and ``(\\d+)(s|m|h|d)`` duration literals.
 * Boolean-valued keys (``pinned``, ``hidden``, ``attention``) only accept

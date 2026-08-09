@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 CommandTab = Literal["artifacts", "agents", "axe"]
 """The three top-level tabs that scope command applicability."""
 
-LegacyCommandTab = Literal["changespecs", "patches"]
+LegacyCommandTab = Literal["patches", "changespecs"]  # legacy compatibility alias
 
 
 CommandCategory = Literal[
@@ -201,7 +201,7 @@ class CommandContext:
         "prs", "commits", "bugs", "beads", "plans", "chats", "other"
     ] = "prs"
     patch: Patch | None = None
-    changespec: InitVar[Patch | None] = None
+    changespec: InitVar[Patch | None] = None  # legacy compatibility alias
     agent: Agent | None = None
     axe_item: AxeItem | None = None
     # Warm-only Artifacts copy-palette selection state. ``None`` means the
@@ -217,7 +217,7 @@ class CommandContext:
     unread_completed_agent_count: int = 0
     runner_count: int = 0
     can_jump_to_patch: bool = False
-    can_jump_to_changespec: InitVar[bool | None] = None
+    can_jump_to_changespec: InitVar[bool | None] = None  # legacy compatibility alias
     attempt_pinned: bool = False
     panel_focused: bool = False
     panel_collapsed: bool = False
@@ -238,35 +238,47 @@ class CommandContext:
 
     def __post_init__(
         self,
-        changespec: Patch | None,
-        can_jump_to_changespec: bool | None,
+        changespec: Patch | None,  # legacy compatibility alias
+        can_jump_to_changespec: bool | None,  # legacy compatibility alias
     ) -> None:
-        if self.tab in {"changespecs", "patches"}:
+        if self.tab in {"patches", "changespecs"}:  # legacy compatibility alias
             object.__setattr__(self, "tab", "artifacts")
-        if self.patch is None and changespec is not None:
-            object.__setattr__(self, "patch", changespec)
-        if can_jump_to_changespec is not None and not self.can_jump_to_patch:
+        if self.patch is None and changespec is not None:  # legacy compatibility alias
+            object.__setattr__(self, "patch", changespec)  # legacy compatibility alias
+        if (  # legacy compatibility alias
+            can_jump_to_changespec is not None and not self.can_jump_to_patch
+        ):
             object.__setattr__(
                 self,
                 "can_jump_to_patch",
-                can_jump_to_changespec,
+                can_jump_to_changespec,  # legacy compatibility alias
             )
 
     @property
-    def selected_changespec(self) -> Patch | None:
+    def selected_patch(self) -> Patch | None:
+        return self.patch
+
+    @property
+    def selected_changespec(self) -> Patch | None:  # legacy compatibility alias
         return self.patch
 
 
-def _command_context_changespec(self: CommandContext) -> Patch | None:
+def _command_context_changespec(  # legacy compatibility alias
+    self: CommandContext,
+) -> Patch | None:
     return self.patch
 
 
-def _command_context_can_jump_to_changespec(self: CommandContext) -> bool:
+def _command_context_can_jump_to_changespec(  # legacy compatibility alias
+    self: CommandContext,
+) -> bool:
     return self.can_jump_to_patch
 
 
-CommandContext.changespec = property(_command_context_changespec)  # type: ignore[attr-defined]
-CommandContext.can_jump_to_changespec = property(  # type: ignore[attr-defined]
+CommandContext.changespec = property(  # type: ignore[attr-defined]  # legacy compatibility alias
+    _command_context_changespec
+)
+CommandContext.can_jump_to_changespec = property(  # type: ignore[attr-defined]  # legacy compatibility alias
     _command_context_can_jump_to_changespec
 )
 

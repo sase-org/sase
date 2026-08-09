@@ -8,13 +8,13 @@ from rich.markup import escape as _esc
 
 from sase.vcs_provider import get_vcs_provider
 
-from ..patch import ChangeSpec
+from ..patch import Patch
 
 if TYPE_CHECKING:
     from ..tui._workflow_context import WorkflowContext
 
 
-def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
+def handle_show_diff(self: "WorkflowContext", patch: Patch) -> None:
     """Handle 'd' (show diff) action.
 
     Gets the diff via the VCS provider, writes it to a temp file, then
@@ -23,7 +23,7 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
 
     Args:
         self: The WorkflowContext instance
-        changespec: Current ChangeSpec
+        patch: Current Patch
     """
     import shutil
 
@@ -31,7 +31,7 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
 
     # Get the primary workspace directory (workspace #1)
     try:
-        target_dir = get_primary_workspace(changespec.project_basename, 1)
+        target_dir = get_primary_workspace(patch.project_basename, 1)
     except RuntimeError as e:
         self.console.print(f"[red]Error getting workspace: {_esc(str(e))}[/red]")
         return
@@ -39,7 +39,7 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
     try:
         provider = get_vcs_provider(target_dir)
         resolved = provider.resolve_revision(
-            changespec.name, changespec.project_basename, target_dir
+            patch.name, patch.project_basename, target_dir
         )
         success, diff_text = provider.diff_revision(resolved, target_dir)
         if not success:

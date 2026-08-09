@@ -11,9 +11,9 @@ from sase.ace.patch.project_spec_path import (
 )
 from sase.ace.comments.operations import (
     mark_comment_agents_as_killed,
-    update_changespec_comments_field,
+    update_patch_comments_field,
 )
-from sase.ace.hooks.persistence import update_changespec_hooks_field
+from sase.ace.hooks.persistence import update_patch_hooks_field
 from sase.ace.hooks.processes import (
     kill_running_agent_processes,
     kill_running_hook_processes,
@@ -22,7 +22,7 @@ from sase.ace.hooks.processes import (
     mark_hooks_as_killed,
     mark_mentor_agents_as_killed,
 )
-from sase.ace.mentors import update_changespec_mentors_field
+from sase.ace.mentors import update_patch_mentors_field
 from sase.core.paths import sase_projects_dir
 from rich.console import Console
 from rich.markup import escape as _esc
@@ -40,11 +40,11 @@ def _project_dir(project: str) -> str:
 def delete_proposal_entry(
     project_file: str, cl_name: str, base_num: int, letter: str
 ) -> bool:
-    """Delete a proposal entry from a ChangeSpec's COMMITS.
+    """Delete a proposal entry from a Patch's COMMITS.
 
     Args:
         project_file: Path to the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         base_num: The base number of the proposal (e.g., 2 for "2a").
         letter: The letter of the proposal (e.g., "a" for "2a").
 
@@ -57,8 +57,8 @@ def delete_proposal_entry(
     except Exception:
         return False
 
-    # Find the ChangeSpec and its history section
-    in_target_changespec = False
+    # Find the Patch and its history section
+    in_target_patch = False
     new_lines: list[str] = []
     skip_until_next_entry = False
     proposal_pattern = f"({base_num}{letter})"
@@ -69,13 +69,13 @@ def delete_proposal_entry(
 
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
+            in_target_patch = current_name == cl_name
             skip_until_next_entry = False
             new_lines.append(line)
             i += 1
             continue
 
-        if in_target_changespec:
+        if in_target_patch:
             stripped = line.strip()
             # Check if this is the proposal entry to delete
             if stripped.startswith(proposal_pattern):
@@ -148,8 +148,8 @@ def prompt_for_change_action(
             will try to infer from sase_workspace_name command.
         auto_reject: If True, auto-select 'n' (reject) after creating the proposal.
             Used when running in background/loop context where stdin is unavailable.
-        cl_name: If provided, use this as the ChangeSpec name instead of running
-            the branch_name command. Useful when the ChangeSpec name is already known.
+        cl_name: If provided, use this as the Patch name instead of running
+            the branch_name command. Useful when the Patch name is already known.
 
     Returns:
         ("accept", "<proposal_id>") - User chose 'a' to accept proposal
@@ -160,7 +160,7 @@ def prompt_for_change_action(
     """
     # Import here to avoid circular imports
     from sase.workflows.commit_utils import (
-        add_proposed_commit_entry,
+        add_proposed_stitch,
         clean_workspace,
         save_diff,
     )
@@ -218,7 +218,7 @@ def prompt_for_change_action(
 
             # Create proposed COMMITS entry if we have a saved diff
             if saved_diff_path:
-                success, entry_id = add_proposed_commit_entry(
+                success, entry_id = add_proposed_stitch(
                     project_file=resolved_project_file,
                     cl_name=branch_name,
                     note=propose_note,
@@ -334,7 +334,7 @@ def prompt_for_change_action(
                 )
                 continue
         elif user_input == "p":
-            # Promote Draft ChangeSpec to Ready
+            # Promote Draft Patch to Ready
             return ("promote", None)
         elif user_input == "n":
             return ("reject", proposal_id)
@@ -396,7 +396,7 @@ def execute_change_action(
             renumber_commit_entries,
         )
         from sase.workflows.commit_utils import apply_diff_to_workspace
-        from sase.workflows.utils import get_changespec_from_file
+        from sase.workflows.utils import get_patch_from_file
 
         # Parse proposal ID
         parsed = parse_proposal_id(proposal_id)
@@ -432,66 +432,60 @@ def execute_change_action(
             return False
 
         # Get the proposal entry
-        changespec = get_changespec_from_file(resolved_project_file, cl_name)
-        if not changespec:
-            console.print(f"[red]ChangeSpec not found: {_esc(cl_name)}[/red]")
+        patch = get_patch_from_file(resolved_project_file, cl_name)
+        if not patch:
+            console.print(f"[red]Patch not found: {_esc(cl_name)}[/red]")
             return False
 
         # Kill any running hook processes before accepting
-        killed_processes = kill_running_hook_processes(changespec)
+        killed_processes = kill_running_hook_processes(patch)
         if killed_processes:
             console.print(
                 f"[cyan]Killed {len(killed_processes)} running hook process(es)[/cyan]"
             )
-            if changespec.hooks:
+            if patch.hooks:
                 updated_hooks = mark_hooks_as_killed(
-                    changespec.hooks,
+                    patch.hooks,
                     killed_processes,
                     "Killed stale hook after accepting proposal.",
                 )
-                update_changespec_hooks_field(
-                    resolved_project_file, cl_name, updated_hooks
-                )
+                update_patch_hooks_field(resolved_project_file, cl_name, updated_hooks)
 
         # Kill any running agent processes before accepting
-        killed_hook_agents, killed_comment_agents = kill_running_agent_processes(
-            changespec
-        )
+        killed_hook_agents, killed_comment_agents = kill_running_agent_processes(patch)
         total_killed_agents = len(killed_hook_agents) + len(killed_comment_agents)
         if total_killed_agents:
             console.print(
                 f"[cyan]Killed {total_killed_agents} running agent process(es)[/cyan]"
             )
-            if killed_hook_agents and changespec.hooks:
+            if killed_hook_agents and patch.hooks:
                 updated_hooks = mark_hook_agents_as_killed(
-                    changespec.hooks, killed_hook_agents
+                    patch.hooks, killed_hook_agents
                 )
-                update_changespec_hooks_field(
-                    resolved_project_file, cl_name, updated_hooks
-                )
-            if killed_comment_agents and changespec.comments:
+                update_patch_hooks_field(resolved_project_file, cl_name, updated_hooks)
+            if killed_comment_agents and patch.comments:
                 updated_comments = mark_comment_agents_as_killed(
-                    changespec.comments, killed_comment_agents
+                    patch.comments, killed_comment_agents
                 )
-                update_changespec_comments_field(
+                update_patch_comments_field(
                     resolved_project_file, cl_name, updated_comments
                 )
 
         # Kill any running mentor processes before accepting
-        killed_mentors = kill_running_mentor_processes(changespec)
+        killed_mentors = kill_running_mentor_processes(patch)
         if killed_mentors:
             console.print(
                 f"[cyan]Killed {len(killed_mentors)} running mentor process(es)[/cyan]"
             )
-            if changespec.mentors:
+            if patch.mentors:
                 updated_mentors = mark_mentor_agents_as_killed(
-                    changespec.mentors, killed_mentors
+                    patch.mentors, killed_mentors
                 )
-                update_changespec_mentors_field(
+                update_patch_mentors_field(
                     resolved_project_file, cl_name, updated_mentors
                 )
 
-        entry = find_proposal_entry(changespec.commits, base_num, letter)
+        entry = find_proposal_entry(patch.commits, base_num, letter)
         if not entry:
             console.print(f"[red]Proposal ({proposal_id}) not found[/red]")
             return False
@@ -543,8 +537,8 @@ def execute_change_action(
         return True
 
     elif action == "promote":
-        # Promote Draft ChangeSpec to Ready status
-        from sase.status_state_machine import transition_changespec_status
+        # Promote Draft Patch to Ready status
+        from sase.status_state_machine import transition_patch_status
         from sase.workflows.utils import get_cl_name_from_branch
 
         cl_name = get_cl_name_from_branch() or ""
@@ -567,12 +561,10 @@ def execute_change_action(
             )
 
         # Transition status from Draft to Ready
-        # Note: transition_changespec_status automatically calls clear_mentor_draft_flags()
+        # Note: transition_patch_status automatically calls clear_mentor_draft_flags()
         # when transitioning from Draft to Ready
-        promote_success, old_status_opt, promote_error, _ = (
-            transition_changespec_status(
-                resolved_project_file, cl_name, "Ready", validate=True
-            )
+        promote_success, old_status_opt, promote_error, _ = transition_patch_status(
+            resolved_project_file, cl_name, "Ready", validate=True
         )
 
         if promote_success:
@@ -602,7 +594,7 @@ def execute_change_action(
             find_proposal_entry,
             parse_proposal_id,
         )
-        from sase.workflows.utils import get_changespec_from_file
+        from sase.workflows.utils import get_patch_from_file
 
         # Parse proposal ID
         parsed = parse_proposal_id(proposal_id)
@@ -636,9 +628,9 @@ def execute_change_action(
             return False
 
         # Get the proposal entry to find the diff path
-        changespec = get_changespec_from_file(resolved_project_file, cl_name)
-        if changespec:
-            entry = find_proposal_entry(changespec.commits, base_num, letter)
+        patch = get_patch_from_file(resolved_project_file, cl_name)
+        if patch:
+            entry = find_proposal_entry(patch.commits, base_num, letter)
             if entry and entry.diff:
                 # Delete the diff file
                 try:

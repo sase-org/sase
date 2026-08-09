@@ -1,4 +1,4 @@
-"""Revert operations for ChangeSpecs."""
+"""Revert operations for Patches."""
 
 import os
 import sys
@@ -19,46 +19,51 @@ from sase.vcs_provider import get_vcs_provider
 from sase.project_display_names import humanize_cl_name
 
 from .patch import (
-    ChangeSpec,
-    changespec_lock,
+    Patch,
+    patch_lock,
     find_all_patches,
-    write_changespec_atomic,
+    write_patch_atomic,
 )
 from .hooks.processes import kill_and_persist_all_running_processes
 from .operations import (
     calculate_lifecycle_new_name,
     has_active_children,
-    rename_changespec_with_references as rename_patch_with_references,
+    rename_patch_with_references,
     save_diff_to_file,
 )
 
+find_all_changespecs = find_all_patches  # legacy compatibility alias
+rename_changespec_with_references = (
+    rename_patch_with_references  # legacy compatibility alias
+)
+reset_changespec_pr_url = reset_patch_pr_url  # legacy compatibility alias
+transition_changespec_status = transition_patch_status  # legacy compatibility alias
 
-def has_children(changespec: ChangeSpec, all_changespecs: list[ChangeSpec]) -> bool:
-    """Check if any non-reverted ChangeSpec has this one as a parent.
+
+def has_children(patch: Patch, all_patches: list[Patch]) -> bool:
+    """Check if any non-reverted Patch has this one as a parent.
 
     Args:
-        changespec: The ChangeSpec to check for children
-        all_changespecs: All ChangeSpecs to search through
+        patch: The Patch to check for children
+        all_patches: All Patches to search through
 
     Returns:
-        True if any non-reverted ChangeSpec has this one as parent, False otherwise
+        True if any non-reverted Patch has this one as parent, False otherwise
     """
-    return has_active_children(changespec, all_changespecs)
+    return has_active_children(patch, all_patches)
 
 
-def update_changespec_name_atomic(
-    project_file: str, old_name: str, new_name: str
-) -> None:
-    """Update the NAME field of a specific ChangeSpec in the project file.
+def update_patch_name_atomic(project_file: str, old_name: str, new_name: str) -> None:
+    """Update the NAME field of a specific Patch in the project file.
 
     Acquires a lock for the entire read-modify-write cycle.
 
     Args:
         project_file: Path to the ProjectSpec file
-        old_name: Current NAME value of the ChangeSpec
+        old_name: Current NAME value of the Patch
         new_name: New NAME value
     """
-    with changespec_lock(project_file):
+    with patch_lock(project_file):
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
@@ -71,28 +76,28 @@ def update_changespec_name_atomic(
                     continue
             updated_lines.append(line)
 
-        write_changespec_atomic(
+        write_patch_atomic(
             project_file,
             "".join(updated_lines),
-            f"Rename ChangeSpec {old_name} to {new_name}",
+            f"Rename Patch {old_name} to {new_name}",
         )
 
 
 def revert_patch(
-    changespec: ChangeSpec, console: Console | None = None
+    patch: Patch, console: Console | None = None
 ) -> tuple[bool, str | None]:
-    """Revert a ChangeSpec by pruning its revision and updating its status.
+    """Revert a Patch by pruning its revision and updating its status.
 
     This function:
-    1. Validates that the ChangeSpec has a valid PR set
-    2. Validates that the ChangeSpec has no children
-    3. Renames the ChangeSpec by appending `__<N>` suffix
+    1. Validates that the Patch has a valid PR set
+    2. Validates that the Patch has no children
+    3. Renames the Patch by appending `__<N>` suffix
     4. Saves the diff to `~/.sase/reverted/<new_name>.diff`
     5. Runs `sase_hg_prune <name>` to remove the revision
     6. Updates STATUS to "Reverted" and removes the PR field
 
     Args:
-        changespec: The ChangeSpec to revert
+        patch: The Patch to revert
         console: Optional Rich Console for output
 
     Returns:
@@ -105,35 +110,33 @@ def revert_patch(
         else None
     )
     kill_and_persist_all_running_processes(
-        changespec,
-        changespec.file_path,
-        changespec.name,
-        "Killed hook running on reverted ChangeSpec.",
+        patch,
+        patch.file_path,
+        patch.name,
+        "Killed hook running on reverted Patch.",
         log_fn=log_fn,
     )
 
-    # Get all changespecs to check for children and name conflicts
-    all_changespecs = find_all_patches()
+    # Get all patches to check for children and name conflicts
+    all_patches = find_all_changespecs()  # legacy compatibility alias
 
     # Validate no children
-    if has_children(changespec, all_changespecs):
+    if has_children(patch, all_patches):
         return (
             False,
             "Cannot revert: other Patches have this one as their parent",
         )
 
     # Calculate new name with suffix
-    new_name = calculate_lifecycle_new_name(changespec, all_changespecs)
+    new_name = calculate_lifecycle_new_name(patch, all_patches)
 
     if console:
-        console.print(
-            f"[cyan]Renaming ChangeSpec to: {humanize_cl_name(new_name)}[/cyan]"
-        )
+        console.print(f"[cyan]Renaming Patch to: {humanize_cl_name(new_name)}[/cyan]")
 
     # PR-dependent operations: save diff, prune VCS revision, reset PR URL.
-    if changespec.pr_url is not None:
+    if patch.pr_url is not None:
         # Get workspace directory
-        workspace_dir = get_workspace_directory_for_patch(changespec)
+        workspace_dir = get_workspace_directory_for_patch(patch)
         if not workspace_dir:
             return (False, "Could not determine workspace directory")
 
@@ -141,9 +144,7 @@ def revert_patch(
             return (False, f"Workspace directory does not exist: {workspace_dir}")
 
         # Save diff to file
-        success, error = save_diff_to_file(
-            changespec, new_name, workspace_dir, "reverted"
-        )
+        success, error = save_diff_to_file(patch, new_name, workspace_dir, "reverted")
         if not success:
             return (False, f"Failed to save diff: {error}")
 
@@ -154,22 +155,18 @@ def revert_patch(
 
         # Run sase_hg_prune
         provider = get_vcs_provider(workspace_dir)
-        # Provider revision matching must retain canonical ChangeSpec identity.
+        # Provider revision matching must retain canonical Patch identity.
         resolved = provider.resolve_revision(
-            changespec.name, changespec.project_basename, workspace_dir
+            patch.name, patch.project_basename, workspace_dir
         )
 
         # Abandon remote change (close PR, drop legacy change, etc.)
-        success, error = provider.abandon_change(
-            changespec.pr_url, resolved, workspace_dir
-        )
+        success, error = provider.abandon_change(patch.pr_url, resolved, workspace_dir)
         if not success:
             return (False, f"Failed to abandon remote change: {error}")
 
         if console:
-            console.print(
-                f"[green]Abandoned remote change: {changespec.pr_url}[/green]"
-            )
+            console.print(f"[green]Abandoned remote change: {patch.pr_url}[/green]")
 
         success, error = provider.prune(resolved, workspace_dir)
         if not success:
@@ -178,32 +175,32 @@ def revert_patch(
         # Clean up branch alias (if any)
         from sase.core.branch_map import remove_branch_alias
 
-        remove_branch_alias(changespec.project_basename, changespec.name)
+        remove_branch_alias(patch.project_basename, patch.name)
 
         if console:
             console.print(
-                f"[green]Pruned revision: {humanize_cl_name(changespec.name)}[/green]"
+                f"[green]Pruned revision: {humanize_cl_name(patch.name)}[/green]"
             )
 
-    # Rename the ChangeSpec (skip if name is unchanged, e.g., WIP with existing suffix)
-    if new_name != changespec.name:
+    # Rename the Patch (skip if name is unchanged, e.g., WIP with existing suffix)
+    if new_name != patch.name:
         try:
-            rename_patch_with_references(
-                changespec.file_path, changespec.name, new_name
+            rename_changespec_with_references(  # legacy compatibility alias
+                patch.file_path, patch.name, new_name
             )
         except Exception as e:
-            return (False, f"Failed to rename ChangeSpec: {e}")
+            return (False, f"Failed to rename Patch: {e}")
 
         if console:
             console.print(
-                "[green]Renamed ChangeSpec: "
-                f"{humanize_cl_name(changespec.name)} → "
+                "[green]Renamed Patch: "
+                f"{humanize_cl_name(patch.name)} → "
                 f"{humanize_cl_name(new_name)}[/green]"
             )
 
     # Update STATUS to Reverted
-    success, _, error, _ = transition_patch_status(
-        changespec.file_path,
+    success, _, error, _ = transition_changespec_status(  # legacy compatibility alias
+        patch.file_path,
         new_name,  # Use the new name after rename
         "Reverted",
         validate=False,
@@ -212,8 +209,8 @@ def revert_patch(
         return (False, f"Failed to update status: {error}")
 
     # Remove PR field (only if there was a PR to reset).
-    if changespec.pr_url is not None:
-        reset_patch_pr_url(changespec.file_path, new_name)
+    if patch.pr_url is not None:
+        reset_changespec_pr_url(patch.file_path, new_name)  # legacy compat alias
 
     if console:
         console.print("[green]Status updated to Reverted, PR removed[/green]")
@@ -221,5 +218,5 @@ def revert_patch(
     return (True, None)
 
 
-update_patch_name_atomic = update_changespec_name_atomic
-revert_changespec = revert_patch  # legacy API alias
+update_changespec_name_atomic = update_patch_name_atomic  # legacy compatibility alias
+revert_changespec = revert_patch  # legacy compatibility alias

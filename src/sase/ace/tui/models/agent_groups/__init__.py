@@ -62,7 +62,7 @@ under Earlier; real labels always emit a banner, while the synthetic
 """
 
 from ._buckets import (
-    NO_CHANGESPEC_LABEL,
+    NO_PATCH_LABEL,
     NO_HOUR_LABEL,
     NO_PROJECT,
     GroupingMode,
@@ -90,6 +90,8 @@ from ._tree import (
     find_visible_ancestor_banner,
 )
 
+NO_CHANGESPEC_LABEL = NO_PATCH_LABEL  # legacy compatibility alias
+
 # Back-compat aliases for legacy imports that referenced the old
 # underscore-prefixed names.  Plain assignments (not re-imports) so
 # symvision treats them as module-level attributes rather than imports
@@ -98,12 +100,13 @@ _date_bucket_for = date_bucket_for
 _status_bucket_for = status_bucket_for
 _grouping_keys_for_agents = grouping_keys_for_agents
 _panel_uses_patch_level = panel_uses_patch_level
-_panel_uses_changespec_level = panel_uses_patch_level
+_panel_uses_changespec_level = panel_uses_patch_level  # legacy compatibility alias
 
 __all__ = [
     "GroupRow",
     "GroupingMode",
-    "NO_CHANGESPEC_LABEL",
+    "NO_PATCH_LABEL",
+    "NO_CHANGESPEC_LABEL",  # legacy compatibility alias
     "NO_HOUR_LABEL",
     "NO_PROJECT",
     "TreeEntry",

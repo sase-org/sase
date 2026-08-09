@@ -1,6 +1,7 @@
 """Patch detail widget for the ace TUI."""
 
 from pathlib import Path
+import sys
 from typing import Any
 
 from rich.markup import escape as _esc
@@ -368,7 +369,18 @@ class PatchDetail(Static):
 
     def _resolve_delta_workspace_dir(self, patch: Patch) -> str | None:
         """Resolve the primary workspace used for repo-relative DELTAS paths."""
-        workspace_dir = get_workspace_directory_for_patch(patch)
+        workspace_resolver = get_workspace_directory_for_patch
+        compat_module = sys.modules.get(
+            "sase.ace.tui.widgets.changespec_detail"  # legacy compatibility alias
+        )
+        legacy_resolver = getattr(  # legacy compatibility alias
+            compat_module,
+            "get_workspace_directory_for_changespec",  # legacy compatibility alias
+            None,
+        )
+        if callable(legacy_resolver) and legacy_resolver is not workspace_resolver:
+            workspace_resolver = legacy_resolver  # legacy compatibility alias
+        workspace_dir = workspace_resolver(patch)
         if workspace_dir is None:
             return None
         return str(Path(workspace_dir).expanduser())
@@ -379,7 +391,16 @@ class PatchDetail(Static):
         patch: Patch,
     ) -> None:
         """Build RUNNING claims section (displayed at top of panel)."""
-        running_claims = get_claimed_workspaces(patch.file_path)
+        claims_loader = get_claimed_workspaces
+        compat_module = sys.modules.get(
+            "sase.ace.tui.widgets.changespec_detail"  # legacy compatibility alias
+        )
+        legacy_claims_loader = getattr(  # legacy compatibility alias
+            compat_module, "get_claimed_workspaces", None
+        )
+        if callable(legacy_claims_loader) and legacy_claims_loader is not claims_loader:
+            claims_loader = legacy_claims_loader  # legacy compatibility alias
+        running_claims = claims_loader(patch.file_path)
 
         if running_claims:
             text.append("RUNNING:\n", style="bold #87D7FF")

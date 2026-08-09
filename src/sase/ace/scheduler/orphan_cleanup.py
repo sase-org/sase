@@ -7,35 +7,35 @@ from sase.running_field import (
     release_workspace,
 )
 
-from ..patch import ChangeSpec
+from ..patch import Patch
 from ..hooks.processes import is_process_running
 
 
 def cleanup_orphaned_workspace_claims(
-    all_changespecs: list[ChangeSpec],
+    all_patches: list[Patch],
     log_fn: Callable[[str, str | None], None] | None = None,
 ) -> int:
-    """Release workspace claims for reverted ChangeSpecs with dead PIDs.
+    """Release workspace claims for reverted Patches with dead PIDs.
 
     This catches orphaned workspace claims that weren't cleaned up during revert,
     such as when a mentor claims a workspace but hasn't registered in MENTORS yet.
 
     Args:
-        all_changespecs: All ChangeSpecs in the project
+        all_patches: All Patches in the project
         log_fn: Optional logging function (message, style)
 
     Returns:
         Number of orphaned workspace claims released
     """
-    # Build lookup of reverted ChangeSpec names
-    reverted_cls = {cs.name for cs in all_changespecs if cs.status == "Reverted"}
+    # Build lookup of reverted Patch names
+    reverted_cls = {cs.name for cs in all_patches if cs.status == "Reverted"}
     if not reverted_cls:
         return 0
 
-    # Get project file from first changespec
-    if not all_changespecs:
+    # Get project file from first patch
+    if not all_patches:
         return 0
-    project_file = all_changespecs[0].file_path
+    project_file = all_patches[0].file_path
 
     claims = get_claimed_workspaces(project_file)
     released_count = 0
@@ -43,7 +43,7 @@ def cleanup_orphaned_workspace_claims(
     for claim in claims:
         if claim.pinned:
             continue
-        # Skip claims without cl_name or not for reverted ChangeSpecs
+        # Skip claims without cl_name or not for reverted Patches
         if not claim.cl_name or claim.cl_name not in reverted_cls:
             continue
 

@@ -1,10 +1,10 @@
-"""Default hook configuration for new ChangeSpecs."""
+"""Default hook configuration for new Patches."""
 
 from sase.vcs_provider.config import get_vcs_provider_config
 
 
 def get_required_patch_hooks() -> tuple[str, ...]:
-    """Get the required hooks for new ChangeSpecs.
+    """Get the required hooks for new Patches.
 
     Reads ``vcs_provider.default_hooks`` from the merged config (sase.yml +
     plugin defaults).  VCS-specific defaults are provided by plugins via
@@ -20,4 +20,4 @@ def get_required_patch_hooks() -> tuple[str, ...]:
     return ()
 
 
-get_required_changespec_hooks = get_required_patch_hooks  # legacy API alias
+get_required_changespec_hooks = get_required_patch_hooks  # legacy compatibility alias

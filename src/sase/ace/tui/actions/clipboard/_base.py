@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from ...keymaps import KeymapRegistry
     from ...models import Agent
 
-TabName = Literal["artifacts", "patches", "changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "patches", "agents", "axe"]
 AxeViewType = Literal["axe"] | int
 
 
@@ -38,9 +38,9 @@ class ClipboardBase:
         )
 
     @property
-    def changespecs(self) -> list[Patch]:
+    def changespecs(self) -> list[Patch]:  # legacy compatibility alias
         return getattr(self, "patches", [])
 
-    @changespecs.setter
-    def changespecs(self, value: list[Patch]) -> None:
+    @changespecs.setter  # legacy compatibility alias
+    def changespecs(self, value: list[Patch]) -> None:  # legacy compatibility alias
         self.patches = value

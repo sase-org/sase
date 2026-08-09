@@ -52,21 +52,23 @@ class PatchLoadingMixin:
         legacy_loader: Callable[[], list[Patch]],
         canonical_loader: Callable[[], list[Patch]],
     ) -> Callable[[], list[Patch]]:
-        if legacy_loader is canonical_loader:
+        if getattr(self, "current_tab", None) == "changespecs":  # legacy tab id
+            return legacy_loader
+        if isinstance(legacy_loader, Mock):
+            return legacy_loader
+        if isinstance(canonical_loader, Mock):
             return canonical_loader
-        if isinstance(canonical_loader, Mock) and not isinstance(legacy_loader, Mock):
-            return canonical_loader
-        return legacy_loader
+        return canonical_loader
 
     def _on_patch_list_tab(self) -> bool:
         current_tab = getattr(self, "current_tab", None)
         if current_tab in {
             "artifacts",
             "patches",
-            "changespecs",
+            "changespecs",  # legacy compatibility tab id
         }:
             return True
-        return current_tab is None and hasattr(self, "changespecs")
+        return current_tab is None and hasattr(self, "patches")
 
     def _read_patches_from_disk(self) -> list[Patch]:
         """Return the full patch list freshly read from disk.
@@ -75,19 +77,26 @@ class PatchLoadingMixin:
         thread via ``asyncio.to_thread`` so the Textual event loop stays
         free (e.g. for the startup stopwatch to tick).
         """
-        from .... import changespec as changespec_module
+        from .... import changespec as changespec_module  # legacy compat module
         from .... import patch as patch_module
 
         if self._on_patch_list_tab():
-            uncached_loader = self._compat_loader(
-                changespec_module.find_all_changespecs,
-                patch_module.find_all_changespecs,
+            legacy_uncached = (  # legacy compatibility alias
+                changespec_module.find_all_changespecs
             )
-            if uncached_loader is not patch_module.find_all_changespecs:
-                return uncached_loader()
+            canonical_uncached = patch_module.find_all_patches
+            if isinstance(legacy_uncached, Mock) or isinstance(
+                canonical_uncached, Mock
+            ):
+                uncached_loader = self._compat_loader(
+                    legacy_uncached,
+                    canonical_uncached,
+                )
+                if uncached_loader is not patch_module.find_all_patches:
+                    return uncached_loader()
             cached_loader = self._compat_loader(
-                changespec_module.find_all_changespecs_cached,
-                patch_module.find_all_changespecs_cached,
+                changespec_module.find_all_changespecs_cached,  # legacy alias
+                patch_module.find_all_patches_cached,
             )
             return cached_loader()
         return patch_module.find_all_patches_cached()
@@ -311,16 +320,22 @@ class PatchLoadingMixin:
         on_patches_tab = self._on_patch_list_tab()
 
         legacy_filter = getattr(self, "_filter_changespecs", None)
+        canonical_filter = getattr(self, "_filter_patches", None)
         legacy_filter_fn = legacy_filter if callable(legacy_filter) else None
+        canonical_filter_fn = canonical_filter if callable(canonical_filter) else None
         legacy_filter_patched = isinstance(
             getattr(type(self), "_filter_changespecs", None), Mock
         )
-        use_legacy_filter = legacy_filter_fn is not None and (
-            legacy_filter_patched
-            or getattr(self, "current_tab", None) in {"patches", "changespecs"}
+        canonical_filter_patched = isinstance(
+            getattr(type(self), "_filter_patches", None), Mock
+        )
+        use_legacy_filter = legacy_filter_fn is not None and legacy_filter_patched
+        use_canonical_filter = canonical_filter_fn is not None and (
+            canonical_filter_patched
+            or getattr(self, "current_tab", None) in {"patches"}
         )
         if query_corpus is None:
-            if use_legacy_filter:
+            if use_legacy_filter or use_canonical_filter:
                 self._apply_prepared_query_corpus(all_patches, None)
             else:
                 self._get_query_corpus_for_patches(all_patches)
@@ -329,6 +344,8 @@ class PatchLoadingMixin:
         self._all_patches = all_patches  # Cache for ancestry lookup
         if use_legacy_filter and legacy_filter_fn is not None:
             new_patches = legacy_filter_fn(all_patches)
+        elif use_canonical_filter and canonical_filter_fn is not None:
+            new_patches = canonical_filter_fn(all_patches)
         else:
             new_patches = self._filter_patches(all_patches)
 

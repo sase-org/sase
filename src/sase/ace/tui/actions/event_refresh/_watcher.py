@@ -54,7 +54,7 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
             return
         if "artifacts" in targets:
             self._dirty_patches = True
-            self._dirty_changespecs = True
+            self._dirty_changespecs = True  # type: ignore[attr-defined] # legacy compatibility alias
         if "agents" in targets:
             self._dirty_agents = True
             self._enqueue_agent_artifact_delta_paths(changed_paths)
@@ -87,11 +87,13 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
             if callable(schedule_patches):
                 schedule_patches()
                 return
-            schedule_changespecs = getattr(
-                self, "_schedule_changespecs_async_refresh", None
+            schedule_changespecs = getattr(  # legacy compatibility alias
+                self,
+                "_schedule_changespecs_async_refresh",  # legacy compatibility alias
+                None,
             )
-            if callable(schedule_changespecs):
-                schedule_changespecs()
+            if callable(schedule_changespecs):  # legacy compatibility alias
+                schedule_changespecs()  # legacy compatibility alias
 
     def _dirty_surfaces_for_paths(
         self, changed_paths: tuple[Path, ...] | None

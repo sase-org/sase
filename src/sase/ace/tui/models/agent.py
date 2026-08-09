@@ -55,7 +55,11 @@ __all__ = [
 class Agent(AgentState):
     """Represents a single running agent."""
 
-    def __post_init__(self) -> None:
+    def __post_init__(
+        self, commit_entry_id: str | None = None
+    ) -> None:  # legacy compatibility alias
+        if commit_entry_id is not None and self.stitch_id is None:
+            self.stitch_id = commit_entry_id
         self.refresh_raw_presented_agent_name()
 
     @property

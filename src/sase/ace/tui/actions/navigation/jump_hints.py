@@ -43,7 +43,11 @@ AgentJumpAnchor = (
     | PanelJumpTarget
 )
 PatchBannerJumpAnchor = tuple[
-    Literal["patch_banner", "changespec_banner"], tuple[str, ...]
+    Literal[
+        "patch_banner",
+        "changespec_banner",  # legacy compatibility alias
+    ],
+    tuple[str, ...],
 ]
 EntryJumpAnchor = int | PatchBannerJumpAnchor
 

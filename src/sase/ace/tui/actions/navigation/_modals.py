@@ -32,14 +32,21 @@ class NavigationModalMixin(NavigationMixinBase):
                 from ...artifact_tabs import switch_to_artifacts_subtab
 
                 switch_to_artifacts_subtab(self, "prs")
-            elif result.tab in {"patches", "changespecs"}:
+            elif result.tab in {
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }:
                 self.current_artifacts_subtab = "prs"  # type: ignore[attr-defined]
                 self.current_tab = result.tab  # type: ignore[assignment]
             else:
                 self.current_tab = result.tab  # type: ignore[assignment]
             self.current_idx = result.index
 
-        patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        patches = getattr(
+            self,
+            "patches",
+            getattr(self, "changespecs", []),  # legacy compatibility alias
+        )
         self.push_screen(  # type: ignore[attr-defined]
             JumpAllModal(
                 patches=patches,

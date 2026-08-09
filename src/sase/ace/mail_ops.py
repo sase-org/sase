@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from sase.vcs_provider import get_vcs_provider
 from sase.project_display_names import humanize_cl_name
 
-from .patch import ChangeSpec
+from .patch import Patch
 
 
 @dataclass
@@ -20,7 +20,7 @@ class MailPrepResult:
     """Result of mail preparation (before actual mailing).
 
     Attributes:
-        should_mail: True if the user confirmed they want to mail the ChangeSpec.
+        should_mail: True if the user confirmed they want to mail the Patch.
     """
 
     should_mail: bool
@@ -38,7 +38,7 @@ def get_cl_description(
         revision: The revision/branch name to get the description for
         target_dir: Directory to run cl_desc in
         console: Rich console for output
-        project_basename: Project basename for resolving ChangeSpec names to git refs
+        project_basename: Project basename for resolving Patch names to git refs
 
     Returns:
         Tuple of (success, description or None)
@@ -54,7 +54,7 @@ def get_cl_description(
 
 
 def prepare_mail(
-    changespec: ChangeSpec, target_dir: str, console: Console
+    patch: Patch, target_dir: str, console: Console
 ) -> MailPrepResult | None:
     """Prepare for mailing a PR / pushing a PR.
 
@@ -63,8 +63,8 @@ def prepare_mail(
     info and confirm push; hg: reviewer prompts, startblock, reword).
 
     Args:
-        changespec: The ChangeSpec to prepare for mailing
-        target_dir: The workspace directory for the ChangeSpec
+        patch: The Patch to prepare for mailing
+        target_dir: The workspace directory for the Patch
         console: Rich console for output
 
     Returns:
@@ -74,53 +74,48 @@ def prepare_mail(
     from sase.workspace_provider import prepare_mail as ws_prepare_mail
 
     result = ws_prepare_mail(
-        changespec_name=changespec.name,
-        patch_parent=changespec.parent,
-        project_basename=changespec.project_basename,
-        project_file=changespec.file_path,
-        target_dir=target_dir,
-        console=console,
+        patch.name,
+        patch.parent,
+        patch.project_basename,
+        patch.file_path,
+        target_dir,
+        console,
     )
     return result  # type: ignore[return-value]
 
 
-def execute_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> bool:
+def execute_mail(patch: Patch, target_dir: str, console: Console) -> bool:
     """Execute the mail / push+PR command.
 
     This does NOT update the project file - the caller is responsible for
     updating the status appropriately.
 
     Args:
-        changespec: The ChangeSpec to mail
-        target_dir: The workspace directory for the ChangeSpec
+        patch: The Patch to mail
+        target_dir: The workspace directory for the Patch
         console: Rich console for output
 
     Returns:
         True if mailing succeeded, False otherwise
     """
     console.print(
-        "[cyan]Sending change for review: "
-        f"{_esc(humanize_cl_name(changespec.name))}[/cyan]"
+        f"[cyan]Sending change for review: {_esc(humanize_cl_name(patch.name))}[/cyan]"
     )
     provider = get_vcs_provider(target_dir)
     # Provider operations keep canonical revision identity.
-    resolved = provider.resolve_revision(
-        changespec.name, changespec.project_basename, target_dir
-    )
+    resolved = provider.resolve_revision(patch.name, patch.project_basename, target_dir)
     success, error = provider.mail(resolved, target_dir)
     if not success:
         console.print(f"[red]{_esc(str(error))}[/red]")
         return False
 
-    # If ChangeSpec has no PR URL yet (git, PR just created), update it
-    if changespec.pr_url is None:
+    # If Patch has no PR URL yet (git, PR just created), update it
+    if patch.pr_url is None:
         url_ok, change_url = provider.get_change_url(target_dir)
         if url_ok and change_url:
             from sase.status_state_machine import update_patch_pr_url_atomic
 
-            update_patch_pr_url_atomic(
-                changespec.file_path, changespec.name, change_url
-            )
+            update_patch_pr_url_atomic(patch.file_path, patch.name, change_url)
             console.print(f"[green]PR created: {change_url}[/green]")
 
     console.print("[green]Change sent for review successfully![/green]")

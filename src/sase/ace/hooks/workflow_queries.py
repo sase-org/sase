@@ -34,7 +34,7 @@ def get_failing_hooks_for_fix(hooks: list[HookEntry]) -> list[HookEntry]:
             continue
         # Exclude proposal entries - they go to summarize-hook instead
         sl = hook.latest_status_line
-        if sl and is_proposal_entry(sl.commit_entry_num):
+        if sl and is_proposal_entry(sl.stitch_num):
             continue
         result.append(hook)
     return result
@@ -71,7 +71,7 @@ def get_failing_hook_entries_for_fix(
             # Skip proposal entries - they don't get fix-hook
             if is_proposal_entry(entry_id):
                 continue
-            sl = hook.get_status_line_for_commit_entry(entry_id)
+            sl = hook.get_status_line_for_stitch(entry_id)
             if sl is None:
                 continue
             # Must be FAILED
@@ -113,7 +113,7 @@ def get_failing_hooks_for_summarize(hooks: list[HookEntry]) -> list[HookEntry]:
         if sl.status != "FAILED":
             continue
         # Must be a proposal entry (ends with letter)
-        if not is_proposal_entry(sl.commit_entry_num):
+        if not is_proposal_entry(sl.stitch_num):
             continue
         # Must not have a suffix already
         if sl.suffix is not None:
@@ -150,7 +150,7 @@ def get_failing_hook_entries_for_summarize(
         if not hook.status_lines:
             continue
         for entry_id in entry_ids:
-            sl = hook.get_status_line_for_commit_entry(entry_id)
+            sl = hook.get_status_line_for_stitch(entry_id)
             if sl is None:
                 continue
             # Must be FAILED

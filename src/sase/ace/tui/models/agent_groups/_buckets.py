@@ -27,7 +27,7 @@ NO_PROJECT = ""
 
 #: Synthetic Patch bucket label for agents with no ``cl_name`` in a
 #: panel that otherwise has at least one Patch.
-NO_CHANGESPEC_LABEL = "(no Patch)"
+NO_PATCH_LABEL = "(no Patch)"
 
 #: Synthetic subgroup label for agents with no usable anchor time
 #: under :data:`GroupingMode.BY_DATE`.  Sorts last within its date bucket.

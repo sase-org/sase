@@ -21,7 +21,11 @@ from ....patch import Patch
 
 def _legacy_changespec_targets(targets: Any) -> Any:
     return [
-        ("changespec" if kind == "patch" else kind, payload)
+        (
+            # legacy compatibility alias
+            "changespec" if kind == "patch" else kind,
+            payload,
+        )  # legacy compatibility alias
         for kind, payload in targets
     ]
 
@@ -78,12 +82,12 @@ class PatchMixin(
         setattr(self, canonical, value)
 
     @property
-    def changespecs(self) -> list[Patch]:
+    def changespecs(self) -> list[Patch]:  # legacy compatibility alias
         """Legacy alias for :attr:`patches`."""
         return self.patches
 
-    @changespecs.setter
-    def changespecs(self, value: list[Patch]) -> None:
+    @changespecs.setter  # legacy compatibility alias
+    def changespecs(self, value: list[Patch]) -> None:  # legacy compatibility alias
         self.patches = value
 
     @property
@@ -96,181 +100,227 @@ class PatchMixin(
         self.stitches_collapsed = value
 
     @property
-    def _all_changespecs(self) -> list[Patch]:
+    def _all_changespecs(self) -> list[Patch]:  # legacy compatibility alias
         return self._legacy_get("_all_patches", [])
 
-    @_all_changespecs.setter
-    def _all_changespecs(self, value: list[Patch]) -> None:
+    @_all_changespecs.setter  # legacy compatibility alias
+    def _all_changespecs(
+        self, value: list[Patch]
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_all_patches", value)
 
     @property
-    def _changespecs_last_idx(self) -> int:
+    def _changespecs_last_idx(self) -> int:  # legacy compatibility alias
         return self._legacy_get("_patches_last_idx", 0)
 
-    @_changespecs_last_idx.setter
-    def _changespecs_last_idx(self, value: int) -> None:
+    @_changespecs_last_idx.setter  # legacy compatibility alias
+    def _changespecs_last_idx(self, value: int) -> None:  # legacy compatibility alias
         self._legacy_set("_patches_last_idx", value)
 
     @property
-    def _changespecs_last_name(self) -> str | None:
+    def _changespecs_last_name(self) -> str | None:  # legacy compatibility alias
         return self._legacy_get("_patches_last_name")
 
-    @_changespecs_last_name.setter
-    def _changespecs_last_name(self, value: str | None) -> None:
+    @_changespecs_last_name.setter  # legacy compatibility alias
+    def _changespecs_last_name(
+        self, value: str | None
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_patches_last_name", value)
 
     @property
-    def _changespecs_loading(self) -> bool:
+    def _changespecs_loading(self) -> bool:  # legacy compatibility alias
         return self._legacy_get("_patches_loading", False)
 
-    @_changespecs_loading.setter
-    def _changespecs_loading(self, value: bool) -> None:
+    @_changespecs_loading.setter  # legacy compatibility alias
+    def _changespecs_loading(self, value: bool) -> None:  # legacy compatibility alias
         self._legacy_set("_patches_loading", value)
 
     @property
-    def _changespecs_refresh_scheduled(self) -> bool:
+    def _changespecs_refresh_scheduled(self) -> bool:  # legacy compatibility alias
         return self._legacy_get("_patches_refresh_scheduled", False)
 
-    @_changespecs_refresh_scheduled.setter
-    def _changespecs_refresh_scheduled(self, value: bool) -> None:
+    @_changespecs_refresh_scheduled.setter  # legacy compatibility alias
+    def _changespecs_refresh_scheduled(
+        self, value: bool
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_patches_refresh_scheduled", value)
 
     @property
-    def _changespecs_refresh_pending(self) -> bool:
+    def _changespecs_refresh_pending(self) -> bool:  # legacy compatibility alias
         return self._legacy_get("_patches_refresh_pending", False)
 
-    @_changespecs_refresh_pending.setter
-    def _changespecs_refresh_pending(self, value: bool) -> None:
+    @_changespecs_refresh_pending.setter  # legacy compatibility alias
+    def _changespecs_refresh_pending(
+        self, value: bool
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_patches_refresh_pending", value)
 
     @property
-    def _changespecs_first_load_done(self) -> bool:
+    def _changespecs_first_load_done(self) -> bool:  # legacy compatibility alias
         return self._legacy_get("_patches_first_load_done", False)
 
-    @_changespecs_first_load_done.setter
-    def _changespecs_first_load_done(self, value: bool) -> None:
+    @_changespecs_first_load_done.setter  # legacy compatibility alias
+    def _changespecs_first_load_done(
+        self, value: bool
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_patches_first_load_done", value)
 
     @property
-    def _dirty_changespecs(self) -> bool:
+    def _dirty_changespecs(self) -> bool:  # legacy compatibility alias
         return self._legacy_get("_dirty_patches", False)
 
-    @_dirty_changespecs.setter
-    def _dirty_changespecs(self, value: bool) -> None:
+    @_dirty_changespecs.setter  # legacy compatibility alias
+    def _dirty_changespecs(self, value: bool) -> None:  # legacy compatibility alias
         self._legacy_set("_dirty_patches", value)
 
     @property
-    def _changespec_grouping_mode(self) -> Any:
+    def _changespec_grouping_mode(self) -> Any:  # legacy compatibility alias
         return self._legacy_get("_patch_grouping_mode")
 
-    @_changespec_grouping_mode.setter
-    def _changespec_grouping_mode(self, value: Any) -> None:
+    @_changespec_grouping_mode.setter  # legacy compatibility alias
+    def _changespec_grouping_mode(
+        self, value: Any
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_patch_grouping_mode", value)
 
     @property
-    def _changespec_group_fold_registries(self) -> Any:
+    def _changespec_group_fold_registries(self) -> Any:  # legacy compatibility alias
         return self._legacy_get("_patch_group_fold_registries", {})
 
-    @_changespec_group_fold_registries.setter
-    def _changespec_group_fold_registries(self, value: Any) -> None:
+    @_changespec_group_fold_registries.setter  # legacy compatibility alias
+    def _changespec_group_fold_registries(
+        self, value: Any
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_patch_group_fold_registries", value)
 
     @property
-    def _changespec_group_fold_registry(self) -> Any:
+    def _changespec_group_fold_registry(self) -> Any:  # legacy compatibility alias
         return self._legacy_get("_patch_group_fold_registry")
 
-    @_changespec_group_fold_registry.setter
-    def _changespec_group_fold_registry(self, value: Any) -> None:
+    @_changespec_group_fold_registry.setter  # legacy compatibility alias
+    def _changespec_group_fold_registry(
+        self, value: Any
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_patch_group_fold_registry", value)
 
     @property
-    def _current_changespec_group_key(self) -> tuple[str, ...] | None:
+    # legacy compatibility alias
+    def _current_changespec_group_key(
+        self,
+    ) -> tuple[str, ...] | None:  # legacy compatibility alias
         return self._legacy_get("_current_patch_group_key")
 
-    @_current_changespec_group_key.setter
-    def _current_changespec_group_key(self, value: tuple[str, ...] | None) -> None:
+    @_current_changespec_group_key.setter  # legacy compatibility alias
+    # legacy compatibility alias
+    def _current_changespec_group_key(
+        self, value: tuple[str, ...] | None
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_current_patch_group_key", value)
 
     @property
-    def _changespec_graph_index(self) -> Any:
+    def _changespec_graph_index(self) -> Any:  # legacy compatibility alias
         return self._legacy_get("_patch_graph_index")
 
-    @_changespec_graph_index.setter
-    def _changespec_graph_index(self, value: Any) -> None:
+    @_changespec_graph_index.setter  # legacy compatibility alias
+    def _changespec_graph_index(self, value: Any) -> None:  # legacy compatibility alias
         self._legacy_set("_patch_graph_index", value)
 
     @property
-    def _changespec_graph_index_for_id(self) -> int | None:
+    # legacy compatibility alias
+    def _changespec_graph_index_for_id(
+        self,
+    ) -> int | None:  # legacy compatibility alias
         return self._legacy_get("_patch_graph_index_for_id")
 
-    @_changespec_graph_index_for_id.setter
-    def _changespec_graph_index_for_id(self, value: int | None) -> None:
+    @_changespec_graph_index_for_id.setter  # legacy compatibility alias
+    def _changespec_graph_index_for_id(
+        self, value: int | None
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_patch_graph_index_for_id", value)
 
     @property
-    def _entry_jump_hint_to_changespec_banner(self) -> dict[str, tuple[str, ...]]:
+    # legacy compatibility alias
+    def _entry_jump_hint_to_changespec_banner(
+        self,
+    ) -> dict[str, tuple[str, ...]]:  # legacy compatibility alias
         return self._legacy_get("_entry_jump_hint_to_patch_banner", {})
 
-    @_entry_jump_hint_to_changespec_banner.setter
-    def _entry_jump_hint_to_changespec_banner(
+    @_entry_jump_hint_to_changespec_banner.setter  # legacy compatibility alias
+    def _entry_jump_hint_to_changespec_banner(  # legacy compatibility alias
         self,
         value: dict[str, tuple[str, ...]],
     ) -> None:
         self._legacy_set("_entry_jump_hint_to_patch_banner", value)
 
     @property
-    def _entry_jump_changespec_banner_to_hint(self) -> dict[tuple[str, ...], str]:
+    # legacy compatibility alias
+    def _entry_jump_changespec_banner_to_hint(
+        self,
+    ) -> dict[tuple[str, ...], str]:  # legacy compatibility alias
         return self._legacy_get("_entry_jump_patch_banner_to_hint", {})
 
-    @_entry_jump_changespec_banner_to_hint.setter
-    def _entry_jump_changespec_banner_to_hint(
+    @_entry_jump_changespec_banner_to_hint.setter  # legacy compatibility alias
+    def _entry_jump_changespec_banner_to_hint(  # legacy compatibility alias
         self,
         value: dict[tuple[str, ...], str],
     ) -> None:
         self._legacy_set("_entry_jump_patch_banner_to_hint", value)
 
     @property
-    def _w_changespec_list(self) -> Any:
+    def _w_changespec_list(self) -> Any:  # legacy compatibility alias
         return self._legacy_get("_w_patch_list")
 
-    @_w_changespec_list.setter
-    def _w_changespec_list(self, value: Any) -> None:
+    @_w_changespec_list.setter  # legacy compatibility alias
+    def _w_changespec_list(self, value: Any) -> None:  # legacy compatibility alias
         self._legacy_set("_w_patch_list", value)
 
     @property
-    def _w_changespec_detail(self) -> Any:
+    def _w_changespec_detail(self) -> Any:  # legacy compatibility alias
         return self._legacy_get("_w_patch_detail")
 
-    @_w_changespec_detail.setter
-    def _w_changespec_detail(self, value: Any) -> None:
+    @_w_changespec_detail.setter  # legacy compatibility alias
+    def _w_changespec_detail(self, value: Any) -> None:  # legacy compatibility alias
         self._legacy_set("_w_patch_detail", value)
 
     @property
-    def _w_changespec_info_panel(self) -> Any:
+    def _w_changespec_info_panel(self) -> Any:  # legacy compatibility alias
         return self._legacy_get("_w_patch_info_panel")
 
-    @_w_changespec_info_panel.setter
-    def _w_changespec_info_panel(self, value: Any) -> None:
+    @_w_changespec_info_panel.setter  # legacy compatibility alias
+    def _w_changespec_info_panel(
+        self, value: Any
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_w_patch_info_panel", value)
 
     @property
-    def _changespec_detail_debouncer(self) -> DetailPanelDebouncer:
+    # legacy compatibility alias
+    def _changespec_detail_debouncer(
+        self,
+    ) -> DetailPanelDebouncer:  # legacy compatibility alias
         return self._legacy_get("_patch_detail_debouncer")
 
-    @_changespec_detail_debouncer.setter
-    def _changespec_detail_debouncer(self, value: DetailPanelDebouncer) -> None:
+    @_changespec_detail_debouncer.setter  # legacy compatibility alias
+    def _changespec_detail_debouncer(
+        self, value: DetailPanelDebouncer
+    ) -> None:  # legacy compatibility alias
         self._legacy_set("_patch_detail_debouncer", value)
 
-    def _load_changespecs(self) -> None:
+    def _load_changespecs(self) -> None:  # legacy compatibility alias
         self._load_patches()
 
-    def _filter_changespecs(self, patches: list[Patch]) -> list[Patch]:
+    # legacy compatibility alias
+    def _filter_changespecs(
+        self, patches: list[Patch]
+    ) -> list[Patch]:  # legacy compatibility alias
         return self._filter_patches(patches)
 
-    def _apply_changespecs(self, all_patches: list[Patch]) -> None:
+    # legacy compatibility alias
+    def _apply_changespecs(
+        self, all_patches: list[Patch]
+    ) -> None:  # legacy compatibility alias
         self._apply_patches(all_patches)
 
-    def _apply_reloaded_changespecs(
+    def _apply_reloaded_changespecs(  # legacy compatibility alias
         self,
         all_patches: list[Patch],
         current_name: str | None,
@@ -278,82 +328,96 @@ class PatchMixin(
     ) -> None:
         self._apply_reloaded_patches(all_patches, current_name, **kwargs)
 
-    def _read_changespecs_from_disk(self) -> list[Patch]:
-        from .... import changespec as changespec_module
+    def _read_changespecs_from_disk(self) -> list[Patch]:  # legacy compatibility alias
+        from .... import changespec as changespec_module  # legacy compatibility alias
         from .... import patch as patch_module
 
         loader = self._compat_loader(
-            changespec_module.find_all_changespecs_cached,
-            patch_module.find_all_changespecs_cached,
+            changespec_module.find_all_changespecs_cached,  # legacy compatibility alias
+            patch_module.find_all_patches_cached,
         )
         return loader()
 
-    def _schedule_changespecs_async_refresh(self) -> None:
-        if not hasattr(self, "_changespecs_loading"):
+    def _schedule_changespecs_async_refresh(self) -> None:  # legacy compatibility alias
+        if not hasattr(self, "_changespecs_loading"):  # legacy compatibility alias
             self._schedule_patches_async_refresh()
             return
-        if self._changespecs_loading:
-            self._changespecs_refresh_pending = True
+        if self._changespecs_loading:  # legacy compatibility alias
+            self._changespecs_refresh_pending = True  # legacy compatibility alias
             return
-        if getattr(self, "_changespecs_refresh_scheduled", False):
+        if getattr(
+            self, "_changespecs_refresh_scheduled", False
+        ):  # legacy compatibility alias
             return
-        self._changespecs_refresh_scheduled = True
-        self._spawn_changespecs_refresh_task()
+        self._changespecs_refresh_scheduled = True  # legacy compatibility alias
+        self._spawn_changespecs_refresh_task()  # legacy compatibility alias
 
-    def _spawn_changespecs_refresh_task(self) -> None:
+    def _spawn_changespecs_refresh_task(self) -> None:  # legacy compatibility alias
         self._spawn_patches_refresh_task()
 
-    async def _run_changespecs_async_refresh(self) -> None:
-        if not hasattr(self, "_changespecs_loading"):
+    # legacy compatibility alias
+    async def _run_changespecs_async_refresh(
+        self,
+    ) -> None:  # legacy compatibility alias
+        if not hasattr(self, "_changespecs_loading"):  # legacy compatibility alias
             await self._run_patches_async_refresh()
             return
-        self._changespecs_refresh_scheduled = False
-        if self._changespecs_loading:
-            self._changespecs_refresh_pending = True
+        self._changespecs_refresh_scheduled = False  # legacy compatibility alias
+        if self._changespecs_loading:  # legacy compatibility alias
+            self._changespecs_refresh_pending = True  # legacy compatibility alias
             return
-        self._changespecs_loading = True
+        self._changespecs_loading = True  # legacy compatibility alias
         try:
             await self._reload_and_reposition_async()
         finally:
-            self._changespecs_loading = False
-            if self._changespecs_refresh_pending:
-                self._changespecs_refresh_pending = False
-                self._schedule_changespecs_async_refresh()
+            self._changespecs_loading = False  # legacy compatibility alias
+            if self._changespecs_refresh_pending:  # legacy compatibility alias
+                self._changespecs_refresh_pending = False  # legacy compatibility alias
+                self._schedule_changespecs_async_refresh()  # legacy compatibility alias
 
-    def _refresh_changespecs_display_debounced(self) -> None:
+    # legacy compatibility alias
+    def _refresh_changespecs_display_debounced(
+        self,
+    ) -> None:  # legacy compatibility alias
         self._refresh_patches_display_debounced()
 
-    def _refresh_changespec_detail_only(self) -> None:
+    def _refresh_changespec_detail_only(self) -> None:  # legacy compatibility alias
         self._refresh_patch_detail_only()
 
-    def _try_patch_changespec_row(self, idx: int) -> bool:
+    def _try_patch_changespec_row(self, idx: int) -> bool:  # legacy compatibility alias
         return self._try_patch_patch_row(idx)
 
-    def _get_changespec_graph_index(self) -> Any:
+    def _get_changespec_graph_index(self) -> Any:  # legacy compatibility alias
         return self._get_patch_graph_index()
 
-    def _get_changespec_list_widget(self) -> Any:
+    def _get_changespec_list_widget(self) -> Any:  # legacy compatibility alias
         return self._get_patch_list_widget()
 
-    def _get_changespec_detail_widget(self) -> Any:
+    def _get_changespec_detail_widget(self) -> Any:  # legacy compatibility alias
         return self._get_patch_detail_widget()
 
-    def _should_show_changespecs_onboarding(self) -> bool:
+    def _should_show_changespecs_onboarding(self) -> bool:  # legacy compatibility alias
         return self._should_show_patches_onboarding()
 
-    def _sync_changespecs_onboarding(self) -> bool:
+    def _sync_changespecs_onboarding(self) -> bool:  # legacy compatibility alias
         return self._sync_patches_onboarding()
 
-    def _changespec_navigation_stops(self) -> Any:
+    def _changespec_navigation_stops(self) -> Any:  # legacy compatibility alias
         return _legacy_changespec_targets(self._patch_navigation_stops())
 
-    def _navigate_changespec_panel(self, direction: int) -> None:
+    # legacy compatibility alias
+    def _navigate_changespec_panel(
+        self, direction: int
+    ) -> None:  # legacy compatibility alias
         self._navigate_patch_panel(direction)
 
-    def _changespec_banner_focus_still_valid(self) -> bool:
+    # legacy compatibility alias
+    def _changespec_banner_focus_still_valid(
+        self,
+    ) -> bool:  # legacy compatibility alias
         return self._patch_banner_focus_still_valid()
 
-    def _changespec_jump_targets(self) -> Any:
+    def _changespec_jump_targets(self) -> Any:  # legacy compatibility alias
         return _legacy_changespec_targets(self._patch_jump_targets())
 
     def action_edit_spec(self) -> None:
@@ -365,9 +429,15 @@ class PatchMixin(
 
     def action_show_agent_run_log(self) -> None:
         """Open the Agent Run Log modal for the current Patch."""
-        if self.current_tab not in {"artifacts", "patches", "changespecs"}:
+        if self.current_tab not in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility tab id
+        }:
             return
-        patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        patches = getattr(
+            self, "patches", getattr(self, "changespecs", [])
+        )  # legacy compatibility alias
         if not patches:
             return
         patch = patches[self.current_idx]

@@ -2,6 +2,6 @@
 
 from .patch_onboarding import PatchOnboarding
 
-ChangeSpecOnboarding = PatchOnboarding
+ChangeSpecOnboarding = PatchOnboarding  # legacy compatibility alias
 
-__all__ = ["ChangeSpecOnboarding"]
+__all__ = ["ChangeSpecOnboarding"]  # legacy compatibility alias

@@ -6,9 +6,9 @@ from sase.status_state_machine import remove_workspace_suffix
 from sase.ace.patch import (
     MentorEntry,
     MentorStatusLine,
-    changespec_lock,
+    patch_lock,
     parse_project_file,
-    write_changespec_atomic,
+    write_patch_atomic,
 )
 
 from sase.ace.mentors.formatting import apply_mentors_update
@@ -16,7 +16,7 @@ from sase.ace.mentors.formatting import apply_mentors_update
 
 def set_mentor_status(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     entry_id: str,
     profile_name: str,
     mentor_name: str,
@@ -30,7 +30,7 @@ def set_mentor_status(
 
     Args:
         project_file: Path to the project file.
-        changespec_name: Name of the ChangeSpec.
+        patch_name: Name of the Patch.
         entry_id: The commit entry ID (e.g., "1", "2").
         profile_name: The profile name.
         mentor_name: The mentor name.
@@ -44,20 +44,20 @@ def set_mentor_status(
         True if successful, False otherwise.
     """
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
             current_mentors: list[MentorEntry] = []
-            changespec_status: str | None = None
-            for cs in changespecs:
-                if cs.name == changespec_name:
+            patch_status: str | None = None
+            for cs in patches:
+                if cs.name == patch_name:
                     current_mentors = list(cs.mentors) if cs.mentors else []
-                    changespec_status = cs.status
+                    patch_status = cs.status
                     break
 
-            # Determine if changespec is in Draft status
+            # Determine if patch is in Draft status
             is_draft_status = (
-                changespec_status is not None
-                and remove_workspace_suffix(changespec_status) == "Draft"
+                patch_status is not None
+                and remove_workspace_suffix(patch_status) == "Draft"
             )
 
             # Find the entry
@@ -118,12 +118,10 @@ def set_mentor_status(
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
-            updated_lines = apply_mentors_update(
-                lines, changespec_name, current_mentors
-            )
+            updated_lines = apply_mentors_update(lines, patch_name, current_mentors)
             content = "".join(updated_lines)
 
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 content,
                 f"Set mentor status {profile_name}:{mentor_name} -> {status}",
@@ -218,12 +216,12 @@ def merge_mentor_status_lines(
     return caller_mentors
 
 
-def update_changespec_mentors_field(
+def update_patch_mentors_field(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     mentors: list[MentorEntry],
 ) -> bool:
-    """Update the MENTORS field for a ChangeSpec.
+    """Update the MENTORS field for a Patch.
 
     Replaces the entire MENTORS field with the provided mentor entries.
     Uses locking and merges status_lines from disk that the caller may
@@ -231,19 +229,19 @@ def update_changespec_mentors_field(
 
     Args:
         project_file: Path to the project file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         mentors: List of MentorEntry objects to write.
 
     Returns:
         True if successful, False otherwise.
     """
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             # Re-read current state inside the lock
-            current_changespecs = parse_project_file(project_file)
+            current_patches = parse_project_file(project_file)
             current_mentors: list[MentorEntry] = []
-            for cs in current_changespecs:
-                if cs.name == changespec_name:
+            for cs in current_patches:
+                if cs.name == patch_name:
                     current_mentors = list(cs.mentors) if cs.mentors else []
                     break
 
@@ -253,29 +251,34 @@ def update_changespec_mentors_field(
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
-            updated_lines = apply_mentors_update(lines, changespec_name, merged)
+            updated_lines = apply_mentors_update(lines, patch_name, merged)
             content = "".join(updated_lines)
 
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 content,
-                f"Update MENTORS field for {changespec_name}",
+                f"Update MENTORS field for {patch_name}",
             )
             return True
     except Exception:
         return False
 
 
+update_changespec_mentors_field = (
+    update_patch_mentors_field  # legacy compatibility alias
+)
+
+
 def clear_mentor_status_lines(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     mentors_to_clear: dict[str, set[tuple[str, str]]],
 ) -> bool:
     """Remove status lines for specific mentors (to allow rerun).
 
     Args:
         project_file: Path to the project file.
-        changespec_name: Name of the ChangeSpec.
+        patch_name: Name of the Patch.
         mentors_to_clear: Dict mapping entry_id to set of (mentor_name, profile_name)
             tuples to clear.
 
@@ -283,11 +286,11 @@ def clear_mentor_status_lines(
         True if successful, False otherwise.
     """
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
             current_mentors: list[MentorEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
+            for cs in patches:
+                if cs.name == patch_name:
                     current_mentors = list(cs.mentors) if cs.mentors else []
                     break
 
@@ -312,15 +315,13 @@ def clear_mentor_status_lines(
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
-            updated_lines = apply_mentors_update(
-                lines, changespec_name, current_mentors
-            )
+            updated_lines = apply_mentors_update(lines, patch_name, current_mentors)
             content = "".join(updated_lines)
 
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 content,
-                f"Clear mentor status lines for {changespec_name}",
+                f"Clear mentor status lines for {patch_name}",
             )
             return True
     except Exception:

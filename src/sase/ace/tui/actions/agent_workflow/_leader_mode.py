@@ -125,13 +125,24 @@ class LeaderModeMixin:
 
         if key == leader_keys["agent_from_cl"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab in {"artifacts", "patches", "changespecs"}:
+            if self.current_tab in {
+                "artifacts",
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }:
                 if self.marked_indices:
                     self._start_agents_from_marked()  # type: ignore[attr-defined]
                 else:
                     legacy_quick = getattr(
-                        self, "_start_agent_from_changespec_quick", None
+                        self,
+                        "_start_agent_from_changespec_quick",  # legacy compatibility alias
+                        None,
                     )
+                    if callable(legacy_quick):
+                        legacy_quick()
+                        self._refresh_current_tab()  # type: ignore[attr-defined]
+                        return True
+                    legacy_quick = getattr(self, "_start_agent_from_patch_quick", None)
                     if callable(legacy_quick):
                         legacy_quick()
                     else:
@@ -259,7 +270,11 @@ class LeaderModeMixin:
 
         if key == leader_keys["agent_run_log"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab in {"artifacts", "patches", "changespecs"}:
+            if self.current_tab in {
+                "artifacts",
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }:
                 self.action_show_agent_run_log()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
@@ -333,8 +348,20 @@ class LeaderModeMixin:
 
         has_comments = False
         has_mentor_results = False
-        patches = getattr(self, "patches", getattr(self, "changespecs", []))
-        if current_tab in {"artifacts", "patches", "changespecs"} and patches:
+        patches = getattr(
+            self,
+            "patches",
+            getattr(self, "changespecs", []),  # legacy compatibility alias
+        )
+        if (
+            current_tab
+            in {
+                "artifacts",
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }
+            and patches
+        ):
             cs = patches[self.current_idx]
             has_comments = bool(cs.comments)
             if cs.mentors:

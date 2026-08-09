@@ -15,7 +15,7 @@ def get_raw_patch_text(patch: Patch) -> str | None:
 
     Reads the file at patch.file_path starting from patch.line_number and extracts
     the exact raw text until one of these end conditions:
-    - A `## Patch`/`## ChangeSpec` header line (start of another Patch)
+    - A `## Patch`/`## ChangeSpec` header line (start of another Patch)  # legacy compatibility alias
     - Two consecutive blank lines
     - A `NAME:` line (start of another Patch without header)
     - End of file
@@ -49,7 +49,7 @@ def get_raw_patch_text(patch: Patch) -> str | None:
 
         # Check for end conditions (but not on the first line)
         if idx > start_idx:
-            # Check for ## Patch/## ChangeSpec header
+            # Check for ## Patch/## ChangeSpec header  # legacy compatibility alias
             if is_patch_heading(stripped):
                 break
 
@@ -83,4 +83,4 @@ def get_raw_patch_text(patch: Patch) -> str | None:
     return result.rstrip("\n")
 
 
-get_raw_changespec_text = get_raw_patch_text
+get_raw_changespec_text = get_raw_patch_text  # legacy compatibility alias

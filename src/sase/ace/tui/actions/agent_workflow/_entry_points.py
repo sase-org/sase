@@ -79,19 +79,19 @@ class _EntryPointsBaseMixin:
     _last_custom_agent_selection: SelectionItem | None = None
 
     @property
-    def changespecs(self) -> list[Patch]:
+    def changespecs(self) -> list[Patch]:  # legacy compatibility alias
         return getattr(self, "patches", [])
 
-    @changespecs.setter
-    def changespecs(self, value: list[Patch]) -> None:
+    @changespecs.setter  # legacy compatibility alias
+    def changespecs(self, value: list[Patch]) -> None:  # legacy compatibility alias
         self.patches = value
 
     @property
-    def _bulk_changespecs(self) -> Any:
+    def _bulk_changespecs(self) -> Any:  # legacy compatibility alias
         return getattr(self, "_bulk_patches", None)
 
-    @_bulk_changespecs.setter
-    def _bulk_changespecs(self, value: Any) -> None:
+    @_bulk_changespecs.setter  # legacy compatibility alias
+    def _bulk_changespecs(self, value: Any) -> None:  # legacy compatibility alias
         self._bulk_patches = value
 
     def _vcs_prompt_prefix_or_notify(self, project_file: str, name: str) -> str | None:

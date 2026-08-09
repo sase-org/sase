@@ -4,11 +4,11 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from ..patch import HookEntry, HookStatusLine, changespec_lock
-from .persistence import update_changespec_hooks_field, write_hooks_unlocked
+from ..patch import HookEntry, HookStatusLine, patch_lock
+from .persistence import update_patch_hooks_field, write_hooks_unlocked
 
 if TYPE_CHECKING:
-    from ..patch import ChangeSpec
+    from ..patch import Patch
 
 
 # Regex to match /tmp/*_failed_hooks_*.txt paths
@@ -17,13 +17,13 @@ _FAILED_HOOKS_FILE_PATTERN = re.compile(
 )
 
 
-def add_hook_to_changespec(
+def add_hook_to_patch(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     hook_command: str,
     existing_hooks: list[HookEntry] | None = None,
 ) -> bool:
-    """Add a single hook command to a ChangeSpec."""
+    """Add a single hook command to a Patch."""
     # If hooks provided, use them directly (caller responsible for freshness)
     if existing_hooks is not None:
         hooks = list(existing_hooks)
@@ -31,17 +31,17 @@ def add_hook_to_changespec(
         if hook_command in existing_commands:
             return True
         hooks.append(HookEntry(command=hook_command))
-        return update_changespec_hooks_field(project_file, changespec_name, hooks)
+        return update_patch_hooks_field(project_file, patch_name, hooks)
 
     # Otherwise, acquire lock and read fresh state
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
             current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
+            for cs in patches:
+                if cs.name == patch_name:
                     current_hooks = list(cs.hooks) if cs.hooks else []
                     break
 
@@ -50,7 +50,7 @@ def add_hook_to_changespec(
                 return True
 
             current_hooks.append(HookEntry(command=hook_command))
-            write_hooks_unlocked(project_file, changespec_name, current_hooks)
+            write_hooks_unlocked(project_file, patch_name, current_hooks)
             return True
     except Exception:
         return False
@@ -73,7 +73,7 @@ def _apply_hook_suffix_update(
                 updated_status_lines = []
                 # Determine which status line to update
                 if entry_id is not None:
-                    target_sl = hook.get_status_line_for_commit_entry(entry_id)
+                    target_sl = hook.get_status_line_for_stitch(entry_id)
                 else:
                     target_sl = hook.latest_status_line
                 for sl in hook.status_lines:
@@ -81,7 +81,7 @@ def _apply_hook_suffix_update(
                         was_updated = True
                         updated_status_lines.append(
                             HookStatusLine(
-                                commit_entry_num=sl.commit_entry_num,
+                                stitch_num=sl.stitch_num,
                                 timestamp=sl.timestamp,
                                 status=sl.status,
                                 duration=sl.duration,
@@ -107,7 +107,7 @@ def _apply_hook_suffix_update(
 
 def set_hook_suffix(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     hook_command: str,
     suffix: str,
     hooks: list[HookEntry] | None = None,
@@ -119,7 +119,7 @@ def set_hook_suffix(
 
     Args:
         project_file: Path to the project file.
-        changespec_name: Name of the ChangeSpec.
+        patch_name: Name of the Patch.
         hook_command: The hook command to update.
         suffix: The suffix to set.
         hooks: List of current hook entries. If None, re-reads from disk to avoid
@@ -139,19 +139,17 @@ def set_hook_suffix(
         )
         if not was_updated:
             return False
-        return update_changespec_hooks_field(
-            project_file, changespec_name, updated_hooks
-        )
+        return update_patch_hooks_field(project_file, patch_name, updated_hooks)
 
     # Otherwise, acquire lock and read fresh state
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
             current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
+            for cs in patches:
+                if cs.name == patch_name:
                     current_hooks = list(cs.hooks) if cs.hooks else []
                     break
             if not current_hooks:
@@ -162,7 +160,7 @@ def set_hook_suffix(
             )
             if not was_updated:
                 return False
-            write_hooks_unlocked(project_file, changespec_name, updated_hooks)
+            write_hooks_unlocked(project_file, patch_name, updated_hooks)
             return True
     except Exception:
         return False
@@ -170,7 +168,7 @@ def set_hook_suffix(
 
 def try_claim_hook_for_fix(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     hook_command: str,
     entry_id: str,
     claiming_suffix: str,
@@ -178,11 +176,11 @@ def try_claim_hook_for_fix(
     """Atomically check eligibility and claim a hook for fix-hook workflow.
 
     This function prevents race conditions by performing the eligibility check
-    and claim in a single atomic operation under the changespec lock.
+    and claim in a single atomic operation under the patch lock.
 
     Args:
         project_file: Path to the project file.
-        changespec_name: Name of the ChangeSpec.
+        patch_name: Name of the Patch.
         hook_command: The hook command to claim.
         entry_id: The entry ID for the failing status line.
         claiming_suffix: The suffix to set when claiming (e.g., "claiming-{timestamp}").
@@ -193,10 +191,10 @@ def try_claim_hook_for_fix(
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             # Re-read fresh state under lock
-            changespecs = parse_project_file(project_file)
-            cs = next((c for c in changespecs if c.name == changespec_name), None)
+            patches = parse_project_file(project_file)
+            cs = next((c for c in patches if c.name == patch_name), None)
             if not cs or not cs.hooks:
                 return None
 
@@ -208,7 +206,7 @@ def try_claim_hook_for_fix(
                 return None
 
             # Check eligibility under lock
-            sl = current_hook.get_status_line_for_commit_entry(entry_id)
+            sl = current_hook.get_status_line_for_stitch(entry_id)
             if sl is None:
                 return None
             if sl.status != "FAILED":
@@ -226,11 +224,11 @@ def try_claim_hook_for_fix(
                 if hook.command == hook_command and hook.status_lines:
                     updated_status_lines = []
                     for status_line in hook.status_lines:
-                        if status_line.commit_entry_num == entry_id:
+                        if status_line.stitch_num == entry_id:
                             # Claim with "claiming_fix" suffix_type
                             updated_status_lines.append(
                                 HookStatusLine(
-                                    commit_entry_num=status_line.commit_entry_num,
+                                    stitch_num=status_line.stitch_num,
                                     timestamp=status_line.timestamp,
                                     status=status_line.status,
                                     duration=status_line.duration,
@@ -250,7 +248,7 @@ def try_claim_hook_for_fix(
                 else:
                     updated_hooks.append(hook)
 
-            write_hooks_unlocked(project_file, changespec_name, updated_hooks)
+            write_hooks_unlocked(project_file, patch_name, updated_hooks)
             return existing_summary
 
     except Exception:
@@ -273,7 +271,7 @@ def _apply_clear_hook_suffix(
                         was_cleared = True
                         updated_status_lines.append(
                             HookStatusLine(
-                                commit_entry_num=sl.commit_entry_num,
+                                stitch_num=sl.stitch_num,
                                 timestamp=sl.timestamp,
                                 status=sl.status,
                                 duration=sl.duration,
@@ -297,7 +295,7 @@ def _apply_clear_hook_suffix(
 
 def clear_hook_suffix(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     hook_command: str,
     hooks: list[HookEntry] | None = None,
 ) -> bool:
@@ -305,7 +303,7 @@ def clear_hook_suffix(
 
     Args:
         project_file: Path to the project file.
-        changespec_name: Name of the ChangeSpec.
+        patch_name: Name of the Patch.
         hook_command: The hook command to update.
         hooks: List of current hook entries. If None, re-reads from disk to avoid
                overwriting hooks added by concurrent processes.
@@ -315,19 +313,17 @@ def clear_hook_suffix(
         updated_hooks, was_cleared = _apply_clear_hook_suffix(hooks, hook_command)
         if not was_cleared:
             return False
-        return update_changespec_hooks_field(
-            project_file, changespec_name, updated_hooks
-        )
+        return update_patch_hooks_field(project_file, patch_name, updated_hooks)
 
     # Otherwise, acquire lock and read fresh state
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
             current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
+            for cs in patches:
+                if cs.name == patch_name:
                     current_hooks = list(cs.hooks) if cs.hooks else []
                     break
             if not current_hooks:
@@ -338,7 +334,7 @@ def clear_hook_suffix(
             )
             if not was_cleared:
                 return False
-            write_hooks_unlocked(project_file, changespec_name, updated_hooks)
+            write_hooks_unlocked(project_file, patch_name, updated_hooks)
             return True
     except Exception:
         return False
@@ -346,7 +342,7 @@ def clear_hook_suffix(
 
 def rerun_delete_hooks_by_command(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     commands_to_rerun: set[str],
     commands_to_delete: set[str],
     entry_ids_to_clear: set[str],
@@ -358,7 +354,7 @@ def rerun_delete_hooks_by_command(
 
     Args:
         project_file: Path to the project file.
-        changespec_name: Name of the ChangeSpec.
+        patch_name: Name of the Patch.
         commands_to_rerun: Set of hook commands to rerun (clear status lines).
         commands_to_delete: Set of hook commands to delete entirely.
         entry_ids_to_clear: The COMMITS entry IDs to clear status for.
@@ -369,11 +365,11 @@ def rerun_delete_hooks_by_command(
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
             current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
+            for cs in patches:
+                if cs.name == patch_name:
                     current_hooks = list(cs.hooks) if cs.hooks else []
                     break
 
@@ -386,7 +382,7 @@ def rerun_delete_hooks_by_command(
                         remaining_status_lines = [
                             sl
                             for sl in hook.status_lines
-                            if sl.commit_entry_num not in entry_ids_to_clear
+                            if sl.stitch_num not in entry_ids_to_clear
                         ]
                         updated_hooks.append(
                             HookEntry(
@@ -403,30 +399,30 @@ def rerun_delete_hooks_by_command(
                 else:
                     updated_hooks.append(hook)
 
-            write_hooks_unlocked(project_file, changespec_name, updated_hooks)
+            write_hooks_unlocked(project_file, patch_name, updated_hooks)
             return True
     except Exception:
         return False
 
 
-def get_failed_hooks_file_path(changespec: "ChangeSpec") -> str | None:
-    """Find the last failed hooks file path in the ChangeSpec.
+def get_failed_hooks_file_path(patch: "Patch") -> str | None:
+    """Find the last failed hooks file path in the Patch.
 
     Iterates through all hooks with status lines, looking for any status line
     with suffix_type == "metahook_complete" that contains a path matching
     /tmp/*_failed_hooks_*.txt pattern in either the suffix or summary field.
 
     Args:
-        changespec: The ChangeSpec to search.
+        patch: The Patch to search.
 
     Returns:
         The last matching file path found, or None if not found.
     """
-    if not changespec.hooks:
+    if not patch.hooks:
         return None
 
     result: str | None = None
-    for hook in changespec.hooks:
+    for hook in patch.hooks:
         if not hook.status_lines:
             continue
         for sl in hook.status_lines:
@@ -446,7 +442,7 @@ def get_failed_hooks_file_path(changespec: "ChangeSpec") -> str | None:
 
 def reset_dollar_hooks(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     log_fn: Callable[[str], None] | None = None,
 ) -> bool:
     """Reset $-prefixed hooks so sase axe re-runs them.
@@ -457,7 +453,7 @@ def reset_dollar_hooks(
 
     Args:
         project_file: Path to the project file.
-        changespec_name: Name of the ChangeSpec.
+        patch_name: Name of the Patch.
         log_fn: Optional callback for logging messages.
 
     Returns:
@@ -467,8 +463,8 @@ def reset_dollar_hooks(
     from .history import get_last_history_entry_id
     from .processes import kill_running_processes_for_hooks
 
-    changespecs = parse_project_file(project_file)
-    cs = next((c for c in changespecs if c.name == changespec_name), None)
+    patches = parse_project_file(project_file)
+    cs = next((c for c in patches if c.name == patch_name), None)
     if cs is None or not cs.hooks:
         return True
 
@@ -498,7 +494,7 @@ def reset_dollar_hooks(
     # Clear status lines for the last entry ID
     return rerun_delete_hooks_by_command(
         project_file,
-        changespec_name,
+        patch_name,
         commands_to_rerun=dollar_commands,
         commands_to_delete=set(),
         entry_ids_to_clear={last_entry_id},

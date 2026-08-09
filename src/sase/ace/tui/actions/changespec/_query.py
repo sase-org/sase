@@ -2,6 +2,6 @@
 
 from ..patch._query import PatchQueryMixin
 
-ChangeSpecQueryMixin = PatchQueryMixin
+ChangeSpecQueryMixin = PatchQueryMixin  # legacy compatibility alias
 
-__all__ = ["ChangeSpecQueryMixin"]
+__all__ = ["ChangeSpecQueryMixin"]  # legacy compatibility alias

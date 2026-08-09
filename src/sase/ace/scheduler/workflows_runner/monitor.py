@@ -3,7 +3,7 @@
 import os
 import re
 
-from ...patch import ChangeSpec
+from ...patch import Patch
 from ...hooks.history import is_proposal_entry
 
 # Workflow completion marker (same pattern as hooks)
@@ -44,18 +44,18 @@ def check_workflow_completion(output_path: str) -> tuple[bool, str | None, int |
     return (True, proposal_id, exit_code)
 
 
-def get_running_crs_workflows(changespec: ChangeSpec) -> list[tuple[str, str]]:
-    """Get running CRS workflows for a ChangeSpec.
+def get_running_crs_workflows(patch: Patch) -> list[tuple[str, str]]:
+    """Get running CRS workflows for a Patch.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         List of (reviewer_type, suffix) tuples for running CRS workflows.
     """
     running: list[tuple[str, str]] = []
-    if changespec.comments:
-        for entry in changespec.comments:
+    if patch.comments:
+        for entry in patch.comments:
             if entry.reviewer == "critique" and entry.suffix:
                 # Format: crs-<PID>-YYmmdd_HHMMSS
                 if re.match(r"^crs-\d+-\d{6}_\d{6}$", entry.suffix):
@@ -64,25 +64,25 @@ def get_running_crs_workflows(changespec: ChangeSpec) -> list[tuple[str, str]]:
 
 
 def get_running_fix_hook_workflows(
-    changespec: ChangeSpec,
+    patch: Patch,
 ) -> list[tuple[str, str, str, str | None]]:
-    """Get running fix-hook workflows for a ChangeSpec.
+    """Get running fix-hook workflows for a Patch.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         List of (hook_command, timestamp, entry_id, summary) tuples for running fix-hook workflows.
         The timestamp is extracted from the suffix (e.g., "fix_hook-12345-251230_151429" -> "251230_151429").
     """
     running: list[tuple[str, str, str, str | None]] = []
-    if changespec.hooks:
-        for hook in changespec.hooks:
+    if patch.hooks:
+        for hook in patch.hooks:
             if not hook.status_lines:
                 continue
             for sl in hook.status_lines:
                 # Only non-proposal entries are fix-hook workflows
-                if not sl.suffix or is_proposal_entry(sl.commit_entry_num):
+                if not sl.suffix or is_proposal_entry(sl.stitch_num):
                     continue
                 # Check for suffix_type to ensure it's a running agent
                 if sl.suffix_type != "running_agent":
@@ -94,7 +94,7 @@ def get_running_fix_hook_workflows(
                         (
                             hook.command,
                             pid_match.group(1),
-                            sl.commit_entry_num,
+                            sl.stitch_num,
                             sl.summary,
                         )
                     )
@@ -102,20 +102,20 @@ def get_running_fix_hook_workflows(
 
 
 def get_running_summarize_hook_workflows(
-    changespec: ChangeSpec,
+    patch: Patch,
 ) -> list[tuple[str, str, str]]:
-    """Get running summarize-hook workflows for a ChangeSpec.
+    """Get running summarize-hook workflows for a Patch.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         List of (hook_command, timestamp, entry_id) tuples for running summarize-hook workflows.
         The timestamp is extracted from the suffix (e.g., "summarize_hook-12345-251230_151429" -> "251230_151429").
     """
     running: list[tuple[str, str, str]] = []
-    if changespec.hooks:
-        for hook in changespec.hooks:
+    if patch.hooks:
+        for hook in patch.hooks:
             if not hook.status_lines:
                 continue
             for sl in hook.status_lines:
@@ -128,7 +128,5 @@ def get_running_summarize_hook_workflows(
                 # Format with PID: summarize_hook-<PID>-YYmmdd_HHMMSS
                 pid_match = re.match(r"^summarize_hook-\d+-(\d{6}_\d{6})$", sl.suffix)
                 if pid_match:
-                    running.append(
-                        (hook.command, pid_match.group(1), sl.commit_entry_num)
-                    )
+                    running.append((hook.command, pid_match.group(1), sl.stitch_num))
     return running

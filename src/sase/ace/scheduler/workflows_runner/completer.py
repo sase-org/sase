@@ -9,7 +9,7 @@ from sase.running_field import (
 from sase.vcs_provider import get_vcs_provider
 
 from ...patch import (
-    ChangeSpec,
+    Patch,
     parse_project_file,
 )
 from ...comments import (
@@ -34,21 +34,21 @@ from .starter import (
 
 
 def _find_fix_hook_proposal(
-    changespec: ChangeSpec | None,
+    patch: Patch | None,
     entry_id: str,
 ) -> str | None:
     """Check if a fix-hook proposal exists for the given entry.
 
-    Scans the ChangeSpec's commits for a proposal entry whose base number
+    Scans the Patch's commits for a proposal entry whose base number
     matches entry_id and whose note starts with '[fix-hook'.
     """
-    if not changespec or not changespec.commits:
+    if not patch or not patch.commits:
         return None
     try:
         base_num = int(entry_id)
     except ValueError:
         return None
-    for commit in changespec.commits:
+    for commit in patch.commits:
         if (
             commit.number == base_num
             and commit.is_proposed
@@ -59,7 +59,7 @@ def _find_fix_hook_proposal(
 
 
 def _auto_accept_proposal(
-    changespec: ChangeSpec,
+    patch: Patch,
     proposal_id: str,
     workspace_dir: str,
     log: LogCallback,
@@ -67,7 +67,7 @@ def _auto_accept_proposal(
     """Auto-accept a proposal without user interaction.
 
     Args:
-        changespec: The ChangeSpec containing the proposal.
+        patch: The Patch containing the proposal.
         proposal_id: The proposal ID (e.g., "2a").
         workspace_dir: The workspace directory to use.
         log: Logging callback.
@@ -91,7 +91,7 @@ def _auto_accept_proposal(
     base_num, letter = parsed
 
     # Find the proposal entry
-    entry = find_proposal_entry(changespec.commits, base_num, letter)
+    entry = find_proposal_entry(patch.commits, base_num, letter)
     if not entry or not entry.diff:
         log(f"Proposal ({proposal_id}) not found or has no diff", "yellow")
         return False
@@ -111,8 +111,8 @@ def _auto_accept_proposal(
 
     # Renumber history entries
     success = renumber_commit_entries(
-        changespec.file_path,
-        changespec.name,
+        patch.file_path,
+        patch.name,
         [(base_num, letter)],
         None,
     )
@@ -124,8 +124,8 @@ def _auto_accept_proposal(
     from sase.workflows.utils import add_test_hooks_if_available
 
     add_test_hooks_if_available(
-        changespec.file_path,
-        changespec.name,
+        patch.file_path,
+        patch.name,
         workspace_dir=workspace_dir,
         verbose=False,  # Loop runs silently
     )
@@ -134,24 +134,24 @@ def _auto_accept_proposal(
 
 
 def check_and_complete_workflows(
-    changespec: ChangeSpec,
+    patch: Patch,
     log: LogCallback,
 ) -> list[str]:
     """Check completion of running workflows and auto-accept proposals.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         log: Logging callback.
 
     Returns:
         List of update messages.
     """
     updates: list[str] = []
-    project_basename = get_project_basename(changespec)
+    project_basename = get_project_basename(patch)
 
     # Check CRS workflows
-    for reviewer, timestamp in get_running_crs_workflows(changespec):
-        output_path = get_workflow_output_path(changespec.name, "crs", timestamp)
+    for reviewer, timestamp in get_running_crs_workflows(patch):
+        output_path = get_workflow_output_path(patch.name, "crs", timestamp)
         completed, proposal_id, exit_code = check_workflow_completion(output_path)
 
         if completed:
@@ -159,20 +159,17 @@ def check_and_complete_workflows(
 
             if proposal_id and exit_code == 0:
                 # Find and release the workspace
-                for claim in get_claimed_workspaces(changespec.file_path):
-                    if (
-                        claim.cl_name == changespec.name
-                        and claim.workflow == workflow_name
-                    ):
+                for claim in get_claimed_workspaces(patch.file_path):
+                    if claim.cl_name == patch.name and claim.workflow == workflow_name:
                         workspace_dir, _ = get_workspace_directory_for_num(
                             claim.workspace_num, project_basename
                         )
 
-                        # Re-read ChangeSpec to get current state
-                        current_changespecs = parse_project_file(changespec.file_path)
+                        # Re-read Patch to get current state
+                        current_patches = parse_project_file(patch.file_path)
                         current_cs = None
-                        for cs in current_changespecs:
-                            if cs.name == changespec.name:
+                        for cs in current_patches:
+                            if cs.name == patch.name:
                                 current_cs = cs
                                 break
 
@@ -192,56 +189,53 @@ def check_and_complete_workflows(
 
                         # Release workspace
                         release_workspace(
-                            changespec.file_path,
+                            patch.file_path,
                             claim.workspace_num,
                             workflow_name,
-                            changespec.name,
+                            patch.name,
                         )
                         break
             else:
                 # Workflow failed - set suffix and release workspace
-                if changespec.comments:
+                if patch.comments:
                     set_comment_suffix(
-                        changespec.file_path,
-                        changespec.name,
+                        patch.file_path,
+                        patch.name,
                         reviewer,
                         "Unresolved Critique Comments",
-                        changespec.comments,
+                        patch.comments,
                     )
                 updates.append(
                     f"CRS workflow [{reviewer}] -> FAILED (exit {exit_code})"
                 )
 
                 # Release workspace
-                for claim in get_claimed_workspaces(changespec.file_path):
-                    if (
-                        claim.cl_name == changespec.name
-                        and claim.workflow == workflow_name
-                    ):
+                for claim in get_claimed_workspaces(patch.file_path):
+                    if claim.cl_name == patch.name and claim.workflow == workflow_name:
                         release_workspace(
-                            changespec.file_path,
+                            patch.file_path,
                             claim.workspace_num,
                             workflow_name,
-                            changespec.name,
+                            patch.name,
                         )
                         break
 
     # Check fix-hook workflows
     for hook_command, timestamp, entry_id, summary in get_running_fix_hook_workflows(
-        changespec
+        patch
     ):
-        output_path = get_workflow_output_path(changespec.name, "fix-hook", timestamp)
+        output_path = get_workflow_output_path(patch.name, "fix-hook", timestamp)
         completed, proposal_id, exit_code = check_workflow_completion(output_path)
 
         if completed:
             workflow_name = f"axe(fix-hook)-{timestamp}"
 
             if proposal_id and exit_code == 0:
-                # Re-read ChangeSpec to get current state
-                current_changespecs = parse_project_file(changespec.file_path)
+                # Re-read Patch to get current state
+                current_patches = parse_project_file(patch.file_path)
                 current_cs = None
-                for cs in current_changespecs:
-                    if cs.name == changespec.name:
+                for cs in current_patches:
+                    if cs.name == patch.name:
                         current_cs = cs
                         break
 
@@ -250,13 +244,13 @@ def check_and_complete_workflows(
                     current_summary = None
                     for h in current_cs.hooks:
                         if h.command == hook_command:
-                            sl = h.get_status_line_for_commit_entry(entry_id)
+                            sl = h.get_status_line_for_stitch(entry_id)
                             if sl:
                                 current_summary = sl.summary
                             break
                     set_hook_suffix(
-                        changespec.file_path,
-                        changespec.name,
+                        patch.file_path,
+                        patch.name,
                         hook_command,
                         proposal_id,
                         hooks=None,  # Re-read fresh data under lock
@@ -267,11 +261,8 @@ def check_and_complete_workflows(
 
                 # Find workspace and attempt auto-accept
                 workspace_found = False
-                for claim in get_claimed_workspaces(changespec.file_path):
-                    if (
-                        claim.cl_name == changespec.name
-                        and claim.workflow == workflow_name
-                    ):
+                for claim in get_claimed_workspaces(patch.file_path):
+                    if claim.cl_name == patch.name and claim.workflow == workflow_name:
                         workspace_found = True
                         workspace_dir, _ = get_workspace_directory_for_num(
                             claim.workspace_num, project_basename
@@ -294,10 +285,10 @@ def check_and_complete_workflows(
 
                         # Release workspace
                         release_workspace(
-                            changespec.file_path,
+                            patch.file_path,
                             claim.workspace_num,
                             workflow_name,
-                            changespec.name,
+                            patch.name,
                         )
                         break
 
@@ -311,9 +302,9 @@ def check_and_complete_workflows(
                 # Workflow reported failure - check if a proposal was
                 # actually created (e.g., create_proposal succeeded but a
                 # later step like report failed)
-                current_changespecs = parse_project_file(changespec.file_path)
+                current_patches = parse_project_file(patch.file_path)
                 current_cs = next(
-                    (cs for cs in current_changespecs if cs.name == changespec.name),
+                    (cs for cs in current_patches if cs.name == patch.name),
                     None,
                 )
 
@@ -325,13 +316,13 @@ def check_and_complete_workflows(
                     if current_cs and current_cs.hooks:
                         for h in current_cs.hooks:
                             if h.command == hook_command:
-                                sl = h.get_status_line_for_commit_entry(entry_id)
+                                sl = h.get_status_line_for_stitch(entry_id)
                                 if sl:
                                     current_summary = sl.summary
                                 break
                     set_hook_suffix(
-                        changespec.file_path,
-                        changespec.name,
+                        patch.file_path,
+                        patch.name,
                         hook_command,
                         actual_proposal_id,
                         hooks=None,
@@ -349,14 +340,14 @@ def check_and_complete_workflows(
                     if current_cs and current_cs.hooks:
                         for h in current_cs.hooks:
                             if h.command == hook_command:
-                                sl = h.get_status_line_for_commit_entry(entry_id)
+                                sl = h.get_status_line_for_stitch(entry_id)
                                 if sl:
                                     current_summary = sl.summary
                                 break
 
                     success = set_hook_suffix(
-                        changespec.file_path,
-                        changespec.name,
+                        patch.file_path,
+                        patch.name,
                         hook_command,
                         "fix-hook Failed",
                         hooks=None,  # Fresh read under lock
@@ -375,26 +366,21 @@ def check_and_complete_workflows(
                     )
 
                 # Release workspace
-                for claim in get_claimed_workspaces(changespec.file_path):
-                    if (
-                        claim.cl_name == changespec.name
-                        and claim.workflow == workflow_name
-                    ):
+                for claim in get_claimed_workspaces(patch.file_path):
+                    if claim.cl_name == patch.name and claim.workflow == workflow_name:
                         release_workspace(
-                            changespec.file_path,
+                            patch.file_path,
                             claim.workspace_num,
                             workflow_name,
-                            changespec.name,
+                            patch.name,
                         )
                         break
 
     # Check summarize-hook workflows (no workspace to release)
     for hook_command, timestamp, entry_id in get_running_summarize_hook_workflows(
-        changespec
+        patch
     ):
-        output_path = get_workflow_output_path(
-            changespec.name, "summarize-hook", timestamp
-        )
+        output_path = get_workflow_output_path(patch.name, "summarize-hook", timestamp)
         completed, _, exit_code = check_workflow_completion(output_path)
 
         if completed:
@@ -402,10 +388,10 @@ def check_and_complete_workflows(
                 updates.append(f"summarize-hook workflow '{hook_command}' -> COMPLETED")
                 # Immediately chain fix-hook for non-proposal entries
                 if not is_proposal_entry(entry_id):
-                    # Re-read ChangeSpec to get the summary that was just written
-                    current_changespecs = parse_project_file(changespec.file_path)
-                    for cs in current_changespecs:
-                        if cs.name == changespec.name:
+                    # Re-read Patch to get the summary that was just written
+                    current_patches = parse_project_file(patch.file_path)
+                    for cs in current_patches:
+                        if cs.name == patch.name:
                             # Find the hook and start fix-hook workflow
                             if cs.hooks:
                                 for h in cs.hooks:
@@ -422,8 +408,8 @@ def check_and_complete_workflows(
                 shortened_output = shorten_path(output_path)
 
                 success = set_hook_suffix(
-                    changespec.file_path,
-                    changespec.name,
+                    patch.file_path,
+                    patch.name,
                     hook_command,
                     "summarize-hook Failed",
                     hooks=None,  # Fresh read under lock

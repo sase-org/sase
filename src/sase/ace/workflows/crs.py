@@ -24,13 +24,13 @@ from sase.running_field import (
     release_workspace,
 )
 
-from ..patch import ChangeSpec
+from ..patch import Patch
 from ..comments import set_comment_suffix
-from ..operations import update_to_changespec
+from ..operations import update_to_patch
 
 
 def run_crs_workflow(
-    changespec: ChangeSpec,
+    patch: Patch,
     console: Console,
     comments_file: str | None = None,
     comment_reviewer: str = "critique",
@@ -38,7 +38,7 @@ def run_crs_workflow(
     """Run crs workflow to address Critique comments.
 
     Args:
-        changespec: The ChangeSpec to run the workflow for
+        patch: The Patch to run the workflow for
         console: Rich console for output
         comments_file: Optional path to comments JSON file from COMMENTS field.
             If provided, use this file instead of running critique_comments.
@@ -49,18 +49,18 @@ def run_crs_workflow(
         True if workflow completed successfully, False otherwise
     """
     # Find first available workspace and claim it
-    workspace_num = get_first_available_workspace(changespec.file_path)
+    workspace_num = get_first_available_workspace(patch.file_path)
     workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-        workspace_num, changespec.project_basename
+        workspace_num, patch.project_basename
     )
 
     # Claim the workspace FIRST to reserve it before doing any work
     claim_result = claim_workspace(
-        changespec.file_path,
+        patch.file_path,
         workspace_num,
         "crs",
         os.getpid(),
-        changespec.name,
+        patch.name,
     )
     if not claim_result.success:
         console.print(
@@ -73,22 +73,20 @@ def run_crs_workflow(
         console.print(f"[cyan]Using workspace share: {workspace_suffix}[/cyan]")
 
     # Clean workspace before switching branches
-    clean_success, clean_error = run_sase_hg_clean(
-        workspace_dir, f"{changespec.name}-crs"
-    )
+    clean_success, clean_error = run_sase_hg_clean(workspace_dir, f"{patch.name}-crs")
     if not clean_success:
         console.print(
             f"[yellow]Warning: sase_hg_clean failed: {_esc(str(clean_error))}[/yellow]"
         )
 
-    # Now update to the changespec NAME (cd and sase_hg_update to the branch)
-    success, error_msg = update_to_changespec(
-        changespec, console, revision=changespec.name, workspace_dir=workspace_dir
+    # Now update to the patch NAME (cd and sase_hg_update to the branch)
+    success, error_msg = update_to_patch(
+        patch, console, revision=patch.name, workspace_dir=workspace_dir
     )
     if not success:
         console.print(f"[red]Error: {_esc(str(error_msg))}[/red]")
         # Release workspace since we failed before running the workflow
-        release_workspace(changespec.file_path, workspace_num, "crs", changespec.name)
+        release_workspace(patch.file_path, workspace_num, "crs", patch.name)
         return False
 
     # Save current directory to restore later
@@ -102,13 +100,13 @@ def run_crs_workflow(
 
         # Set timestamp suffix on comment entry to indicate CRS is running
         crs_start_timestamp = generate_timestamp()
-        if changespec.comments:
+        if patch.comments:
             set_comment_suffix(
-                changespec.file_path,
-                changespec.name,
+                patch.file_path,
+                patch.name,
                 comment_reviewer,
                 crs_start_timestamp,
-                changespec.comments,
+                patch.comments,
                 suffix_type="running_agent",
             )
 
@@ -116,12 +114,12 @@ def run_crs_workflow(
         console.print("[cyan]Running CRS workflow...[/cyan]")
         from sase.workspace_provider import detect_workflow_type
 
-        vcs_type = detect_workflow_type(changespec.file_path)
+        vcs_type = detect_workflow_type(patch.file_path)
         workflow = CrsWorkflow(
             comments_file=comments_file,
             timestamp=crs_start_timestamp,
-            project_name=changespec.project_basename,
-            cl_name=changespec.name,
+            project_name=patch.project_basename,
+            cl_name=patch.name,
             vcs_type=vcs_type,
         )
         workflow_succeeded = workflow.run()
@@ -129,13 +127,13 @@ def run_crs_workflow(
         if not workflow_succeeded:
             console.print("[red]CRS workflow failed[/red]")
             # Set suffix to indicate unresolved comments
-            if changespec.comments:
+            if patch.comments:
                 set_comment_suffix(
-                    changespec.file_path,
-                    changespec.name,
+                    patch.file_path,
+                    patch.name,
                     comment_reviewer,
                     "Unresolved Critique Comments",
-                    changespec.comments,
+                    patch.comments,
                 )
             return False
 
@@ -175,13 +173,13 @@ def run_crs_workflow(
             console.print("[dim]Press enter to continue...[/dim]", end="")
             input()
             # Set suffix to indicate unresolved comments
-            if changespec.comments:
+            if patch.comments:
                 set_comment_suffix(
-                    changespec.file_path,
-                    changespec.name,
+                    patch.file_path,
+                    patch.name,
                     comment_reviewer,
                     "Unresolved Critique Comments",
-                    changespec.comments,
+                    patch.comments,
                 )
             return False
 
@@ -191,13 +189,13 @@ def run_crs_workflow(
         if action == "reject":
             console.print("[yellow]Changes rejected. Proposal saved.[/yellow]")
             # Set suffix to indicate unresolved comments
-            if changespec.comments:
+            if patch.comments:
                 set_comment_suffix(
-                    changespec.file_path,
-                    changespec.name,
+                    patch.file_path,
+                    patch.name,
                     comment_reviewer,
                     "Unresolved Critique Comments",
-                    changespec.comments,
+                    patch.comments,
                 )
             return False
 
@@ -211,24 +209,24 @@ def run_crs_workflow(
 
         if not success:
             # Set suffix to indicate unresolved comments on failure
-            if changespec.comments:
+            if patch.comments:
                 set_comment_suffix(
-                    changespec.file_path,
-                    changespec.name,
+                    patch.file_path,
+                    patch.name,
                     comment_reviewer,
                     "Unresolved Critique Comments",
-                    changespec.comments,
+                    patch.comments,
                 )
             return False
 
         # Set suffix on success - sase axe will remove entry when no more comments
-        if changespec.comments:
+        if patch.comments:
             set_comment_suffix(
-                changespec.file_path,
-                changespec.name,
+                patch.file_path,
+                patch.name,
                 comment_reviewer,
                 "Unresolved Critique Comments",
-                changespec.comments,
+                patch.comments,
             )
 
         console.print("[green]CRS workflow completed successfully![/green]")
@@ -239,4 +237,4 @@ def run_crs_workflow(
         os.chdir(original_dir)
 
         # Always release the workspace when done
-        release_workspace(changespec.file_path, workspace_num, "crs", changespec.name)
+        release_workspace(patch.file_path, workspace_num, "crs", patch.name)

@@ -257,7 +257,7 @@ class InputProcessingMixin(HintMixinBase):
             patch_name=getattr(
                 self,
                 "_hint_patch_name",
-                getattr(self, "_hint_changespec_name", ""),
+                getattr(self, "_hint_patch_name", ""),
             ),
             commit_specs=commit_specs,
         )
@@ -313,7 +313,7 @@ class InputProcessingMixin(HintMixinBase):
                 open_in_editor=True,
                 copy_to_clipboard=False,
                 user_input=request.user_input,
-                changespec_name=request.patch_name,
+                patch_name=request.patch_name,
             )
             self._open_files_in_editor(result)  # type: ignore[attr-defined]
         else:
@@ -516,7 +516,7 @@ class InputProcessingMixin(HintMixinBase):
                 self._hint_to_entry_id = hint_to_entry_id
                 self._mentor_hint_to_info = mentor_hint_to_info
                 self._hint_patch_name = patch.name
-                self._hint_changespec_name = patch.name  # type: ignore[attr-defined]
+                self._hint_patch_name = patch.name  # type: ignore[attr-defined]
 
                 detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
                 if not detail_container.is_attached:

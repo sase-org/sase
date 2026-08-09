@@ -20,8 +20,8 @@ from sase.running_field import (
 from sase.vcs_provider import get_vcs_provider
 
 from ..patch import (
-    ChangeSpec,
-    CommitEntry,
+    Patch,
+    Stitch,
     HookEntry,
 )
 from ..hooks import (
@@ -40,7 +40,7 @@ def _get_proposal_workspace(
 
     Args:
         project_file: Path to the project file.
-        cl_name: Name of the ChangeSpec.
+        cl_name: Name of the Patch.
         proposal_workflow: The workflow name (e.g., "axe(hooks)-2a").
 
     Returns:
@@ -52,22 +52,18 @@ def _get_proposal_workspace(
     return None
 
 
-def release_entry_workspaces(
-    changespec: ChangeSpec, log: LogCallback | None = None
-) -> None:
-    """Release entry-specific workspaces (axe(hooks)-<id>) for this ChangeSpec.
+def release_entry_workspaces(patch: Patch, log: LogCallback | None = None) -> None:
+    """Release entry-specific workspaces (axe(hooks)-<id>) for this Patch.
 
     For proposal entries (e.g., axe(hooks)-3a), also cleans the workspace
     to remove uncommitted changes from `hg import --no-commit`.
 
     Args:
-        changespec: The ChangeSpec to release workspaces for.
+        patch: The Patch to release workspaces for.
         log: Optional logging callback.
     """
-    for claim in get_claimed_workspaces(changespec.file_path):
-        if claim.cl_name == changespec.name and claim.workflow.startswith(
-            "axe(hooks)-"
-        ):
+    for claim in get_claimed_workspaces(patch.file_path):
+        if claim.cl_name == patch.name and claim.workflow.startswith("axe(hooks)-"):
             # Extract entry_id from workflow name (e.g., "3" or "3a")
             entry_id = claim.workflow[len("axe(hooks)-") :]
             # Check if this is a proposal (entry_id contains a letter like "3a")
@@ -77,22 +73,22 @@ def release_entry_workspaces(
                 # Clean workspace to remove uncommitted changes from hg import
                 try:
                     workspace_dir, _ = get_workspace_directory_for_num(
-                        claim.workspace_num, changespec.project_basename
+                        claim.workspace_num, patch.project_basename
                     )
                     clean_workspace(workspace_dir)
                 except Exception:
                     pass
 
             release_workspace(
-                changespec.file_path,
+                patch.file_path,
                 claim.workspace_num,
                 claim.workflow,
-                changespec.name,
+                patch.name,
             )
 
 
 def release_entry_workspace(
-    changespec: ChangeSpec, entry_id: str, log: LogCallback | None = None
+    patch: Patch, entry_id: str, log: LogCallback | None = None
 ) -> None:
     """Release the workspace for a specific entry ID (e.g., '1', '1a', '2').
 
@@ -100,14 +96,14 @@ def release_entry_workspace(
     workspace to remove uncommitted changes from `hg import --no-commit`.
 
     Args:
-        changespec: The ChangeSpec to release workspaces for.
+        patch: The Patch to release workspaces for.
         entry_id: The history entry ID (e.g., "1", "1a", "2").
         log: Optional logging callback.
     """
     workflow = f"axe(hooks)-{entry_id}"
 
-    for claim in get_claimed_workspaces(changespec.file_path):
-        if claim.cl_name == changespec.name and claim.workflow == workflow:
+    for claim in get_claimed_workspaces(patch.file_path):
+        if claim.cl_name == patch.name and claim.workflow == workflow:
             # Check if this is a proposal (entry_id contains a letter like "1a")
             is_proposal = any(c.isalpha() for c in entry_id)
 
@@ -115,21 +111,21 @@ def release_entry_workspace(
                 # Clean workspace to remove uncommitted changes from hg import
                 try:
                     workspace_dir, _ = get_workspace_directory_for_num(
-                        claim.workspace_num, changespec.project_basename
+                        claim.workspace_num, patch.project_basename
                     )
                     clean_workspace(workspace_dir)
                 except Exception:
                     pass
 
             release_workspace(
-                changespec.file_path,
+                patch.file_path,
                 claim.workspace_num,
                 workflow,
-                changespec.name,
+                patch.name,
             )
             if log:
-                # Use ChangeSpec NAME if available, otherwise project basename
-                identifier = changespec.name or changespec.project_basename
+                # Use Patch NAME if available, otherwise project basename
+                identifier = patch.name or patch.project_basename
                 log(
                     f"Released workspace #{claim.workspace_num} for entry"
                     f" {entry_id} ({identifier})",
@@ -139,9 +135,9 @@ def release_entry_workspace(
 
 
 def start_stale_hooks(
-    changespec: ChangeSpec,
+    patch: Patch,
     entry_id: str,
-    entry: CommitEntry,
+    entry: Stitch,
     log: LogCallback,
     *,
     remaining_limited_slots: int,
@@ -149,7 +145,7 @@ def start_stale_hooks(
     """Start stale hooks in background for a specific history entry.
 
     For regular history entries:
-        Claims a workspace from the unified pool (#10+) for this ChangeSpec if not already claimed,
+        Claims a workspace from the unified pool (#10+) for this Patch if not already claimed,
         runs sase_hg_update, and starts hooks. The workspace remains claimed while
         hooks are running and will be released by _check_hooks when all hooks
         complete (passed/failed/zombie).
@@ -159,9 +155,9 @@ def start_stale_hooks(
         proposal's diff is applied before running hooks.
 
     Args:
-        changespec: The ChangeSpec to start hooks for.
+        patch: The Patch to start hooks for.
         entry_id: The specific COMMITS entry ID to run hooks for (e.g., "3", "3a").
-        entry: The CommitEntry object for this entry.
+        entry: The Stitch object for this entry.
         log: Logging callback for status messages.
         remaining_limited_slots: Number of limited hooks that can still be started
             before hitting the --max-runners limit. Unlimited hooks ($-prefix,
@@ -175,11 +171,11 @@ def start_stale_hooks(
     updates: list[str] = []
     started_hooks: list[HookEntry] = []
 
-    if not changespec.hooks:
+    if not patch.hooks:
         return updates, started_hooks, 0
 
     # Don't run hooks for terminal statuses
-    if changespec.status in ("Reverted", "Submitted", "Archived"):
+    if patch.status in ("Reverted", "Submitted", "Archived"):
         return updates, started_hooks, 0
 
     # Check if this entry is a proposal
@@ -188,28 +184,28 @@ def start_stale_hooks(
     if is_proposal:
         # For proposals, apply diff to workspace
         return _start_stale_hooks_for_proposal(
-            changespec,
+            patch,
             entry_id,
             entry,
-            changespec.project_basename,
+            patch.project_basename,
             log,
             remaining_limited_slots=remaining_limited_slots,
         )
     else:
         # For regular entries, use shared workspace
         return _start_stale_hooks_shared_workspace(
-            changespec,
+            patch,
             entry_id,
-            changespec.project_basename,
+            patch.project_basename,
             log,
             remaining_limited_slots=remaining_limited_slots,
         )
 
 
 def _start_stale_hooks_for_proposal(
-    changespec: ChangeSpec,
+    patch: Patch,
     entry_id: str,
-    entry: CommitEntry,
+    entry: Stitch,
     project_basename: str,
     log: LogCallback,
     *,
@@ -222,9 +218,9 @@ def _start_stale_hooks_for_proposal(
     "$" are skipped for proposals.
 
     Args:
-        changespec: The ChangeSpec to start hooks for.
+        patch: The Patch to start hooks for.
         entry_id: The proposal COMMITS entry ID (e.g., "3a").
-        entry: The CommitEntry (must be a proposal).
+        entry: The Stitch (must be a proposal).
         project_basename: The project basename for workspace lookup.
         log: Logging callback for status messages.
         remaining_limited_slots: Number of limited hooks that can still be started
@@ -239,14 +235,14 @@ def _start_stale_hooks_for_proposal(
     started_hooks: list[HookEntry] = []
     limited_count = 0
 
-    if not changespec.hooks:
+    if not patch.hooks:
         return updates, started_hooks, limited_count
 
     # Validate proposal has a diff
     if not entry.diff:
         log(
             f"Warning: Proposal ({entry_id}) has no DIFF path, "
-            f"cannot run hooks for {changespec.name}",
+            f"cannot run hooks for {patch.name}",
             "yellow",
         )
         return updates, started_hooks, limited_count
@@ -260,7 +256,7 @@ def _start_stale_hooks_for_proposal(
     # immediately when all limited hooks would be skipped due to runner limit
     if remaining_limited_slots <= 0:
         has_unlimited_hooks_to_start = False
-        for hook in changespec.hooks:
+        for hook in patch.hooks:
             # Skip $ prefixed hooks for proposals
             if hook.skip_proposal_runs:
                 continue
@@ -281,7 +277,7 @@ def _start_stale_hooks_for_proposal(
 
     # Check if we already have a workspace claimed for this proposal
     existing_workspace = _get_proposal_workspace(
-        changespec.file_path, changespec.name, proposal_workflow
+        patch.file_path, patch.name, proposal_workflow
     )
 
     if existing_workspace is not None:
@@ -289,20 +285,20 @@ def _start_stale_hooks_for_proposal(
         newly_claimed = False
     else:
         # Claim a single workspace for ALL hooks of this proposal
-        workspace_num = get_first_available_axe_workspace(changespec.file_path)
+        workspace_num = get_first_available_axe_workspace(patch.file_path)
         newly_claimed = True
 
         claim_result = claim_workspace(
-            changespec.file_path,
+            patch.file_path,
             workspace_num,
             proposal_workflow,
             os.getpid(),
-            changespec.name,
+            patch.name,
         )
         if not claim_result.success:
             log(
                 f"[WS#{workspace_num}] Warning: Failed to claim workspace for proposal "
-                f"{entry_id} on {changespec.name}: "
+                f"{entry_id} on {patch.name}: "
                 f"{claim_result.error or 'unknown reason'}",
                 "yellow",
             )
@@ -320,15 +316,15 @@ def _start_stale_hooks_for_proposal(
         except RuntimeError as e:
             log(
                 f"[WS#{workspace_num}] Warning: Failed to resolve workspace for "
-                f"proposal {entry_id} on {changespec.name}: {e}",
+                f"proposal {entry_id} on {patch.name}: {e}",
                 "yellow",
             )
             if should_release_on_error:
                 release_workspace(
-                    changespec.file_path,
+                    patch.file_path,
                     workspace_num,
                     proposal_workflow,
-                    changespec.name,
+                    patch.name,
                 )
             return updates, started_hooks, limited_count
 
@@ -339,10 +335,10 @@ def _start_stale_hooks_for_proposal(
             )
             if should_release_on_error:
                 release_workspace(
-                    changespec.file_path,
+                    patch.file_path,
                     workspace_num,
                     proposal_workflow,
-                    changespec.name,
+                    patch.name,
                 )
             return updates, started_hooks, limited_count
 
@@ -350,7 +346,7 @@ def _start_stale_hooks_for_proposal(
         if newly_claimed:
             # Clean workspace before switching branches
             clean_success, clean_error = run_sase_hg_clean(
-                workspace_dir, f"{changespec.name}-hooks-proposal"
+                workspace_dir, f"{patch.name}-hooks-proposal"
             )
             if not clean_success:
                 log(
@@ -360,20 +356,20 @@ def _start_stale_hooks_for_proposal(
 
             provider = get_vcs_provider(workspace_dir)
             resolved = provider.resolve_revision(
-                changespec.name, project_basename, workspace_dir
+                patch.name, project_basename, workspace_dir
             )
             checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
             if not checkout_ok:
                 log(
                     f"[WS#{workspace_num}] Warning: sase_hg_update failed for "
-                    f"{changespec.name}: {checkout_err}",
+                    f"{patch.name}: {checkout_err}",
                     "yellow",
                 )
                 release_workspace(
-                    changespec.file_path,
+                    patch.file_path,
                     workspace_num,
                     proposal_workflow,
-                    changespec.name,
+                    patch.name,
                 )
                 return updates, started_hooks, limited_count
 
@@ -382,31 +378,31 @@ def _start_stale_hooks_for_proposal(
             if not success:
                 log(
                     f"[WS#{workspace_num}] Warning: Failed to apply proposal diff for "
-                    f"{changespec.name}: {error_msg}",
+                    f"{patch.name}: {error_msg}",
                     "yellow",
                 )
                 # Mark proposal as broken so we don't retry
                 mark_proposal_broken(
-                    changespec.file_path,
-                    changespec.name,
+                    patch.file_path,
+                    patch.name,
                     entry_id,
                 )
                 log(
                     f"[WS#{workspace_num}] Marked proposal ({entry_id}) as broken for "
-                    f"{changespec.name}",
+                    f"{patch.name}",
                     "yellow",
                 )
                 clean_workspace(workspace_dir)
                 release_workspace(
-                    changespec.file_path,
+                    patch.file_path,
                     workspace_num,
                     proposal_workflow,
-                    changespec.name,
+                    patch.name,
                 )
                 return updates, started_hooks, limited_count
 
         # Start stale hooks in background
-        for hook in changespec.hooks:
+        for hook in patch.hooks:
             # Skip "$" prefixed hooks for proposals
             if hook.skip_proposal_runs:
                 continue
@@ -421,7 +417,7 @@ def _start_stale_hooks_for_proposal(
                 continue
 
             # Re-check for race condition (another process may have started this hook)
-            status_line = hook.get_status_line_for_commit_entry(entry_id)
+            status_line = hook.get_status_line_for_stitch(entry_id)
             if status_line is not None:
                 continue
 
@@ -431,7 +427,7 @@ def _start_stale_hooks_for_proposal(
 
             # Start the hook in background
             updated_hook, _ = start_hook_background(
-                changespec, hook, workspace_dir, entry_id
+                patch, hook, workspace_dir, entry_id
             )
             started_hooks.append(updated_hook)
 
@@ -448,10 +444,10 @@ def _start_stale_hooks_for_proposal(
         if not started_hooks:
             clean_workspace(workspace_dir)
             release_workspace(
-                changespec.file_path,
+                patch.file_path,
                 workspace_num,
                 proposal_workflow,
-                changespec.name,
+                patch.name,
             )
 
         # NOTE: Workspace is NOT released here when hooks ARE started.
@@ -464,17 +460,17 @@ def _start_stale_hooks_for_proposal(
         )
         if should_release_on_error:
             release_workspace(
-                changespec.file_path,
+                patch.file_path,
                 workspace_num,
                 proposal_workflow,
-                changespec.name,
+                patch.name,
             )
 
     return updates, started_hooks, limited_count
 
 
 def _start_stale_hooks_shared_workspace(
-    changespec: ChangeSpec,
+    patch: Patch,
     entry_id: str,
     project_basename: str,
     log: LogCallback,
@@ -483,13 +479,13 @@ def _start_stale_hooks_shared_workspace(
 ) -> tuple[list[str], list[HookEntry], int]:
     """Start stale hooks using a shared workspace (for regular entries).
 
-    Claims a workspace from the unified pool (#10+) for this ChangeSpec's entry if not already
+    Claims a workspace from the unified pool (#10+) for this Patch's entry if not already
     claimed. Only reuses a workspace if it's for the SAME entry ID.
     The workspace remains claimed while hooks are running and will be
     released by _check_hooks when all hooks complete (passed/failed/zombie).
 
     Args:
-        changespec: The ChangeSpec to start hooks for.
+        patch: The Patch to start hooks for.
         entry_id: The COMMITS entry ID (e.g., "1", "2", "3").
         project_basename: The project basename for workspace lookup.
         log: Logging callback for status messages.
@@ -505,7 +501,7 @@ def _start_stale_hooks_shared_workspace(
     started_hooks: list[HookEntry] = []
     limited_count = 0
 
-    if not changespec.hooks:
+    if not patch.hooks:
         return updates, started_hooks, limited_count
 
     # Early exit: when no limited slots remain, check if any unlimited hooks
@@ -513,7 +509,7 @@ def _start_stale_hooks_shared_workspace(
     # immediately when all limited hooks would be skipped due to runner limit
     if remaining_limited_slots <= 0:
         has_unlimited_hooks_to_start = False
-        for hook in changespec.hooks:
+        for hook in patch.hooks:
             # Only consider unlimited hooks ($ prefix)
             if not hook.is_unlimited:
                 continue
@@ -531,7 +527,7 @@ def _start_stale_hooks_shared_workspace(
 
     # Check if we already have a workspace claimed for this SAME entry
     existing_workspace = _get_proposal_workspace(
-        changespec.file_path, changespec.name, entry_workflow
+        patch.file_path, patch.name, entry_workflow
     )
 
     if existing_workspace is not None:
@@ -540,20 +536,20 @@ def _start_stale_hooks_shared_workspace(
         newly_claimed = False
     else:
         # Claim a new workspace from the unified pool (#10+)
-        workspace_num = get_first_available_axe_workspace(changespec.file_path)
+        workspace_num = get_first_available_axe_workspace(patch.file_path)
         newly_claimed = True
 
         claim_result = claim_workspace(
-            changespec.file_path,
+            patch.file_path,
             workspace_num,
             entry_workflow,
             os.getpid(),
-            changespec.name,
+            patch.name,
         )
         if not claim_result.success:
             log(
                 f"[WS#{workspace_num}] Warning: Failed to claim workspace for hooks on "
-                f"{changespec.name}: {claim_result.error or 'unknown reason'}",
+                f"{patch.name}: {claim_result.error or 'unknown reason'}",
                 "yellow",
             )
             return updates, started_hooks, limited_count
@@ -570,15 +566,15 @@ def _start_stale_hooks_shared_workspace(
         except RuntimeError as e:
             log(
                 f"[WS#{workspace_num}] Warning: Failed to resolve workspace for "
-                f"{changespec.name}: {e}",
+                f"{patch.name}: {e}",
                 "yellow",
             )
             if should_release_on_error:
                 release_workspace(
-                    changespec.file_path,
+                    patch.file_path,
                     workspace_num,
                     entry_workflow,
-                    changespec.name,
+                    patch.name,
                 )
             return updates, started_hooks, limited_count
 
@@ -589,16 +585,16 @@ def _start_stale_hooks_shared_workspace(
             )
             if should_release_on_error:
                 release_workspace(
-                    changespec.file_path,
+                    patch.file_path,
                     workspace_num,
                     entry_workflow,
-                    changespec.name,
+                    patch.name,
                 )
             return updates, started_hooks, limited_count
 
         # Clean workspace before switching branches
         clean_success, clean_error = run_sase_hg_clean(
-            workspace_dir, f"{changespec.name}-hooks-shared"
+            workspace_dir, f"{patch.name}-hooks-shared"
         )
         if not clean_success:
             log(
@@ -606,29 +602,29 @@ def _start_stale_hooks_shared_workspace(
                 "yellow",
             )
 
-        # Run sase_hg_update to switch to the ChangeSpec's branch
+        # Run sase_hg_update to switch to the Patch's branch
         provider = get_vcs_provider(workspace_dir)
         resolved = provider.resolve_revision(
-            changespec.name, project_basename, workspace_dir
+            patch.name, project_basename, workspace_dir
         )
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
             log(
                 f"[WS#{workspace_num}] Warning: sase_hg_update failed for "
-                f"{changespec.name}: {checkout_err}",
+                f"{patch.name}: {checkout_err}",
                 "yellow",
             )
             if should_release_on_error:
                 release_workspace(
-                    changespec.file_path,
+                    patch.file_path,
                     workspace_num,
                     entry_workflow,
-                    changespec.name,
+                    patch.name,
                 )
             return updates, started_hooks, limited_count
 
         # Start stale hooks in background
-        for hook in changespec.hooks:
+        for hook in patch.hooks:
             # Skip limited hooks that exceed the remaining runner slots
             # Unlimited ($-prefixed) hooks always start regardless of the limit
             if not hook.is_unlimited and limited_count >= remaining_limited_slots:
@@ -639,7 +635,7 @@ def _start_stale_hooks_shared_workspace(
                 continue
 
             # Re-check for race condition (another process may have started this hook)
-            status_line = hook.get_status_line_for_commit_entry(entry_id)
+            status_line = hook.get_status_line_for_stitch(entry_id)
             if status_line is not None:
                 continue
 
@@ -649,7 +645,7 @@ def _start_stale_hooks_shared_workspace(
 
             # Start the hook in background
             updated_hook, _ = start_hook_background(
-                changespec, hook, workspace_dir, entry_id
+                patch, hook, workspace_dir, entry_id
             )
             started_hooks.append(updated_hook)
 
@@ -665,10 +661,10 @@ def _start_stale_hooks_shared_workspace(
         # (whether newly claimed or previously claimed - if all hooks are done, release)
         if not started_hooks:
             release_workspace(
-                changespec.file_path,
+                patch.file_path,
                 workspace_num,
                 entry_workflow,
-                changespec.name,
+                patch.name,
             )
 
         # NOTE: Workspace is NOT released here when hooks ARE started.
@@ -678,10 +674,10 @@ def _start_stale_hooks_shared_workspace(
         # Release workspace on unexpected errors if we newly claimed it
         if should_release_on_error:
             release_workspace(
-                changespec.file_path,
+                patch.file_path,
                 workspace_num,
                 entry_workflow,
-                changespec.name,
+                patch.name,
             )
         raise
 

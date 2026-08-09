@@ -17,7 +17,7 @@ from sase.running_field import (
 from sase.vcs_provider import get_vcs_provider
 
 from ...patch import (
-    ChangeSpec,
+    Patch,
     CommentEntry,
     HookEntry,
     count_agent_runners_global,
@@ -42,7 +42,7 @@ def get_workflow_output_path(name: str, workflow_type: str, timestamp: str) -> s
     """Get the output file path for a workflow run.
 
     Args:
-        name: The ChangeSpec name.
+        name: The Patch name.
         workflow_type: The workflow type ("crs" or "fix-hook").
         timestamp: The timestamp in YYmmdd_HHMMSS format.
 
@@ -54,64 +54,64 @@ def get_workflow_output_path(name: str, workflow_type: str, timestamp: str) -> s
     return sharded_path("workflows", filename)
 
 
-def get_project_basename(changespec: ChangeSpec) -> str:
-    """Extract project basename from ChangeSpec file path."""
-    return changespec.project_basename
+def get_project_basename(patch: Patch) -> str:
+    """Extract project basename from Patch file path."""
+    return patch.project_basename
 
 
-def _crs_workflow_eligible(changespec: ChangeSpec) -> list[CommentEntry]:
+def _crs_workflow_eligible(patch: Patch) -> list[CommentEntry]:
     """Get CRS-eligible comment entries (no suffix).
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         List of CommentEntry objects eligible for CRS workflow.
     """
     eligible: list[CommentEntry] = []
-    if changespec.comments:
-        for entry in changespec.comments:
+    if patch.comments:
+        for entry in patch.comments:
             if entry.reviewer == "critique" and entry.suffix is None:
                 eligible.append(entry)
     return eligible
 
 
 def _fix_hook_workflow_eligible(
-    changespec: ChangeSpec,
+    patch: Patch,
 ) -> list[tuple[HookEntry, str]]:
     """Get fix-hook-eligible hooks (FAILED status, no suffix) for all non-historical entries.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         List of (HookEntry, entry_id) tuples eligible for fix-hook workflow.
     """
-    if not changespec.hooks:
+    if not patch.hooks:
         return []
-    entry_ids = get_current_and_proposal_entry_ids(changespec)
-    return get_failing_hook_entries_for_fix(changespec.hooks, entry_ids)
+    entry_ids = get_current_and_proposal_entry_ids(patch)
+    return get_failing_hook_entries_for_fix(patch.hooks, entry_ids)
 
 
 def _summarize_hook_workflow_eligible(
-    changespec: ChangeSpec,
+    patch: Patch,
 ) -> list[tuple[HookEntry, str]]:
     """Get summarize-hook-eligible hooks (FAILED status, proposal entry, no suffix).
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         List of (HookEntry, entry_id) tuples eligible for summarize-hook workflow.
     """
-    if not changespec.hooks:
+    if not patch.hooks:
         return []
-    entry_ids = get_current_and_proposal_entry_ids(changespec)
-    return get_failing_hook_entries_for_summarize(changespec.hooks, entry_ids)
+    entry_ids = get_current_and_proposal_entry_ids(patch)
+    return get_failing_hook_entries_for_summarize(patch.hooks, entry_ids)
 
 
 def _start_crs_workflow(
-    changespec: ChangeSpec,
+    patch: Patch,
     comment_entry: CommentEntry,
     log: LogCallback,
 ) -> str | None:
@@ -121,7 +121,7 @@ def _start_crs_workflow(
     If the claim fails, the subprocess is terminated.
 
     Args:
-        changespec: The ChangeSpec to run CRS for.
+        patch: The Patch to run CRS for.
         comment_entry: The comment entry to process.
         log: Logging callback.
 
@@ -134,15 +134,15 @@ def _start_crs_workflow(
         parse_workspace_dir,
     )
 
-    project_basename = get_project_basename(changespec)
+    project_basename = get_project_basename(patch)
     timestamp = generate_timestamp()
 
     # Get workspace info (don't claim yet - need subprocess PID first)
-    workspace_num = get_first_available_axe_workspace(changespec.file_path)
+    workspace_num = get_first_available_axe_workspace(patch.file_path)
     workflow_name = f"axe(crs)-{comment_entry.reviewer}-{timestamp}"
 
     # Detect VCS type and resolve workspace directory accordingly
-    primary_dir = parse_workspace_dir(changespec.file_path)
+    primary_dir = parse_workspace_dir(patch.file_path)
     raw_vcs = detect_vcs_family(primary_dir) if primary_dir else None
 
     if raw_vcs == "git":
@@ -165,7 +165,7 @@ def _start_crs_workflow(
         # Clean workspace using VCS provider
         provider = get_vcs_provider(workspace_dir)
         clean_success, clean_error = provider.stash_and_clean(
-            f"{changespec.name}-crs", workspace_dir
+            f"{patch.name}-crs", workspace_dir
         )
         if not clean_success:
             log(
@@ -194,7 +194,7 @@ def _start_crs_workflow(
 
         # Clean workspace before switching branches
         clean_success, clean_error = run_sase_hg_clean(
-            workspace_dir, f"{changespec.name}-crs"
+            workspace_dir, f"{patch.name}-crs"
         )
         if not clean_success:
             log(
@@ -204,15 +204,13 @@ def _start_crs_workflow(
 
         provider = get_vcs_provider(workspace_dir)
 
-    # Switch to the ChangeSpec's branch
-    resolved = provider.resolve_revision(
-        changespec.name, project_basename, workspace_dir
-    )
+    # Switch to the Patch's branch
+    resolved = provider.resolve_revision(patch.name, project_basename, workspace_dir)
     checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
     if not checkout_ok:
         log(
             f"[WS#{workspace_num}] Warning: sase_hg_update failed for "
-            f"{changespec.name}: {checkout_err}",
+            f"{patch.name}: {checkout_err}",
             "yellow",
         )
         return None
@@ -223,7 +221,7 @@ def _start_crs_workflow(
         comments_file = os.path.expanduser(comments_file)
 
     # Get output file path
-    output_path = get_workflow_output_path(changespec.name, "crs", timestamp)
+    output_path = get_workflow_output_path(patch.name, "crs", timestamp)
 
     # Build the runner script path (use abspath to handle relative __file__)
     runner_script = os.path.join(
@@ -242,8 +240,8 @@ def _start_crs_workflow(
                 [
                     sys.executable,
                     runner_script,
-                    changespec.name,
-                    changespec.file_path,
+                    patch.name,
+                    patch.file_path,
                     comments_file or "",
                     comment_entry.reviewer,
                     timestamp,
@@ -264,17 +262,17 @@ def _start_crs_workflow(
 
     # Now claim workspace with actual subprocess PID
     claim_result = claim_workspace(
-        changespec.file_path,
+        patch.file_path,
         workspace_num,
         workflow_name,
         pid,
-        changespec.name,
+        patch.name,
         artifacts_timestamp=timestamp,
     )
     if not claim_result.success:
         log(
             f"[WS#{workspace_num}] Warning: Failed to claim workspace for CRS on "
-            f"{changespec.name}: {claim_result.error or 'unknown reason'}, "
+            f"{patch.name}: {claim_result.error or 'unknown reason'}, "
             "terminating subprocess",
             "yellow",
         )
@@ -287,13 +285,13 @@ def _start_crs_workflow(
 
     # Set timestamp suffix on comment entry to indicate workflow is running
     # Include PID in suffix for process management
-    if changespec.comments:
+    if patch.comments:
         set_comment_suffix(
-            changespec.file_path,
-            changespec.name,
+            patch.file_path,
+            patch.name,
             comment_entry.reviewer,
             f"crs-{pid}-{timestamp}",
-            changespec.comments,
+            patch.comments,
             suffix_type="running_agent",
         )
 
@@ -301,7 +299,7 @@ def _start_crs_workflow(
 
 
 def start_fix_hook_workflow(
-    changespec: ChangeSpec,
+    patch: Patch,
     hook: HookEntry,
     entry_id: str,
     log: LogCallback,
@@ -311,7 +309,7 @@ def start_fix_hook_workflow(
     The runner uses the project provider's embedded workflow for workspace management.
 
     Args:
-        changespec: The ChangeSpec to run fix-hook for.
+        patch: The Patch to run fix-hook for.
         hook: The hook to fix.
         entry_id: The history entry ID for the failing status line.
         log: Logging callback.
@@ -327,8 +325,8 @@ def start_fix_hook_workflow(
 
     claiming_suffix = f"claiming-{timestamp}"
     existing_summary = try_claim_hook_for_fix(
-        changespec.file_path,
-        changespec.name,
+        patch.file_path,
+        patch.name,
         hook.command,
         entry_id,
         claiming_suffix,
@@ -344,12 +342,12 @@ def start_fix_hook_workflow(
 
     # Get hook output path for the failing hook's specific entry
     hook_output_path = ""
-    sl = hook.get_status_line_for_commit_entry(entry_id)
+    sl = hook.get_status_line_for_stitch(entry_id)
     if sl and sl.timestamp:
-        hook_output_path = get_hook_output_path(changespec.name, sl.timestamp)
+        hook_output_path = get_hook_output_path(patch.name, sl.timestamp)
 
     # Get output file path for workflow
-    output_path = get_workflow_output_path(changespec.name, "fix-hook", timestamp)
+    output_path = get_workflow_output_path(patch.name, "fix-hook", timestamp)
 
     # Build the runner script path (use abspath to handle relative __file__)
     runner_script = os.path.join(
@@ -368,8 +366,8 @@ def start_fix_hook_workflow(
                 [
                     sys.executable,
                     runner_script,
-                    changespec.name,
-                    changespec.file_path,
+                    patch.name,
+                    patch.file_path,
                     hook.command,
                     hook_output_path,
                     output_path,
@@ -395,8 +393,8 @@ def start_fix_hook_workflow(
     # Pass hooks=None to force re-read with lock, avoiding stale data race condition
     # when multiple fix-hooks are started in the same loop cycle
     set_hook_suffix(
-        changespec.file_path,
-        changespec.name,
+        patch.file_path,
+        patch.name,
         hook.command,
         f"fix_hook-{pid}-{timestamp}",
         hooks=None,  # Re-read fresh data under lock
@@ -409,7 +407,7 @@ def start_fix_hook_workflow(
 
 
 def _start_summarize_hook_workflow(
-    changespec: ChangeSpec,
+    patch: Patch,
     hook: HookEntry,
     entry_id: str,
     log: LogCallback,
@@ -420,7 +418,7 @@ def _start_summarize_hook_workflow(
     file and calls the summarize agent.
 
     Args:
-        changespec: The ChangeSpec to run summarize-hook for.
+        patch: The Patch to run summarize-hook for.
         hook: The hook to summarize.
         entry_id: The history entry ID for the failing status line.
         log: Logging callback.
@@ -432,19 +430,19 @@ def _start_summarize_hook_workflow(
 
     # Get hook output path for the failing hook's specific entry
     hook_output_path = ""
-    sl = hook.get_status_line_for_commit_entry(entry_id)
+    sl = hook.get_status_line_for_stitch(entry_id)
     if sl and sl.timestamp:
-        hook_output_path = get_hook_output_path(changespec.name, sl.timestamp)
+        hook_output_path = get_hook_output_path(patch.name, sl.timestamp)
 
     if not hook_output_path or not os.path.exists(hook_output_path):
         # No output file to summarize - set a default suffix
         log(
-            f"Warning: No hook output file for summarize-hook on {changespec.name}",
+            f"Warning: No hook output file for summarize-hook on {patch.name}",
             "yellow",
         )
         set_hook_suffix(
-            changespec.file_path,
-            changespec.name,
+            patch.file_path,
+            patch.name,
             hook.command,
             "Hook Command Failed",
             hooks=None,  # Re-read fresh data under lock
@@ -454,7 +452,7 @@ def _start_summarize_hook_workflow(
         return f"summarize-hook workflow '{hook.display_command}' ({entry_id}) -> no output to summarize"
 
     # Get output file path for workflow
-    output_path = get_workflow_output_path(changespec.name, "summarize-hook", timestamp)
+    output_path = get_workflow_output_path(patch.name, "summarize-hook", timestamp)
 
     # Build the runner script path (use abspath to handle relative __file__)
     runner_script = os.path.join(
@@ -473,8 +471,8 @@ def _start_summarize_hook_workflow(
                 [
                     sys.executable,
                     runner_script,
-                    changespec.name,
-                    changespec.file_path,
+                    patch.name,
+                    patch.file_path,
                     hook.command,
                     hook_output_path,
                     output_path,
@@ -491,8 +489,8 @@ def _start_summarize_hook_workflow(
         # Set timestamp suffix on hook status line to indicate workflow is running
         # Include PID in suffix for process management
         set_hook_suffix(
-            changespec.file_path,
-            changespec.name,
+            patch.file_path,
+            patch.name,
             hook.command,
             f"summarize_hook-{pid}-{timestamp}",
             hooks=None,  # Re-read fresh data under lock
@@ -508,19 +506,19 @@ def _start_summarize_hook_workflow(
 
 
 def start_stale_workflows(
-    changespec: ChangeSpec,
+    patch: Patch,
     log: LogCallback,
     max_runners: int = 5,
     runners_started_this_cycle: int = 0,
 ) -> tuple[list[str], int, list[str]]:
-    """Start all stale CRS, fix-hook, and summarize-hook workflows for a ChangeSpec.
+    """Start all stale CRS, fix-hook, and summarize-hook workflows for a Patch.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         log: Logging callback.
         max_runners: Maximum concurrent runners (hooks, agents, mentors) globally (default: 5).
         runners_started_this_cycle: Number of runners already started this cycle (across
-            all ChangeSpecs). Added to the global count to avoid exceeding the limit.
+            all Patches). Added to the global count to avoid exceeding the limit.
 
     Returns:
         Tuple of (update_messages, agents_started_count, started_workflow_identifiers).
@@ -529,17 +527,17 @@ def start_stale_workflows(
     started: list[str] = []
 
     # Don't start workflows for terminal statuses
-    if changespec.status in ("Reverted", "Submitted", "Archived"):
+    if patch.status in ("Reverted", "Submitted", "Archived"):
         return updates, 0, started
 
-    crs_eligible = _crs_workflow_eligible(changespec)
-    fix_hook_eligible = _fix_hook_workflow_eligible(changespec)
-    summarize_hook_eligible = _summarize_hook_workflow_eligible(changespec)
+    crs_eligible = _crs_workflow_eligible(patch)
+    fix_hook_eligible = _fix_hook_workflow_eligible(patch)
+    summarize_hook_eligible = _summarize_hook_workflow_eligible(patch)
     if not crs_eligible and not fix_hook_eligible and not summarize_hook_eligible:
         return updates, 0, started
 
     # Check global concurrency limit before starting any workflows
-    # Include runners started this cycle (across all ChangeSpecs) that aren't
+    # Include runners started this cycle (across all Patches) that aren't
     # yet written to disk
     current_running = count_agent_runners_global() + runners_started_this_cycle
     if current_running >= max_runners:
@@ -561,7 +559,7 @@ def start_stale_workflows(
                 "dim",
             )
             break
-        result = _start_crs_workflow(changespec, entry, log)
+        result = _start_crs_workflow(patch, entry, log)
         if result:
             updates.append(result)
             started.append(f"crs:{entry.reviewer}")
@@ -578,7 +576,7 @@ def start_stale_workflows(
                 "dim",
             )
             break
-        result = start_fix_hook_workflow(changespec, hook, entry_id, log)
+        result = start_fix_hook_workflow(patch, hook, entry_id, log)
         if result:
             updates.append(result)
             started.append(f"fix-hook:{hook.command}:{entry_id}")
@@ -595,7 +593,7 @@ def start_stale_workflows(
                 "dim",
             )
             break
-        result = _start_summarize_hook_workflow(changespec, hook, entry_id, log)
+        result = _start_summarize_hook_workflow(patch, hook, entry_id, log)
         if result:
             updates.append(result)
             started.append(f"summarize-hook:{hook.command}:{entry_id}")

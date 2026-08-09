@@ -55,11 +55,15 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             self._expand_fold()
         elif self.current_tab == "axe":
             self._expand_axe_fold()
-        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+        elif self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             expand = getattr(
                 self,
                 "_expand_patch_group_fold",
-                getattr(self, "_expand_changespec_group_fold", None),
+                getattr(self, "_expand_patch_group_fold", None),
             )
             if callable(expand) and expand():
                 self._refresh_display()  # type: ignore[attr-defined]
@@ -70,11 +74,15 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             self._collapse_fold()
         elif self.current_tab == "axe":
             self._collapse_axe_fold()
-        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+        elif self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             collapse = getattr(
                 self,
                 "_collapse_patch_group_fold",
-                getattr(self, "_collapse_changespec_group_fold", None),
+                getattr(self, "_collapse_patch_group_fold", None),
             )
             if callable(collapse) and collapse():
                 self._refresh_display()  # type: ignore[attr-defined]
@@ -131,11 +139,15 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._collapse_group_fold()
         elif self.current_tab == "axe":
             self._collapse_all_axe_folds()
-        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+        elif self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             collapse = getattr(
                 self,
                 "_collapse_all_patch_group_folds",
-                getattr(self, "_collapse_all_changespec_group_folds", None),
+                getattr(self, "_collapse_all_patch_group_folds", None),
             )
             if callable(collapse) and collapse():
                 self._refresh_display()  # type: ignore[attr-defined]
@@ -149,11 +161,22 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             return
         if self.current_tab == "axe":
             self._expand_all_axe_folds()
-        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+        elif self.current_tab == "changespecs":  # legacy compatibility alias
+            expand = getattr(
+                self,
+                "_expand_all_changespec_group_folds",  # legacy compatibility alias
+                None,
+            )
+            if callable(expand) and expand():
+                self._refresh_display()  # type: ignore[attr-defined]
+        elif self.current_tab in {
+            "artifacts",
+            "patches",
+        }:
             expand = getattr(
                 self,
                 "_expand_all_patch_group_folds",
-                getattr(self, "_expand_all_changespec_group_folds", None),
+                getattr(self, "_expand_all_patch_group_folds", None),
             )
             if callable(expand) and expand():
                 self._refresh_display()  # type: ignore[attr-defined]

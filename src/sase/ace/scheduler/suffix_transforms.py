@@ -8,29 +8,36 @@ This module handles:
 
 from dataclasses import replace
 
-from sase.workflows.commit_utils import update_commit_entry_suffix
+from sase.workflows.commit_utils import update_stitch_suffix
 
 from ..patch import (
-    ChangeSpec,
+    Patch,
     CommentEntry,
     HookEntry,
     MentorEntry,
     MentorStatusLine,
-    parse_commit_entry_id,
+    parse_stitch_id,
 )
-from ..comments import transform_changespec_comments_field
+from ..comments import transform_patch_comments_field
 from ..hooks import (
-    transform_changespec_hooks_field,
+    transform_patch_hooks_field,
     update_hook_status_line_suffix_type,
 )
-from ..mentors import update_changespec_mentors_field
+from ..mentors import update_patch_mentors_field
 
-transform_patch_comments_field = transform_changespec_comments_field
-transform_patch_hooks_field = transform_changespec_hooks_field
-update_patch_mentors_field = update_changespec_mentors_field
+update_commit_entry_suffix = update_stitch_suffix  # legacy compatibility alias
+transform_changespec_comments_field = (
+    transform_patch_comments_field  # legacy compatibility alias
+)
+transform_changespec_hooks_field = (  # legacy compatibility alias
+    transform_patch_hooks_field
+)
+update_changespec_mentors_field = (  # legacy compatibility alias
+    update_patch_mentors_field
+)
 
 
-def transform_old_proposal_suffixes(changespec: ChangeSpec) -> list[str]:
+def transform_old_proposal_suffixes(patch: Patch) -> list[str]:
     """Remove suffixes from old proposal COMMITS entries.
 
     An "old proposal" is a proposed entry (Na) where N < the latest regular
@@ -41,19 +48,19 @@ def transform_old_proposal_suffixes(changespec: ChangeSpec) -> list[str]:
     - Hook status lines for those entry IDs (handled separately, transformed)
 
     Args:
-        changespec: The ChangeSpec to process.
+        patch: The Patch to process.
 
     Returns:
         List of update messages.
     """
     updates: list[str] = []
 
-    if not changespec.commits:
+    if not patch.commits:
         return updates
 
     # Get the last regular (non-proposed) history number
     last_regular_num = 0
-    for entry in changespec.commits:
+    for entry in patch.commits:
         if entry.proposal_letter is None:
             last_regular_num = max(last_regular_num, entry.number)
 
@@ -62,14 +69,14 @@ def transform_old_proposal_suffixes(changespec: ChangeSpec) -> list[str]:
         return updates
 
     # Find old proposals with error suffixes that need removal
-    for entry in changespec.commits:
+    for entry in patch.commits:
         if entry.proposal_letter is not None:  # Is a proposal
             if entry.number < last_regular_num:  # Is "old"
                 if entry.suffix_type == "error":  # Has error suffix
                     # Remove COMMITS entry suffix
-                    success = update_commit_entry_suffix(
-                        changespec.file_path,
-                        changespec.name,
+                    success = update_stitch_suffix(
+                        patch.file_path,
+                        patch.name,
                         entry.display_number,
                         "remove",
                     )
@@ -84,7 +91,7 @@ def transform_old_proposal_suffixes(changespec: ChangeSpec) -> list[str]:
     return updates
 
 
-def strip_old_entry_error_markers(changespec: ChangeSpec) -> list[str]:
+def strip_old_entry_error_markers(patch: Patch) -> list[str]:
     """Strip error markers from hook status lines for older commit entries.
 
     An "older" entry is one where the numeric part of the commit entry ID is
@@ -97,19 +104,19 @@ def strip_old_entry_error_markers(changespec: ChangeSpec) -> list[str]:
         (1) [timestamp] FAILED - (message)
 
     Args:
-        changespec: The ChangeSpec to process.
+        patch: The Patch to process.
 
     Returns:
         List of update messages.
     """
     updates: list[str] = []
 
-    if not changespec.commits or not changespec.hooks:
+    if not patch.commits or not patch.hooks:
         return updates
 
     # Find the highest all-numeric commit entry ID
     highest_numeric_id = 0
-    for entry in changespec.commits:
+    for entry in patch.commits:
         if entry.proposal_letter is None:  # All-numeric entry (no letter suffix)
             highest_numeric_id = max(highest_numeric_id, entry.number)
 
@@ -118,7 +125,7 @@ def strip_old_entry_error_markers(changespec: ChangeSpec) -> list[str]:
         return updates
 
     # Process each hook's status lines
-    for hook in changespec.hooks:
+    for hook in patch.hooks:
         if not hook.status_lines:
             continue
 
@@ -128,22 +135,22 @@ def strip_old_entry_error_markers(changespec: ChangeSpec) -> list[str]:
                 continue
 
             # Parse the commit entry ID to get numeric part
-            entry_num, _ = parse_commit_entry_id(sl.commit_entry_num)
+            entry_num, _ = parse_stitch_id(sl.stitch_num)
 
             # Check if this entry is "older" (numeric part < highest)
             if entry_num < highest_numeric_id:
                 # Strip the error marker by changing to "plain"
                 success = update_hook_status_line_suffix_type(
-                    changespec.file_path,
-                    changespec.name,
+                    patch.file_path,
+                    patch.name,
                     hook.command,
-                    sl.commit_entry_num,
+                    sl.stitch_num,
                     "plain",
                 )
                 if success:
                     updates.append(
                         f"Stripped error marker from HOOK '{hook.display_command}' "
-                        f"({sl.commit_entry_num}): {sl.suffix}"
+                        f"({sl.stitch_num}): {sl.suffix}"
                     )
 
     return updates
@@ -172,14 +179,14 @@ def _transform_terminal_hook_suffixes(
                 )
                 updates.append(
                     f"Converted HOOK '{hook.display_command}' "
-                    f"({status_line.commit_entry_num}) to killed_agent: "
+                    f"({status_line.stitch_num}) to killed_agent: "
                     f"{status_line.suffix}"
                 )
             elif status_line.suffix_type == "error" and status_line.suffix:
                 updated_status_lines.append(replace(status_line, suffix_type="plain"))
                 updates.append(
                     f"Stripped error marker from HOOK '{hook.display_command}' "
-                    f"({status_line.commit_entry_num}): {status_line.suffix}"
+                    f"({status_line.stitch_num}): {status_line.suffix}"
                 )
             else:
                 updated_status_lines.append(status_line)
@@ -211,14 +218,14 @@ def _transform_terminal_comment_suffixes(
     return updated_comments, updates
 
 
-def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
-    """Strip error suffixes for terminal status ChangeSpecs.
+def strip_terminal_status_markers(patch: Patch) -> list[str]:
+    """Strip error suffixes for terminal status Patches.
 
-    For ChangeSpecs with STATUS = "Reverted" or "Submitted", removes all
+    For Patches with STATUS = "Reverted" or "Submitted", removes all
     error suffixes (`- (!: MSG)`) across COMMITS, HOOKS, and COMMENTS.
 
     Args:
-        changespec: The ChangeSpec to process.
+        patch: The Patch to process.
 
     Returns:
         List of update messages.
@@ -226,16 +233,16 @@ def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
     updates: list[str] = []
 
     # Only process terminal statuses
-    if changespec.status not in ("Reverted", "Submitted", "Archived"):
+    if patch.status not in ("Reverted", "Submitted", "Archived"):
         return updates
 
     # Process COMMITS entries with error or running_agent suffix
-    if changespec.commits:
-        for entry in changespec.commits:
+    if patch.commits:
+        for entry in patch.commits:
             if entry.suffix_type in ("error", "running_agent"):
-                success = update_commit_entry_suffix(
-                    changespec.file_path,
-                    changespec.name,
+                success = update_commit_entry_suffix(  # legacy compatibility alias
+                    patch.file_path,
+                    patch.name,
                     entry.display_number,
                     "remove",
                 )
@@ -254,9 +261,9 @@ def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
         hook_updates.extend(current_updates)
         return updated_hooks
 
-    if transform_patch_hooks_field(
-        changespec.file_path,
-        changespec.name,
+    if transform_changespec_hooks_field(  # legacy compatibility alias
+        patch.file_path,
+        patch.name,
         transform_hooks,
     ):
         updates.extend(hook_updates)
@@ -272,19 +279,19 @@ def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
         comment_updates.extend(current_updates)
         return updated_comments
 
-    if transform_patch_comments_field(
-        changespec.file_path,
-        changespec.name,
+    if transform_changespec_comments_field(  # legacy compatibility alias
+        patch.file_path,
+        patch.name,
         transform_comments,
     ):
         updates.extend(comment_updates)
 
     # Process MENTORS entries with running_agent suffix_type
-    if changespec.mentors:
+    if patch.mentors:
         mentors_to_update: list[MentorEntry] = []
         mentor_updates: list[str] = []
 
-        for mentor_entry in changespec.mentors:
+        for mentor_entry in patch.mentors:
             if mentor_entry.status_lines:
                 updated_mentor_status_lines: list[MentorStatusLine] = []
                 for msl in mentor_entry.status_lines:
@@ -318,9 +325,9 @@ def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
                 mentors_to_update.append(mentor_entry)
 
         if mentor_updates:
-            success = update_patch_mentors_field(
-                changespec.file_path,
-                changespec.name,
+            success = update_changespec_mentors_field(  # legacy compatibility alias
+                patch.file_path,
+                patch.name,
                 mentors_to_update,
             )
             if success:

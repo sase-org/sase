@@ -44,8 +44,8 @@ class BeadEditorResult:
         design: str,
         patch_name: str | None = None,
         patch_bug_id: str | None = None,
-        changespec_name: str | None = None,
-        changespec_bug_id: str | None = None,
+        changespec_name: str | None = None,  # legacy compatibility alias
+        changespec_bug_id: str | None = None,  # legacy compatibility alias
     ) -> None:
         object.__setattr__(self, "title", title)
         object.__setattr__(self, "description", description)

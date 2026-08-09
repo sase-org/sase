@@ -111,8 +111,8 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.hook_command = source.hook_command
     if target.reviewer is None and source.reviewer is not None:
         target.reviewer = source.reviewer
-    if target.commit_entry_id is None and source.commit_entry_id is not None:
-        target.commit_entry_id = source.commit_entry_id
+    if target.stitch_id is None and source.stitch_id is not None:
+        target.stitch_id = source.stitch_id
 
 
 def dedup_axe_spawned_agents(agents: list[Agent]) -> list[Agent]:
@@ -179,8 +179,8 @@ def dedup_axe_spawned_agents(agents: list[Agent]) -> list[Agent]:
                         matched.mentor_name = agent.mentor_name
                     if agent.reviewer:
                         matched.reviewer = agent.reviewer
-                    if agent.commit_entry_id:
-                        matched.commit_entry_id = agent.commit_entry_id
+                    if agent.stitch_id:
+                        matched.stitch_id = agent.stitch_id
                     if matched.start_time is None and agent.start_time is not None:
                         matched.start_time = agent.start_time
                     if matched.raw_suffix is None and agent.raw_suffix:

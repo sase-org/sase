@@ -48,9 +48,11 @@ class FoldNavigationMixin(NavigationMixinBase):
         """Return whether the current surface owns fold-mode content."""
         if self.current_tab == "agents":
             return self._selected_summary_fold_scale() is not None
-        return self.current_tab in {"artifacts", "patches", "changespecs"} and (
-            getattr(self, "current_artifacts_subtab", "prs") == "prs"
-        )
+        return self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        } and (getattr(self, "current_artifacts_subtab", "prs") == "prs")
 
     def _get_stitches_fold_state(self) -> FoldLevel:
         return getattr(

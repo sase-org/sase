@@ -1,28 +1,28 @@
-"""Reusable ChangeSpec fixtures for ace tests."""
+"""Reusable Patch fixtures for ace tests."""
 
 from sase.ace.patch import (
-    ChangeSpec,
+    Patch,
     CommentEntry,
-    CommitEntry,
+    Stitch,
     DeltaEntry,
     HookEntry,
 )
 
 
-def make_changespec(
+def make_patch(
     name: str = "test_feature",
     description: str = "Test description",
     status: str = "Ready",
     cl: str | None = None,
     parent: str | None = None,
     file_path: str = "/tmp/test.sase",
-    commits: list[CommitEntry] | None = None,
+    commits: list[Stitch] | None = None,
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
     deltas: list[DeltaEntry] | None = None,
-) -> ChangeSpec:
-    """Create a ChangeSpec for testing."""
-    return ChangeSpec(
+) -> Patch:
+    """Create a Patch for testing."""
+    return Patch(
         name=name,
         description=description,
         parent=parent,
@@ -37,8 +37,10 @@ def make_changespec(
     )
 
 
-DEFAULT_CHANGESPECS = [
-    make_changespec(name="feature_a"),
-    make_changespec(name="feature_b"),
-    make_changespec(name="feature_c"),
+DEFAULT_PATCHES = [
+    make_patch(name="feature_a"),
+    make_patch(name="feature_b"),
+    make_patch(name="feature_c"),
 ]
+make_changespec = make_patch  # legacy compatibility alias
+DEFAULT_CHANGESPECS = DEFAULT_PATCHES  # legacy compatibility alias

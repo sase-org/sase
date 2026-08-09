@@ -87,19 +87,21 @@ class PatchList(OptionList):
         self._grouping_mode: PatchGroupingMode = PatchGroupingMode.BY_PROJECT
 
     @property
-    def _changespecs(self) -> list[Patch]:
+    def _changespecs(self) -> list[Patch]:  # legacy compatibility alias
         return self._patches
 
-    @_changespecs.setter
-    def _changespecs(self, value: list[Patch]) -> None:
+    @_changespecs.setter  # legacy compatibility alias
+    def _changespecs(self, value: list[Patch]) -> None:  # legacy compatibility alias
         self._patches = value
 
     @property
-    def _option_idx_by_changespec_name(self) -> dict[str, int]:
+    def _option_idx_by_changespec_name(self) -> dict[str, int]:  # legacy alias
         return self._option_idx_by_patch_name
 
-    @_option_idx_by_changespec_name.setter
-    def _option_idx_by_changespec_name(self, value: dict[str, int]) -> None:
+    @_option_idx_by_changespec_name.setter  # legacy compatibility alias
+    def _option_idx_by_changespec_name(  # legacy compatibility alias
+        self, value: dict[str, int]
+    ) -> None:
         self._option_idx_by_patch_name = value
 
     def update_list(
@@ -289,10 +291,10 @@ class PatchList(OptionList):
                 hint=hint,
             )
 
-    def patch_changespec_row(
+    def patch_changespec_row(  # legacy compatibility alias
         self,
         idx: int,
-        changespec: Patch,
+        changespec: Patch,  # legacy compatibility alias
         *,
         selected: bool,
         marked: bool,
@@ -300,7 +302,7 @@ class PatchList(OptionList):
     ) -> bool:
         return self.patch_patch_row(
             idx,
-            changespec,
+            changespec,  # legacy compatibility alias
             selected=selected,
             marked=marked,
             hint=hint,

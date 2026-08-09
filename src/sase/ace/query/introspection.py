@@ -1,28 +1,28 @@
 """Query AST introspection helpers (terminal/submitted/project filter detection)."""
 
-from ..patch import ChangeSpec
+from ..patch import Patch
 from .matchers import get_base_status
 from .types import AndExpr, NotExpr, OrExpr, PropertyMatch, QueryExpr
 
 
 def _build_name_to_base_status(
-    all_changespecs: list[ChangeSpec],
+    all_patches: list[Patch],
 ) -> dict[str, str]:
     """Return a ``name.lower() -> base_status`` map for the given list.
 
     Cached and reused across the per-filter helpers so a single pass over
-    ``_filter_changespecs`` doesn't rebuild this map three times.
+    ``_filter_patches`` doesn't rebuild this map three times.
     """
-    return {cs.name.lower(): get_base_status(cs.status) for cs in all_changespecs}
+    return {cs.name.lower(): get_base_status(cs.status) for cs in all_patches}
 
 
 def query_explicitly_targets_terminal(
     expr: QueryExpr,
-    all_changespecs: list[ChangeSpec] | None = None,
+    all_patches: list[Patch] | None = None,
     *,
     status_map: dict[str, str] | None = None,
 ) -> bool:
-    """Check if query explicitly references terminal status ChangeSpecs.
+    """Check if query explicitly references terminal status Patches.
 
     This is used to determine whether to auto-disable the hide_reverted filter.
     The query targets terminal statuses if:
@@ -32,17 +32,15 @@ def query_explicitly_targets_terminal(
 
     Args:
         expr: The parsed query expression.
-        all_changespecs: List of all ChangeSpecs for name/ancestor lookups.
+        all_patches: List of all Patches for name/ancestor lookups.
         status_map: Optional pre-built ``name -> base_status`` map; built
-            from ``all_changespecs`` if not provided.
+            from ``all_patches`` if not provided.
 
     Returns:
-        True if the query explicitly targets terminal status ChangeSpecs.
+        True if the query explicitly targets terminal status Patches.
     """
     if status_map is None:
-        status_map = (
-            _build_name_to_base_status(all_changespecs) if all_changespecs else {}
-        )
+        status_map = _build_name_to_base_status(all_patches) if all_patches else {}
 
     def _check_expr(e: QueryExpr) -> bool:
         """Recursively check if expression targets terminal statuses."""
@@ -71,29 +69,27 @@ def query_explicitly_targets_terminal(
 
 def query_explicitly_targets_submitted(
     expr: QueryExpr,
-    all_changespecs: list[ChangeSpec] | None = None,
+    all_patches: list[Patch] | None = None,
     *,
     status_map: dict[str, str] | None = None,
 ) -> bool:
-    """Check if query explicitly references Submitted status ChangeSpecs.
+    """Check if query explicitly references Submitted status Patches.
 
     Used to determine whether to auto-disable the hide_submitted filter.
     Returns True if the query contains status:submitted, or name:/ancestor:/sibling:
-    references to a ChangeSpec with Submitted status.
+    references to a Patch with Submitted status.
 
     Args:
         expr: The parsed query expression.
-        all_changespecs: List of all ChangeSpecs for name/ancestor lookups.
+        all_patches: List of all Patches for name/ancestor lookups.
         status_map: Optional pre-built ``name -> base_status`` map; built
-            from ``all_changespecs`` if not provided.
+            from ``all_patches`` if not provided.
 
     Returns:
-        True if the query explicitly targets Submitted status ChangeSpecs.
+        True if the query explicitly targets Submitted status Patches.
     """
     if status_map is None:
-        status_map = (
-            _build_name_to_base_status(all_changespecs) if all_changespecs else {}
-        )
+        status_map = _build_name_to_base_status(all_patches) if all_patches else {}
 
     def _check_expr(e: QueryExpr) -> bool:
         if isinstance(e, PropertyMatch):

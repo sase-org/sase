@@ -27,13 +27,13 @@ Precedence (tightest to loosest):
 Shorthands:
     - foo is equivalent to "foo" (bare word syntax)
     - "a" "b" is equivalent to "a" AND "b" (implicit AND)
-    - !!! or standalone ! matches changespecs with ANY error suffix
-    - !! (standalone) is equivalent to NOT !!! (matches changespecs with NO error suffix)
-    - @@@ or standalone @ matches changespecs with running agents (CRS or fix-hook)
-    - !@ (standalone) is equivalent to NOT @@@ (matches changespecs with NO running agents)
+    - !!! or standalone ! matches patches with ANY error suffix
+    - !! (standalone) is equivalent to NOT !!! (matches patches with NO error suffix)
+    - @@@ or standalone @ matches patches with running agents (CRS or fix-hook)
+    - !@ (standalone) is equivalent to NOT @@@ (matches patches with NO running agents)
     - %d, %m, %r, %s, %w, %y expand to status:DRAFT, status:MAILED, status:REVERTED, status:SUBMITTED, status:WIP, status:READY
-    - +project expands to project:project (match changespecs in a project)
-    - ^name expands to ancestor:name (match changespecs with name or parent chain containing name)
+    - +project expands to project:project (match patches in a project)
+    - ^name expands to ancestor:name (match patches with name or parent chain containing name)
 """
 
 from .tokenizer import Token, TokenizerError, TokenType, tokenize

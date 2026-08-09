@@ -1,4 +1,4 @@
-"""Persistent mapping from query string to selected ChangeSpec name."""
+"""Persistent mapping from query string to selected Patch name."""
 
 import json
 from pathlib import Path
@@ -17,7 +17,7 @@ def load_query_selections() -> dict[str, str]:
     """Load query-to-selection mapping from disk.
 
     Returns:
-        Dict mapping canonical query strings to ChangeSpec names.
+        Dict mapping canonical query strings to Patch names.
     """
     path = _query_selection_file()
     if not path.exists():
@@ -40,7 +40,7 @@ def save_query_selections(selections: dict[str, str]) -> bool:
     trimming discards the least-recently-used entries.
 
     Args:
-        selections: Dict mapping canonical query strings to ChangeSpec names.
+        selections: Dict mapping canonical query strings to Patch names.
 
     Returns:
         True if saved successfully, False otherwise.

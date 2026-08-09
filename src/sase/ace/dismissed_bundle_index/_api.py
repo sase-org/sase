@@ -123,7 +123,7 @@ def query_summaries(
         clauses.append(f"raw_suffix IN ({placeholders})")
         params.extend(sorted(suffixes))
     if cl_name is not None:
-        clauses.append("(cl_name = ? OR meta_changespec = ?)")
+        clauses.append("(cl_name = ? OR meta_patch = ?)")
         params.extend([cl_name, cl_name])
     if project_name is not None:
         clauses.append("project_file LIKE ?")

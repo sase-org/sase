@@ -1,4 +1,4 @@
-"""Scheduler utilities for checking ChangeSpec status updates.
+"""Scheduler utilities for checking Patch status updates.
 
 This package provides shared utilities used by the sase axe scheduler for:
 - Checking PR submission and comment status

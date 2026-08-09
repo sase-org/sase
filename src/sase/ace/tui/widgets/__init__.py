@@ -29,11 +29,14 @@ from .artifacts import (
     CommitsTimeline,
 )
 from .bgcmd_list import BgCmdList
-from .changespec_detail import ChangeSpecDetail
 from .patch_detail import PatchDetail, SearchQueryPanel
+from .changespec_detail import ChangeSpecDetail  # legacy compatibility alias
 from .patch_info_panel import PatchInfoPanel
+from .changespec_info_panel import ChangeSpecInfoPanel  # legacy compatibility alias
 from .patch_list import PatchList
+from .changespec_list import ChangeSpecList  # legacy compatibility alias
 from .patch_onboarding import PatchOnboarding
+from .changespec_onboarding import ChangeSpecOnboarding  # legacy compatibility alias
 from .hint_input_bar import HintInputBar
 from .keybinding_footer import KeybindingFooter
 from .tools_panel import AgentToolsPanel, ToolDetailLevel, ToolsVisibilityChanged
@@ -59,10 +62,6 @@ from .xprompt_arg_assist import (
     visible_inputs,
     xprompt_completion_skeleton,
 )
-
-ChangeSpecInfoPanel = PatchInfoPanel
-ChangeSpecList = PatchList
-ChangeSpecOnboarding = PatchOnboarding
 
 __all__ = [
     "AgentDetail",
@@ -94,14 +93,14 @@ __all__ = [
     "CommitsPane",
     "CommitsTimeline",
     "BgCmdList",
-    "ChangeSpecDetail",
-    "ChangeSpecInfoPanel",
-    "ChangeSpecList",
-    "ChangeSpecOnboarding",
     "PatchDetail",
     "PatchInfoPanel",
     "PatchList",
     "PatchOnboarding",
+    "ChangeSpecDetail",  # legacy compatibility alias
+    "ChangeSpecInfoPanel",  # legacy compatibility alias
+    "ChangeSpecList",  # legacy compatibility alias
+    "ChangeSpecOnboarding",  # legacy compatibility alias
     "FileLineCountChanged",
     "HintInputBar",
     "KeybindingFooter",

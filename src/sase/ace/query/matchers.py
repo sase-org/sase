@@ -2,7 +2,7 @@
 
 import re
 
-from ..patch import ChangeSpec, has_any_status_suffix
+from ..patch import Patch, has_any_status_suffix
 from .searchable import RUNNING_AGENT_MARKER, RUNNING_PROCESS_MARKER
 from .types import AndExpr, NotExpr, OrExpr, PropertyMatch, QueryExpr, StringMatch
 
@@ -39,59 +39,59 @@ def get_base_status(status: str) -> str:
     return status.strip()
 
 
-def _match_status(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
-    """Match against ChangeSpec STATUS field.
+def _match_status(prop: PropertyMatch, patch: Patch) -> bool:
+    """Match against Patch STATUS field.
 
     Args:
         prop: The PropertyMatch with key="status".
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         True if the base status matches (case-insensitive).
     """
-    base_status = get_base_status(changespec.status)
+    base_status = get_base_status(patch.status)
     return base_status.lower() == prop.value.lower()
 
 
-def _match_project(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
-    """Match against the effective ChangeSpec project query name.
+def _match_project(prop: PropertyMatch, patch: Patch) -> bool:
+    """Match against the effective Patch project query name.
 
     Args:
         prop: The PropertyMatch with key="project".
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         True if the configured display name, or directory-key fallback,
         matches case-insensitively.
     """
-    return changespec.project_query_name.lower() == prop.value.lower()
+    return patch.project_query_name.lower() == prop.value.lower()
 
 
-def _match_name(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
-    """Match against ChangeSpec NAME field.
+def _match_name(prop: PropertyMatch, patch: Patch) -> bool:
+    """Match against Patch NAME field.
 
     Args:
         prop: The PropertyMatch with key="name".
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         True if the name matches exactly (case-insensitive).
     """
-    return changespec.name.lower() == prop.value.lower()
+    return patch.name.lower() == prop.value.lower()
 
 
-def _match_sibling(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
-    """Match if ChangeSpec is in the same sibling family as the given name.
+def _match_sibling(prop: PropertyMatch, patch: Patch) -> bool:
+    """Match if Patch is in the same sibling family as the given name.
 
-    A ChangeSpec matches if its base name (with __<N> suffix stripped) equals
+    A Patch matches if its base name (with __<N> suffix stripped) equals
     the search value's base name (also with any __<N> suffix stripped).
 
-    This matches all ChangeSpecs that share the same "family" - the exact name
+    This matches all Patches that share the same "family" - the exact name
     plus all its __1, __2, etc. variants.
 
     Args:
         prop: The PropertyMatch with key="sibling".
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         True if the base names match (case-insensitive).
@@ -101,8 +101,8 @@ def _match_sibling(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
     # Get the base name of the search value (strip __<N> suffix)
     search_base = strip_reverted_suffix(prop.value).lower()
 
-    # Get the base name of the changespec's name
-    cs_base = strip_reverted_suffix(changespec.name).lower()
+    # Get the base name of the patch's name
+    cs_base = strip_reverted_suffix(patch.name).lower()
 
     # Match if base names are equal
     return cs_base == search_base
@@ -110,36 +110,36 @@ def _match_sibling(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
 
 def _match_ancestor(
     prop: PropertyMatch,
-    changespec: ChangeSpec,
-    all_changespecs: list[ChangeSpec] | None,
+    patch: Patch,
+    all_patches: list[Patch] | None,
 ) -> bool:
-    """Match if ChangeSpec name or parent chain includes the ancestor value.
+    """Match if Patch name or parent chain includes the ancestor value.
 
     Args:
         prop: The PropertyMatch with key="ancestor".
-        changespec: The ChangeSpec to check.
-        all_changespecs: List of all ChangeSpecs for parent chain lookup.
+        patch: The Patch to check.
+        all_patches: List of all Patches for parent chain lookup.
 
     Returns:
-        True if the ChangeSpec's name matches the ancestor value, or if any
+        True if the Patch's name matches the ancestor value, or if any
         parent in the chain (recursively) matches. Returns False if
-        all_changespecs is None.
+        all_patches is None.
     """
-    if all_changespecs is None:
+    if all_patches is None:
         return False
 
     ancestor_value = prop.value.lower()
 
-    # Build name -> ChangeSpec map for efficient lookup
-    name_map: dict[str, ChangeSpec] = {}
-    for cs in all_changespecs:
+    # Build name -> Patch map for efficient lookup
+    name_map: dict[str, Patch] = {}
+    for cs in all_patches:
         name_map[cs.name.lower()] = cs
 
-    # Check if this ChangeSpec or any ancestor matches
+    # Check if this Patch or any ancestor matches
     visited: set[str] = set()
 
-    def _has_ancestor(cs: ChangeSpec) -> bool:
-        """Recursively check if ChangeSpec has the ancestor."""
+    def _has_ancestor(cs: Patch) -> bool:
+        """Recursively check if Patch has the ancestor."""
         cs_name_lower = cs.name.lower()
 
         # Cycle detection
@@ -147,7 +147,7 @@ def _match_ancestor(
             return False
         visited.add(cs_name_lower)
 
-        # Check if this ChangeSpec's name matches
+        # Check if this Patch's name matches
         if cs_name_lower == ancestor_value:
             return True
 
@@ -162,34 +162,34 @@ def _match_ancestor(
 
         return False
 
-    return _has_ancestor(changespec)
+    return _has_ancestor(patch)
 
 
 def match_property(
     prop: PropertyMatch,
-    changespec: ChangeSpec,
-    all_changespecs: list[ChangeSpec] | None,
+    patch: Patch,
+    all_patches: list[Patch] | None,
 ) -> bool:
-    """Match a property filter against a ChangeSpec.
+    """Match a property filter against a Patch.
 
     Args:
         prop: The PropertyMatch to evaluate.
-        changespec: The ChangeSpec to check.
-        all_changespecs: List of all ChangeSpecs (required for ancestor matching).
+        patch: The Patch to check.
+        all_patches: List of all Patches (required for ancestor matching).
 
     Returns:
         True if the property matches.
     """
     if prop.key == "status":
-        return _match_status(prop, changespec)
+        return _match_status(prop, patch)
     elif prop.key == "project":
-        return _match_project(prop, changespec)
+        return _match_project(prop, patch)
     elif prop.key == "ancestor":
-        return _match_ancestor(prop, changespec, all_changespecs)
+        return _match_ancestor(prop, patch, all_patches)
     elif prop.key == "name":
-        return _match_name(prop, changespec)
+        return _match_name(prop, patch)
     elif prop.key == "sibling":
-        return _match_sibling(prop, changespec)
+        return _match_sibling(prop, patch)
     else:
         # Unknown property key - should not happen with proper tokenization
         return False
@@ -198,16 +198,16 @@ def match_property(
 def evaluate(
     expr: QueryExpr,
     text: str,
-    changespec: ChangeSpec,
-    all_changespecs: list[ChangeSpec] | None = None,
+    patch: Patch,
+    all_patches: list[Patch] | None = None,
 ) -> bool:
     """Recursively evaluate an expression against text.
 
     Args:
         expr: The query expression to evaluate.
         text: The text to match against.
-        changespec: The ChangeSpec being evaluated (for special handling).
-        all_changespecs: List of all ChangeSpecs (required for ancestor matching).
+        patch: The Patch being evaluated (for special handling).
+        all_patches: List of all Patches (required for ancestor matching).
 
     Returns:
         True if the expression matches the text.
@@ -218,7 +218,7 @@ def evaluate(
     if isinstance(expr, StringMatch):
         # Special handling for error suffix shorthand (!!!)
         if expr.is_error_suffix:
-            return has_any_status_suffix(changespec)
+            return has_any_status_suffix(patch)
         # Special handling for running agent shorthand (@@@)
         # Simply check for "- (@" marker in the searchable text
         if expr.is_running_agent:
@@ -229,16 +229,12 @@ def evaluate(
             return RUNNING_PROCESS_MARKER in text
         return _match_string(text, expr)
     elif isinstance(expr, PropertyMatch):
-        return match_property(expr, changespec, all_changespecs)
+        return match_property(expr, patch, all_patches)
     elif isinstance(expr, NotExpr):
-        return not evaluate(expr.operand, text, changespec, all_changespecs)
+        return not evaluate(expr.operand, text, patch, all_patches)
     elif isinstance(expr, AndExpr):
-        return all(
-            evaluate(op, text, changespec, all_changespecs) for op in expr.operands
-        )
+        return all(evaluate(op, text, patch, all_patches) for op in expr.operands)
     elif isinstance(expr, OrExpr):
-        return any(
-            evaluate(op, text, changespec, all_changespecs) for op in expr.operands
-        )
+        return any(evaluate(op, text, patch, all_patches) for op in expr.operands)
     else:
         raise TypeError(f"Unknown expression type: {type(expr)}")

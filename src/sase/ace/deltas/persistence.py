@@ -1,16 +1,15 @@
-"""DELTAS persistence — locked read-modify-write helper for ChangeSpec files."""
+"""DELTAS persistence — locked read-modify-write helper for Patch files."""
 
 import logging
 
 from ..patch import (
     DeltaEntry,
     LockTimeoutError,
-    changespec_lock,
-    write_changespec_atomic,
+    patch_lock,
+    write_patch_atomic,
 )
 from ..patch.deltas_format import format_deltas_field
 from ..patch.section_order import (
-    CHANGESPEC_SECTION_ORDER,
     PATCH_SECTION_ORDER,
     PROJECT_SPEC_SECTION_HEADERS,
 )
@@ -27,13 +26,13 @@ def _starts_with_any(line: str, headers: tuple[str, ...]) -> bool:
 
 def apply_deltas_update(
     lines: list[str],
-    changespec_name: str,
+    patch_name: str,
     deltas: list[DeltaEntry],
 ) -> list[str]:
     """Apply DELTAS field update to file lines.
 
     Behavior:
-      - Existing DELTAS section in the target ChangeSpec is replaced.
+      - Existing DELTAS section in the target Patch is replaced.
       - If absent and ``deltas`` is non-empty, a new section is inserted in
         canonical position (before the first post-DELTAS section, i.e. HOOKS;
         or before the next existing section if HOOKS is absent).
@@ -54,9 +53,9 @@ def apply_deltas_update(
         if line.startswith("NAME:"):
             current = line.split(":", 1)[1].strip()
             was_in_target = in_target
-            in_target = current == changespec_name
+            in_target = current == patch_name
 
-            # Leaving the target ChangeSpec without finding DELTAS — insert
+            # Leaving the target Patch without finding DELTAS — insert
             # before this NAME line if we still owe an insertion.
             if was_in_target and not found_deltas and formatted and not inserted:
                 updated.extend(formatted)
@@ -86,7 +85,7 @@ def apply_deltas_update(
                 i += 1
             continue
 
-        # Insertion point: the first post-DELTAS section header in target CS.
+        # Insertion point: the first post-DELTAS section header in target Patch.
         if (
             in_target
             and not found_deltas
@@ -97,7 +96,7 @@ def apply_deltas_update(
             updated.extend(formatted)
             inserted = True
 
-        # Insertion point: end-of-ChangeSpec via two consecutive blank lines.
+        # Insertion point: end-of-Patch via two consecutive blank lines.
         if (
             in_target
             and not found_deltas
@@ -113,47 +112,49 @@ def apply_deltas_update(
         updated.append(line)
         i += 1
 
-    # End of file while still in target ChangeSpec.
+    # End of file while still in target Patch.
     if in_target and not found_deltas and formatted and not inserted:
         updated.extend(formatted)
 
     return updated
 
 
-def update_changespec_deltas_field(
+def update_patch_deltas_field(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     deltas: list[DeltaEntry],
 ) -> bool:
-    """Locked read-modify-write of the DELTAS field for a ChangeSpec.
+    """Locked read-modify-write of the DELTAS field for a Patch.
 
     Args:
         project_file: Path to the ProjectSpec ``.gp`` file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         deltas: DeltaEntry list to write. Empty list removes the section.
 
     Returns:
         True on success, False on lock timeout or write failure.
     """
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
-            updated = apply_deltas_update(lines, changespec_name, deltas)
-            write_changespec_atomic(
+            updated = apply_deltas_update(lines, patch_name, deltas)
+            write_patch_atomic(
                 project_file,
                 "".join(updated),
-                f"Update DELTAS for {changespec_name}",
+                f"Update DELTAS for {patch_name}",
             )
             return True
     except LockTimeoutError:
         logging.warning(
-            f"Lock timeout updating deltas for {changespec_name} in {project_file}"
+            f"Lock timeout updating deltas for {patch_name} in {project_file}"
         )
         return False
     except Exception as e:
-        logging.error(f"Failed to update deltas for {changespec_name}: {e}")
+        logging.error(f"Failed to update deltas for {patch_name}: {e}")
         return False
 
 
-update_patch_deltas_field = update_changespec_deltas_field
+update_changespec_deltas_field = (  # legacy compatibility alias
+    update_patch_deltas_field
+)

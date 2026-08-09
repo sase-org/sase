@@ -1,7 +1,7 @@
 """Query language for filtering Agents on the agents tab.
 
 This package provides a structured query language that parallels
-:mod:`sase.ace.query` (used for ChangeSpecs) but with a closed property-key
+:mod:`sase.ace.query` (used for Patches) but with a closed property-key
 allowlist appropriate for ``Agent`` objects, plus an ``age`` comparison
 operator family.
 

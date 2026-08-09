@@ -33,7 +33,7 @@ def _parent_hook_passed_or_is_fix_proposal(
     base_number, _letter = parsed
     parent_entry_id = str(base_number)
 
-    parent_status_line = hook.get_status_line_for_commit_entry(parent_entry_id)
+    parent_status_line = hook.get_status_line_for_stitch(parent_entry_id)
 
     if parent_status_line is None:
         return False  # No parent status - wait
@@ -70,7 +70,7 @@ def hook_needs_run(hook: HookEntry, last_history_entry_id: str | None) -> bool:
         return False
 
     # Check if there's a status line for this history entry
-    status_line = hook.get_status_line_for_commit_entry(last_history_entry_id)
+    status_line = hook.get_status_line_for_stitch(last_history_entry_id)
     if status_line is not None:
         return False
 
@@ -102,7 +102,7 @@ def get_entries_needing_hook_run(hook: HookEntry, entry_ids: list[str]) -> list[
         if hook.skip_proposal_runs and is_proposal_entry(entry_id):
             continue
         # Check if there's already a status line for this entry
-        if hook.get_status_line_for_commit_entry(entry_id) is not None:
+        if hook.get_status_line_for_stitch(entry_id) is not None:
             continue
         # For proposals, check if parent has passed (or fix-hook exception)
         if is_proposal_entry(entry_id):
@@ -192,6 +192,6 @@ def entry_has_running_hooks(hooks: list[HookEntry] | None, entry_id: str) -> boo
         if not hook.status_lines:
             continue
         for sl in hook.status_lines:
-            if sl.commit_entry_num == entry_id and sl.status == "RUNNING":
+            if sl.stitch_num == entry_id and sl.status == "RUNNING":
                 return True
     return False

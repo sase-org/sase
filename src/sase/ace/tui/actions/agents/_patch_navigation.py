@@ -113,9 +113,9 @@ class AgentPatchNavigationMixin:
 
         navigate_to_patch_tab(self, cs_name, agent.project_file)
 
-    def action_jump_to_agent_changespec(self) -> None:
+    def action_jump_to_agent_changespec(self) -> None:  # legacy compatibility alias
         """Legacy alias for :meth:`action_jump_to_agent_patch`."""
         self._jump_to_agent_patch("No Patch for this agent")
 
 
-AgentChangespecNavigationMixin = AgentPatchNavigationMixin
+AgentChangespecNavigationMixin = AgentPatchNavigationMixin  # legacy compatibility alias

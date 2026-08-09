@@ -1,9 +1,9 @@
-"""Atomic recording of TIMESTAMPS entries into ChangeSpec .gp files."""
+"""Atomic recording of TIMESTAMPS entries into Patch .gp files."""
 
 import re
 import sys
 
-from sase.ace.patch.locking import changespec_lock, write_changespec_atomic
+from sase.ace.patch.locking import patch_lock, write_patch_atomic
 from sase.core.time import generate_timestamp
 
 
@@ -27,15 +27,15 @@ def add_timestamp_entry_atomic(
     event_type: str,
     detail: str,
 ) -> bool:
-    """Append a TIMESTAMPS entry to a ChangeSpec, creating the section if needed.
+    """Append a TIMESTAMPS entry to a Patch, creating the section if needed.
 
-    Acquires the changespec lock, reads the file, finds (or creates) the
+    Acquires the patch lock, reads the file, finds (or creates) the
     TIMESTAMPS section for *cl_name*, appends a new entry line, and writes
     atomically.
 
     Args:
         project_file: Path to the ``.gp`` file.
-        cl_name: NAME of the target ChangeSpec.
+        cl_name: NAME of the target Patch.
         event_type: One of ``COMMIT``, ``STATUS``, ``SYNC``, ``REWORD``,
             ``REWIND``, ``RENAME``, ``REBASE``.
         detail: Event-specific detail string.
@@ -46,7 +46,7 @@ def add_timestamp_entry_atomic(
     entry_line = format_timestamp_entry_line(event_type, detail)
 
     try:
-        with changespec_lock(project_file):
+        with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
@@ -56,7 +56,7 @@ def add_timestamp_entry_atomic(
 
             lines.insert(insert_idx, entry_line)
 
-            write_changespec_atomic(
+            write_patch_atomic(
                 project_file,
                 "".join(lines),
                 f"Add {event_type} timestamp for {cl_name}",
@@ -72,24 +72,24 @@ def _find_timestamps_insert_point(lines: list[str], cl_name: str) -> int | None:
 
     If the section already exists, returns the index after the last entry.
     If it doesn't exist, inserts a ``TIMESTAMPS:`` header at the end of the
-    ChangeSpec (before the two-blank-line separator) and returns the index
+    Patch (before the two-blank-line separator) and returns the index
     after it.
 
-    The caller must hold the changespec lock and the *lines* list is mutated
+    The caller must hold the patch lock and the *lines* list is mutated
     in-place when a new section header is added.
     """
     in_target = False
     timestamps_header_idx = -1
     last_timestamps_entry_idx = -1
-    changespec_end_idx = -1
+    patch_end_idx = -1
     consecutive_blanks = 0
 
     for i, line in enumerate(lines):
         if line.startswith("NAME: "):
             current_name = line[6:].strip()
             if in_target:
-                # Hit the next ChangeSpec — use the end marker we have
-                changespec_end_idx = i
+                # Hit the next Patch — use the end marker we have
+                patch_end_idx = i
                 break
             in_target = current_name == cl_name
             consecutive_blanks = 0
@@ -98,7 +98,7 @@ def _find_timestamps_insert_point(lines: list[str], cl_name: str) -> int | None:
             if stripped == "":
                 consecutive_blanks += 1
                 if consecutive_blanks >= 2:
-                    changespec_end_idx = i - 1  # before the blank lines
+                    patch_end_idx = i - 1  # before the blank lines
                     break
             else:
                 consecutive_blanks = 0
@@ -111,11 +111,11 @@ def _find_timestamps_insert_point(lines: list[str], cl_name: str) -> int | None:
                     last_timestamps_entry_idx = i
 
     if not in_target and timestamps_header_idx < 0:
-        return None  # ChangeSpec not found
+        return None  # Patch not found
 
     # Handle end of file
-    if in_target and changespec_end_idx < 0:
-        changespec_end_idx = len(lines)
+    if in_target and patch_end_idx < 0:
+        patch_end_idx = len(lines)
 
     if timestamps_header_idx >= 0:
         # Section exists — insert after the last entry (or after the header)
@@ -123,7 +123,7 @@ def _find_timestamps_insert_point(lines: list[str], cl_name: str) -> int | None:
             return last_timestamps_entry_idx + 1
         return timestamps_header_idx + 1
 
-    # Section doesn't exist — create it at the end of the ChangeSpec
-    insert_at = changespec_end_idx
+    # Section doesn't exist — create it at the end of the Patch
+    insert_at = patch_end_idx
     lines.insert(insert_at, "TIMESTAMPS:\n")
     return insert_at + 1

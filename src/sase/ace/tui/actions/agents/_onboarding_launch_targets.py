@@ -9,7 +9,7 @@ from sase.project_display_names import ProjectDisplayProjection
 from sase.status_state_machine import remove_workspace_suffix
 
 _DEFAULT_EXCLUDED_PROJECT_NAMES = frozenset({"home"})
-_ELIGIBLE_CHANGESPEC_STATUSES = frozenset({"WIP", "Draft", "Ready", "Mailed"})
+_ELIGIBLE_PATCH_STATUSES = frozenset({"WIP", "Draft", "Ready", "Mailed"})
 
 
 class _PatchLike(Protocol):
@@ -34,7 +34,7 @@ def _launch_targets_available(
     ):
         return True
     return any(
-        remove_workspace_suffix(patch.status) in _ELIGIBLE_CHANGESPEC_STATUSES
+        remove_workspace_suffix(patch.status) in _ELIGIBLE_PATCH_STATUSES
         for patch in patches
     )
 

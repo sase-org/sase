@@ -58,13 +58,18 @@ class HookStatusLine:
         summary: str | None = None,
         *,
         stitch_id: str | None = None,
+        stitch_num: str | None = None,
     ) -> None:
-        if commit_entry_num is not None and stitch_id is not None:
-            if commit_entry_num != stitch_id:
-                raise ValueError(
-                    "HookStatusLine received conflicting commit_entry_num and stitch_id"
-                )
-        resolved_id = commit_entry_num if commit_entry_num is not None else stitch_id
+        provided_ids = [
+            value
+            for value in (commit_entry_num, stitch_id, stitch_num)
+            if value is not None
+        ]
+        if len(set(provided_ids)) > 1:
+            raise ValueError(
+                "HookStatusLine received conflicting commit_entry_num and stitch_id"
+            )
+        resolved_id = provided_ids[0] if provided_ids else None
         if resolved_id is None:
             raise TypeError(
                 "HookStatusLine missing required argument: 'stitch_id' "
@@ -85,6 +90,14 @@ class HookStatusLine:
 
     @commit_entry_num.setter
     def commit_entry_num(self, value: str) -> None:
+        self.stitch_id = value
+
+    @property
+    def stitch_num(self) -> str:
+        return self.stitch_id
+
+    @stitch_num.setter
+    def stitch_num(self, value: str) -> None:
         self.stitch_id = value
 
 

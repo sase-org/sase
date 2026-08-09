@@ -46,7 +46,11 @@ class FileViewingMixin(HintMixinBase):
             self._view_agent_files()
             return
 
-        patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        patches = getattr(
+            self,
+            "patches",
+            getattr(self, "changespecs", []),  # legacy compatibility alias
+        )
         if not patches:
             return
 
@@ -80,7 +84,7 @@ class FileViewingMixin(HintMixinBase):
         self._hint_mode_hints_for = None  # "all" hints
         self._hint_mappings = hint_mappings
         self._hint_patch_name = patch.name
-        self._hint_changespec_name = patch.name  # type: ignore[attr-defined]
+        self._hint_changespec_name = patch.name  # type: ignore[attr-defined] # legacy compatibility alias
 
         # Mount the hint input bar
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
@@ -122,7 +126,7 @@ class FileViewingMixin(HintMixinBase):
         self._hint_tool_call_reports = {}
         self._hint_commit_views = {}
         self._hint_patch_name = agent.cl_name
-        self._hint_changespec_name = agent.cl_name  # type: ignore[attr-defined]
+        self._hint_changespec_name = agent.cl_name  # type: ignore[attr-defined] # legacy compatibility alias
 
         # Mount the hint input bar in the agent detail container
         detail_container = self.query_one("#agent-detail-container")  # type: ignore[attr-defined]

@@ -53,7 +53,7 @@ class HookEditingMixin(HintMixinBase):
         self._hint_to_entry_id = hint_to_entry_id
         self._mentor_hint_to_info = mentor_hint_to_info
         self._hint_patch_name = patch.name
-        self._hint_changespec_name = patch.name  # type: ignore[attr-defined]
+        self._hint_patch_name = patch.name  # type: ignore[attr-defined]
 
         # Mount the hint input bar
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
@@ -102,7 +102,7 @@ class HookEditingMixin(HintMixinBase):
         self._failed_hooks_file_path = file_path
         self._hint_mode_active = True
         self._hint_patch_name = patch.name
-        self._hint_changespec_name = patch.name  # type: ignore[attr-defined]
+        self._hint_patch_name = patch.name  # type: ignore[attr-defined]
 
         # Update detail panel to show numbered targets
         detail_widget = self.query_one("#detail-panel", PatchDetail)  # type: ignore[attr-defined]

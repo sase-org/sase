@@ -6,17 +6,17 @@ from typing import Any
 from .locking import (
     LockTimeoutError,
     acquire_edit_lock,
-    changespec_lock,
+    changespec_lock,  # legacy compatibility alias
     is_edit_locked,
     patch_lock,
     release_edit_lock,
     wait_for_edit_lock_release,
-    write_changespec_atomic,
+    write_changespec_atomic,  # legacy compatibility alias
     write_patch_atomic,
 )
 from .models import (
     ERROR_SUFFIX_MESSAGES,
-    ChangeSpec,
+    ChangeSpec,  # legacy compatibility alias
     CommentEntry,
     CommitEntry,
     DeltaEntry,
@@ -39,15 +39,15 @@ from .models import (
     parse_stitch_id,
 )
 from .cache import (
-    ChangeSpecSnapshotCache,
+    ChangeSpecSnapshotCache,  # legacy compatibility alias
     PatchSnapshotCache,
-    find_all_changespecs_cached,
+    find_all_changespecs_cached,  # legacy compatibility alias
     find_all_patches_cached,
     get_global_snapshot_cache,
 )
 from .discovery import (
-    iter_changespec_project_file_records,
-    iter_changespec_project_files,
+    iter_changespec_project_file_records,  # legacy compatibility alias
+    iter_changespec_project_files,  # legacy compatibility alias
     iter_patch_project_file_records,
     iter_patch_project_files,
 )
@@ -56,7 +56,7 @@ from .archive import (
     get_archive_file_path,
     get_main_file_path,
     is_archive_file,
-    move_changespec_to_file,
+    move_changespec_to_file,  # legacy compatibility alias
     move_patch_to_file,
 )
 from .project_spec_migration import (
@@ -71,7 +71,11 @@ from .project_spec_path import (
     legacy_active_project_spec_filename,
     legacy_archive_project_spec_filename,
 )
-from .raw_text import get_raw_changespec_text, get_raw_patch_text
+from .raw_text import (
+    # legacy compatibility alias
+    get_raw_changespec_text,
+    get_raw_patch_text,
+)  # legacy compatibility alias
 from .validation import (
     all_hooks_passed_for_entries,
     all_hooks_passed_for_stitches,
@@ -94,7 +98,7 @@ __all__ = [
     "Patch",
     "Stitch",
     "StitchDict",
-    "ChangeSpec",
+    "ChangeSpec",  # legacy compatibility alias
     "CommitEntry",
     "HookEntry",
     "HookStatusLine",
@@ -109,12 +113,12 @@ __all__ = [
     # Locking
     "LockTimeoutError",
     "acquire_edit_lock",
-    "changespec_lock",
+    "changespec_lock",  # legacy compatibility alias
     "patch_lock",
     "is_edit_locked",
     "release_edit_lock",
     "wait_for_edit_lock_release",
-    "write_changespec_atomic",
+    "write_changespec_atomic",  # legacy compatibility alias
     "write_patch_atomic",
     # Functions
     "extract_pid_from_agent_suffix",
@@ -141,21 +145,21 @@ __all__ = [
     "all_hooks_passed_for_stitches",
     "parse_project_file",
     "parse_patch_project_file",
-    "ChangeSpecSnapshotCache",
+    "ChangeSpecSnapshotCache",  # legacy compatibility alias
     "PatchSnapshotCache",
-    "find_all_changespecs_cached",
+    "find_all_changespecs_cached",  # legacy compatibility alias
     "find_all_patches_cached",
     "get_global_snapshot_cache",
-    "iter_changespec_project_file_records",
-    "iter_changespec_project_files",
+    "iter_changespec_project_file_records",  # legacy compatibility alias
+    "iter_changespec_project_files",  # legacy compatibility alias
     "iter_patch_project_file_records",
     "iter_patch_project_files",
-    "get_raw_changespec_text",
+    "get_raw_changespec_text",  # legacy compatibility alias
     "get_raw_patch_text",
     "get_archive_file_path",
     "get_main_file_path",
     "is_archive_file",
-    "move_changespec_to_file",
+    "move_changespec_to_file",  # legacy compatibility alias
     "move_patch_to_file",
     "PROJECT_SPEC_EXTENSIONS",
     "active_project_spec_filename",
@@ -165,7 +169,7 @@ __all__ = [
     "MigrationReport",
     "migrate_all_projects",
     "migrate_project_dir",
-    "find_all_changespecs",
+    "find_all_changespecs",  # legacy compatibility alias
     "find_all_patches",
     "get_eligible_parents_in_project",
     "get_entry_id",
@@ -191,9 +195,9 @@ def find_all_patches(
     return patches
 
 
-def find_all_changespecs(
+def find_all_changespecs(  # legacy compatibility alias
     include_states: Sequence[str] | str = ("enabled",),
-) -> list[ChangeSpec]:
+) -> list[ChangeSpec]:  # legacy compatibility alias
     """Legacy alias for :func:`find_all_patches`."""
     return find_all_patches(include_states=include_states)
 

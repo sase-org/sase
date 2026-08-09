@@ -35,7 +35,12 @@ class ClipboardArtifactsMixin(
 
     def _non_pr_artifacts_copy_active(self) -> bool:
         return (
-            self.current_tab in {ARTIFACTS_TAB, "patches", "changespecs"}
+            self.current_tab
+            in {
+                ARTIFACTS_TAB,
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }
             and self.current_artifacts_pane_key != "prs"
         )
 

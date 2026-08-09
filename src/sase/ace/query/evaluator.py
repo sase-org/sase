@@ -1,8 +1,8 @@
-"""Evaluator for query expressions against ChangeSpecs.
+"""Evaluator for query expressions against Patches.
 
 The evaluator is split across sibling modules:
 
-- :mod:`.searchable` — extracts searchable text from a ChangeSpec.
+- :mod:`.searchable` — extracts searchable text from a Patch.
 - :mod:`.matchers` — string and property matchers plus the recursive
   stateless :func:`~.matchers.evaluate`.
 - :mod:`.introspection` — query AST introspection helpers
@@ -14,7 +14,7 @@ This module re-exports the public surface and defines the top-level
 :func:`evaluate_query` entry point.
 """
 
-from ..patch import ChangeSpec
+from ..patch import Patch
 from .context import (
     QueryEvaluationContext,
     build_query_context,
@@ -48,10 +48,10 @@ __all__ = [
 
 def evaluate_query(
     query: QueryExpr,
-    changespec: ChangeSpec,
-    all_changespecs: list[ChangeSpec] | None = None,
+    patch: Patch,
+    all_patches: list[Patch] | None = None,
 ) -> bool:
-    """Evaluate a query expression against a ChangeSpec.
+    """Evaluate a query expression against a Patch.
 
     Public entry point — routes through :mod:`sase.core.query`. The default
     backend dispatches back to :func:`evaluate_query_python`.
@@ -59,10 +59,10 @@ def evaluate_query(
     Examples:
         >>> from .parser import parse_query
         >>> query = parse_query('"feature"')
-        >>> cs = ChangeSpec(name="my_feature", ...)
+        >>> cs = Patch(name="my_feature", ...)
         >>> evaluate_query(query, cs)
         True
     """
     from sase.core.query_facade import evaluate_query as _facade
 
-    return _facade(query, changespec, all_changespecs)
+    return _facade(query, patch, all_patches)

@@ -84,7 +84,7 @@ def extract_patch_block(
     """Extract a Patch block from file lines.
 
     Finds the Patch named ``patch_name`` and returns its raw lines
-    (including any preceding ``## Patch``/``## ChangeSpec`` header and trailing blank
+    (including any preceding ``## Patch``/``## ChangeSpec`` header and trailing blank  # legacy compatibility alias
     separator) along with the remaining file lines.
 
     Args:
@@ -160,7 +160,7 @@ def extract_patch_block(
 
 
 _extract_patch_block = extract_patch_block
-_extract_changespec_block = extract_patch_block
+_extract_changespec_block = extract_patch_block  # legacy compatibility alias
 
 
 def move_patch_to_file(source_file: str, dest_file: str, patch_name: str) -> bool:
@@ -238,4 +238,4 @@ def move_patch_to_file(source_file: str, dest_file: str, patch_name: str) -> boo
     return True
 
 
-move_changespec_to_file = move_patch_to_file
+move_changespec_to_file = move_patch_to_file  # legacy compatibility alias

@@ -2,6 +2,6 @@
 
 from ..patch._core import PatchMixin
 
-ChangeSpecMixin = PatchMixin
+ChangeSpecMixin = PatchMixin  # legacy compatibility alias
 
-__all__ = ["ChangeSpecMixin"]
+__all__ = ["ChangeSpecMixin"]  # legacy compatibility alias

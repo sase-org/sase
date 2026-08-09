@@ -21,7 +21,7 @@ PATCH_SECTION_ORDER: tuple[str, ...] = (
     "TIMESTAMPS:",
 )
 
-CHANGESPEC_SECTION_ORDER: tuple[str, ...] = (
+CHANGESPEC_SECTION_ORDER: tuple[str, ...] = (  # legacy compatibility alias
     "NAME:",
     "DESCRIPTION:",
     "PARENT:",
@@ -38,11 +38,13 @@ CHANGESPEC_SECTION_ORDER: tuple[str, ...] = (
 )
 
 PROJECT_SPEC_SECTION_HEADERS: tuple[str, ...] = tuple(
-    dict.fromkeys((*PATCH_SECTION_ORDER, *CHANGESPEC_SECTION_ORDER))
+    dict.fromkeys(
+        (*PATCH_SECTION_ORDER, *CHANGESPEC_SECTION_ORDER)
+    )  # legacy compatibility alias
 )
 
 __all__ = [
-    "CHANGESPEC_SECTION_ORDER",
+    "CHANGESPEC_SECTION_ORDER",  # legacy compatibility alias
     "PATCH_SECTION_ORDER",
     "PROJECT_SPEC_SECTION_HEADERS",
 ]

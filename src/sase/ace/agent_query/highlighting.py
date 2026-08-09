@@ -7,7 +7,7 @@ accepts (and nothing extra).
 
 The output is a list of ``(token, token_type)`` tuples; the styles dict
 :data:`AGENT_QUERY_TOKEN_STYLES` maps token types to Rich style strings.
-Token types intentionally overlap with the changespec query module where
+Token types intentionally overlap with the patch query module where
 the meaning is identical (``keyword``, ``negation``, ``paren``,
 ``quoted``, ``term``, ``property_key``, ``property_value``,
 ``whitespace``) plus ``duration_op`` / ``duration_value`` for the
@@ -146,7 +146,7 @@ def tokenize_agent_query_for_display(query: str) -> list[tuple[str, str]]:
     return tokens
 
 
-# Token type → Rich style. Mirrors the changespec-query palette where the
+# Token type → Rich style. Mirrors the patch-query palette where the
 # token types overlap; ``duration_op`` / ``duration_value`` are the new
 # entries unique to this language.
 AGENT_QUERY_TOKEN_STYLES: dict[str, str] = {

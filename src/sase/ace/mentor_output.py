@@ -119,7 +119,7 @@ def _load_mentor_output(path: Path) -> MentorOutput:
 
 
 def _load_all_mentor_outputs(cl_name: str) -> list[tuple[Path, MentorOutput]]:
-    """Load all mentor outputs for a given ChangeSpec.
+    """Load all mentor outputs for a given Patch.
 
     Returns:
         List of (path, MentorOutput) tuples sorted by filename (timestamp order).

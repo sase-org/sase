@@ -2,6 +2,6 @@
 
 from ..patch._loading import PatchLoadingMixin
 
-ChangeSpecLoadingMixin = PatchLoadingMixin
+ChangeSpecLoadingMixin = PatchLoadingMixin  # legacy compatibility alias
 
-__all__ = ["ChangeSpecLoadingMixin"]
+__all__ = ["ChangeSpecLoadingMixin"]  # legacy compatibility alias

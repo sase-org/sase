@@ -1,21 +1,21 @@
-"""Hook field formatting for ChangeSpec project files."""
+"""Hook field formatting for Patch project files."""
 
 from ..patch import (
     HookEntry,
     is_error_suffix,
     is_running_agent_suffix,
-    parse_commit_entry_id,
+    parse_stitch_id,
 )
 from ..patch.section_order import PROJECT_SPEC_SECTION_HEADERS
 from .timestamps import format_timestamp_display
 
 
-_CHANGESPEC_FIELD_HEADERS = PROJECT_SPEC_SECTION_HEADERS
+_PATCH_FIELD_HEADERS = PROJECT_SPEC_SECTION_HEADERS
 
 
 def _is_field_header(line: str) -> bool:
-    """Check if a line is a known ChangeSpec field header."""
-    return any(line.startswith(header) for header in _CHANGESPEC_FIELD_HEADERS)
+    """Check if a line is a known Patch field header."""
+    return any(line.startswith(header) for header in _PATCH_FIELD_HEADERS)
 
 
 def format_hooks_field(hooks: list[HookEntry]) -> list[str]:
@@ -42,14 +42,12 @@ def format_hooks_field(hooks: list[HookEntry]) -> list[str]:
         if hook.status_lines:
             sorted_status_lines = sorted(
                 hook.status_lines,
-                key=lambda sl: parse_commit_entry_id(sl.commit_entry_num),
+                key=lambda sl: parse_stitch_id(sl.stitch_num),
             )
             for sl in sorted_status_lines:
                 ts_display = format_timestamp_display(sl.timestamp)
                 # Build the line parts
-                line_parts = [
-                    f"      | ({sl.commit_entry_num}) {ts_display} {sl.status}"
-                ]
+                line_parts = [f"      | ({sl.stitch_num}) {ts_display} {sl.status}"]
                 if sl.duration:
                     line_parts.append(f" ({sl.duration})")
                 # Check for suffix (including empty string with running_agent type)
@@ -117,21 +115,21 @@ def format_hooks_field(hooks: list[HookEntry]) -> list[str]:
 
 def apply_hooks_update(
     lines: list[str],
-    changespec_name: str,
+    patch_name: str,
     hooks: list[HookEntry],
 ) -> list[str]:
     """Apply HOOKS field update to file lines.
 
     Args:
         lines: Current file lines.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         hooks: List of HookEntry objects to write.
 
     Returns:
         Updated lines with HOOKS field modified.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     found_hooks = False
     i = 0
 
@@ -141,8 +139,8 @@ def apply_hooks_update(
         # Check if this is a NAME field
         if line.startswith("NAME:"):
             current_name = line.split(":", 1)[1].strip()
-            was_in_target = in_target_changespec
-            in_target_changespec = current_name == changespec_name
+            was_in_target = in_target_patch
+            in_target_patch = current_name == patch_name
 
             # If we were in target and didn't find HOOKS, insert before NAME
             if was_in_target and not found_hooks and hooks:
@@ -153,8 +151,8 @@ def apply_hooks_update(
             i += 1
             continue
 
-        # If we're in the target ChangeSpec
-        if in_target_changespec:
+        # If we're in the target Patch
+        if in_target_patch:
             # Check for HOOKS field
             if line.startswith("HOOKS:"):
                 found_hooks = True
@@ -168,7 +166,7 @@ def apply_hooks_update(
 
                     # Check if we've exited the HOOKS section:
                     # - Known field headers end the section
-                    # - Two consecutive blank lines end the ChangeSpec
+                    # - Two consecutive blank lines end the Patch
                     if _is_field_header(next_line) or (
                         stripped == ""
                         and i + 1 < len(lines)
@@ -197,11 +195,11 @@ def apply_hooks_update(
                         i += 1
                 continue
 
-            # Check for end of ChangeSpec (another field or 2 blank lines)
+            # Check for end of Patch (another field or 2 blank lines)
             if line.strip() == "":
                 next_idx = i + 1
                 if next_idx < len(lines) and lines[next_idx].strip() == "":
-                    # Two blank lines = end of ChangeSpec
+                    # Two blank lines = end of Patch
                     if not found_hooks and hooks:
                         updated_lines.extend(format_hooks_field(hooks))
                         found_hooks = True
@@ -209,8 +207,8 @@ def apply_hooks_update(
         updated_lines.append(line)
         i += 1
 
-    # If we reached end of file while still in target changespec
-    if in_target_changespec and not found_hooks and hooks:
+    # If we reached end of file while still in target patch
+    if in_target_patch and not found_hooks and hooks:
         updated_lines.extend(format_hooks_field(hooks))
 
     return updated_lines

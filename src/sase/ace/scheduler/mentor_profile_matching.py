@@ -11,9 +11,9 @@ from sase.running_field import get_workspace_directory
 from sase.vcs_provider import VCSProviderNotFoundError, get_vcs_provider
 
 from ..patch import (
-    ChangeSpec,
-    CommitEntry,
-    parse_commit_entry_id,
+    Patch,
+    Stitch,
+    parse_stitch_id,
 )
 from ._mentor_profile_helpers import (
     CommitMatchArtifact,
@@ -35,8 +35,8 @@ logger = logging.getLogger(__name__)
 
 
 def _build_commit_match_artifacts(
-    commits: list[CommitEntry],
-    changespec: ChangeSpec | None = None,
+    commits: list[Stitch],
+    patch: Patch | None = None,
     *,
     preloaded_vcs_fallback: str | None | object = _UNSET,
     require_diff_content: bool = True,
@@ -44,7 +44,7 @@ def _build_commit_match_artifacts(
     """Build commit artifacts once per invocation to avoid repeated file reads."""
     latest_entry_id = max(
         (commit.display_number for commit in commits),
-        key=parse_commit_entry_id,
+        key=parse_stitch_id,
         default=None,
     )
     fallback_diff_content: object | str | None = (
@@ -58,14 +58,14 @@ def _build_commit_match_artifacts(
         should_use_fallback = (
             require_diff_content
             and diff_content is None
-            and changespec is not None
+            and patch is not None
             and latest_entry_id is not None
             and commit.display_number == latest_entry_id
         )
         if should_use_fallback:
             if fallback_diff_content is _UNSET:
-                assert changespec is not None
-                fallback_diff_content = _load_latest_diff_from_vcs(changespec)
+                assert patch is not None
+                fallback_diff_content = _load_latest_diff_from_vcs(patch)
             if isinstance(fallback_diff_content, str):
                 diff_content = fallback_diff_content
                 used_fallback = True
@@ -106,10 +106,10 @@ def _read_diff_content(diff_path: str | None) -> str | None:
         return None
 
 
-def _load_latest_diff_from_vcs(changespec: ChangeSpec) -> str | None:
+def _load_latest_diff_from_vcs(patch: Patch) -> str | None:
     """Load latest commit diff via VCS for cross-machine DIFF-path fallback."""
     try:
-        workspace_dir = get_workspace_directory(changespec.project_basename, 1)
+        workspace_dir = get_workspace_directory(patch.project_basename, 1)
     except RuntimeError:
         return None
 
@@ -118,14 +118,14 @@ def _load_latest_diff_from_vcs(changespec: ChangeSpec) -> str | None:
     except VCSProviderNotFoundError:
         return None
 
-    rev_candidates = [changespec.name]
-    if changespec.pr_url:
-        rev_candidates.append(changespec.pr_url)
+    rev_candidates = [patch.name]
+    if patch.pr_url:
+        rev_candidates.append(patch.pr_url)
 
     for revision in rev_candidates:
         try:
             resolved = provider.resolve_revision(
-                revision, changespec.project_basename, workspace_dir
+                revision, patch.project_basename, workspace_dir
             )
             success, diff_text = provider.diff_revision(resolved, workspace_dir)
         except Exception:
@@ -138,8 +138,8 @@ def _load_latest_diff_from_vcs(changespec: ChangeSpec) -> str | None:
 
 
 def preload_vcs_fallback_diff(
-    changespec: ChangeSpec,
-    commits: list[CommitEntry],
+    patch: Patch,
+    commits: list[Stitch],
 ) -> str | None:
     """Pre-load VCS fallback diff for the latest commit if its local diff is missing.
 
@@ -148,7 +148,7 @@ def preload_vcs_fallback_diff(
     """
     latest_entry_id = max(
         (commit.display_number for commit in commits),
-        key=parse_commit_entry_id,
+        key=parse_stitch_id,
         default=None,
     )
     if latest_entry_id is None:
@@ -157,7 +157,7 @@ def preload_vcs_fallback_diff(
     for commit in commits:
         if commit.display_number == latest_entry_id:
             if _read_diff_content(commit.diff) is None:
-                return _load_latest_diff_from_vcs(changespec)
+                return _load_latest_diff_from_vcs(patch)
             return None  # Local diff exists, no fallback needed
 
     return None
@@ -165,8 +165,8 @@ def preload_vcs_fallback_diff(
 
 def profile_matches_any_commit(
     profile: MentorProfileConfig,
-    commits: list[CommitEntry],
-    changespec: ChangeSpec | None = None,
+    commits: list[Stitch],
+    patch: Patch | None = None,
     preloaded_vcs_fallback: str | None | object = _UNSET,
     commit_artifacts: list[CommitMatchArtifact] | None = None,
 ) -> bool:
@@ -188,7 +188,7 @@ def profile_matches_any_commit(
     if artifacts is None:
         artifacts = _build_commit_match_artifacts(
             commits,
-            changespec,
+            patch,
             preloaded_vcs_fallback=preloaded_vcs_fallback,
             require_diff_content=bool(profile.file_globs or profile.diff_regexes),
         )
@@ -200,7 +200,7 @@ def profile_matches_any_commit(
 
 
 def get_matching_profiles_for_entry(
-    changespec: ChangeSpec,
+    patch: Patch,
     mentor_profiles: list[MentorProfileConfig] | None = None,
 ) -> list[tuple[str, MentorProfileConfig]]:
     """Get profiles that match commits (regardless of hook readiness).
@@ -209,18 +209,18 @@ def get_matching_profiles_for_entry(
     Used to add profile entries to MENTORS upfront.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         List of (entry_id, profile) tuples for profiles not yet registered.
     """
     result: list[tuple[str, MentorProfileConfig]] = []
 
-    if not changespec.commits:
+    if not patch.commits:
         return result
 
     latest_entry_id = None
-    for entry in reversed(changespec.commits):
+    for entry in reversed(patch.commits):
         if entry.display_number.isdigit():
             latest_entry_id = entry.display_number
             break
@@ -228,14 +228,14 @@ def get_matching_profiles_for_entry(
     if latest_entry_id is None:
         return result
 
-    commits_to_check = get_commits_since_last_mentors(changespec)
+    commits_to_check = get_commits_since_last_mentors(patch)
     if not commits_to_check:
         return result
 
     # Filter out commits that already have MENTORS entries (except latest).
     # This prevents old completed commits from triggering new profile additions.
     # The latest commit is kept because it may have partial coverage (fe712c83).
-    mentored_entry_ids = {me.entry_id for me in changespec.mentors or []}
+    mentored_entry_ids = {me.entry_id for me in patch.mentors or []}
     commits_to_check = [
         c
         for c in commits_to_check
@@ -245,12 +245,12 @@ def get_matching_profiles_for_entry(
     if not commits_to_check:
         return result
 
-    registered_profiles = get_profiles_registered_for_entry(changespec, latest_entry_id)
+    registered_profiles = get_profiles_registered_for_entry(patch, latest_entry_id)
 
-    preloaded_fallback = preload_vcs_fallback_diff(changespec, commits_to_check)
+    preloaded_fallback = preload_vcs_fallback_diff(patch, commits_to_check)
     commit_artifacts = _build_commit_match_artifacts(
         commits_to_check,
-        changespec,
+        patch,
         preloaded_vcs_fallback=preloaded_fallback,
     )
     profiles = (
@@ -262,13 +262,13 @@ def get_matching_profiles_for_entry(
             continue
         if (
             profile.projects is not None
-            and changespec.project_basename not in profile.projects
+            and patch.project_basename not in profile.projects
         ):
             continue
         if profile_matches_any_commit(
             profile,
             commits_to_check,
-            changespec,
+            patch,
             commit_artifacts=commit_artifacts,
         ):
             result.append((latest_entry_id, profile))
@@ -282,7 +282,7 @@ class _UpfrontMatchResult:
 
     ``newly_matched`` lets callers know which (entry_id, profile) pairs were
     just written to MENTORS this cycle — important because the in-memory
-    ``ChangeSpec`` is not refreshed until the next axe poll.
+    ``Patch`` is not refreshed until the next axe poll.
     """
 
     updates: list[str]
@@ -290,7 +290,7 @@ class _UpfrontMatchResult:
 
 
 def add_matching_profiles_upfront(
-    changespec: ChangeSpec,
+    patch: Patch,
     log: LogCallback,
     mentor_profiles: list[MentorProfileConfig] | None = None,
     verbose_diagnostics: bool = False,
@@ -301,7 +301,7 @@ def add_matching_profiles_upfront(
     even before hooks finish. The actual mentors only start when hooks are ready.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         log: Logging callback.
 
     Returns:
@@ -312,7 +312,7 @@ def add_matching_profiles_upfront(
     updates: list[str] = []
     newly_matched: list[tuple[str, MentorProfileConfig]] = []
 
-    if changespec.status in (
+    if patch.status in (
         "Draft",
         "WIP",
         "Reverted",
@@ -327,18 +327,18 @@ def add_matching_profiles_upfront(
     if verbose_diagnostics:
         log(
             f"Mentor matching: {len(all_profiles)} profile(s) loaded for"
-            f" '{changespec.name}'",
+            f" '{patch.name}'",
             "dim",
         )
 
     matching_profiles = get_matching_profiles_for_entry(
-        changespec,
+        patch,
         mentor_profiles=all_profiles,
     )
     if not matching_profiles:
         if verbose_diagnostics:
             log(
-                f"Mentor matching: 0 new profiles matched for '{changespec.name}'",
+                f"Mentor matching: 0 new profiles matched for '{patch.name}'",
                 "dim",
             )
         return _UpfrontMatchResult(updates=updates, newly_matched=newly_matched)
@@ -346,7 +346,7 @@ def add_matching_profiles_upfront(
     if verbose_diagnostics:
         log(
             f"Mentor matching: {len(matching_profiles)} new profile(s) matched for"
-            f" '{changespec.name}'",
+            f" '{patch.name}'",
             "dim",
         )
 
@@ -355,8 +355,8 @@ def add_matching_profiles_upfront(
 
     for entry_id, profile in matching_profiles:
         success = add_mentor_entry(
-            changespec.file_path,
-            changespec.name,
+            patch.file_path,
+            patch.name,
             entry_id,
             [profile.profile_name],
         )
@@ -375,30 +375,30 @@ def add_matching_profiles_upfront(
 
 
 def trace_profile_matching(
-    changespec: ChangeSpec,
+    patch: Patch,
 ) -> list[ProfileMatchTrace]:
-    """Trace profile matching for a ChangeSpec, returning structured results.
+    """Trace profile matching for a Patch, returning structured results.
 
     Args:
-        changespec: The ChangeSpec to trace matching for.
+        patch: The Patch to trace matching for.
 
     Returns:
         List of ProfileMatchTrace, one per loaded profile.
     """
-    commits = get_commits_since_last_mentors(changespec)
+    commits = get_commits_since_last_mentors(patch)
     profiles = get_all_mentor_profiles()
 
     if not profiles:
         return []
 
-    preloaded_fallback = preload_vcs_fallback_diff(changespec, commits)
+    preloaded_fallback = preload_vcs_fallback_diff(patch, commits)
     commit_artifacts = _build_commit_match_artifacts(
         commits,
-        changespec,
+        patch,
         preloaded_vcs_fallback=preloaded_fallback,
     )
 
     return [
-        trace_profile_match(profile, commits, changespec, commit_artifacts)
+        trace_profile_match(profile, commits, patch, commit_artifacts)
         for profile in profiles
     ]

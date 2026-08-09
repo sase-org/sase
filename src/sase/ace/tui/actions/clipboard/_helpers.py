@@ -158,7 +158,7 @@ def format_patch_for_clipboard(cs: Patch) -> str:
 
                     duration_part = f" ({sl.duration})" if sl.duration else ""
                     lines.append(
-                        f"    ({sl.commit_entry_num}) [{sl.timestamp}] {sl.status}{duration_part}{suffix_part}"
+                        f"    ({sl.stitch_num}) [{sl.timestamp}] {sl.status}{duration_part}{suffix_part}"
                     )
 
     # COMMENTS section
@@ -204,4 +204,6 @@ def format_patch_for_clipboard(cs: Patch) -> str:
     return "\n".join(lines)
 
 
-format_changespec_for_clipboard = format_patch_for_clipboard
+format_changespec_for_clipboard = (
+    format_patch_for_clipboard  # legacy compatibility alias
+)

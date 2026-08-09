@@ -4,7 +4,7 @@ Powers the Agents-tab leader ``,r`` action. Commits are associated with an
 agent by the exact ``AGENT=<name>`` provenance tag written into commit messages
 (see :mod:`sase.workflows.commit.runtime_tags`). This is git-only: non-git
 workspaces fail with an explicit unsupported message rather than reusing
-ChangeSpec prune/abandon semantics.
+Patch prune/abandon semantics.
 
 The flow is two-phase so the TUI can confirm before mutating anything:
 

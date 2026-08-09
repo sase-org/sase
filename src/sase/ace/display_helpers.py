@@ -1,4 +1,4 @@
-"""Shared display helper functions for ChangeSpec rendering."""
+"""Shared display helper functions for Patch rendering."""
 
 import re
 

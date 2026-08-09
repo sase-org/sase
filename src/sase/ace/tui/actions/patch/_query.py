@@ -34,7 +34,13 @@ class PatchQueryMixin:
 
     def _load_query_patches(self) -> None:
         """Reload patches through the legacy-compatible app method."""
-        load = getattr(self, "_load_changespecs", None)
+        legacy_load = self.__dict__.get(  # legacy compatibility alias
+            "_load_changespecs"
+        )
+        if callable(legacy_load):
+            legacy_load()
+            return
+        load = getattr(self, "_load_patches", None)
         if callable(load):
             load()
             return

@@ -34,10 +34,10 @@ _RETIRED_APP_KEYS: frozenset[str] = frozenset(
 
 
 _LEGACY_APP_KEY_ALIASES: dict[str, str] = {
-    "next_changespec": "next_patch",
-    "prev_changespec": "prev_patch",
-    "start_agent_from_changespec": "start_agent_from_patch",
-    "jump_to_agent_changespec": "jump_to_agent_patch",
+    "next_changespec": "next_patch",  # legacy compatibility alias
+    "prev_changespec": "prev_patch",  # legacy compatibility alias
+    "start_agent_from_changespec": "start_agent_from_patch",  # legacy compatibility alias
+    "jump_to_agent_changespec": "jump_to_agent_patch",  # legacy compatibility alias
 }
 
 
@@ -138,9 +138,9 @@ def _migrate_copy_group_aliases(
 ) -> dict[str, str | dict[str, str]]:
     """Normalize legacy copy-mode group ids to canonical groups."""
     migrated = dict(keys)
-    if "changespecs" not in migrated:
+    if "changespecs" not in migrated:  # legacy compatibility alias
         return migrated
-    legacy_value = migrated.pop("changespecs")
+    legacy_value = migrated.pop("changespecs")  # legacy compatibility alias
     if "patches" in migrated:
         log.warning(
             "copy_mode group 'changespecs' is deprecated and ignored because "

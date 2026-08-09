@@ -1,31 +1,31 @@
 """Tests for sase.work.revert module."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch as mock_patch
+from unittest.mock import MagicMock, patch
 
 from sase.ace.revert import (
-    revert_patch,
+    revert_changespec,
 )
 
 
-def test_revert_patch_succeeds_without_cl(make_patch) -> None:  # type: ignore[no-untyped-def]
-    """Test revert_patch succeeds without a CL, skipping VCS operations."""
-    patch = make_patch.create_with_file(cl=None)
+def test_revert_changespec_succeeds_without_cl(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test revert_changespec succeeds without a CL, skipping VCS operations."""
+    changespec = make_changespec.create_with_file(cl=None)
 
-    with mock_patch("sase.ace.revert.find_all_patches", return_value=[patch]):
-        with mock_patch(
-            "sase.ace.revert.transition_patch_status",
+    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+        with patch(
+            "sase.ace.revert.transition_changespec_status",
             return_value=(True, "Draft", None, []),
         ):
-            with mock_patch(
-                "sase.ace.revert.rename_patch_with_references"
+            with patch(
+                "sase.ace.revert.rename_changespec_with_references"
             ) as mock_rename:
-                with mock_patch("sase.ace.revert.save_diff_to_file") as mock_save_diff:
-                    with mock_patch("sase.ace.revert.get_vcs_provider") as mock_get_vcs:
-                        with mock_patch(
-                            "sase.ace.revert.reset_patch_pr_url"
+                with patch("sase.ace.revert.save_diff_to_file") as mock_save_diff:
+                    with patch("sase.ace.revert.get_vcs_provider") as mock_get_vcs:
+                        with patch(
+                            "sase.ace.revert.reset_changespec_pr_url"
                         ) as mock_reset_cl:
-                            success, error = revert_patch(patch)
+                            success, error = revert_changespec(changespec)
 
     assert success is True
     assert error is None
@@ -36,16 +36,18 @@ def test_revert_patch_succeeds_without_cl(make_patch) -> None:  # type: ignore[n
     # Rename and status transition should still be called
     mock_rename.assert_called_once()
 
-    Path(patch.file_path).unlink()
+    Path(changespec.file_path).unlink()
 
 
-def test_revert_patch_fails_with_children(make_patch) -> None:  # type: ignore[no-untyped-def]
-    """Test revert_patch fails when Patch has children."""
-    parent = make_patch.create_with_file(name="parent_feature")
-    child = make_patch.create_with_file(name="child_feature", parent="parent_feature")
+def test_revert_changespec_fails_with_children(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test revert_changespec fails when ChangeSpec has children."""
+    parent = make_changespec.create_with_file(name="parent_feature")
+    child = make_changespec.create_with_file(
+        name="child_feature", parent="parent_feature"
+    )
 
-    with mock_patch("sase.ace.revert.find_all_patches", return_value=[parent, child]):
-        success, error = revert_patch(parent)
+    with patch("sase.ace.revert.find_all_changespecs", return_value=[parent, child]):
+        success, error = revert_changespec(parent)
 
     assert success is False
     assert error is not None
@@ -55,162 +57,154 @@ def test_revert_patch_fails_with_children(make_patch) -> None:  # type: ignore[n
     Path(child.file_path).unlink()
 
 
-def test_revert_patch_fails_without_workspace_dir(make_patch) -> None:  # type: ignore[no-untyped-def]
-    """Test revert_patch fails when workspace directory cannot be determined."""
-    patch = make_patch.create_with_file()
+def test_revert_changespec_fails_without_workspace_dir(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test revert_changespec fails when workspace directory cannot be determined."""
+    changespec = make_changespec.create_with_file()
 
-    with mock_patch("sase.ace.revert.find_all_patches", return_value=[patch]):
-        with mock_patch.dict("os.environ", {}, clear=True):
-            success, error = revert_patch(patch)
+    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+        with patch.dict("os.environ", {}, clear=True):
+            success, error = revert_changespec(changespec)
 
     assert success is False
     assert error is not None
     assert "Could not determine workspace directory" in error
 
-    Path(patch.file_path).unlink()
+    Path(changespec.file_path).unlink()
 
 
-def test_revert_patch_fails_with_nonexistent_workspace(make_patch) -> None:  # type: ignore[no-untyped-def]
-    """Test revert_patch fails when workspace directory doesn't exist."""
-    patch = make_patch.create_with_file()
+def test_revert_changespec_fails_with_nonexistent_workspace(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test revert_changespec fails when workspace directory doesn't exist."""
+    changespec = make_changespec.create_with_file()
 
-    with mock_patch("sase.ace.revert.find_all_patches", return_value=[patch]):
-        with mock_patch(
-            "sase.ace.revert.get_workspace_directory_for_patch"
-        ) as mock_get_ws:
+    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+        with patch("sase.ace.revert.get_workspace_directory_for_patch") as mock_get_ws:
             mock_get_ws.return_value = "/nonexistent/workspace"
-            success, error = revert_patch(patch)
+            success, error = revert_changespec(changespec)
 
     assert success is False
     assert error is not None
     assert "Workspace directory does not exist" in error
 
-    Path(patch.file_path).unlink()
+    Path(changespec.file_path).unlink()
 
 
-def test_revert_patch_success(make_patch) -> None:  # type: ignore[no-untyped-def]
-    """Test revert_patch succeeds with all requirements met."""
-    patch = make_patch.create_with_file()
+def test_revert_changespec_success(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test revert_changespec succeeds with all requirements met."""
+    changespec = make_changespec.create_with_file()
     console = MagicMock()
 
     mock_provider = MagicMock()
     mock_provider.abandon_change.return_value = (True, None)
     mock_provider.prune.return_value = (True, None)
 
-    with mock_patch("sase.ace.revert.find_all_patches", return_value=[patch]):
-        with mock_patch(
+    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+        with patch(
             "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
         ):
-            with mock_patch(
-                "sase.ace.revert.save_diff_to_file", return_value=(True, None)
-            ):
-                with mock_patch(
+            with patch("sase.ace.revert.save_diff_to_file", return_value=(True, None)):
+                with patch(
                     "sase.ace.revert.get_vcs_provider", return_value=mock_provider
                 ):
-                    with mock_patch(
-                        "sase.ace.revert.update_changespec_name_atomic"
+                    with patch(
+                        "sase.ace.revert.rename_changespec_with_references"
                     ) as mock_rename:
-                        with mock_patch(
-                            "sase.ace.revert.transition_patch_status",
+                        with patch(
+                            "sase.ace.revert.transition_changespec_status",
                             return_value=(True, "Mailed", None, []),
                         ):
-                            with mock_patch("sase.ace.revert.reset_patch_pr_url"):
-                                success, error = revert_patch(patch, console)
+                            with patch("sase.ace.revert.reset_changespec_pr_url"):
+                                success, error = revert_changespec(changespec, console)
 
     assert success is True
     assert error is None
     mock_rename.assert_called_once()
 
-    Path(patch.file_path).unlink()
+    Path(changespec.file_path).unlink()
 
 
-def test_revert_patch_fails_on_diff_error(make_patch) -> None:  # type: ignore[no-untyped-def]
-    """Test revert_patch fails when diff cannot be saved."""
-    patch = make_patch.create_with_file()
+def test_revert_changespec_fails_on_diff_error(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test revert_changespec fails when diff cannot be saved."""
+    changespec = make_changespec.create_with_file()
 
-    with mock_patch("sase.ace.revert.find_all_patches", return_value=[patch]):
-        with mock_patch(
+    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+        with patch(
             "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
         ):
-            with mock_patch(
+            with patch(
                 "sase.ace.revert.save_diff_to_file",
                 return_value=(False, "hg diff failed"),
             ):
-                success, error = revert_patch(patch)
+                success, error = revert_changespec(changespec)
 
     assert success is False
     assert error is not None
     assert "Failed to save diff" in error
 
-    Path(patch.file_path).unlink()
+    Path(changespec.file_path).unlink()
 
 
-def test_revert_patch_fails_on_prune_error(make_patch) -> None:  # type: ignore[no-untyped-def]
-    """Test revert_patch fails when prune fails."""
-    patch = make_patch.create_with_file()
+def test_revert_changespec_fails_on_prune_error(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test revert_changespec fails when prune fails."""
+    changespec = make_changespec.create_with_file()
 
     mock_provider = MagicMock()
     mock_provider.abandon_change.return_value = (True, None)
     mock_provider.prune.return_value = (False, "prune failed")
 
-    with mock_patch("sase.ace.revert.find_all_patches", return_value=[patch]):
-        with mock_patch(
+    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+        with patch(
             "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
         ):
-            with mock_patch(
-                "sase.ace.revert.save_diff_to_file", return_value=(True, None)
-            ):
-                with mock_patch(
+            with patch("sase.ace.revert.save_diff_to_file", return_value=(True, None)):
+                with patch(
                     "sase.ace.revert.get_vcs_provider", return_value=mock_provider
                 ):
-                    success, error = revert_patch(patch)
+                    success, error = revert_changespec(changespec)
 
     assert success is False
     assert error is not None
     assert "Failed to prune revision" in error
 
-    Path(patch.file_path).unlink()
+    Path(changespec.file_path).unlink()
 
 
-def test_revert_patch_calls_kill_and_persist(make_patch) -> None:  # type: ignore[no-untyped-def]
-    """Test revert_patch calls kill_and_persist_all_running_processes."""
-    patch = make_patch.create_with_file()
+def test_revert_changespec_calls_kill_and_persist(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test revert_changespec calls kill_and_persist_all_running_processes."""
+    changespec = make_changespec.create_with_file()
 
     mock_provider = MagicMock()
     mock_provider.abandon_change.return_value = (True, None)
     mock_provider.prune.return_value = (True, None)
 
-    with mock_patch("sase.ace.revert.find_all_patches", return_value=[patch]):
-        with mock_patch(
+    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+        with patch(
             "sase.ace.revert.get_workspace_directory_for_patch",
             return_value="/tmp",
         ):
-            with mock_patch(
-                "sase.ace.revert.save_diff_to_file", return_value=(True, None)
-            ):
-                with mock_patch(
+            with patch("sase.ace.revert.save_diff_to_file", return_value=(True, None)):
+                with patch(
                     "sase.ace.revert.get_vcs_provider", return_value=mock_provider
                 ):
-                    with mock_patch("sase.ace.revert.update_changespec_name_atomic"):
-                        with mock_patch(
-                            "sase.ace.revert.transition_patch_status",
+                    with patch("sase.ace.revert.rename_changespec_with_references"):
+                        with patch(
+                            "sase.ace.revert.transition_changespec_status",
                             return_value=(True, "Mailed", None, []),
                         ):
-                            with mock_patch("sase.ace.revert.reset_patch_pr_url"):
-                                with mock_patch(
+                            with patch("sase.ace.revert.reset_changespec_pr_url"):
+                                with patch(
                                     "sase.ace.revert.kill_and_persist_all_running_processes"
                                 ) as mock_kill:
-                                    success, _error = revert_patch(patch)
+                                    success, _error = revert_changespec(changespec)
 
     assert success is True
     mock_kill.assert_called_once()
     call_args = mock_kill.call_args
-    assert call_args[0][0] is patch  # patch
-    assert call_args[0][1] == patch.file_path  # project_file
-    assert call_args[0][2] == patch.name  # cl_name
+    assert call_args[0][0] is changespec  # changespec
+    assert call_args[0][1] == changespec.file_path  # project_file
+    assert call_args[0][2] == changespec.name  # cl_name
     assert "reverted" in call_args[0][3].lower()  # kill_reason
 
-    Path(patch.file_path).unlink()
+    Path(changespec.file_path).unlink()

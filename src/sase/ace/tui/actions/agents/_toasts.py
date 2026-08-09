@@ -99,7 +99,7 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
     if action == "ViewReport":
         return (note or "Report available", "information")
 
-    if action in {"JumpToPatch", "JumpToChangeSpec"}:
+    if action in {"JumpToPatch", "JumpToChangeSpec"}:  # legacy compatibility alias
         severity: Severity = "information"
         if note.lower().startswith("sync fail"):
             severity = "error"
@@ -180,7 +180,7 @@ _ACTION_LABELS: dict[str | None, tuple[str, str]] = {
     "ViewErrorReport": ("axe error", "axe errors"),
     "ViewReport": ("report", "reports"),
     "JumpToPatch": ("sync", "syncs"),
-    "JumpToChangeSpec": ("sync", "syncs"),
+    "JumpToChangeSpec": ("sync", "syncs"),  # legacy compatibility alias
     "JumpToMentorReview": ("mentor review", "mentor reviews"),
     "JumpToAgent": ("agent update", "agent updates"),
     "Tmux": ("tmux", "tmux"),

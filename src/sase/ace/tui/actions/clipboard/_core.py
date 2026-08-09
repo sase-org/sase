@@ -71,7 +71,11 @@ class ClipboardCoreMixin(ClipboardBase):
 
         if self._non_pr_artifacts_copy_active():  # type: ignore[attr-defined]
             result = self._handle_artifacts_copy_key(key)  # type: ignore[attr-defined]
-        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+        elif self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             result = self._handle_patches_copy_key(key)
         elif self.current_tab == "agents":
             result = self._handle_agents_copy_key(key)

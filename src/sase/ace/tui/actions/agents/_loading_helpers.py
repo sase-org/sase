@@ -230,7 +230,7 @@ def load_agents_from_disk_with_state(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
     *,
     patch_snapshot: list[Patch] | None = None,
-    changespec_snapshot: list[Patch] | None = None,
+    changespec_snapshot: list[Patch] | None = None,  # legacy compatibility alias
     full_history: bool = False,
     use_artifact_index: bool = True,
     source: str = "unknown",
@@ -240,7 +240,7 @@ def load_agents_from_disk_with_state(
     from ....dismissed_agents import dismissed_bundle_identities_snapshot
 
     if patch_snapshot is None:
-        patch_snapshot = changespec_snapshot
+        patch_snapshot = changespec_snapshot  # legacy compatibility alias
 
     with tui_trace(
         "agents.load_from_disk",
@@ -277,7 +277,7 @@ def load_agent_artifact_delta_from_disk_with_state(
     artifact_dirs: Sequence[Path | str],
     *,
     patch_snapshot: list[Patch] | None = None,
-    changespec_snapshot: list[Patch] | None = None,
+    changespec_snapshot: list[Patch] | None = None,  # legacy compatibility alias
     source: str = "unknown",
     update_index: bool = True,
     deleted_artifact_dirs: Sequence[Path | str] = (),
@@ -287,7 +287,7 @@ def load_agent_artifact_delta_from_disk_with_state(
     from ....dismissed_agents import dismissed_bundle_identities_snapshot
 
     if patch_snapshot is None:
-        patch_snapshot = changespec_snapshot
+        patch_snapshot = changespec_snapshot  # legacy compatibility alias
 
     with tui_trace(
         "agents.load_artifact_delta_from_disk",

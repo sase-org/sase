@@ -1,4 +1,4 @@
-"""Status-related operations for ChangeSpecs."""
+"""Status-related operations for Patches."""
 
 import os
 import sys

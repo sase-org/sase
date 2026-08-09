@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from rich.markup import escape as _esc
 
-from ..patch import ChangeSpec
+from ..patch import Patch
 
 if TYPE_CHECKING:
     from ..tui._workflow_context import WorkflowContext
@@ -41,21 +41,21 @@ def _is_rerun_input(user_input: str) -> bool:
 
 def _add_hooks_for_test_targets(
     self: "WorkflowContext",
-    changespec: ChangeSpec,
+    patch: Patch,
     test_targets_input: str,
 ) -> bool:
     """Add bb_rabbit_test hooks for each test target.
 
     Args:
         self: The WorkflowContext instance
-        changespec: Current ChangeSpec
+        patch: Current Patch
         test_targets_input: String starting with "//" containing test targets
 
     Returns:
         True if any hooks were added successfully
     """
     from ..hints import parse_test_targets
-    from ..hooks import add_test_target_hooks_to_changespec
+    from ..hooks import add_test_target_hooks_to_patch
 
     # Parse targets from input
     targets = parse_test_targets(test_targets_input)
@@ -64,11 +64,11 @@ def _add_hooks_for_test_targets(
         self.console.print("[yellow]No test targets provided[/yellow]")
         return False
 
-    # Use add_test_target_hooks_to_changespec which handles multiple targets
+    # Use add_test_target_hooks_to_patch which handles multiple targets
     # correctly by adding all hooks in a single write operation
-    success = add_test_target_hooks_to_changespec(
-        changespec.file_path,
-        changespec.name,
+    success = add_test_target_hooks_to_patch(
+        patch.file_path,
+        patch.name,
         targets,
     )
 
@@ -84,33 +84,33 @@ def _add_hooks_for_test_targets(
 
 def handle_edit_hooks(
     self: "WorkflowContext",
-    changespec: ChangeSpec,
-    changespecs: list[ChangeSpec],
+    patch: Patch,
+    patches: list[Patch],
     current_idx: int,
-) -> tuple[list[ChangeSpec], int]:
+) -> tuple[list[Patch], int]:
     """Handle 'h' (edit hooks) action.
 
-    Displays the ChangeSpec with hints on failing hooks and prompts for input.
+    Displays the Patch with hints on failing hooks and prompts for input.
     - If input is a list of integers (with optional '@' suffix): rerun/delete hooks
     - If input starts with "//": add bb_rabbit_test hooks for each test target
     - Otherwise: add the input as a new hook command
 
     Args:
         self: The WorkflowContext instance
-        changespec: Current ChangeSpec
-        changespecs: List of all changespecs
+        patch: Current Patch
+        patches: List of all patches
         current_idx: Current index
 
     Returns:
-        Tuple of (updated_changespecs, updated_index)
+        Tuple of (updated_patches, updated_index)
     """
-    from ..display import display_changespec
-    from ..hooks import add_hook_to_changespec
+    from ..display import display_patch
+    from ..hooks import add_hook_to_patch
 
-    # Clear screen and display ChangeSpec with hints for failing hooks
+    # Clear screen and display Patch with hints for failing hooks
     self.console.clear()
-    _, hint_to_hook_idx = display_changespec(
-        changespec, self.console, with_hints=True, hints_for="hooks_latest_only"
+    _, hint_to_hook_idx = display_patch(
+        patch, self.console, with_hints=True, hints_for="hooks_latest_only"
     )
 
     # Show instructions
@@ -133,54 +133,52 @@ def handle_edit_hooks(
         user_input = input("Hook command: ").strip()
     except (EOFError, KeyboardInterrupt):
         self.console.print("\n[yellow]Cancelled[/yellow]")
-        return changespecs, current_idx
+        return patches, current_idx
 
     if not user_input:
-        return changespecs, current_idx
+        return patches, current_idx
 
     # Determine what action to take based on input format
     if _is_rerun_input(user_input):
         # Handle as rerun/delete commands
         return _handle_rerun_delete_hooks(
-            self, changespec, changespecs, current_idx, user_input, hint_to_hook_idx
+            self, patch, patches, current_idx, user_input, hint_to_hook_idx
         )
     elif user_input.startswith("//"):
         # Handle as bb_rabbit_test targets
-        success = _add_hooks_for_test_targets(self, changespec, user_input)
+        success = _add_hooks_for_test_targets(self, patch, user_input)
         if success:
-            changespecs, current_idx = self._reload_and_reposition(
-                changespecs, changespec
-            )
-        return changespecs, current_idx
+            patches, current_idx = self._reload_and_reposition(patches, patch)
+        return patches, current_idx
     else:
         # Handle as new hook command
         # Don't pass existing_hooks - let it re-read from disk to avoid
         # overwriting changes made by sase axe
-        success = add_hook_to_changespec(
-            changespec.file_path,
-            changespec.name,
+        success = add_hook_to_patch(
+            patch.file_path,
+            patch.name,
             user_input,
         )
         if not success:
             self.console.print("[red]Error adding hook[/red]")
-            return changespecs, current_idx
+            return patches, current_idx
 
         from sase.history.hook import add_or_update_hook
 
         add_or_update_hook(user_input)
         self.console.print(f"[green]Added hook: {_esc(user_input)}[/green]")
-        changespecs, current_idx = self._reload_and_reposition(changespecs, changespec)
-        return changespecs, current_idx
+        patches, current_idx = self._reload_and_reposition(patches, patch)
+        return patches, current_idx
 
 
 def _handle_rerun_delete_hooks(
     self: "WorkflowContext",
-    changespec: ChangeSpec,
-    changespecs: list[ChangeSpec],
+    patch: Patch,
+    patches: list[Patch],
     current_idx: int,
     user_input: str,
     hint_to_hook_idx: dict[int, int],
-) -> tuple[list[ChangeSpec], int]:
+) -> tuple[list[Patch], int]:
     """Handle rerun/delete hook commands based on hint numbers.
 
     Suffixes:
@@ -189,31 +187,31 @@ def _handle_rerun_delete_hooks(
 
     Args:
         self: The WorkflowContext instance
-        changespec: Current ChangeSpec
-        changespecs: List of all changespecs
+        patch: Current Patch
+        patches: List of all patches
         current_idx: Current index
         user_input: Space-separated hint numbers (with optional '@' suffix)
         hint_to_hook_idx: Mapping of hint numbers to hook indices
 
     Returns:
-        Tuple of (updated_changespecs, updated_index)
+        Tuple of (updated_patches, updated_index)
     """
     from ..patch import HookEntry
     from ..hooks import (
         get_last_history_entry_id,
         kill_running_processes_for_hooks,
-        update_changespec_hooks_field,
+        update_patch_hooks_field,
     )
 
     if not hint_to_hook_idx:
         self.console.print("[yellow]No hooks with status lines to rerun[/yellow]")
-        return changespecs, current_idx
+        return patches, current_idx
 
     # Get the last COMMITS entry ID - we only delete status lines for this entry
-    last_history_entry_id = get_last_history_entry_id(changespec)
+    last_history_entry_id = get_last_history_entry_id(patch)
     if last_history_entry_id is None:
         self.console.print("[yellow]No COMMITS entries found[/yellow]")
-        return changespecs, current_idx
+        return patches, current_idx
 
     # Parse hint numbers - track actions: rerun or delete
     hints_to_rerun: list[int] = []
@@ -237,7 +235,7 @@ def _handle_rerun_delete_hooks(
             self.console.print(f"[yellow]Invalid input: {_esc(part)}[/yellow]")
 
     if not hints_to_rerun and not hints_to_delete:
-        return changespecs, current_idx
+        return patches, current_idx
 
     # Get the hook indices for each action
     hook_indices_to_rerun = {hint_to_hook_idx[h] for h in hints_to_rerun}
@@ -245,15 +243,13 @@ def _handle_rerun_delete_hooks(
 
     # Kill any running processes/agents for hooks being rerun or deleted
     all_affected_indices = hook_indices_to_rerun | hook_indices_to_delete
-    killed_count = kill_running_processes_for_hooks(
-        changespec.hooks, all_affected_indices
-    )
+    killed_count = kill_running_processes_for_hooks(patch.hooks, all_affected_indices)
     if killed_count > 0:
         self.console.print(f"[cyan]Killed {killed_count} running process(es)[/cyan]")
 
     # Create updated hooks list
     updated_hooks: list[HookEntry] = []
-    for i, hook in enumerate(changespec.hooks or []):
+    for i, hook in enumerate(patch.hooks or []):
         if i in hook_indices_to_delete:
             # Skip this hook entirely (delete it)
             continue
@@ -264,7 +260,7 @@ def _handle_rerun_delete_hooks(
                 remaining_status_lines = [
                     sl
                     for sl in hook.status_lines
-                    if sl.commit_entry_num != last_history_entry_id
+                    if sl.stitch_num != last_history_entry_id
                 ]
                 updated_hooks.append(
                     HookEntry(
@@ -280,15 +276,15 @@ def _handle_rerun_delete_hooks(
             updated_hooks.append(hook)
 
     # Update the project file
-    success = update_changespec_hooks_field(
-        changespec.file_path,
-        changespec.name,
+    success = update_patch_hooks_field(
+        patch.file_path,
+        patch.name,
         updated_hooks,
     )
 
     if not success:
         self.console.print("[red]Error updating hooks[/red]")
-        return changespecs, current_idx
+        return patches, current_idx
 
     # Show confirmation
     messages = []
@@ -300,7 +296,7 @@ def _handle_rerun_delete_hooks(
         messages.append(f"Deleted {len(hints_to_delete)} hook(s)")
     self.console.print(f"[green]{'; '.join(messages)}[/green]")
 
-    # Reload changespecs to reflect the update
-    changespecs, current_idx = self._reload_and_reposition(changespecs, changespec)
+    # Reload patches to reflect the update
+    patches, current_idx = self._reload_and_reposition(patches, patch)
 
-    return changespecs, current_idx
+    return patches, current_idx

@@ -55,7 +55,7 @@ def summary_from_bundle(
             bundle.get("retry_chain_root_timestamp")
         ),
         retry_attempt=optional_int(bundle.get("retry_attempt")) or 0,
-        meta_changespec=_meta_changespec(bundle),
+        meta_changespec=_meta_patch(bundle),  # legacy compatibility alias
     )
 
 
@@ -84,7 +84,7 @@ def summary_from_row(row: sqlite3.Row) -> DismissedBundleSummary:
         retried_as_timestamp=optional_str(row["retried_as_timestamp"]),
         retry_chain_root_timestamp=optional_str(row["retry_chain_root_timestamp"]),
         retry_attempt=int(row["retry_attempt"]),
-        meta_changespec=optional_str(row["meta_changespec"]),
+        meta_changespec=optional_str(row["meta_patch"]),  # legacy compatibility alias
     )
 
 
@@ -98,13 +98,18 @@ def _is_workflow_child(bundle: dict[str, Any]) -> bool:
     )
 
 
-def _meta_changespec(bundle: dict[str, Any]) -> str | None:
+def _meta_patch(bundle: dict[str, Any]) -> str | None:
     step_output = bundle.get("step_output")
     if not isinstance(step_output, dict):
         return None
-    meta_changespec = step_output.get("meta_changespec")
-    if meta_changespec:
-        return str(meta_changespec).strip()
+    meta_patch = step_output.get("meta_patch")
+    if meta_patch:
+        return str(meta_patch).strip()
+    meta_changespec = step_output.get(  # legacy compatibility alias
+        "meta_changespec"
+    )
+    if meta_changespec:  # legacy compatibility alias
+        return str(meta_changespec).strip()  # legacy compatibility alias
     meta_new_cl = step_output.get("meta_new_cl")
     if meta_new_cl:
         value = str(meta_new_cl).strip()

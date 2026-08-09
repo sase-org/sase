@@ -163,7 +163,9 @@ def handle_jump_to_mentor_review(app: object, notification: Notification) -> boo
     patch_name = notification.action_data.get("patch_name")
     legacy_payload = False
     if not patch_name:
-        patch_name = notification.action_data.get("changespec_name")
+        patch_name = notification.action_data.get(  # legacy compatibility alias
+            "changespec_name"
+        )
         legacy_payload = bool(patch_name)
     if not patch_name:
         app.notify("No patch_name in notification", severity="warning")  # type: ignore[attr-defined]
@@ -173,7 +175,7 @@ def handle_jump_to_mentor_review(app: object, notification: Notification) -> boo
     entry_id = notification.action_data.get("entry_id")
 
     navigate = (
-        _notification_navigation.navigate_to_changespec_tab
+        _notification_navigation.navigate_to_changespec_tab  # legacy compatibility alias
         if legacy_payload
         else _notification_navigation.navigate_to_patch_tab
     )
@@ -184,7 +186,11 @@ def handle_jump_to_mentor_review(app: object, notification: Notification) -> boo
         return True
 
     # Look up the freshly-selected Patch and the matching MentorEntry.
-    patches = getattr(app, "patches", getattr(app, "changespecs", []))
+    patches = getattr(
+        app,
+        "patches",
+        getattr(app, "changespecs", []),  # legacy compatibility alias
+    )
     current_idx = app.current_idx  # type: ignore[attr-defined]
     if current_idx is None or current_idx < 0 or current_idx >= len(patches):
         return True

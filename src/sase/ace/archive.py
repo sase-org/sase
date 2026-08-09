@@ -32,9 +32,15 @@ from .operations import (
     save_diff_to_file,
 )
 
+find_all_changespecs = find_all_patches  # legacy compatibility alias
+rename_changespec_with_references = (
+    rename_patch_with_references  # legacy compatibility alias
+)
+transition_changespec_status = transition_patch_status  # legacy compatibility alias
+
 
 def archive_patch(
-    changespec: Patch, console: Console | None = None
+    patch: Patch, console: Console | None = None
 ) -> tuple[bool, str | None]:
     """Archive a Patch by archiving its revision and updating its status.
 
@@ -50,14 +56,14 @@ def archive_patch(
     9. Releases the claimed workspace
 
     Args:
-        changespec: The Patch to archive
+        patch: The Patch to archive
         console: Optional Rich Console for output
 
     Returns:
         Tuple of (success, error_message)
     """
     # Validate PR is set
-    if changespec.pr_url is None:
+    if patch.pr_url is None:
         return (False, "Patch does not have a valid PR set")
 
     # Kill any running processes before archiving
@@ -67,19 +73,19 @@ def archive_patch(
         else None
     )
     kill_and_persist_all_running_processes(
-        changespec,
-        changespec.file_path,
-        changespec.name,
+        patch,
+        patch.file_path,
+        patch.name,
         "Killed hook running on archived Patch.",
         log_fn=log_fn,
     )
 
     # Get all patches to check for children and name conflicts
-    all_changespecs = find_all_patches()
+    all_patches = find_all_changespecs()  # legacy compatibility alias
 
     # Validate no non-terminal children (different from revert!)
     if has_active_children(
-        changespec, all_changespecs, terminal_statuses=("Archived", "Reverted")
+        patch, all_patches, terminal_statuses=("Archived", "Reverted")
     ):
         return (
             False,
@@ -90,11 +96,11 @@ def archive_patch(
     # Get project basename for workspace operations
     from sase.ace.patch.project_spec_path import project_spec_basename
 
-    project_basename = project_spec_basename(changespec.file_path)
+    project_basename = project_spec_basename(patch.file_path)
 
     # Claim a workspace from the unified pool (#10+) for the archive operation
-    workspace_num = get_first_available_axe_workspace(changespec.file_path)
-    workflow_name = f"archive-{changespec.name}"
+    workspace_num = get_first_available_axe_workspace(patch.file_path)
+    workflow_name = f"archive-{patch.name}"
     pid = os.getpid()
 
     try:
@@ -108,7 +114,7 @@ def archive_patch(
         console.print(f"[cyan]Claiming workspace #{workspace_num}[/cyan]")
 
     claim_result = claim_workspace(
-        changespec.file_path, workspace_num, workflow_name, pid, changespec.name
+        patch.file_path, workspace_num, workflow_name, pid, patch.name
     )
     if not claim_result.success:
         return (
@@ -121,25 +127,23 @@ def archive_patch(
         # Checkout the Patch branch
         if console:
             console.print(
-                f"[cyan]Checking out {humanize_cl_name(changespec.name)}...[/cyan]"
+                f"[cyan]Checking out {humanize_cl_name(patch.name)}...[/cyan]"
             )
 
         provider = get_vcs_provider(workspace_dir)
         # Revision resolution is an identity boundary; keep the canonical name.
         resolved = provider.resolve_revision(
-            changespec.name, project_basename, workspace_dir
+            patch.name, project_basename, workspace_dir
         )
         success, error = provider.checkout(resolved, workspace_dir)
         if not success:
             return (False, f"Failed to checkout Patch branch: {error}")
 
         if console:
-            console.print(
-                f"[green]Checked out: {humanize_cl_name(changespec.name)}[/green]"
-            )
+            console.print(f"[green]Checked out: {humanize_cl_name(patch.name)}[/green]")
 
         # Calculate new name with suffix
-        new_name = calculate_lifecycle_new_name(changespec, all_changespecs)
+        new_name = calculate_lifecycle_new_name(patch, all_patches)
 
         if console:
             console.print(
@@ -147,9 +151,7 @@ def archive_patch(
             )
 
         # Save diff to file
-        success, error = save_diff_to_file(
-            changespec, new_name, workspace_dir, "archived"
-        )
+        success, error = save_diff_to_file(patch, new_name, workspace_dir, "archived")
         if not success:
             return (False, f"Failed to save diff: {error}")
 
@@ -159,16 +161,12 @@ def archive_patch(
             console.print(f"[green]Saved diff to: {diff_path}[/green]")
 
         # Abandon remote change (close PR, drop legacy change, etc.)
-        success, error = provider.abandon_change(
-            changespec.pr_url, resolved, workspace_dir
-        )
+        success, error = provider.abandon_change(patch.pr_url, resolved, workspace_dir)
         if not success:
             return (False, f"Failed to abandon remote change: {error}")
 
         if console:
-            console.print(
-                f"[green]Abandoned remote change: {changespec.pr_url}[/green]"
-            )
+            console.print(f"[green]Abandoned remote change: {patch.pr_url}[/green]")
 
         # Run sase_hg_archive
         success, error = provider.archive(resolved, workspace_dir)
@@ -178,18 +176,18 @@ def archive_patch(
         # Clean up branch alias (if any)
         from sase.core.branch_map import remove_branch_alias
 
-        remove_branch_alias(project_basename, changespec.name)
+        remove_branch_alias(project_basename, patch.name)
 
         if console:
             console.print(
-                f"[green]Archived revision: {humanize_cl_name(changespec.name)}[/green]"
+                f"[green]Archived revision: {humanize_cl_name(patch.name)}[/green]"
             )
 
         # Rename the Patch (skip if name is unchanged, e.g., WIP with existing suffix)
-        if new_name != changespec.name:
+        if new_name != patch.name:
             try:
-                rename_patch_with_references(
-                    changespec.file_path, changespec.name, new_name
+                rename_changespec_with_references(  # legacy compatibility alias
+                    patch.file_path, patch.name, new_name
                 )
             except Exception as e:
                 return (False, f"Failed to rename Patch: {e}")
@@ -197,13 +195,13 @@ def archive_patch(
             if console:
                 console.print(
                     "[green]Renamed Patch: "
-                    f"{humanize_cl_name(changespec.name)} -> "
+                    f"{humanize_cl_name(patch.name)} -> "
                     f"{humanize_cl_name(new_name)}[/green]"
                 )
 
         # Update STATUS to Archived
-        success, _, error, _ = transition_patch_status(
-            changespec.file_path,
+        success, _, error, _ = transition_changespec_status(  # legacy compat alias
+            patch.file_path,
             new_name,  # Use the new name after rename
             "Archived",
             validate=False,
@@ -219,16 +217,13 @@ def archive_patch(
     finally:
         # Always release the workspace
         release_workspace(
-            changespec.file_path,
+            patch.file_path,
             workspace_num,
             workflow_name,
-            changespec.name,
+            patch.name,
         )
         if console:
             console.print(f"[cyan]Released workspace #{workspace_num}[/cyan]")
 
 
-archive_changespec = archive_patch
-find_all_changespecs = find_all_patches  # legacy module alias
-rename_changespec_with_references = rename_patch_with_references  # legacy alias
-transition_changespec_status = transition_patch_status  # legacy module alias
+archive_changespec = archive_patch  # legacy compatibility alias

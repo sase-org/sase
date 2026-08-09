@@ -16,7 +16,11 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
         """Jump as if ``'`` then ``'`` were pressed, without painting hints."""
         if self.current_tab == "agents":
             prepared = self._prepare_agents_jump_maps()
-        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+        elif self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             prepared = self._prepare_patch_jump_maps()
         else:
             prepared = self._prepare_entry_jump_index_maps(
@@ -276,7 +280,11 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                     refresh_detail()
             return True
 
-        if self.current_tab in {"artifacts", "patches", "changespecs"}:
+        if self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             banner_key = (
                 resolved_target[1]
                 if isinstance(resolved_target, tuple) and resolved_target[0] == "banner"
@@ -286,7 +294,11 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                 resolved_target[1]
                 if (
                     isinstance(resolved_target, tuple)
-                    and resolved_target[0] in {"patch", "changespec"}
+                    and resolved_target[0]
+                    in {
+                        "patch",
+                        "changespec",  # legacy compatibility alias
+                    }
                 )
                 else None
             )
@@ -299,8 +311,8 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                     target_group_key=banner_key,
                 )
                 self._current_patch_group_key = banner_key  # type: ignore[attr-defined]
-                if hasattr(self, "_current_changespec_group_key"):
-                    self._current_changespec_group_key = banner_key  # type: ignore[attr-defined]
+                if hasattr(self, "_current_patch_group_key"):
+                    self._current_patch_group_key = banner_key  # type: ignore[attr-defined]
             else:
                 assert agent_target is not None
                 self._push_entry_jump_index_origin_if_changed(
@@ -308,8 +320,8 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                     target_group_key=None,
                 )
                 self._current_patch_group_key = None  # type: ignore[attr-defined]
-                if hasattr(self, "_current_changespec_group_key"):
-                    self._current_changespec_group_key = None  # type: ignore[attr-defined]
+                if hasattr(self, "_current_patch_group_key"):
+                    self._current_patch_group_key = None  # type: ignore[attr-defined]
                 self.current_idx = agent_target
             self._exit_entry_jump_mode()
             self._refresh_display()  # type: ignore[attr-defined]

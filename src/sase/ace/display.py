@@ -1,4 +1,4 @@
-"""Display functions for ChangeSpec - showing ChangeSpec information in the terminal."""
+"""Display functions for Patch - showing Patch information in the terminal."""
 
 import os
 import re
@@ -12,9 +12,9 @@ from sase.running_field import get_claimed_workspaces
 from sase.project_display_names import ProjectDisplaySnapshot, humanize_cl_name
 
 from .patch import (
-    ChangeSpec,
+    Patch,
     DeltaEntry,
-    parse_commit_entry_id,
+    parse_stitch_id,
 )
 from .display_helpers import (
     format_running_claims_aligned,
@@ -25,15 +25,15 @@ from .display_helpers import (
 from .hooks import format_timestamp_display as _format_ts
 
 
-def display_changespec(
-    changespec: ChangeSpec,
+def display_patch(
+    patch: Patch,
     console: Console,
     with_hints: bool = False,
     hints_for: str | None = None,
     *,
     project_display_snapshot: ProjectDisplaySnapshot | None = None,
 ) -> tuple[dict[int, str], dict[int, int]]:
-    """Display a ChangeSpec using rich formatting.
+    """Display a Patch using rich formatting.
 
     Color scheme from saseproject.vim:
     - Field keys (NAME:, DESCRIPTION:, etc.): bold #87D7FF (cyan)
@@ -42,7 +42,7 @@ def display_changespec(
     - DESCRIPTION values: #D7D7AF (tan/beige)
     - STATUS values: status-specific colors
     Args:
-        changespec: The ChangeSpec to display.
+        patch: The Patch to display.
         console: The Rich console to print to.
         with_hints: If True, add [N] hints before file paths and return mappings.
         hints_for: Controls which entries get hints when with_hints is True:
@@ -67,7 +67,7 @@ def display_changespec(
     text = Text()
 
     # --- RUNNING claims (displayed at top) ---
-    running_claims = get_claimed_workspaces(changespec.file_path)
+    running_claims = get_claimed_workspaces(patch.file_path)
 
     if running_claims:
         text.append("RUNNING:\n", style="bold #87D7FF")
@@ -94,50 +94,50 @@ def display_changespec(
     # NAME field
     text.append("NAME: ", style="bold #87D7FF")
     text.append(
-        f"{humanize_cl_name(changespec.name, snapshot=project_display_snapshot)}\n",
+        f"{humanize_cl_name(patch.name, snapshot=project_display_snapshot)}\n",
         style="bold #00D7AF",
     )
 
     # DESCRIPTION field
     text.append("DESCRIPTION:\n", style="bold #87D7FF")
-    for line in changespec.description.split("\n"):
+    for line in patch.description.split("\n"):
         text.append(f"  {line}\n", style="#D7D7AF")
 
     # PARENT field (only display if present)
-    if changespec.parent:
+    if patch.parent:
         text.append("PARENT: ", style="bold #87D7FF")
         text.append(
-            f"{humanize_cl_name(changespec.parent, snapshot=project_display_snapshot)}\n",
+            f"{humanize_cl_name(patch.parent, snapshot=project_display_snapshot)}\n",
             style="bold #00D7AF",
         )
 
     # PR field (only display if present)
-    if changespec.pr_url:
+    if patch.pr_url:
         text.append("PR: ", style="bold #87D7FF")
-        text.append(f"{changespec.pr_url}\n", style="bold underline #569CD6")
+        text.append(f"{patch.pr_url}\n", style="bold underline #569CD6")
 
     # BUG field (only display if present)
-    if changespec.bug:
+    if patch.bug:
         text.append("BUG: ", style="bold #87D7FF")
-        text.append(f"{changespec.bug}\n", style="bold underline #569CD6")
+        text.append(f"{patch.bug}\n", style="bold underline #569CD6")
 
     # STATUS field
     text.append("STATUS: ", style="bold #87D7FF")
-    status_color = get_status_color(changespec.status)
-    text.append(f"{changespec.status}\n", style=f"bold {status_color}")
+    status_color = get_status_color(patch.status)
+    text.append(f"{patch.status}\n", style=f"bold {status_color}")
 
     # REFS field (only display if present; resolution stays off ACE paths)
-    if changespec.refs:
+    if patch.refs:
         text.append("REFS:\n", style="bold #87D7FF")
-        for reference in changespec.refs:
+        for reference in patch.refs:
             text.append(f"  {reference}\n", style="#87AFFF")
 
     # COMMITS field (only display if present)
     # Determine if we should show hints for history entries
     show_history_hints = with_hints and hints_for in (None, "all")
-    if changespec.commits:
+    if patch.commits:
         text.append("COMMITS:\n", style="bold #87D7FF")
-        for entry in changespec.commits:
+        for entry in patch.commits:
             # Entry number and note (2-space indented like other multi-line fields)
             # Use display_number to show proposal letter if present (e.g., "2a")
             entry_style = "bold #D7AF5F"
@@ -237,7 +237,7 @@ def display_changespec(
                 text.append(f"{diff_path}\n", style="#87AFFF")
 
     # DELTAS field (only display if present)
-    if changespec.deltas:
+    if patch.deltas:
         _DELTA_GLYPH_BY_TYPE = {"A": "+", "M": "~", "D": "-"}
         _DELTA_GLYPH_STYLE = {
             "A": "bold #5FD787",
@@ -271,7 +271,7 @@ def display_changespec(
                 text.append("0 lines", style="#808080")
 
         text.append("DELTAS:\n", style="bold #87D7FF")
-        for delta in sorted(changespec.deltas, key=lambda d: d.path):
+        for delta in sorted(patch.deltas, key=lambda d: d.path):
             glyph = _DELTA_GLYPH_BY_TYPE.get(delta.change_type, "?")
             style = _DELTA_GLYPH_STYLE.get(delta.change_type, "")
             text.append(f"  {glyph} ", style=style)
@@ -283,7 +283,7 @@ def display_changespec(
             text.append("\n")
 
     # HOOKS field (only display if present)
-    if changespec.hooks:
+    if patch.hooks:
         # Lazy import to avoid circular dependency
         from .patch import get_current_and_proposal_entry_ids
         from .hooks import (
@@ -293,10 +293,10 @@ def display_changespec(
         )
 
         # Get non-historical entry IDs for hint display
-        non_historical_ids = get_current_and_proposal_entry_ids(changespec)
+        non_historical_ids = get_current_and_proposal_entry_ids(patch)
 
         text.append("HOOKS:\n", style="bold #87D7FF")
-        for hook_idx, hook in enumerate(changespec.hooks):
+        for hook_idx, hook in enumerate(patch.hooks):
             # Hook command (2-space indented) - contract test targets to shorthand
             display_command = contract_test_target_command(hook.command)
             text.append(f"  {display_command}\n", style="#D7D7AF")
@@ -305,7 +305,7 @@ def display_changespec(
                 # Sort by history entry ID for display (e.g., "1", "1a", "2")
                 sorted_status_lines = sorted(
                     hook.status_lines,
-                    key=lambda sl: parse_commit_entry_id(sl.commit_entry_num),
+                    key=lambda sl: parse_stitch_id(sl.stitch_num),
                 )
 
                 for idx, sl in enumerate(sorted_status_lines):
@@ -316,14 +316,14 @@ def display_changespec(
                     if with_hints:
                         if hints_for == "hooks_latest_only":
                             # Show hint for non-historical entries
-                            show_hint = sl.commit_entry_num in non_historical_ids
+                            show_hint = sl.stitch_num in non_historical_ids
                         else:
                             # Show hints for all status lines (default behavior)
                             show_hint = True
 
                     if show_hint:
                         hook_output_path = get_hook_output_path(
-                            changespec.name, sl.timestamp
+                            patch.name, sl.timestamp
                         )
                         hint_mappings[hint_counter] = hook_output_path
                         # Track hook index mapping for hooks_latest_only mode
@@ -332,7 +332,7 @@ def display_changespec(
                         text.append(f"[{hint_counter}] ", style="bold #FFFF00")
                         hint_counter += 1
                     # Format: (N) [timestamp] STATUS (duration)
-                    text.append(f"({sl.commit_entry_num}) ", style="bold #D7AF5F")
+                    text.append(f"({sl.stitch_num}) ", style="bold #D7AF5F")
                     ts_display = format_timestamp_display(sl.timestamp)
                     text.append(f"{ts_display} ", style="#AF87D7")
                     # Color based on status
@@ -486,9 +486,9 @@ def display_changespec(
     # COMMENTS field (only display if present)
     # Show hints for comments when with_hints is True (all modes)
     show_comment_hints = with_hints and hints_for in (None, "all")
-    if changespec.comments:
+    if patch.comments:
         text.append("COMMENTS:\n", style="bold #87D7FF")
-        for comment in changespec.comments:
+        for comment in patch.comments:
             # Entry line (2-space indented): [N] [reviewer] path - (suffix)
             text.append("  ", style="")
             # Add hint before the reviewer if enabled
@@ -563,9 +563,9 @@ def display_changespec(
             text.append("\n")
 
     # MENTORS field (only display if present)
-    if changespec.mentors:
+    if patch.mentors:
         text.append("MENTORS:\n", style="bold #87D7FF")
-        for mentor_entry in changespec.mentors:
+        for mentor_entry in patch.mentors:
             # Entry line (2-space indented): (N) profile1[x/y] [profile2[x/y] ...]
             from .display_helpers import format_profile_with_count
 
@@ -636,8 +636,8 @@ def display_changespec(
 
     # Display in a panel with file location as title
     # Replace home directory with ~ for cleaner display
-    file_path = changespec.file_path.replace(str(Path.home()), "~")
-    file_location = f"{file_path}:{changespec.line_number}"
+    file_path = patch.file_path.replace(str(Path.home()), "~")
+    file_location = f"{file_path}:{patch.line_number}"
     console.print(
         Panel(
             text,
@@ -650,4 +650,4 @@ def display_changespec(
     return hint_mappings, hook_hint_to_idx
 
 
-display_patch = display_changespec
+display_changespec = display_patch  # legacy compatibility alias

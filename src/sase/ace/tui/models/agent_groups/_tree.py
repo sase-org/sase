@@ -18,7 +18,7 @@ from .._agent_tree import (
 from ..agent_panels import panel_key_per_agent
 from ..group_fold import GroupFoldRegistry, GroupFoldView, GroupKey
 from ._buckets import (
-    NO_CHANGESPEC_LABEL,
+    NO_PATCH_LABEL,
     NO_HOUR_LABEL,
     GroupingMode,
 )
@@ -496,7 +496,7 @@ def banner_label_for_group_key(group_key: tuple[str, ...]) -> str:
     suffix = group_key[-1]
     if suffix:
         return humanize_cl_name(suffix)
-    return NO_CHANGESPEC_LABEL
+    return NO_PATCH_LABEL
 
 
 def banner_label(group: GroupRow) -> str:

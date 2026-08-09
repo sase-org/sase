@@ -660,7 +660,7 @@ _TARGETS_BY_KEY = {(item.group, item.target): item for item in COPY_TARGETS}
 
 def _normalize_copy_group(group: str) -> str:
     """Return the canonical copy-mode group id."""
-    return "patches" if group == "changespecs" else group
+    return "patches" if group == "patches" else group
 
 
 def copy_targets_for(group: str) -> tuple[_CopyTarget, ...]:

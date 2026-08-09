@@ -199,39 +199,43 @@ class AppKeymaps:
     copy_tab_content: str
 
     @property
-    def next_changespec(self) -> str:
+    def next_changespec(self) -> str:  # legacy compatibility alias
         """Legacy alias for :attr:`next_patch`."""
         return self.next_patch
 
-    @next_changespec.setter
-    def next_changespec(self, value: str) -> None:
+    @next_changespec.setter  # legacy compatibility alias
+    def next_changespec(self, value: str) -> None:  # legacy compatibility alias
         self.next_patch = value
 
     @property
-    def prev_changespec(self) -> str:
+    def prev_changespec(self) -> str:  # legacy compatibility alias
         """Legacy alias for :attr:`prev_patch`."""
         return self.prev_patch
 
-    @prev_changespec.setter
-    def prev_changespec(self, value: str) -> None:
+    @prev_changespec.setter  # legacy compatibility alias
+    def prev_changespec(self, value: str) -> None:  # legacy compatibility alias
         self.prev_patch = value
 
     @property
-    def start_agent_from_changespec(self) -> str:
+    def start_agent_from_changespec(self) -> str:  # legacy compatibility alias
         """Legacy alias for :attr:`start_agent_from_patch`."""
         return self.start_agent_from_patch
 
-    @start_agent_from_changespec.setter
-    def start_agent_from_changespec(self, value: str) -> None:
+    @start_agent_from_changespec.setter  # legacy compatibility alias
+    def start_agent_from_changespec(
+        self, value: str
+    ) -> None:  # legacy compatibility alias
         self.start_agent_from_patch = value
 
     @property
-    def jump_to_agent_changespec(self) -> str:
+    def jump_to_agent_changespec(self) -> str:  # legacy compatibility alias
         """Legacy alias for :attr:`jump_to_agent_patch`."""
         return self.jump_to_agent_patch
 
-    @jump_to_agent_changespec.setter
-    def jump_to_agent_changespec(self, value: str) -> None:
+    @jump_to_agent_changespec.setter  # legacy compatibility alias
+    def jump_to_agent_changespec(
+        self, value: str
+    ) -> None:  # legacy compatibility alias
         self.jump_to_agent_patch = value
 
 

@@ -40,6 +40,20 @@ def _find_patch_index_by_name(
     return fallback_idx
 
 
+def _get_app_patches(app: object) -> Sequence[_NamedPatch]:
+    patches = getattr(app, "patches", None)
+    if patches is not None:
+        return patches
+    return getattr(app, "changespecs", [])  # legacy compatibility alias
+
+
+def _get_load_patches(app: object) -> object:
+    load_patches = getattr(app, "_load_patches", None)
+    if load_patches is not None:
+        return load_patches
+    return getattr(app, "_load_changespecs", None)  # legacy compatibility alias
+
+
 def find_agent_for_notification(
     app: object, notification: Notification
 ) -> Agent | None:
@@ -116,10 +130,14 @@ def get_meta_patch_name(agent: Agent) -> str | None:
     if meta_patch:
         return str(meta_patch).strip()
 
+    meta_changespec = step_output.get("meta_changespec")  # legacy compatibility alias
+    if meta_changespec:  # legacy compatibility alias
+        return str(meta_changespec).strip()  # legacy compatibility alias
+
     # Legacy project-agent metadata name.
-    meta_changespec = step_output.get("meta_changespec")
-    if meta_changespec:
-        return str(meta_changespec).strip()
+    meta_patch = step_output.get("meta_patch")
+    if meta_patch:
+        return str(meta_patch).strip()
 
     # Legacy support: meta_new_cl format is "full_cl_name (url)"
     meta_new_cl = step_output.get("meta_new_cl")
@@ -133,14 +151,18 @@ def get_meta_patch_name(agent: Agent) -> str | None:
     # Legacy support: meta_new_pr + meta_patch
     meta_new_pr = step_output.get("meta_new_pr")
     if meta_new_pr:
-        meta_cs = step_output.get("meta_patch")
+        meta_cs = step_output.get(
+            "meta_patch"
+        ) or step_output.get(  # legacy compatibility alias
+            "meta_changespec"  # legacy compatibility alias
+        )
         if meta_cs:
             return str(meta_cs).strip()
 
     return None
 
 
-get_meta_changespec_name = get_meta_patch_name
+get_meta_changespec_name = get_meta_patch_name  # legacy compatibility alias
 
 
 def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> bool:
@@ -200,10 +222,10 @@ def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bo
     from ...artifact_tabs import switch_to_artifacts_subtab
 
     switch_to_artifacts_subtab(app, "prs")
-    app.current_tab = "changespecs"  # type: ignore[attr-defined]
+    app.current_tab = "patches"  # type: ignore[attr-defined]
 
     # Search in current filtered list
-    patches = getattr(app, "patches", getattr(app, "changespecs", []))
+    patches = _get_app_patches(app)
     idx = _find_patch_index_by_name(patches, patch_name)
     if idx is not None:
         app.current_idx = idx  # type: ignore[attr-defined]
@@ -234,15 +256,13 @@ def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bo
 
         app.parsed_query = new_parsed  # type: ignore[attr-defined]
         app.query_string = new_query  # type: ignore[attr-defined]
-        load_patches = getattr(
-            app, "_load_patches", getattr(app, "_load_changespecs", None)
-        )
-        if load_patches is not None:
+        load_patches = _get_load_patches(app)
+        if callable(load_patches):
             load_patches()
         app._save_current_query()  # type: ignore[attr-defined]
 
         # Search again in the new list
-        patches = getattr(app, "patches", getattr(app, "changespecs", []))
+        patches = _get_app_patches(app)
         idx = _find_patch_index_by_name(patches, patch_name)
         if idx is not None:
             app.current_idx = idx  # type: ignore[attr-defined]
@@ -260,4 +280,13 @@ def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bo
     return False
 
 
-navigate_to_changespec_tab = navigate_to_patch_tab
+def navigate_to_changespec_tab(  # legacy compatibility alias
+    app: object,
+    patch_name: str,
+    project_file: str,
+) -> bool:
+    """Legacy wrapper preserving the old ChangeSpecs tab id on success."""
+    result = navigate_to_patch_tab(app, patch_name, project_file)
+    if result:
+        app.current_tab = "changespecs"  # type: ignore[attr-defined]  # legacy compatibility alias
+    return result

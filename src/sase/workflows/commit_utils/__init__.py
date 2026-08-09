@@ -30,11 +30,15 @@ from sase.workflows.commit_utils.workspace import (
     save_diff,
 )
 
+update_stitch_suffix = update_commit_entry_suffix
+add_proposed_stitch = add_proposed_commit_entry
+
 __all__ = [
     "PostCommitResult",
     "add_commit_entry",
     "add_commit_entry_with_id",
     "add_proposed_commit_entry",
+    "add_proposed_stitch",
     "append_post_commit_entry",
     "apply_diff_to_workspace",
     "apply_diffs_to_workspace",
@@ -46,4 +50,5 @@ __all__ = [
     "run_sase_hg_clean",
     "save_diff",
     "update_commit_entry_suffix",
+    "update_stitch_suffix",
 ]

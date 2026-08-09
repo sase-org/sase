@@ -223,7 +223,7 @@ class RevertIntent:
     """Immutable revert intent captured from a single agent row.
 
     Carries everything the backend needs to claim a *fresh* workspace, prepare
-    it on the appropriate ChangeSpec or project-default branch, and
+    it on the appropriate Patch or project-default branch, and
     discover/execute a revert without depending on the directory the agent
     originally ran in (which can be reclaimed by other agents and accumulate
     unrelated changes).
@@ -234,7 +234,7 @@ class RevertIntent:
     cl_name: str
     agent_name: str
     #: The agent ran against the project (its ``cl_name`` is the project name),
-    #: so preparation targets the default branch rather than a ChangeSpec branch.
+    #: so preparation targets the default branch rather than a Patch branch.
     is_project_scoped: bool = False
     family_base: str | None = None
     artifacts_dir: str | None = None
@@ -267,7 +267,7 @@ class BulkRevertIntent:
     cl_name: str
     #: The agents ran against the project (their ``cl_name`` is the project
     #: name), so preparation targets the default branch rather than a
-    #: ChangeSpec branch.
+    #: Patch branch.
     is_project_scoped: bool = False
     targets: tuple[RevertTarget, ...] = ()
     linked_repo_names: tuple[str, ...] = ()

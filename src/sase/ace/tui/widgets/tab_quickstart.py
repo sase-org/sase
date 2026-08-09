@@ -17,10 +17,13 @@ from ..keymaps import (
 )
 
 TabQuickStartTab = Literal["agents", "artifacts"]
-LegacyTabQuickStartTab = Literal["changespecs", "patches"]
+LegacyTabQuickStartTab = Literal[
+    "patches",
+    "changespecs",  # legacy compatibility alias
+]
 
 _AGENTS_ACCENT = "#87D7FF"
-_CHANGESPECS_ACCENT = "#00D7AF"
+_PATCHES_ACCENT = "#00D7AF"
 _CALLOUT_ACCENT = "#FFD700"
 
 _TAB_META: dict[TabQuickStartTab, tuple[str, str, str, str, str]] = {
@@ -35,7 +38,7 @@ _TAB_META: dict[TabQuickStartTab, tuple[str, str, str, str, str]] = {
     "artifacts": (
         "patch",
         "PRs",
-        _CHANGESPECS_ACCENT,
+        _PATCHES_ACCENT,
         "Every PR your agents produce is tracked here as a Patch — "
         "commits, hooks, review comments, and status, from WIP through Submitted.",
         "Your agents' PRs appear here as they work.",
@@ -48,9 +51,16 @@ _KEYCAP_STYLE = "bold #1a1a1a on #00D7AF"
 class TabQuickStart(VerticalScroll):
     """Small keymap-aware quick start for empty Agents and PRs result areas."""
 
-    def __init__(self, *, tab: TabQuickStartTab, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        tab: TabQuickStartTab,
+        selector_prefix: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self._tab = _normalize_tab(tab)
+        self._selector_prefix = selector_prefix
         self._registry: KeymapRegistry = load_keymap_registry({})
         self._no_match_total = 0
         self._content_cache_key: tuple[int, int] | None = None
@@ -58,6 +68,8 @@ class TabQuickStart(VerticalScroll):
 
     @property
     def _id_prefix(self) -> str:
+        if self._selector_prefix is not None:
+            return self._selector_prefix
         return _TAB_META[self._tab][0]
 
     def compose(self) -> ComposeResult:
@@ -127,6 +139,7 @@ class TabQuickStart(VerticalScroll):
             self._registry,
             tab=self._tab,
             no_match_total=self._no_match_total,
+            selector_prefix=self._selector_prefix,
         )
         return self._content_cache
 
@@ -144,9 +157,16 @@ class TabQuickStart(VerticalScroll):
         *,
         tab: TabQuickStartTab | LegacyTabQuickStartTab,
         no_match_total: int = 0,
+        selector_prefix: str | None = None,
     ) -> dict[str, Text]:
         """Build all renderable sections for *registry* without mounting."""
-        selector_prefix = "changespec" if tab == "changespecs" else None
+        selector_prefix = (
+            selector_prefix or "changespec"  # legacy compatibility alias
+            if tab == "changespecs"
+            else selector_prefix or "patch"
+            if tab == "patches"
+            else selector_prefix
+        )
         tab = _normalize_tab(tab)
         prefix = selector_prefix or _TAB_META[tab][0]
         return {
@@ -300,7 +320,10 @@ class TabQuickStart(VerticalScroll):
 
 
 def _normalize_tab(tab: TabQuickStartTab | LegacyTabQuickStartTab) -> TabQuickStartTab:
-    if tab == "changespecs" or tab == "patches":
+    if tab in {
+        "patches",
+        "changespecs",  # legacy compatibility alias
+    }:
         return "artifacts"
     if tab == "agents":
         return "agents"

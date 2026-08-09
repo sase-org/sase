@@ -9,10 +9,18 @@ class TreeNavigationMixin(NavigationMixinBase):
     """Mixin providing ancestry/child/sibling tree navigation."""
 
     def _is_patch_tree_tab(self) -> bool:
-        return self.current_tab in {"artifacts", "patches", "changespecs"}
+        return self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }
 
     def _tree_patches(self) -> list[object]:
-        return getattr(self, "patches", getattr(self, "changespecs", []))
+        return getattr(
+            self,
+            "patches",
+            getattr(self, "changespecs", []),  # legacy compatibility alias
+        )
 
     def _navigate_to_patch_compat(
         self,
@@ -21,11 +29,26 @@ class TreeNavigationMixin(NavigationMixinBase):
         is_ancestor: bool,
         is_sibling: bool = False,
     ) -> None:
-        legacy_navigate = getattr(self, "_navigate_to_changespec", None)
+        if self.current_tab == "changespecs":  # legacy compatibility alias
+            navigate_changespec = getattr(  # legacy compatibility alias
+                self,
+                "_navigate_to_changespec",  # legacy compatibility alias
+                None,
+            )
+            if callable(navigate_changespec):  # legacy compatibility alias
+                navigate_changespec(  # legacy compatibility alias
+                    target_name, is_ancestor, is_sibling
+                )
+                return
+        legacy_navigate = getattr(self, "_navigate_to_patch", None)
         patch_navigate = getattr(self, "_navigate_to_patch", None)
         navigate = (
             legacy_navigate
-            if self.current_tab in {"patches", "changespecs"}
+            if self.current_tab
+            in {
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }
             and callable(legacy_navigate)
             else patch_navigate or legacy_navigate
         )

@@ -6,7 +6,7 @@ from sase.config.mentor import (
 )
 
 from ..patch import (
-    ChangeSpec,
+    Patch,
     extract_pid_from_agent_suffix,
 )
 from ..display_helpers import is_entry_ref_suffix
@@ -23,23 +23,21 @@ from .mentor_profile_matching import (
 )
 
 
-def _get_started_mentors_for_entry(
-    changespec: ChangeSpec, entry_id: str
-) -> set[tuple[str, str]]:
+def _get_started_mentors_for_entry(patch: Patch, entry_id: str) -> set[tuple[str, str]]:
     """Get set of (profile_name, mentor_name) tuples that have been started.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         entry_id: The commit entry ID.
 
     Returns:
         Set of (profile_name, mentor_name) tuples that have status lines.
     """
     started: set[tuple[str, str]] = set()
-    if not changespec.mentors:
+    if not patch.mentors:
         return started
 
-    for me in changespec.mentors:
+    for me in patch.mentors:
         if me.entry_id == entry_id and me.status_lines:
             for sl in me.status_lines:
                 started.add((sl.profile_name, sl.mentor_name))
@@ -47,7 +45,7 @@ def _get_started_mentors_for_entry(
     return started
 
 
-def _all_non_skip_hooks_ready(changespec: ChangeSpec, entry_id: str) -> bool:
+def _all_non_skip_hooks_ready(patch: Patch, entry_id: str) -> bool:
     """Check if all non-skip hooks are ready for mentors to run.
 
     Only checks hook status for the given entry_id (the latest commit).
@@ -61,17 +59,17 @@ def _all_non_skip_hooks_ready(changespec: ChangeSpec, entry_id: str) -> bool:
     Hooks with skip_fix_hook (! prefix) are completely ignored.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         entry_id: The LATEST commit entry ID to check hooks for.
 
     Returns:
         True if all non-skip hooks are ready for this entry, False otherwise.
     """
-    if not changespec.hooks:
+    if not patch.hooks:
         return False  # Hooks not yet added, wait for them
 
     checked_any = False
-    for hook in changespec.hooks:
+    for hook in patch.hooks:
         # Skip hooks with ! prefix - they don't affect mentor eligibility
         if hook.skip_fix_hook:
             continue
@@ -79,7 +77,7 @@ def _all_non_skip_hooks_ready(changespec: ChangeSpec, entry_id: str) -> bool:
         checked_any = True
 
         # Get status line for this entry
-        status_line = hook.get_status_line_for_commit_entry(entry_id)
+        status_line = hook.get_status_line_for_stitch(entry_id)
 
         if status_line is None:
             # Hook hasn't run for this entry yet
@@ -113,7 +111,7 @@ def _all_non_skip_hooks_ready(changespec: ChangeSpec, entry_id: str) -> bool:
 
 
 def _get_mentor_profiles_to_run(
-    changespec: ChangeSpec,
+    patch: Patch,
     mentor_profiles: list[MentorProfileConfig] | None = None,
 ) -> list[tuple[str, MentorProfileConfig]]:
     """Get list of (entry_id, profile) tuples that should run mentors.
@@ -122,19 +120,19 @@ def _get_mentor_profiles_to_run(
     Returns profiles that have unstarted mentors for the latest entry.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
         List of (entry_id, profile) tuples to run.
     """
     result: list[tuple[str, MentorProfileConfig]] = []
 
-    if not changespec.commits:
+    if not patch.commits:
         return result
 
     # Get the latest non-proposal commit entry
     latest_entry_id = None
-    for entry in reversed(changespec.commits):
+    for entry in reversed(patch.commits):
         if entry.display_number.isdigit():
             latest_entry_id = entry.display_number
             break
@@ -143,15 +141,15 @@ def _get_mentor_profiles_to_run(
         return result
 
     # Check if all non-skip hooks are ready before running mentors
-    if not _all_non_skip_hooks_ready(changespec, latest_entry_id):
+    if not _all_non_skip_hooks_ready(patch, latest_entry_id):
         return result
 
     # Get profiles already registered in MENTORS for this entry
     # (profiles are added by _add_matching_profiles_upfront or clear_mentor_draft_flags)
-    registered_profiles = get_profiles_registered_for_entry(changespec, latest_entry_id)
+    registered_profiles = get_profiles_registered_for_entry(patch, latest_entry_id)
 
     # Get mentors already started for this entry
-    started_mentors = _get_started_mentors_for_entry(changespec, latest_entry_id)
+    started_mentors = _get_started_mentors_for_entry(patch, latest_entry_id)
 
     profiles = (
         mentor_profiles if mentor_profiles is not None else get_all_mentor_profiles()
@@ -176,7 +174,7 @@ def _get_mentor_profiles_to_run(
 
 
 def _kill_stale_mentors(
-    changespec: ChangeSpec,
+    patch: Patch,
     log: LogCallback,
 ) -> list[str]:
     """Kill mentor processes running for older commits when a newer commit exists.
@@ -186,7 +184,7 @@ def _kill_stale_mentors(
     from continuing to run after new code has been committed.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         log: Logging callback.
 
     Returns:
@@ -194,12 +192,12 @@ def _kill_stale_mentors(
     """
     updates: list[str] = []
 
-    if not changespec.mentors or not changespec.commits:
+    if not patch.mentors or not patch.commits:
         return updates
 
     # Find the latest regular (non-proposal) commit entry ID
     latest_entry_id = None
-    for entry in reversed(changespec.commits):
+    for entry in reversed(patch.commits):
         if entry.display_number.isdigit():
             latest_entry_id = entry.display_number
             break
@@ -209,7 +207,7 @@ def _kill_stale_mentors(
 
     # Collect entry IDs that are older than the latest
     stale_entry_ids: set[str] = set()
-    for me in changespec.mentors:
+    for me in patch.mentors:
         if me.entry_id != latest_entry_id and me.entry_id.isdigit():
             # Check if this entry actually has running mentors
             if me.status_lines:
@@ -222,7 +220,7 @@ def _kill_stale_mentors(
         return updates
 
     # Kill only mentors for stale entries
-    killed = kill_running_mentor_processes(changespec, only_entry_ids=stale_entry_ids)
+    killed = kill_running_mentor_processes(patch, only_entry_ids=stale_entry_ids)
 
     if not killed:
         return updates
@@ -230,8 +228,8 @@ def _kill_stale_mentors(
     # Mark killed mentors via set_mentor_status (atomic, lock-safe)
     for kill_entry, kill_sl, _kill_pid in killed:
         set_mentor_status(
-            changespec.file_path,
-            changespec.name,
+            patch.file_path,
+            patch.name,
             kill_entry.entry_id,
             kill_sl.profile_name,
             kill_sl.mentor_name,
@@ -255,13 +253,13 @@ def _kill_stale_mentors(
         if not workflow:
             continue
 
-        for claim in get_claimed_workspaces(changespec.file_path):
-            if claim.workflow == workflow and claim.cl_name == changespec.name:
+        for claim in get_claimed_workspaces(patch.file_path):
+            if claim.workflow == workflow and claim.cl_name == patch.name:
                 release_workspace(
-                    changespec.file_path,
+                    patch.file_path,
                     claim.workspace_num,
                     workflow,
-                    changespec.name,
+                    patch.name,
                 )
                 log(
                     f"Released workspace #{claim.workspace_num} for stale mentor",
@@ -305,7 +303,7 @@ def _is_mentor_process(pid: int) -> bool:
 
 
 def _check_mentor_completion(
-    changespec: ChangeSpec,
+    patch: Patch,
     log: LogCallback,
     zombie_timeout_seconds: int,
 ) -> list[str]:
@@ -319,7 +317,7 @@ def _check_mentor_completion(
     process (not mentor_runner), the mentor is marked as DEAD.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         log: Logging callback.
         zombie_timeout_seconds: Timeout for detecting zombie processes.
 
@@ -330,10 +328,10 @@ def _check_mentor_completion(
 
     updates: list[str] = []
 
-    if not changespec.mentors:
+    if not patch.mentors:
         return updates
 
-    for entry in changespec.mentors:
+    for entry in patch.mentors:
         if not entry.status_lines:
             continue
 
@@ -349,8 +347,8 @@ def _check_mentor_completion(
                     reason = "PID reused" if pid_reused else "not running"
                     # Process is dead - mark as killed via set_mentor_status
                     success = set_mentor_status(
-                        changespec.file_path,
-                        changespec.name,
+                        patch.file_path,
+                        patch.name,
                         entry.entry_id,
                         msl.profile_name,
                         msl.mentor_name,
@@ -378,14 +376,14 @@ _TERMINAL_MENTOR_STATUSES: frozenset[str] = frozenset(
 
 
 def _check_mentor_completion_notifications(
-    changespec: ChangeSpec,
+    patch: Patch,
     log: LogCallback,
     just_matched_for_latest: bool = False,
     mentor_profiles: list[MentorProfileConfig] | None = None,
 ) -> list[str]:
     """Emit a notification once when mentors finish (or no profiles match).
 
-    Fires exactly once per (project_file, changespec_name, entry_id) using
+    Fires exactly once per (project_file, patch_name, entry_id) using
     a sidecar JSON marker that survives process restarts. Two terminal
     classifications trigger a notification:
 
@@ -395,11 +393,11 @@ def _check_mentor_completion_notifications(
        the latest entry, meaning zero mentor profiles will ever match.
 
     Args:
-        changespec: The ChangeSpec to inspect.
+        patch: The Patch to inspect.
         log: Logging callback.
         just_matched_for_latest: True when ``add_matching_profiles_upfront``
             wrote one or more MENTORS entries for the latest commit on this
-            same axe cycle. The in-memory ``changespec`` is stale in that
+            same axe cycle. The in-memory ``patch`` is stale in that
             case, so the no-match branch must be skipped to avoid a
             false-positive "no profiles matched" notification.
         mentor_profiles: Optional preloaded mentor profile list, reused for
@@ -417,11 +415,11 @@ def _check_mentor_completion_notifications(
 
     updates: list[str] = []
 
-    if not changespec.commits:
+    if not patch.commits:
         return updates
 
     latest_entry_id: str | None = None
-    for entry in reversed(changespec.commits):
+    for entry in reversed(patch.commits):
         if entry.display_number.isdigit():
             latest_entry_id = entry.display_number
             break
@@ -429,22 +427,22 @@ def _check_mentor_completion_notifications(
     if latest_entry_id is None:
         return updates
 
-    if not _all_non_skip_hooks_ready(changespec, latest_entry_id):
+    if not _all_non_skip_hooks_ready(patch, latest_entry_id):
         return updates
 
-    if is_notified(changespec.file_path, changespec.name, latest_entry_id):
+    if is_notified(patch.file_path, patch.name, latest_entry_id):
         return updates
 
     matching_entry = None
-    if changespec.mentors:
-        for me in changespec.mentors:
+    if patch.mentors:
+        for me in patch.mentors:
             if me.entry_id == latest_entry_id:
                 matching_entry = me
                 break
 
     if matching_entry is None or not matching_entry.profiles:
         # Cause A guard: Phase 2 of this same cycle just wrote MENTORS for
-        # the latest entry, but the in-memory ``changespec`` predates that
+        # the latest entry, but the in-memory ``patch`` predates that
         # write. Defer to the next cycle, when lumberjack has reloaded.
         if just_matched_for_latest:
             return updates
@@ -454,24 +452,23 @@ def _check_mentor_completion_notifications(
         # next. Re-evaluate against the current on-disk state before we
         # commit to the no-match notification.
         rematch = get_matching_profiles_for_entry(
-            changespec,
+            patch,
             mentor_profiles=mentor_profiles,
         )
         if any(entry_id == latest_entry_id for entry_id, _ in rematch):
             return updates
 
         mentor_summary = "no mentor profiles matched"
-        mark_notified(changespec.file_path, changespec.name, latest_entry_id)
+        mark_notified(patch.file_path, patch.name, latest_entry_id)
         notify_mentors_complete(
-            cl_name=changespec.name,
-            project_file=changespec.file_path,
+            cl_name=patch.name,
+            project_file=patch.file_path,
             entry_id=latest_entry_id,
             mentor_summary=mentor_summary,
             has_comments=False,
         )
         msg = (
-            f"Notified: no mentor profiles matched for {changespec.name} "
-            f"({latest_entry_id})"
+            f"Notified: no mentor profiles matched for {patch.name} ({latest_entry_id})"
         )
         updates.append(msg)
         log(msg, "cyan")
@@ -497,22 +494,22 @@ def _check_mentor_completion_notifications(
     else:
         mentor_summary = f"{total}/{total} mentors finished"
 
-    mark_notified(changespec.file_path, changespec.name, latest_entry_id)
+    mark_notified(patch.file_path, patch.name, latest_entry_id)
     notify_mentors_complete(
-        cl_name=changespec.name,
-        project_file=changespec.file_path,
+        cl_name=patch.name,
+        project_file=patch.file_path,
         entry_id=latest_entry_id,
         mentor_summary=mentor_summary,
         has_comments=has_comments,
     )
-    msg = f"Notified: mentors complete for {changespec.name} ({latest_entry_id})"
+    msg = f"Notified: mentors complete for {patch.name} ({latest_entry_id})"
     updates.append(msg)
     log(msg, "cyan")
     return updates
 
 
 def check_mentors(
-    changespec: ChangeSpec,
+    patch: Patch,
     log: LogCallback,
     zombie_timeout_seconds: int,
     max_runners: int,
@@ -520,19 +517,19 @@ def check_mentors(
     mentor_profiles: list[MentorProfileConfig] | None = None,
     verbose_diagnostics: bool = False,
 ) -> tuple[list[str], int]:
-    """Check and run mentors for a ChangeSpec.
+    """Check and run mentors for a Patch.
 
     Phase 1: Check completion status of RUNNING mentors
     Phase 2: Add matching profiles upfront (before hooks are ready)
     Phase 3: Start mentors for matching profiles (after hooks are ready)
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         log: Logging callback.
         zombie_timeout_seconds: Zombie detection timeout in seconds.
         max_runners: Maximum concurrent runners (hooks, agents, mentors) globally.
         runners_started_this_cycle: Number of runners already started this cycle
-            (across all ChangeSpecs). Added to the global count to avoid exceeding
+            (across all Patches). Added to the global count to avoid exceeding
             the limit.
         mentor_profiles: Optional preloaded mentor profiles to reuse for this cycle.
 
@@ -543,7 +540,7 @@ def check_mentors(
     mentors_started = 0
 
     # Don't check mentors for non-review statuses
-    if changespec.status in (
+    if patch.status in (
         "Draft",
         "WIP",
         "Reverted",
@@ -553,13 +550,11 @@ def check_mentors(
         return updates, mentors_started
 
     # Phase 1: Check completion of running mentors
-    completion_updates = _check_mentor_completion(
-        changespec, log, zombie_timeout_seconds
-    )
+    completion_updates = _check_mentor_completion(patch, log, zombie_timeout_seconds)
     updates.extend(completion_updates)
 
     # Phase 1.5: Kill stale mentors from older commits
-    stale_updates = _kill_stale_mentors(changespec, log)
+    stale_updates = _kill_stale_mentors(patch, log)
     updates.extend(stale_updates)
 
     # Phase 2: Add matching profiles upfront (before hooks are ready)
@@ -573,7 +568,7 @@ def check_mentors(
             "dim",
         )
     upfront_result = add_matching_profiles_upfront(
-        changespec,
+        patch,
         log,
         mentor_profiles=all_profiles,
         verbose_diagnostics=verbose_diagnostics,
@@ -582,8 +577,8 @@ def check_mentors(
 
     # Determine the latest commit entry_id once for use in Phase 2.5.
     latest_entry_id_for_notify: str | None = None
-    if changespec.commits:
-        for entry in reversed(changespec.commits):
+    if patch.commits:
+        for entry in reversed(patch.commits):
             if entry.display_number.isdigit():
                 latest_entry_id_for_notify = entry.display_number
                 break
@@ -596,7 +591,7 @@ def check_mentors(
     # Phase 2.5: Emit completion notification if all mentors are terminal,
     # or "no profiles matched" once hooks are ready and no MentorEntry exists.
     completion_notify_updates = _check_mentor_completion_notifications(
-        changespec,
+        patch,
         log,
         just_matched_for_latest=just_matched_for_latest,
         mentor_profiles=all_profiles,
@@ -605,7 +600,7 @@ def check_mentors(
 
     # Phase 3: Start mentors for matching profiles (requires hooks to be ready)
     profiles_to_run = _get_mentor_profiles_to_run(
-        changespec,
+        patch,
         mentor_profiles=all_profiles,
     )
 
@@ -613,7 +608,7 @@ def check_mentors(
         return updates, mentors_started
 
     # Check global concurrency limit
-    # Include runners started this cycle (across all ChangeSpecs) that aren't
+    # Include runners started this cycle (across all Patches) that aren't
     # yet written to disk
     from ..patch import count_agent_runners_global
 
@@ -641,11 +636,11 @@ def check_mentors(
             break
 
         # Get mentors already started for this entry
-        started_mentors = _get_started_mentors_for_entry(changespec, entry_id)
+        started_mentors = _get_started_mentors_for_entry(patch, entry_id)
 
         # Start unstarted mentors for this profile
         started_count, start_updates = start_mentors_for_profile(
-            changespec,
+            patch,
             entry_id,
             profile,
             log,

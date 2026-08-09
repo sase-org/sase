@@ -1,7 +1,7 @@
 """Test target hook utilities - helpers, queries, and mutations."""
 
-from ..patch import HookEntry, changespec_lock
-from .persistence import update_changespec_hooks_field, write_hooks_unlocked
+from ..patch import HookEntry, patch_lock
+from .persistence import update_patch_hooks_field, write_hooks_unlocked
 
 # Test target hook helpers
 TEST_TARGET_HOOK_PREFIX = "bb_rabbit_test "
@@ -94,9 +94,9 @@ def has_failing_test_target_hooks(hooks: list[HookEntry] | None) -> bool:
     return len(get_failing_test_target_hooks(hooks)) > 0
 
 
-def add_test_target_hooks_to_changespec(
+def add_test_target_hooks_to_patch(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     test_targets: list[str],
     existing_hooks: list[HookEntry] | None = None,
 ) -> bool:
@@ -112,17 +112,17 @@ def add_test_target_hooks_to_changespec(
             new_hook = _create_test_target_hook(target)
             if new_hook.command not in existing_commands:
                 hooks.append(new_hook)
-        return update_changespec_hooks_field(project_file, changespec_name, hooks)
+        return update_patch_hooks_field(project_file, patch_name, hooks)
 
     # Otherwise, acquire lock and read fresh state
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
             current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
+            for cs in patches:
+                if cs.name == patch_name:
                     current_hooks = list(cs.hooks) if cs.hooks else []
                     break
 
@@ -132,7 +132,7 @@ def add_test_target_hooks_to_changespec(
                 if new_hook.command not in existing_commands:
                     current_hooks.append(new_hook)
 
-            write_hooks_unlocked(project_file, changespec_name, current_hooks)
+            write_hooks_unlocked(project_file, patch_name, current_hooks)
             return True
     except Exception:
         return False
@@ -140,7 +140,7 @@ def add_test_target_hooks_to_changespec(
 
 def clear_failed_test_target_hook_status(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     hooks: list[HookEntry],
 ) -> bool:
     """Clear the most recent status of all FAILED test target hooks."""
@@ -154,7 +154,7 @@ def clear_failed_test_target_hook_status(
                     remaining_status_lines = [
                         sl
                         for sl in hook.status_lines
-                        if sl.commit_entry_num != latest_sl.commit_entry_num
+                        if sl.stitch_num != latest_sl.stitch_num
                     ]
                     updated_hooks.append(
                         HookEntry(
@@ -173,4 +173,4 @@ def clear_failed_test_target_hook_status(
         else:
             updated_hooks.append(hook)
 
-    return update_changespec_hooks_field(project_file, changespec_name, updated_hooks)
+    return update_patch_hooks_field(project_file, patch_name, updated_hooks)

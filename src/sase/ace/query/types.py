@@ -43,12 +43,12 @@ class StringMatch:
 class PropertyMatch:
     """A property filter expression.
 
-    Matches against specific ChangeSpec fields rather than full-text search.
+    Matches against specific Patch fields rather than full-text search.
 
     Supported properties:
     - status: Match against STATUS field (WIP, DRAFT, READY, MAILED, SUBMITTED, REVERTED)
     - project: Match against project basename from file_path
-    - ancestor: Match if ChangeSpec name or parent chain includes the value
+    - ancestor: Match if Patch name or parent chain includes the value
 
     Attributes:
         key: The property name ("status", "project", "ancestor")

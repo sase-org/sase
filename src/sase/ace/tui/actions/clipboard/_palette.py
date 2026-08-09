@@ -33,9 +33,21 @@ def build_copy_as_context(app: Any) -> CopyAsContext | None:
 
     tab = app.current_tab
     subtab = getattr(app, "current_artifacts_pane_key", "prs")
-    if tab in {"artifacts", "patches", "changespecs"} and subtab in _ARTIFACT_SUBTABS:
+    if (
+        tab
+        in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }
+        and subtab in _ARTIFACT_SUBTABS
+    ):
         return build_artifacts_context(app, subtab)
-    if tab in {"artifacts", "patches", "changespecs"}:
+    if tab in {
+        "artifacts",
+        "patches",
+        "changespecs",  # legacy compatibility alias
+    }:
         return _build_patch_context(app)
     if tab == "agents":
         return _build_agent_context(app)
@@ -43,7 +55,11 @@ def build_copy_as_context(app: Any) -> CopyAsContext | None:
 
 
 def _build_patch_context(app: Any) -> CopyAsContext | None:
-    patches = getattr(app, "patches", getattr(app, "changespecs", ()))
+    patches = getattr(
+        app,
+        "patches",
+        getattr(app, "changespecs", ()),  # legacy compatibility alias
+    )
     index = getattr(app, "current_idx", 0)
     patch = patches[index] if 0 <= index < len(patches) else None
     if patch is None:

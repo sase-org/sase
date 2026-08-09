@@ -6,11 +6,11 @@ from contextlib import AsyncExitStack
 from typing import Any, Literal
 from unittest.mock import patch
 
-from sase.ace.patch import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.tui import AceApp
 
 from ._startup import _install_fast_startup_overrides
-from .fixtures import DEFAULT_CHANGESPECS
+from .fixtures import DEFAULT_PATCHES
 
 AceStartupPolicy = Literal["fast", "real"]
 
@@ -18,7 +18,7 @@ _SENTINEL = object()
 
 _LEGACY_SELECTOR_ALIASES = {
     "#changespecs-view": "#artifacts-view",
-    "#changespec-quickstart-panel": "#patch-quickstart-panel",
+    "#patch-quickstart-panel": "#patch-quickstart-panel",
 }
 
 _LEGACY_STATE_VALUE_ALIASES = {
@@ -47,7 +47,7 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
         "artifacts_subtab": app.current_artifacts_subtab,
         "files_subtab": app.current_files_subtab,
         "idx": app.current_idx,
-        "total": len(app.changespecs),
+        "total": len(app.patches),
         "query": app.query_string,
         "canonical_query": app.canonical_query_string,
         "marked": sorted(app.marked_indices),
@@ -59,9 +59,9 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
         "deltas_collapsed": app.deltas_collapsed.value,
     }
 
-    # Selected changespec info
-    if app.changespecs and 0 <= app.current_idx < len(app.changespecs):
-        cs = app.changespecs[app.current_idx]
+    # Selected patch info
+    if app.patches and 0 <= app.current_idx < len(app.patches):
+        cs = app.patches[app.current_idx]
         state["selected"] = {
             "name": cs.name,
             "status": cs.status,
@@ -115,11 +115,15 @@ class AcePage:
         self,
         query: str = '"feature"',
         size: tuple[int, int] = (120, 40),
-        patches: list[ChangeSpec] | None = None,
-        changespecs: list[ChangeSpec] | None = None,
+        patches: list[Patch] | None = None,
+        changespecs: list[Patch] | None = None,  # legacy compatibility alias
         model_tier_override: Literal["large", "small"] | None = None,
         initial_tab: Literal[
-            "artifacts", "patches", "changespecs", "agents", "axe"
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility tab id
+            "agents",
+            "axe",
         ] = "artifacts",
         notifications: bool = False,
         wait_for_startup_state: bool = True,
@@ -130,11 +134,11 @@ class AcePage:
         self._query = query
         self._size = size
         if patches is not None:
-            self._changespecs = patches
+            self._patches = patches
         elif changespecs is not None:
-            self._changespecs = changespecs
+            self._patches = changespecs  # legacy compatibility alias
         else:
-            self._changespecs = DEFAULT_CHANGESPECS
+            self._patches = DEFAULT_PATCHES
         self._model_tier_override: Literal["large", "small"] | None = (
             model_tier_override
         )
@@ -153,20 +157,20 @@ class AcePage:
         try:
             stack.enter_context(
                 patch(
-                    "sase.ace.patch.find_all_changespecs",
-                    return_value=self._changespecs,
-                )
-            )
-            stack.enter_context(
-                patch(
-                    "sase.ace.patch.find_all_changespecs_cached",
-                    return_value=self._changespecs,
+                    "sase.ace.patch.find_all_patches",
+                    return_value=self._patches,
                 )
             )
             stack.enter_context(
                 patch(
                     "sase.ace.patch.find_all_patches_cached",
-                    return_value=self._changespecs,
+                    return_value=self._patches,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "sase.ace.patch.find_all_patches_cached",
+                    return_value=self._patches,
                 )
             )
             if self._startup_policy == "fast":
@@ -267,10 +271,9 @@ class AcePage:
         assert self._app is not None
         selector = _LEGACY_SELECTOR_ALIASES.get(selector, selector)
         if widget_type is not None:
-            from sase.ace.tui.widgets.changespec_detail import ChangeSpecDetail
             from sase.ace.tui.widgets.patch_detail import PatchDetail
 
-            if widget_type is ChangeSpecDetail:
+            if widget_type is PatchDetail:
                 widget_type = PatchDetail
             return self._app.query_one(selector, widget_type)
         return self._app.query_one(selector)

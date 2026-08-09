@@ -98,7 +98,7 @@ ARTIFACT_REF_HIGHLIGHT = (
     "Known references stay vivid while unknown-kind prose stays subdued."
 )
 GLOSSARY_HIGHLIGHT_PROMPT = (
-    "Ask the Agent Clan to review the ChangeSpec glossary wiring\n"
+    "Ask the Agent Clan to review the Patch glossary wiring\n"
     "Keep xprompt references, `Agent Clan`, and @plans:notes.md distinct."
 )
 
@@ -338,8 +338,8 @@ def _visual_glossary_catalog() -> EditorGlossaryCatalog:
         ),
         _visual_glossary_entry(
             index=1,
-            term="ChangeSpec",
-            definition="SASE record for one CL or PR.",
+            term="Patch",
+            definition="SASE local unit of change for PR work.",
             config_path=config_path,
             line=16,
         ),

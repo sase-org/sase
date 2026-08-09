@@ -9,7 +9,7 @@ from ...patch import (
     Patch,
     HookEntry,
     get_current_and_proposal_entry_ids,
-    parse_commit_entry_id,
+    parse_stitch_id,
 )
 from ...hooks import (
     contract_test_target_command,
@@ -62,7 +62,7 @@ def _is_fix_hook_proposal_for_this_hook(
 
     parent_entry_id = str(base_number)
 
-    parent_status_line = hook.get_status_line_for_commit_entry(parent_entry_id)
+    parent_status_line = hook.get_status_line_for_stitch(parent_entry_id)
     if parent_status_line is None:
         return False
 
@@ -105,12 +105,10 @@ def _has_visible_status_lines(
     for sl in hook.status_lines:
         if hooks_fold != FoldLevel.FULLY_EXPANDED:
             if sl.status == "PASSED" and hide_passed:
-                if not _is_fix_hook_proposal_for_this_hook(
-                    hook, sl.commit_entry_num, patch
-                ):
+                if not _is_fix_hook_proposal_for_this_hook(hook, sl.stitch_num, patch):
                     continue
             if sl.status in ("FAILED", "DEAD"):
-                if sl.commit_entry_num not in current_and_proposal_ids:
+                if sl.stitch_num not in current_and_proposal_ids:
                     continue
             if sl.status == "RUNNING" and sl.suffix_type == "pending_dead_process":
                 continue
@@ -170,37 +168,37 @@ def build_hooks_section(
         if hooks_fold != FoldLevel.FULLY_EXPANDED and hook.status_lines:
             for sl in hook.status_lines:
                 # Skip old proposal IDs in folded summary
-                if _is_old_proposal(sl.commit_entry_num, patch):
+                if _is_old_proposal(sl.stitch_num, patch):
                     continue
                 if sl.status == "PASSED" and hide_passed:
                     # Exclude fix-hook proposal PASSED (shown, not folded)
                     if not _is_fix_hook_proposal_for_this_hook(
-                        hook, sl.commit_entry_num, patch
+                        hook, sl.stitch_num, patch
                     ):
-                        passed_ids.append(sl.commit_entry_num)
+                        passed_ids.append(sl.stitch_num)
                 elif sl.status == "FAILED":
                     # Only collect historical FAILED (not current/proposals)
                     if (
                         hide_historical
-                        and sl.commit_entry_num not in current_and_proposal_ids
+                        and sl.stitch_num not in current_and_proposal_ids
                     ):
-                        failed_ids.append(sl.commit_entry_num)
+                        failed_ids.append(sl.stitch_num)
                 elif sl.status == "DEAD":
                     # Only collect historical DEAD (not current/proposals)
                     if (
                         hide_historical
-                        and sl.commit_entry_num not in current_and_proposal_ids
+                        and sl.stitch_num not in current_and_proposal_ids
                     ):
-                        dead_ids.append(sl.commit_entry_num)
+                        dead_ids.append(sl.stitch_num)
                 elif (
                     sl.status == "RUNNING" and sl.suffix_type == "pending_dead_process"
                 ):
-                    pending_dead_ids.append(sl.commit_entry_num)
+                    pending_dead_ids.append(sl.stitch_num)
             # Sort all IDs by commit entry ID order
-            passed_ids.sort(key=parse_commit_entry_id)
-            failed_ids.sort(key=parse_commit_entry_id)
-            dead_ids.sort(key=parse_commit_entry_id)
-            pending_dead_ids.sort(key=parse_commit_entry_id)
+            passed_ids.sort(key=parse_stitch_id)
+            failed_ids.sort(key=parse_stitch_id)
+            dead_ids.sort(key=parse_stitch_id)
+            pending_dead_ids.sort(key=parse_stitch_id)
 
         # Check if this hook has any visible status lines
         has_visible = _has_visible_status_lines(
@@ -248,7 +246,7 @@ def build_hooks_section(
         if hook.status_lines:
             sorted_status_lines = sorted(
                 hook.status_lines,
-                key=lambda sl: parse_commit_entry_id(sl.commit_entry_num),
+                key=lambda sl: parse_stitch_id(sl.stitch_num),
             )
             for sl in sorted_status_lines:
                 # Determine if we should show this status line
@@ -257,12 +255,12 @@ def build_hooks_section(
                     # (unless fix-hook proposal — always shown)
                     if sl.status == "PASSED" and hide_passed:
                         if not _is_fix_hook_proposal_for_this_hook(
-                            hook, sl.commit_entry_num, patch
+                            hook, sl.stitch_num, patch
                         ):
                             continue
                     # FAILED/DEAD historical: hide unless FULLY_EXPANDED
                     if sl.status in ("FAILED", "DEAD"):
-                        if sl.commit_entry_num not in current_and_proposal_ids:
+                        if sl.stitch_num not in current_and_proposal_ids:
                             continue
                     # PENDING DEAD (RUNNING + pending_dead_process): always fold
                     if (
@@ -286,11 +284,11 @@ def build_hooks_section(
                     hint_mappings[hint_counter] = hook_output_path
                     if hints_for == "hooks_latest_only":
                         hook_hint_to_idx[hint_counter] = hook_idx
-                        hint_to_entry_id[hint_counter] = sl.commit_entry_num
+                        hint_to_entry_id[hint_counter] = sl.stitch_num
                     text.append(f"[{hint_counter}] ", style="bold #FFFF00")
                     hint_counter += 1
 
-                text.append(f"({sl.commit_entry_num}) ", style="bold #D7AF5F")
+                text.append(f"({sl.stitch_num}) ", style="bold #D7AF5F")
                 ts_display = format_timestamp_display(sl.timestamp)
                 text.append(f"{ts_display} ", style="#AF87D7")
                 if sl.status == "PASSED":

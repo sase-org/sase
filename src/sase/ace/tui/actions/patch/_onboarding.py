@@ -41,17 +41,34 @@ class PatchOnboardingMixin:
         except (NoMatches, LookupError):
             return False
 
-        set_widget_hidden(quickstart, not show_onboarding)
-        self._set_patches_onboarding_layout(view, show_onboarding)
+        views = [view]
+        try:
+            views.append(query_one("#changespecs-view"))  # legacy compatibility alias
+        except (NoMatches, LookupError):
+            pass
+
+        quickstarts = [quickstart]
+        try:
+            quickstarts.append(
+                query_one("#changespec-quickstart-panel", TabQuickStart)
+            )  # legacy compatibility alias
+        except (NoMatches, LookupError):
+            pass
+
+        for item in quickstarts:
+            set_widget_hidden(item, not show_onboarding)
+        for item in views:
+            self._set_patches_onboarding_layout(item, show_onboarding)
         if not show_onboarding:
             return False
 
         registry = getattr(self, "_keymap_registry", None)
-        quickstart.set_no_match_context(len(getattr(self, "_all_patches", [])))
-        if registry is not None:
-            quickstart.set_keymap_registry(registry)
-        else:
-            quickstart.refresh_content()
+        for item in quickstarts:
+            item.set_no_match_context(len(getattr(self, "_all_patches", [])))
+            if registry is not None:
+                item.set_keymap_registry(registry)
+            else:
+                item.refresh_content()
         return True
 
     @staticmethod

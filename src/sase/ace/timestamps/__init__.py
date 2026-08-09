@@ -1,4 +1,4 @@
-"""TIMESTAMPS field utilities for ChangeSpec lifecycle audit trail."""
+"""TIMESTAMPS field utilities for Patch lifecycle audit trail."""
 
 from .formatting import format_timestamps_field
 from .recording import add_timestamp_entry_atomic

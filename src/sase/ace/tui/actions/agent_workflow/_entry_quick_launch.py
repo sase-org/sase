@@ -64,7 +64,7 @@ class EntryQuickLaunchMixin:
             history_sort_key=cl_name,
         )
 
-    def _start_agent_from_changespec_quick(self) -> None:
+    def _start_agent_from_changespec_quick(self) -> None:  # legacy compatibility alias
         """Legacy alias for :meth:`_start_agent_from_patch_quick`."""
         self._start_agent_from_patch_quick()
 

@@ -26,7 +26,7 @@ class PatchGroupRow:
     level: int
     group_key: GroupKey
     patch_indices: tuple[int, ...]
-    changespec_indices: tuple[int, ...]
+    changespec_indices: tuple[int, ...]  # legacy compatibility alias
     is_collapsed: bool = False
 
     def __init__(
@@ -35,14 +35,18 @@ class PatchGroupRow:
         level: int,
         group_key: GroupKey,
         patch_indices: tuple[int, ...] = (),
-        changespec_indices: tuple[int, ...] = (),
+        changespec_indices: tuple[int, ...] = (),  # legacy compatibility alias
         is_collapsed: bool = False,
     ) -> None:
-        indices = patch_indices if patch_indices else changespec_indices
+        indices = (
+            patch_indices if patch_indices else changespec_indices
+        )  # legacy compatibility alias
         object.__setattr__(self, "level", level)
         object.__setattr__(self, "group_key", group_key)
         object.__setattr__(self, "patch_indices", indices)
-        object.__setattr__(self, "changespec_indices", indices)
+        object.__setattr__(
+            self, "changespec_indices", indices
+        )  # legacy compatibility alias
         object.__setattr__(self, "is_collapsed", is_collapsed)
 
 
@@ -53,7 +57,7 @@ class PatchTreeEntry:
     kind: str  # "group" or "patch"
     group: PatchGroupRow | None = None
     patch_idx: int | None = None
-    changespec_idx: int | None = None
+    changespec_idx: int | None = None  # legacy compatibility alias
 
     def __init__(
         self,
@@ -61,13 +65,15 @@ class PatchTreeEntry:
         kind: str,
         group: PatchGroupRow | None = None,
         patch_idx: int | None = None,
-        changespec_idx: int | None = None,
+        changespec_idx: int | None = None,  # legacy compatibility alias
     ) -> None:
-        idx = patch_idx if patch_idx is not None else changespec_idx
+        idx = (
+            patch_idx if patch_idx is not None else changespec_idx
+        )  # legacy compatibility alias
         object.__setattr__(self, "kind", kind)
         object.__setattr__(self, "group", group)
         object.__setattr__(self, "patch_idx", idx)
-        object.__setattr__(self, "changespec_idx", idx)
+        object.__setattr__(self, "changespec_idx", idx)  # legacy compatibility alias
 
 
 def enumerate_patch_group_keys(

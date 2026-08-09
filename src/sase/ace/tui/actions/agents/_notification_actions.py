@@ -23,16 +23,17 @@ from ._notification_modals import (
 )
 from ._notification_navigation import (
     find_agent_for_notification as find_agent_for_notification,
-    get_meta_changespec_name as get_meta_changespec_name,
+    get_meta_changespec_name as get_meta_changespec_name,  # legacy compatibility alias
     get_meta_patch_name as get_meta_patch_name,
     navigate_to_agent_tab as navigate_to_agent_tab,
+    navigate_to_changespec_tab as navigate_to_changespec_tab,  # legacy compatibility alias
     navigate_to_patch_tab as navigate_to_patch_tab,
 )
 
 __all__ = [
     "find_agent_for_notification",
-    "get_meta_changespec_name",
     "get_meta_patch_name",
+    "get_meta_changespec_name",  # legacy compatibility alias
     "handle_hitl",
     "handle_custom_gate",
     "handle_jump_to_agent",
@@ -47,6 +48,7 @@ __all__ = [
     "handle_view_report",
     "navigate_to_agent_tab",
     "navigate_to_patch_tab",
+    "navigate_to_changespec_tab",  # legacy compatibility alias
     "open_user_question_modal_from_marker",
     "persist_plan_approved",
 ]

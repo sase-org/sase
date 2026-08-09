@@ -12,10 +12,12 @@ from .tui.models.patch_groups import PatchGroupingMode
 
 AGENT_GROUPING_MODE_FILENAME = "grouping_mode.txt"
 PATCH_GROUPING_MODE_FILENAME = "patch_grouping_mode.txt"
-LEGACY_CHANGESPEC_GROUPING_MODE_FILENAME = "changespec_grouping_mode.txt"
+LEGACY_CHANGESPEC_GROUPING_MODE_FILENAME = (  # legacy compatibility filename
+    "changespec_grouping_mode.txt"
+)
 
 # Compatibility alias for tests and callers that have not migrated yet.
-ChangeSpecGroupingMode = PatchGroupingMode
+ChangeSpecGroupingMode = PatchGroupingMode  # legacy compatibility alias
 
 
 def _sase_dir() -> Path:
@@ -30,7 +32,7 @@ def _patch_grouping_mode_path() -> Path:
     return _sase_dir() / PATCH_GROUPING_MODE_FILENAME
 
 
-def _legacy_changespec_grouping_mode_path() -> Path:
+def _legacy_changespec_grouping_mode_path() -> Path:  # legacy compatibility alias
     return _sase_dir() / LEGACY_CHANGESPEC_GROUPING_MODE_FILENAME
 
 
@@ -101,9 +103,13 @@ def save_patch_grouping_mode(mode: PatchGroupingMode) -> bool:
     return _save_mode(_patch_grouping_mode_path(), mode)
 
 
-def save_changespec_grouping_mode(mode: PatchGroupingMode) -> bool:
-    """Persist the Patch grouping mode to the legacy ChangeSpec filename."""
+load_changespec_grouping_mode = (  # legacy compatibility alias
+    load_patch_grouping_mode
+)
+
+
+def save_changespec_grouping_mode(  # legacy compatibility alias
+    mode: PatchGroupingMode,
+) -> bool:
+    """Persist the legacy ChangeSpec grouping mode filename."""
     return _save_mode(_legacy_changespec_grouping_mode_path(), mode)
-
-
-load_changespec_grouping_mode = load_patch_grouping_mode

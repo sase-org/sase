@@ -14,7 +14,7 @@ from sase.core.paths import (
 from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.config.mentor import MentorProfileConfig
 
-from ..patch import ChangeSpec
+from ..patch import Patch
 from ..hooks import generate_timestamp
 from ..mentors import set_mentor_status
 
@@ -26,7 +26,7 @@ def _get_mentor_output_path(name: str, mentor_name: str, timestamp: str) -> str:
     """Get the output file path for a mentor run.
 
     Args:
-        name: The ChangeSpec name.
+        name: The Patch name.
         mentor_name: The mentor name.
         timestamp: The timestamp in YYmmdd_HHMMSS format.
 
@@ -44,7 +44,7 @@ def get_mentor_chat_path(cl_name: str, mentor_name: str, timestamp: str) -> str:
     The chat file is created by invoke_agent() when the mentor runs.
 
     Args:
-        cl_name: The ChangeSpec name (used as branch_or_workspace).
+        cl_name: The Patch name (used as branch_or_workspace).
         mentor_name: The mentor name.
         timestamp: The timestamp in YYmmdd_HHMMSS format.
 
@@ -60,7 +60,7 @@ def get_mentor_chat_path(cl_name: str, mentor_name: str, timestamp: str) -> str:
 
 
 def start_single_mentor(
-    changespec: ChangeSpec,
+    patch: Patch,
     entry_id: str,
     profile: MentorProfileConfig,
     mentor_name: str,
@@ -72,7 +72,7 @@ def start_single_mentor(
     This function only launches the subprocess and tracks status.
 
     Args:
-        changespec: The ChangeSpec to run mentor for.
+        patch: The Patch to run mentor for.
         entry_id: The commit entry ID.
         profile: The mentor profile configuration.
         mentor_name: The specific mentor to run.
@@ -86,8 +86,8 @@ def start_single_mentor(
     # EARLY REGISTRATION: Mark as STARTING before subprocess launch
     # This prevents other loop cycles from starting the same mentor (race condition fix)
     set_mentor_status(
-        changespec.file_path,
-        changespec.name,
+        patch.file_path,
+        patch.name,
         entry_id,
         profile.profile_name,
         mentor_name,
@@ -96,7 +96,7 @@ def start_single_mentor(
     )
 
     # Get output file path
-    output_path = _get_mentor_output_path(changespec.name, mentor_name, timestamp)
+    output_path = _get_mentor_output_path(patch.name, mentor_name, timestamp)
 
     # Build the runner script path (use abspath to handle relative __file__)
     runner_script = os.path.join(
@@ -113,8 +113,8 @@ def start_single_mentor(
                 [
                     sys.executable,
                     runner_script,
-                    changespec.name,
-                    changespec.file_path,
+                    patch.name,
+                    patch.file_path,
                     mentor_name,
                     output_path,
                     entry_id,
@@ -130,8 +130,8 @@ def start_single_mentor(
             pid = proc.pid
     except Exception as e:
         set_mentor_status(
-            changespec.file_path,
-            changespec.name,
+            patch.file_path,
+            patch.name,
             entry_id,
             profile.profile_name,
             mentor_name,
@@ -148,8 +148,8 @@ def start_single_mentor(
 
     # Set mentor status to RUNNING with timestamp
     set_mentor_status(
-        changespec.file_path,
-        changespec.name,
+        patch.file_path,
+        patch.name,
         entry_id,
         profile.profile_name,
         mentor_name,
@@ -163,7 +163,7 @@ def start_single_mentor(
 
 
 def start_mentors_for_profile(
-    changespec: ChangeSpec,
+    patch: Patch,
     entry_id: str,
     profile: MentorProfileConfig,
     log: LogCallback,
@@ -173,7 +173,7 @@ def start_mentors_for_profile(
     """Start mentor workflows for a profile.
 
     Args:
-        changespec: The ChangeSpec to run mentors for.
+        patch: The Patch to run mentors for.
         entry_id: The commit entry ID.
         profile: The mentor profile configuration.
         log: Logging callback.
@@ -200,9 +200,7 @@ def start_mentors_for_profile(
         ):
             continue
 
-        result = start_single_mentor(
-            changespec, entry_id, profile, mentor.mentor_name, log
-        )
+        result = start_single_mentor(patch, entry_id, profile, mentor.mentor_name, log)
         if result:
             updates.append(result)
             started += 1

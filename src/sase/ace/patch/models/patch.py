@@ -162,4 +162,4 @@ class Patch:
         return self.project_display_name or self.project_name
 
 
-ChangeSpec = Patch
+ChangeSpec = Patch  # legacy compatibility alias

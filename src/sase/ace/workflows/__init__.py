@@ -1,4 +1,4 @@
-"""Workflow runner modules for different ChangeSpec workflows."""
+"""Workflow runner modules for different Patch workflows."""
 
 from .crs import run_crs_workflow
 

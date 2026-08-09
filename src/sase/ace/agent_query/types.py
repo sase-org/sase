@@ -12,7 +12,7 @@ DurationOp = Literal["<", "<=", ">", ">=", "="]
 class StringMatch:
     """A string match expression.
 
-    Mirrors :class:`sase.ace.query.types.StringMatch` minus the ChangeSpec-only
+    Mirrors :class:`sase.ace.query.types.StringMatch` minus the Patch-only
     shorthand markers (``!!!``, ``@@@``, ``$$$``).
     """
 

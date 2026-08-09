@@ -16,7 +16,7 @@ from ..models.patch_graph_index import (
 )
 from ..util.trace import tui_trace
 
-build_changespec_graph_index = build_patch_graph_index
+build_changespec_graph_index = build_patch_graph_index  # legacy compatibility alias
 
 
 def _get_simple_status_indicator(status: str) -> tuple[str, str]:
@@ -91,7 +91,10 @@ class AncestorsChildrenPanel(Static):
             "widget.ancestors_children.update_relationships",
             count=len(all_patches),
         ):
-            index = build_patch_graph_index(all_patches)
+            # legacy compatibility alias
+            index = build_changespec_graph_index(
+                all_patches
+            )  # legacy compatibility alias
             return self._update_relationships_impl(
                 patch, index, hide_reverted=hide_reverted
             )

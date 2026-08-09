@@ -37,7 +37,10 @@ def _safe_index(items: list[Any], idx: int) -> Any | None:
 
 
 def _normalize_tab(tab: object) -> CommandTab:
-    if tab in {"changespecs", "patches"}:
+    if tab in {
+        "patches",
+        "changespecs",  # legacy compatibility alias
+    }:
         return "artifacts"
     if tab in {"artifacts", "agents", "axe"}:
         return tab  # type: ignore[return-value]
@@ -45,7 +48,11 @@ def _normalize_tab(tab: object) -> CommandTab:
 
 
 def _selected_patch(app: AceApp):  # type: ignore[no-untyped-def]
-    patches = getattr(app, "patches", getattr(app, "changespecs", []))
+    patches = getattr(
+        app,
+        "patches",
+        getattr(app, "changespecs", []),  # legacy compatibility alias
+    )
     return _safe_index(patches, app.current_idx)
 
 

@@ -5,7 +5,7 @@ This module handles detecting stale comment entries (ZOMBIE marking).
 
 from sase.telemetry.metrics import ZOMBIE_DETECTIONS
 
-from ..patch import ChangeSpec
+from ..patch import Patch
 from ..comments import (
     is_comments_suffix_stale,
     set_comment_suffix,
@@ -14,7 +14,7 @@ from ..constants import DEFAULT_ZOMBIE_TIMEOUT_SECONDS
 
 
 def check_comment_zombies(
-    changespec: ChangeSpec,
+    patch: Patch,
     zombie_timeout_seconds: int = DEFAULT_ZOMBIE_TIMEOUT_SECONDS,
 ) -> list[str]:
     """Check for stale comment entries and mark them as ZOMBIE.
@@ -22,7 +22,7 @@ def check_comment_zombies(
     Comment entries with timestamp suffix older than timeout are marked as ZOMBIE.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         zombie_timeout_seconds: Timeout in seconds for zombie detection (default: 2 hours).
 
     Returns:
@@ -30,19 +30,19 @@ def check_comment_zombies(
     """
     updates: list[str] = []
 
-    if not changespec.comments:
+    if not patch.comments:
         return updates
 
-    for entry in changespec.comments:
+    for entry in patch.comments:
         if is_comments_suffix_stale(entry.suffix, zombie_timeout_seconds):
             ZOMBIE_DETECTIONS.inc()
             # Mark as ZOMBIE
             set_comment_suffix(
-                changespec.file_path,
-                changespec.name,
+                patch.file_path,
+                patch.name,
                 entry.reviewer,
                 "ZOMBIE",
-                changespec.comments,
+                patch.comments,
             )
             updates.append(
                 f"Comment entry [{entry.reviewer}] stale CRS marked as ZOMBIE"

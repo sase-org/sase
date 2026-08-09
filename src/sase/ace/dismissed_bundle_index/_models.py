@@ -35,7 +35,12 @@ class DismissedBundleSummary:
     retried_as_timestamp: str | None
     retry_chain_root_timestamp: str | None
     retry_attempt: int
-    meta_changespec: str | None
+    meta_changespec: str | None  # legacy compatibility alias
+
+    @property
+    def meta_patch(self) -> str | None:
+        """Canonical alias for the legacy summary field."""
+        return self.meta_changespec
 
 
 @dataclass(frozen=True)

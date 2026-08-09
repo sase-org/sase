@@ -1,4 +1,4 @@
-"""Compute DELTAS for a ChangeSpec from VCS state.
+"""Compute DELTAS for a Patch from VCS state.
 
 The single entry point is :func:`compute_deltas`, which resolves the
 parent and head refs, asks the VCS provider for a name-status diff, and
@@ -17,58 +17,60 @@ representation.
 
 import logging
 
-from sase.ace.patch import find_all_changespecs
-from sase.ace.patch.models import ChangeSpec, DeltaEntry, DeltaLineStats
+from sase.ace.patch import find_all_patches
+from sase.ace.patch.models import Patch, DeltaEntry, DeltaLineStats
 from sase.vcs_provider import VCSOperationError, VCSProvider
 
 logger = logging.getLogger(__name__)
+find_all_changespecs = find_all_patches  # legacy compatibility alias
 
 
 class DeltaComputationError(Exception):
-    """Raised when DELTAS cannot be computed for a ChangeSpec.
+    """Raised when DELTAS cannot be computed for a Patch.
 
     Distinct from :class:`VCSOperationError` so callers can decide
     whether a VCS hiccup or a missing-parent setup error is recoverable.
     """
 
-    def __init__(self, changespec_name: str, message: str) -> None:
-        self.changespec_name = changespec_name
+    def __init__(self, patch_name: str, message: str) -> None:
+        self.patch_name = patch_name
+        self.changespec_name = patch_name  # legacy compatibility alias
         self.message = message
-        super().__init__(f"compute_deltas[{changespec_name}]: {message}")
+        super().__init__(f"compute_deltas[{patch_name}]: {message}")
 
 
 def resolve_parent_ref(
-    changespec: ChangeSpec,
+    patch: Patch,
     vcs_provider: VCSProvider,
     cwd: str,
 ) -> str:
     """Resolve the parent ref for diff base.
 
-    Uses the parent ChangeSpec's resolved branch when ``PARENT:`` is set;
+    Uses the parent Patch's resolved branch when ``PARENT:`` is set;
     otherwise falls back to the project's mainline ref via
     :meth:`VCSProvider.get_default_parent_revision`.
     """
-    if changespec.parent:
-        for cs in find_all_changespecs():
-            if cs.name == changespec.parent:
+    if patch.parent:
+        for cs in find_all_changespecs():  # legacy compatibility alias
+            if cs.name == patch.parent:
                 return vcs_provider.resolve_revision(cs.name, cs.project_basename, cwd)
         logger.warning(
             "compute_deltas: parent %r of %r not found; "
             "falling back to default parent revision",
-            changespec.parent,
-            changespec.name,
+            patch.parent,
+            patch.name,
         )
     return vcs_provider.get_default_parent_revision(cwd)
 
 
 def resolve_head_ref(
-    changespec: ChangeSpec,
+    patch: Patch,
     vcs_provider: VCSProvider,
     cwd: str,
 ) -> str:
-    """Resolve the head ref for the ChangeSpec's diff target."""
+    """Resolve the head ref for the Patch's diff target."""
     return vcs_provider.resolve_current_patch_head_ref(
-        changespec.name, changespec.project_basename, cwd
+        patch.name, patch.project_basename, cwd
     )
 
 
@@ -153,16 +155,16 @@ def apply_status_mapping(
 
 
 def compute_deltas(
-    changespec: ChangeSpec,
+    patch: Patch,
     vcs_provider: VCSProvider,
     cwd: str,
 ) -> list[DeltaEntry]:
-    """Compute the DELTAS list for a ChangeSpec from VCS state.
+    """Compute the DELTAS list for a Patch from VCS state.
 
     Args:
-        changespec: The ChangeSpec to compute deltas for.
+        patch: The Patch to compute deltas for.
         vcs_provider: The VCS provider for the repo containing the
-            ChangeSpec's branch.
+            Patch's branch.
         cwd: A directory inside the repo (used by the VCS provider).
 
     Returns:
@@ -176,13 +178,13 @@ def compute_deltas(
             rather than half-write a stale or empty section.
     """
     try:
-        parent_ref = resolve_parent_ref(changespec, vcs_provider, cwd)
-        head_ref = resolve_head_ref(changespec, vcs_provider, cwd)
+        parent_ref = resolve_parent_ref(patch, vcs_provider, cwd)
+        head_ref = resolve_head_ref(patch, vcs_provider, cwd)
         raw_entries = vcs_provider.diff_name_status(parent_ref, head_ref, cwd)
     except VCSOperationError as exc:
-        raise DeltaComputationError(changespec.name, str(exc)) from exc
+        raise DeltaComputationError(patch.name, str(exc)) from exc
     except NotImplementedError as exc:
-        raise DeltaComputationError(changespec.name, str(exc)) from exc
+        raise DeltaComputationError(patch.name, str(exc)) from exc
 
     entries = apply_status_mapping(raw_entries)
 
@@ -191,14 +193,14 @@ def compute_deltas(
     except (VCSOperationError, NotImplementedError) as exc:
         logger.debug(
             "compute_deltas: line stats unavailable for %r: %s",
-            changespec.name,
+            patch.name,
             exc,
         )
         return entries
     except Exception as exc:
         logger.debug(
             "compute_deltas: unexpected line stats failure for %r: %s",
-            changespec.name,
+            patch.name,
             exc,
         )
         return entries

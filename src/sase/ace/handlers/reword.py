@@ -15,7 +15,7 @@ from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.workflows.commit.editor_utils import get_editor_argv
 from sase.vcs_provider import get_vcs_provider
 
-from ..patch import ChangeSpec
+from ..patch import Patch
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 
 def _sync_description_bg(workspace_dir: str, file_path: str, name: str) -> None:
-    """Sync the ChangeSpec DESCRIPTION field after a successful reword.
+    """Sync the Patch DESCRIPTION field after a successful reword.
 
     Runs ``get_description`` to get the clean description from the commit
     message and writes it back to the ``.gp`` file.  Uses ``print()`` instead
@@ -33,9 +33,9 @@ def _sync_description_bg(workspace_dir: str, file_path: str, name: str) -> None:
     Args:
         workspace_dir: Path to the workspace directory.
         file_path: Path to the project file.
-        name: The ChangeSpec name.
+        name: The Patch name.
     """
-    from sase.status_state_machine import update_changespec_description_atomic
+    from sase.status_state_machine import update_patch_description_atomic
     from sase.vcs_provider.config import strip_project_pr_prefix, strip_pr_tags
 
     provider = get_vcs_provider(workspace_dir)
@@ -50,7 +50,7 @@ def _sync_description_bg(workspace_dir: str, file_path: str, name: str) -> None:
         print("Warning: cl_desc -s returned empty output, skipping DESCRIPTION sync")
         return
 
-    success = update_changespec_description_atomic(file_path, name, new_description)
+    success = update_patch_description_atomic(file_path, name, new_description)
     if success:
         print("Synced DESCRIPTION to project file")
     else:
@@ -58,7 +58,7 @@ def _sync_description_bg(workspace_dir: str, file_path: str, name: str) -> None:
 
 
 def _fetch_cl_description(
-    project_basename: str, changespec_name: str, console: "Console"
+    project_basename: str, patch_name: str, console: "Console"
 ) -> str | None:
     """Fetch the change description from the primary workspace without claiming it.
 
@@ -67,7 +67,7 @@ def _fetch_cl_description(
 
     Args:
         project_basename: The project basename for workspace lookup.
-        changespec_name: The changespec name (revision) to fetch.
+        patch_name: The patch name (revision) to fetch.
         console: Rich console for output.
 
     Returns:
@@ -82,7 +82,7 @@ def _fetch_cl_description(
         return None
 
     provider = get_vcs_provider(target_dir)
-    resolved = provider.resolve_revision(changespec_name, project_basename, target_dir)
+    resolved = provider.resolve_revision(patch_name, project_basename, target_dir)
     success, description = provider.get_description(resolved, target_dir)
     if not success:
         console.print(f"[red]{_esc(str(description))}[/red]")
@@ -184,15 +184,15 @@ def _open_editor_with_content(content: str, console: "Console") -> str | None:
 
 
 def add_tag_task(
-    changespec_name: str,
-    changespec_file_path: str,
+    patch_name: str,
+    patch_file_path: str,
     project_basename: str,
     tag_name: str,
     tag_value: str,
 ) -> tuple[bool, str]:
     """Execute add-tag as a background task.
 
-    Claims a workspace, checks out the ChangeSpec, runs sase_hg_reword --add-tag,
+    Claims a workspace, checks out the Patch, runs sase_hg_reword --add-tag,
     and releases the workspace in a finally block.
 
     Returns:
@@ -205,8 +205,8 @@ def add_tag_task(
         release_workspace,
     )
 
-    workspace_num = get_first_available_axe_workspace(changespec_file_path)
-    workflow_name = f"add_tag-{changespec_name}"
+    workspace_num = get_first_available_axe_workspace(patch_file_path)
+    workflow_name = f"add_tag-{patch_name}"
 
     try:
         workspace_dir, workspace_suffix = get_workspace_directory_for_num(
@@ -217,7 +217,7 @@ def add_tag_task(
 
     pid = os.getpid()
     claim_result = claim_workspace(
-        changespec_file_path, workspace_num, workflow_name, pid, changespec_name
+        patch_file_path, workspace_num, workflow_name, pid, patch_name
     )
     if not claim_result.success:
         return (
@@ -231,16 +231,16 @@ def add_tag_task(
 
         # Clean workspace before switching branches
         clean_success, clean_error = run_sase_hg_clean(
-            workspace_dir, f"{changespec_name}-add_tag"
+            workspace_dir, f"{patch_name}-add_tag"
         )
         if not clean_success:
             print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-        # Checkout the ChangeSpec
-        print(f"Checking out {changespec_name}...")
+        # Checkout the Patch
+        print(f"Checking out {patch_name}...")
         provider = get_vcs_provider(workspace_dir)
         resolved = provider.resolve_revision(
-            changespec_name, project_basename, workspace_dir
+            patch_name, project_basename, workspace_dir
         )
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
@@ -253,54 +253,46 @@ def add_tag_task(
             from sase.ace.timestamps.recording import add_timestamp_entry_atomic
 
             add_timestamp_entry_atomic(
-                changespec_file_path,
-                changespec_name,
+                patch_file_path,
+                patch_name,
                 "REWORD",
                 f'tag "{tag_name}"',
             )
 
-            # Sync BUG tag to ChangeSpec BUG field
+            # Sync BUG tag to Patch BUG field
             if tag_name.upper() == "BUG":
                 from sase.status_state_machine.field_updates import (
-                    update_changespec_bug_atomic,
+                    update_patch_bug_atomic,
                 )
 
                 try:
                     bug_value = provider.normalize_bug_value(tag_value)
-                    update_changespec_bug_atomic(
-                        changespec_file_path, changespec_name, bug_value
-                    )
+                    update_patch_bug_atomic(patch_file_path, patch_name, bug_value)
                     print("Synced BUG field to project file")
                 except Exception as exc:
                     print(f"Warning: failed to sync BUG field: {exc}")
 
-            return (True, f"Tag {tag_name}={tag_value} added to {changespec_name}")
+            return (True, f"Tag {tag_name}={tag_value} added to {patch_name}")
         else:
             return (False, f"sase_hg_reword --add-tag failed: {tag_err}")
 
     finally:
-        release_workspace(
-            changespec_file_path, workspace_num, workflow_name, changespec_name
-        )
+        release_workspace(patch_file_path, workspace_num, workflow_name, patch_name)
 
 
-def handle_reword_prepare(
-    self: "WorkflowContext", changespec: ChangeSpec
-) -> str | None:
+def handle_reword_prepare(self: "WorkflowContext", patch: Patch) -> str | None:
     """Interactive part of reword: fetch description and open editor.
 
     Runs inside ``suspend()`` so the editor can take over the terminal.
 
     Args:
         self: The WorkflowContext instance (provides console for terminal output)
-        changespec: Current ChangeSpec
+        patch: Current Patch
 
     Returns:
         The edited description if changed, or None if cancelled/unchanged.
     """
-    original = _fetch_cl_description(
-        changespec.project_basename, changespec.name, self.console
-    )
+    original = _fetch_cl_description(patch.project_basename, patch.name, self.console)
     if original is None:
         return None
 
@@ -322,14 +314,14 @@ def handle_reword_prepare(
 
 
 def reword_execute_task(
-    changespec_name: str,
-    changespec_file_path: str,
+    patch_name: str,
+    patch_file_path: str,
     project_basename: str,
     edited_description: str,
 ) -> tuple[bool, str]:
-    """Non-interactive: claim workspace, checkout ChangeSpec branch, apply reword. Background task.
+    """Non-interactive: claim workspace, checkout Patch branch, apply reword. Background task.
 
-    Claims a workspace, checks out the ChangeSpec, runs the reword with the edited
+    Claims a workspace, checks out the Patch, runs the reword with the edited
     description, syncs the description back to the project file, and releases
     the workspace in a finally block.
 
@@ -343,7 +335,7 @@ def reword_execute_task(
         release_workspace,
     )
 
-    workspace_num = get_first_available_axe_workspace(changespec_file_path)
+    workspace_num = get_first_available_axe_workspace(patch_file_path)
     workflow_name = "reword"
 
     try:
@@ -355,7 +347,7 @@ def reword_execute_task(
 
     pid = os.getpid()
     claim_result = claim_workspace(
-        changespec_file_path, workspace_num, workflow_name, pid, changespec_name
+        patch_file_path, workspace_num, workflow_name, pid, patch_name
     )
     if not claim_result.success:
         return (
@@ -369,16 +361,16 @@ def reword_execute_task(
 
         # Clean workspace before switching branches
         clean_success, clean_error = run_sase_hg_clean(
-            workspace_dir, f"{changespec_name}-reword"
+            workspace_dir, f"{patch_name}-reword"
         )
         if not clean_success:
             print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-        # Checkout the ChangeSpec
-        print(f"Checking out {changespec_name}...")
+        # Checkout the Patch
+        print(f"Checking out {patch_name}...")
         provider = get_vcs_provider(workspace_dir)
         resolved = provider.resolve_revision(
-            changespec_name, project_basename, workspace_dir
+            patch_name, project_basename, workspace_dir
         )
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
@@ -392,20 +384,18 @@ def reword_execute_task(
             return (False, f"sase_hg_reword failed: {reword_err}")
 
         # Sync description to project file
-        _sync_description_bg(workspace_dir, changespec_file_path, changespec_name)
+        _sync_description_bg(workspace_dir, patch_file_path, patch_name)
 
         from sase.ace.timestamps.recording import add_timestamp_entry_atomic
 
         add_timestamp_entry_atomic(
-            changespec_file_path,
-            changespec_name,
+            patch_file_path,
+            patch_name,
             "REWORD",
             "description",
         )
 
-        return (True, f"Reworded {changespec_name}")
+        return (True, f"Reworded {patch_name}")
 
     finally:
-        release_workspace(
-            changespec_file_path, workspace_num, workflow_name, changespec_name
-        )
+        release_workspace(patch_file_path, workspace_num, workflow_name, patch_name)

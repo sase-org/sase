@@ -26,8 +26,12 @@ if TYPE_CHECKING:
     from ...models.patch_groups import PatchGroupingMode
     from ...models.group_fold import GroupFoldRegistry
 
-TabName = Literal["artifacts", "patches", "changespecs", "agents", "axe"]
-GroupingSaveTarget = Literal["agents", "artifacts", "changespecs"]
+TabName = Literal[  # legacy compatibility alias
+    "artifacts", "patches", "changespecs", "agents", "axe"
+]
+GroupingSaveTarget = Literal[  # legacy compatibility alias
+    "agents", "artifacts", "patches", "changespecs"
+]
 
 log = logging.getLogger(__name__)
 
@@ -44,14 +48,14 @@ _MODE_LABELS: dict[str, str] = {
 
 #: Patches-tab cycle order — BY_PROJECT is the first-paint default; the cycle
 #: walks through the three real grouping strategies and wraps back.
-_CHANGESPEC_GROUPING_CYCLE: tuple[str, ...] = (
+_PATCH_GROUPING_CYCLE: tuple[str, ...] = (
     "BY_PROJECT",
     "BY_DATE",
     "BY_STATUS",
 )
 
 #: Human-readable labels for the Patches-tab toast emitted on each step.
-_CHANGESPEC_MODE_LABELS: dict[str, str] = {
+_PATCH_MODE_LABELS: dict[str, str] = {
     "BY_PROJECT": "by project",
     "BY_DATE": "by date",
     "BY_STATUS": "by status",
@@ -76,39 +80,41 @@ class AgentGroupingMixin:
     _grouping_mode_save_inflight: set[str]
     _grouping_mode_save_active: dict[str, object]
 
+    # Legacy compatibility aliases for older ChangeSpec grouping state names.
     @property
-    def _changespec_grouping_mode(self) -> Any:
+    def _changespec_grouping_mode(self) -> Any:  # legacy compatibility alias
         return getattr(self, "_patch_grouping_mode", None)
 
-    @_changespec_grouping_mode.setter
+    @_changespec_grouping_mode.setter  # legacy compatibility alias
     def _changespec_grouping_mode(self, value: Any) -> None:
         self._patch_grouping_mode = value
 
     @property
-    def _changespec_group_fold_registry(self) -> Any:
+    def _changespec_group_fold_registry(self) -> Any:  # legacy compatibility alias
         return getattr(self, "_patch_group_fold_registry", None)
 
-    @_changespec_group_fold_registry.setter
+    @_changespec_group_fold_registry.setter  # legacy compatibility alias
     def _changespec_group_fold_registry(self, value: Any) -> None:
         self._patch_group_fold_registry = value
 
     @property
-    def _changespec_group_fold_registries(self) -> Any:
+    def _changespec_group_fold_registries(self) -> Any:  # legacy compatibility alias
         return getattr(self, "_patch_group_fold_registries", {})
 
-    @_changespec_group_fold_registries.setter
+    @_changespec_group_fold_registries.setter  # legacy compatibility alias
     def _changespec_group_fold_registries(self, value: Any) -> None:
         self._patch_group_fold_registries = value
 
     @property
-    def _current_changespec_group_key(self) -> Any:
+    def _current_changespec_group_key(self) -> Any:  # legacy compatibility alias
         return getattr(self, "_current_patch_group_key", None)
 
-    @_current_changespec_group_key.setter
+    @_current_changespec_group_key.setter  # legacy compatibility alias
     def _current_changespec_group_key(self, value: Any) -> None:
         self._current_patch_group_key = value
 
     def _ensure_changespec_mode_registry(self, mode: Any) -> Any:
+        """Legacy compatibility alias for Patch grouping mode registries."""
         return self._ensure_patch_mode_registry(mode)
 
     def _next_grouping_mode(self, *, reverse: bool = False) -> GroupingMode:
@@ -126,7 +132,7 @@ class AgentGroupingMixin:
         """Return the PR mode that follows :attr:`_patch_grouping_mode`."""
         from ...models.patch_groups import PatchGroupingMode
 
-        order = [PatchGroupingMode[name] for name in _CHANGESPEC_GROUPING_CYCLE]
+        order = [PatchGroupingMode[name] for name in _PATCH_GROUPING_CYCLE]
         try:
             idx = order.index(self._patch_grouping_mode)
         except ValueError:
@@ -220,7 +226,6 @@ class AgentGroupingMixin:
     ) -> bool:
         from ....grouping_strategy import (
             save_agent_grouping_mode,
-            save_changespec_grouping_mode,
             save_patch_grouping_mode,
         )
         from ...models.agent_groups import GroupingMode
@@ -232,8 +237,12 @@ class AgentGroupingMixin:
             return save_agent_grouping_mode(mode)
         if not isinstance(mode, PatchGroupingMode):
             return False
-        if target == "changespecs":
-            return save_changespec_grouping_mode(mode)
+        if target == "patches":
+            return save_patch_grouping_mode(mode)
+        if target == "changespecs":  # legacy compatibility alias
+            from ....grouping_strategy import save_changespec_grouping_mode
+
+            return save_changespec_grouping_mode(mode)  # legacy compatibility alias
         return save_patch_grouping_mode(mode)
 
     def action_cycle_grouping_mode(self) -> None:
@@ -245,14 +254,22 @@ class AgentGroupingMixin:
         """
         if self.current_tab == "agents":
             self._cycle_agents_grouping_mode()
-        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+        elif self.current_tab in {  # legacy compatibility alias
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             self._cycle_patch_grouping_mode()
 
     def action_cycle_grouping_mode_reverse(self) -> None:
         """Advance the focused tab's grouping mode by one step in reverse."""
         if self.current_tab == "agents":
             self._cycle_agents_grouping_mode(reverse=True)
-        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+        elif self.current_tab in {  # legacy compatibility alias
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             self._cycle_patch_grouping_mode(reverse=True)
 
     def _cycle_agents_grouping_mode(self, *, reverse: bool = False) -> None:
@@ -287,11 +304,17 @@ class AgentGroupingMixin:
         # belongs to a different tree and would highlight nothing.
         self._current_patch_group_key = None
         target: GroupingSaveTarget = (
-            "artifacts" if self.current_tab == "artifacts" else "changespecs"
+            "artifacts"
+            if self.current_tab == "artifacts"
+            else (
+                "changespecs"  # legacy compatibility alias
+                if self.current_tab == "changespecs"
+                else "patches"
+            )
         )
         self._schedule_grouping_mode_save(target, next_mode)
         try:
-            label = _CHANGESPEC_MODE_LABELS.get(next_mode.name, next_mode.name)
+            label = _PATCH_MODE_LABELS.get(next_mode.name, next_mode.name)
             self.notify(  # type: ignore[attr-defined]
                 f"PR grouping: {label}", timeout=1.5
             )

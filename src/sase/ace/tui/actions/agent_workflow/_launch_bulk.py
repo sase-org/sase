@@ -37,7 +37,11 @@ class BulkLaunchMixin:
         """
         bulk_patches = getattr(self, "_bulk_patches", None)
         if bulk_patches is None:
-            bulk_patches = getattr(self, "_bulk_changespecs", None)
+            bulk_patches = getattr(
+                self,
+                "_bulk_changespecs",  # legacy compatibility alias
+                None,
+            )
         if not bulk_patches:
             self.notify("No bulk patches", severity="error")  # type: ignore[attr-defined]
             return
@@ -46,8 +50,10 @@ class BulkLaunchMixin:
         # cannot observe later mutations.
         patches = list(bulk_patches)
         self._bulk_patches = None
+        if hasattr(self, "_bulk_patches"):
+            self._bulk_patches = None  # type: ignore[attr-defined]
         if hasattr(self, "_bulk_changespecs"):
-            self._bulk_changespecs = None  # type: ignore[attr-defined]
+            self._bulk_changespecs = None  # type: ignore[attr-defined] # legacy compatibility alias
         self._prompt_context = None
 
         # Clear marks and refresh display immediately (UI state)

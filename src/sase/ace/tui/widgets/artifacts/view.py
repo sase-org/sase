@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
-from textual.widgets import ContentSwitcher
+from textual.widgets import ContentSwitcher, Static
 
 from ...keymaps import KeymapRegistry
 from ...tab_order import ARTIFACTS_TAB
@@ -70,6 +70,11 @@ class ArtifactsView(Vertical):
         self._commits_default_filter = commits_default_filter
 
     def compose(self) -> ComposeResult:
+        yield Static(
+            "",
+            id="changespecs-view",  # legacy compatibility alias
+            classes="hidden",
+        )
         yield PanelTabStrip(
             _ARTIFACT_TABS,
             self._current_subtab,

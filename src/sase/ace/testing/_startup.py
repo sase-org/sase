@@ -57,9 +57,9 @@ async def _run_fast_mount_state_loads(app: AceApp) -> None:
             )
         app._initialize_agent_tracking(notification_state)
         app._apply_prompt_stash_counts(0, 0)
-        # AcePage owns both ChangeSpec loader patches, so this retains the real
+        # AcePage owns both Patch loader patches, so this retains the real
         # filtering, selection, and widget-application path without a disk scan.
-        app._apply_changespecs(app._read_changespecs_from_disk())
+        app._apply_patches(app._read_patches_from_disk())
     finally:
         app._mount_state_loads_done = True
 

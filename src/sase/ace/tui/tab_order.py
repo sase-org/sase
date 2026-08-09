@@ -10,11 +10,15 @@ from __future__ import annotations
 from typing import Literal, cast
 
 TabName = Literal["artifacts", "agents", "axe"]
-LegacyTabName = Literal["changespecs", "patches"]
+LegacyTabName = Literal[
+    "changespecs",  # legacy compatibility tab id persisted by older sessions
+    "patches",
+]
 TabInput = TabName | LegacyTabName | str
 
-# ``changespecs`` was the historical Artifacts tab id. ``patches`` appeared in
-# short-lived development captures during the Patch terminology migration.
+# ``changespecs`` is the legacy compatibility tab id persisted by older
+# sessions; ``patches`` appeared in short-lived development captures during the
+# Patch terminology migration.
 LEGACY_ARTIFACTS_TABS: frozenset[str] = frozenset({"changespecs", "patches"})
 ARTIFACTS_TAB: TabName = "artifacts"
 

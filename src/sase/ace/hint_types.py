@@ -12,7 +12,7 @@ class ViewFilesResult:
     open_in_editor: bool  # True if @ suffix was used
     copy_to_clipboard: bool  # True if % suffix was used
     user_input: str  # Raw input for nvim positioning logic
-    changespec_name: str  # For editor positioning
+    patch_name: str  # For editor positioning
 
 
 @dataclass

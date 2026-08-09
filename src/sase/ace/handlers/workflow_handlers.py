@@ -24,8 +24,8 @@ from sase.running_field import (
     release_workspace,
 )
 
-from ..patch import ChangeSpec, parse_project_file
-from ..display import display_changespec
+from ..patch import Patch, parse_project_file
+from ..display import display_patch
 from ..hooks import (
     clear_hook_suffix,
     get_failing_hooks_for_fix,
@@ -36,7 +36,7 @@ from ..hooks import (
 from ..hooks import (
     generate_timestamp as generate_fix_hook_timestamp,
 )
-from ..operations import update_to_changespec
+from ..operations import update_to_patch
 from ..workflows import run_crs_workflow
 
 if TYPE_CHECKING:
@@ -45,75 +45,73 @@ if TYPE_CHECKING:
 
 def handle_run_workflow(
     self: "WorkflowContext",
-    changespec: ChangeSpec,
-    changespecs: list[ChangeSpec],
+    patch: Patch,
+    patches: list[Patch],
     current_idx: int,
     workflow_index: int = 0,
-) -> tuple[list[ChangeSpec], int]:
+) -> tuple[list[Patch], int]:
     """Handle 'r' (run workflow) action.
 
-    Runs workflow based on available workflows for the ChangeSpec.
+    Runs workflow based on available workflows for the Patch.
     When multiple workflows are available, workflow_index selects which one to run.
 
     Args:
         self: The WorkflowContext instance
-        changespec: Current ChangeSpec
-        changespecs: List of all changespecs
+        patch: Current Patch
+        patches: List of all patches
         current_idx: Current index
         workflow_index: Index of workflow to run (default 0)
 
     Returns:
-        Tuple of (updated_changespecs, updated_index)
+        Tuple of (updated_patches, updated_index)
     """
     from ..operations import get_available_workflows
 
-    workflows = get_available_workflows(changespec)
+    workflows = get_available_workflows(patch)
     if not workflows:
-        self.console.print(
-            "[yellow]Run option not available for this ChangeSpec[/yellow]"
-        )
-        return changespecs, current_idx
+        self.console.print("[yellow]Run option not available for this Patch[/yellow]")
+        return patches, current_idx
 
     # Validate workflow index
     if workflow_index < 0 or workflow_index >= len(workflows):
         self.console.print(f"[red]Invalid workflow index: {workflow_index + 1}[/red]")
-        return changespecs, current_idx
+        return patches, current_idx
 
     # Get the selected workflow
     selected_workflow = workflows[workflow_index]
 
     # Route to the appropriate handler based on workflow name
     if selected_workflow == "fix-hook":
-        return handle_run_fix_hook_workflow(self, changespec, changespecs, current_idx)
+        return handle_run_fix_hook_workflow(self, patch, patches, current_idx)
     elif selected_workflow == "crs":
-        return handle_run_crs_workflow(self, changespec, changespecs, current_idx)
+        return handle_run_crs_workflow(self, patch, patches, current_idx)
     else:
         self.console.print(f"[red]Unknown workflow: {selected_workflow}[/red]")
-        return changespecs, current_idx
+        return patches, current_idx
 
 
 def handle_run_crs_workflow(
     self: "WorkflowContext",
-    changespec: ChangeSpec,
-    changespecs: list[ChangeSpec],
+    patch: Patch,
+    patches: list[Patch],
     current_idx: int,
-) -> tuple[list[ChangeSpec], int]:
+) -> tuple[list[Patch], int]:
     """Handle running crs workflow for Critique comments.
 
     Args:
         self: The WorkflowContext instance
-        changespec: Current ChangeSpec
-        changespecs: List of all changespecs
+        patch: Current Patch
+        patches: List of all patches
         current_idx: Current index
 
     Returns:
-        Tuple of (updated_changespecs, updated_index)
+        Tuple of (updated_patches, updated_index)
     """
     # Find the comments file from [critique] entry without suffix
     comments_file: str | None = None
     comment_reviewer: str = "critique"
-    if changespec.comments:
-        for entry in changespec.comments:
+    if patch.comments:
+        for entry in patch.comments:
             if entry.reviewer == "critique" and entry.suffix is None:
                 comments_file = entry.file_path
                 comment_reviewer = entry.reviewer
@@ -121,24 +119,24 @@ def handle_run_crs_workflow(
 
     # Run the workflow with the comments file (handles all logic)
     run_crs_workflow(
-        changespec,
+        patch,
         self.console,
         comments_file=comments_file,
         comment_reviewer=comment_reviewer,
     )
 
-    # Reload changespecs to reflect updates
-    changespecs, current_idx = self._reload_and_reposition(changespecs, changespec)
+    # Reload patches to reflect updates
+    patches, current_idx = self._reload_and_reposition(patches, patch)
 
-    return changespecs, current_idx
+    return patches, current_idx
 
 
 def handle_run_fix_hook_workflow(
     self: "WorkflowContext",
-    changespec: ChangeSpec,
-    changespecs: list[ChangeSpec],
+    patch: Patch,
+    patches: list[Patch],
     current_idx: int,
-) -> tuple[list[ChangeSpec], int]:
+) -> tuple[list[Patch], int]:
     """Handle running fix-hook workflow for failing hooks.
 
     If only one hook is failing, runs the fix-hook agent directly.
@@ -146,34 +144,34 @@ def handle_run_fix_hook_workflow(
 
     Args:
         self: The WorkflowContext instance
-        changespec: Current ChangeSpec
-        changespecs: List of all changespecs
+        patch: Current Patch
+        patches: List of all patches
         current_idx: Current index
 
     Returns:
-        Tuple of (updated_changespecs, updated_index)
+        Tuple of (updated_patches, updated_index)
     """
     # Get failing hooks eligible for fix
-    if not changespec.hooks:
+    if not patch.hooks:
         self.console.print("[yellow]No hooks found[/yellow]")
-        return changespecs, current_idx
+        return patches, current_idx
 
-    failing_hooks = get_failing_hooks_for_fix(changespec.hooks)
+    failing_hooks = get_failing_hooks_for_fix(patch.hooks)
     if not failing_hooks:
         self.console.print("[yellow]No failing hooks eligible for fix found[/yellow]")
-        return changespecs, current_idx
+        return patches, current_idx
 
     # Build a list of failing hooks with output paths
     hooks_with_output: list[tuple[str, str]] = []  # (command, output_path)
     for hook in failing_hooks:
         latest = hook.latest_status_line
         if latest and latest.timestamp:
-            output_path = get_hook_output_path(changespec.name, latest.timestamp)
+            output_path = get_hook_output_path(patch.name, latest.timestamp)
             hooks_with_output.append((hook.command, output_path))
 
     if not hooks_with_output:
         self.console.print("[yellow]No failing hooks with output files found[/yellow]")
-        return changespecs, current_idx
+        return patches, current_idx
 
     # If only one failing hook, run it directly without prompting
     if len(hooks_with_output) == 1:
@@ -181,7 +179,7 @@ def handle_run_fix_hook_workflow(
     else:
         # Multiple failing hooks - display with hints for only those hooks
         self.console.clear()
-        display_changespec(changespec, self.console, with_hints=False)
+        display_patch(patch, self.console, with_hints=False)
 
         # Show failing hooks with numbered hints
         self.console.print()
@@ -196,21 +194,21 @@ def handle_run_fix_hook_workflow(
             user_input = input("Number: ").strip()
         except (EOFError, KeyboardInterrupt):
             self.console.print("\n[yellow]Cancelled[/yellow]")
-            return changespecs, current_idx
+            return patches, current_idx
 
         if not user_input:
             self.console.print("[yellow]No number provided[/yellow]")
-            return changespecs, current_idx
+            return patches, current_idx
 
         try:
             hook_num = int(user_input)
         except ValueError:
             self.console.print(f"[red]Invalid number: {user_input}[/red]")
-            return changespecs, current_idx
+            return patches, current_idx
 
         if hook_num < 1 or hook_num > len(hooks_with_output):
             self.console.print(f"[red]Invalid number: {hook_num}[/red]")
-            return changespecs, current_idx
+            return patches, current_idx
 
         hook_command, output_path = hooks_with_output[hook_num - 1]
 
@@ -218,60 +216,58 @@ def handle_run_fix_hook_workflow(
     fix_hook_timestamp = generate_fix_hook_timestamp()
 
     # Get the last COMMITS entry ID for the amend message (e.g., "1", "1a")
-    last_history_id = get_last_history_entry_id(changespec)
+    last_history_id = get_last_history_entry_id(patch)
 
     # Find first available workspace and claim it
-    workspace_num = get_first_available_workspace(changespec.file_path)
+    workspace_num = get_first_available_workspace(patch.file_path)
     workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-        workspace_num, changespec.project_basename
+        workspace_num, patch.project_basename
     )
 
     # Claim the workspace
     claim_result = claim_workspace(
-        changespec.file_path,
+        patch.file_path,
         workspace_num,
         "fix-hook",
         os.getpid(),
-        changespec.name,
+        patch.name,
     )
     if not claim_result.success:
         self.console.print(
             "[red]Error: Failed to claim workspace: "
             f"{claim_result.error or 'unknown reason'}[/red]"
         )
-        return changespecs, current_idx
+        return patches, current_idx
 
     if workspace_suffix:
         self.console.print(f"[cyan]Using workspace share: {workspace_suffix}[/cyan]")
 
     # Clean workspace before switching branches
     clean_success, clean_error = run_sase_hg_clean(
-        workspace_dir, f"{changespec.name}-fix-hook"
+        workspace_dir, f"{patch.name}-fix-hook"
     )
     if not clean_success:
         self.console.print(
             f"[yellow]Warning: sase_hg_clean failed: {clean_error}[/yellow]"
         )
 
-    # Update to the changespec NAME (cd and sase_hg_update to the branch)
-    success, error_msg = update_to_changespec(
-        changespec, self.console, revision=changespec.name, workspace_dir=workspace_dir
+    # Update to the patch NAME (cd and sase_hg_update to the branch)
+    success, error_msg = update_to_patch(
+        patch, self.console, revision=patch.name, workspace_dir=workspace_dir
     )
     if not success:
         self.console.print(f"[red]Error: {error_msg}[/red]")
-        release_workspace(
-            changespec.file_path, workspace_num, "fix-hook", changespec.name
-        )
-        return changespecs, current_idx
+        release_workspace(patch.file_path, workspace_num, "fix-hook", patch.name)
+        return patches, current_idx
 
     # Set the timestamp suffix on the hook status line to mark it as being fixed
-    if changespec.hooks:
+    if patch.hooks:
         set_hook_suffix(
-            changespec.file_path,
-            changespec.name,
+            patch.file_path,
+            patch.name,
             hook_command,
             fix_hook_timestamp,
-            changespec.hooks,
+            patch.hooks,
             suffix_type="running_agent",
         )
 
@@ -384,22 +380,22 @@ def handle_run_fix_hook_workflow(
 
         # Update the hook status line suffix based on the outcome
         # Need to reload hooks since they may have changed
-        updated_changespecs = parse_project_file(changespec.file_path)
-        for cs in updated_changespecs:
-            if cs.name == changespec.name and cs.hooks:
+        updated_patches = parse_project_file(patch.file_path)
+        for cs in updated_patches:
+            if cs.name == patch.name and cs.hooks:
                 if final_suffix is None:
                     # Purge case: clear the suffix
                     clear_hook_suffix(
-                        changespec.file_path,
-                        changespec.name,
+                        patch.file_path,
+                        patch.name,
                         hook_command,
                         cs.hooks,
                     )
                 elif final_suffix == "Hook Command Failed":
                     # Error case: mark as error suffix
                     set_hook_suffix(
-                        changespec.file_path,
-                        changespec.name,
+                        patch.file_path,
+                        patch.name,
                         hook_command,
                         final_suffix,
                         cs.hooks,
@@ -408,8 +404,8 @@ def handle_run_fix_hook_workflow(
                 else:
                     # Success case: proposal_id (not an error)
                     set_hook_suffix(
-                        changespec.file_path,
-                        changespec.name,
+                        patch.file_path,
+                        patch.name,
                         hook_command,
                         final_suffix,
                         cs.hooks,
@@ -417,11 +413,9 @@ def handle_run_fix_hook_workflow(
                 break
 
         # Always release the workspace when done
-        release_workspace(
-            changespec.file_path, workspace_num, "fix-hook", changespec.name
-        )
+        release_workspace(patch.file_path, workspace_num, "fix-hook", patch.name)
 
-    # Reload changespecs to reflect updates
-    changespecs, current_idx = self._reload_and_reposition(changespecs, changespec)
+    # Reload patches to reflect updates
+    patches, current_idx = self._reload_and_reposition(patches, patch)
 
-    return changespecs, current_idx
+    return patches, current_idx

@@ -245,7 +245,7 @@ class StateInitMixin:
         self._hook_hint_to_idx: dict[int, int] = {}
         self._hint_to_entry_id: dict[int, str] = {}
         self._hint_patch_name: str = ""
-        self._hint_changespec_name: str = ""
+        self._hint_changespec_name: str = ""  # legacy compatibility alias
         self._agent_hint_render_session = 0
         self._agent_hint_render_identity: tuple[object, ...] | None = None
         self._agent_hint_render_ready: asyncio.Event | None = None

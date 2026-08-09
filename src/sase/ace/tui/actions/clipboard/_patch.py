@@ -131,21 +131,26 @@ class ClipboardPatchMixin(ClipboardBase):
             task_name="sase-copy-patch-link",
         )
 
-    def _copy_changespec_link(self) -> None:
-        """Legacy ChangeSpec link copy action."""
+    def _copy_changespec_link(self) -> None:  # legacy compatibility alias
+        """Legacy Patch link copy action."""
 
-        from . import _changespec as changespec_clipboard
+        from . import _changespec as legacy_clipboard  # legacy compatibility alias
 
-        patch = self.patches[self.current_idx]
+        patches = getattr(
+            self,
+            "patches",
+            getattr(self, "changespecs", []),  # legacy compatibility alias
+        )
+        patch = patches[self.current_idx]
         if not patch.pr_url:
             self.notify("No PR URL available", severity="warning")  # type: ignore[attr-defined]
             return
-        label = changespec_clipboard.humanize_cl_name(patch.name)
-        changespec_clipboard.schedule_copy_delivery(
+        label = legacy_clipboard.humanize_cl_name(patch.name)
+        legacy_clipboard.schedule_copy_delivery(
             self,
             format_markdown_link(label, patch.pr_url),
             copied_label="Patch Markdown link",
-            task_name="sase-copy-changespec-link",
+            task_name="sase-copy-patch-link",
         )
 
     def _copy_project_spec(self) -> None:

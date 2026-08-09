@@ -9,7 +9,7 @@ from typing import Final
 
 from sase.config.mentor import MentorProfileConfig
 
-from ..patch import ChangeSpec, CommitEntry
+from ..patch import Patch, Stitch
 
 logger = logging.getLogger(__name__)
 
@@ -30,27 +30,27 @@ class CommitMatchArtifact:
 
 
 def get_commits_since_last_mentors(
-    changespec: ChangeSpec,
-) -> list[CommitEntry]:
+    patch: Patch,
+) -> list[Stitch]:
     """Get all regular commits since the last MENTORS entry.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
 
     Returns:
-        List of CommitEntry objects for commits after the last MENTORS entry.
+        List of Stitch objects for commits after the last MENTORS entry.
     """
     last_mentor_id: int | None = None
-    if changespec.mentors:
-        for me in changespec.mentors:
+    if patch.mentors:
+        for me in patch.mentors:
             if me.entry_id.isdigit():
                 entry_num = int(me.entry_id)
                 if last_mentor_id is None or entry_num > last_mentor_id:
                     last_mentor_id = entry_num
 
-    result: list[CommitEntry] = []
-    if changespec.commits:
-        for entry in changespec.commits:
+    result: list[Stitch] = []
+    if patch.commits:
+        for entry in patch.commits:
             if not entry.display_number.isdigit():
                 continue
             entry_num = int(entry.display_number)
@@ -125,23 +125,21 @@ def profile_matches_commit_artifact(
         return False
 
 
-def get_profiles_registered_for_entry(
-    changespec: ChangeSpec, entry_id: str
-) -> set[str]:
+def get_profiles_registered_for_entry(patch: Patch, entry_id: str) -> set[str]:
     """Get set of profile names already registered for an entry.
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         entry_id: The commit entry ID.
 
     Returns:
         Set of profile names that are in the MENTORS entry for this entry_id.
     """
     registered: set[str] = set()
-    if not changespec.mentors:
+    if not patch.mentors:
         return registered
 
-    for me in changespec.mentors:
+    for me in patch.mentors:
         if me.entry_id == entry_id:
             registered.update(me.profiles)
 

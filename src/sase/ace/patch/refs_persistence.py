@@ -134,12 +134,12 @@ def update_patch_refs_field(
         return False
 
 
-update_changespec_refs_field = update_patch_refs_field
+update_changespec_refs_field = update_patch_refs_field  # legacy compatibility alias
 _apply_refs_update = apply_refs_update
 
 
 __all__ = [
     "apply_refs_update",
-    "update_changespec_refs_field",
+    "update_changespec_refs_field",  # legacy compatibility alias
     "update_patch_refs_field",
 ]

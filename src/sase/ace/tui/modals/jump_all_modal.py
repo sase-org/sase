@@ -34,7 +34,13 @@ if TYPE_CHECKING:
     from ..models import Agent
     from ..widgets.bgcmd_list import AxeItem
 
-TabName = Literal["artifacts", "patches", "changespecs", "agents", "axe"]
+TabName = Literal[
+    "artifacts",
+    "patches",
+    "changespecs",  # legacy compatibility alias
+    "agents",
+    "axe",
+]
 
 # ── Visual constants ──────────────────────────────────────────────
 _NAME_MAX = 50
@@ -45,7 +51,7 @@ _SECTION_RULE_WIDTH = 76
 _TAB_STYLES: dict[TabName, tuple[str, str]] = {
     "artifacts": ("Artifacts", "#00D7AF"),
     "patches": ("Patches", "#00D7AF"),
-    "changespecs": ("Patches", "#00D7AF"),
+    "changespecs": ("Patches", "#00D7AF"),  # legacy compatibility alias
     "agents": ("Agents", "#87D7FF"),
     "axe": ("AXE", "#FFD700"),
 }
@@ -112,9 +118,12 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
     ) -> None:
         super().__init__()
         patch_entry_tab: TabName = "artifacts"
+        if patches is None and "patches" in legacy_kwargs:
+            patches = legacy_kwargs.pop("patches")
+            patch_entry_tab = "patches"
         if patches is None and "changespecs" in legacy_kwargs:
-            patches = legacy_kwargs.pop("changespecs")
-            patch_entry_tab = "changespecs"
+            patches = legacy_kwargs.pop("changespecs")  # legacy compatibility alias
+            patch_entry_tab = "changespecs"  # legacy compatibility alias
         if legacy_kwargs:
             unexpected = next(iter(legacy_kwargs))
             raise TypeError(f"unexpected keyword argument {unexpected!r}")

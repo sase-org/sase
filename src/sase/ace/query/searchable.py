@@ -1,6 +1,6 @@
-"""Searchable text extraction for ChangeSpec query matching."""
+"""Searchable text extraction for Patch query matching."""
 
-from ..patch import ChangeSpec
+from ..patch import Patch
 
 # Pattern that indicates a running agent in searchable text
 # Matches "- (@)" (no message) or "- (@: msg)" (with message)
@@ -11,8 +11,8 @@ RUNNING_AGENT_MARKER = "- (@"
 RUNNING_PROCESS_MARKER = "- ($: "
 
 
-def get_searchable_text(changespec: ChangeSpec) -> str:
-    """Extract all searchable text from a ChangeSpec.
+def get_searchable_text(patch: Patch) -> str:
+    """Extract all searchable text from a Patch.
 
     Searches against:
     - name
@@ -25,29 +25,29 @@ def get_searchable_text(changespec: ChangeSpec) -> str:
     - hook commands (if present)
 
     Args:
-        changespec: The ChangeSpec to extract text from.
+        patch: The Patch to extract text from.
 
     Returns:
         Combined text for searching (newline-separated).
     """
     parts: list[str] = [
-        changespec.name,
-        changespec.description,
-        changespec.status,
+        patch.name,
+        patch.description,
+        patch.status,
     ]
 
     # Add project basename (e.g., "myproject" from "~/.sase/projects/myproject/myproject.sase")
-    parts.append(changespec.project_name)
-    parts.extend(getattr(changespec, "refs", ()) or ())
+    parts.append(patch.project_name)
+    parts.extend(getattr(patch, "refs", ()) or ())
 
-    if changespec.parent:
-        parts.append(changespec.parent)
-    if changespec.pr_url:
-        parts.append(changespec.pr_url)
+    if patch.parent:
+        parts.append(patch.parent)
+    if patch.pr_url:
+        parts.append(patch.pr_url)
 
     # Add history notes and suffixes
-    if changespec.commits:
-        for entry in changespec.commits:
+    if patch.commits:
+        for entry in patch.commits:
             parts.append(entry.note)
             # Include suffix with prefix for searching (e.g., "(!: NEW PROPOSAL)")
             if entry.suffix:
@@ -57,8 +57,8 @@ def get_searchable_text(changespec: ChangeSpec) -> str:
                     parts.append(f"({entry.suffix})")
 
     # Add hook commands and status line suffixes
-    if changespec.hooks:
-        for hook in changespec.hooks:
+    if patch.hooks:
+        for hook in patch.hooks:
             parts.append(hook.display_command)
             # Include status line suffixes for searching
             if hook.status_lines:
@@ -82,8 +82,8 @@ def get_searchable_text(changespec: ChangeSpec) -> str:
                             parts.append(f"({sl.suffix})")
 
     # Add comment entries and suffixes
-    if changespec.comments:
-        for comment in changespec.comments:
+    if patch.comments:
+        for comment in patch.comments:
             parts.append(comment.reviewer)
             parts.append(comment.file_path)
             # Handle running_agent suffix (CRS running)
@@ -105,8 +105,8 @@ def get_searchable_text(changespec: ChangeSpec) -> str:
                     parts.append(f"({comment.suffix})")
 
     # Add mentor status line suffixes
-    if changespec.mentors:
-        for mentor in changespec.mentors:
+    if patch.mentors:
+        for mentor in patch.mentors:
             if mentor.status_lines:
                 for msl in mentor.status_lines:
                     if msl.suffix_type == "running_agent":

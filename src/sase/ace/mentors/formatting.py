@@ -115,21 +115,21 @@ def format_mentors_field(mentors: list[MentorEntry]) -> list[str]:
 
 def apply_mentors_update(
     lines: list[str],
-    changespec_name: str,
+    patch_name: str,
     mentors: list[MentorEntry],
 ) -> list[str]:
     """Apply MENTORS field update to file lines.
 
     Args:
         lines: Current file lines.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         mentors: List of MentorEntry objects to write.
 
     Returns:
         Updated lines with MENTORS field modified.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     found_mentors = False
     i = 0
 
@@ -139,17 +139,17 @@ def apply_mentors_update(
         # Check if this is a NAME field
         if line.startswith("NAME:"):
             current_name = line.split(":", 1)[1].strip()
-            was_in_target = in_target_changespec
-            in_target_changespec = current_name == changespec_name
+            was_in_target = in_target_patch
+            in_target_patch = current_name == patch_name
 
             # If we were in target and didn't find MENTORS, insert before NAME
             if was_in_target and not found_mentors and mentors:
                 # Remove trailing blank lines before inserting MENTORS
-                # (parser treats 2+ blank lines as end of changespec)
+                # (parser treats 2+ blank lines as end of patch)
                 while updated_lines and updated_lines[-1].strip() == "":
                     updated_lines.pop()
                 updated_lines.extend(format_mentors_field(mentors))
-                # Add two blank lines before next changespec (codebase convention)
+                # Add two blank lines before next patch (codebase convention)
                 updated_lines.append("\n")
                 updated_lines.append("\n")
                 found_mentors = True
@@ -158,8 +158,8 @@ def apply_mentors_update(
             i += 1
             continue
 
-        # If we're in the target ChangeSpec
-        if in_target_changespec:
+        # If we're in the target Patch
+        if in_target_patch:
             # Check for MENTORS field
             if line.startswith("MENTORS:"):
                 found_mentors = True
@@ -192,9 +192,9 @@ def apply_mentors_update(
         i += 1
 
     # If we were in target at end and didn't find MENTORS, append it
-    if in_target_changespec and not found_mentors and mentors:
-        # Strip trailing blank lines so MENTORS stays inside the ChangeSpec
-        # boundary (parser treats 2+ blank lines as end of ChangeSpec)
+    if in_target_patch and not found_mentors and mentors:
+        # Strip trailing blank lines so MENTORS stays inside the Patch
+        # boundary (parser treats 2+ blank lines as end of Patch)
         while updated_lines and updated_lines[-1].strip() == "":
             updated_lines.pop()
         updated_lines.extend(format_mentors_field(mentors))

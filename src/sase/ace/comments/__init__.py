@@ -11,13 +11,17 @@ from .operations import (
     clear_comment_suffix,
     remove_comment_entry,
     set_comment_suffix,
-    transform_changespec_comments_field,
-    update_changespec_comments_field,
+    transform_patch_comments_field,
+    update_patch_comments_field,
     update_comment_suffix_type,
 )
 
-update_patch_comments_field = update_changespec_comments_field
-transform_patch_comments_field = transform_changespec_comments_field
+transform_changespec_comments_field = (
+    transform_patch_comments_field  # legacy compatibility alias
+)
+update_changespec_comments_field = (
+    update_patch_comments_field  # legacy compatibility alias
+)
 
 __all__ = [
     # core.py
@@ -30,9 +34,9 @@ __all__ = [
     "clear_comment_suffix",
     "remove_comment_entry",
     "set_comment_suffix",
-    "transform_changespec_comments_field",
     "transform_patch_comments_field",
-    "update_changespec_comments_field",
+    "transform_changespec_comments_field",  # legacy compatibility alias
     "update_patch_comments_field",
+    "update_changespec_comments_field",  # legacy compatibility alias
     "update_comment_suffix_type",
 ]

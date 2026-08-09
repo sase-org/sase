@@ -29,7 +29,7 @@ from ._onboarding_common import (
 )
 
 _ACCENT = "#00D7AF"
-_CHANGESPEC_DOCS_URL = "https://sase.sh/patch/"
+_PATCH_DOCS_URL = "https://sase.sh/patch/"
 _VCS_DOCS_URL = "https://sase.sh/vcs/"
 _PLUGINS_DOCS_URL = "https://sase.sh/plugins/"
 _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
@@ -291,7 +291,7 @@ class PatchOnboarding(VerticalScroll):
         text = Text()
         append_doc_link(
             text,
-            _CHANGESPEC_DOCS_URL,
+            _PATCH_DOCS_URL,
             "Patch anatomy & lifecycle.",
             accent=_ACCENT,
         )

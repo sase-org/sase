@@ -299,7 +299,13 @@ class KeybindingModesMixin:
         """
         d = footer_key_display
         current_tab = (
-            "artifacts" if current_tab in {"patches", "changespecs"} else current_tab
+            "artifacts"
+            if current_tab
+            in {
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }
+            else current_tab
         )
         keys = self._kr().leader_mode.keys
 
@@ -439,7 +445,15 @@ class KeybindingModesMixin:
             file_visible: Whether the file panel is visible (agents tab only).
         """
         d = footer_key_display
-        tab = "artifacts" if tab in {"patches", "changespecs"} else tab
+        tab = (
+            "artifacts"
+            if tab
+            in {
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }
+            else tab
+        )
         key_group = (
             f"artifacts_{artifacts_pane_key}"
             if tab == "artifacts"

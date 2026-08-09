@@ -82,18 +82,18 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         self, event: PatchList.SelectionChanged
     ) -> None:
         """Handle selection change in the Patch list widget."""
-        patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        patches = getattr(self, "patches", [])
         if self.current_tab in {
             "artifacts",
             "patches",
-            "changespecs",
+            "changespecs",  # legacy compatibility alias
         } and 0 <= event.index < len(patches):
             # Push to history when clicking on a different Patch
             if event.index != self.current_idx:
                 self._push_patch_to_history()  # type: ignore[attr-defined]
             self.current_idx = event.index
 
-    def on_change_spec_list_selection_changed(
+    def on_change_spec_list_selection_changed(  # legacy compatibility event alias
         self, event: PatchList.SelectionChanged
     ) -> None:
         self.on_patch_list_selection_changed(event)

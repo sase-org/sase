@@ -10,7 +10,7 @@ from sase.core.time import generate_timestamp, local_timezone_name
 from sase.telemetry.metrics import HOOK_DURATION, HOOK_EXECUTIONS, HOOK_RETRIES
 
 from ..patch import (
-    ChangeSpec,
+    Patch,
     HookEntry,
     HookStatusLine,
 )
@@ -24,7 +24,7 @@ from .timestamps import (
 
 
 def start_hook_background(
-    changespec: ChangeSpec,
+    patch: Patch,
     hook: HookEntry,
     workspace_dir: str,
     history_entry_id: str,
@@ -34,7 +34,7 @@ def start_hook_background(
     The hook runs asynchronously. Use check_hook_completion() to check status.
 
     Args:
-        changespec: The ChangeSpec the hook belongs to.
+        patch: The Patch the hook belongs to.
         hook: The hook entry to run.
         workspace_dir: The workspace directory to run the command in.
         history_entry_id: The COMMITS entry ID this hook run is associated with.
@@ -43,7 +43,7 @@ def start_hook_background(
         Tuple of (updated HookEntry with RUNNING status, output_path).
     """
     timestamp = generate_timestamp()
-    output_path = get_hook_output_path(changespec.name, timestamp)
+    output_path = get_hook_output_path(patch.name, timestamp)
 
     # Get the actual command to run (strips "!" prefix if present)
     actual_command = hook.run_command
@@ -166,7 +166,7 @@ exit $exit_code
     # Create new status line for this run
     # Use PID suffix with running_process type to get " - ($: PID)" marker
     new_status_line = HookStatusLine(
-        commit_entry_num=history_entry_id,
+        stitch_num=history_entry_id,
         timestamp=timestamp,
         status="RUNNING",
         duration=None,
@@ -185,7 +185,7 @@ exit $exit_code
 
 
 def check_hook_completion(
-    changespec: ChangeSpec,
+    patch: Patch,
     hook: HookEntry,
     target_status_line: HookStatusLine | None = None,
 ) -> HookEntry | None:
@@ -195,7 +195,7 @@ def check_hook_completion(
     Updates the RUNNING status line with completion status.
 
     Args:
-        changespec: The ChangeSpec the hook belongs to.
+        patch: The Patch the hook belongs to.
         hook: The hook entry to check (must have a RUNNING status line).
         target_status_line: Optional specific status line to check. If provided,
             checks this status line's output file instead of the first RUNNING one.
@@ -227,12 +227,12 @@ def check_hook_completion(
     if running_status_line is None:
         return None
 
-    output_path = get_hook_output_path(changespec.name, running_status_line.timestamp)
+    output_path = get_hook_output_path(patch.name, running_status_line.timestamp)
 
     # If the output file doesn't exist with the current name, try the original name
     if not os.path.exists(output_path):
-        original_name = strip_reverted_suffix(changespec.name)
-        if original_name != changespec.name:
+        original_name = strip_reverted_suffix(patch.name)
+        if original_name != patch.name:
             output_path = get_hook_output_path(
                 original_name, running_status_line.timestamp
             )
@@ -314,7 +314,7 @@ def check_hook_completion(
 
     # Create updated status line
     updated_status_line = HookStatusLine(
-        commit_entry_num=running_status_line.commit_entry_num,
+        stitch_num=running_status_line.stitch_num,
         timestamp=running_status_line.timestamp,
         status=completed_status,
         duration=duration,

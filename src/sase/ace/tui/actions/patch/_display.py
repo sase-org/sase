@@ -23,7 +23,7 @@ from ._onboarding import PatchOnboardingMixin
 log = logging.getLogger(__name__)
 
 # Human-readable badge text per Patch grouping mode.
-_CHANGESPEC_GROUPING_BADGE_LABELS: dict[PatchGroupingMode, str] = {
+_PATCH_GROUPING_BADGE_LABELS: dict[PatchGroupingMode, str] = {
     PatchGroupingMode.BY_PROJECT: "by project",
     PatchGroupingMode.BY_DATE: "by date",
     PatchGroupingMode.BY_STATUS: "by status",
@@ -71,7 +71,10 @@ class PatchDisplayMixin(PatchOnboardingMixin):
 
     def _patch_detail_surface_active(self) -> bool:
         """Return whether this refresh owns the shared Patch footer."""
-        if self.current_tab in {"patches", "changespecs"}:
+        if self.current_tab in {
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             return True
         return (
             self.current_tab == "artifacts"
@@ -141,7 +144,11 @@ class PatchDisplayMixin(PatchOnboardingMixin):
         patch_row = getattr(
             list_widget,
             "patch_patch_row",
-            getattr(list_widget, "patch_changespec_row", None),
+            getattr(
+                list_widget,
+                "patch_changespec_row",  # legacy compatibility alias
+                None,
+            ),
         )
         if not callable(patch_row):
             return False
@@ -488,5 +495,5 @@ class PatchDisplayMixin(PatchOnboardingMixin):
         cs_mode: PatchGroupingMode = getattr(
             self, "_patch_grouping_mode", PatchGroupingMode.BY_PROJECT
         )
-        info_panel.update_grouping_mode(_CHANGESPEC_GROUPING_BADGE_LABELS[cs_mode])
+        info_panel.update_grouping_mode(_PATCH_GROUPING_BADGE_LABELS[cs_mode])
         info_panel.update_countdown(self._countdown_remaining, self.refresh_interval)  # type: ignore[attr-defined]

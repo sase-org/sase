@@ -48,13 +48,13 @@ class _ProjectSelectData:
         projects: tuple[ProjectDisplayProjection, ...],
         project_display_snapshot: ProjectDisplaySnapshot,
         patches: tuple[Patch, ...] = (),
-        changespecs: tuple[Patch, ...] = (),
+        changespecs: tuple[Patch, ...] = (),  # legacy compatibility alias
     ) -> None:
         object.__setattr__(self, "projects", projects)
         object.__setattr__(
             self,
             "patches",
-            patches if patches else changespecs,
+            patches if patches else changespecs,  # legacy compatibility alias
         )
         object.__setattr__(
             self,

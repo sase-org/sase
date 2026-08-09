@@ -1,4 +1,4 @@
-"""Storage for the last selected ChangeSpec."""
+"""Storage for the last selected Patch."""
 
 from pathlib import Path
 
@@ -12,7 +12,7 @@ def _last_selection_file() -> Path:
 
 
 def load_last_selection() -> str | None:
-    """Load the last selected ChangeSpec name from disk."""
+    """Load the last selected Patch name from disk."""
     path = _last_selection_file()
     if not path.exists():
         return None
@@ -24,7 +24,7 @@ def load_last_selection() -> str | None:
 
 
 def save_last_selection(name: str) -> bool:
-    """Save the currently selected ChangeSpec name."""
+    """Save the currently selected Patch name."""
     try:
         path = _last_selection_file()
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -34,7 +34,13 @@ class EntryCustomMixin:
 
     def action_start_agent_from_patch(self) -> None:
         """Repeat last +/Ctrl+Space agent selection."""
-        legacy_override = self.__dict__.get("action_start_agent_from_changespec")
+        changespec_override = self.__dict__.get(
+            "action_start_agent_from_changespec"  # legacy compatibility alias
+        )
+        if callable(changespec_override):  # legacy compatibility alias
+            changespec_override()  # legacy compatibility alias
+            return
+        legacy_override = self.__dict__.get("action_start_agent_from_patch")
         if callable(legacy_override):
             legacy_override()
             return
@@ -45,7 +51,7 @@ class EntryCustomMixin:
             return
         self._start_custom_agent_from_selection(last)
 
-    def action_start_agent_from_changespec(self) -> None:
+    def action_start_agent_from_changespec(self) -> None:  # legacy compatibility alias
         """Legacy alias for :meth:`action_start_agent_from_patch`."""
         self.action_start_agent_from_patch()
 

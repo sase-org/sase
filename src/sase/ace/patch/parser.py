@@ -341,7 +341,7 @@ def parse_patch_project_file_python(file_path: str) -> list[Patch]:
         line = lines[idx]
 
         # Look for Patch start by detecting NAME: field
-        # (Patches can start with ## Patch/## ChangeSpec header OR directly with NAME:)
+        # (Patches can start with ## Patch/## ChangeSpec header OR directly with NAME:)  # legacy compatibility alias
         if is_patch_heading(line):
             # Skip the header line and parse the Patch
             patch, next_idx = parse_patch_from_lines(lines, idx + 1, file_path)
@@ -362,5 +362,5 @@ def parse_patch_project_file_python(file_path: str) -> list[Patch]:
 
 parse_project_file = parse_patch_project_file
 parse_project_file_python = parse_patch_project_file_python
-_parse_changespec_from_lines = parse_patch_from_lines
+_parse_changespec_from_lines = parse_patch_from_lines  # legacy compatibility alias
 _parse_patch_from_lines = parse_patch_from_lines

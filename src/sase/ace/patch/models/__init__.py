@@ -8,7 +8,7 @@ focused module.
 from .entries import CommentEntry, DeltaEntry, DeltaLineStats, TimestampEntry
 from .hooks import HookEntry, HookStatusLine
 from .mentors import MentorEntry, MentorStatusLine
-from .patch import ChangeSpec, Patch
+from .patch import ChangeSpec, Patch  # legacy compatibility alias
 from .stitches import (
     CommitEntry,
     Stitch,
@@ -28,7 +28,7 @@ from .suffixes import (
 
 __all__ = [
     "ERROR_SUFFIX_MESSAGES",
-    "ChangeSpec",
+    "ChangeSpec",  # legacy compatibility alias
     "CommentEntry",
     "CommitEntry",
     "DeltaEntry",

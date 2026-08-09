@@ -1,4 +1,4 @@
-"""Hook execution utilities for running and tracking ChangeSpec hooks.
+"""Hook execution utilities for running and tracking Patch hooks.
 
 This package provides utilities for:
 - Managing hook status lines and timestamps
@@ -17,8 +17,8 @@ from .execution import (
 from .persistence import (
     get_hook_output_path,
     merge_hook_updates,
-    transform_changespec_hooks_field,
-    update_changespec_hooks_field,
+    transform_patch_hooks_field,
+    update_patch_hooks_field,
     update_hook_status_line_suffix_type,
 )
 from .history import (
@@ -29,7 +29,7 @@ from .history import (
     is_proposal_entry,
 )
 from .mutations import (
-    add_hook_to_changespec,
+    add_hook_to_patch,
     clear_hook_suffix,
     get_failed_hooks_file_path,
     rerun_delete_hooks_by_command,
@@ -59,7 +59,7 @@ from .status import (
 from .test_targets import (
     TEST_TARGET_HOOK_PREFIX,
     TEST_TARGET_SHORTHAND_PREFIX,
-    add_test_target_hooks_to_changespec,
+    add_test_target_hooks_to_patch,
     clear_failed_test_target_hook_status,
     contract_test_target_command,
     expand_test_target_shorthand,
@@ -84,10 +84,14 @@ from .workflow_queries import (
     has_failing_hooks_for_fix,
 )
 
-add_hook_to_patch = add_hook_to_changespec
-add_test_target_hooks_to_patch = add_test_target_hooks_to_changespec
-update_patch_hooks_field = update_changespec_hooks_field
-transform_patch_hooks_field = transform_changespec_hooks_field
+add_hook_to_changespec = add_hook_to_patch  # legacy compatibility alias
+add_test_target_hooks_to_changespec = (
+    add_test_target_hooks_to_patch  # legacy compatibility alias
+)
+transform_changespec_hooks_field = (
+    transform_patch_hooks_field  # legacy compatibility alias
+)
+update_changespec_hooks_field = update_patch_hooks_field  # legacy compatibility alias
 
 __all__ = [
     # Constants
@@ -123,10 +127,10 @@ __all__ = [
     "mark_hooks_as_killed",
     "mark_mentor_agents_as_killed",
     # Operations functions
-    "add_hook_to_changespec",
     "add_hook_to_patch",
-    "add_test_target_hooks_to_changespec",
+    "add_hook_to_changespec",  # legacy compatibility alias
     "add_test_target_hooks_to_patch",
+    "add_test_target_hooks_to_changespec",  # legacy compatibility alias
     "check_hook_completion",
     "clear_failed_test_target_hook_status",
     "clear_hook_suffix",
@@ -148,9 +152,9 @@ __all__ = [
     "set_hook_suffix",
     "start_hook_background",
     "try_claim_hook_for_fix",
-    "transform_changespec_hooks_field",
     "transform_patch_hooks_field",
-    "update_changespec_hooks_field",
+    "transform_changespec_hooks_field",  # legacy compatibility alias
     "update_patch_hooks_field",
+    "update_changespec_hooks_field",  # legacy compatibility alias
     "update_hook_status_line_suffix_type",
 ]

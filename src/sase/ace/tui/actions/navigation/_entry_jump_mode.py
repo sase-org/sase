@@ -27,7 +27,11 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         if self.current_tab == "agents":
             self._begin_agents_jump_mode()
             return
-        if self.current_tab in {"artifacts", "patches", "changespecs"}:
+        if self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             self._begin_patch_jump_mode()
             return
 
@@ -65,7 +69,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         banner_key_to_hint: dict[tuple[str, ...], str] = {}
         for hint, target in hint_to_target.items():
             kind, payload = target
-            if kind in {"patch", "changespec"}:
+            if kind in {"patch", "changespec"}:  # legacy compatibility alias
                 assert isinstance(payload, int)
                 cs_hint_to_idx[hint] = payload
                 cs_idx_to_hint[payload] = hint
@@ -78,8 +82,8 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._entry_jump_index_to_hint = cs_idx_to_hint
         self._entry_jump_hint_to_patch_banner = banner_hint_to_key
         self._entry_jump_patch_banner_to_hint = banner_key_to_hint
-        self._entry_jump_hint_to_changespec_banner = banner_hint_to_key
-        self._entry_jump_changespec_banner_to_hint = banner_key_to_hint
+        self._entry_jump_hint_to_patch_banner = banner_hint_to_key
+        self._entry_jump_patch_banner_to_hint = banner_key_to_hint
         return True
 
     def _begin_patch_jump_mode(self) -> None:
@@ -156,8 +160,16 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
 
     def _jump_candidate_indices(self) -> list[int]:
         """Return target indices for jump mode in visual order (Patches / AXE only)."""
-        if self.current_tab in {"artifacts", "patches", "changespecs"}:
-            patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        if self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
+            patches = getattr(
+                self,
+                "patches",
+                getattr(self, "changespecs", []),  # legacy compatibility alias
+            )
             return list(range(len(patches)))
         if self.current_tab == "agents":
             # Kept for backward compatibility with tests / callers that
@@ -219,8 +231,8 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._entry_jump_panel_to_hint = {}
         self._entry_jump_hint_to_patch_banner = {}
         self._entry_jump_patch_banner_to_hint = {}
-        self._entry_jump_hint_to_changespec_banner = {}
-        self._entry_jump_changespec_banner_to_hint = {}
+        self._entry_jump_hint_to_patch_banner = {}
+        self._entry_jump_patch_banner_to_hint = {}
         if self.current_tab == "agents":
             self._refresh_agents_jump_hint_display()
         else:

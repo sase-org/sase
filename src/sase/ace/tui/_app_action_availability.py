@@ -17,7 +17,7 @@ def check_app_action(
     fallback: CheckAction,
 ) -> bool | None:
     """Return whether an app action is available in the current UI context."""
-    if action == "start_agent_from_changespec":
+    if action == "start_agent_from_changespec":  # legacy compatibility alias
         action = "start_agent_from_patch"
     if action == "open_config_center" and getattr(
         app.screen, "_blocks_global_config_center_open", False

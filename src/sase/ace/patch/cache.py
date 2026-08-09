@@ -79,7 +79,7 @@ class PatchSnapshotCache:
 
         return patches
 
-    def find_all_changespecs_cached(
+    def find_all_changespecs_cached(  # legacy compatibility alias
         self,
         include_states: Sequence[str] | str = ("enabled",),
     ) -> list[Patch]:
@@ -95,7 +95,7 @@ class PatchSnapshotCache:
                 self._data.pop(os.fspath(path), None)
 
 
-ChangeSpecSnapshotCache = PatchSnapshotCache
+ChangeSpecSnapshotCache = PatchSnapshotCache  # legacy compatibility alias
 _GLOBAL_CACHE = PatchSnapshotCache()
 
 
@@ -106,7 +106,7 @@ def find_all_patches_cached(
     return _GLOBAL_CACHE.find_all_patches_cached(include_states=include_states)
 
 
-def find_all_changespecs_cached(
+def find_all_changespecs_cached(  # legacy compatibility alias
     include_states: Sequence[str] | str = ("enabled",),
 ) -> list[Patch]:
     """Legacy alias for :func:`find_all_patches_cached`."""

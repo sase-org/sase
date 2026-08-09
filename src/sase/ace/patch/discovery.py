@@ -20,7 +20,7 @@ class _PatchProjectFile:
     project_display_name: str | None
 
 
-_ChangeSpecProjectFile = _PatchProjectFile
+_ChangeSpecProjectFile = _PatchProjectFile  # legacy compatibility alias
 
 
 def _normalize_project_lifecycle_states(
@@ -85,13 +85,15 @@ def iter_patch_project_file_records(
     return files
 
 
-iter_changespec_project_files = iter_patch_project_files
-iter_changespec_project_file_records = iter_patch_project_file_records
+iter_changespec_project_files = iter_patch_project_files  # legacy compatibility alias
+iter_changespec_project_file_records = (
+    iter_patch_project_file_records  # legacy compatibility alias
+)
 
 
 __all__ = [
-    "iter_changespec_project_file_records",
-    "iter_changespec_project_files",
+    "iter_changespec_project_file_records",  # legacy compatibility alias
+    "iter_changespec_project_files",  # legacy compatibility alias
     "iter_patch_project_file_records",
     "iter_patch_project_files",
 ]

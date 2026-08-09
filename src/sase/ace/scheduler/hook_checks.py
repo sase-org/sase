@@ -13,7 +13,7 @@ from sase.core.time import generate_timestamp
 from sase.telemetry.metrics import ZOMBIE_DETECTIONS
 
 from ..patch import (
-    ChangeSpec,
+    Patch,
     HookEntry,
     HookStatusLine,
     count_hook_runners_global,
@@ -52,7 +52,7 @@ _PENDING_DEAD_TIMEOUT_SECONDS = 60  # Wait 60s before marking as truly DEAD
 
 
 def _wait_for_completion_marker(
-    changespec: ChangeSpec,
+    patch: Patch,
     hook: HookEntry,
     status_line: HookStatusLine | None = None,
     max_retries: int = _COMPLETION_MAX_RETRIES,
@@ -64,7 +64,7 @@ def _wait_for_completion_marker(
     yet, this function retries reading the file a few times before giving up.
 
     Args:
-        changespec: The ChangeSpec the hook belongs to.
+        patch: The Patch the hook belongs to.
         hook: The hook entry to check.
         status_line: Optional specific status line to check. If provided, checks
             this status line's output file instead of the first RUNNING one.
@@ -76,20 +76,20 @@ def _wait_for_completion_marker(
     """
     for _ in range(max_retries):
         time.sleep(retry_delay)
-        completed_hook = check_hook_completion(changespec, hook, status_line)
+        completed_hook = check_hook_completion(patch, hook, status_line)
         if completed_hook:
             return completed_hook
     return None
 
 
 def check_hooks(
-    changespec: ChangeSpec,
+    patch: Patch,
     log: LogCallback,
     zombie_timeout_seconds: int = DEFAULT_ZOMBIE_TIMEOUT_SECONDS,
     max_runners: int = 5,
     runners_started_this_cycle: int = 0,
 ) -> tuple[list[str], int]:
-    """Check and run hooks for a ChangeSpec.
+    """Check and run hooks for a Patch.
 
     This method handles hooks in two phases:
     1. Check completion status of any RUNNING hooks (no workspace needed)
@@ -99,12 +99,12 @@ def check_hooks(
     accepted entry + all its proposals).
 
     Args:
-        changespec: The ChangeSpec to check.
+        patch: The Patch to check.
         log: Logging callback for status messages.
         zombie_timeout_seconds: Timeout in seconds for zombie detection (default: 2 hours).
         max_runners: Maximum concurrent runners (hooks, agents, mentors) globally (default: 5).
         runners_started_this_cycle: Number of runners already started this cycle (across all
-            ChangeSpecs). Added to the global count to avoid exceeding the limit.
+            Patches). Added to the global count to avoid exceeding the limit.
 
     Returns:
         Tuple of (update messages, number of hooks started by this call).
@@ -113,12 +113,12 @@ def check_hooks(
     hooks_started = 0
 
     # Hooks should exist at this point since we checked in should_check_hooks
-    if not changespec.hooks:
+    if not patch.hooks:
         return updates, hooks_started
 
     # For terminal statuses (Reverted, Submitted, Archived), we still check completion
     # of RUNNING hooks, but we don't start new hooks
-    is_terminal_status = changespec.status in (
+    is_terminal_status = patch.status in (
         "WIP",
         "Reverted",
         "Submitted",
@@ -127,7 +127,7 @@ def check_hooks(
 
     # Get all non-historical entry IDs (current + proposals with same number)
     # e.g., if COMMITS has (1), (2), (3), (3a) -> returns ["3", "3a"]
-    entry_ids = get_current_and_proposal_entry_ids(changespec)
+    entry_ids = get_current_and_proposal_entry_ids(patch)
 
     # Phase 1: Check completion status of RUNNING hooks (no workspace needed)
     updated_hooks: list[HookEntry] = []
@@ -138,15 +138,15 @@ def check_hooks(
     # Track entry IDs that had RUNNING hooks that completed or became zombies
     completed_entry_ids: set[str] = set()
 
-    for hook in changespec.hooks:
+    for hook in patch.hooks:
         # Check for stale fix-hook suffix (timestamp older than timeout)
         sl = hook.latest_status_line
         if sl is not None and is_suffix_stale(sl.suffix, zombie_timeout_seconds):
             ZOMBIE_DETECTIONS.inc()
             # Mark stale fix-hook as ZOMBIE by setting suffix to "ZOMBIE"
             set_hook_suffix(
-                changespec.file_path,
-                changespec.name,
+                patch.file_path,
+                patch.name,
                 hook.command,
                 "ZOMBIE",
                 hooks=None,  # Re-read fresh data under lock
@@ -165,13 +165,13 @@ def check_hooks(
         # PASSED/FAILED based on its exit code, not DEAD.
         if hook_has_any_running_status(hook):
             # Check if it has completed
-            completed_hook = check_hook_completion(changespec, hook)
+            completed_hook = check_hook_completion(patch, hook)
             if completed_hook:
                 # Track entries that had RUNNING hooks that just completed
                 # (status_lines is guaranteed to exist if hook_has_any_running_status)
                 for sl in hook.status_lines or []:
                     if sl.status == "RUNNING":
-                        completed_entry_ids.add(sl.commit_entry_num)
+                        completed_entry_ids.add(sl.stitch_num)
                 updated_hooks.append(completed_hook)
                 modified_hooks[completed_hook.command] = completed_hook
                 completed_sl = completed_hook.latest_status_line
@@ -196,12 +196,12 @@ def check_hooks(
                     # First, check for completion marker (exit code might have appeared)
                     # Pass the specific status line to check ITS output file,
                     # not just the first RUNNING status line's file.
-                    completed_hook = check_hook_completion(changespec, hook, sl)
+                    completed_hook = check_hook_completion(patch, hook, sl)
                     if completed_hook:
                         # Found completion marker - recover to PASSED/FAILED
                         for inner_sl in hook.status_lines or []:
                             if inner_sl.status == "RUNNING":
-                                completed_entry_ids.add(inner_sl.commit_entry_num)
+                                completed_entry_ids.add(inner_sl.stitch_num)
                         updated_hooks.append(completed_hook)
                         modified_hooks[completed_hook.command] = completed_hook
                         completed_sl = completed_hook.latest_status_line
@@ -256,10 +256,10 @@ def check_hooks(
                             updated_status_lines = []
                             for inner_sl in hook.status_lines:
                                 if inner_sl is sl:
-                                    completed_entry_ids.add(inner_sl.commit_entry_num)
+                                    completed_entry_ids.add(inner_sl.stitch_num)
                                     updated_status_lines.append(
                                         HookStatusLine(
-                                            commit_entry_num=inner_sl.commit_entry_num,
+                                            stitch_num=inner_sl.stitch_num,
                                             timestamp=inner_sl.timestamp,
                                             status="DEAD",
                                             duration=inner_sl.duration,
@@ -317,15 +317,13 @@ def check_hooks(
                             # Pass the specific status line to check ITS output file,
                             # not just the first RUNNING status line's file.
                             retry_result = _wait_for_completion_marker(
-                                changespec, hook, status_line=sl
+                                patch, hook, status_line=sl
                             )
                             if retry_result:
                                 # Found completion marker on retry - completed normally
                                 for inner_sl in hook.status_lines or []:
                                     if inner_sl.status == "RUNNING":
-                                        completed_entry_ids.add(
-                                            inner_sl.commit_entry_num
-                                        )
+                                        completed_entry_ids.add(inner_sl.stitch_num)
                                 updated_hooks.append(retry_result)
                                 modified_hooks[retry_result.command] = retry_result
                                 retry_sl = retry_result.latest_status_line
@@ -352,7 +350,7 @@ def check_hooks(
                                     # Don't add to completed_entry_ids yet - still pending
                                     updated_status_lines.append(
                                         HookStatusLine(
-                                            commit_entry_num=inner_sl.commit_entry_num,
+                                            stitch_num=inner_sl.stitch_num,
                                             timestamp=inner_sl.timestamp,
                                             status="RUNNING",  # Keep as RUNNING
                                             duration=inner_sl.duration,
@@ -397,7 +395,7 @@ def check_hooks(
                 for sl in hook.status_lines:
                     if sl.status == "RUNNING":
                         # Track this entry as completed (zombie)
-                        completed_entry_ids.add(sl.commit_entry_num)
+                        completed_entry_ids.add(sl.stitch_num)
 
                         # Kill the process if it has a running_process suffix
                         if sl.suffix_type == "running_process" and sl.suffix:
@@ -413,7 +411,7 @@ def check_hooks(
                         )
                         updated_status_lines.append(
                             HookStatusLine(
-                                commit_entry_num=sl.commit_entry_num,
+                                stitch_num=sl.stitch_num,
                                 timestamp=sl.timestamp,
                                 status="DEAD",
                                 duration=sl.duration,
@@ -465,7 +463,7 @@ def check_hooks(
     # only starts as many limited hooks as the remaining budget allows.
     if entries_needing_hooks and not is_terminal_status:
         # Check global concurrency limit before starting any hooks
-        # Include runners started this cycle (across all ChangeSpecs) that aren't
+        # Include runners started this cycle (across all Patches) that aren't
         # yet written to disk
         current_running = count_hook_runners_global() + runners_started_this_cycle
         available_slots = max(0, max_runners - current_running)
@@ -489,11 +487,11 @@ def check_hooks(
                     )
                 limit_logged = True
 
-            entry = get_history_entry_by_id(changespec, entry_id)
+            entry = get_history_entry_by_id(patch, entry_id)
             if entry is None:
                 continue
             stale_updates, stale_hooks, limited_count = start_stale_hooks(
-                changespec,
+                patch,
                 entry_id,
                 entry,
                 log,
@@ -521,14 +519,14 @@ def check_hooks(
     # (e.g., sase commit adding test hooks while we're updating statuses)
     if modified_hooks:
         success = merge_hook_updates(
-            changespec.file_path,
-            changespec.name,
+            patch.file_path,
+            patch.name,
             modified_hooks,
         )
         if not success:
             # Log that update failed - will be retried next cycle
             log(
-                f"Warning: Hook update failed for {changespec.name}, will retry",
+                f"Warning: Hook update failed for {patch.name}, will retry",
                 "dim",
             )
 
@@ -537,11 +535,11 @@ def check_hooks(
     # are still running
     for entry_id in completed_entry_ids:
         if not entry_has_running_hooks(updated_hooks, entry_id):
-            release_entry_workspace(changespec, entry_id, log)
+            release_entry_workspace(patch, entry_id, log)
 
     # Final cleanup: Release all remaining workspaces if no hooks are running
     # This catches any edge cases where individual entry releases were missed
     if not has_running_hooks(updated_hooks):
-        release_entry_workspaces(changespec, log)
+        release_entry_workspaces(patch, log)
 
     return updates, hooks_started

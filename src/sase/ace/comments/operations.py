@@ -5,10 +5,10 @@ from dataclasses import replace
 
 from ..patch import (
     CommentEntry,
-    changespec_lock,
+    patch_lock,
     is_error_suffix,
     is_running_agent_suffix,
-    write_changespec_atomic,
+    write_patch_atomic,
 )
 
 
@@ -57,21 +57,21 @@ def _format_comments_field(comments: list[CommentEntry]) -> list[str]:
 
 def _apply_comments_to_lines(
     lines: list[str],
-    changespec_name: str,
+    patch_name: str,
     comments: list[CommentEntry] | None,
 ) -> str:
     """Apply COMMENTS field update to file lines.
 
     Args:
         lines: Current file lines.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         comments: List of CommentEntry objects to write, or None to remove field.
 
     Returns:
         Updated file content as a string.
     """
     updated_lines: list[str] = []
-    in_target_changespec = False
+    in_target_patch = False
     found_comments = False
     i = 0
 
@@ -81,8 +81,8 @@ def _apply_comments_to_lines(
         # Check if this is a NAME field
         if line.startswith("NAME:"):
             current_name = line.split(":", 1)[1].strip()
-            was_in_target = in_target_changespec
-            in_target_changespec = current_name == changespec_name
+            was_in_target = in_target_patch
+            in_target_patch = current_name == patch_name
 
             # If we were in target and didn't find COMMENTS, insert before NAME
             if was_in_target and not found_comments and comments:
@@ -93,8 +93,8 @@ def _apply_comments_to_lines(
             i += 1
             continue
 
-        # If we're in the target ChangeSpec
-        if in_target_changespec:
+        # If we're in the target Patch
+        if in_target_patch:
             # Check for COMMENTS field
             if line.startswith("COMMENTS:"):
                 found_comments = True
@@ -117,11 +117,11 @@ def _apply_comments_to_lines(
                         break
                 continue
 
-            # Check for end of ChangeSpec (another field or 2 blank lines)
+            # Check for end of Patch (another field or 2 blank lines)
             if line.strip() == "":
                 next_idx = i + 1
                 if next_idx < len(lines) and lines[next_idx].strip() == "":
-                    # Two blank lines = end of ChangeSpec
+                    # Two blank lines = end of Patch
                     if not found_comments and comments:
                         updated_lines.extend(_format_comments_field(comments))
                         found_comments = True
@@ -129,8 +129,8 @@ def _apply_comments_to_lines(
         updated_lines.append(line)
         i += 1
 
-    # If we reached end of file while still in target changespec
-    if in_target_changespec and not found_comments and comments:
+    # If we reached end of file while still in target patch
+    if in_target_patch and not found_comments and comments:
         updated_lines.extend(_format_comments_field(comments))
 
     return "".join(updated_lines)
@@ -138,35 +138,35 @@ def _apply_comments_to_lines(
 
 def _write_comments_unlocked(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     comments: list[CommentEntry] | None,
 ) -> None:
     """Write COMMENTS field while caller holds lock.
 
     This is a low-level function that should only be called while
-    holding a changespec_lock on the project_file.
+    holding a patch_lock on the project_file.
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         comments: List of CommentEntry objects to write, or None to remove field.
     """
     with open(project_file, encoding="utf-8") as f:
         lines = f.readlines()
 
-    updated_content = _apply_comments_to_lines(lines, changespec_name, comments)
+    updated_content = _apply_comments_to_lines(lines, patch_name, comments)
 
     commit_msg = (
-        f"Update COMMENTS for {changespec_name}"
+        f"Update COMMENTS for {patch_name}"
         if comments
-        else f"Remove COMMENTS for {changespec_name}"
+        else f"Remove COMMENTS for {patch_name}"
     )
-    write_changespec_atomic(project_file, updated_content, commit_msg)
+    write_patch_atomic(project_file, updated_content, commit_msg)
 
 
-def update_changespec_comments_field(
+def update_patch_comments_field(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     comments: list[CommentEntry] | None,
 ) -> bool:
     """Update the COMMENTS field in the project file.
@@ -175,26 +175,26 @@ def update_changespec_comments_field(
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         comments: List of CommentEntry objects to write, or None to remove field.
 
     Returns:
         True if update succeeded, False otherwise.
     """
     try:
-        with changespec_lock(project_file):
-            _write_comments_unlocked(project_file, changespec_name, comments)
+        with patch_lock(project_file):
+            _write_comments_unlocked(project_file, patch_name, comments)
         return True
     except Exception:
         return False
 
 
-def transform_changespec_comments_field(
+def transform_patch_comments_field(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     transform: Callable[[list[CommentEntry]], list[CommentEntry]],
 ) -> bool:
-    """Transform the current COMMENTS field under the ChangeSpec lock.
+    """Transform the current COMMENTS field under the Patch lock.
 
     Returns ``True`` only when the freshly read comments materially change and
     the updated field is persisted.
@@ -202,19 +202,17 @@ def transform_changespec_comments_field(
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
-            changespec = next(
-                (cs for cs in changespecs if cs.name == changespec_name), None
-            )
-            if changespec is None:
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
+            patch = next((cs for cs in patches if cs.name == patch_name), None)
+            if patch is None:
                 return False
 
             current_comments = [
                 replace(comment, suffix_type="plain")
                 if comment.suffix is not None and comment.suffix_type is None
                 else comment
-                for comment in changespec.comments or []
+                for comment in patch.comments or []
             ]
             updated_comments = transform(current_comments)
             if updated_comments == current_comments:
@@ -222,7 +220,7 @@ def transform_changespec_comments_field(
 
             _write_comments_unlocked(
                 project_file,
-                changespec_name,
+                patch_name,
                 updated_comments or None,
             )
             return True
@@ -232,15 +230,15 @@ def transform_changespec_comments_field(
 
 def add_comment_entry(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     entry: CommentEntry,
     existing_comments: list[CommentEntry] | None = None,
 ) -> bool:
-    """Add a single comment entry to a ChangeSpec.
+    """Add a single comment entry to a Patch.
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         entry: The CommentEntry to add.
         existing_comments: Existing comments list (optional, will be loaded if None).
 
@@ -254,21 +252,19 @@ def add_comment_entry(
         for i, c in enumerate(comments):
             if c.reviewer == entry.reviewer:
                 comments[i] = entry
-                return update_changespec_comments_field(
-                    project_file, changespec_name, comments
-                )
+                return update_patch_comments_field(project_file, patch_name, comments)
         comments.append(entry)
-        return update_changespec_comments_field(project_file, changespec_name, comments)
+        return update_patch_comments_field(project_file, patch_name, comments)
 
     # Otherwise, acquire lock and read fresh state
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
             current_comments: list[CommentEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
+            for cs in patches:
+                if cs.name == patch_name:
                     current_comments = list(cs.comments) if cs.comments else []
                     break
 
@@ -276,13 +272,11 @@ def add_comment_entry(
             for i, c in enumerate(current_comments):
                 if c.reviewer == entry.reviewer:
                     current_comments[i] = entry
-                    _write_comments_unlocked(
-                        project_file, changespec_name, current_comments
-                    )
+                    _write_comments_unlocked(project_file, patch_name, current_comments)
                     return True
 
             current_comments.append(entry)
-            _write_comments_unlocked(project_file, changespec_name, current_comments)
+            _write_comments_unlocked(project_file, patch_name, current_comments)
             return True
     except Exception:
         return False
@@ -290,15 +284,15 @@ def add_comment_entry(
 
 def remove_comment_entry(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     reviewer: str,
     existing_comments: list[CommentEntry] | None = None,
 ) -> bool:
-    """Remove a comment entry by reviewer from a ChangeSpec.
+    """Remove a comment entry by reviewer from a Patch.
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         reviewer: The reviewer identifier to remove.
         existing_comments: Existing comments list (optional, will be loaded if None).
 
@@ -311,18 +305,18 @@ def remove_comment_entry(
             return True  # Nothing to remove
         comments = [c for c in existing_comments if c.reviewer != reviewer]
         if not comments:
-            return update_changespec_comments_field(project_file, changespec_name, None)
-        return update_changespec_comments_field(project_file, changespec_name, comments)
+            return update_patch_comments_field(project_file, patch_name, None)
+        return update_patch_comments_field(project_file, patch_name, comments)
 
     # Otherwise, acquire lock and read fresh state
     from ..patch import parse_project_file
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
+        with patch_lock(project_file):
+            patches = parse_project_file(project_file)
             current_comments: list[CommentEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
+            for cs in patches:
+                if cs.name == patch_name:
                     current_comments = list(cs.comments) if cs.comments else []
                     break
 
@@ -331,9 +325,9 @@ def remove_comment_entry(
 
             comments = [c for c in current_comments if c.reviewer != reviewer]
             if not comments:
-                _write_comments_unlocked(project_file, changespec_name, None)
+                _write_comments_unlocked(project_file, patch_name, None)
             else:
-                _write_comments_unlocked(project_file, changespec_name, comments)
+                _write_comments_unlocked(project_file, patch_name, comments)
             return True
     except Exception:
         return False
@@ -341,7 +335,7 @@ def remove_comment_entry(
 
 def set_comment_suffix(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     reviewer: str,
     suffix: str,
     comments: list[CommentEntry],
@@ -351,7 +345,7 @@ def set_comment_suffix(
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         reviewer: The reviewer identifier to update.
         suffix: The suffix to set.
         comments: Current list of CommentEntry objects.
@@ -374,14 +368,12 @@ def set_comment_suffix(
         else:
             updated_comments.append(comment)
 
-    return update_changespec_comments_field(
-        project_file, changespec_name, updated_comments
-    )
+    return update_patch_comments_field(project_file, patch_name, updated_comments)
 
 
 def clear_comment_suffix(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     reviewer: str,
     comments: list[CommentEntry] | None = None,
 ) -> bool:
@@ -389,7 +381,7 @@ def clear_comment_suffix(
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         reviewer: The reviewer identifier to update.
         comments: Retained for caller compatibility; disk state is always re-read.
 
@@ -405,16 +397,16 @@ def clear_comment_suffix(
             for comment in current_comments
         ]
 
-    return transform_changespec_comments_field(
+    return transform_patch_comments_field(
         project_file,
-        changespec_name,
+        patch_name,
         transform,
     )
 
 
 def update_comment_suffix_type(
     project_file: str,
-    changespec_name: str,
+    patch_name: str,
     reviewer: str,
     new_suffix_type: str,
     comments: list[CommentEntry],
@@ -423,7 +415,7 @@ def update_comment_suffix_type(
 
     Args:
         project_file: Path to the ProjectSpec file.
-        changespec_name: NAME of the ChangeSpec to update.
+        patch_name: NAME of the Patch to update.
         reviewer: The reviewer identifier to update.
         new_suffix_type: The new suffix type ("error" only).
         comments: Current list of CommentEntry objects.
@@ -455,9 +447,7 @@ def update_comment_suffix_type(
     if not found:
         return False
 
-    return update_changespec_comments_field(
-        project_file, changespec_name, updated_comments
-    )
+    return update_patch_comments_field(project_file, patch_name, updated_comments)
 
 
 def mark_comment_agents_as_killed(
@@ -498,4 +488,6 @@ def mark_comment_agents_as_killed(
     return updated_comments
 
 
-update_patch_comments_field = update_changespec_comments_field
+update_changespec_comments_field = (
+    update_patch_comments_field  # legacy compatibility alias
+)

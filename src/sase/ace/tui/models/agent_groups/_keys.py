@@ -64,11 +64,11 @@ class GroupingKeys:
     name_prefix_member_rank: int = 1  # exact prefix marker before descendants
     date_subgroup: str = ""  # populated only under BY_DATE; "" otherwise
     anchor: datetime | None = None  # subgroup sort anchor under BY_DATE
-    changespec: str = ""  # legacy alias for ``patch``
+    changespec: str = ""  # legacy compatibility alias for ``patch``
 
     def __post_init__(self) -> None:
-        if not self.changespec:
-            object.__setattr__(self, "changespec", self.patch)
+        if not self.changespec:  # legacy compatibility alias
+            object.__setattr__(self, "changespec", self.patch)  # legacy alias
 
 
 def _project_name(agent: Agent) -> str:

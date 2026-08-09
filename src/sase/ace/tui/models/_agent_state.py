@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -36,7 +36,8 @@ class AgentState:
     workspace_num: int | None = None  # For RUNNING type
     workflow: str | None = None  # For RUNNING type (e.g., "crs")
     hook_command: str | None = None  # For hook-based agents
-    commit_entry_id: str | None = None  # For hook-based agents
+    stitch_id: str | None = None  # For hook-based agents
+    commit_entry_id: InitVar[str | None] = None  # legacy compatibility alias
     mentor_profile: str | None = None  # For mentor agents
     mentor_name: str | None = None  # For mentor agents
     reviewer: str | None = None  # For CRS agents (e.g., "critique")
@@ -409,3 +410,20 @@ class AgentState:
     # Populated alongside ``_loaded_from_dismissed_bundle`` by the dismissed
     # bundle loader so the revive audit log can record which file was deleted.
     _dismissed_bundle_path: str | None = field(default=None, compare=False, repr=False)
+
+
+def _get_commit_entry_id(agent: AgentState) -> str | None:  # legacy compatibility alias
+    return agent.stitch_id
+
+
+def _set_commit_entry_id(
+    agent: AgentState,
+    value: str | None,
+) -> None:  # legacy compatibility alias
+    agent.stitch_id = value
+
+
+AgentState.commit_entry_id = property(  # type: ignore[attr-defined] # legacy compatibility alias
+    _get_commit_entry_id,
+    _set_commit_entry_id,
+)

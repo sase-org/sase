@@ -6,7 +6,7 @@ import signal
 from collections.abc import Callable
 
 from ..patch import (
-    ChangeSpec,
+    Patch,
     CommentEntry,
     HookEntry,
     HookStatusLine,
@@ -68,16 +68,16 @@ def is_process_running(pid: int) -> bool:
 
 
 def kill_running_hook_processes(
-    changespec: ChangeSpec,
+    patch: Patch,
     skip_dollar: bool = False,
 ) -> list[tuple[HookEntry, HookStatusLine, int]]:
-    """Kill all running hook processes for a ChangeSpec.
+    """Kill all running hook processes for a Patch.
 
     Finds all hooks with suffix_type="running_process", extracts the PID,
     and sends SIGTERM to terminate the process group.
 
     Args:
-        changespec: The ChangeSpec to kill running hooks for.
+        patch: The Patch to kill running hooks for.
         skip_dollar: If True, skip $-prefixed hooks (skip_proposal_runs).
 
     Returns:
@@ -86,10 +86,10 @@ def kill_running_hook_processes(
     """
     killed: list[tuple[HookEntry, HookStatusLine, int]] = []
 
-    if not changespec.hooks:
+    if not patch.hooks:
         return killed
 
-    for hook in changespec.hooks:
+    for hook in patch.hooks:
         if skip_dollar and hook.skip_proposal_runs:
             continue
         if not hook.status_lines:
@@ -121,7 +121,7 @@ def mark_hooks_as_killed(
         hooks: List of all HookEntry objects.
         killed_processes: List of (hook, status_line, pid) from kill operation.
         description: Description of why the hook was killed
-            (e.g., "Killed hook running on reverted ChangeSpec.").
+            (e.g., "Killed hook running on reverted Patch.").
 
     Returns:
         Updated list of HookEntry objects with modified suffix_type.
@@ -129,10 +129,9 @@ def mark_hooks_as_killed(
     timestamp = get_current_timestamp()
     formatted_description = f"[{timestamp}] {description}"
 
-    # Build lookup set of (command, commit_entry_num, pid) for killed processes
+    # Build lookup set of (command, stitch_num, pid) for killed processes
     killed_lookup: set[tuple[str, str, str]] = {
-        (hook.command, sl.commit_entry_num, str(pid))
-        for hook, sl, pid in killed_processes
+        (hook.command, sl.stitch_num, str(pid)) for hook, sl, pid in killed_processes
     }
 
     updated_hooks: list[HookEntry] = []
@@ -143,11 +142,11 @@ def mark_hooks_as_killed(
 
         updated_status_lines: list[HookStatusLine] = []
         for sl in hook.status_lines:
-            if (hook.command, sl.commit_entry_num, sl.suffix) in killed_lookup:
+            if (hook.command, sl.stitch_num, sl.suffix) in killed_lookup:
                 # Create new status line with DEAD status and description
                 new_suffix = f"{sl.suffix} | {formatted_description}"
                 updated_sl = HookStatusLine(
-                    commit_entry_num=sl.commit_entry_num,
+                    stitch_num=sl.stitch_num,
                     timestamp=sl.timestamp,
                     status="DEAD",
                     duration=sl.duration,
@@ -168,31 +167,31 @@ def mark_hooks_as_killed(
 
 
 def kill_running_agent_processes(
-    changespec: ChangeSpec,
+    patch: Patch,
 ) -> tuple[
     list[tuple[HookEntry, HookStatusLine, int]],
     list[tuple[CommentEntry, int]],
 ]:
-    """Kill all running agent processes for a ChangeSpec.
+    """Kill all running agent processes for a Patch.
 
     Finds all hooks and comment entries with suffix_type="running_agent",
     extracts the PID from the suffix (format: <agent>-<PID>-<timestamp>),
     and sends SIGTERM to terminate the process group.
 
     Args:
-        changespec: The ChangeSpec to kill running agents for.
+        patch: The Patch to kill running agents for.
 
     Returns:
         Tuple of:
         - List of (hook, status_line, pid) tuples for killed hook agents
-        - List of (commit_entry, pid) tuples for killed comment agents
+        - List of (stitch, pid) tuples for killed comment agents
     """
     killed_hooks: list[tuple[HookEntry, HookStatusLine, int]] = []
     killed_comments: list[tuple[CommentEntry, int]] = []
 
     # Kill agent processes on hooks (fix_hook, summarize_hook workflows)
-    if changespec.hooks:
-        for hook in changespec.hooks:
+    if patch.hooks:
+        for hook in patch.hooks:
             if not hook.status_lines:
                 continue
             for sl in hook.status_lines:
@@ -205,8 +204,8 @@ def kill_running_agent_processes(
                     killed_hooks.append((hook, sl, pid))
 
     # Kill agent processes on comments (crs workflow)
-    if changespec.comments:
-        for comment in changespec.comments:
+    if patch.comments:
+        for comment in patch.comments:
             if comment.suffix_type == "running_agent" and comment.suffix:
                 pid = extract_pid_from_agent_suffix(comment.suffix)
                 if pid is None:
@@ -234,9 +233,9 @@ def mark_hook_agents_as_killed(
     Returns:
         Updated list of HookEntry objects with modified suffix_type.
     """
-    # Build lookup set of (command, commit_entry_num, suffix) for killed agents
+    # Build lookup set of (command, stitch_num, suffix) for killed agents
     killed_lookup: set[tuple[str, str, str]] = {
-        (hook.command, sl.commit_entry_num, sl.suffix or "")
+        (hook.command, sl.stitch_num, sl.suffix or "")
         for hook, sl, pid in killed_agents
     }
 
@@ -248,10 +247,10 @@ def mark_hook_agents_as_killed(
 
         updated_status_lines: list[HookStatusLine] = []
         for sl in hook.status_lines:
-            if (hook.command, sl.commit_entry_num, sl.suffix or "") in killed_lookup:
+            if (hook.command, sl.stitch_num, sl.suffix or "") in killed_lookup:
                 # Create new status line with killed_agent type
                 updated_sl = HookStatusLine(
-                    commit_entry_num=sl.commit_entry_num,
+                    stitch_num=sl.stitch_num,
                     timestamp=sl.timestamp,
                     status=sl.status,
                     duration=sl.duration,
@@ -282,7 +281,7 @@ def kill_running_processes_for_hooks(
     hooks being modified.
 
     Unlike kill_running_hook_processes() and kill_running_agent_processes()
-    which operate on ALL hooks in a ChangeSpec, this function targets only
+    which operate on ALL hooks in a Patch, this function targets only
     specific hooks by index.
 
     Args:
@@ -324,17 +323,17 @@ def kill_running_processes_for_hooks(
 
 
 def kill_running_mentor_processes(
-    changespec: ChangeSpec,
+    patch: Patch,
     only_entry_ids: set[str] | None = None,
 ) -> list[tuple[MentorEntry, MentorStatusLine, int]]:
-    """Kill running mentor processes for a ChangeSpec.
+    """Kill running mentor processes for a Patch.
 
     Finds mentors with suffix_type="running_agent", extracts the PID
     from the suffix (format: mentor_<name>-<PID>-<timestamp>),
     and sends SIGTERM to terminate the process group.
 
     Args:
-        changespec: The ChangeSpec to kill running mentors for.
+        patch: The Patch to kill running mentors for.
         only_entry_ids: If provided, only kill mentors for these entry IDs.
             If None, kills ALL running mentors.
 
@@ -344,10 +343,10 @@ def kill_running_mentor_processes(
     """
     killed: list[tuple[MentorEntry, MentorStatusLine, int]] = []
 
-    if not changespec.mentors:
+    if not patch.mentors:
         return killed
 
-    for entry in changespec.mentors:
+    for entry in patch.mentors:
         if only_entry_ids is not None and entry.entry_id not in only_entry_ids:
             continue
         if not entry.status_lines:
@@ -438,7 +437,7 @@ def extract_mentor_workflow_from_suffix(suffix: str) -> str | None:
 
 
 def kill_and_persist_all_running_processes(
-    changespec: ChangeSpec,
+    patch: Patch,
     project_file: str,
     cl_name: str,
     kill_reason: str,
@@ -447,62 +446,69 @@ def kill_and_persist_all_running_processes(
     """Kill all running hook/agent/mentor processes and persist updates.
 
     This is a convenience function that orchestrates killing all running
-    processes (hooks, agents, mentors) for a ChangeSpec, marking them as
+    processes (hooks, agents, mentors) for a Patch, marking them as
     killed, persisting updates to the project file, and releasing any
     workspaces claimed by killed mentor processes.
 
     Args:
-        changespec: The ChangeSpec to kill processes for.
+        patch: The Patch to kill processes for.
         project_file: Path to the project file.
-        cl_name: The ChangeSpec name.
+        cl_name: The Patch name.
         kill_reason: Description of why processes are being killed
-            (e.g., "Killed hook running on reverted ChangeSpec.").
+            (e.g., "Killed hook running on reverted Patch.").
         log_fn: Optional callback for logging messages.
     """
     # Lazy imports to avoid circular dependencies
     from ..comments.operations import (
         mark_comment_agents_as_killed,
-        update_patch_comments_field,
+        update_changespec_comments_field,  # legacy compatibility alias
     )
     from ..mentors import update_patch_mentors_field
-    from .persistence import update_patch_hooks_field
+    from .persistence import update_changespec_hooks_field  # legacy compat alias
 
     # Kill running hook processes
-    killed_processes = kill_running_hook_processes(changespec)
+    killed_processes = kill_running_hook_processes(patch)
     if killed_processes:
         if log_fn:
             log_fn(f"Killed {len(killed_processes)} running hook process(es)")
-        if changespec.hooks:
+        if patch.hooks:
             updated_hooks = mark_hooks_as_killed(
-                changespec.hooks, killed_processes, kill_reason
+                patch.hooks, killed_processes, kill_reason
             )
-            update_patch_hooks_field(project_file, cl_name, updated_hooks)
+            # legacy compatibility alias
+            update_changespec_hooks_field(
+                project_file, cl_name, updated_hooks
+            )  # legacy compatibility alias
 
     # Kill running agent processes
-    killed_hook_agents, killed_comment_agents = kill_running_agent_processes(changespec)
+    killed_hook_agents, killed_comment_agents = kill_running_agent_processes(patch)
     total_killed_agents = len(killed_hook_agents) + len(killed_comment_agents)
     if total_killed_agents:
         if log_fn:
             log_fn(f"Killed {total_killed_agents} running agent process(es)")
-        if killed_hook_agents and changespec.hooks:
-            updated_hooks = mark_hook_agents_as_killed(
-                changespec.hooks, killed_hook_agents
-            )
-            update_patch_hooks_field(project_file, cl_name, updated_hooks)
-        if killed_comment_agents and changespec.comments:
+        if killed_hook_agents and patch.hooks:
+            updated_hooks = mark_hook_agents_as_killed(patch.hooks, killed_hook_agents)
+            # legacy compatibility alias
+            update_changespec_hooks_field(
+                project_file, cl_name, updated_hooks
+            )  # legacy compatibility alias
+        if killed_comment_agents and patch.comments:
             updated_comments = mark_comment_agents_as_killed(
-                changespec.comments, killed_comment_agents
+                patch.comments, killed_comment_agents
             )
-            update_patch_comments_field(project_file, cl_name, updated_comments)
+            # legacy compatibility alias
+            update_changespec_comments_field(
+                project_file, cl_name, updated_comments
+            )  # legacy compatibility alias
 
     # Kill running mentor processes
-    killed_mentors = kill_running_mentor_processes(changespec)
+    killed_mentors = kill_running_mentor_processes(patch)
     if killed_mentors:
         if log_fn:
             log_fn(f"Killed {len(killed_mentors)} running mentor process(es)")
-        if changespec.mentors:
+        if patch.mentors:
             updated_mentors = mark_mentor_agents_as_killed(
-                changespec.mentors, killed_mentors
+                patch.mentors, killed_mentors
             )
             update_patch_mentors_field(project_file, cl_name, updated_mentors)
 

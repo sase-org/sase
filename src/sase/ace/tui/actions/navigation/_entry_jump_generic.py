@@ -33,8 +33,16 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
 
     def _entry_jump_index_is_valid(self, tab: str, idx: int) -> bool:
         """Return whether ``idx`` still identifies a row in ``tab``."""
-        if tab in {"artifacts", "patches", "changespecs"}:
-            patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        if tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
+            patches = getattr(
+                self,
+                "patches",
+                getattr(self, "changespecs", []),  # legacy compatibility alias
+            )
             return 0 <= idx < len(patches)
         if tab == "axe":
             return 0 <= idx < len(self._axe_items)  # type: ignore[attr-defined]
@@ -64,22 +72,35 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
             return self._entry_jump_index_is_valid(tab, anchor)
         kind, group_key = anchor
         return (
-            kind in {"patch_banner", "changespec_banner"}
-            and tab in {"artifacts", "patches", "changespecs"}
+            kind
+            in {
+                "patch_banner",
+                "changespec_banner",  # legacy compatibility alias
+            }
+            and tab
+            in {
+                "artifacts",
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }
             and self._patch_banner_anchor_is_valid(group_key)
         )
 
     def _current_entry_jump_anchor(self) -> EntryJumpAnchor | None:
         """Snapshot the current non-Agents cursor as a row or Patch banner."""
-        if self.current_tab in {"artifacts", "patches", "changespecs"}:
+        if self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             group_key = getattr(self, "_current_patch_group_key", None)
             if group_key is None:
-                group_key = getattr(self, "_current_changespec_group_key", None)
+                group_key = getattr(self, "_current_patch_group_key", None)
             if group_key is not None:
                 kind: Literal["patch_banner", "changespec_banner"] = (
-                    "patch_banner"
-                    if self.current_tab == "artifacts"
-                    else "changespec_banner"
+                    "changespec_banner"  # legacy compatibility alias
+                    if self.current_tab == "changespecs"
+                    else "patch_banner"
                 )
                 banner_anchor: EntryJumpAnchor = (
                     kind,
@@ -118,9 +139,14 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         row_changed = target_idx is not None and target_idx != self.current_idx
         current_group_key = getattr(self, "_current_patch_group_key", None)
         if current_group_key is None:
-            current_group_key = getattr(self, "_current_changespec_group_key", None)
+            current_group_key = getattr(self, "_current_patch_group_key", None)
         group_changed = (
-            self.current_tab in {"artifacts", "patches", "changespecs"}
+            self.current_tab
+            in {
+                "artifacts",
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }
             and target_group_key != current_group_key
         )
         if not row_changed and not group_changed:
@@ -133,7 +159,11 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
 
     def _push_patch_to_history(self) -> None:
         """Push the current Patch cursor onto the jump-back stack."""
-        if self.current_tab not in {"artifacts", "patches", "changespecs"}:
+        if self.current_tab not in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             return
         anchor = self._current_entry_jump_anchor()
         if anchor is None:
@@ -141,7 +171,7 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         self._push_entry_jump_anchor_to_stack(self._entry_jump_index_stack, anchor)
         self._clear_current_entry_jump_forward_stack()
 
-    def _push_changespec_to_history(self) -> None:
+    def _push_changespec_to_history(self) -> None:  # legacy compatibility alias
         self._push_patch_to_history()
 
     def _pop_entry_jump_anchor_from(
@@ -168,24 +198,32 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         if not self._entry_jump_anchor_is_valid(self.current_tab, anchor):
             return False
         if isinstance(anchor, int):
-            if self.current_tab in {"artifacts", "patches", "changespecs"}:
+            if self.current_tab in {
+                "artifacts",
+                "patches",
+                "changespecs",  # legacy compatibility alias
+            }:
                 self._current_patch_group_key = None  # type: ignore[attr-defined]
-                if hasattr(self, "_current_changespec_group_key"):
-                    self._current_changespec_group_key = None  # type: ignore[attr-defined]
+                if hasattr(self, "_current_patch_group_key"):
+                    self._current_patch_group_key = None  # type: ignore[attr-defined]
             self.current_idx = anchor
             return True
 
         _, group_key = anchor
         self._current_patch_group_key = group_key  # type: ignore[attr-defined]
-        if hasattr(self, "_current_changespec_group_key"):
-            self._current_changespec_group_key = group_key  # type: ignore[attr-defined]
+        if hasattr(self, "_current_patch_group_key"):
+            self._current_patch_group_key = group_key  # type: ignore[attr-defined]
         return True
 
     def _refresh_after_entry_jump_restore(self) -> None:
         """Refresh the tab after a direct jump-stack restore."""
         if self.current_tab == "agents":
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+        elif self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             self._refresh_display()  # type: ignore[attr-defined]
         else:
             self._refresh_current_tab()  # type: ignore[attr-defined]

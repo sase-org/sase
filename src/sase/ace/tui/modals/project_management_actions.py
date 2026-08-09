@@ -512,13 +512,13 @@ class ProjectManagementActionsMixin:
 
     def _notify_lifecycle_changed(self) -> None:
         app = self.app
-        patch_refresh = getattr(
-            app,
-            "_schedule_changespecs_async_refresh",
-            getattr(app, "_schedule_patches_async_refresh", None),
-        )
-        if patch_refresh is not None:
-            patch_refresh()
+        for refresh_name in (
+            "_schedule_patches_async_refresh",
+            "_schedule_changespecs_async_refresh",  # legacy compatibility alias
+        ):
+            patch_refresh = getattr(app, refresh_name, None)
+            if patch_refresh is not None:
+                patch_refresh()
         for method_name, args, kwargs in (
             (
                 "_schedule_agents_async_refresh",

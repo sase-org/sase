@@ -65,8 +65,7 @@ from ._timestamps import normalize_to_14_digit
 from .agent import Agent
 from .workflow import WorkflowEntry
 
-_FIND_ALL_PATCHES_IMPL = find_all_patches
-find_all_changespecs = find_all_patches
+find_all_changespecs = find_all_patches  # legacy compatibility alias
 
 
 @dataclass(frozen=True)
@@ -183,13 +182,10 @@ def load_all_workflows() -> list[WorkflowEntry]:
 def _patch_snapshot_for_loader(
     patch_snapshot: list[Patch] | None,
 ) -> list[Patch]:
-    finder = (
-        find_all_changespecs
-        if find_all_changespecs is not _FIND_ALL_PATCHES_IMPL
-        else find_all_patches
-    )
     return (
-        patch_snapshot if patch_snapshot is not None else finder(include_states="all")
+        patch_snapshot
+        if patch_snapshot is not None
+        else find_all_changespecs(include_states="all")  # legacy compat alias
     )
 
 
@@ -489,13 +485,13 @@ def load_artifact_delta_agents(
     artifact_dirs: Sequence[Path | str],
     *,
     patch_snapshot: list[Patch] | None = None,
-    changespec_snapshot: list[Patch] | None = None,
+    changespec_snapshot: list[Patch] | None = None,  # legacy compatibility alias
     update_index: bool = True,
     deleted_artifact_dirs: Sequence[Path | str] = (),
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load normalized agents from an exact set of artifact directories."""
     if patch_snapshot is None:
-        patch_snapshot = changespec_snapshot
+        patch_snapshot = changespec_snapshot  # legacy compatibility alias
 
     unique_dirs, seen_dirs, deleted_dir_keys = _prepare_artifact_delta_paths(
         artifact_dirs,

@@ -1,55 +1,55 @@
 """Commits entry utilities for hooks."""
 
-from ..patch import ChangeSpec, CommitEntry
+from ..patch import Patch, Stitch
 
 
-def get_last_history_entry_id(changespec: ChangeSpec) -> str | None:
+def get_last_history_entry_id(patch: Patch) -> str | None:
     """Get the ID of the last COMMITS entry (e.g., '1', '1a', '2').
 
     Args:
-        changespec: The ChangeSpec to get the last entry ID from.
+        patch: The Patch to get the last entry ID from.
 
     Returns:
         The last history entry ID or None if no history.
     """
-    if not changespec.commits:
+    if not patch.commits:
         return None
 
-    return changespec.commits[-1].display_number
+    return patch.commits[-1].display_number
 
 
-def get_last_history_entry(changespec: ChangeSpec) -> CommitEntry | None:
+def get_last_history_entry(patch: Patch) -> Stitch | None:
     """Get the last COMMITS entry.
 
     Args:
-        changespec: The ChangeSpec to get the last entry from.
+        patch: The Patch to get the last entry from.
 
     Returns:
-        The last CommitEntry or None if no history.
+        The last Stitch or None if no history.
     """
-    if not changespec.commits:
+    if not patch.commits:
         return None
 
-    return changespec.commits[-1]
+    return patch.commits[-1]
 
 
-def get_last_accepted_history_entry_id(changespec: ChangeSpec) -> str | None:
+def get_last_accepted_history_entry_id(patch: Patch) -> str | None:
     """Get the ID of the last accepted (all-numeric) COMMITS entry.
 
     This skips proposal entries like '2a' and returns the last entry
     with an all-numeric ID like '2'.
 
     Args:
-        changespec: The ChangeSpec to get the last accepted entry ID from.
+        patch: The Patch to get the last accepted entry ID from.
 
     Returns:
         The last accepted history entry ID or None if no history.
     """
-    if not changespec.commits:
+    if not patch.commits:
         return None
 
     # Iterate in reverse to find the last all-numeric entry
-    for entry in reversed(changespec.commits):
+    for entry in reversed(patch.commits):
         if entry.display_number.isdigit():
             return entry.display_number
 
@@ -61,21 +61,19 @@ def is_proposal_entry(entry_id: str) -> bool:
     return bool(entry_id) and entry_id[-1].isalpha()
 
 
-def get_history_entry_by_id(
-    changespec: ChangeSpec, entry_id: str
-) -> CommitEntry | None:
-    """Get the CommitEntry with the given display number.
+def get_history_entry_by_id(patch: Patch, entry_id: str) -> Stitch | None:
+    """Get the Stitch with the given display number.
 
     Args:
-        changespec: The ChangeSpec to search.
+        patch: The Patch to search.
         entry_id: The display number to find (e.g., "1", "2a").
 
     Returns:
-        The matching CommitEntry, or None if not found.
+        The matching Stitch, or None if not found.
     """
-    if not changespec.commits:
+    if not patch.commits:
         return None
-    for entry in changespec.commits:
+    for entry in patch.commits:
         if entry.display_number == entry_id:
             return entry
     return None

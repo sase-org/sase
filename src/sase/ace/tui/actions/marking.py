@@ -25,10 +25,18 @@ class MarkingMixin:
     marked_indices: set[int]
 
     def _is_patch_tab(self) -> bool:
-        return self.current_tab in {ARTIFACTS_TAB, "patches", "changespecs"}
+        return self.current_tab in {
+            ARTIFACTS_TAB,
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }
 
     def _visible_patches(self) -> list[Patch]:
-        return getattr(self, "patches", getattr(self, "changespecs", []))
+        return getattr(
+            self,
+            "patches",
+            getattr(self, "changespecs", []),  # legacy compatibility alias
+        )
 
     def action_toggle_mark(self) -> None:
         """Toggle mark on the current Patch or agent."""
@@ -71,11 +79,13 @@ class MarkingMixin:
 
         # Patch only the toggled row in place; falls back to a full refresh
         # if the widget can't accept the patch (e.g. width grew).
-        patch_row = getattr(
-            self,
-            "_try_patch_patch_row",
-            getattr(self, "_try_patch_changespec_row", None),
-        )
+        patch_row = getattr(self, "_try_patch_patch_row", None)
+        if not callable(patch_row):
+            patch_row = getattr(
+                self,
+                "_try_patch_changespec_row",  # legacy compatibility alias
+                None,
+            )
         if not callable(patch_row) or not patch_row(idx):
             self._refresh_display()  # type: ignore[attr-defined]
         else:
@@ -85,7 +95,7 @@ class MarkingMixin:
         if len(patches) > 1:
             self.current_idx = (self.current_idx + 1) % len(patches)
 
-    def _toggle_mark_changespec(self) -> None:
+    def _toggle_mark_changespec(self) -> None:  # legacy compatibility alias
         self._toggle_mark_patch()
 
     def action_clear_marks(self) -> None:
@@ -114,7 +124,7 @@ class MarkingMixin:
         self._refresh_display()  # type: ignore[attr-defined]
         self.notify(f"Cleared {count} mark(s)")  # type: ignore[attr-defined]
 
-    def _clear_changespec_marks(self) -> None:
+    def _clear_changespec_marks(self) -> None:  # legacy compatibility alias
         self._clear_patch_marks()
 
     def action_bulk_change_status(self) -> None:

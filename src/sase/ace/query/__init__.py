@@ -1,6 +1,6 @@
-"""Query language for filtering ChangeSpecs.
+"""Query language for filtering Patches.
 
-This package provides a query language for filtering ChangeSpecs using
+This package provides a query language for filtering Patches using
 boolean expressions with string matching and property filters.
 
 Query Language Examples:

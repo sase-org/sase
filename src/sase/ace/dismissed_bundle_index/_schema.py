@@ -137,7 +137,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             retried_as_timestamp TEXT,
             retry_chain_root_timestamp TEXT,
             retry_attempt INTEGER NOT NULL DEFAULT 0,
-            meta_changespec TEXT,
+            meta_patch TEXT,
             mtime_ns INTEGER NOT NULL,
             size_bytes INTEGER NOT NULL
         )
@@ -153,7 +153,7 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_dismissed_bundle_cl "
-        "ON dismissed_bundle_summaries(cl_name, meta_changespec)"
+        "ON dismissed_bundle_summaries(cl_name, meta_patch)"
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_dismissed_bundle_project "
@@ -188,7 +188,7 @@ def upsert_summary(
             llm_provider, vcs_provider, workflow, is_workflow_child,
             parent_timestamp, step_index, step_name, retry_of_timestamp,
             retried_as_timestamp, retry_chain_root_timestamp, retry_attempt,
-            meta_changespec, mtime_ns, size_bytes
+            meta_patch, mtime_ns, size_bytes
         )
         VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -217,7 +217,7 @@ def upsert_summary(
             retried_as_timestamp=excluded.retried_as_timestamp,
             retry_chain_root_timestamp=excluded.retry_chain_root_timestamp,
             retry_attempt=excluded.retry_attempt,
-            meta_changespec=excluded.meta_changespec,
+            meta_patch=excluded.meta_patch,
             mtime_ns=excluded.mtime_ns,
             size_bytes=excluded.size_bytes
         """,
@@ -245,7 +245,7 @@ def upsert_summary(
             summary.retried_as_timestamp,
             summary.retry_chain_root_timestamp,
             summary.retry_attempt,
-            summary.meta_changespec,
+            summary.meta_patch,
             mtime_ns,
             size_bytes,
         ),

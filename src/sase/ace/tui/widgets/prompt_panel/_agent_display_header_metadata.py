@@ -374,7 +374,8 @@ def append_agent_metadata_fields(
     step_output = agent.step_output if isinstance(agent.step_output, dict) else None
     meta_project = step_output.get("meta_project") if step_output is not None else None
     meta_patch = (
-        step_output.get("meta_patch") or step_output.get("meta_changespec")
+        step_output.get("meta_patch")
+        or step_output.get("meta_changespec")  # legacy compatibility alias
         if step_output is not None
         else None
     )

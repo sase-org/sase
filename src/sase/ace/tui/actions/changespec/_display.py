@@ -2,6 +2,6 @@
 
 from ..patch._display import PatchDisplayMixin
 
-ChangeSpecDisplayMixin = PatchDisplayMixin
+ChangeSpecDisplayMixin = PatchDisplayMixin  # legacy compatibility alias
 
-__all__ = ["ChangeSpecDisplayMixin"]
+__all__ = ["ChangeSpecDisplayMixin"]  # legacy compatibility alias

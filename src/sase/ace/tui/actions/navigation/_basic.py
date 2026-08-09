@@ -188,7 +188,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = 0
 
-    def action_next_changespec(self) -> None:
+    def action_next_changespec(self) -> None:  # legacy compatibility alias
         """Legacy alias for :meth:`action_next_patch`."""
         self.action_next_patch()
 
@@ -210,7 +210,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = len(self._axe_items) - 1  # type: ignore[attr-defined]
 
-    def action_prev_changespec(self) -> None:
+    def action_prev_changespec(self) -> None:  # legacy compatibility alias
         """Legacy alias for :meth:`action_prev_patch`."""
         self.action_prev_patch()
 
@@ -450,12 +450,16 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def _get_clamped_patches_idx(self) -> int:
         """Get patches index clamped to valid range."""
-        patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        patches = getattr(
+            self,
+            "patches",
+            getattr(self, "changespecs", []),  # legacy compatibility alias
+        )
         if not patches:
             return 0
         last_idx = getattr(self, "_patches_last_idx", None)
         if last_idx is None:
-            last_idx = getattr(self, "_changespecs_last_idx", 0)
+            last_idx = getattr(self, "_patches_last_idx", 0)
         if not isinstance(last_idx, int):
             last_idx = 0
         return min(last_idx, len(patches) - 1)
@@ -489,17 +493,17 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def _switch_to_tab(self, tab: TabName) -> None:
         """Activate ``tab`` and restore its last selection index."""
-        next_tab = (
-            "changespecs"
-            if tab == "artifacts"
+        if (
+            tab == "artifacts"
             and not hasattr(self, "patches")
-            and hasattr(self, "changespecs")
-            else tab
-        )
-        if next_tab == "changespecs":
-            self.__dict__["current_tab"] = next_tab
+            and hasattr(
+                self,
+                "changespecs",  # legacy compatibility alias
+            )
+        ):
+            self.__dict__["current_tab"] = "changespecs"  # legacy compatibility alias
         else:
-            self.current_tab = next_tab
+            self.current_tab = tab
         self.current_idx = self._clamped_idx_for_tab(tab)
 
     def action_next_tab(self) -> None:
@@ -531,10 +535,19 @@ class BasicNavigationMixin(NavigationMixinBase):
         background refresh on an inactive tab would silently shift the
         saved row to a different logical entry.
         """
-        if self.current_tab == "artifacts":
+        if self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
             self._patches_last_idx = self.current_idx
-            if self.patches and 0 <= self.current_idx < len(self.patches):
-                self._patches_last_name = self.patches[self.current_idx].name
+            patches = getattr(
+                self,
+                "patches",
+                getattr(self, "changespecs", []),  # legacy compatibility alias
+            )
+            if patches and 0 <= self.current_idx < len(patches):
+                self._patches_last_name = patches[self.current_idx].name
             else:
                 self._patches_last_name = None
         elif self.current_tab == "agents":
