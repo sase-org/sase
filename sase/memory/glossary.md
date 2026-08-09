@@ -20,9 +20,7 @@ names. The first `%n(parent, suffix)` attachment renames the original agent with
 suffix and reserves the bare family name as a pure container, so a family always has at
 least two members.
 
-## Agent Hoods
-
-ALIASES: agent hood
+## Agent Hood
 
 An agent hood is a group of agents that are all named with the same `<name>.` prefix.
 For example, agents named `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the
@@ -40,9 +38,9 @@ agent completes, since agents in agent lanes run sequentially), that member move
 the same lane. At that point, the lane and the family share a name instead of the lane
 and the original agent, which is renamed with its own `--<suffix>`.
 
-## Agent Instruction Files
+## Agent Instruction File
 
-ALIASES: agent instruction file, agents.md file
+ALIASES: agents.md file
 
 An agent instruction file is a `.md` file that an agent CLI reads automatically when
 working in a directory that contains it. For example, the `AGENTS.md` file is the name
@@ -53,9 +51,7 @@ post-commit hook, initializes the top-level agent instruction files using memori
 the sase/memory/ directory and ensures that all agent instruction files in the same
 directory contain the same contents.
 
-## Agent Neighbors
-
-ALIASES: agent neighbor
+## Agent Neighbor
 
 An agent neighbor is any agent that is in the same agent hood as another agent. For
 example, agents named `foo`, `foo.baz`, and `foo.bar.1` are all neighbors of each other
@@ -112,28 +108,28 @@ store and tracked in that project's `registry.json`. Each SASE agent claims exac
 workspace until completion. Workspace directories are not repos. Linked-repo clones
 materialized for a workspace are repo checkouts, not additional workspaces.
 
-## xprompt
+## Xprompt
 
 Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/ directory (.md or
 .yml file) or in ~/.config/sase/sase.yml (`xprompts` field).
 
-## xprompt Memory
+## Xprompt Memory
 
-ALIASES: memory xprompt
+ALIASES: sase memory file
 
 A flat SASE memory note exposed as a namespaced xprompt: `sase/memory/foo.md` expands
 with `#memory/foo`, and the `memory/` prefix is required.
 
-## xprompt Part
+## Xprompt Part
 
 .md file -> single `prompt_part` step with the file's content.
 
-## xprompt Swarm
+## Xprompt Swarm
 
 An xprompt whose body contains top-level `---` segment separators outside fenced blocks
 and fans out into one agent per segment at launch. Literal user prompts can also use
 `---`, but those are generic multi-agent prompts rather than xprompt swarms.
 
-## xprompt Workflow
+## Xprompt Workflow
 
 .yml file -> multiple steps (`prompt_part`, `python`, `bash`, etc.).
