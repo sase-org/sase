@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import sys
 
 import pytest
 from rich.cells import cell_len
@@ -10,7 +12,10 @@ from rich.cells import cell_len
 from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
+from sase.main.entry import main as sase_main
 from sase.main.parser import create_parser
+
+EMPTY_ANSI_SPAN_RE = re.compile(r"\x1b\[[0-9;]*m\x1b\[0m")
 
 
 def test_search_parser_sets_query_filters_and_output_options() -> None:
@@ -309,6 +314,72 @@ def test_handle_bead_search_invalid_regex_exits_usage_error(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err.startswith("Error: invalid search regex: ")
+
+
+@pytest.mark.parametrize("output_format", ["compact", "json", "full"])
+def test_bead_search_entrypoint_invalid_regex_agrees_across_formats(
+    project_dir,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    output_format: str,
+) -> None:
+    with BeadProject(project_dir) as proj:
+        proj.create("Present", IssueType.PLAN)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["sase", "bead", "search", "[", "--regex", "--format", output_format],
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        sase_main()
+
+    captured = capsys.readouterr()
+    assert excinfo.value.code == 2
+    assert captured.out == ""
+    assert captured.err.startswith("Error: invalid search regex: ")
+
+
+@pytest.mark.parametrize("output_format", ["compact", "json", "full"])
+def test_bead_search_entrypoint_zero_width_regex_matches_without_empty_highlights(
+    project_dir,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    output_format: str,
+) -> None:
+    with BeadProject(project_dir) as proj:
+        issue = proj.create("Needle Epic", IssueType.PLAN)
+
+    argv = [
+        "sase",
+        "bead",
+        "search",
+        "^",
+        "--regex",
+        "--format",
+        output_format,
+    ]
+    if output_format != "json":
+        argv.extend(["--color", "always"])
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(SystemExit) as excinfo:
+        sase_main()
+
+    captured = capsys.readouterr()
+    assert excinfo.value.code == 0
+    assert captured.err == ""
+    if output_format == "json":
+        payload = json.loads(captured.out)
+        assert payload["regex"] is True
+        assert payload["count"] == 1
+        assert payload["results"][0]["issue"]["id"] == issue.id
+        assert "title" in payload["results"][0]["matched_fields"]
+    else:
+        assert issue.id in captured.out
+        assert "Needle Epic" in captured.out
+        assert not EMPTY_ANSI_SPAN_RE.search(captured.out)
 
 
 def test_handle_bead_search_compact_appends_the_bead_created_cell(
