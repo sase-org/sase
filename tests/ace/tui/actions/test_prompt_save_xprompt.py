@@ -233,7 +233,7 @@ async def test_save_request_returns_while_location_reads_are_stuck() -> None:
     entered = threading.Event()
     release = threading.Event()
 
-    def _slow_locations(*_args: object) -> list[object]:
+    def _slow_locations(*_args: object, **_kwargs: object) -> list[object]:
         entered.set()
         release.wait(timeout=1.0)
         return []
