@@ -187,6 +187,33 @@ def test_task_work_launches_one_checkpointed_agent(
     assert f"✓ Launched agent {task_id} for task {task_id}" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("size", [PhaseSize.LARGE, PhaseSize.XLARGE])
+def test_task_work_launch_query_includes_plan_for_large_tasks(
+    size: PhaseSize,
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = seed_task(project_dir, size=size)
+    captured: dict[str, str] = {}
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.checkpoint_task_work_launch",
+        lambda *_args, **_kwargs: True,
+    )
+
+    def launch(query: str, **_kwargs: object) -> list[FakeLaunchResult]:
+        captured["query"] = query
+        return [FakeLaunchResult()]
+
+    monkeypatch.setattr("sase.bead.cli_work_task.launch_bead_work_agents", launch)
+
+    bead_cli.handle_bead_work(make_args(task_id, yes=True))
+
+    lines = captured["query"].splitlines()
+    assert f"#bd/work_task:{task_id}" in lines
+    assert "#plan" in lines
+
+
 def test_task_work_dry_run_is_read_only(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
