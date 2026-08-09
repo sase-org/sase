@@ -38,7 +38,7 @@ def test_tui_surfaces_do_not_bind_prompt_stack_directly() -> None:
     repo_root = Path(__file__).parents[3]
     allowed = {
         repo_root / "src/sase/ace/tui/widgets/prompt_stack.py",
-        repo_root / "src/sase/ace/tui/widgets/_prompt_input_bar_stack_rendering.py",
+        repo_root / "src/sase/ace/tui/widgets/_prompt_input_bar_stack_xprompt.py",
     }
     offenders: list[str] = []
 

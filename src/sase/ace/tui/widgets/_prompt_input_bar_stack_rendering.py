@@ -1,4 +1,4 @@
-"""Prompt stack rendering, focus, and sizing behavior for ``PromptInputBar``."""
+"""Prompt stack widget construction and stack-aware API for ``PromptInputBar``."""
 
 from __future__ import annotations
 
@@ -7,34 +7,27 @@ from typing import TYPE_CHECKING, Any
 from rich.cells import cell_len
 from rich.text import Text
 from textual.containers import Vertical
-from textual.dom import NoScreen
 from textual.widget import Widget
-from textual.widgets import Static, TextArea
+from textual.widgets import Static
 
 from sase.ace.tui.widgets._prompt_cursor_readout import (
     cursor_readout_cell_width,
     cursor_readout_position,
     format_cursor_readout,
 )
+from sase.ace.tui.widgets._prompt_input_bar_stack_lifecycle import (
+    PromptInputBarStackLifecycleMixin,
+)
+from sase.ace.tui.widgets._prompt_input_bar_stack_xprompt import (
+    PromptInputBarStackXPromptMixin,
+)
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
-    XPromptBinding,
-    XPromptReadonlyTarget,
-    split_frontmatter,
     split_prompt_text,
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
-if TYPE_CHECKING:
-    from textual.widgets import Static as _MixinBase
-else:
-    _MixinBase = object
-
-# Inactive panes never grow past this many content rows so the active pane keeps
-# the room.  Phase 2 height rule: active grows most, inactive compact.
-_INACTIVE_PANE_MAX_ROWS = 4
 _STACK_SEPARATOR_RULE = "─"
 _STACK_SEPARATOR_ACTIVE_MARKER = "▍"
 
@@ -118,45 +111,23 @@ class _PromptStackSeparator(Static):
         return Text(_STACK_SEPARATOR_RULE * right_width, style="dim")
 
 
-class PromptInputBarStackRenderingMixin(_MixinBase):
+class PromptInputBarStackRenderingMixin(
+    PromptInputBarStackXPromptMixin,
+    PromptInputBarStackLifecycleMixin,
+):
     """Prompt stack model, rendering, focus, and height helpers."""
 
     if TYPE_CHECKING:
-        _completion_line_count: int
-        _completion_visible: bool
         _generation: int
-        _g_prefix_hints_line_count: int
-        _g_prefix_hints_visible: bool
         _mode: str
         _placeholder: str
-        _readonly_xprompt_target: XPromptReadonlyTarget | None
-        _search_command_line_count: int
-        _search_command_visible: bool
         _stack: PromptStackState
         _subtitle_base: str
-        _title_mode_suffix: str
-        _xprompt_source_stale: bool
-        _xprompt_target_generation: int
 
-        @property
-        def _base_title(self) -> str: ...
-        def _active_jinja_chip_markup(self) -> str: ...
-        def _clear_active_completion_state(self) -> None: ...
-        def _frontmatter_panel_reserved_rows(
-            self, height_cap: int | None = None
-        ) -> int: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def _render_subtitle(self, base: str) -> Text: ...
         def _sync_todo_counts_from_mounted_panes(self) -> None: ...
         def _sync_todo_counts_from_stack(self) -> None: ...
-        def _update_todo_count_for_text_area(self, text_area: object) -> None: ...
-        def _resolve_pane_target(
-            self, target_text_area: object, pane_id: str
-        ) -> PromptTextArea | None: ...
-        def _refresh_prompt_mode_subtitle(self) -> None: ...
-        def _schedule_xprompt_stale_check(self, *, force: bool = False) -> None: ...
-        def refresh_frontmatter_panel_from_stack(self) -> None: ...
-        def show_jinja_diagnostics(self, diagnostics: object) -> None: ...
 
     # -- stack model + rendering ---------------------------------------------
 
@@ -391,394 +362,3 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         """
         self._sync_state_from_widgets()
         return self._stack.editor_markdown()
-
-    def load_stack_from_xprompt_markdown(
-        self,
-        text: str,
-        *,
-        binding: XPromptBinding | None = None,
-        preserve_target: bool = False,
-        read_only_target: XPromptReadonlyTarget | None = None,
-    ) -> None:
-        """Reload the whole bar from edited xprompt markdown (the multi-pane ``^G`` return).
-
-        This always treats *text* as xprompt markdown via
-        :meth:`PromptStackState.from_text`, lifting leading frontmatter into the
-        shared stack frontmatter and splitting real ``---`` separators into
-        panes.  The frontmatter panel is re-synced so the lifted frontmatter
-        shows in the structured panel state.  Unlike the inline history load
-        (:meth:`load_prompt_into_pane`), this replaces the whole stack and
-        normalizes a lone body pane through the canonical splitter instead of
-        keeping the body text verbatim.
-        """
-        previous_stack = self._stack if preserve_target else None
-        previous_readonly_target = (
-            self._readonly_xprompt_target if preserve_target else None
-        )
-        previous_stale = self._xprompt_source_stale if preserve_target else False
-        self._stack = PromptStackState.from_text(text)
-        self._rebuild_stack()
-        if binding is not None:
-            self.target_xprompt(binding, source_markdown=text)
-        elif read_only_target is not None:
-            self.mark_readonly_xprompt_target(read_only_target)  # type: ignore[attr-defined]
-        elif (
-            preserve_target
-            and previous_stack is not None
-            and previous_stack.binding is not None
-        ):
-            self._readonly_xprompt_target = None  # type: ignore[attr-defined]
-            self._stack.binding = previous_stack.binding
-            self._stack._clean_content_hash = previous_stack._clean_content_hash
-            self._stack._bound_source_markdown = previous_stack._bound_source_markdown
-            self._stack._bound_source_texts = previous_stack._bound_source_texts
-            self._xprompt_source_stale = previous_stale  # type: ignore[attr-defined]
-            self._xprompt_target_generation += 1  # type: ignore[attr-defined]
-            self._refresh_target_classes()
-            self._refresh_title()
-            self._refresh_prompt_mode_subtitle()  # type: ignore[attr-defined]
-            self._schedule_xprompt_stale_check(force=True)  # type: ignore[attr-defined]
-        elif preserve_target and previous_readonly_target is not None:
-            self.mark_readonly_xprompt_target(previous_readonly_target)  # type: ignore[attr-defined]
-        else:
-            self._readonly_xprompt_target = None  # type: ignore[attr-defined]
-            self._xprompt_source_stale = False  # type: ignore[attr-defined]
-            self._xprompt_target_generation += 1  # type: ignore[attr-defined]
-            self._refresh_target_classes()
-            self._refresh_title()
-            self._refresh_prompt_mode_subtitle()  # type: ignore[attr-defined]
-        self.refresh_frontmatter_panel_from_stack()
-
-    def target_xprompt(
-        self,
-        binding: XPromptBinding,
-        *,
-        source_markdown: str | None = None,
-    ) -> None:
-        """Set the xprompt definition this prompt stack edits."""
-        self._readonly_xprompt_target = None  # type: ignore[attr-defined]
-        self._xprompt_source_stale = False  # type: ignore[attr-defined]
-        self._xprompt_target_generation += 1  # type: ignore[attr-defined]
-        self._stack.bind(binding, source_markdown=source_markdown)
-        self._refresh_target_classes()
-        self._refresh_title()
-        self._refresh_prompt_mode_subtitle()  # type: ignore[attr-defined]
-        self.refresh_frontmatter_panel_from_stack()
-        self._schedule_xprompt_stale_check(force=True)  # type: ignore[attr-defined]
-
-    def clear_xprompt_target(self) -> None:
-        """Clear the current xprompt target from the prompt stack."""
-        self._stack.unbind()
-        self._readonly_xprompt_target = None  # type: ignore[attr-defined]
-        self._xprompt_source_stale = False  # type: ignore[attr-defined]
-        self._xprompt_target_generation += 1  # type: ignore[attr-defined]
-        self._refresh_target_classes()
-        self._refresh_title()
-        self._refresh_prompt_mode_subtitle()  # type: ignore[attr-defined]
-
-    def xprompt_target(self) -> XPromptBinding | None:
-        """Return the current xprompt target, if any."""
-        return self._stack.binding
-
-    def _refresh_target_classes(self) -> None:
-        binding = self._stack.binding
-        readonly = getattr(self, "_readonly_xprompt_target", None) is not None
-        stale = bool(getattr(self, "_xprompt_source_stale", False))
-        has_target = binding is not None or readonly
-        self.set_class(has_target, "xprompt-target")
-        self.set_class(has_target and self._stack.is_dirty, "dirty")
-        self.set_class(readonly, "readonly")
-        self.set_class(binding is not None and stale, "stale")
-
-    def update_active_pane(self, text: str) -> None:
-        """Replace only the active pane's text with *text* (the ``^G`` path).
-
-        Used when the external editor is opened on one pane of a multi-pane
-        stack: the edit applies to that pane alone, leaving the rest of the
-        stack — and its order — intact.  The edited text is loaded verbatim
-        (embedded ``---`` is left in the pane and resolved by the launch parser
-        on a later whole-stack submit), and the pane is re-focused for typing.
-        """
-        self._sync_state_from_widgets()
-        self._stack.selected_item.text = text
-        self._rebuild_stack(enter_mode="insert")
-
-    def load_prompt_into_pane(
-        self, target_text_area: object, pane_id: str, text: str
-    ) -> bool:
-        """Load a history entry into the origin pane, preserving the rest of the stack.
-
-        The inline ``Ctrl+I`` history-load path: unlike a whole-stack replace,
-        *text* (the VCS-substituted history entry) loads into the exact pane the
-        user opened the history modal from -- resolved through the same staleness
-        guard the ``#@`` selector uses -- while every other pane keeps its live
-        text and relative order.
-
-        A single-segment body replaces just that pane's text (kept verbatim, the
-        ``lift_frontmatter=True`` single-pane path, so an xprompt-swarm
-        invocation or a plain prompt stays one pane); a multi-segment body (real
-        ``---`` separators outside fences/frontmatter) replaces the pane with its
-        first stripped segment and inserts one new pane per remaining segment
-        directly below, in order.  Leading frontmatter is lifted: a non-empty
-        block overwrites the stack's frontmatter (the conflict confirmation runs
-        in the app layer *before* this is called); an incoming-empty block leaves
-        the current frontmatter untouched.
-
-        Returns ``False`` without touching any pane when the captured target is
-        stale (its pane or bar was unmounted/rebuilt while the modal was open),
-        so the caller can notify and leave every prompt unchanged.
-        """
-        text_area = self._resolve_pane_target(target_text_area, pane_id)
-        if text_area is None:
-            return False
-
-        # Sync live edits from every pane back into the model first (like
-        # ``update_active_pane``), so panes the user touched while the modal was
-        # open survive the rebuild.
-        self._sync_state_from_widgets()
-
-        index = self._pane_index_for(text_area)
-        if index is None:
-            return False
-
-        frontmatter, body = split_frontmatter(text)
-        segments = split_prompt_text(body)
-        if len(segments) <= 1:
-            # A single-segment body is kept verbatim rather than stripped,
-            # matching ``PromptStackState.single(lift_frontmatter=True)``.
-            segments = [body]
-
-        self._stack.load_segments_at(index, segments)
-        if frontmatter:
-            self._stack.frontmatter = frontmatter
-
-        self._rebuild_stack(enter_mode="insert")
-        self.refresh_frontmatter_panel_from_stack()
-        return True
-
-    def _pane_index_for(self, text_area: PromptTextArea) -> int | None:
-        """Return the stack index whose pane widget is *text_area*, else ``None``."""
-        for index, item in enumerate(self._stack.items):
-            if self._pane_id(item) == text_area.id:
-                return index
-        return None
-
-    def has_frontmatter_properties(self) -> bool:
-        """True when the stack currently carries non-empty xprompt properties.
-
-        Drives the history-load conflict check: an incoming entry with its own
-        frontmatter must not silently clobber properties the user already
-        staged.  A non-empty frontmatter string that parses to a non-``is_empty``
-        :class:`PromptFrontmatter` counts; a non-empty string that fails to parse
-        (mid-edit YAML) is conservatively treated as properties present, so a
-        confirmation is shown rather than silently overwriting the draft.
-        """
-        raw = self._stack.frontmatter
-        if not raw:
-            return False
-        try:
-            return not PromptFrontmatter.parse(raw).is_empty
-        except Exception:
-            return True
-
-    def current_frontmatter(self) -> str:
-        """Return the stack's current raw frontmatter string (``""`` when unset)."""
-        return self._stack.frontmatter
-
-    def focus_item(self, index: int) -> int:
-        """Focus the pane at *index* (clamped); return the clamped index."""
-        self._clear_active_completion_state()
-        self._stack.focus(index)
-        self._apply_active_classes()
-        self.active_text_area().focus()
-        self._refresh_title()
-        self._schedule_height_update()
-        return self._stack.selected_index
-
-    def _sync_state_from_widgets(self) -> None:
-        """Copy each mounted pane's live text back into the stack model."""
-        for item in self._stack.items:
-            try:
-                text_area = self.query_one(f"#{self._pane_id(item)}", PromptTextArea)
-            except Exception:
-                continue
-            item.text = text_area.text
-
-    def on_descendant_focus(self, event: object) -> None:
-        """Track the active pane when focus moves between panes."""
-        self._schedule_xprompt_stale_check()  # type: ignore[attr-defined]
-        widget = getattr(event, "widget", None)
-        if widget is None or len(self._stack) <= 1:
-            return
-        for index, item in enumerate(self._stack.items):
-            try:
-                text_area = self.query_one(f"#{self._pane_id(item)}", PromptTextArea)
-            except Exception:
-                continue
-            if text_area is widget and index != self._stack.selected_index:
-                self._clear_active_completion_state()
-                self._stack.selected_index = index
-                self._apply_active_classes()
-                self._schedule_height_update()
-                return
-
-    def on_text_area_changed(self, event: TextArea.Changed) -> None:
-        """Update height and line numbers when text changes.
-
-        Purely passive: a typed ``---`` is left as literal text in the pane.  The
-        properties panel and extra panes are reached only through explicit
-        prompt NORMAL-mode ``g=`` and ``g-`` controls.
-        """
-        text_area = event.text_area
-        if not isinstance(text_area, PromptTextArea):
-            text_area = self.active_text_area()
-        text_area.show_line_numbers = text_area.document.line_count > 1
-        text_area._on_prompt_completion_context_changed()
-        self._sync_state_from_widgets()
-        self._update_todo_count_for_text_area(text_area)
-        self._refresh_title(self._title_mode_suffix)
-        self._schedule_height_update()
-        self.refresh_cursor_readouts()
-
-    def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
-        """Refresh soft completion and the cursor readout when the cursor moves."""
-        if isinstance(event.text_area, PromptTextArea):
-            event.text_area._on_prompt_completion_context_changed()
-        self.refresh_cursor_readouts()
-
-    def _maybe_show_active_jinja_diagnostics(self) -> None:
-        """Restore active Jinja diagnostics after a higher-priority panel hides."""
-        try:
-            text_area = self.active_text_area()
-        except Exception:
-            return
-        diagnostics = getattr(text_area, "_jinja_diagnostics", None)
-        if diagnostics is None:
-            return
-        has_jinja = bool(getattr(diagnostics, "has_jinja", False))
-        ok = bool(getattr(diagnostics, "ok", True))
-        unknown = tuple(getattr(diagnostics, "unknown_variables", ()) or ())
-        if has_jinja and (not ok or unknown):
-            self.show_jinja_diagnostics(diagnostics)
-
-    @staticmethod
-    def _text_area_visual_rows(text_area: PromptTextArea) -> int:
-        """Count *text_area*'s rendered rows using Textual's wrapped document."""
-        wrapped_document = getattr(text_area, "wrapped_document", None)
-        wrapped_height = getattr(wrapped_document, "height", None)
-        if isinstance(wrapped_height, int) and wrapped_height > 0:
-            return wrapped_height
-        return max(1, text_area.document.line_count)
-
-    def _get_visual_line_count(self) -> int:
-        """Count rendered text rows of the active pane."""
-        try:
-            text_area = self.active_text_area()
-        except Exception:
-            return 1
-        return self._text_area_visual_rows(text_area)
-
-    def _update_height(self) -> None:
-        """Auto-grow the bar based on content, up to the full screen height."""
-        if not self.is_mounted:
-            return
-        try:
-            screen_height = self.screen.size.height
-        except NoScreen:
-            return
-        max_height = screen_height - 2
-        completion_rows = self._completion_line_count if self._completion_visible else 0
-        g_prefix_rows = (
-            self._g_prefix_hints_line_count if self._g_prefix_hints_visible else 0
-        )
-        search_rows = (
-            self._search_command_line_count if self._search_command_visible else 0
-        )
-        frontmatter_cap = max(
-            0,
-            max_height - 3 - completion_rows - g_prefix_rows - search_rows,
-        )
-        frontmatter_rows = min(
-            self._frontmatter_panel_reserved_rows(frontmatter_cap),
-            frontmatter_cap,
-        )
-        panel_rows = completion_rows + frontmatter_rows + g_prefix_rows + search_rows
-        if len(self._stack) <= 1:
-            # Single pane: identical formula to the pre-stack bar. +2 for the
-            # bar's top/bottom border, plus transient panels when visible.
-            visual_lines = self._get_visual_line_count()
-            new_height = min(
-                max(visual_lines + 2 + panel_rows, 3),
-                max_height,
-            )
-            self.styles.height = new_height
-            return
-        self._apply_multi_pane_heights(max_height, panel_rows)
-
-    def _apply_multi_pane_heights(self, max_height: int, completion_rows: int) -> None:
-        """Size each pane so the stack fits the screen, active pane growing most.
-
-        Inactive panes compact to at most ``_INACTIVE_PANE_MAX_ROWS`` rows first;
-        the active pane takes whatever budget remains.  If the panes still
-        cannot fit, inactive panes shrink toward one row before the active pane
-        does.
-        """
-        items = self._stack.items
-        try:
-            panes = [
-                self.query_one(f"#{self._pane_id(item)}", PromptTextArea)
-                for item in items
-            ]
-        except Exception:
-            return
-        count = len(panes)
-        active = self._stack.selected_index
-        # Reserve: bar border (2) + completion panel + one separator row/pane.
-        reserve = 2 + completion_rows + count
-        content_budget = max(count, max_height - reserve)
-
-        desired = [max(1, self._text_area_visual_rows(pane)) for pane in panes]
-        alloc = [
-            1
-            if index == active
-            else max(1, min(desired[index], _INACTIVE_PANE_MAX_ROWS))
-            for index in range(count)
-        ]
-        inactive_used = sum(alloc) - alloc[active]
-        alloc[active] = max(1, min(desired[active], content_budget - inactive_used))
-
-        overflow = sum(alloc) - content_budget
-        if overflow > 0:
-            for index in range(count):
-                if overflow <= 0:
-                    break
-                if index == active:
-                    continue
-                take = min(alloc[index] - 1, overflow)
-                alloc[index] -= take
-                overflow -= take
-            if overflow > 0:
-                alloc[active] -= min(alloc[active] - 1, overflow)
-
-        for pane, height in zip(panes, alloc, strict=True):
-            pane.styles.height = height
-        bar_height = min(reserve + sum(alloc), max_height)
-        self.styles.height = max(bar_height, 3)
-        self._scroll_active_pane_visible()
-
-    def _scroll_active_pane_visible(self) -> None:
-        """Keep the focused pane reachable if the stack overflows vertically."""
-        try:
-            self.active_text_area().scroll_visible(animate=False)
-        except Exception:
-            pass
-
-    def _schedule_height_update(self) -> None:
-        """Update now and once more after Textual has refreshed wrapping."""
-        self._update_height()
-        self.call_after_refresh(self._update_height)
-
-    def on_resize(self) -> None:
-        """Recalculate height when the terminal is resized."""
-        self._schedule_height_update()
-        self.refresh_cursor_readouts()
