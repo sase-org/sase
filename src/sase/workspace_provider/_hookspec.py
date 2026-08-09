@@ -153,6 +153,16 @@ class WorkspaceHookSpec:
     ``ws_get_workflow_metadata`` which collects results from all plugins.
     Method names are prefixed with ``ws_`` to namespace them within the
     pluggy project.
+
+    **Argument names are a cross-repo compatibility boundary.** pluggy matches
+    hookimpl parameters to hookspec parameters by name and raises
+    ``PluginValidationError`` at registration time for any hookimpl argument
+    missing from the spec, so renaming one here breaks every out-of-tree plugin
+    built against the old name (``sase-github``, ``sase-telegram``, ...). The
+    ``changespec_*`` argument names are therefore frozen as legacy compatibility
+    names regardless of internal Patch terminology; adapt to Patch locals inside
+    the implementation instead. ``tests/test_workspace_provider_hookspec.py``
+    pins these names.
     """
 
     @hookspec
@@ -211,7 +221,9 @@ class WorkspaceHookSpec:
     @hookspec(firstresult=True)
     def ws_submit(
         self,
-        patch_file: str,
+        # Legacy hook argument name frozen for out-of-tree plugin compatibility.
+        changespec_file: str,
+        # Legacy hook argument name frozen for out-of-tree plugin compatibility.
         changespec_name: str,
         project_basename: str,
         console: object | None,
@@ -320,8 +332,10 @@ class WorkspaceHookSpec:
     @hookspec(firstresult=True)
     def ws_prepare_mail(
         self,
+        # Legacy hook argument name frozen for out-of-tree plugin compatibility.
         changespec_name: str,
-        patch_parent: str | None,
+        # Legacy hook argument name frozen for out-of-tree plugin compatibility.
+        changespec_parent: str | None,
         project_basename: str,
         project_file: str,
         target_dir: str,

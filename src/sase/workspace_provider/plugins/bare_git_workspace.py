@@ -128,11 +128,13 @@ class BareGitWorkspacePlugin:
     @hookimpl
     def ws_submit(
         self,
-        patch_file: str,
+        # Legacy hook argument name frozen for out-of-tree plugin compatibility.
+        changespec_file: str,
         changespec_name: str,
         project_basename: str,
         console: object | None,
     ) -> tuple[bool, str | None] | None:
+        patch_file = changespec_file  # legacy hook argument name
         if not self._is_bare_git_project(patch_file):
             return None
         return submit_bare_git(patch_file, changespec_name, project_basename, console)
@@ -176,7 +178,8 @@ class BareGitWorkspacePlugin:
     def ws_prepare_mail(
         self,
         changespec_name: str,
-        patch_parent: str | None,
+        # Legacy hook argument name frozen for out-of-tree plugin compatibility.
+        changespec_parent: str | None,
         project_basename: str,
         project_file: str,
         target_dir: str,

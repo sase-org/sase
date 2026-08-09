@@ -351,7 +351,8 @@ def prepare_mail(
     """
     return _get_manager().prepare_mail(
         changespec_name=changespec_name,
-        patch_parent=patch_parent,
+        # Legacy hook argument name frozen for out-of-tree plugin compatibility.
+        changespec_parent=patch_parent,
         project_basename=project_basename,
         project_file=project_file,
         target_dir=target_dir,
