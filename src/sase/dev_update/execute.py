@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 
@@ -127,11 +128,12 @@ def run_dev_update_command(
     argv: Sequence[str],
     *,
     cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
     timeout: float = DEV_UPDATE_COMMAND_TIMEOUT_SECONDS,
 ) -> DevCommandResult:
     """Default command runner for callers that want real subprocess execution."""
     command = list(argv)
-    git_env, git_stdin = _non_interactive_git_subprocess_options(command)
+    command_env, git_stdin = _subprocess_options(command, env)
 
     def attempt() -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -140,7 +142,7 @@ def run_dev_update_command(
             capture_output=True,
             text=True,
             timeout=timeout,
-            env=git_env,
+            env=command_env,
             stdin=git_stdin,
         )
 
@@ -325,6 +327,7 @@ def _run_reconcile_steps(
             run,
             step.command,
             cwd=Path(step.cwd) if step.cwd else None,
+            env=step.env,
             label=step.label,
             commands=commands,
             clock=clock,
@@ -435,12 +438,16 @@ def _run(
     argv: Sequence[str],
     *,
     cwd: Path | None,
+    env: Mapping[str, str] | None = None,
     label: str,
     commands: list[DevExecutedCommand],
     clock: Callable[[], float],
 ) -> DevCommandResult:
     start = clock()
-    result = run(argv, cwd=cwd)
+    if env is None:
+        result = run(argv, cwd=cwd)
+    else:
+        result = run(argv, cwd=cwd, env=env)
     duration = max(0.0, clock() - start)
     commands.append(
         DevExecutedCommand(
@@ -456,12 +463,22 @@ def _run(
     return result
 
 
-def _non_interactive_git_subprocess_options(
+def _subprocess_options(
     argv: Sequence[str],
+    env: Mapping[str, str] | None,
 ) -> tuple[dict[str, str] | None, int | None]:
+    base_env = _merged_subprocess_env(env)
     if not argv or argv[0] != "git":
-        return None, None
-    return non_interactive_git_env(), subprocess.DEVNULL
+        return base_env, None
+    return non_interactive_git_env(base_env), subprocess.DEVNULL
+
+
+def _merged_subprocess_env(env: Mapping[str, str] | None) -> dict[str, str] | None:
+    if env is None:
+        return None
+    merged = dict(os.environ)
+    merged.update(env)
+    return merged
 
 
 def _git_command_cwd(argv: Sequence[str], cwd: Path | None) -> Path:

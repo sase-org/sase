@@ -450,7 +450,9 @@ def test_skipped_editable_states_do_not_block_stale_core_restore(
     )
     reconcile_commands: list[tuple[str, ...]] = []
 
-    def _run_command(argv: Any, *, cwd: Any = None) -> DevCommandResult:
+    def _run_command(
+        argv: Any, *, cwd: Any = None, env: Any = None
+    ) -> DevCommandResult:
         reconcile_commands.append(tuple(argv))
         return DevCommandResult(returncode=0)
 

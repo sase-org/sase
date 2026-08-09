@@ -333,9 +333,9 @@ def dev_update_reporter_runner(reporter: TaskReporter) -> Any:
     """Adapt a tracked task reporter to the dev-update command interface."""
     from sase.dev_update.models import DevCommandResult
 
-    def _run(argv: Any, *, cwd: Any = None) -> DevCommandResult:
+    def _run(argv: Any, *, cwd: Any = None, env: Any = None) -> DevCommandResult:
         reporter.phase("Running " + " ".join(str(part) for part in argv[:2]))
-        completed = reporter.run(argv, cwd=cwd)
+        completed = reporter.run(argv, cwd=cwd, env=env)
         return DevCommandResult(
             returncode=completed.returncode,
             stdout=completed.stdout,

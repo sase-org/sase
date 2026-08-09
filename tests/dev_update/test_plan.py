@@ -321,6 +321,7 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    monkeypatch.delenv("SASE_RUST_DEV_PROFILE", raising=False)
     host_root = tmp_path / "sase"
     host_root.mkdir()
     (host_root / "pyproject.toml").write_text(
@@ -347,6 +348,7 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
     ]
     assert plan.reconcile_steps[0].command == ("just", "rust-dev-install-uv-tool")
     assert plan.reconcile_steps[0].cwd == str(host_root)
+    assert plan.reconcile_steps[0].env == {"SASE_RUST_DEV_PROFILE": "dev-update"}
     assert plan.reconcile_steps[1].command == (
         "/tool/bin/python",
         "-c",
@@ -362,6 +364,34 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
         "--force-reinstall",
         "sase-core-rs<0.4.0,>=0.3.2",
     )
+
+
+def test_plan_dev_update_threads_rust_dev_profile_override(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_RUST_DEV_PROFILE", "release")
+    host_root = tmp_path / "sase"
+    host_root.mkdir()
+    (host_root / "pyproject.toml").write_text(
+        """
+        [project]
+        dependencies = [
+            "sase-core-rs>=0.3.2,<0.4.0",
+        ]
+        """,
+        encoding="utf-8",
+    )
+    host = _record("sase", role="host", source_root=str(host_root))
+    core = _record("sase-core-rs", role="core", source_root="/repo/sase-core")
+    monkeypatch.setattr(
+        plan_mod, "classify_git_upstream", lambda _root: _status("/repo/sase-core")
+    )
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+
+    plan = plan_dev_update([core], host_record=host, tool_python="/tool/bin/python")
+
+    assert plan.reconcile_steps[0].env == {"SASE_RUST_DEV_PROFILE": "release"}
 
 
 def test_plan_dev_update_rebuilds_current_dev_core_after_uv_tool_install(

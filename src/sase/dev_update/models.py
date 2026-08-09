@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
@@ -129,6 +129,7 @@ class DevReconcileStep:
     command: tuple[str, ...]
     cwd: str | None = None
     reason: str | None = None
+    env: Mapping[str, str] | None = None
     repair_command: tuple[str, ...] = ()
     repair_cwd: str | None = None
     repair_label: str | None = None
@@ -173,7 +174,11 @@ class DevCommandRunner(Protocol):
     """Subprocess runner used by ``execute_dev_update``."""
 
     def __call__(
-        self, argv: Sequence[str], *, cwd: Path | None = None
+        self,
+        argv: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> DevCommandResult: ...
 
 

@@ -31,6 +31,30 @@ def test_run_dev_update_command_disables_git_prompts(
     assert env["GCM_INTERACTIVE"] == "never"
 
 
+def test_run_dev_update_command_merges_env_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setenv("PATH", "/usr/bin")
+    monkeypatch.setattr("sase.dev_update.execute.subprocess.run", fake_run)
+
+    result = run_dev_update_command(
+        ("just", "rust-dev-install-uv-tool"),
+        env={"SASE_RUST_DEV_PROFILE": "release"},
+    )
+
+    assert result.returncode == 0
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env["PATH"] == "/usr/bin"
+    assert env["SASE_RUST_DEV_PROFILE"] == "release"
+
+
 def test_run_dev_update_command_recovers_stale_git_index_lock(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -100,6 +100,7 @@ def test_execute_dev_update_runs_unified_rust_install_before_core_health_check()
         label="Rebuild Rust dev artifacts into the uv-tool venv",
         command=("just", "rust-dev-install-uv-tool"),
         cwd="/host",
+        env={"SASE_RUST_DEV_PROFILE": "release"},
     )
     health_step = DevReconcileStep(
         kind="rust_health_check",
@@ -123,6 +124,17 @@ def test_execute_dev_update_runs_unified_rust_install_before_core_health_check()
     assert reconcile_commands == [
         ("Rebuild Rust dev artifacts into the uv-tool venv", "/host", 0),
         ("Verify sase-core-rs imports in the uv-tool venv", None, 0),
+    ]
+    assert [
+        call
+        for call in runner.env_calls
+        if call[0] == ("just", "rust-dev-install-uv-tool")
+    ] == [
+        (
+            ("just", "rust-dev-install-uv-tool"),
+            Path("/host"),
+            {"SASE_RUST_DEV_PROFILE": "release"},
+        )
     ]
 
 

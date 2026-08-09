@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from sase.dev_update.models import (
@@ -91,12 +91,20 @@ class FakeRunner:
     ) -> None:
         self.responses = responses or {}
         self.calls: list[tuple[tuple[str, ...], Path | None]] = []
+        self.env_calls: list[
+            tuple[tuple[str, ...], Path | None, dict[str, str] | None]
+        ] = []
 
     def __call__(
-        self, argv: Sequence[str], *, cwd: Path | None = None
+        self,
+        argv: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> DevCommandResult:
         command = tuple(argv)
         self.calls.append((command, cwd))
+        self.env_calls.append((command, cwd, dict(env) if env is not None else None))
         if command in self.responses:
             return self.responses[command]
         if command[:5] == ("git", "-C", "/repo", "status", "--porcelain"):
@@ -125,10 +133,17 @@ class SequenceRunner(FakeRunner):
         self.sequences = sequences
 
     def __call__(
-        self, argv: Sequence[str], *, cwd: Path | None = None
+        self,
+        argv: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> DevCommandResult:
         command = tuple(argv)
         if command in self.sequences and self.sequences[command]:
             self.calls.append((command, cwd))
+            self.env_calls.append(
+                (command, cwd, dict(env) if env is not None else None)
+            )
             return self.sequences[command].pop(0)
-        return super().__call__(argv, cwd=cwd)
+        return super().__call__(argv, cwd=cwd, env=env)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -136,10 +136,17 @@ def test_execute_dev_update_preflights_all_roots_before_merging() -> None:
 
     class MultiRootRunner(FakeRunner):
         def __call__(
-            self, argv: Sequence[str], *, cwd: Path | None = None
+            self,
+            argv: Sequence[str],
+            *,
+            cwd: Path | None = None,
+            env: Mapping[str, str] | None = None,
         ) -> DevCommandResult:
             command = tuple(argv)
             self.calls.append((command, cwd))
+            self.env_calls.append(
+                (command, cwd, dict(env) if env is not None else None)
+            )
             if command[3:5] == ("status", "--porcelain"):
                 return DevCommandResult(0, stdout="")
             if command[3:6] == ("rev-list", "--left-right", "--count"):

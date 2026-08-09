@@ -805,8 +805,8 @@ rust-install-uv-tool:
      fi; \
      just rust-install "$TOOL_VENV"
 
-# Build the local `sase_core_rs` extension and `sase-xprompt-lsp` with
-# target-isolated Cargo caches, then install both into a venv.
+# Build the local `sase_core_rs` extension and `sase-xprompt-lsp` with the
+# dev-update Cargo profile and target-isolated caches, then install both into a venv.
 rust-dev-install VENV=venv_dir_abs: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-dev-install] %s not found; skipping (Rust backend is optional).\n" "{{ sase_core_dir }}"; \
@@ -840,6 +840,7 @@ rust-dev-install VENV=venv_dir_abs: _venv
     # overridable from the environment.
     @sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     py_target_dir="$sase_core_abs/target/uv-tool-py"; \
+    profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
     marker="$(mktemp)"; \
     trap 'rm -f "$marker"' EXIT; \
     touch "$marker"; \
@@ -849,18 +850,20 @@ rust-dev-install VENV=venv_dir_abs: _venv
         CARGO_TARGET_DIR="$py_target_dir" \
         CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
-        "{{ VENV }}/bin/maturin" develop --release && \
+        "{{ VENV }}/bin/maturin" develop --profile "$profile" && \
     "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/purge_sase_core_rs_extensions" --exclude-newer-than "$marker"
     @sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     lsp_target_dir="$sase_core_abs/target/uv-tool-lsp"; \
+    profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
     cd "$sase_core_abs" && \
         CARGO_TARGET_DIR="$lsp_target_dir" \
         CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
-        cargo build --release -p sase_xprompt_lsp
+        cargo build --profile "$profile" -p sase_xprompt_lsp
     @dest="{{ VENV }}/bin/sase-xprompt-lsp"; \
     sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
-    src="$sase_core_abs/target/uv-tool-lsp/release/sase-xprompt-lsp"; \
+    profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
+    src="$sase_core_abs/target/uv-tool-lsp/$profile/sase-xprompt-lsp"; \
     tmp="$dest.tmp.$$"; \
     trap 'rm -f "$tmp"' EXIT; \
     cp "$src" "$tmp"; \

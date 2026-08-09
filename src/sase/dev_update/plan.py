@@ -41,6 +41,8 @@ _CORE_HEALTH_CHECK_SNIPPET = (
     f"import {CORE_DISTRIBUTION_NAME.replace('-', '_')}; "
     f"print(m.version({CORE_DISTRIBUTION_NAME!r}))"
 )
+_RUST_DEV_PROFILE_ENV = "SASE_RUST_DEV_PROFILE"
+_DEFAULT_RUST_DEV_PROFILE = "dev-update"
 
 
 def plan_dev_update(
@@ -317,6 +319,7 @@ def _reconcile_steps(
                     label="Rebuild Rust dev artifacts into the uv-tool venv",
                     command=("just", "rust-dev-install-uv-tool"),
                     cwd=host_record.source_root,
+                    env=_rust_dev_install_env(),
                 )
             )
         else:
@@ -381,6 +384,11 @@ def _core_checkout_dir(host_record: VersionPackageRecord) -> Path | None:
         if (candidate / "Cargo.toml").is_file():
             return candidate
     return None
+
+
+def _rust_dev_install_env() -> dict[str, str]:
+    profile = os.environ.get(_RUST_DEV_PROFILE_ENV) or _DEFAULT_RUST_DEV_PROFILE
+    return {_RUST_DEV_PROFILE_ENV: profile}
 
 
 def _core_checkout_version(checkout: Path) -> str | None:
