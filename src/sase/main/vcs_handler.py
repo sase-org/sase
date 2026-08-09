@@ -48,6 +48,7 @@ def _handle_log(args: argparse.Namespace) -> int:
         since=since_bound,
         until=until_bound,
         authors=tuple(args.authors or ()),
+        merges=args.merges,
     )
 
     try:

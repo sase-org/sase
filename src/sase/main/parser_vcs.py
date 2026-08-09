@@ -141,6 +141,13 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         metavar="N",
         help=f"Max commits in the merged timeline; 0 means unlimited (default: {_DEFAULT_LIMIT})",
     )
+    parser.add_argument(
+        "-m",
+        "--merges",
+        choices=["hide", "show", "only"],
+        default="hide",
+        help="Merge-commit visibility: hide, show, or only (default: hide)",
+    )
     fetch_group.add_argument(
         "-N",
         "--no-fetch",

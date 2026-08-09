@@ -233,6 +233,8 @@ sase vcs log --sdd --repo sdd
 sase vcs log --all --sdd
 sase vcs log --all --repo sase-core --repo chezmoi
 sase vcs log --branch main --no-fetch
+sase vcs log --merges show
+sase vcs log --merges only --format full
 sase vcs log --fetch --limit 3
 sase vcs log --since 2w --author bryan
 sase vcs log --limit 0 --since 2026-07-01 --format full
@@ -241,23 +243,24 @@ sase vcs log --reverse --format json --no-tags
 
 Options:
 
-| Option                                    | Purpose                                                                                 |
-| ----------------------------------------- | --------------------------------------------------------------------------------------- |
-| `-a`, `--all`                             | Read repositories from every registered enabled or disabled project.                    |
-| `-A`, `--author PATTERN`                  | Filter by author name/email substring. Repeatable values are ORed case-insensitively.   |
-| `-b`, `--branch REF`, `--ref REF`         | Compare against `origin/REF` instead of the resolved remote ref.                        |
-| `-c`, `--color auto/always/never`         | Control colorized pretty/full output.                                                   |
-| `-o`, `--current-only`                    | Read only the current/primary repo.                                                     |
-| `-F`, `--fetch`                           | Fetch remote refs now, bypassing the 60-second freshness cache.                         |
-| `-f`, `--format pretty/full/oneline/json` | Choose compact pretty output, full commit-message blocks, pipe-friendly lines, or JSON. |
-| `-n`, `--limit N`                         | Max commits in the merged timeline (default: 40); `0` means unlimited.                  |
-| `-N`, `--no-fetch`                        | Skip the remote fetch and compare against existing remote-tracking refs.                |
-| `-T`, `--no-tags`                         | Hide trailing SASE commit tags in pretty/full/oneline output and omit them from JSON.   |
-| `-r`, `--repo NAME`                       | Restrict to a resolved repo name. Repeatable.                                           |
-| `-R`, `--reverse`                         | Display the selected commits oldest-first.                                              |
-| `-S`, `--sdd`                             | Include commits from all available sidecar repositories.                                |
-| `-s`, `--since DATE`, `--after DATE`      | Include commits at or after `DATE`.                                                     |
-| `-u`, `--until DATE`, `--before DATE`     | Include commits at or before `DATE`.                                                    |
+| Option                                    | Purpose                                                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `-a`, `--all`                             | Read repositories from every registered enabled or disabled project.                                   |
+| `-A`, `--author PATTERN`                  | Filter by author name/email substring. Repeatable values are ORed case-insensitively.                  |
+| `-b`, `--branch REF`, `--ref REF`         | Compare against `origin/REF` instead of the resolved remote ref.                                       |
+| `-c`, `--color auto/always/never`         | Control colorized pretty/full output.                                                                  |
+| `-o`, `--current-only`                    | Read only the current/primary repo.                                                                    |
+| `-F`, `--fetch`                           | Fetch remote refs now, bypassing the 60-second freshness cache.                                        |
+| `-f`, `--format pretty/full/oneline/json` | Choose compact pretty output, full commit-message blocks, pipe-friendly lines, or JSON.                |
+| `-n`, `--limit N`                         | Max commits in the merged timeline (default: 40); `0` means unlimited.                                 |
+| `-m`, `--merges hide/show/only`           | Control merge-commit visibility. `hide` is the default; `show` marks merges; `only` shows only merges. |
+| `-N`, `--no-fetch`                        | Skip the remote fetch and compare against existing remote-tracking refs.                               |
+| `-T`, `--no-tags`                         | Hide trailing SASE commit tags in pretty/full/oneline output and omit them from JSON.                  |
+| `-r`, `--repo NAME`                       | Restrict to a resolved repo name. Repeatable.                                                          |
+| `-R`, `--reverse`                         | Display the selected commits oldest-first.                                                             |
+| `-S`, `--sdd`                             | Include commits from all available sidecar repositories.                                               |
+| `-s`, `--since DATE`, `--after DATE`      | Include commits at or after `DATE`.                                                                    |
+| `-u`, `--until DATE`, `--before DATE`     | Include commits at or before `DATE`.                                                                   |
 
 `--all` and `--current-only` are mutually exclusive. `--current-only` reads only the
 current/primary repo even when `--sdd` is supplied. `--repo` remains repeatable in
@@ -266,6 +269,14 @@ and unique label assignment. The `--limit` cap applies to the final merged timel
 to each project's inventory: each unique candidate repository is queried deeply enough
 to compute the global top N. Use `--limit 0` for an unlimited merged timeline. JSON
 output records the selected global scope as `query.all`.
+
+Merge visibility is deliberately named after the SASE view, not after Git traversal
+flags. `--merges hide` maps to Git's `--no-merges`: merge commits are omitted while
+history is still traversed through those merges, so commits contained in a merged pull
+request remain visible. `--merges show` applies no Git merge filter and marks visible
+merge commits in the output. `--merges only` maps to Git's `--merges` and shows merge
+commits alone, without adding `--first-parent`; for the same repo, revision, and other
+filters, `hide` plus `only` partitions the same commit set shown by `show`.
 
 `DATE` accepts relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`,
 or `YYYY-MM-DDTHH:MM`. Dates are resolved in the configured SASE timezone and pushed

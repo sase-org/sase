@@ -70,6 +70,7 @@ class TestVcsParser:
         assert ns.authors == []
         assert ns.format == "pretty"
         assert ns.color == "auto"
+        assert ns.merges == "hide"
         assert ns.no_fetch is False
         assert ns.force_fetch is False
         assert ns.remote_ref is None
@@ -87,6 +88,21 @@ class TestVcsParser:
         assert ns.limit == 5
         assert ns.format == "full"
         assert ns.color == "never"
+
+    @pytest.mark.parametrize("mode", ["hide", "show", "only"])
+    def test_log_merges_option(self, mode: str) -> None:
+        ns = parse_sase_args(["vcs", "log", "--merges", mode])
+
+        assert ns.merges == mode
+
+    def test_log_merges_short_option(self) -> None:
+        ns = parse_sase_args(["vcs", "log", "-m", "show"])
+
+        assert ns.merges == "show"
+
+    def test_log_rejects_unknown_merges_mode(self) -> None:
+        with pytest.raises(SystemExit):
+            parse_sase_args(["vcs", "log", "--merges", "both"])
 
     def test_log_short_format_and_color_aliases(self) -> None:
         ns = parse_sase_args(["vcs", "log", "-f", "json", "-c", "never"])
@@ -223,6 +239,7 @@ class TestVcsParser:
             "--fetch",
             "--format",
             "--limit",
+            "--merges",
             "--no-fetch",
             "--no-tags",
             "--repo",
@@ -274,6 +291,7 @@ class TestVcsHandlerDispatch:
             color="auto",
             no_fetch=False,
             force_fetch=False,
+            merges="hide",
             remote_ref=None,
             reverse=False,
             since="last week",
@@ -299,6 +317,7 @@ class TestVcsHandlerDispatch:
             color="auto",
             no_fetch=False,
             force_fetch=False,
+            merges="hide",
             remote_ref=None,
             reverse=False,
             since="2026-07-09",
@@ -346,6 +365,7 @@ class TestVcsHandlerDispatch:
             force_fetch=False,
             format="pretty",
             limit=20,
+            merges="show",
             no_fetch=True,
             remote_ref=None,
             repos=[],
@@ -363,3 +383,4 @@ class TestVcsHandlerDispatch:
         filters = filter_spec.resolve(now=reference)
         assert filters.since == int(datetime(2026, 7, 18, tzinfo=tz).timestamp())
         assert filters.until == int(datetime(2026, 7, 19, tzinfo=tz).timestamp()) - 1
+        assert filters.merges == "show"
