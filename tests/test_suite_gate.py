@@ -143,8 +143,8 @@ def test_automatic_range_clamps_defaults_and_validates_overrides(
     monkeypatch.delenv("SASE_PYTEST_WORKER_FLOOR", raising=False)
     monkeypatch.delenv("SASE_PYTEST_WORKER_CEILING", raising=False)
     assert automatic_worker_range(2) == (2, 2)
-    assert automatic_worker_range(28) == (4, 24)
-    assert automatic_worker_range(32) == (4, 28)
+    assert automatic_worker_range(28) == (4, 14)
+    assert automatic_worker_range(32) == (4, 14)
 
     monkeypatch.setenv("SASE_PYTEST_WORKER_FLOOR", "3")
     monkeypatch.setenv("SASE_PYTEST_WORKER_CEILING", "2")
@@ -211,6 +211,28 @@ def test_scaled_leases_share_capacity_without_exceeding_pool(
 
     first.release()
     second.release()
+
+
+def test_default_automatic_range_keeps_room_for_a_peer_full_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
+    first = _lease(tmp_path, budget=32)
+    second = _lease(tmp_path, budget=32)
+
+    floor, ceiling = automatic_worker_range(32)
+    assert (floor, ceiling) == (4, 14)
+    assert first.acquire(floor, ceiling) == 14
+    assert second.acquire(floor, ceiling) == 14
+
+    try:
+        assert first.granted + second.granted == 28
+        spare = _lease(tmp_path, budget=32)
+        assert spare.try_acquire(4, 4) == 4
+        spare.release()
+    finally:
+        second.release()
+        first.release()
 
 
 def test_simultaneous_leases_never_exceed_pool(

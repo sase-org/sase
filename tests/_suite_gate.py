@@ -20,6 +20,7 @@ _POLL_INTERVAL_SECONDS = 2.0
 _STATUS_INTERVAL_SECONDS = 30.0
 _DEFAULT_AUTOMATIC_FLOOR = 4
 _DEFAULT_AUTOMATIC_CEILING = 28
+_DEFAULT_AUTOMATIC_FAIR_SHARE_RUNS = 2
 _DEFAULT_HARD_TOKEN_LIMIT = 32
 # Reserve a proportion of the host rather than a flat count. A flat 4 is noise
 # on the 64-core development host but is the entire machine on a 4-vCPU CI
@@ -28,12 +29,11 @@ _DEFAULT_HARD_TOKEN_LIMIT = 32
 _RESERVED_CPU_DIVISOR = 8
 _MINIMUM_RESERVED_CPUS = 1
 _RESERVED_MEMORY_KIB = 8 * 1024 * 1024
-# Live worker RSS sampled across concurrent sibling workspaces ranges from
-# 0.74 to 0.85 GiB. Reserving 950 MiB per token keeps headroom over the top of
-# that range while leaving memory as a real rather than an inflated constraint;
-# the previous 1.2 GiB over-reserved by ~45% and shrank the host pool by ~30%
-# exactly when contention made memory scarce.
-_MEMORY_KIB_PER_WORKER = 950 * 1024
+# Phase sase-ib.5 remeasured worker RSS after the footprint fixes at
+# start=144292/post_collection=500632/median=500632/peak=500632 KiB in cost
+# record 20260809T164811Z-3964960.json. Reserving 700 MiB per token keeps
+# roughly 40% headroom over that peak while reflecting the measured curve.
+_MEMORY_KIB_PER_WORKER = 700 * 1024
 _MISSING_MEMORY_TOKEN_LIMIT = 4
 _MEMINFO_PATH = Path("/proc/meminfo")
 _CONFIG_ATTRIBUTE = "_sase_worker_token_lease"
@@ -272,10 +272,7 @@ def automatic_worker_range(budget: int) -> tuple[int, int]:
         else _positive_int("SASE_PYTEST_WORKER_FLOOR", floor_raw)
     )
     ceiling = (
-        min(
-            _DEFAULT_AUTOMATIC_CEILING,
-            max(floor, budget - floor),
-        )
+        _default_automatic_ceiling(budget, floor)
         if ceiling_raw is None
         else _positive_int("SASE_PYTEST_WORKER_CEILING", ceiling_raw)
     )
@@ -295,6 +292,16 @@ def automatic_worker_range(budget: int) -> tuple[int, int]:
             "SASE_PYTEST_WORKER_CEILING."
         )
     return floor, ceiling
+
+
+def _default_automatic_ceiling(budget: int, floor: int) -> int:
+    # A controller cannot safely return tokens after xdist workers have
+    # started: the pool would undercount live worker demand. Keep the default
+    # grant to a peer-sized share up front, while explicit ceilings remain the
+    # opt-in route for a deliberately wider single run.
+    automatic_capacity = min(_DEFAULT_AUTOMATIC_CEILING, budget)
+    fair_share = automatic_capacity // _DEFAULT_AUTOMATIC_FAIR_SHARE_RUNS
+    return min(_DEFAULT_AUTOMATIC_CEILING, max(floor, fair_share))
 
 
 def gate_directory() -> Path:
