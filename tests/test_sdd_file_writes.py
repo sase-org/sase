@@ -89,6 +89,7 @@ def test_write_sdd_files_supports_flat_sidecar_plans_root(tmp_path: Path) -> Non
         "tier: tale\n"
         "title: Flat sidecar plan\n"
         "goal: Preserve canonical links in a flat plans sidecar\n"
+        "size: small\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",
@@ -140,6 +141,7 @@ def test_write_sdd_files_rebases_seeded_parent_section(tmp_path: Path) -> None:
             "tier: tale\n"
             "title: Child plan\n"
             "goal: Preserve and rebase the parent plan link\n"
+            "size: small\n"
             "---\n"
             "# Child\n",
             "plans:202608/parent.md",

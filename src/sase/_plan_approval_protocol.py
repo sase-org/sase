@@ -156,6 +156,15 @@ def _validate_plan_for_approval(
     )
     if replacements != 1:
         return validate_plan_file(plan_path, tier)
+    if tier == "tale":
+        from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
+
+        frontmatter, _body, had_frontmatter = parse_frontmatter(target_content)
+        if had_frontmatter and "size" not in frontmatter:
+            target_content = set_frontmatter_fields(
+                target_content,
+                {"size": "medium"},
+            )
     return validate_plan(target_content, tier)
 
 

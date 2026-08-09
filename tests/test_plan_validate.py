@@ -29,6 +29,7 @@ VALID_TALE = """---
 tier: tale
 title: Strict plan validation
 goal: Ship strict plan validation
+size: small
 ---
 # Plan
 
@@ -83,17 +84,19 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
     result = validate_plan(VALID_TALE, "tale")
 
     assert result.ok
-    assert result.schema_version == 2
+    assert result.schema_version == 3
     assert result.diagnostics == ()
     assert result.plan is not None
     assert result.plan.tier == "tale"
     assert result.plan.goal == "Ship strict plan validation"
+    assert result.plan.size == "small"
     assert result.plan.title == "Strict plan validation"
     assert result.plan.phases == ()
     assert [field.name for field in plan_frontmatter_schema("tale")] == [
         "tier",
         "title",
         "goal",
+        "size",
         "model",
         "create_time",
         "status",
@@ -220,6 +223,7 @@ def test_facade_rehydrates_all_diagnostics_and_is_frozen() -> None:
 tier: epic
 title: Diagnostic aggregation
 goal: '   '
+size: small
 tyop: value
 ---
 # Plan
@@ -234,7 +238,7 @@ tyop: value
         "tier-mismatch",
         "value-empty",
     ]
-    assert result.diagnostics[0].line == 5
+    assert result.diagnostics[0].line == 6
     assert result.diagnostics[0].severity is PlanDiagnosticSeverity.ERROR
     with pytest.raises(FrozenInstanceError):
         result.diagnostics[0].code = "changed"  # type: ignore[misc]
@@ -508,7 +512,7 @@ def test_failure_json_envelope_has_core_parity(
         "diagnostics",
         "expected_schema",
     }
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["ok"] is False
     assert payload["path"] == str(plan)
     title_error = next(
@@ -525,3 +529,4 @@ def test_failure_json_envelope_has_core_parity(
     assert (
         "title: Ship the requested capability" in payload["expected_schema"]["example"]
     )
+    assert "size: small" in payload["expected_schema"]["example"]

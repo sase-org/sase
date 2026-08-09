@@ -20,11 +20,15 @@ TALE_PLAN_EXPLANATION = (
 tier: tale
 title: Focused capability rollout
 goal: Describe the outcome this plan will achieve.
+size: small
 ---
 # Plan: Descriptive title
 
 Describe the implementation.
 ```
+
+Every tale must declare `size: xsmall | small | medium | large | xlarge` so the coder follow-up can route through the
+right size-specific worker default. Set `model` explicitly only when the user's prompt requested a specific model.
 
 """
     + PLAN_HEADER_BLOCK_NOTE

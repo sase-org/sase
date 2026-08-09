@@ -103,12 +103,18 @@ def archive_plan_file(
     from sase.llm_provider._plan_utils import add_create_time_frontmatter
     from sase.sdd.committed_plan_validation import validate_plan_for_commit
     from sase.sdd.checkout_anchor import resolve_checkout_anchor
-    from sase.sdd.frontmatter import set_frontmatter_fields
+    from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
+    from sase.sdd.plan_tiers import read_plan_tier_from_content
     from sase.sdd.plan_header_writes import project_plan_header_sections
 
     content = format_with_prettier(source.read_text(encoding="utf-8"))
     content = add_create_time_frontmatter(content)
-    content = set_frontmatter_fields(content, {"tier": tier})
+    authored_tier = read_plan_tier_from_content(content)
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(content)
+    normalized_fields: dict[str, str] = {"tier": tier}
+    if tier == "tale" and authored_tier != "tale" and "size" not in frontmatter:
+        normalized_fields["size"] = "medium"
+    content = set_frontmatter_fields(content, normalized_fields)
     # Validate before projection: projection only rewrites derived header
     # sections into canonical form, so a document that fails here would fail
     # identically after projection, but projection itself raises a bare,

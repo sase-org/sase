@@ -49,7 +49,7 @@ def test_cli_rejects_missing_blank_and_wrong_typed_titles(
         "    description: Core section exercises title validation.\n"
         "    size: small\n"
         if tier == "epic"
-        else ""
+        else "size: small\n"
     )
     plan = tmp_path / f"{tier}.md"
     plan.write_text(
@@ -87,7 +87,7 @@ def test_cli_rejects_missing_blank_and_wrong_typed_titles(
         ),
         (
             "tale",
-            "---\ntier: tale\ngoal: x\n---\n",
+            "---\ntier: tale\ntitle: x\ngoal: x\nsize: small\n---\n",
             {"body-empty"},
             1,
         ),
@@ -108,7 +108,7 @@ body
         ),
         (
             "tale",
-            "---\ntier: story\ngoal: [not, text]\n---\nbody\n",
+            "---\ntier: story\ngoal: [not, text]\nsize: small\n---\nbody\n",
             {"tier-invalid", "type-mismatch"},
             1,
         ),
@@ -118,6 +118,7 @@ body
 tier: tale
 goal: Small outcome
 title: Ignored
+size: small
 phases: nonsense
 changespec: ''  # legacy frontmatter key
 bug_id: nope

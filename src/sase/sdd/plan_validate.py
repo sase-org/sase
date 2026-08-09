@@ -14,7 +14,7 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 
-PLAN_WIRE_SCHEMA_VERSION = 2
+PLAN_WIRE_SCHEMA_VERSION = 3
 
 
 class PlanDiagnosticSeverity(StrEnum):
@@ -69,6 +69,7 @@ class _ValidatedPlan:
 
     tier: str
     goal: str
+    size: str | None
     model: str | None
     title: str
     phases: tuple[ValidatedPlanPhase, ...]
@@ -217,6 +218,7 @@ def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
     return _ValidatedPlan(
         tier=str(payload["tier"]),
         goal=str(payload["goal"]),
+        size=_optional_str(payload.get("size")),
         model=_optional_str(payload.get("model")),
         title=str(payload["title"]),
         phases=tuple(_validated_phase_from_dict(item) for item in payload["phases"]),

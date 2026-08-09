@@ -29,7 +29,7 @@ def test_sweep_applies_full_schema_at_cutover_only(tmp_path: Path) -> None:
         "202608",
         "strict.md",
         "---\ntier: tale\ntitle: Validated plan sweep\n"
-        "goal: Ship the validated plan sweep\n---\n# Plan\n",
+        "goal: Ship the validated plan sweep\nsize: small\n---\n# Plan\n",
     )
     prompt = tmp_path / "202608" / "prompts" / "prompt.md"
     prompt.parent.mkdir(parents=True)
@@ -52,6 +52,7 @@ def test_sweep_accepts_plan_pending_association_refresh(tmp_path: Path) -> None:
         "pending_refresh.md",
         "---\ntier: tale\ntitle: Pending association refresh\n"
         "goal: Validate before AGENTS and COMMITS sections are refreshed\n"
+        "size: small\n"
         "---\n\n"
         "- **PROMPT:** [prompts/202608/pending_refresh.md]"
         "(https://github.com/example/project--agents/blob/main/"
@@ -88,7 +89,8 @@ def test_sweep_reports_all_strict_plan_failures(tmp_path: Path) -> None:
         "202609/bad_epic.md",
     }
     assert {issue.code for issue in sweep.issues if issue.is_error} == {
-        "required-missing"
+        "required-missing",
+        "tale-size-missing",
     }
 
 
@@ -136,7 +138,7 @@ def test_main_returns_zero_for_valid_store(
         "202608",
         "valid.md",
         "---\ntier: tale\ntitle: Committed plan validation\n"
-        "goal: Keep committed plans valid\n---\n# Plan\n",
+        "goal: Keep committed plans valid\nsize: small\n---\n# Plan\n",
     )
     monkeypatch.setattr(
         "sase.scripts.validate_committed_plans._resolve_committed_plans_root",
