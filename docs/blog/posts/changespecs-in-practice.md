@@ -25,15 +25,16 @@ them.
 
 <!-- more -->
 
-[\[05\]](commit-workflows-plugins.md) ended with `commit_result.json` — the marker every
-successful commit/PR drops on disk. The thing that marker writes into is a Patch. This
-post walks through what's actually in one, how mentors attach to it, and what the ACE
-TUI does with it once it exists.
+[\[05\]](commit-workflows-plugins.md) ended with `commit_result.json` — the result
+marker written during post-dispatch tracking when `SASE_ARTIFACTS_DIR` is set. The
+tracking stage separately creates a Patch for a PR, or appends a stitch to a resolved
+Patch for a commit or proposal. This post walks through what's actually in a Patch, how
+mentors attach to it, and what the ACE TUI does with it once it exists.
 
 ## The ProjectSpec `.sase` Record, End to End
 
 A Patch is a structured block inside a ProjectSpec file at
-`~/.sase/projects/<project>/`. Active specs live in `<project>.sase`; terminal ones
+`~/.sase/projects/<project>/`. Active Patches live in `<project>.sase`; terminal ones
 (Submitted, Reverted, Archived) move to `<project>-archive.sase`. Legacy `.gp`
 ProjectSpec files from older installs are still readable as a fallback and can be
 renamed with `sase patch migrate-extension`; that command changes filenames only, not
@@ -46,9 +47,11 @@ DESCRIPTION:
 
   <BODY>
 PARENT: <PARENT>
-BUG: <BUG>
 PR: <PR>
+BUG: <BUG>
 STATUS: <STATUS>
+REFS:
+  <REFERENCE_ENTRIES>
 STITCHES:
   <STITCH_ENTRIES>
 DELTAS:
@@ -72,9 +75,11 @@ overrides; manual Patches typically start `WIP`.
 ## STITCHES, Drawers, and Proposals
 
 Stitches are managed automatically by `sase commit`. Regular commits get sequential
-integer stitches `(1)`, `(2)`, `(3)`; commitless proposals get a letter suffix `(2a)`,
-`(2b)`, flagged with `(!: NEW PROPOSAL)`. Each stitch can carry zero or more **drawer**
-lines (6-space indent, `| ` prefix):
+integer stitches `(1)`, `(2)`, `(3)`. A commitless proposal is attached to the latest
+regular stitch with a letter suffix such as `(2a)` or `(2b)`; proposals made before the
+first regular stitch start at `(0a)`. Proposal entries are flagged with
+`(!: NEW PROPOSAL)`. Each stitch can carry zero or more **drawer** lines (6-space
+indent, `| ` prefix):
 
 | Drawer | Format                         | Description                                     |
 | ------ | ------------------------------ | ----------------------------------------------- |

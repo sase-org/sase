@@ -78,7 +78,7 @@ criterion, SASE uses OR logic: any criterion can match.
 | `first_commit`       | The first regular stitch of a Patch                    |
 
 Profile matching ignores proposal entries such as `(2a)` and uses regular stitches such
-as `(1)` and `(2)`. Matching profiles are added to the latest regular commit's `MENTORS`
+as `(1)` and `(2)`. Matching profiles are added to the latest regular stitch's `MENTORS`
 entry before the mentors actually start.
 
 ### Project Scoping

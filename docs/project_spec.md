@@ -262,7 +262,7 @@ The `RUNNING` section is managed by SASE. Each entry has this shape:
 
 ```text
 RUNNING:
-  #<WORKSPACE_NUM> | <PID> | <WORKFLOW> | <CHANGESPEC_NAME> | <TIMESTAMP> | PINNED
+  #<WORKSPACE_NUM> | <PID> | <WORKFLOW> | <PATCH_NAME> | <TIMESTAMP> | PINNED
 ```
 
 The timestamp and `PINNED` marker are optional. Do not edit `RUNNING` by hand unless you
@@ -286,6 +286,8 @@ Common optional fields include:
 - **PR**: URL for the created review, omitted until the PR exists. New files write
   `PR:`; legacy `CL:` fields remain readable during the compatibility window.
 - **BUG**: Bug or issue reference for this Patch.
+- **REFS**: References attached with `sase patch ref`; see
+  [`change_spec.md`](change_spec.md#refs).
 - **STITCHES**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**:
   See [`change_spec.md`](change_spec.md) for details.
 

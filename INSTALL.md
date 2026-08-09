@@ -143,11 +143,11 @@ The lists below describe what each command is for.
 | A text editor        | Commit-message editing uses `$EDITOR`, falling back to `nvim`, then `vim`.                                                                                                                                                                                                                                           |
 
 For per-provider install and authentication commands, see
-[Installing & Authenticating Agent Providers](docs/agent_providers.md). Muse Code is the
-one provider SASE can currently install itself: preview the exact HTTPS-fetched script,
-digest, command, and target with `sase agent-cli install muse --dry-run`, then run
-`sase agent-cli install muse` and confirm. Other providers retain their vendor
-installation flows.
+[Installing & Authenticating Agent Providers](docs/agent_providers.md). Among SASE's
+built-in providers, Muse Code is the one SASE can currently install itself: preview the
+exact HTTPS-fetched script, digest, command, and target with
+`sase agent-cli install muse --dry-run`, then run `sase agent-cli install muse` and
+confirm. Other built-in providers retain their vendor installation flows.
 
 ### Recommended / optional
 

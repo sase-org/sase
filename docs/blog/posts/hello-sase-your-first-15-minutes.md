@@ -64,13 +64,13 @@ sase doctor
 ```
 
 If the provider check reports a missing executable or an authentication gap, install and
-authenticate one provider CLI, then run `sase doctor` again. Muse Code is the one
-provider SASE can currently install itself: use `sase agent-cli install muse --dry-run`
-to inspect the downloaded script's URL, digest, command, and target, then
-`sase agent-cli install muse` to confirm and run it. Other providers use the install
-commands in the provider guide. The [agent provider guide](../../agent_providers.md)
-keeps install, authentication, and provider/model selection options in one place so this
-quickstart can stay focused.
+authenticate one provider CLI, then run `sase doctor` again. Among SASE's built-in
+providers, Muse Code is the one SASE can currently install itself: use
+`sase agent-cli install muse --dry-run` to inspect the downloaded script's URL, digest,
+command, and target, then `sase agent-cli install muse` to confirm and run it. Other
+built-in providers use the install commands in the provider guide. The
+[agent provider guide](../../agent_providers.md) keeps install, authentication, and
+provider/model selection options in one place so this quickstart can stay focused.
 
 **What you just did.** Verified that SASE can find a usable coding-agent provider before
 spending time on an agent run.

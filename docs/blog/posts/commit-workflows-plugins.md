@@ -47,9 +47,11 @@ Every flow walks the same pre-dispatch pipeline: bead association → bead lifec
 (skipped for proposals) → plan handling → `commit_hooks.before` → parent PR detection
 (PR only) → diff capture → checkpoint. Only then does it call the VCS-specific
 `create_commit` / `create_proposal` / `create_pull_request` hook. A successful commit or
-PR dispatch runs `commit_hooks.after` before tracking; proposals skip it because they do
-not create commits. The workflow then writes a `commit_result.json` marker for the
-XPrompt post-steps to read.
+PR dispatch emits best-effort file-hook events and runs `commit_hooks.after` before
+tracking; proposals skip both because they do not create commits. When
+`SASE_ARTIFACTS_DIR` is set, tracking writes an initial `commit_result.json` marker
+before publication. A commit or proposal that resolves an existing Patch then appends a
+STITCHES entry and rewrites the marker with its ID.
 
 ## The Commit-Finalizer Contract
 
@@ -133,32 +135,36 @@ the rest of the epic carries on through AXE's `%wait` resolution.
 
 ## What's in `commit_result.json`
 
-After a successful dispatch, the marker contains the durable hand-off between the agent
-that wrote the code and whoever (or whatever) consumes the result:
+When `SASE_ARTIFACTS_DIR` is set, post-dispatch tracking writes the durable hand-off
+after the applicable after hook succeeds. A representative final commit marker is:
 
 ```json
 {
   "method": "create_commit",
-  "run_id": "Agent run identifier",
-  "cwd": "Repository directory used for the dispatch",
-  "repo_name": "Repository identity when known",
-  "committed_at": "Resolved commit timestamp when available",
-  "result": "<commit_hash | diff_path | pr_url | null>",
-  "message": "The commit message",
-  "name": "Branch/PR name",
-  "bead_id": "Bead ID if SASE_BEAD_ID was set",
-  "patch_name": "Patch name (PR only)",
-  "commit_patch_name": "Patch name (PR only)",
-  "stitch_id": "STITCHES entry ID (commit/propose only)",
-  "diff_path": "Saved pre-dispatch diff path, when available"
+  "run_id": "260809_123456",
+  "cwd": "/path/to/repository",
+  "result": "abc123",
+  "message": "fix: handle empty input",
+  "name": "",
+  "bead_id": "sase-abcd",
+  "patch_name": null,
+  "commit_patch_name": null,
+  "stitch_id": "2",
+  "diff_path": "/path/to/pre-dispatch.diff"
 }
 ```
 
+`repo_name` is omitted for the primary checkout and identifies linked, external, or SDD
+sidecar repositories when present. `committed_at` is an integer Unix timestamp and is
+omitted when the revision time cannot be resolved. Patch fields are populated only for
+PR creation; the initial marker has no stitch ID, and commit/proposal tracking rewrites
+it after a STITCHES append succeeds.
+
 The marker also dual-writes the legacy Patch aliases `changespec_name` and
 `commit_changespec_name`, the stitch aliases `entry_id` and `commit_entry_id`, plus
-`commit_result` and `commit_diff_path`. XPrompt post-steps read it; agent-run projection
-emits canonical `meta_patch` alongside compatibility `meta_changespec`, and downstream
-workflows consume those outputs.
+`commit_result` and `commit_diff_path`. Built-in XPrompt post-steps still expose the
+Patch as `meta_changespec`; completed agent-run projection adds canonical `meta_patch`
+and retains `meta_changespec` for compatibility.
 
 ## The Public Plugin API
 

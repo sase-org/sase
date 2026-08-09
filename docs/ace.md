@@ -30,9 +30,11 @@ falls back to `!!!` for error suffixes.
 | `-t`, `--tab`              | Tab to focus on startup (`artifacts`, `agents`, `axe`; `changespecs` and `patches` are legacy aliases) |
 | `-T`, `--tmux`             | Launch ACE in a new tmux window and print the target for external control                              |
 
-When profiling is enabled, ACE writes text output to `PATH` or
-`$SASE_TMPDIR/ace_profile_<ts>.txt`, prints the shortened path on exit, and copies that
-path when a clipboard tool is available.
+When profiling is enabled, ACE writes text output to `PATH`. If `PATH` is omitted, it
+uses the managed temp tree: `$SASE_TMPDIR/ace-profiles/ace_profile_<timestamp>.txt` when
+`SASE_TMPDIR` is set, or `$SASE_HOME/tmp/ace-profiles/ace_profile_<timestamp>.txt`
+otherwise (`SASE_HOME` defaults to `~/.sase`). On exit, ACE prints the shortened path
+and copies it when a clipboard tool is available.
 
 ### Examples
 
@@ -161,11 +163,10 @@ cancellation.
 
 `%s` captures the current `sase ace` tmux pane on every view.
 
-The palette and copied value follow the active leaf pane, even though Artifacts uses the
-internal `changespecs` tab id. Thus, for example, `%n` on Chats reports the Chats key
-set instead of copying the hidden PR's name. After selection or cancellation, the footer
-returns to the active pane's normal bindings. An unknown printable key warns but leaves
-the palette open so another choice can be made.
+The palette and copied value follow the active leaf pane. Thus, for example, `%n` on
+Chats reports the Chats key set instead of copying the hidden PR's name. After selection
+or cancellation, the footer returns to the active pane's normal bindings. An unknown
+printable key warns but leaves the palette open so another choice can be made.
 
 When entries are marked, `%@` copies newline-separated prompt references, `%l` copies a
 Markdown bullet list, `%J` copies one JSON array, and `%!` seeds one prompt with the
@@ -3365,9 +3366,9 @@ pinned attempt view resets the cursor.
   Legacy dotted and single-dash suffixes render the same way.
 - **WORKFLOW VARIABLES**: xprompt workflow output variables from step outputs with
   additional `meta_*` keys are grouped under a dedicated header. The special routing
-  keys `meta_project`, `meta_changespec`, and `meta_workspace` are still promoted into
-  the normal header fields; other metadata keys are title-cased and shown in this
-  section.
+  keys `meta_project`, `meta_patch`, and `meta_workspace` are promoted into the normal
+  header fields; `meta_changespec` remains accepted as a legacy alias for `meta_patch`.
+  Other metadata keys are title-cased and shown in this section.
 - **PROMPT**: For agents launched from a multi-agent (`---`-separated) prompt, the
   final, planner, and question transcripts include a `PROMPT:` row linking the saved
   original launch prompt (stored under `~/.sase/.../multi_prompts/`), so the exact text

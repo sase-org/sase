@@ -47,11 +47,11 @@ sase doctor
 ```
 
 If the provider check reports a missing executable or an authentication gap, install and
-authenticate one provider CLI, then run `sase doctor` again. Muse Code is the one
-provider SASE can currently install itself: use `sase agent-cli install muse --dry-run`
-to inspect the downloaded script's URL, digest, command, and target, then
-`sase agent-cli install muse` to confirm and run it. Other providers use the install
-commands in the provider guide.
+authenticate one provider CLI, then run `sase doctor` again. Among SASE's built-in
+providers, Muse Code is the one SASE can currently install itself: use
+`sase agent-cli install muse --dry-run` to inspect the downloaded script's URL, digest,
+command, and target, then `sase agent-cli install muse` to confirm and run it. Other
+built-in providers use the install commands in the provider guide.
 [Installing & Authenticating Agent Providers](agent_providers.md) has the per-provider
 install and auth commands plus the complete provider/model selection options; the
 [LLM provider reference](llms.md) covers how SASE integrates each provider once it is

@@ -158,16 +158,29 @@ Checkpoint         (save resolved payload and tracking state for resume)
     |
 VCS dispatch       (call provider.create_commit / create_proposal / create_pull_request)
     |
+File-hook events   (capture the committed revision; best effort)          [commit/PR only]
+    |
 After hook         (`commit_hooks.after`, after commit/push)              [commit/PR only]
     |
 Patch creation     (create Patch entry in project file)                    [PR only]
     |
-Result marker      (write commit_result.json for xprompt post-steps)
+Initial marker     (write commit_result.json)                 [when SASE_ARTIFACTS_DIR is set]
     |
-Agent publication  (resolve target; enqueue exact hood, then try publish) [agent commit/PR only]
+Publication        (bead pages and plan header; agent artifacts when applicable)
+                                                                          [commit/PR only]
     |
 STITCHES entry      (append entry to project file)                         [commit/propose only]
+    |
+Final marker       (rewrite with the new stitch ID)           [commit/propose, if appended]
+    |
+DELTAS refresh     (recompute the tracked diff summary)       [commit/propose, if Patch found]
 ```
+
+The marker is deliberately written before publication and STITCHES tracking so a
+successful dispatch has a durable hand-off before retryable post-dispatch work begins.
+When a commit or proposal is appended to a Patch, SASE rewrites the marker so the final
+copy includes `stitch_id`. A normal CLI invocation outside an agent or xprompt run may
+not set `SASE_ARTIFACTS_DIR`; in that case no result-marker files are written.
 
 The **subject gate** runs first, immediately after payload-shape validation and before
 bead lifecycle handling, plan staging, and the before hook. If the first line of the
@@ -186,10 +199,11 @@ validated subject.
 
 ### 4. XPrompt reads the result
 
-The xprompt post-steps read `commit_result.json` from `$SASE_ARTIFACTS_DIR` and emit
-metadata outputs such as `meta_new_commit` and `meta_commit_message`. Agent-run
-projection exposes the associated Patch as canonical `meta_patch` and also writes
-`meta_changespec` for compatibility with existing workflows.
+The built-in xprompt post-steps read `commit_result.json` from `$SASE_ARTIFACTS_DIR` and
+emit metadata outputs such as `meta_new_commit` and `meta_commit_message`. Their Patch
+output is still named `meta_changespec` for workflow compatibility. When SASE projects
+the completed agent run into agent metadata, it adds canonical `meta_patch` and retains
+`meta_changespec` as an alias.
 
 ## CLI Inputs and Internal Payload
 
@@ -288,25 +302,32 @@ Internal fields added by `CommitWorkflow`:
 
 ## Result Format
 
-After a successful dispatch, `commit_result.json` contains:
+When `SASE_ARTIFACTS_DIR` is set, post-dispatch tracking writes `commit_result.json`
+after the applicable after hook succeeds. A representative final marker for a commit is:
 
 ```json
 {
   "method": "create_commit",
-  "run_id": "Agent run identifier",
-  "cwd": "Repository directory used for the dispatch",
-  "repo_name": "Repository identity when the commit is outside the primary checkout",
-  "committed_at": "Resolved commit timestamp when available",
-  "result": "<commit_hash | diff_path | pr_url | null>",
-  "message": "The commit message",
-  "name": "Branch/PR name",
-  "bead_id": "Bead ID if SASE_BEAD_ID was set",
-  "patch_name": "Patch name (PR only)",
-  "commit_patch_name": "Patch name (PR only)",
-  "stitch_id": "STITCHES entry ID (commit/propose only)",
-  "diff_path": "Saved pre-dispatch diff path, when available"
+  "run_id": "260809_123456",
+  "cwd": "/path/to/repository",
+  "result": "abc123",
+  "message": "fix: handle empty input",
+  "name": "",
+  "bead_id": "sase-abcd",
+  "patch_name": null,
+  "commit_patch_name": null,
+  "stitch_id": "2",
+  "diff_path": "/path/to/pre-dispatch.diff"
 }
 ```
+
+`repo_name` appears only when the dispatch directory is a linked, external, or SDD
+sidecar repository rather than the agent's primary checkout. `committed_at` appears only
+when SASE can resolve the revision's author timestamp; its value is an integer Unix
+timestamp. `result` and `diff_path` may be `null`; `name` and `bead_id` may be empty
+strings. The Patch fields are populated by PR creation and otherwise are `null`.
+`stitch_id` starts as `null` in the initial marker and is populated only when a commit
+or proposal is successfully appended to an existing Patch's STITCHES section.
 
 For compatibility with older consumers, the same marker dual-writes `changespec_name` /
 `commit_changespec_name` for the Patch, `entry_id` / `commit_entry_id` for the stitch,
