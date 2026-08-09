@@ -15,7 +15,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
-from sase.ace.changespec.models import DeltaEntry
+from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.util.lazy_syntax import (
     PLAIN_RENDER_MAX_LINES,

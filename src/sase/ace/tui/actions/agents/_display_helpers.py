@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 #: id of panel slot 0 — kept stable across panel set changes so existing
 #: callers (loading shim, prompt-bar mount, tests) continue to work without

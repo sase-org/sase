@@ -42,7 +42,7 @@ class UninstallPreview:
 
     *plan* is the single :class:`UninstallPlan` outcome — a terminal one
     (:class:`NotUvTool` / :class:`AlreadyAbsent` / :class:`UninstallUnknown`)
-    routed to a ChangeSpecI-matching toast, or an :class:`UninstallReady` opened in the
+    routed to a PatchI-matching toast, or an :class:`UninstallReady` opened in the
     confirm-preview modal. *error* carries a catalog/receipt failure message
     instead of a plan. Like update, uninstall offers no source toggle, so there
     is only ever one plan.
@@ -56,7 +56,7 @@ def plan_uninstall_preview(query: str, *, offline: bool) -> UninstallPreview:
     """Plan ``uninstall <query>`` for the confirm-preview modal.
 
     Delegates to :func:`sase.plugins.operations.plan_uninstall` — the single
-    source of truth shared with the ChangeSpecI — once, cache-first (``refresh=False``).
+    source of truth shared with the PatchI — once, cache-first (``refresh=False``).
     A catalog/receipt failure becomes a toast-able error rather than a plan.
     """
     try:
@@ -69,7 +69,7 @@ def plan_uninstall_preview(query: str, *, offline: bool) -> UninstallPreview:
 def uninstall_summary(plan: UninstallReady) -> str:
     """The resolved-plugin-set line shown in the confirm-preview modal.
 
-    Mirrors the ChangeSpecI's ``uninstall --dry-run`` "Removes ... (other plugins stay
+    Mirrors the PatchI's ``uninstall --dry-run`` "Removes ... (other plugins stay
     installed)".
     """
     return f"Removes {plan.display_name}  (other plugins stay installed)"
@@ -84,7 +84,7 @@ def uninstall_success_message(outcome: UninstallOutcome) -> str:
 
 
 def already_absent_message(name: str) -> str:
-    """The ``uninstall`` already-absent toast, mirroring the ChangeSpecI's wording."""
+    """The ``uninstall`` already-absent toast, mirroring the PatchI's wording."""
     return f"{name} is not installed — nothing to uninstall."
 
 
@@ -128,7 +128,7 @@ class PluginUninstallActionsMixin:
     def action_uninstall(self) -> None:
         """Uninstall the highlighted plugin (``x``) via a confirm-preview modal.
 
-        Offered only for an *installed* plugin. Short-circuits with the ChangeSpecI's
+        Offered only for an *installed* plugin. Short-circuits with the PatchI's
         actionable message when sase is not a managed ``uv tool`` install or the
         highlighted plugin is not installed, then plans the uninstall off-thread
         and opens the confirm-preview modal; the ``uv`` re-install (minus the

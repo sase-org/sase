@@ -1,9 +1,9 @@
-"""TIMESTAMPS section builder for ChangeSpec detail display."""
+"""TIMESTAMPS section builder for Patch detail display."""
 
 from rich.text import Text
 
-from ...changespec import ChangeSpec
-from ...changespec.models import TimestampEntry
+from ...patch import Patch
+from ...patch.models import TimestampEntry
 from ..models.fold_state import FoldLevel
 from .hint_tracker import HintTracker
 
@@ -48,7 +48,7 @@ def _render_entry(text: Text, entry: TimestampEntry) -> None:
 
 def build_timestamps_section(
     text: Text,
-    changespec: ChangeSpec,
+    patch: Patch,
     timestamps_fold: FoldLevel = FoldLevel.COLLAPSED,
     hint_tracker: HintTracker | None = None,
 ) -> HintTracker:
@@ -61,7 +61,7 @@ def build_timestamps_section(
 
     Args:
         text: The Rich Text object to append to.
-        changespec: The ChangeSpec to display.
+        patch: The Patch to display.
         timestamps_fold: Fold level for the timestamps section.
         hint_tracker: Current hint tracking state.
 
@@ -76,11 +76,11 @@ def build_timestamps_section(
         mentor_hint_to_info={},
     )
 
-    if not changespec.timestamps:
+    if not patch.timestamps:
         return tracker
 
     if timestamps_fold == FoldLevel.COLLAPSED:
-        hidden = len(changespec.timestamps) - 1
+        hidden = len(patch.timestamps) - 1
         if hidden > 0:
             text.append("TIMESTAMPS:", style=_COLOR_HEADER)
             text.append("  [folded: ", style="italic #808080")
@@ -88,12 +88,12 @@ def build_timestamps_section(
             text.append("]\n", style="italic #808080")
         else:
             text.append("TIMESTAMPS:\n", style=_COLOR_HEADER)
-        _render_entry(text, changespec.timestamps[-1])
+        _render_entry(text, patch.timestamps[-1])
         return tracker
 
     text.append("TIMESTAMPS:\n", style=_COLOR_HEADER)
 
-    for entry in changespec.timestamps:
+    for entry in patch.timestamps:
         # EXPANDED: show COMMIT and REWIND entries
         if timestamps_fold == FoldLevel.EXPANDED and entry.event_type not in (
             "COMMIT",

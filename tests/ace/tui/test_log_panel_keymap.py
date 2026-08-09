@@ -90,7 +90,7 @@ def test_keyless_logs_command_opens_logs_tab() -> None:
     assert spec.label == "Open logs panel"
     assert spec.key_display == ""
     assert spec.key_sequence == ()
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "open_log_panel"
     assert "launch failures" in spec.aliases
@@ -104,7 +104,7 @@ def test_keyless_tasks_command_opens_tasks_tab() -> None:
     assert spec.label == "Open tasks panel"
     assert spec.key_display == ""
     assert spec.key_sequence == ()
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "open_tasks_panel"
     assert "task queue" in spec.aliases
@@ -117,7 +117,7 @@ def test_keyless_statistics_command_opens_statistics_tab() -> None:
     assert spec.label == "Open statistics"
     assert spec.key_display == ""
     assert spec.key_sequence == ()
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "open_statistics_panel"
     assert "metrics" in spec.aliases

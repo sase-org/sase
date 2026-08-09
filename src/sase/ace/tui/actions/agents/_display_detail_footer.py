@@ -207,7 +207,7 @@ class AgentFooterDisplayMixin:
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
-                can_jump_to_changespec=can_jump,
+                can_jump_to_patch=can_jump,
                 marked_count=len(self._marked_agents),
                 attempt_pinned=self.current_attempt_number is not None,
                 panel_focused=panel_focused,

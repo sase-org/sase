@@ -12,7 +12,7 @@ from ....hints import build_editor_args
 from ..clipboard import schedule_copy_delivery
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
-from ...widgets import AgentDetail, ChangeSpecDetail, HintInputBar
+from ...widgets import AgentDetail, PatchDetail, HintInputBar
 from ._types import HintMixinBase
 
 if TYPE_CHECKING:
@@ -27,7 +27,7 @@ class FileViewingMixin(HintMixinBase):
     """Mixin providing file viewing actions."""
 
     def action_view_files(self) -> None:
-        """View files for the current ChangeSpec or Agent, tracing the keypath.
+        """View files for the current Patch or Agent, tracing the keypath.
 
         Wraps the whole ``v`` keypath so a capture can read the keypress →
         hint-bar-visible interval out of ``tui_trace.jsonl`` directly.
@@ -36,7 +36,7 @@ class FileViewingMixin(HintMixinBase):
             self._action_view_files_impl()
 
     def _action_view_files_impl(self) -> None:
-        """View files for the current ChangeSpec or Agent."""
+        """View files for the current Patch or Agent."""
         if self._refocus_existing_hint_bar():
             return
 
@@ -46,20 +46,25 @@ class FileViewingMixin(HintMixinBase):
             self._view_agent_files()
             return
 
-        if not self.changespecs:
+        patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        if not patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = patches[self.current_idx]
 
         # Re-render detail with hints
-        detail_widget = self.query_one("#detail-panel", ChangeSpecDetail)  # type: ignore[attr-defined]
+        detail_widget = self.query_one("#detail-panel", PatchDetail)  # type: ignore[attr-defined]
         query_str = self.canonical_query_string  # type: ignore[attr-defined]
         hint_mappings, _, _, _ = detail_widget.update_display_with_hints(
-            changespec,
+            patch,
             query_str,
             hints_for=None,
             hooks_collapsed=self.hooks_collapsed,  # type: ignore[attr-defined]
-            commits_collapsed=self.commits_collapsed,  # type: ignore[attr-defined]
+            stitches_collapsed=getattr(
+                self,
+                "stitches_collapsed",
+                getattr(self, "commits_collapsed", None),
+            ),
             mentors_collapsed=self.mentors_collapsed,  # type: ignore[attr-defined]
             timestamps_collapsed=self.timestamps_collapsed,  # type: ignore[attr-defined]
             deltas_collapsed=self.deltas_collapsed,  # type: ignore[attr-defined]
@@ -74,7 +79,8 @@ class FileViewingMixin(HintMixinBase):
         self._hint_mode_active = True
         self._hint_mode_hints_for = None  # "all" hints
         self._hint_mappings = hint_mappings
-        self._hint_changespec_name = changespec.name
+        self._hint_patch_name = patch.name
+        self._hint_changespec_name = patch.name  # type: ignore[attr-defined]
 
         # Mount the hint input bar
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
@@ -115,7 +121,8 @@ class FileViewingMixin(HintMixinBase):
         self._hint_mappings = {}
         self._hint_tool_call_reports = {}
         self._hint_commit_views = {}
-        self._hint_changespec_name = agent.cl_name
+        self._hint_patch_name = agent.cl_name
+        self._hint_changespec_name = agent.cl_name  # type: ignore[attr-defined]
 
         # Mount the hint input bar in the agent detail container
         detail_container = self.query_one("#agent-detail-container")  # type: ignore[attr-defined]

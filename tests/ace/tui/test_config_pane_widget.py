@@ -106,7 +106,7 @@ async def test_config_filter_accepts_brackets_and_tab_switches_main_tab(
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "logs")
         assert filter_input.value == "[]"
-        assert page.app.current_tab == "changespecs"
+        assert page.app.current_tab == "artifacts"
 
 
 async def test_config_pane_modified_only_toggle(

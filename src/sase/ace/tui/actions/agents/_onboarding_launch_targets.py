@@ -12,13 +12,13 @@ _DEFAULT_EXCLUDED_PROJECT_NAMES = frozenset({"home"})
 _ELIGIBLE_CHANGESPEC_STATUSES = frozenset({"WIP", "Draft", "Ready", "Mailed"})
 
 
-class _ChangeSpecLike(Protocol):
+class _PatchLike(Protocol):
     status: str
 
 
 def _launch_targets_available(
     projects: Iterable[str | ProjectDisplayProjection],
-    changespecs: Iterable[_ChangeSpecLike],
+    patches: Iterable[_PatchLike],
     *,
     exclude_project_names: frozenset[str] = _DEFAULT_EXCLUDED_PROJECT_NAMES,
 ) -> bool:
@@ -34,17 +34,17 @@ def _launch_targets_available(
     ):
         return True
     return any(
-        remove_workspace_suffix(changespec.status) in _ELIGIBLE_CHANGESPEC_STATUSES
-        for changespec in changespecs
+        remove_workspace_suffix(patch.status) in _ELIGIBLE_CHANGESPEC_STATUSES
+        for patch in patches
     )
 
 
 def discover_agents_onboarding_launch_targets_available() -> bool:
     """Read launch targets from disk-backed discovery helpers."""
-    from ....changespec import find_all_changespecs_cached
+    from ....patch import find_all_patches_cached
     from ...modals.project_discovery import list_launchable_projects
 
     return _launch_targets_available(
         list_launchable_projects(),
-        find_all_changespecs_cached(),
+        find_all_patches_cached(),
     )

@@ -2,7 +2,7 @@
 
 Every ``uv tool`` mutation surfaced in the TUI Updates tab runs through this
 modal first: it shows the **exact** ``uv`` argv that would run and the resolved
-scope, then asks for confirmation. The confirmation *is* the ChangeSpecI's ``--dry-run``
+scope, then asks for confirmation. The confirmation *is* the PatchI's ``--dry-run``
 — both safer and more discoverable than a hidden mode (epic decision *D5*).
 
 The modal is purely presentational and reusable. A caller passes one or more

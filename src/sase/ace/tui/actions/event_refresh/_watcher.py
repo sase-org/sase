@@ -52,7 +52,8 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
         targets = self._dirty_surfaces_for_paths(changed_paths)
         if not targets:
             return
-        if "changespecs" in targets:
+        if "artifacts" in targets:
+            self._dirty_patches = True
             self._dirty_changespecs = True
         if "agents" in targets:
             self._dirty_agents = True
@@ -78,18 +79,26 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
                     self._on_artifact_change_deferred,
                 )
             return
-        # ChangeSpec refreshes are cheap enough to keep immediate and already
+        # Patch refreshes are cheap enough to keep immediate and already
         # coalesce through their pending/loading guard. Agents reloads are
         # intentionally consumed by the auto-refresh/tab-switch gates above.
-        if "changespecs" in targets:
-            self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
+        if "artifacts" in targets:
+            schedule_patches = getattr(self, "_schedule_patches_async_refresh", None)
+            if callable(schedule_patches):
+                schedule_patches()
+                return
+            schedule_changespecs = getattr(
+                self, "_schedule_changespecs_async_refresh", None
+            )
+            if callable(schedule_changespecs):
+                schedule_changespecs()
 
     def _dirty_surfaces_for_paths(
         self, changed_paths: tuple[Path, ...] | None
     ) -> set[str]:
         """Map watcher paths to the smallest ACE surface set we can infer."""
         if not changed_paths:
-            return {"changespecs", "agents", "axe", "notifications"}
+            return {"artifacts", "agents", "axe", "notifications"}
 
         targets: set[str] = set()
         ignored_artifact_path = False
@@ -102,7 +111,7 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
                 targets.add("notifications")
                 continue
             if beads_dir in (path, *path.parents):
-                targets.add("changespecs")
+                targets.add("artifacts")
                 continue
             if "artifacts" in parts:
                 if artifact_path_affects_agents(path):
@@ -111,17 +120,17 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
                     ignored_artifact_path = True
                 continue
             if path.suffix in {".sase", ".gp"}:
-                targets.update({"changespecs", "axe"})
+                targets.update({"artifacts", "axe"})
                 continue
             if projects_root in (path, *path.parents):
-                targets.update({"changespecs", "agents", "axe"})
+                targets.update({"artifacts", "agents", "axe"})
                 continue
-            targets.update({"changespecs", "agents", "axe"})
+            targets.update({"artifacts", "agents", "axe"})
         if targets:
             return targets
         if ignored_artifact_path:
             return set()
-        return {"changespecs", "agents", "axe"}
+        return {"artifacts", "agents", "axe"}
 
     def _on_artifact_change_deferred(self) -> None:
         """Timer-fired wrapper that clears the dedup flag before reentering.

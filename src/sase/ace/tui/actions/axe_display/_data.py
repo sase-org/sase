@@ -34,7 +34,7 @@ from ...bgcmd import (
 )
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
 AxeViewType = Literal["axe"] | int

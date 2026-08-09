@@ -249,6 +249,6 @@ def test_extract_command_context_smoke_against_real_app() -> None:
     app = AceApp(auto_start_axe=False, initial_tab="changespecs")
     ctx = extract_command_context(app)
     assert isinstance(ctx, CommandContext)
-    assert ctx.tab == "changespecs"
+    assert ctx.tab == "artifacts"
     assert ctx.changespec is None
     assert ctx.mark_count == 0

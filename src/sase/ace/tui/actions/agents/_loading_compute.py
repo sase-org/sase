@@ -259,7 +259,7 @@ def compute_apply_loaded_agents(
     # Non-RUNNING agents use the broad dismissed_suffixes index (suffix-only).
     # RUNNING agents use the
     # narrower dismissed_cl_suffixes index (cl_name, raw_suffix) to
-    # avoid cross-ChangeSpec contamination while still catching agents that
+    # avoid cross-Patch contamination while still catching agents that
     # reappear with a different AgentType after dedup (e.g. a killed
     # WORKFLOW agent whose artifacts are deleted but whose RUNNING
     # field entry persists, producing an AgentType.RUNNING agent).

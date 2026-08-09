@@ -10,7 +10,7 @@ from .base import OptionListNavigationMixin
 
 
 class ParentSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
-    """Modal for selecting a new parent ChangeSpec for rebasing."""
+    """Modal for selecting a new parent Patch for rebasing."""
 
     _option_list_id = "parent-list"
     BINDINGS = [*OptionListNavigationMixin.NAVIGATION_BINDINGS]

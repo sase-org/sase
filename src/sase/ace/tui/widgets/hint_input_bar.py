@@ -43,7 +43,7 @@ class _HintInput(Input):
 
         # Resolve the active detail scroll container for the current tab.
         scroll_id: str | None = None
-        if self._ace_app.current_tab == "changespecs":
+        if self._ace_app.current_tab == "artifacts":
             scroll_id = "#detail-scroll"
         elif self._ace_app.current_tab == "agents":
             scroll_id = self._ace_app._get_agent_detail_scroll_id()
@@ -71,7 +71,7 @@ class _HintInput(Input):
 
 
 class HintInputBar(Static):
-    """Small input bar for hint selection, positioned below ChangeSpec panel."""
+    """Small input bar for hint selection, positioned below Patch panel."""
 
     class Submitted(Message):
         """Message sent when hint input is submitted."""

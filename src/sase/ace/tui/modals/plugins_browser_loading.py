@@ -108,7 +108,7 @@ def load_plugins_catalog_for_pane(
     """Load the plugin catalog (merged with installed + latest). Off-thread safe.
 
     Mirrors ``sase plugin list``: cache-first by default, then a best-effort
-    latest-version enrichment so the update markers/counts match the ChangeSpecI. A
+    latest-version enrichment so the update markers/counts match the PatchI. A
     hard catalog failure (e.g. a missing ``gh``) becomes the pane's error
     state; an enrichment failure degrades to the un-enriched catalog. The
     uv-tool probe runs here too so the mutation-availability check stays off the

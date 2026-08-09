@@ -18,7 +18,7 @@ from ..task_subprocess import TaskReporter
 from ..widgets.task_indicator import TaskIndicator
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class TaskActionsMixin:
     """Mixin providing background task submission for the TUI app."""
 
     # Type hints for AceApp attributes used by this mixin
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
 
     def _init_task_queue(self) -> None:
@@ -121,7 +121,7 @@ class TaskActionsMixin:
     ) -> bool:
         """Submit a task to run in background via run_worker().
 
-        Returns False if a task is already running for this ChangeSpec.
+        Returns False if a task is already running for this Patch.
         The callable should return (success, message).
         Output capture (stdout/stderr redirect) is handled automatically.
         """
@@ -166,8 +166,8 @@ class TaskActionsMixin:
         """Submit a typed task to run in a Textual worker thread.
 
         Returns None if a running task already exists for the dedup scope.
-        Existing ChangeSpec actions keep using :meth:`_submit_background_task`;
-        launch and other non-ChangeSpec work can provide ``display_name`` and
+        Existing Patch actions keep using :meth:`_submit_background_task`;
+        launch and other non-Patch work can provide ``display_name`` and
         ``dedup_key`` for clean task-queue rows.
         """
         if not hasattr(self, "_task_completion_callbacks"):

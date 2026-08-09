@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from textual import events
 
-from ..widgets import AgentList, BgCmdList, ChangeSpecList, TabBar
+from ..widgets import AgentList, BgCmdList, PatchList, TabBar
 from .agents._panel_fold_intent import panel_is_collapsed
 from ._event_base import EventHandlersBase
 
@@ -78,17 +78,25 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         if callable(refresh_detail):
             refresh_detail()
 
-    def on_change_spec_list_selection_changed(
-        self, event: ChangeSpecList.SelectionChanged
+    def on_patch_list_selection_changed(
+        self, event: PatchList.SelectionChanged
     ) -> None:
-        """Handle selection change in the ChangeSpec list widget."""
-        if self.current_tab == "changespecs" and 0 <= event.index < len(
-            self.changespecs
-        ):
-            # Push to history when clicking on a different ChangeSpec
+        """Handle selection change in the Patch list widget."""
+        patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        if self.current_tab in {
+            "artifacts",
+            "patches",
+            "changespecs",
+        } and 0 <= event.index < len(patches):
+            # Push to history when clicking on a different Patch
             if event.index != self.current_idx:
-                self._push_changespec_to_history()  # type: ignore[attr-defined]
+                self._push_patch_to_history()  # type: ignore[attr-defined]
             self.current_idx = event.index
+
+    def on_change_spec_list_selection_changed(
+        self, event: PatchList.SelectionChanged
+    ) -> None:
+        self.on_patch_list_selection_changed(event)
 
     def on_agent_list_selection_changed(
         self, event: AgentList.SelectionChanged
@@ -222,17 +230,15 @@ class EventWidgetHandlersMixin(EventHandlersBase):
             # Save current position before switching
             self._save_current_tab_position()  # type: ignore[attr-defined]
             # Set appropriate index for target tab
-            if event.tab == "changespecs":
-                self.current_idx = self._get_clamped_changespecs_idx()  # type: ignore[attr-defined]
+            if event.tab == "artifacts":
+                self.current_idx = self._get_clamped_patches_idx()  # type: ignore[attr-defined]
             elif event.tab == "agents":
                 self.current_idx = self._get_clamped_agents_idx()  # type: ignore[attr-defined]
             else:  # axe
                 self.current_idx = self._get_clamped_axe_idx()  # type: ignore[attr-defined]
             self.current_tab = event.tab  # type: ignore[assignment]
 
-    def on_change_spec_list_width_changed(
-        self, event: ChangeSpecList.WidthChanged
-    ) -> None:
+    def on_patch_list_width_changed(self, event: PatchList.WidthChanged) -> None:
         """Handle width change from the list widget."""
         from textual.css.query import NoMatches
 

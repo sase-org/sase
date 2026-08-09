@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 ARTIFACT_FILE_VIEWER_LAYOUT_CLASS = "-artifact-file-viewer-active"
 ARTIFACT_FILE_VIEWER_NAV_MESSAGE = (

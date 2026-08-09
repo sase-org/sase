@@ -172,15 +172,15 @@ def _append_project_fields(
     agent: Agent,
     *,
     meta_project: object,
-    meta_changespec: object,
+    meta_patch: object,
 ) -> None:
     """Append project, workspace, and workflow identity fields."""
     if agent.is_workflow_step_child and agent.step_name:
         text.append("Step: ", style="bold #87D7FF")
         text.append(f"{agent.step_name}\n", style="#00D7AF")
-    elif meta_changespec:
-        text.append("ChangeSpec: ", style="bold #87D7FF")
-        text.append(f"{meta_changespec}", style="#00D7AF")
+    elif meta_patch:
+        text.append("Patch: ", style="bold #87D7FF")
+        text.append(f"{meta_patch}", style="#00D7AF")
         if agent.cl_num:
             text.append(" (")
             text.append(agent.cl_num, style="bold underline #569CD6")
@@ -193,7 +193,7 @@ def _append_project_fields(
         text.append("Project: ", style="bold #87D7FF")
         text.append(f"{project_display_label(agent, agent.cl_name)}\n", style="#00D7AF")
     else:
-        text.append("ChangeSpec: ", style="bold #87D7FF")
+        text.append("Patch: ", style="bold #87D7FF")
         text.append(humanize_cl_name(agent.cl_name), style="#00D7AF")
         if agent.cl_num:
             text.append(" (")
@@ -373,15 +373,17 @@ def append_agent_metadata_fields(
 
     step_output = agent.step_output if isinstance(agent.step_output, dict) else None
     meta_project = step_output.get("meta_project") if step_output is not None else None
-    meta_changespec = (
-        step_output.get("meta_changespec") if step_output is not None else None
+    meta_patch = (
+        step_output.get("meta_patch") or step_output.get("meta_changespec")
+        if step_output is not None
+        else None
     )
     meta_fields = extract_meta_fields(step_output) if step_output is not None else []
     _append_project_fields(
         text,
         agent,
         meta_project=meta_project,
-        meta_changespec=meta_changespec,
+        meta_patch=meta_patch,
     )
 
     _append_auto_approve_field(text, agent)

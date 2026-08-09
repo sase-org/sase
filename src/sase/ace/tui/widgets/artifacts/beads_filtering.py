@@ -182,7 +182,7 @@ def _record(
     has_labels = set[str]()
     if snapshot.plan_links.get(issue_key):
         has_labels.add("plan")
-    if issue.changespec_bug_id:
+    if issue.patch_bug_id:
         has_labels.add("bug")
     if issue.dependencies:
         has_labels.add("deps")
@@ -211,8 +211,8 @@ def _record(
             issue.owner,
             issue.created_by,
             issue.model,
-            issue.changespec_name,
-            issue.changespec_bug_id,
+            issue.patch_name,
+            issue.patch_bug_id,
             issue.parent_id or "",
             project,
             display_name,

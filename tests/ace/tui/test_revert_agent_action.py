@@ -379,10 +379,10 @@ def test_mixed_workspace_marks_error_and_do_not_submit(tmp_path: Path) -> None:
     )
 
 
-def test_mixed_changespec_branch_marks_error_and_do_not_submit(
+def test_mixed_patch_branch_marks_error_and_do_not_submit(
     tmp_path: Path,
 ) -> None:
-    # Same workspace but two different ChangeSpec branches: a single fresh
+    # Same workspace but two different Patch branches: a single fresh
     # checkout cannot represent both, so the bulk revert is rejected.
     foo = _agent("DONE", name="foo", ws=str(tmp_path), cl="cl_foo")
     bar = _agent("DONE", name="bar", ws=str(tmp_path), cl="cl_bar")
@@ -393,8 +393,7 @@ def test_mixed_changespec_branch_marks_error_and_do_not_submit(
     assert app.submitted == []
     assert app.pushed_modals == []
     assert any(
-        "ChangeSpec branches" in msg and sev == "error"
-        for msg, sev in app.notifications
+        "Patch branches" in msg and sev == "error" for msg, sev in app.notifications
     )
 
 

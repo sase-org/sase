@@ -9,18 +9,18 @@ from ..util.nav_gate import NavigationGate
 from ..widgets import PromptInputBar
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
     from ..models import Agent
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 class EventHandlersBase:
     """Shared attributes and helpers for event handler mixins."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_attempt_number: int | None
     current_tab: TabName
@@ -32,7 +32,7 @@ class EventHandlersBase:
     _copy_mode_active: bool
     _agents: list[Agent]
     _agents_loading: bool
-    _changespecs_last_idx: int
+    _patches_last_idx: int
     _agents_last_idx: int
     _ancestor_mode_active: bool
     _child_mode_active: bool
@@ -49,7 +49,7 @@ class EventHandlersBase:
     _last_input_mono: float
     _last_input_action: str | None
     _nav_gate: NavigationGate
-    _dirty_changespecs: bool
+    _dirty_patches: bool
     _dirty_agents: bool
     _dirty_agent_artifact_dirs: tuple[Path, ...]
     _dirty_deleted_agent_artifact_dirs: tuple[Path, ...]
@@ -65,7 +65,7 @@ class EventHandlersBase:
         Use this instead of _refresh_display() when the caller may be on any tab
         (e.g. exiting bang/copy mode).
         """
-        if self.current_tab == "changespecs":
+        if self.current_tab == "artifacts":
             self._refresh_display()  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             self._refresh_agents_display()  # type: ignore[attr-defined]

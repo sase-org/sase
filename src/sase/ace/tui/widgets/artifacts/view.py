@@ -107,7 +107,7 @@ class ArtifactsView(Vertical):
     def entry_navigator(self, pane_key: ArtifactsPaneKey) -> ArtifactEntryNavigator:
         """Return the stable-target navigator for a non-PR pane."""
         if pane_key == "prs":
-            raise ValueError("PRs use the existing ChangeSpec navigation model")
+            raise ValueError("PRs use the existing Patch navigation model")
         if pane_key in FILES_SUBTAB_ORDER:
             return self.query_one(ArtifactsFilesView).entry_navigator(pane_key)
         return cast(

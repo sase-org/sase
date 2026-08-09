@@ -36,8 +36,17 @@ def _safe_index(items: list[Any], idx: int) -> Any | None:
     return None
 
 
-def _selected_changespec(app: AceApp):  # type: ignore[no-untyped-def]
-    return _safe_index(app.changespecs, app.current_idx)
+def _normalize_tab(tab: object) -> CommandTab:
+    if tab in {"changespecs", "patches"}:
+        return "artifacts"
+    if tab in {"artifacts", "agents", "axe"}:
+        return tab  # type: ignore[return-value]
+    return "artifacts"
+
+
+def _selected_patch(app: AceApp):  # type: ignore[no-untyped-def]
+    patches = getattr(app, "patches", getattr(app, "changespecs", []))
+    return _safe_index(patches, app.current_idx)
 
 
 def _selected_agent(app: AceApp):  # type: ignore[no-untyped-def]
@@ -81,7 +90,7 @@ def _selected_axe_item(app: AceApp):  # type: ignore[no-untyped-def]
     return _safe_index(items, app.current_idx)
 
 
-def _can_jump_to_changespec(app: AceApp, agent) -> bool:  # type: ignore[no-untyped-def]
+def _can_jump_to_patch(app: AceApp, agent) -> bool:  # type: ignore[no-untyped-def]
     if agent is None:
         return False
     resolver = getattr(app, "_resolve_agent_cl_name", None)
@@ -207,9 +216,9 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     between the running app and the pure availability predicates so
     the predicates do not have to import ``AceApp``.
     """
-    tab: CommandTab = app.current_tab  # type: ignore[assignment]
+    tab = _normalize_tab(app.current_tab)
 
-    cs = _selected_changespec(app) if tab == "changespecs" else None
+    cs = _selected_patch(app) if tab == "artifacts" else None
     agent = _selected_agent(app) if tab == "agents" else None
     axe_item = _selected_axe_item(app) if tab == "axe" else None
 
@@ -221,7 +230,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     completed = _completed_agent_count(app) if tab == "agents" else 0
     stopped = _stopped_agent_count(app) if tab == "agents" else 0
     unread_completed = _unread_completed_agent_count(app) if tab == "agents" else 0
-    can_jump = _can_jump_to_changespec(app, agent) if tab == "agents" else False
+    can_jump = _can_jump_to_patch(app, agent) if tab == "agents" else False
     attempt_pinned = (
         app.current_attempt_number is not None if tab == "agents" else False
     )
@@ -250,7 +259,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     return CommandContext(
         tab=tab,
         artifacts_subtab=getattr(app, "current_artifacts_pane_key", "prs"),
-        changespec=cs,
+        patch=cs,
         agent=agent,
         axe_item=axe_item,
         mark_count=mark_count,
@@ -258,7 +267,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         stopped_agent_count=stopped,
         unread_completed_agent_count=unread_completed,
         runner_count=_runner_count(app),
-        can_jump_to_changespec=can_jump,
+        can_jump_to_patch=can_jump,
         attempt_pinned=attempt_pinned,
         panel_focused=panel_focused,
         panel_collapsed=panel_collapsed,

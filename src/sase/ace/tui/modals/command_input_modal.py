@@ -28,7 +28,7 @@ class CommandInputModal(ModalScreen[str | None]):
         Args:
             project: Project name for display.
             workspace_num: Workspace number for display.
-            cl_name: Optional ChangeSpec name for display.
+            cl_name: Optional Patch name for display.
         """
         super().__init__()
         self._project = project
@@ -42,7 +42,7 @@ class CommandInputModal(ModalScreen[str | None]):
             # Build context line
             context = f"Project: {self._project}"
             if self._cl_name:
-                context += f" | ChangeSpec: {humanize_cl_name(self._cl_name)}"
+                context += f" | Patch: {humanize_cl_name(self._cl_name)}"
             context += f" | Workspace: {self._workspace_num}"
             yield Label(context, id="command-context")
             yield Label(

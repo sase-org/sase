@@ -57,8 +57,8 @@ class CleanupTaskMixin:
             project_file,
             _callable,
             display_name=display_name,
-            # Cleanup tasks must never collide with ChangeSpec per-ChangeSpec dedup
-            # (get_running_for_cl) for the same ChangeSpec name.
+            # Cleanup tasks must never collide with Patch per-Patch dedup
+            # (get_running_for_cl) for the same Patch name.
             dedup_key=f"{task_type}:{uuid4().hex}",
             on_complete=self._on_cleanup_task_complete,
             reload_on_complete=False,

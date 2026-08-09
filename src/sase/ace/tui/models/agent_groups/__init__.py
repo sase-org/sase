@@ -2,10 +2,10 @@
 
 Builds a flat sequence of banner + agent entries from a list of agents.
 Each panel decides independently between two layouts based on whether
-any of its non-project-scoped agents targets a ChangeSpec
+any of its non-project-scoped agents targets a Patch
 (``cl_name != ""``):
 
-* **2-level layout** (no ChangeSpec anywhere in the panel):
+* **2-level layout** (no Patch anywhere in the panel):
     1. **Project** — derived from ``Agent.project_file``.
     2. **Name root** — the part of the agent's name before the first ``.``.
        When at least two agents under that root share the first two dotted
@@ -13,10 +13,10 @@ any of its non-project-scoped agents targets a ChangeSpec
        An exact two-segment parent marker such as ``foo.bar`` participates
        in the same prefix subgroup as descendants such as ``foo.bar.1``.
 
-* **3-level layout** (at least one non-project agent has a ChangeSpec):
+* **3-level layout** (at least one non-project agent has a Patch):
     1. **Project**
-    2. **ChangeSpec** (``Agent.cl_name``); project-scoped agents and
-       agents lacking one fall into a synthetic ``"(no ChangeSpec)"``
+    2. **Patch** (``Agent.cl_name``); project-scoped agents and
+       agents lacking one fall into a synthetic ``"(no Patch)"``
        bucket sorted last under their project.
     3. **Name root**
        May contain optional child **name prefix** subgroups, producing a
@@ -44,9 +44,9 @@ descendants are suppressed; sibling groups remain unaffected.
 
 Group ordering is deterministic and independent of the input agent
 list's order: named projects sort before ``(no project)``; named
-ChangeSpecs sort before the ``(no ChangeSpec)`` bucket; ungrouped
+Patches sort before the ``(no Patch)`` bucket; ungrouped
 agents (dotless and singleton-name-root) sort first within their
-ChangeSpec bucket so they render directly under the ChangeSpec banner,
+Patch bucket so they render directly under the Patch banner,
 before any name-root banner. Under ``BY_STATUS``, launch recency cannot
 interleave that standalone partition with visible subgroups. Within each
 group, members keep their original projected parent/child preorder, and each
@@ -75,7 +75,7 @@ from ._buckets import (
 )
 from ._keys import (
     grouping_keys_for_agents,
-    panel_uses_changespec_level,
+    panel_uses_patch_level,
     status_grouping_signature,
 )
 from ._tree import (
@@ -97,7 +97,8 @@ from ._tree import (
 _date_bucket_for = date_bucket_for
 _status_bucket_for = status_bucket_for
 _grouping_keys_for_agents = grouping_keys_for_agents
-_panel_uses_changespec_level = panel_uses_changespec_level
+_panel_uses_patch_level = panel_uses_patch_level
+_panel_uses_changespec_level = panel_uses_patch_level
 
 __all__ = [
     "GroupRow",
@@ -116,7 +117,7 @@ __all__ = [
     "enumerate_group_keys",
     "find_visible_ancestor_banner",
     "grouping_keys_for_agents",
-    "panel_uses_changespec_level",
+    "panel_uses_patch_level",
     "status_bucket_for",
     "status_grouping_signature",
 ]

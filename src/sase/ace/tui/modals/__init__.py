@@ -129,7 +129,7 @@ from .quit_options_modal import QuitOption, QuitOptionsModal
 from .stashed_prompts_modal import StashRestoreResult, StashedPromptsModal
 from .update_pinned_stash_modal import UpdatePinnedStashModal
 from .recursive_finder_modal import RecursiveFileFinderModal
-from .rename_changespec_modal import RenameChangeSpecModal
+from .rename_patch_modal import RenamePatchModal
 from .save_agent_group_modal import SaveAgentGroupModal, SaveAgentGroupResult
 from .wait_modal import WaitAgentCandidate, WaitModal, WaitModalResult
 from .revive_agent_modal import DismissedAgentSelectModal
@@ -364,7 +364,7 @@ __all__ = [
     "QuitConfirmModal",
     "QuitOption",
     "QuitOptionsModal",
-    "RenameChangeSpecModal",
+    "RenamePatchModal",
     "StashRestoreResult",
     "StashedPromptsModal",
     "SavedAgentGroupRevivalModal",

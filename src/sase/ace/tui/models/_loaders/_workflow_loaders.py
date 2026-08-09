@@ -149,7 +149,7 @@ def load_workflow_states(
                 )
 
             # Build project file path
-            from sase.ace.changespec.project_spec_path import (
+            from sase.ace.patch.project_spec_path import (
                 preferred_project_spec_path,
             )
 

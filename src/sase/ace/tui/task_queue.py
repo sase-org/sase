@@ -1,7 +1,7 @@
 """Background task queue for the ace TUI.
 
 Provides TaskInfo (state for a single background task), TaskQueue (thread-safe
-registry with per-ChangeSpec deduplication), and task-local output storage.
+registry with per-Patch deduplication), and task-local output storage.
 """
 
 from __future__ import annotations
@@ -232,7 +232,7 @@ class TaskInfo:
 
 @dataclass
 class TaskQueue:
-    """Thread-safe registry of background tasks with per-ChangeSpec deduplication."""
+    """Thread-safe registry of background tasks with per-Patch deduplication."""
 
     _tasks: dict[str, TaskInfo] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -293,11 +293,11 @@ class TaskQueue:
                 info.exit_code = 0 if info.exit_code is None else info.exit_code
 
     def get_running_for_cl(self, cl_name: str) -> TaskInfo | None:
-        """Return the running per-ChangeSpec-deduped task for *cl_name*, or None.
+        """Return the running per-Patch-deduped task for *cl_name*, or None.
 
         Tasks submitted with a custom dedup key (agent launches, kill/dismiss
-        cleanup) opt out of per-ChangeSpec dedup and are never returned here, so they
-        cannot block ChangeSpec actions for the same ChangeSpec.
+        cleanup) opt out of per-Patch dedup and are never returned here, so they
+        cannot block Patch actions for the same Patch.
         """
         with self._lock:
             for info in self._tasks.values():

@@ -8,7 +8,7 @@ from ...widgets import HintInputBar
 from ._types import HintMixinBase
 
 if TYPE_CHECKING:
-    from ....changespec import ChangeSpec
+    from ....patch import Patch
 
 
 def _rewind_task(
@@ -44,14 +44,14 @@ class RewindMixin(HintMixinBase):
         if self._refocus_existing_hint_bar():
             return
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Check if there are at least 2 all-numeric COMMITS entries
         # (we need an entry after the selected one)
-        numeric_entries = [e for e in (changespec.commits or []) if not e.is_proposed]
+        numeric_entries = [e for e in (patch.commits or []) if not e.is_proposed]
         if len(numeric_entries) < 2:
             self.notify(  # type: ignore[attr-defined]
                 "Need at least 2 accepted commits to rewind",
@@ -82,7 +82,7 @@ class RewindMixin(HintMixinBase):
         """Process the selected entry number for rewind.
 
         Supports a ``!`` suffix (e.g. ``3!``) to skip VCS operations
-        and only perform bookkeeping (renumber ChangeSpec + timestamp).
+        and only perform bookkeeping (renumber Patch + timestamp).
 
         Args:
             user_input: The user's input (entry number, optionally with ``!``).
@@ -90,7 +90,7 @@ class RewindMixin(HintMixinBase):
         if not user_input:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Strip trailing '!' suffix for bookkeeping-only mode
         stripped = user_input.strip()
@@ -109,7 +109,7 @@ class RewindMixin(HintMixinBase):
             return
 
         # Validate entry exists and is all-numeric (accepted)
-        numeric_entries = [e for e in (changespec.commits or []) if not e.is_proposed]
+        numeric_entries = [e for e in (patch.commits or []) if not e.is_proposed]
         entry_nums = {e.number for e in numeric_entries}
 
         if selected_entry_num not in entry_nums:
@@ -141,11 +141,11 @@ class RewindMixin(HintMixinBase):
                 return
 
         # Run rewind workflow
-        self._run_rewind_workflow(changespec, selected_entry_num, skip_vcs=skip_vcs)
+        self._run_rewind_workflow(patch, selected_entry_num, skip_vcs=skip_vcs)
 
     def _run_rewind_workflow(
         self,
-        changespec: ChangeSpec,
+        patch: Patch,
         selected_entry_num: int,
         *,
         skip_vcs: bool = False,
@@ -153,12 +153,12 @@ class RewindMixin(HintMixinBase):
         """Execute the rewind workflow.
 
         Args:
-            changespec: The ChangeSpec to rewind.
+            patch: The Patch to rewind.
             selected_entry_num: The entry number to rewind to.
             skip_vcs: If True, skip VCS operations (bookkeeping only).
         """
-        cl_name = changespec.name
-        project_file = changespec.file_path
+        cl_name = patch.name
+        project_file = patch.file_path
 
         def task_callable() -> tuple[bool, str]:
             return _rewind_task(

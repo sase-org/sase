@@ -14,7 +14,7 @@ from .binding_common import (
     _custom_mode_sections,
     _sk,
 )
-from .changespecs_bindings import cls_bindings
+from .patches_bindings import cls_bindings
 
 __all__ = [
     "BOX_WIDTH",

@@ -22,12 +22,12 @@ class StartupLoadsMixin:
         from ...saved_queries import load_saved_queries
 
         self._saved_queries = load_saved_queries()
-        sync_onboarding = getattr(self, "_sync_changespecs_onboarding", None)
+        sync_onboarding = getattr(self, "_sync_patches_onboarding", None)
         if callable(sync_onboarding):
             showing_onboarding = sync_onboarding()
             if (
                 not showing_onboarding
-                and getattr(self, "current_tab", None) == "changespecs"
+                and getattr(self, "current_tab", None) == "artifacts"
             ):
                 refresh_display = getattr(self, "_refresh_display", None)
                 if callable(refresh_display):
@@ -128,8 +128,8 @@ class StartupLoadsMixin:
             stash_counts = await asyncio.to_thread(self._read_prompt_stash_counts)
             self._apply_prompt_stash_counts(*stash_counts)
 
-            all_cs = await asyncio.to_thread(self._read_changespecs_from_disk)
-            self._apply_changespecs(all_cs)
+            all_cs = await asyncio.to_thread(self._read_patches_from_disk)
+            self._apply_patches(all_cs)
 
             last_name = await asyncio.to_thread(self._read_last_selection_name)
             self._restore_last_selection(last_name)

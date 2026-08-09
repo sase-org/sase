@@ -16,7 +16,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.paths import sase_projects_dir
 
-from ...changespec import ChangeSpec, find_all_changespecs
+from ...patch import Patch, find_all_patches
 from ...hooks.processes import is_process_running
 from . import _agent_loader_artifacts as _artifacts
 from ._agent_loader_artifacts import (
@@ -64,6 +64,8 @@ from ._loaders import (
 from ._timestamps import normalize_to_14_digit
 from .agent import Agent
 from .workflow import WorkflowEntry
+
+find_all_changespecs = find_all_patches
 
 
 @dataclass(frozen=True)
@@ -177,22 +179,22 @@ def load_all_workflows() -> list[WorkflowEntry]:
     return workflows_with_time + workflows_without_time
 
 
-def _changespec_snapshot_for_loader(
-    changespec_snapshot: list[ChangeSpec] | None,
-) -> list[ChangeSpec]:
+def _patch_snapshot_for_loader(
+    patch_snapshot: list[Patch] | None,
+) -> list[Patch]:
     return (
-        changespec_snapshot
-        if changespec_snapshot is not None
+        patch_snapshot
+        if patch_snapshot is not None
         else find_all_changespecs(include_states="all")
     )
 
 
-def _changespec_agent_lookups(
-    all_changespecs: list[ChangeSpec],
+def _patch_agent_lookups(
+    all_patches: list[Patch],
 ) -> tuple[dict[str, str | None], dict[str, str | None]]:
     bug_by_cl_name: dict[str, str | None] = {}
     cl_by_cl_name: dict[str, str | None] = {}
-    for cs in all_changespecs:
+    for cs in all_patches:
         if cs.bug:
             bug_id = cs.bug.removeprefix("http://b/")
             bug_by_cl_name[cs.name] = f"http://b/{bug_id}"
@@ -204,11 +206,11 @@ def _changespec_agent_lookups(
 def _load_agents_from_artifact_snapshot_sources(
     artifact_snapshot: AgentArtifactScanWire,
     *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
+    patch_snapshot: list[Patch] | None = None,
 ) -> tuple[list[Agent], list[Agent]]:
     """Load only artifact-backed agents from an exact scanner snapshot."""
-    all_changespecs = _changespec_snapshot_for_loader(changespec_snapshot)
-    bug_by_cl_name, cl_by_cl_name = _changespec_agent_lookups(all_changespecs)
+    all_patches = _patch_snapshot_for_loader(patch_snapshot)
+    bug_by_cl_name, cl_by_cl_name = _patch_agent_lookups(all_patches)
 
     agents: list[Agent] = []
     agents.extend(
@@ -250,7 +252,7 @@ def _load_plan_agents_from_artifact_snapshot(
 
 def _load_agents_from_all_sources(
     *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
+    patch_snapshot: list[Patch] | None = None,
     artifact_snapshot: AgentArtifactScanWire | None = None,
 ) -> tuple[list[Agent], list[Agent]]:
     """Load agents from all sources and return (agents, workflow_agent_steps).
@@ -260,11 +262,11 @@ def _load_agents_from_all_sources(
     2. done.json marker files (DONE agents)
     3. running.json markers (home mode agents)
     4. Workflow agent steps and workflow entries
-    5. HOOKS, MENTORS, COMMENTS fields from ChangeSpecs
+    5. HOOKS, MENTORS, COMMENTS fields from Patches
 
     Args:
-        changespec_snapshot: Optional pre-fetched ChangeSpec list. When
-            supplied, the loader skips the in-process ``find_all_changespecs()``
+        patch_snapshot: Optional pre-fetched Patch list. When
+            supplied, the loader skips the in-process ``find_all_patches()``
             call and reuses this snapshot for bug/PR lookups and the
             HOOKS/MENTORS/COMMENTS sweep.
     """
@@ -273,13 +275,13 @@ def _load_agents_from_all_sources(
     # Get all project files
     project_files = get_all_project_files()
 
-    # Load all ChangeSpecs early to build bug lookup. Caller-supplied
+    # Load all Patches early to build bug lookup. Caller-supplied
     # snapshots avoid re-globbing every project spec file when the TUI already
     # has a fresh cached snapshot in hand.
-    all_changespecs = _changespec_snapshot_for_loader(changespec_snapshot)
+    all_patches = _patch_snapshot_for_loader(patch_snapshot)
 
-    # Build bug URL and PR number lookups by ChangeSpec name (single pass)
-    bug_by_cl_name, cl_by_cl_name = _changespec_agent_lookups(all_changespecs)
+    # Build bug URL and PR number lookups by Patch name (single pass)
+    bug_by_cl_name, cl_by_cl_name = _patch_agent_lookups(all_patches)
 
     # 1. Load from RUNNING field (snapshot-independent; reads project spec files).
     agents.extend(
@@ -317,8 +319,8 @@ def _load_agents_from_all_sources(
         )
     )
 
-    # 2. Load from each ChangeSpec's fields
-    for cs in all_changespecs:
+    # 2. Load from each Patch's fields
+    for cs in all_patches:
         stripped_bug_id = cs.bug.removeprefix("http://b/") if cs.bug else None
         bug = f"http://b/{stripped_bug_id}" if stripped_bug_id else None
         cl_num = cs.pr_url
@@ -341,7 +343,7 @@ def _load_agents_from_all_sources(
 
 def _load_agents_with_load_state(
     *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
+    patch_snapshot: list[Patch] | None = None,
     full_history: bool = False,
     use_artifact_index: bool = True,
 ) -> _AgentLoadResult:
@@ -352,7 +354,7 @@ def _load_agents_with_load_state(
         use_artifact_index=use_artifact_index,
     )
     agents, workflow_agent_steps = _load_agents_from_all_sources(
-        changespec_snapshot=changespec_snapshot,
+        patch_snapshot=patch_snapshot,
         artifact_snapshot=artifact_snapshot,
     )
     return _AgentLoadResult(
@@ -432,7 +434,7 @@ def load_live_plan_agents_for_timestamps(timestamps: Iterable[str]) -> list[Agen
 
 def load_all_agents(
     *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
+    patch_snapshot: list[Patch] | None = None,
     artifact_snapshot: AgentArtifactScanWire | None = None,
 ) -> list[Agent]:
     """Load all running agents from all sources.
@@ -445,8 +447,8 @@ def load_all_agents(
     5. done.json marker files (DONE agents)
 
     Args:
-        changespec_snapshot: Optional pre-fetched ChangeSpec list. When
-            supplied, the loader skips its own ``find_all_changespecs()``
+        patch_snapshot: Optional pre-fetched Patch list. When
+            supplied, the loader skips its own ``find_all_patches()``
             call and reuses this snapshot.
 
     Returns:
@@ -454,7 +456,7 @@ def load_all_agents(
         with agents that have no start time at the end.
     """
     agents, workflow_agent_steps = _load_agents_from_all_sources(
-        changespec_snapshot=changespec_snapshot,
+        patch_snapshot=patch_snapshot,
         artifact_snapshot=artifact_snapshot,
     )
     return _normalize_loaded_agents(agents, workflow_agent_steps)
@@ -462,14 +464,14 @@ def load_all_agents(
 
 def load_tiered_agents(
     *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
+    patch_snapshot: list[Patch] | None = None,
     full_history: bool = False,
     use_artifact_index: bool = True,
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load agents through the TUI tiered artifact path."""
 
     result = _load_agents_with_load_state(
-        changespec_snapshot=changespec_snapshot,
+        patch_snapshot=patch_snapshot,
         full_history=full_history,
         use_artifact_index=use_artifact_index,
     )
@@ -482,11 +484,14 @@ def load_tiered_agents(
 def load_artifact_delta_agents(
     artifact_dirs: Sequence[Path | str],
     *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
+    patch_snapshot: list[Patch] | None = None,
+    changespec_snapshot: list[Patch] | None = None,
     update_index: bool = True,
     deleted_artifact_dirs: Sequence[Path | str] = (),
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load normalized agents from an exact set of artifact directories."""
+    if patch_snapshot is None:
+        patch_snapshot = changespec_snapshot
 
     unique_dirs, seen_dirs, deleted_dir_keys = _prepare_artifact_delta_paths(
         artifact_dirs,
@@ -502,7 +507,7 @@ def load_artifact_delta_agents(
     )
     agents, workflow_agent_steps = _load_agents_from_artifact_snapshot_sources(
         snapshot,
-        changespec_snapshot=changespec_snapshot,
+        patch_snapshot=patch_snapshot,
     )
     normalized = _normalize_loaded_agents(agents, workflow_agent_steps)
     _mark_live_artifact_delta_runners(normalized)

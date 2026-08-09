@@ -31,14 +31,14 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "Filter kind, status, or tier" in combined
     assert "Filter project or creation date" in combined
     assert "Title/body/id/metadata (AND)" in combined
-    assert "PR Actions" in combined
+    assert "Patch Actions" in combined
     assert "Create task bead" in combined
     assert "Close / reopen bead" in combined
     assert "Copy Mode · Beads" in combined
     assert "Copy Mode · Other" in combined
     assert "[01]" in left
     assert "01-9 / 00" in right
-    assert "Choose saved PR query" in right
+    assert "Choose saved Patch query" in right
     assert "1 / 2 / 3 / 4 / 5" in left
     assert "Jump five top-level views" in left
     assert "Cycle top-level views" in left

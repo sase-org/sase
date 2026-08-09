@@ -12,9 +12,9 @@ from textual.widgets import Static
 
 from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ..ancestors_children_panel import AncestorsChildrenPanel
-from ..changespec_detail import ChangeSpecDetail, SearchQueryPanel
-from ..changespec_info_panel import ChangeSpecInfoPanel
-from ..changespec_list import ChangeSpecList
+from ..patch_detail import PatchDetail, SearchQueryPanel
+from ..patch_info_panel import PatchInfoPanel
+from ..patch_list import PatchList
 from ..tab_quickstart import TabQuickStart
 from .lifecycle import ArtifactsPaneLifecycle
 from .entry_navigation import ArtifactEntryTarget
@@ -22,7 +22,7 @@ from .types import ARTIFACTS_ACCENTS, ArtifactsSubTab
 
 
 class ArtifactsPrsPane(ArtifactsPaneLifecycle, Horizontal):
-    """The existing ChangeSpec surface, hosted unchanged inside Artifacts."""
+    """The existing Patch surface, hosted unchanged inside Artifacts."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -30,23 +30,23 @@ class ArtifactsPrsPane(ArtifactsPaneLifecycle, Horizontal):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="list-container"):
-            yield ChangeSpecInfoPanel(id="info-panel")
-            yield ChangeSpecList(id="list-panel")
+            yield PatchInfoPanel(id="info-panel")
+            yield PatchList(id="list-panel")
             yield AncestorsChildrenPanel(id="ancestors-children-panel")
         with Vertical(id="detail-container"):
             yield SearchQueryPanel(id="search-query-panel")
             with VerticalScroll(id="detail-scroll"):
-                yield ChangeSpecDetail(id="detail-panel")
+                yield PatchDetail(id="detail-panel")
             yield TabQuickStart(
-                tab="changespecs",
-                id="changespec-quickstart-panel",
+                tab="artifacts",
+                id="patch-quickstart-panel",
                 classes="hidden",
             )
 
     def on_activate(self) -> None:
         """Restore focus to the PR surface after another pane owned it."""
         if self.is_mounted:
-            self.query_one("#list-panel", ChangeSpecList).focus()
+            self.query_one("#list-panel", PatchList).focus()
 
 
 _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {

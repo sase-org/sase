@@ -71,6 +71,8 @@ from ._registry import (
     supports_reviewer_comments,
 )
 
+submit_patch = submit_changespec
+
 __all__ = [
     "CheckoutMarker",
     "ExternalRepoCloneResult",
@@ -124,6 +126,7 @@ __all__ = [
     "resolve_ref",
     "save_registry",
     "submit_changespec",
+    "submit_patch",
     "supports_reviewer_comments",
     "write_marker",
 ]

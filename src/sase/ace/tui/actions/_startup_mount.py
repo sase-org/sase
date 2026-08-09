@@ -23,9 +23,9 @@ class StartupMountMixin:
             AgentInfoPanel,
             AncestorsChildrenPanel,
             ArtifactsView,
-            ChangeSpecDetail,
-            ChangeSpecInfoPanel,
-            ChangeSpecList,
+            PatchDetail,
+            PatchInfoPanel,
+            PatchList,
             KeybindingFooter,
             SearchQueryPanel,
             TabBar,
@@ -43,7 +43,7 @@ class StartupMountMixin:
             tab_bar = self.query_one("#tab-bar", TabBar)
             tab_bar.set_keymap_registry(self._keymap_registry)
             tab_bar.update_tab(self.current_tab)
-            artifacts_view = self.query_one("#changespecs-view", ArtifactsView)
+            artifacts_view = self.query_one("#artifacts-view", ArtifactsView)
             artifacts_view.set_keymap_registry(self._keymap_registry)
             # The Commits pane was composed with its fully merged startup
             # query. Shared scope setup must not overwrite that visible token.
@@ -51,7 +51,7 @@ class StartupMountMixin:
                 self.artifacts_project_scope,
                 update_commits=False,
             )
-            if self.current_tab == "changespecs":
+            if self.current_tab == "artifacts":
                 # The view's mount hook owns lifecycle activation; share the
                 # same footer/scope entry behavior as top-level navigation.
                 self._sync_active_artifacts_entry_state()
@@ -64,12 +64,10 @@ class StartupMountMixin:
             info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)
             info_panel.set_keymap_registry(self._keymap_registry)
             try:
-                cs_info_panel = self.query_one("#info-panel", ChangeSpecInfoPanel)
+                cs_info_panel = self.query_one("#info-panel", PatchInfoPanel)
                 cs_info_panel.set_keymap_registry(self._keymap_registry)
             except Exception:
-                log.debug(
-                    "ChangeSpec info panel keymap wiring skipped: widget not found"
-                )
+                log.debug("Patch info panel keymap wiring skipped: widget not found")
 
             # Cache stable widget refs so hot paths skip repeat ``query_one``
             # walks. Wrapped in try/except so a missing widget never blocks
@@ -78,14 +76,14 @@ class StartupMountMixin:
             self._w_tab_bar = tab_bar
             self._w_agent_info_panel = info_panel
             for attr, selector, cls in (
-                ("_w_changespec_list", "#list-panel", ChangeSpecList),
-                ("_w_changespec_detail", "#detail-panel", ChangeSpecDetail),
+                ("_w_patch_list", "#list-panel", PatchList),
+                ("_w_patch_detail", "#detail-panel", PatchDetail),
                 (
                     "_w_ancestors_children",
                     "#ancestors-children-panel",
                     AncestorsChildrenPanel,
                 ),
-                ("_w_changespec_info_panel", "#info-panel", ChangeSpecInfoPanel),
+                ("_w_patch_info_panel", "#info-panel", PatchInfoPanel),
                 ("_w_search_query_panel", "#search-query-panel", SearchQueryPanel),
                 ("_w_agent_detail", "#agent-detail-panel", AgentDetail),
             ):

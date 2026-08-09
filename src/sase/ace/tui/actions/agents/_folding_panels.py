@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent_panels import PanelKey
 
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 class AgentPanelFoldingMixin:

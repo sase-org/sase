@@ -154,13 +154,13 @@ class WorkflowExecMixin:
                 lambda: self.notify(msg, severity="warning")  # type: ignore[attr-defined]
             )
 
-        # Check if we have changespec context (not home mode)
+        # Check if we have patch context (not home mode)
         ctx = self._prompt_context
-        has_changespec_context = (
+        has_patch_context = (
             ctx is not None and not ctx.is_home_mode and ctx.project_file
         )
 
-        if has_changespec_context:
+        if has_patch_context:
             # Launch as subprocess with workspace claiming
             return self._launch_workflow_subprocess(
                 workflow_name,
@@ -349,7 +349,7 @@ class WorkflowExecMixin:
         # Build output log path
         output_path = os.path.join(artifacts_dir, "workflow.log")
 
-        # Inject cl_name from display context so the runner knows the ChangeSpec name
+        # Inject cl_name from display context so the runner knows the Patch name
         if ctx.display_name:
             named_args = dict(named_args)
             named_args.setdefault("cl_name", ctx.display_name)

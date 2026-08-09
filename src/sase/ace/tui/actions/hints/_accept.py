@@ -7,7 +7,7 @@ from sase.workflows.accept.parsing import (
     parse_proposal_entries,
 )
 
-from ....changespec import ChangeSpec
+from ....patch import Patch
 from ._types import HintMixinBase
 
 
@@ -60,12 +60,12 @@ class AcceptMailMixin(HintMixinBase):
         if not user_input:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Special case: "@" alone means run full mail flow
         # (mail prep first, then mark ready to mail, then execute mail)
         if user_input.strip() == "@":
-            self._handle_at_alone_mail_flow(changespec)
+            self._handle_at_alone_mail_flow(patch)
             return
 
         # Split input into args and strip suffixes
@@ -97,13 +97,13 @@ class AcceptMailMixin(HintMixinBase):
         # When should_mail is True, _run_accept_workflow sets up an on_success
         # callback that triggers action_mail() after the background task completes.
         self._run_accept_workflow(  # type: ignore[attr-defined]
-            changespec,
+            patch,
             entries,
             mark_ready_to_mail=should_mail,
             skip_amend=skip_amend,
         )
 
-    def _handle_at_alone_mail_flow(self, changespec: ChangeSpec) -> None:
+    def _handle_at_alone_mail_flow(self, patch: Patch) -> None:
         """Handle the full mail flow when "@" alone is input.
 
         This runs the mail operations in a specific order:
@@ -116,7 +116,7 @@ class AcceptMailMixin(HintMixinBase):
         7. Release the workspace
 
         Args:
-            changespec: The ChangeSpec to process
+            patch: The Patch to process
         """
         import os
 
@@ -128,20 +128,20 @@ class AcceptMailMixin(HintMixinBase):
             release_workspace,
         )
 
-        from ....changespec import get_base_status
+        from ....patch import get_base_status
         from ....mail_ops import MailPrepResult, execute_mail, prepare_mail
 
         # Validate: must be Ready status
-        base_status = get_base_status(changespec.status)
+        base_status = get_base_status(patch.status)
         if base_status != "Ready":
             self.notify("Must be Ready status", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Claim a workspace in the 100-199 range
-        workspace_num = get_first_available_axe_workspace(changespec.file_path)
+        workspace_num = get_first_available_axe_workspace(patch.file_path)
 
         claim_result = claim_workspace(
-            changespec.file_path, workspace_num, "mail", os.getpid(), changespec.name
+            patch.file_path, workspace_num, "mail", os.getpid(), patch.name
         )
         if not claim_result.success:
             self.notify(  # type: ignore[attr-defined]
@@ -153,7 +153,7 @@ class AcceptMailMixin(HintMixinBase):
         try:
             # Get workspace directory
             workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-                workspace_num, changespec.project_basename
+                workspace_num, patch.project_basename
             )
 
             if workspace_suffix:
@@ -164,7 +164,7 @@ class AcceptMailMixin(HintMixinBase):
 
             def run_mail_prep() -> MailPrepResult | None:
                 console = Console()
-                return prepare_mail(changespec, workspace_dir, console)
+                return prepare_mail(patch, workspace_dir, console)
 
             with self.suspend():  # type: ignore[attr-defined]
                 prep_result = run_mail_prep()
@@ -178,7 +178,7 @@ class AcceptMailMixin(HintMixinBase):
             # If user said "yes" to mail, set status directly to "Mailed"
             # If user said "no", keep current status (Ready)
             final_status = "Mailed" if prep_result.should_mail else None
-            success = self._mark_ready_to_mail_atomic(changespec, final_status)  # type: ignore[attr-defined]
+            success = self._mark_ready_to_mail_atomic(patch, final_status)  # type: ignore[attr-defined]
 
             if not success:
                 self.notify("Failed to mark as ready to mail", severity="error")  # type: ignore[attr-defined]
@@ -190,7 +190,7 @@ class AcceptMailMixin(HintMixinBase):
 
                 def run_mail() -> bool:
                     console = Console()
-                    return execute_mail(changespec, workspace_dir, console)
+                    return execute_mail(patch, workspace_dir, console)
 
                 with self.suspend():  # type: ignore[attr-defined]
                     mail_success = run_mail()
@@ -206,6 +206,4 @@ class AcceptMailMixin(HintMixinBase):
 
         finally:
             # Always release the workspace
-            release_workspace(
-                changespec.file_path, workspace_num, "mail", changespec.name
-            )
+            release_workspace(patch.file_path, workspace_num, "mail", patch.name)

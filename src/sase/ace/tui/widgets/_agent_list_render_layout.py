@@ -69,7 +69,7 @@ def render_tier_gutter(tier_styles: tuple[str, ...]) -> Text:
     """Build the leading tier-guide gutter for a row.
 
     Emits one ``│  `` segment per supplied style, in order from outermost
-    (project / bucket) to innermost (ChangeSpec).  Returns an empty Text
+    (project / bucket) to innermost (Patch).  Returns an empty Text
     when *tier_styles* is empty so callers can prepend unconditionally.
     """
     gutter = Text()

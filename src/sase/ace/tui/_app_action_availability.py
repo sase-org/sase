@@ -17,6 +17,8 @@ def check_app_action(
     fallback: CheckAction,
 ) -> bool | None:
     """Return whether an app action is available in the current UI context."""
+    if action == "start_agent_from_changespec":
+        action = "start_agent_from_patch"
     if action == "open_config_center" and getattr(
         app.screen, "_blocks_global_config_center_open", False
     ):
@@ -62,7 +64,7 @@ def check_app_action(
     # so this non-printable one is the only launch entry point that can reach
     # the app mid-prompt. Disable the action instead of the key so the guard
     # survives rebinding and covers every focus position inside the bar.
-    if action == "start_agent_from_changespec" and (
+    if action == "start_agent_from_patch" and (
         bool(getattr(app, "_screen_stack", ())) and app._prompt_input_active()
     ):
         return False

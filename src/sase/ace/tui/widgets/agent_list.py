@@ -50,7 +50,7 @@ class AgentList(OptionList, inherit_bindings=False):
     """List widget showing agents."""
 
     # Override OptionList.BINDINGS to exclude the enter -> select binding.
-    # This lets the App-level enter -> jump_to_agent_changespec binding fire instead.
+    # This lets the App-level enter -> jump_to_agent_patch binding fire instead.
     BINDINGS = [
         Binding("down", "cursor_down", "Down", show=False),
         Binding("end", "last", "Last", show=False),
@@ -176,9 +176,9 @@ class AgentList(OptionList, inherit_bindings=False):
             current_group_key: When non-None, highlight the banner row whose
                 ``group_key`` matches.  Takes precedence over agent highlight.
             grouping_mode: Which grouping/sorting mode the tree should use.
-                Defaults to ``STANDARD`` (project → ChangeSpec → name-root);
+                Defaults to ``STANDARD`` (project → Patch → name-root);
                 ``BY_DATE`` and ``BY_STATUS`` swap L0 for a date / status
-                bucket and drop the ChangeSpec layer.  Phase 2 callers
+                bucket and drop the Patch layer.  Phase 2 callers
                 hardcode ``STANDARD``; Phase 3 wires this to a cyclable
                 app-level setting.
             tribe_labels: Optional display-only effective tribe labels aligned

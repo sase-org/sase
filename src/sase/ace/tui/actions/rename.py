@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from sase.ace.changespec.project_spec_path import project_spec_basename
+from sase.ace.patch.project_spec_path import project_spec_basename
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.vcs_provider import get_vcs_provider
 from sase.xprompt.directive_edit import set_prompt_name
@@ -20,44 +20,44 @@ from .task_actions import TrackedTaskCompletion, TrackedTaskResult
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
 
 
 class RenameMixin:
-    """Mixin providing rename ChangeSpec action."""
+    """Mixin providing rename Patch action."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     _agents: list[Agent]
     current_idx: int
     current_tab: str
 
     def action_rename_cl(self) -> None:
-        """Show rename modal for the current ChangeSpec or name an agent.
+        """Show rename modal for the current Patch or name an agent.
 
-        On the ChangeSpecs tab: rename the PR (non-Submitted ChangeSpecs only).
+        On the Patches tab: rename the PR (non-Submitted Patches only).
         On the Agents tab: set/change the agent name.
         """
         if self.current_tab == "agents":
             self._set_agent_name()
             return
 
-        from ...changespec import get_base_status
-        from ..modals import RenameChangeSpecModal
+        from ...patch import get_base_status
+        from ..modals import RenamePatchModal
 
-        if self.current_tab != "changespecs":
+        if self.current_tab != "artifacts":
             return
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Validate status - rename not available for Submitted or Reverted
-        base_status = get_base_status(changespec.status)
+        base_status = get_base_status(patch.status)
         if base_status in ("Submitted", "Reverted"):
             self.notify(  # type: ignore[attr-defined]
-                "Rename not available for Submitted/Reverted ChangeSpecs",
+                "Rename not available for Submitted/Reverted Patches",
                 severity="warning",
             )
             return
@@ -66,23 +66,23 @@ class RenameMixin:
             """Handle the rename modal result."""
             if new_name is None:
                 return
-            self._execute_rename(changespec, new_name)
+            self._execute_rename(patch, new_name)
 
         self.push_screen(  # type: ignore[attr-defined]
-            RenameChangeSpecModal(
-                current_name=changespec.name,
-                project_file_path=changespec.file_path,
+            RenamePatchModal(
+                current_name=patch.name,
+                project_file_path=patch.file_path,
                 status=base_status,
             ),
             handle_rename_result,
         )
 
-    def _execute_rename(self, changespec: ChangeSpec, new_name: str) -> None:
+    def _execute_rename(self, patch: Patch, new_name: str) -> None:
         """Execute the rename operation.
 
         Args:
-            changespec: The ChangeSpec to rename.
-            new_name: The new name for the ChangeSpec.
+            patch: The Patch to rename.
+            new_name: The new name for the Patch.
         """
         from sase.running_field import (
             claim_workspace,
@@ -93,13 +93,13 @@ class RenameMixin:
         )
         from sase.status_state_machine import update_parent_references_atomic
 
-        from sase.ace.revert import update_changespec_name_atomic
+        from sase.ace.revert import update_patch_name_atomic
 
-        from ...changespec import get_base_status
+        from ...patch import get_base_status
 
-        base_status = get_base_status(changespec.status)
-        old_name = changespec.name
-        project_basename = project_spec_basename(changespec.file_path)
+        base_status = get_base_status(patch.status)
+        old_name = patch.name
+        project_basename = project_spec_basename(patch.file_path)
         workspace_num: int | None = None
         cl_name_updated = False
 
@@ -111,25 +111,19 @@ class RenameMixin:
             """
             nonlocal workspace_num, cl_name_updated
 
-            # For Reverted ChangeSpecs, skip Mercurial operations (no PR exists)
+            # For Reverted Patches, skip Mercurial operations (no PR exists)
             if base_status == "Reverted":
                 # Just update the spec file references
                 try:
-                    update_changespec_name_atomic(
-                        changespec.file_path, old_name, new_name
-                    )
-                    update_parent_references_atomic(
-                        changespec.file_path, old_name, new_name
-                    )
-                    update_running_field_cl_name(
-                        changespec.file_path, old_name, new_name
-                    )
+                    update_patch_name_atomic(patch.file_path, old_name, new_name)
+                    update_parent_references_atomic(patch.file_path, old_name, new_name)
+                    update_running_field_cl_name(patch.file_path, old_name, new_name)
                     from sase.ace.timestamps.recording import (
                         add_timestamp_entry_atomic,
                     )
 
                     add_timestamp_entry_atomic(
-                        changespec.file_path,
+                        patch.file_path,
                         new_name,
                         "RENAME",
                         f"{old_name} -> {new_name}",
@@ -139,7 +133,7 @@ class RenameMixin:
                     return (False, f"Failed to update spec file: {e}")
 
             # Get workspace info
-            workspace_num = get_first_available_axe_workspace(changespec.file_path)
+            workspace_num = get_first_available_axe_workspace(patch.file_path)
             workflow_name = f"rename-{old_name}"
 
             try:
@@ -152,7 +146,7 @@ class RenameMixin:
             # Claim workspace
             pid = os.getpid()
             claim_result = claim_workspace(
-                changespec.file_path, workspace_num, workflow_name, pid, old_name
+                patch.file_path, workspace_num, workflow_name, pid, old_name
             )
             if not claim_result.success:
                 return (
@@ -169,7 +163,7 @@ class RenameMixin:
                 if not clean_success:
                     print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-                # Checkout the ChangeSpec
+                # Checkout the Patch
                 print(f"Checking out {old_name}...")
                 provider = get_vcs_provider(workspace_dir)
                 resolved = provider.resolve_revision(
@@ -218,15 +212,9 @@ class RenameMixin:
                 # Update spec file references
                 print("Updating spec file references...")
                 try:
-                    update_changespec_name_atomic(
-                        changespec.file_path, old_name, new_name
-                    )
-                    update_parent_references_atomic(
-                        changespec.file_path, old_name, new_name
-                    )
-                    update_running_field_cl_name(
-                        changespec.file_path, old_name, new_name
-                    )
+                    update_patch_name_atomic(patch.file_path, old_name, new_name)
+                    update_parent_references_atomic(patch.file_path, old_name, new_name)
+                    update_running_field_cl_name(patch.file_path, old_name, new_name)
                     cl_name_updated = True
                 except Exception as e:
                     return (False, f"Failed to update spec file: {e}")
@@ -236,7 +224,7 @@ class RenameMixin:
                 )
 
                 add_timestamp_entry_atomic(
-                    changespec.file_path,
+                    patch.file_path,
                     new_name,
                     "RENAME",
                     f"{old_name} -> {new_name}",
@@ -244,12 +232,12 @@ class RenameMixin:
                 return (True, f"Renamed {old_name} to {new_name}")
 
             finally:
-                # Always release workspace — use new_name if the ChangeSpec name
+                # Always release workspace — use new_name if the Patch name
                 # was already updated in the RUNNING field, otherwise old_name.
                 if workspace_num is not None:
                     release_cl_name = new_name if cl_name_updated else old_name
                     release_workspace(
-                        changespec.file_path,
+                        patch.file_path,
                         workspace_num,
                         workflow_name,
                         release_cl_name,

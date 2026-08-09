@@ -124,7 +124,7 @@ async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
         await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
 
         assert calls[-1][0] == "projects"
-        assert pane._projects_group_by == "changespec"
+        assert pane._projects_group_by == "patch"
         _assert_range_scope_matches_selection(pane)
         await modal._switch_to("config")
         pane._on_refresh_tick()

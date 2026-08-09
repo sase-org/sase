@@ -1,6 +1,6 @@
-"""Rename ChangeSpec modal for the ace TUI."""
+"""Rename Patch modal for the ace TUI."""
 
-from sase.ace.changespec.project_spec_path import project_spec_basename
+from sase.ace.patch.project_spec_path import project_spec_basename
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
@@ -10,11 +10,11 @@ from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
 class _RenameInput(SingleLineVimTextArea):
-    """Single-line vim editor for ChangeSpec names."""
+    """Single-line vim editor for Patch names."""
 
 
-class RenameChangeSpecModal(ModalScreen[str | None]):
-    """Modal for renaming a ChangeSpec.
+class RenamePatchModal(ModalScreen[str | None]):
+    """Modal for renaming a Patch.
 
     Returns the new name if valid, None if cancelled.
     """
@@ -32,9 +32,9 @@ class RenameChangeSpecModal(ModalScreen[str | None]):
         """Initialize the rename modal.
 
         Args:
-            current_name: The current ChangeSpec name.
+            current_name: The current Patch name.
             project_file_path: Path to the project spec file.
-            status: The ChangeSpec's current status (for suffix validation).
+            status: The Patch's current status (for suffix validation).
         """
         super().__init__()
         self._current_name = current_name
@@ -45,7 +45,7 @@ class RenameChangeSpecModal(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         with Container():
-            yield Label("Rename ChangeSpec", id="modal-title")
+            yield Label("Rename Patch", id="modal-title")
             yield Label(
                 f"Current: {self._current_name}",
                 id="modal-instructions",
@@ -79,8 +79,8 @@ class RenameChangeSpecModal(ModalScreen[str | None]):
 
     def _submit_value(self) -> None:
         """Validate and submit the new name."""
-        from sase.workflows.commit.changespec_queries import changespec_exists
-        from sase.core.changespec import has_suffix
+        from sase.workflows.commit.patch_queries import patch_exists
+        from sase.core.patch import has_suffix
 
         rename_input = self.query_one("#rename-input", _RenameInput)
         new_name = rename_input.text.strip()
@@ -96,7 +96,7 @@ class RenameChangeSpecModal(ModalScreen[str | None]):
             return
 
         # Check exact duplicate
-        if changespec_exists(self._project_name, new_name):
+        if patch_exists(self._project_name, new_name):
             self.notify(
                 f"Name '{new_name}' already exists in project",
                 severity="error",
@@ -109,7 +109,7 @@ class RenameChangeSpecModal(ModalScreen[str | None]):
         ):
             if not has_suffix(new_name):
                 self.notify(
-                    "WIP/Draft/Reverted ChangeSpecs with __<N> suffix must keep suffix",
+                    "WIP/Draft/Reverted Patches with __<N> suffix must keep suffix",
                     severity="error",
                 )
                 return

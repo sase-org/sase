@@ -258,7 +258,7 @@ async def test_updates_filter_forwards_brackets_and_tab_switches_main_tab(
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "xprompts")
         assert filter_input.value == ""
-        assert page.app.current_tab == "changespecs"
+        assert page.app.current_tab == "artifacts"
 
 
 async def test_plugins_pane_filter_no_matches(

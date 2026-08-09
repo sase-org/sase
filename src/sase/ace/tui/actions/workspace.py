@@ -7,28 +7,28 @@ from typing import TYPE_CHECKING, Any, Literal
 from sase.project_display_names import humanize_cl_name
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
 
 # Type alias for tab names (used in type hints)
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 class WorkspaceActionsMixin:
     """Mixin providing tmux and checkout workspace actions."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     query_string: str
     parsed_query: Any
 
     def action_open_tmux(self) -> None:
-        """Open tmux session for the current ChangeSpec's project (workspace #1)."""
+        """Open tmux session for the current Patch's project (workspace #1)."""
         self._open_tmux_for_workspace(1)
 
     def _open_tmux_for_workspace(self, workspace_num: int) -> None:
-        """Open tmux session for the current ChangeSpec's project.
+        """Open tmux session for the current Patch's project.
 
         Args:
             workspace_num: The workspace number to checkout and open tmux for (1-9).
@@ -37,10 +37,10 @@ class WorkspaceActionsMixin:
 
         from sase.running_field import get_workspace_directory
 
-        from ...changespec import get_base_status
+        from ...patch import get_base_status
 
-        if not self.changespecs:
-            # No matching ChangeSpecs — try to open tmux for a sole project filter
+        if not self.patches:
+            # No matching Patches — try to open tmux for a sole project filter
             from sase.ace.query import get_sole_project_filter
 
             project_name = get_sole_project_filter(self.parsed_query)
@@ -49,18 +49,18 @@ class WorkspaceActionsMixin:
             self._open_tmux_for_project(project_name, workspace_num)
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Validate status
-        base_status = get_base_status(changespec.status)
+        base_status = get_base_status(patch.status)
         if base_status in ("Reverted", "Submitted", "Archived"):
             self.notify(  # type: ignore[attr-defined]
-                "Tmux not available for Reverted/Submitted/Archived ChangeSpecs",
+                "Tmux not available for Reverted/Submitted/Archived Patches",
                 severity="warning",
             )
             return
 
-        project_basename = changespec.project_basename
+        project_basename = patch.project_basename
 
         # Get workspace directory for specified workspace number
         try:
@@ -83,7 +83,7 @@ class WorkspaceActionsMixin:
 
             provider = get_vcs_provider(workspace_dir)
             resolved = provider.resolve_revision(
-                changespec.name, project_basename, workspace_dir
+                patch.name, project_basename, workspace_dir
             )
             success, error = provider.checkout(resolved, workspace_dir)
             if not success:
@@ -131,34 +131,34 @@ class WorkspaceActionsMixin:
             self.notify(message, severity="error")  # type: ignore[attr-defined]
 
     def action_checkout(self) -> None:
-        """Checkout the current ChangeSpec in the primary workspace (no tmux)."""
+        """Checkout the current Patch in the primary workspace (no tmux)."""
         self._checkout_to_workspace(1)
 
     def _checkout_to_workspace(self, workspace_num: int) -> None:
-        """Checkout the current ChangeSpec in the specified workspace (no tmux).
+        """Checkout the current Patch in the specified workspace (no tmux).
 
         Args:
             workspace_num: The workspace number to checkout to (1-9).
         """
         from sase.running_field import get_workspace_directory
 
-        from ...changespec import get_base_status
+        from ...patch import get_base_status
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Validate status
-        base_status = get_base_status(changespec.status)
+        base_status = get_base_status(patch.status)
         if base_status in ("Reverted", "Submitted", "Archived"):
             self.notify(  # type: ignore[attr-defined]
-                "Checkout not available for Reverted/Submitted/Archived ChangeSpecs",
+                "Checkout not available for Reverted/Submitted/Archived Patches",
                 severity="warning",
             )
             return
 
-        project_basename = changespec.project_basename
+        project_basename = patch.project_basename
 
         # Get workspace directory for specified workspace number
         try:
@@ -175,7 +175,7 @@ class WorkspaceActionsMixin:
 
             provider = get_vcs_provider(workspace_dir)
             resolved = provider.resolve_revision(
-                changespec.name, project_basename, workspace_dir
+                patch.name, project_basename, workspace_dir
             )
             success, error = provider.checkout(resolved, workspace_dir)
             if not success:
@@ -183,7 +183,7 @@ class WorkspaceActionsMixin:
 
             return (
                 True,
-                f"Checked out {humanize_cl_name(changespec.name)} in {workspace_dir}",
+                f"Checked out {humanize_cl_name(patch.name)} in {workspace_dir}",
             )
 
         with self.suspend():  # type: ignore[attr-defined]
@@ -196,13 +196,13 @@ class WorkspaceActionsMixin:
 
     def action_start_checkout_mode(self) -> None:
         """Enter checkout mode - press 1-9 to select workspace."""
-        if self.current_tab != "changespecs":
+        if self.current_tab != "artifacts":
             return
         self._checkout_mode_active = True  # type: ignore[attr-defined]
 
     def action_start_tmux_mode(self) -> None:
         """Open tmux for selected PR - prompts for workspace number."""
-        if self.current_tab != "changespecs":
+        if self.current_tab != "artifacts":
             return
 
         from ..modals import WorkspaceInputModal
@@ -217,7 +217,7 @@ class WorkspaceActionsMixin:
     def _open_tmux_for_project(self, project_basename: str, workspace_num: int) -> None:
         """Open tmux for a project without checking out a branch.
 
-        Used when no ChangeSpecs match but a sole project filter is present.
+        Used when no Patches match but a sole project filter is present.
 
         Args:
             project_basename: The project name.

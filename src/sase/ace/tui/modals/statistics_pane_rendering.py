@@ -34,8 +34,8 @@ _GOLD = "#FFD700"
 _GREEN = "#5FD75F"
 _PROJECTS_GROUP_LABELS: dict[ProjectsGroupBy, str] = {
     "project": "By Project",
-    "changespec": "By ChangeSpec",
-    "drilldown": "Project → ChangeSpec",
+    "patch": "By Patch",
+    "drilldown": "Project → Patch",
 }
 _XPROMPTS_GROUP_LABELS: dict[XPromptsGroupBy, str] = {
     "usage": "By Usage",

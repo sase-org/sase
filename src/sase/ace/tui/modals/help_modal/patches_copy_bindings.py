@@ -1,15 +1,15 @@
-"""Copy-mode keybinding sections for the ChangeSpecs help tab."""
+"""Copy-mode keybinding sections for the Patches help tab."""
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .binding_common import Sections, key_sequence_display
 
 
 def copy_mode_sections(km: KeymapRegistry) -> Sections:
-    """Build ChangeSpec and artifact copy-mode help sections."""
+    """Build Patch and artifact copy-mode help sections."""
     d = key_display_name
     cm = km.copy_mode
 
-    cs_copy = cm.keys["changespecs"]
+    cs_copy = cm.keys["patches"]
     commits_copy = cm.keys["artifacts_commits"]
     beads_copy = cm.keys["artifacts_beads"]
     plans_copy = cm.keys["artifacts_plans"]
@@ -283,14 +283,14 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
             f"Copy Mode ({d(cm.prefix)})",
             [
                 (d(cm.prefix), "Open Copy as… palette"),
-                (f"{d(cm.prefix)}{d(cs_copy['raw'])}", "Copy ChangeSpec"),
+                (f"{d(cm.prefix)}{d(cs_copy['raw'])}", "Copy Patch"),
                 (
                     f"{d(cm.prefix)}{d(cs_copy['with_snapshot'])}",
-                    "Copy ChangeSpec + snapshot",
+                    "Copy Patch + snapshot",
                 ),
                 (f"{d(cm.prefix)}{d(cs_copy['bug'])}", "Copy bug number"),
                 (f"{d(cm.prefix)}{d(pr_copy_key)}", "Copy PR number"),
-                (f"{d(cm.prefix)}{d(cs_copy['name'])}", "Copy ChangeSpec name"),
+                (f"{d(cm.prefix)}{d(cs_copy['name'])}", "Copy Patch name"),
                 (f"{d(cm.prefix)}{d(cs_copy['link'])}", "Copy Markdown link"),
                 (f"{d(cm.prefix)}{d(cs_copy['spec'])}", "Copy project spec file"),
                 (f"{d(cm.prefix)}{d(cs_copy['snapshot'])}", "Copy sase ace snapshot"),

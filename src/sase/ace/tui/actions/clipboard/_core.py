@@ -71,8 +71,8 @@ class ClipboardCoreMixin(ClipboardBase):
 
         if self._non_pr_artifacts_copy_active():  # type: ignore[attr-defined]
             result = self._handle_artifacts_copy_key(key)  # type: ignore[attr-defined]
-        elif self.current_tab == "changespecs":
-            result = self._handle_changespecs_copy_key(key)
+        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+            result = self._handle_patches_copy_key(key)
         elif self.current_tab == "agents":
             result = self._handle_agents_copy_key(key)
         else:  # axe
@@ -109,8 +109,8 @@ class ClipboardCoreMixin(ClipboardBase):
         except Exception:
             pass
 
-    def _handle_changespecs_copy_key(self, key: str) -> bool:
-        """Handle copy key for changespecs tab.
+    def _handle_patches_copy_key(self, key: str) -> bool:
+        """Handle copy key for patches tab.
 
         Args:
             key: The key pressed after %.
@@ -118,17 +118,17 @@ class ClipboardCoreMixin(ClipboardBase):
         Returns:
             True if key was handled, False otherwise.
         """
-        if not self.changespecs:
+        if not self.patches:
             return False
 
-        cs_keys = self._keymap_registry.copy_mode.keys["changespecs"]
+        cs_keys = self._keymap_registry.copy_mode.keys["patches"]
         assert isinstance(cs_keys, dict)
         pr_number_key = cs_keys.get("pr_number", cs_keys.get("cl_number"))
 
         if key == cs_keys["raw"]:
-            self._copy_changespec()  # type: ignore[attr-defined]
+            self._copy_patch()  # type: ignore[attr-defined]
         elif key == cs_keys["with_snapshot"]:
-            self._copy_changespec_and_snapshot()  # type: ignore[attr-defined]
+            self._copy_patch_and_snapshot()  # type: ignore[attr-defined]
         elif key == cs_keys["bug"]:
             self._copy_bug_number()  # type: ignore[attr-defined]
         elif pr_number_key is not None and key == pr_number_key:
@@ -136,7 +136,7 @@ class ClipboardCoreMixin(ClipboardBase):
         elif key == cs_keys["name"]:
             self._copy_cl_name()  # type: ignore[attr-defined]
         elif key == cs_keys.get("link"):
-            self._copy_changespec_link()  # type: ignore[attr-defined]
+            self._copy_patch_link()  # type: ignore[attr-defined]
         elif key == cs_keys["spec"]:
             self._copy_project_spec()  # type: ignore[attr-defined]
         elif key == cs_keys["snapshot"]:
@@ -146,7 +146,7 @@ class ClipboardCoreMixin(ClipboardBase):
                 key_display_name(v) for v in cs_keys.values() if isinstance(v, str)
             )
             self.notify(  # type: ignore[attr-defined]
-                f"Unknown copy key (ChangeSpecs: {key_list})", severity="warning"
+                f"Unknown copy key (Patches: {key_list})", severity="warning"
             )
             return False
         return True

@@ -1,7 +1,7 @@
 """Pure helpers used by clipboard copy actions.
 
 Includes tmux pane capture, multi-target formatting, and the fallback
-ChangeSpec text formatter.
+Patch text formatter.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ....changespec import ChangeSpec
+    from ....patch import Patch
 
 
 # Match the established ACE preview-read ceiling. Copy targets may read the
@@ -91,11 +91,11 @@ def format_markdown_link(label: str, target: str) -> str:
     return f"[{safe_label}]({target})"
 
 
-def format_changespec_for_clipboard(cs: ChangeSpec) -> str:
-    """Format a ChangeSpec as readable text for clipboard.
+def format_patch_for_clipboard(cs: Patch) -> str:
+    """Format a Patch as readable text for clipboard.
 
     Args:
-        cs: The ChangeSpec to format.
+        cs: The Patch to format.
 
     Returns:
         Formatted text representation.
@@ -115,11 +115,11 @@ def format_changespec_for_clipboard(cs: ChangeSpec) -> str:
     if cs.refs:
         lines.append("REFS:")
         lines.extend(f"  {reference}" for reference in cs.refs)
-    # COMMITS section
-    if cs.commits:
+    # STITCHES section
+    if cs.stitches:
         lines.append("")
-        lines.append("COMMITS:")
-        for entry in cs.commits:
+        lines.append("STITCHES:")
+        for entry in cs.stitches:
             suffix_part = ""
             if entry.suffix:
                 prefix = "!: " if entry.suffix_type == "error" else ""
@@ -202,3 +202,6 @@ def format_changespec_for_clipboard(cs: ChangeSpec) -> str:
                     )
 
     return "\n".join(lines)
+
+
+format_changespec_for_clipboard = format_patch_for_clipboard

@@ -11,13 +11,13 @@ from ..keymaps import KeymapRegistry, load_keymap_registry
 from ..tab_order import TAB_ORDER, TabName
 
 _TAB_COLORS: dict[TabName, str] = {
-    "changespecs": "#00D7AF",
+    "artifacts": "#00D7AF",
     "agents": "#87D7FF",
     "axe": "#FF5F5F",
 }
 
 _TAB_DISPLAY_NAMES: dict[TabName, str] = {
-    "changespecs": "Artifacts",
+    "artifacts": "Artifacts",
     "agents": "Agents",
     "axe": "AXE",
 }

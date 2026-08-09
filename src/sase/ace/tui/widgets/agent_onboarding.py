@@ -43,7 +43,7 @@ _TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
         "#87D7FF",
         "Inspect prompts, diffs, tools, and artifact files. You are here.",
     ),
-    "changespecs": (
+    "artifacts": (
         "Artifacts",
         "#00D7AF",
         "Browse commits, beads, bugs, PRs, and nested files in one place.",
@@ -127,7 +127,7 @@ class AgentOnboarding(VerticalScroll):
     def set_launch_targets_available(
         self, available: bool, *, refresh: bool = True
     ) -> None:
-        """Control whether the project/ChangeSpec launch-target hint is rendered."""
+        """Control whether the project/Patch launch-target hint is rendered."""
         changed = self._launch_targets_available != available
         self._launch_targets_available = available
         if changed and refresh:
@@ -266,14 +266,14 @@ class AgentOnboarding(VerticalScroll):
             style="dim",
         )
         text.append("\n")
-        append_keycap(text, key_display_name(app.next_changespec))
+        append_keycap(text, key_display_name(app.next_patch))
         text.append("/")
-        append_keycap(text, key_display_name(app.prev_changespec))
+        append_keycap(text, key_display_name(app.prev_patch))
         text.append("select an agent.")
         append_keycap(text, key_display_name(app.edit_spec))
         text.append("open a finished agent's chat transcript in your editor.")
         text.append("\n")
-        append_keycap(text, key_display_name(app.jump_to_agent_changespec))
+        append_keycap(text, key_display_name(app.jump_to_agent_patch))
         text.append("jump to the PR it produced.")
         append_keycap(text, key_display_name(app.open_artifact_files))
         text.append("browse artifact files.")

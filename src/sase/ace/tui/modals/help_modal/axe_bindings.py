@@ -28,7 +28,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
             "Navigation",
             [
                 (
-                    f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
+                    f"{d(a.next_patch)} / {d(a.prev_patch)}",
                     "Move to next / previous command",
                 ),
                 (d(a.jump_to_entry), "Jump to entry (' first/back stack)"),
@@ -143,7 +143,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
                 ("[ / ]", "Switch Keymaps / Guide"),
                 (
-                    d(a.start_agent_from_changespec),
+                    d(a.start_agent_from_patch),
                     "Repeat last +/Ctrl+Space selection",
                 ),
                 (

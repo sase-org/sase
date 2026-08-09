@@ -35,7 +35,7 @@ class ClipboardArtifactsMixin(
 
     def _non_pr_artifacts_copy_active(self) -> bool:
         return (
-            self.current_tab == ARTIFACTS_TAB
+            self.current_tab in {ARTIFACTS_TAB, "patches", "changespecs"}
             and self.current_artifacts_pane_key != "prs"
         )
 

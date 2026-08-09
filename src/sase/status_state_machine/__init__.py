@@ -25,6 +25,9 @@ from .field_updates import (
 from .siblings import SiblingRevertResult
 from .transitions import transition_changespec_status
 
+transition_patch_status = transition_changespec_status
+update_patch_parent_atomic = update_changespec_parent_atomic
+
 __all__ = [
     # Constants
     "ARCHIVE_STATUSES",
@@ -41,8 +44,10 @@ __all__ = [
     "update_changespec_pr_url_atomic",
     "update_changespec_description_atomic",
     "update_changespec_parent_atomic",
+    "update_patch_parent_atomic",
     "update_parent_references_atomic",
     # Transitions
     "SiblingRevertResult",
     "transition_changespec_status",
+    "transition_patch_status",
 ]

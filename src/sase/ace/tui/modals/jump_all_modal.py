@@ -8,7 +8,7 @@ switches to the target tab, focuses that entry, and dismisses the modal.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -30,11 +30,11 @@ from ..models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 from ..widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
     from ..models import Agent
     from ..widgets.bgcmd_list import AxeItem
 
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "patches", "changespecs", "agents", "axe"]
 
 # ── Visual constants ──────────────────────────────────────────────
 _NAME_MAX = 50
@@ -43,12 +43,14 @@ _SECTION_RULE_WIDTH = 76
 
 # Per-tab section header colours
 _TAB_STYLES: dict[TabName, tuple[str, str]] = {
-    "changespecs": ("Artifacts", "#00D7AF"),
+    "artifacts": ("Artifacts", "#00D7AF"),
+    "patches": ("Patches", "#00D7AF"),
+    "changespecs": ("Patches", "#00D7AF"),
     "agents": ("Agents", "#87D7FF"),
     "axe": ("AXE", "#FFD700"),
 }
 
-# Status colours (ChangeSpec)
+# Status colours (Patch)
 _CS_STATUS_STYLES: dict[str, str] = {
     "WIP": "#FFD700",
     "Draft": "#87D7FF",
@@ -102,35 +104,50 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
 
     def __init__(
         self,
-        changespecs: list[ChangeSpec],
-        agents: list[Agent],
-        axe_items: list[AxeItem],
+        patches: list[Patch] | None = None,
+        agents: list[Agent] | None = None,
+        axe_items: list[AxeItem] | None = None,
         last_position: JumpAllResult | None = None,
+        **legacy_kwargs: Any,
     ) -> None:
         super().__init__()
+        patch_entry_tab: TabName = "artifacts"
+        if patches is None and "changespecs" in legacy_kwargs:
+            patches = legacy_kwargs.pop("changespecs")
+            patch_entry_tab = "changespecs"
+        if legacy_kwargs:
+            unexpected = next(iter(legacy_kwargs))
+            raise TypeError(f"unexpected keyword argument {unexpected!r}")
         self._entries: list[_Entry] = []
         self._hint_to_entry: dict[str, _Entry] = {}
         self._entry_to_hint: dict[_Entry, str] = {}
         self._pending_hint_prefix = ""
         self._last_position = last_position
-        self._build_entries(changespecs, agents, axe_items)
+        self._build_entries(
+            patches or [],
+            agents or [],
+            axe_items or [],
+            patch_entry_tab=patch_entry_tab,
+        )
 
     def _build_entries(
         self,
-        changespecs: list[ChangeSpec],
+        patches: list[Patch],
         agents: list[Agent],
         axe_items: list[AxeItem],
+        *,
+        patch_entry_tab: TabName = "artifacts",
     ) -> None:
         """Collect all entries and assign hint characters."""
         entries: list[_Entry] = []
 
-        # ChangeSpecs
-        _, cl_color = _TAB_STYLES["changespecs"]
-        for i, cs in enumerate(changespecs):
+        # Patches
+        _, cl_color = _TAB_STYLES[patch_entry_tab]
+        for i, cs in enumerate(patches):
             style = _CS_STATUS_STYLES.get(cs.status, "")
             entries.append(
                 _Entry(
-                    "changespecs",
+                    patch_entry_tab,
                     i,
                     humanize_cl_name(cs.name),
                     cs.status,

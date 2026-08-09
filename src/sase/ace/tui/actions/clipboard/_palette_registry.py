@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
-    "changespecs": (
+    "patches": (
         "raw",
         "with_snapshot",
         "bug",

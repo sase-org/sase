@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.app import SuspendNotSupported
 
-from sase.ace.changespec.locking import acquire_edit_lock, release_edit_lock
+from sase.ace.patch.locking import acquire_edit_lock, release_edit_lock
 from sase.ace.hints import build_editor_args
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
@@ -512,8 +512,14 @@ class ProjectManagementActionsMixin:
 
     def _notify_lifecycle_changed(self) -> None:
         app = self.app
+        patch_refresh = getattr(
+            app,
+            "_schedule_changespecs_async_refresh",
+            getattr(app, "_schedule_patches_async_refresh", None),
+        )
+        if patch_refresh is not None:
+            patch_refresh()
         for method_name, args, kwargs in (
-            ("_schedule_changespecs_async_refresh", (), {}),
             (
                 "_schedule_agents_async_refresh",
                 (),

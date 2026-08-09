@@ -8,14 +8,14 @@ from typing import TYPE_CHECKING
 from sase.project_display_names import humanize_cl_name, project_display_name_for
 
 if TYPE_CHECKING:
-    from ....changespec import ChangeSpec
+    from ....patch import Patch
     from ...modals import SelectionItem
 
 
 class EntryQuickLaunchMixin:
     """Mixin providing quick launch entry points."""
 
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     _last_custom_agent_selection: SelectionItem | None
 
@@ -25,22 +25,22 @@ class EntryQuickLaunchMixin:
             self, project_file: str, name: str
         ) -> str | None: ...
 
-    def _start_agent_from_changespec_quick(self) -> None:
-        """Start agent from current ChangeSpec without ChangeSpec name modal.
+    def _start_agent_from_patch_quick(self) -> None:
+        """Start agent from current Patch without Patch name modal.
 
         This is the quick version that skips CLNameInputModal entirely,
         going directly to the prompt input bar with a VCS prefix.
         """
         from ...modals import SelectionItem
 
-        if not self.changespecs:
-            self.notify("No ChangeSpecs available", severity="warning")  # type: ignore[attr-defined]
+        if not self.patches:
+            self.notify("No Patches available", severity="warning")  # type: ignore[attr-defined]
             return
 
-        changespec = self.changespecs[self.current_idx]
-        cl_name = changespec.name
+        patch = self.patches[self.current_idx]
+        cl_name = patch.name
         display_name = humanize_cl_name(cl_name)
-        prefix = self._vcs_prompt_prefix_or_notify(changespec.file_path, display_name)
+        prefix = self._vcs_prompt_prefix_or_notify(patch.file_path, display_name)
         if prefix is None:
             return
 
@@ -48,7 +48,7 @@ class EntryQuickLaunchMixin:
         selection = SelectionItem(
             display_name=display_name,
             item_type="cl",
-            project_name=changespec.project_basename,
+            project_name=patch.project_basename,
             cl_name=cl_name,
         )
         from sase.ace.last_agent_selection import (
@@ -64,11 +64,15 @@ class EntryQuickLaunchMixin:
             history_sort_key=cl_name,
         )
 
+    def _start_agent_from_changespec_quick(self) -> None:
+        """Legacy alias for :meth:`_start_agent_from_patch_quick`."""
+        self._start_agent_from_patch_quick()
+
     def _start_agent_from_agent_quick(self) -> None:
-        """Start agent using the selected agent's project/ChangeSpec name.
+        """Start agent using the selected agent's project/Patch name.
 
         Uses the currently selected agent on the agents tab to derive
-        the VCS prefix, similar to how leader-Space works on the ChangeSpecs tab.
+        the VCS prefix, similar to how leader-Space works on the Patches tab.
         """
         from ...modals import SelectionItem
 

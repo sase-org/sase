@@ -1,47 +1,65 @@
-"""Group/heading tree for the ChangeSpecs tab.
+"""Legacy aliases for patch grouping models."""
 
-Models a flat sequence of banner + ChangeSpec entries from a list of
-ChangeSpecs.  Mirrors the shape of ``sase.ace.tui.models.agent_groups``
-but stays separate so ChangeSpec-specific bucketing rules don't leak into the
-Agent code (or vice versa).
+from typing import Any
 
-Modes:
-
-* ``BY_PROJECT`` — L0 project, L1 sibling root only when 2+ ChangeSpecs share
-  the same ``foobar``-style base name.
-* ``BY_DATE`` — L0 date bucket from the latest TIMESTAMPS entry;
-  ``Today`` / ``Yesterday`` add 1-hour L1 windows, ``This Week`` adds
-  day L1 headings, and ``Earlier`` adds week L1 headings plus
-  ``(no timestamp)``.
-* ``BY_STATUS`` — L0 status bucket from the literal ``status`` string;
-  L1 sibling root only when 2+ ChangeSpecs share the same base name inside the
-  same status bucket.
-
-All modes share the generic :class:`~sase.ace.tui.models.group_fold.GroupFoldRegistry`
-for collapse/expand state.
-"""
-
-from ._buckets import (
-    ChangeSpecGroupingMode,
-    date_bucket_for_changespec,
+from ..patch_groups import (
+    PatchGroupingMode,
+    PatchGroupRow,
+    PatchTreeEntry,
+    build_patch_tree,
+    date_bucket_for_patch,
     date_bucket_sort_index,
-    date_subgroup_for_changespec,
+    date_subgroup_for_patch,
     date_subgroup_sort_key,
-    latest_changespec_timestamp,
-    status_bucket_for_changespec,
+    latest_patch_timestamp,
+    sibling_root_for_patch,
+    status_bucket_for_patch,
     status_sort_index,
 )
-from ._keys import sibling_root_for_changespec
+from ..patch_groups import _buckets as _patch_buckets
+from . import _buckets as _legacy_buckets
 from ._tree import (
-    ChangeSpecGroupRow,
-    ChangeSpecTreeEntry,
-    build_changespec_tree,
-    enumerate_changespec_group_keys,
+    enumerate_changespec_group_keys as _tree_enumerate_changespec_group_keys,
 )
 
+ChangeSpecGroupingMode = PatchGroupingMode
+ChangeSpecGroupRow = PatchGroupRow
+ChangeSpecTreeEntry = PatchTreeEntry
+date_bucket_for_changespec = date_bucket_for_patch
+date_subgroup_for_changespec = date_subgroup_for_patch
+latest_changespec_timestamp = latest_patch_timestamp
+sibling_root_for_changespec = sibling_root_for_patch
+status_bucket_for_changespec = status_bucket_for_patch
+
+
+def _sync_legacy_bucket_monkeypatch() -> None:
+    _patch_buckets._parse_timestamp_value = _legacy_buckets._parse_timestamp_value
+
+
+def _build_changespec_tree(*args: Any, **kwargs: Any) -> list[PatchTreeEntry]:
+    _sync_legacy_bucket_monkeypatch()
+    entries = build_patch_tree(*args, **kwargs)
+    return [
+        PatchTreeEntry(kind="changespec", group=entry.group, patch_idx=entry.patch_idx)
+        if entry.kind == "patch"
+        else entry
+        for entry in entries
+    ]
+
+
+def _enumerate_changespec_group_keys(
+    *args: Any, **kwargs: Any
+) -> list[tuple[str, ...]]:
+    _sync_legacy_bucket_monkeypatch()
+    return _tree_enumerate_changespec_group_keys(*args, **kwargs)
+
+
+build_changespec_tree = _build_changespec_tree
+enumerate_changespec_group_keys = _enumerate_changespec_group_keys
+
 __all__ = [
-    "ChangeSpecGroupRow",
     "ChangeSpecGroupingMode",
+    "ChangeSpecGroupRow",
     "ChangeSpecTreeEntry",
     "build_changespec_tree",
     "date_bucket_for_changespec",

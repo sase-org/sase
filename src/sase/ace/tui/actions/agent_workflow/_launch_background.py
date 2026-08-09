@@ -33,14 +33,14 @@ class BackgroundAgentLaunchMixin:
         """Launch agent as background process.
 
         Args:
-            cl_name: Display name for the ChangeSpec/project.
+            cl_name: Display name for the Patch/project.
             project_file: Path to the project file.
             workspace_dir: Path to the workspace directory.
             workspace_num: The workspace number.
             workflow_name: Name for the workflow.
             prompt: The user's prompt for the agent.
             timestamp: Shared timestamp for artifacts.
-            update_target: What to checkout (ChangeSpec name or "p4head").
+            update_target: What to checkout (Patch name or "p4head").
             project_name: Project name for launch metadata.
             history_sort_key: Launch context label propagated to the agent.
             is_home_mode: If True, skip workspace management (for home directory).

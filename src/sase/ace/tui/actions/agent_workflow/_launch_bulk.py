@@ -1,4 +1,4 @@
-"""Bulk agent launch mixin (launching agents for many marked changespecs)."""
+"""Bulk agent launch mixin (launching agents for many marked patches)."""
 
 from __future__ import annotations
 
@@ -15,54 +15,57 @@ log = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
 
-    from sase.ace.changespec import ChangeSpec
+    from sase.ace.patch import Patch
 
     from ._types import PromptContext
 
 
 class BulkLaunchMixin:
-    """Mixin providing bulk agent launch across marked changespecs."""
+    """Mixin providing bulk agent launch across marked patches."""
 
     # State set by AgentLaunchMixin / PromptBarMixin when entering bulk mode.
-    _bulk_changespecs: list[ChangeSpec] | None
+    _bulk_patches: list[Patch] | None
     # Sibling-mixin state (resolved at runtime via MRO).
     _prompt_context: PromptContext | None
     marked_indices: set[int]
 
     def _launch_bulk_agents(self, prompt: str) -> None:
-        """Launch agents for all bulk changespecs.
+        """Launch agents for all bulk patches.
 
         Args:
             prompt: The user's prompt for all agents.
         """
-        if not self._bulk_changespecs:
-            self.notify("No bulk changespecs", severity="error")  # type: ignore[attr-defined]
+        bulk_patches = getattr(self, "_bulk_patches", None)
+        if bulk_patches is None:
+            bulk_patches = getattr(self, "_bulk_changespecs", None)
+        if not bulk_patches:
+            self.notify("No bulk patches", severity="error")  # type: ignore[attr-defined]
             return
 
-        # Snapshot the bulk-changespec list on the UI thread so the worker
+        # Snapshot the bulk-patch list on the UI thread so the worker
         # cannot observe later mutations.
-        changespecs = list(self._bulk_changespecs)
-        self._bulk_changespecs = None
+        patches = list(bulk_patches)
+        self._bulk_patches = None
+        if hasattr(self, "_bulk_changespecs"):
+            self._bulk_changespecs = None  # type: ignore[attr-defined]
         self._prompt_context = None
 
         # Clear marks and refresh display immediately (UI state)
         self.marked_indices = set()
         self._refresh_display()  # type: ignore[attr-defined]
 
-        n = len(changespecs)
+        n = len(patches)
 
         self.notify(f"Launching {n} agent(s)...")  # type: ignore[attr-defined]
         self._submit_launch_task(  # type: ignore[attr-defined]
-            display_name=f"launch bulk {n} ChangeSpecs",
-            cl_name=f"bulk {n} ChangeSpecs",
+            display_name=f"launch bulk {n} Patches",
+            cl_name=f"bulk {n} Patches",
             project_file="",
-            task_callable=lambda: self._run_bulk_launch(prompt, changespecs),
+            task_callable=lambda: self._run_bulk_launch(prompt, patches),
             submitted_prompt=prompt,
         )
 
-    def _run_bulk_launch(
-        self, prompt: str, changespecs: list[ChangeSpec]
-    ) -> LaunchTaskOutcome:
+    def _run_bulk_launch(self, prompt: str, patches: list[Patch]) -> LaunchTaskOutcome:
         """Worker-thread body for :meth:`_launch_bulk_agents`."""
         try:
             from sase.agent.launch_timing import LaunchTimingRecorder
@@ -76,21 +79,21 @@ class BulkLaunchMixin:
 
             timer = LaunchTimingRecorder(
                 "tui_agent_launch_fanout",
-                {"fanout_kind": "bulk", "slot_count": len(changespecs)},
+                {"fanout_kind": "bulk", "slot_count": len(patches)},
                 durable=True,
             )
             launched_count = 0
             failed_count = 0
             launch_results: list[AgentLaunchResult] = []
 
-            for i, cs in enumerate(changespecs):
+            for i, cs in enumerate(patches):
                 if i > 0:
                     with timer.stage("fanout_sleep", seconds=1.0, slot_index=i):
                         time.sleep(1)
                 project_name = cs.project_basename
                 cl_name = cs.name
 
-                from sase.ace.changespec.project_spec_path import (
+                from sase.ace.patch.project_spec_path import (
                     preferred_project_spec_path,
                 )
 
@@ -107,7 +110,7 @@ class BulkLaunchMixin:
                         project_name=project_name,
                         prompt=prompt,
                         slot_index=i,
-                        slot_count=len(changespecs),
+                        slot_count=len(patches),
                         stage="project_file",
                         project_file=project_file,
                     )
@@ -130,14 +133,14 @@ class BulkLaunchMixin:
                         project_name=project_name,
                         prompt=prompt,
                         slot_index=i,
-                        slot_count=len(changespecs),
+                        slot_count=len(patches),
                         stage="workspace_allocation",
                         project_file=project_file,
                     )
                     failed_count += 1
                     continue
 
-                # Detect VCS type and build per-ChangeSpec prompt with prefix
+                # Detect VCS type and build per-Patch prompt with prefix
                 workflow_type = detect_workflow_type(project_file)
                 cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
 
@@ -187,12 +190,12 @@ class BulkLaunchMixin:
             stash_failed_launch_prompt(prompt)
             log_launch_failure(
                 kind="bulk",
-                display_name=f"bulk {len(changespecs)} ChangeSpecs",
+                display_name=f"bulk {len(patches)} Patches",
                 exc=exc,
                 prompt_preview=prompt,
-                slot_count=len(changespecs),
+                slot_count=len(patches),
             )
-            # A mid-loop failure may have already spawned earlier ChangeSpecs;
+            # A mid-loop failure may have already spawned earlier Patches;
             # without results, only a refresh makes them visible.
             return LaunchTaskOutcome(
                 with_log_panel_hint("Bulk launch failed"),
@@ -212,7 +215,7 @@ def _log_bulk_item_failure(
     stage: str,
     project_file: str,
 ) -> None:
-    """Durably record one skipped changespec in a bulk launch."""
+    """Durably record one skipped patch in a bulk launch."""
     from sase.logs import log_launch_failure
 
     log_launch_failure(

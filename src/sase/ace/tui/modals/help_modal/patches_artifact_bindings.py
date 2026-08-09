@@ -1,4 +1,4 @@
-"""Artifact-pane keybinding sections for the ChangeSpecs help tab."""
+"""Artifact-pane keybinding sections for the Patches help tab."""
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .binding_common import Sections
@@ -140,8 +140,8 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 (d(a.open_bug), "Open issue in browser"),
                 (d(a.copy_bug), "Copy issue number and URL"),
                 (d(a.start_agent_from_bug), "Run an agent from issue context"),
-                (d(a.focus_bug_links), "Focus linked epics and PRs"),
-                (d(a.activate_bug_link), "Open focused epic or PR link"),
+                (d(a.focus_bug_links), "Focus linked epics and patches"),
+                (d(a.activate_bug_link), "Open focused epic or Patch link"),
                 (d(a.refresh_bugs), "Refresh tracker issues"),
                 *artifact_list_navigation,
             ],

@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from sase.history.prompt_misspellings import MisspellingsSourceToken
     from sase.history.prompt_words import HistoryWordsSourceToken
 
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 class StartupMixin(
@@ -62,7 +62,7 @@ class StartupMixin(
     _auto_start_axe: bool
     _restart_axe: bool
     _mounting: bool
-    _changespecs_first_load_done: bool
+    _patches_first_load_done: bool
     _agents_first_load_done: bool
     _axe_first_load_done: bool
     _mount_state_loads_done: bool
@@ -95,17 +95,17 @@ class StartupMixin(
     _fs_watcher: ArtifactWatcher | None
     _stall_watchdog: Any
     _stall_watchdog_suspend_signals_wired: bool
-    _w_changespec_list: Any
-    _w_changespec_detail: Any
+    _w_patch_list: Any
+    _w_patch_detail: Any
     _w_ancestors_children: Any
-    _w_changespec_info_panel: Any
+    _w_patch_info_panel: Any
     _w_footer: Any
     _w_search_query_panel: Any
     _w_agent_detail: Any
     _w_agent_info_panel: Any
     _w_tab_bar: Any
     _saved_queries: dict[str, str]
-    _dirty_changespecs: bool
+    _dirty_patches: bool
     _dirty_agents: bool
     _dirty_axe: bool
     _dirty_notifications: bool

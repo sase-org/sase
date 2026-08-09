@@ -96,7 +96,7 @@ def _load_workflow_agent_steps_for_dir(
             start_time = parse_timestamp_14_digit(timestamp_dir.name)
 
             # Build project file path
-            from sase.ace.changespec.project_spec_path import (
+            from sase.ace.patch.project_spec_path import (
                 preferred_project_spec_path,
             )
 

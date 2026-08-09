@@ -126,7 +126,7 @@ def test_page_lane_appears_after_name_and_before_project_fields() -> None:
     )
 
     assert header.plain.index("Name: ") < header.plain.index("Page: ")
-    assert header.plain.index("Page: ") < header.plain.index("ChangeSpec: ")
+    assert header.plain.index("Page: ") < header.plain.index("Patch: ")
 
 
 def test_page_lane_ellipsizes_without_losing_logical_url() -> None:

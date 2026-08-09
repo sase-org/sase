@@ -33,6 +33,20 @@ _RETIRED_APP_KEYS: frozenset[str] = frozenset(
 )
 
 
+_LEGACY_APP_KEY_ALIASES: dict[str, str] = {
+    "next_changespec": "next_patch",
+    "prev_changespec": "prev_patch",
+    "start_agent_from_changespec": "start_agent_from_patch",
+    "jump_to_agent_changespec": "jump_to_agent_patch",
+}
+
+
+_LEGACY_FOLD_KEY_ALIASES: dict[str, str] = {
+    "cycle_commits": "cycle_stitches",
+    "toggle_commits": "toggle_stitches",
+}
+
+
 # These app actions intentionally share a key because their tab applicability
 # is disjoint: metadata search is Agents-only, while query editing excludes
 # Agents. Preserve duplicate validation for every other app-action pairing.
@@ -86,6 +100,62 @@ def _deep_merge_keys(
         else:
             result[k] = v
     return result
+
+
+def _migrate_key_aliases(
+    keys: dict[str, str | dict[str, str]],
+    aliases: dict[str, str],
+    *,
+    context: str,
+) -> dict[str, str | dict[str, str]]:
+    """Normalize legacy keymap action ids to their canonical names."""
+    migrated = dict(keys)
+    for legacy_name, canonical_name in aliases.items():
+        if legacy_name not in migrated:
+            continue
+        legacy_value = migrated.pop(legacy_name)
+        if canonical_name in migrated:
+            log.warning(
+                "%s keymap action %r is deprecated and ignored because %r is "
+                "configured",
+                context,
+                legacy_name,
+                canonical_name,
+            )
+            continue
+        migrated[canonical_name] = legacy_value
+        log.warning(
+            "%s keymap action %r is deprecated; treating it as %r",
+            context,
+            legacy_name,
+            canonical_name,
+        )
+    return migrated
+
+
+def _migrate_copy_group_aliases(
+    keys: dict[str, str | dict[str, str]],
+) -> dict[str, str | dict[str, str]]:
+    """Normalize legacy copy-mode group ids to canonical groups."""
+    migrated = dict(keys)
+    if "changespecs" not in migrated:
+        return migrated
+    legacy_value = migrated.pop("changespecs")
+    if "patches" in migrated:
+        log.warning(
+            "copy_mode group 'changespecs' is deprecated and ignored because "
+            "'patches' is configured"
+        )
+        return migrated
+    if not isinstance(legacy_value, dict):
+        log.warning(
+            "copy_mode group 'changespecs' is deprecated but ignored because "
+            "its value is not a mapping"
+        )
+        return migrated
+    migrated["patches"] = legacy_value
+    log.warning("copy_mode group 'changespecs' is deprecated; treating it as 'patches'")
+    return migrated
 
 
 def _canonicalize_mode_keys(
@@ -174,6 +244,11 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         app_overrides = {}
     else:
         app_overrides = dict(app_overrides)
+        app_overrides = _migrate_key_aliases(
+            app_overrides,
+            _LEGACY_APP_KEY_ALIASES,
+            context="app",
+        )
         for retired_name in sorted(_RETIRED_APP_KEYS & app_overrides.keys()):
             app_overrides.pop(retired_name)
             log.debug("Ignoring retired app keymap action: %s", retired_name)
@@ -267,11 +342,20 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         keys_overrides = mode_overrides.get("keys", {})
         if not isinstance(keys_overrides, dict):
             keys_overrides = {}
-        elif mode_name == "fold_mode":
-            keys_overrides = _migrate_agent_fold_toggle_alias(
-                keys_overrides,
-                mode_defaults.keys,
-            )
+        else:
+            keys_overrides = dict(keys_overrides)
+            if mode_name == "fold_mode":
+                keys_overrides = _migrate_key_aliases(
+                    keys_overrides,
+                    _LEGACY_FOLD_KEY_ALIASES,
+                    context="fold_mode",
+                )
+                keys_overrides = _migrate_agent_fold_toggle_alias(
+                    keys_overrides,
+                    mode_defaults.keys,
+                )
+            elif mode_name == "copy_mode":
+                keys_overrides = _migrate_copy_group_aliases(keys_overrides)
 
         merged_keys = _deep_merge_keys(mode_defaults.keys, keys_overrides)
         merged_keys = _canonicalize_mode_keys(merged_keys)

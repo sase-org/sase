@@ -31,7 +31,7 @@ class TestMetaChangespecPriority:
         header, _ = build_header_text(agent)
         text = header.plain
 
-        assert "ChangeSpec: proj_feat_1" in text
+        assert "Patch: proj_feat_1" in text
         assert "Project: my_project" not in text
 
     def test_project_shown_when_no_changespec(self) -> None:
@@ -42,7 +42,7 @@ class TestMetaChangespecPriority:
         text = header.plain
 
         assert "Project: my_project" in text
-        assert "ChangeSpec:" not in text
+        assert "Patch:" not in text
 
     def test_changespec_shown_alone(self) -> None:
         agent = _make_agent(
@@ -51,7 +51,7 @@ class TestMetaChangespecPriority:
         header, _ = build_header_text(agent)
         text = header.plain
 
-        assert "ChangeSpec: proj_feat_1" in text
+        assert "Patch: proj_feat_1" in text
 
     def test_changespec_with_cl_num(self) -> None:
         agent = _make_agent(
@@ -64,5 +64,5 @@ class TestMetaChangespecPriority:
         header, _ = build_header_text(agent)
         text = header.plain
 
-        assert "ChangeSpec: proj_feat_1 (12345)" in text
+        assert "Patch: proj_feat_1 (12345)" in text
         assert "Project:" not in text

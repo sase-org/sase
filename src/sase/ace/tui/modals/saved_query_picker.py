@@ -15,7 +15,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.saved_queries import KEY_ORDER
 
-from ..widgets.changespec_detail import build_query_text
+from ..widgets.patch_detail import build_query_text
 from .base import OptionListNavigationMixin
 
 SAVED_QUERY_SLOT_ORDER: tuple[str, ...] = tuple(KEY_ORDER[1:] + KEY_ORDER[:1])

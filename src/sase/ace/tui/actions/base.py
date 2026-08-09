@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from ...query import QueryParseError, parse_query, to_canonical_string
 from ...saved_queries import (
@@ -21,18 +21,19 @@ from ..modals import (
 from ._admin_center_persistence import AdminCenterPersistenceMixin
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
+    from ..commands import CommandTab
     from ..modals.config_center_modal import CenterTab
 
 # Type alias for tab names (used in type hints)
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 class BaseActionsMixin(AdminCenterPersistenceMixin):
     """Mixin providing workflow, tool, and query actions."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     query_string: str
@@ -62,17 +63,17 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             self._retry_edit_agent()  # type: ignore[attr-defined]
             return
 
-        # Only run on changespecs tab
-        if self.current_tab != "changespecs":
+        # Only run on patches tab
+        if self.current_tab != "artifacts":
             return
 
         from ...operations import get_available_workflows
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
-        workflows = get_available_workflows(changespec)
+        patch = self.patches[self.current_idx]
+        workflows = get_available_workflows(patch)
 
         if not workflows:
             self.notify("No workflows available", severity="warning")  # type: ignore[attr-defined]
@@ -80,34 +81,34 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
 
         if len(workflows) == 1:
             # Single workflow, run directly
-            self._run_workflow(changespec, 0)
+            self._run_workflow(patch, 0)
         else:
             # Multiple workflows, show selection modal
 
             def on_dismiss(workflow_idx: int | None) -> None:
                 if workflow_idx is not None:
-                    self._run_workflow(changespec, workflow_idx)
+                    self._run_workflow(patch, workflow_idx)
 
             self.push_screen(WorkflowSelectModal(workflows), on_dismiss)  # type: ignore[attr-defined]
 
-    def _run_workflow(self, changespec: ChangeSpec, workflow_index: int) -> None:
+    def _run_workflow(self, patch: Patch, workflow_index: int) -> None:
         """Run a specific workflow."""
         from ...handlers import handle_run_workflow
         from .._workflow_context import WorkflowContext
 
-        def run_handler() -> tuple[list[ChangeSpec], int]:
+        def run_handler() -> tuple[list[Patch], int]:
             ctx = WorkflowContext()
             return handle_run_workflow(
                 ctx,  # type: ignore[arg-type]
-                changespec,
-                self.changespecs,
+                patch,
+                self.patches,
                 self.current_idx,
                 workflow_index,
             )
 
         with self.suspend():  # type: ignore[attr-defined]
             try:
-                new_changespecs, new_idx = run_handler()
+                new_patches, new_idx = run_handler()
             except Exception as e:
                 self.notify(f"Workflow error: {e}", severity="error")  # type: ignore[attr-defined]
                 self._reload_and_reposition()  # type: ignore[attr-defined]
@@ -154,46 +155,46 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         )
 
     def action_show_diff(self) -> None:
-        """Show diff for the current ChangeSpec."""
-        if not self.changespecs:
+        """Show diff for the current Patch."""
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         from ...handlers import handle_show_diff
         from .._workflow_context import WorkflowContext
 
         def run_handler() -> None:
             ctx = WorkflowContext()
-            handle_show_diff(ctx, changespec)  # type: ignore[arg-type]
+            handle_show_diff(ctx, patch)  # type: ignore[arg-type]
 
         with self.suspend():  # type: ignore[attr-defined]
             run_handler()
 
     def action_reword(self) -> None:
-        """Reword (change change description) for the current ChangeSpec.
+        """Reword (change change description) for the current Patch.
 
         Two-phase approach:
         1. Interactive: fetch description and open editor in suspend()
-        2. Background: claim workspace, checkout ChangeSpec branch, apply reword
+        2. Background: claim workspace, checkout Patch branch, apply reword
         """
-        from ...changespec import get_base_status
+        from ...patch import get_base_status
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Validate PR is set
-        if changespec.pr_url is None:
+        if patch.pr_url is None:
             self.notify("PR is not set", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Validate status is WIP, Draft, Ready, or Mailed
-        base_status = get_base_status(changespec.status)
+        base_status = get_base_status(patch.status)
         if base_status not in ("WIP", "Draft", "Ready", "Mailed"):
             self.notify(  # type: ignore[attr-defined]
-                "Reword is only available for WIP, Draft, Ready, or Mailed ChangeSpecs",
+                "Reword is only available for WIP, Draft, Ready, or Mailed Patches",
                 severity="warning",
             )
             return
@@ -206,22 +207,22 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         edited_description = None
         with self.suspend():  # type: ignore[attr-defined]
             ctx = WorkflowContext()
-            edited_description = handle_reword_prepare(ctx, changespec)  # type: ignore[arg-type]
+            edited_description = handle_reword_prepare(ctx, patch)  # type: ignore[arg-type]
 
         # If user cancelled or description unchanged, nothing to do
         if edited_description is None:
             return
 
         # Non-interactive phase: submit reword as background task
-        cl_name = changespec.name
+        cl_name = patch.name
         display_cl_name = humanize_cl_name(cl_name)
-        project_file = changespec.file_path
+        project_file = patch.file_path
 
         def task_callable() -> tuple[bool, str]:
             return reword_execute_task(
                 cl_name,
                 project_file,
-                changespec.project_basename,
+                patch.project_basename,
                 edited_description,
             )
 
@@ -238,12 +239,12 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             self.notify(f"Rewording {display_cl_name}...")  # type: ignore[attr-defined]
 
     def action_add_tag(self) -> None:
-        """Add a tag to the current ChangeSpec's change description in the background.
+        """Add a tag to the current Patch's change description in the background.
 
         This action:
         1. Validates PR is set and STATUS is editable
         2. Shows TagInputModal for tag name/value input
-        3. Submits background task that claims workspace, checks out ChangeSpec branch, adds tag
+        3. Submits background task that claims workspace, checks out Patch branch, adds tag
         4. Shows toast notifications for start/completion/failure
         """
         # On agents tab, dispatch to wait-for action
@@ -251,25 +252,25 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             self.action_wait_for_agent()  # type: ignore[attr-defined]
             return
 
-        from ...changespec import get_base_status
+        from ...patch import get_base_status
         from ...saved_tag_names import load_saved_tags, save_tag
         from ..modals import TagInputModal
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Validate PR is set
-        if changespec.pr_url is None:
+        if patch.pr_url is None:
             self.notify("PR is not set", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Validate status is WIP, Draft, Ready, or Mailed
-        base_status = get_base_status(changespec.status)
+        base_status = get_base_status(patch.status)
         if base_status not in ("WIP", "Draft", "Ready", "Mailed"):
             self.notify(  # type: ignore[attr-defined]
-                "Add tag is only available for WIP, Draft, Ready, or Mailed ChangeSpecs",
+                "Add tag is only available for WIP, Draft, Ready, or Mailed Patches",
                 severity="warning",
             )
             return
@@ -285,15 +286,15 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
 
             from ...handlers.reword import add_tag_task
 
-            cl_name = changespec.name
+            cl_name = patch.name
             display_cl_name = humanize_cl_name(cl_name)
-            project_file = changespec.file_path
+            project_file = patch.file_path
 
             def task_callable() -> tuple[bool, str]:
                 return add_tag_task(
                     cl_name,
                     project_file,
-                    changespec.project_basename,
+                    patch.project_basename,
                     tag_name,
                     tag_value,
                 )
@@ -315,7 +316,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         self.push_screen(TagInputModal(saved_tags), on_dismiss)  # type: ignore[attr-defined]
 
     def action_mail(self) -> None:
-        """Mail the current ChangeSpec in the background (post-confirmation).
+        """Mail the current Patch in the background (post-confirmation).
 
         This action:
         1. Validates STATUS is "Ready"
@@ -326,15 +327,15 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         """
         import os
 
-        from ...changespec import get_base_status
+        from ...patch import get_base_status
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
-        if get_base_status(changespec.status) != "Ready":
-            self.notify("ChangeSpec must be Ready to mail", severity="warning")  # type: ignore[attr-defined]
+        if get_base_status(patch.status) != "Ready":
+            self.notify("Patch must be Ready to mail", severity="warning")  # type: ignore[attr-defined]
             return
 
         from sase.running_field import (
@@ -348,8 +349,8 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         from ...handlers.mail import mail_execute_task
         from .._workflow_context import WorkflowContext
 
-        cl_name = changespec.name
-        project_file = changespec.file_path
+        cl_name = patch.name
+        project_file = patch.file_path
 
         # Claim workspace before suspend (needed for both prepare and execute)
         workspace_num = get_first_available_axe_workspace(project_file)
@@ -366,7 +367,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
 
         try:
             workspace_dir, _ = get_workspace_directory_for_num(
-                workspace_num, changespec.project_basename
+                workspace_num, patch.project_basename
             )
         except RuntimeError as e:
             release_workspace(project_file, workspace_num, "mail", cl_name)
@@ -377,7 +378,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         prep_result = None
         with self.suspend():  # type: ignore[attr-defined]
             ctx = WorkflowContext()
-            prep_result = handle_mail_prepare(ctx, changespec, workspace_dir)
+            prep_result = handle_mail_prepare(ctx, patch, workspace_dir)
 
         # If user declined or prepare failed, release workspace and return
         if prep_result is None or not prep_result.should_mail:
@@ -387,7 +388,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         # Non-interactive phase: submit execute_mail as background task
         # The background task owns the workspace from here and releases in finally
         def task_callable() -> tuple[bool, str]:
-            return mail_execute_task(changespec, workspace_dir, workspace_num)
+            return mail_execute_task(patch, workspace_dir, workspace_num)
 
         submitted = self._submit_background_task(  # type: ignore[attr-defined]
             "mail", cl_name, project_file, task_callable
@@ -413,9 +414,9 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 source="manual",
                 full_history=False,
             )
-        elif self.current_tab == "changespecs":
+        elif self.current_tab == "artifacts":
             if getattr(self, "current_artifacts_subtab", "prs") == "prs":
-                self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
+                self._schedule_patches_async_refresh()  # type: ignore[attr-defined]
             else:
                 self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
         else:  # axe
@@ -452,7 +453,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             self._edit_agent_search_query()  # type: ignore[attr-defined]
             return
         if (
-            self.current_tab == "changespecs"
+            self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_pane_key", "prs") == "commits"
         ):
             pane = self._commits_pane()  # type: ignore[attr-defined]
@@ -460,7 +461,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 pane.show_filters()
             return
         if (
-            self.current_tab == "changespecs"
+            self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_pane_key", "prs") == "plans"
         ):
             pane = self._plans_pane()  # type: ignore[attr-defined]
@@ -468,7 +469,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 pane.show_filters()
             return
         if (
-            self.current_tab == "changespecs"
+            self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_pane_key", "prs") == "beads"
         ):
             pane = self._beads_pane()  # type: ignore[attr-defined]
@@ -476,7 +477,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 pane.show_filters()
             return
         if (
-            self.current_tab == "changespecs"
+            self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_pane_key", "prs") == "chats"
         ):
             pane = self._chats_pane()  # type: ignore[attr-defined]
@@ -484,7 +485,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 pane.show_filters()
             return
         if (
-            self.current_tab == "changespecs"
+            self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_pane_key", "prs") == "other"
         ):
             pane = self._files_pane()  # type: ignore[attr-defined]
@@ -565,7 +566,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
 
                         self.query_string = new_query
                         self.parsed_query = new_parsed
-                        self._load_changespecs()  # type: ignore[attr-defined]
+                        self._load_patches()  # type: ignore[attr-defined]
                         self._restore_selection_for_current_query()  # type: ignore[attr-defined]
                         self._save_current_query()  # type: ignore[attr-defined]
                         self.notify("Query updated")  # type: ignore[attr-defined]
@@ -657,6 +658,6 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             execute_command(self, spec)  # type: ignore[arg-type]
 
         self.push_screen(  # type: ignore[attr-defined]
-            CommandPaletteModal(specs=applicable, tab=ctx.tab),
+            CommandPaletteModal(specs=applicable, tab=cast("CommandTab", ctx.tab)),
             callback=_on_dismiss,
         )

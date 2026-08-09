@@ -13,11 +13,9 @@ class WorkflowContext:
         """Initialize the workflow context."""
         self.console = Console()
 
-    def _reload_and_reposition(
-        self, changespecs: list, changespec: object
-    ) -> tuple[list, int]:
+    def _reload_and_reposition(self, patches: list, patch: object) -> tuple[list, int]:
         """Stub for reload - TUI handles this separately."""
         # Import here to avoid circular imports
-        from ..changespec import find_all_changespecs
+        from ..patch import find_all_patches
 
-        return find_all_changespecs(), 0
+        return find_all_patches(), 0

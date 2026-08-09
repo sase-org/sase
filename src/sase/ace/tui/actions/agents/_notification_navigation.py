@@ -1,6 +1,6 @@
 """Navigation and lookup helpers for notification actions.
 
-Provides agent/changespec lookup by notification fields and tab navigation.
+Provides agent/patch lookup by notification fields and tab navigation.
 """
 
 from __future__ import annotations
@@ -20,21 +20,21 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 
-class _NamedChangeSpec(Protocol):
+class _NamedPatch(Protocol):
     name: str
 
 
-def _find_changespec_index_by_name(
-    changespecs: Sequence[_NamedChangeSpec], changespec_name: str
+def _find_patch_index_by_name(
+    patches: Sequence[_NamedPatch], patch_name: str
 ) -> int | None:
-    """Find a ChangeSpec index, preferring exact names over suffix fallback."""
-    from sase.core.changespec import changespec_names_match
+    """Find a Patch index, preferring exact names over suffix fallback."""
+    from sase.core.patch import patch_names_match
 
     fallback_idx: int | None = None
-    for idx, cs in enumerate(changespecs):
-        if cs.name == changespec_name:
+    for idx, cs in enumerate(patches):
+        if cs.name == patch_name:
             return idx
-        if fallback_idx is None and changespec_names_match(cs.name, changespec_name):
+        if fallback_idx is None and patch_names_match(cs.name, patch_name):
             fallback_idx = idx
 
     return fallback_idx
@@ -94,10 +94,10 @@ def find_agents_for_notification(
     ]
 
 
-def get_meta_changespec_name(agent: Agent) -> str | None:
-    """Extract ChangeSpec name from step output meta variables.
+def get_meta_patch_name(agent: Agent) -> str | None:
+    """Extract Patch name from step output meta variables.
 
-    Checks the new ``meta_changespec`` variable first (from v2 xprompts),
+    Checks the new ``meta_patch`` variable first (from v2 xprompts),
     then falls back to legacy ``meta_new_cl`` / ``meta_new_pr`` formats
     for agents that ran with older xprompts.
 
@@ -105,13 +105,18 @@ def get_meta_changespec_name(agent: Agent) -> str | None:
         agent: The agent to check.
 
     Returns:
-        The ChangeSpec name if found, or None.
+        The Patch name if found, or None.
     """
     step_output = agent.step_output
     if not step_output or not isinstance(step_output, dict):
         return None
 
-    # New canonical path: meta_changespec contains the ChangeSpec name directly
+    # New canonical path: meta_patch contains the Patch name directly
+    meta_patch = step_output.get("meta_patch")
+    if meta_patch:
+        return str(meta_patch).strip()
+
+    # Legacy project-agent metadata name.
     meta_changespec = step_output.get("meta_changespec")
     if meta_changespec:
         return str(meta_changespec).strip()
@@ -125,14 +130,17 @@ def get_meta_changespec_name(agent: Agent) -> str | None:
             return value[:paren_idx].strip()
         return value
 
-    # Legacy support: meta_new_pr + meta_changespec
+    # Legacy support: meta_new_pr + meta_patch
     meta_new_pr = step_output.get("meta_new_pr")
     if meta_new_pr:
-        meta_cs = step_output.get("meta_changespec")
+        meta_cs = step_output.get("meta_patch")
         if meta_cs:
             return str(meta_cs).strip()
 
     return None
+
+
+get_meta_changespec_name = get_meta_patch_name
 
 
 def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> bool:
@@ -142,7 +150,7 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
 
     Args:
         app: The AceApp instance.
-        cl_name: The ChangeSpec name to match.
+        cl_name: The Patch name to match.
         pid: Optional PID for precise matching.
 
     Returns:
@@ -169,23 +177,21 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
     return False
 
 
-def navigate_to_changespec_tab(
-    app: object, changespec_name: str, project_file: str
-) -> bool:
-    """Navigate to a ChangeSpec in the ChangeSpecs tab, changing query if needed.
+def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bool:
+    """Navigate to a Patch in the Patches tab, changing query if needed.
 
-    1. Switch to ChangeSpecs tab
-    2. Search for changespec_name in current filtered list
+    1. Switch to Patches tab
+    2. Search for patch_name in current filtered list
     3. If found, select it
     4. If NOT found, change query to ``project:<project>``, reload, and select it
 
     Args:
         app: The AceApp instance.
-        changespec_name: The name of the ChangeSpec to navigate to.
+        patch_name: The name of the Patch to navigate to.
         project_file: Path to the project spec file (used to derive project name).
 
     Returns:
-        True if the changespec was found and selected.
+        True if the patch was found and selected.
     """
     from pathlib import Path
 
@@ -194,18 +200,19 @@ def navigate_to_changespec_tab(
     from ...artifact_tabs import switch_to_artifacts_subtab
 
     switch_to_artifacts_subtab(app, "prs")
+    app.current_tab = "changespecs"  # type: ignore[attr-defined]
 
     # Search in current filtered list
-    changespecs = app.changespecs  # type: ignore[attr-defined]
-    idx = _find_changespec_index_by_name(changespecs, changespec_name)
+    patches = getattr(app, "patches", getattr(app, "changespecs", []))
+    idx = _find_patch_index_by_name(patches, patch_name)
     if idx is not None:
         app.current_idx = idx  # type: ignore[attr-defined]
         return True
 
-    # Not found — change query to show the target ChangeSpec
+    # Not found — change query to show the target Patch
     if not project_file:
         app.notify(  # type: ignore[attr-defined]
-            f"ChangeSpec '{changespec_name}' not found", severity="warning"
+            f"Patch '{patch_name}' not found", severity="warning"
         )
         return False
 
@@ -227,12 +234,16 @@ def navigate_to_changespec_tab(
 
         app.parsed_query = new_parsed  # type: ignore[attr-defined]
         app.query_string = new_query  # type: ignore[attr-defined]
-        app._load_changespecs()  # type: ignore[attr-defined]
+        load_patches = getattr(
+            app, "_load_patches", getattr(app, "_load_changespecs", None)
+        )
+        if load_patches is not None:
+            load_patches()
         app._save_current_query()  # type: ignore[attr-defined]
 
         # Search again in the new list
-        changespecs = app.changespecs  # type: ignore[attr-defined]
-        idx = _find_changespec_index_by_name(changespecs, changespec_name)
+        patches = getattr(app, "patches", getattr(app, "changespecs", []))
+        idx = _find_patch_index_by_name(patches, patch_name)
         if idx is not None:
             app.current_idx = idx  # type: ignore[attr-defined]
             return True
@@ -244,6 +255,9 @@ def navigate_to_changespec_tab(
         return False
 
     app.notify(  # type: ignore[attr-defined]
-        f"ChangeSpec '{changespec_name}' not found", severity="warning"
+        f"Patch '{patch_name}' not found", severity="warning"
     )
     return False
+
+
+navigate_to_changespec_tab = navigate_to_patch_tab

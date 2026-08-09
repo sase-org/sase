@@ -33,53 +33,53 @@ def build_copy_as_context(app: Any) -> CopyAsContext | None:
 
     tab = app.current_tab
     subtab = getattr(app, "current_artifacts_pane_key", "prs")
-    if tab == "changespecs" and subtab in _ARTIFACT_SUBTABS:
+    if tab in {"artifacts", "patches", "changespecs"} and subtab in _ARTIFACT_SUBTABS:
         return build_artifacts_context(app, subtab)
-    if tab == "changespecs":
-        return _build_changespec_context(app)
+    if tab in {"artifacts", "patches", "changespecs"}:
+        return _build_patch_context(app)
     if tab == "agents":
         return _build_agent_context(app)
     return _build_axe_context(app)
 
 
-def _build_changespec_context(app: Any) -> CopyAsContext | None:
-    changespecs = getattr(app, "changespecs", ())
+def _build_patch_context(app: Any) -> CopyAsContext | None:
+    patches = getattr(app, "patches", getattr(app, "changespecs", ()))
     index = getattr(app, "current_idx", 0)
-    changespec = changespecs[index] if 0 <= index < len(changespecs) else None
-    if changespec is None:
-        notify_copy_warning(app, "No ChangeSpec to copy")
+    patch = patches[index] if 0 <= index < len(patches) else None
+    if patch is None:
+        notify_copy_warning(app, "No Patch to copy")
         return None
 
     ctx = CommandContext(
-        tab="changespecs",
+        tab="artifacts",
         artifacts_subtab="prs",
-        changespec=changespec,
+        patch=patch,
     )
     previews = {
         "raw": shorten(
-            getattr(changespec, "description", "")
-            or f"{changespec.status} · {humanize_cl_name(changespec.name)}"
+            getattr(patch, "description", "")
+            or f"{patch.status} · {humanize_cl_name(patch.name)}"
         ),
-        "with_snapshot": "ChangeSpec + current pane",
-        "bug": shorten(getattr(changespec, "bug", "")),
-        "pr_number": number_from_url(getattr(changespec, "pr_url", None)),
-        "name": humanize_cl_name(changespec.name),
-        "link": shorten(getattr(changespec, "pr_url", "") or ""),
-        "spec": shorten(getattr(changespec, "file_path", "")),
+        "with_snapshot": "Patch + current pane",
+        "bug": shorten(getattr(patch, "bug", "")),
+        "pr_number": number_from_url(getattr(patch, "pr_url", None)),
+        "name": humanize_cl_name(patch.name),
+        "link": shorten(getattr(patch, "pr_url", "") or ""),
+        "spec": shorten(getattr(patch, "file_path", "")),
         "snapshot": "current pane",
     }
     project = (
-        getattr(changespec, "project_display_name", None)
-        or getattr(changespec, "project_query_name", None)
-        or "ChangeSpecs"
+        getattr(patch, "project_display_name", None)
+        or getattr(patch, "project_query_name", None)
+        or "Patches"
     )
-    subtitle = f"{project} · {humanize_cl_name(changespec.name)}"
+    subtitle = f"{project} · {humanize_cl_name(patch.name)}"
     return context_from_registry(
         app,
-        group="changespecs",
+        group="patches",
         command_context=ctx,
         subtitle=subtitle,
-        unknown_context="ChangeSpecs",
+        unknown_context="Patches",
         previews=previews,
     )
 

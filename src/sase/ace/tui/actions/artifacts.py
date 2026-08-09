@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 
 # When a non-PR pane is active, the top-level internal id is still
-# ``changespecs``. This allowlist prevents historical PR bindings from acting
+# ``patches``. This allowlist prevents historical PR bindings from acting
 # on a hidden selection while retaining truly global actions and the scaffold's
 # navigation/scope controls.
 NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
@@ -63,7 +63,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "quit",
         "stop_axe_and_quit",
         "start_custom_agent",
-        "start_agent_from_changespec",
+        "start_agent_from_patch",
         "start_agent_home",
         "start_last_vcs_xprompt_in_editor",
         "restore_prompt_stash",

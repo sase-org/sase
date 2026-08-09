@@ -370,7 +370,7 @@ def find_workflow_workspace_from_running_field(
     Args:
         project_file: Path to the project file.
         workflow_name: The workflow name (without "workflow()" wrapper).
-        cl_name: Optional ChangeSpec name for more specific matching.
+        cl_name: Optional Patch name for more specific matching.
 
     Returns:
         The workspace_num if found, None otherwise.

@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 
 from rich.text import Text
 
-from sase.ace.changespec.models import DeltaEntry
+from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent

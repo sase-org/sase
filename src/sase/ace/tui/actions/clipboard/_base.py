@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from ....changespec import ChangeSpec
+    from ....patch import Patch
     from ...keymaps import KeymapRegistry
     from ...models import Agent
 
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "patches", "changespecs", "agents", "axe"]
 AxeViewType = Literal["axe"] | int
 
 
@@ -17,7 +17,7 @@ class ClipboardBase:
     """Common attribute hints for AceApp accessed from clipboard mixins."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     current_artifacts_subtab: Any
@@ -36,3 +36,11 @@ class ClipboardBase:
             self.current_artifacts_subtab,
             getattr(self, "current_files_subtab", "other"),
         )
+
+    @property
+    def changespecs(self) -> list[Patch]:
+        return getattr(self, "patches", [])
+
+    @changespecs.setter
+    def changespecs(self, value: list[Patch]) -> None:
+        self.patches = value

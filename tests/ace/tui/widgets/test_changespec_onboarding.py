@@ -20,7 +20,7 @@ def test_changespec_onboarding_content_includes_docs_lifecycle_and_storage() -> 
     assert "Browse commits, beads, bugs, PRs, and nested files" in rendered
     assert "Agent chat transcripts and their sync state." in rendered
     assert "Every other artifact file agents have produced." in rendered
-    assert "https://sase.sh/change_spec/" in rendered
+    assert "https://sase.sh/patch/" in rendered
     assert "https://sase.sh/vcs/" in rendered
     assert "https://sase.sh/plugins/" in rendered
     assert "~/.sase/projects/" in rendered
@@ -46,9 +46,9 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
     )
 
     sections = ChangeSpecOnboarding.render_content(registry)
-    tabs_text = _section_plain(sections, "#changespec-onboarding-tabs")
-    how_text = _section_plain(sections, "#changespec-onboarding-how")
-    learn_text = _section_plain(sections, "#changespec-onboarding-learn")
+    tabs_text = _section_plain(sections, "#patch-onboarding-tabs")
+    how_text = _section_plain(sections, "#patch-onboarding-how")
+    learn_text = _section_plain(sections, "#patch-onboarding-learn")
 
     positions = {
         label: tabs_text.index(label)
@@ -102,7 +102,7 @@ def test_changespec_onboarding_queue_card_uses_active_keymap_registry() -> None:
     )
 
     sections = ChangeSpecOnboarding.render_content(registry)
-    queue_text = _section_plain(sections, "#changespec-onboarding-queue")
+    queue_text = _section_plain(sections, "#patch-onboarding-queue")
 
     for key in ("f1", "f2", "f3", "f4", "f5", "f6", "f7"):
         assert key in queue_text
@@ -118,4 +118,4 @@ def test_changespec_onboarding_omits_modal_footer() -> None:
 
     sections = ChangeSpecOnboarding.render_content(registry)
 
-    assert "#changespec-onboarding-footer" not in sections
+    assert "#patch-onboarding-footer" not in sections

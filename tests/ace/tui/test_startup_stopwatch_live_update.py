@@ -252,10 +252,10 @@ async def test_slow_mount_state_read_does_not_block_app_key_dispatch(
             assert await asyncio.wait_for(
                 asyncio.to_thread(started.wait, 10.0), timeout=11.0
             )
-            assert page.app.current_tab == "changespecs"
+            assert page.app.current_tab == "artifacts"
             await page.press("tab")
             for _ in range(20):
-                if page.app.current_tab != "changespecs":
+                if page.app.current_tab != "artifacts":
                     break
                 await page.pause()
             assert page.app.current_tab == "axe"

@@ -1,4 +1,4 @@
-"""Generic per-group fold registry, shared by Agents and ChangeSpecs.
+"""Generic per-group fold registry, shared by Agents and Patches.
 
 Each group key is an arbitrary-length ``tuple[str, ...]``. Groups default
 to expanded; only the collapsed set is stored so first-paint and brand-new

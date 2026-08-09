@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 @dataclass

@@ -48,9 +48,21 @@ class FoldNavigationMixin(NavigationMixinBase):
         """Return whether the current surface owns fold-mode content."""
         if self.current_tab == "agents":
             return self._selected_summary_fold_scale() is not None
-        return self.current_tab == "changespecs" and (
+        return self.current_tab in {"artifacts", "patches", "changespecs"} and (
             getattr(self, "current_artifacts_subtab", "prs") == "prs"
         )
+
+    def _get_stitches_fold_state(self) -> FoldLevel:
+        return getattr(
+            self,
+            "stitches_collapsed",
+            getattr(self, "commits_collapsed", FoldLevel.COLLAPSED),
+        )
+
+    def _set_stitches_fold_state(self, level: FoldLevel) -> None:
+        self.stitches_collapsed = level  # type: ignore[attr-defined]
+        if hasattr(self, "commits_collapsed"):
+            self.commits_collapsed = level  # type: ignore[attr-defined]
 
     def _handle_fold_key(self, key: str) -> bool:
         """Handle fold sub-key. Returns True if handled."""
@@ -75,13 +87,15 @@ class FoldNavigationMixin(NavigationMixinBase):
         direct_level = self._direct_fold_level(key, fold_keys, CLAN_FOLD_SCALE)
 
         if direct_level is not None:
-            self.commits_collapsed = direct_level
+            self._set_stitches_fold_state(direct_level)
             self.hooks_collapsed = direct_level
             self.mentors_collapsed = direct_level
             self.timestamps_collapsed = direct_level
             self.deltas_collapsed = direct_level
-        elif key == fold_keys["cycle_commits"]:
-            self.commits_collapsed = cycle_forward(self.commits_collapsed)
+        elif key == fold_keys["cycle_stitches"]:
+            self._set_stitches_fold_state(
+                cycle_forward(self._get_stitches_fold_state())
+            )
         elif key == fold_keys["cycle_hooks"]:
             self.hooks_collapsed = cycle_forward(self.hooks_collapsed)
         elif key == fold_keys["cycle_mentors"]:
@@ -90,10 +104,10 @@ class FoldNavigationMixin(NavigationMixinBase):
             self.timestamps_collapsed = cycle_forward(self.timestamps_collapsed)
         elif key == fold_keys["cycle_deltas"]:
             self.deltas_collapsed = cycle_deltas_fold_level(self.deltas_collapsed)
-        elif key == fold_keys["toggle_commits"]:
-            self.commits_collapsed = (
+        elif key == fold_keys["toggle_stitches"]:
+            self._set_stitches_fold_state(
                 FoldLevel.FULLY_EXPANDED
-                if self.commits_collapsed == FoldLevel.COLLAPSED
+                if self._get_stitches_fold_state() == FoldLevel.COLLAPSED
                 else FoldLevel.COLLAPSED
             )
         elif key == fold_keys["toggle_hooks"]:
@@ -123,10 +137,10 @@ class FoldNavigationMixin(NavigationMixinBase):
         elif key == fold_keys["cycle_all"]:
             # Cycle all - if all at same level, cycle forward; otherwise collapse all
             if self._all_fold_states_aligned():
-                new_state = cycle_forward(self.commits_collapsed)
+                new_state = cycle_forward(self._get_stitches_fold_state())
             else:
                 new_state = FoldLevel.COLLAPSED
-            self.commits_collapsed = new_state
+            self._set_stitches_fold_state(new_state)
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
             self.timestamps_collapsed = new_state
@@ -134,7 +148,7 @@ class FoldNavigationMixin(NavigationMixinBase):
         elif key == fold_keys["toggle_all"]:
             # Toggle: if not fully collapsed, collapse all; otherwise fully expand
             all_collapsed = (
-                self.commits_collapsed
+                self._get_stitches_fold_state()
                 == self.hooks_collapsed
                 == self.mentors_collapsed
                 == self.timestamps_collapsed
@@ -144,7 +158,7 @@ class FoldNavigationMixin(NavigationMixinBase):
             new_state = (
                 FoldLevel.FULLY_EXPANDED if all_collapsed else FoldLevel.COLLAPSED
             )
-            self.commits_collapsed = new_state
+            self._set_stitches_fold_state(new_state)
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
             self.timestamps_collapsed = new_state
@@ -337,7 +351,7 @@ class FoldNavigationMixin(NavigationMixinBase):
 
     def _all_fold_states_aligned(self) -> bool:
         """Return whether all section folds are aligned."""
-        shared_state = self.commits_collapsed
+        shared_state = self._get_stitches_fold_state()
         return (
             shared_state
             == self.hooks_collapsed
@@ -365,12 +379,12 @@ class FoldNavigationMixin(NavigationMixinBase):
 
     def _update_fold_tab_indicator(self) -> None:
         """Push current fold states to the info panel indicator."""
-        from ...widgets import ChangeSpecInfoPanel
+        from ...widgets import PatchInfoPanel
 
         try:
-            info_panel = self.query_one("#info-panel", ChangeSpecInfoPanel)  # type: ignore[attr-defined]
+            info_panel = self.query_one("#info-panel", PatchInfoPanel)  # type: ignore[attr-defined]
             info_panel.update_fold_states(
-                self.commits_collapsed,
+                self._get_stitches_fold_state(),
                 self.hooks_collapsed,
                 self.mentors_collapsed,
                 self.timestamps_collapsed,

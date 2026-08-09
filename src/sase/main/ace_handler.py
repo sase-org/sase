@@ -194,8 +194,9 @@ def handle_ace_command(args: argparse.Namespace) -> None:
             if old_size is not None:
                 model_tier_override = {"big": "large", "little": "small"}[old_size]
 
-        requested_tab = args.tab
-        initial_tab = "changespecs" if requested_tab == "artifacts" else requested_tab
+        from sase.ace.tui.tab_order import normalize_tab_name
+
+        initial_tab = normalize_tab_name(args.tab)
         app = AceApp(
             query=args.query,
             model_tier_override=cast(
@@ -204,7 +205,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
             refresh_interval=args.refresh_interval,
             auto_start_axe=not getattr(args, "no_axe", False),
             restart_axe=getattr(args, "restart_axe", False),
-            initial_tab=cast(Literal["changespecs", "agents", "axe"], initial_tab),
+            initial_tab=initial_tab,
         )
     except QueryParseError as e:
         print(f"Error: Invalid query: {e}")

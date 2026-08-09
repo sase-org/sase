@@ -85,7 +85,9 @@ def format_meta_key(key: str) -> str:
     return key.removeprefix("meta_").replace("_", " ").title()
 
 
-SPECIAL_META_KEYS = frozenset({"meta_project", "meta_changespec", "meta_workspace"})
+SPECIAL_META_KEYS = frozenset(
+    {"meta_project", "meta_patch", "meta_changespec", "meta_workspace"}
+)
 COMMIT_META_KEYS = frozenset(
     {"meta_commit_message", "meta_new_commit", "meta_commit_cwd", "meta_commits"}
 )
@@ -201,7 +203,7 @@ def wrap_text_by_cells(text: str, width: int) -> list[str]:
 def extract_meta_fields(output: dict[str, Any]) -> list[tuple[str, str]]:
     """Extract meta_* fields from a step output dict.
 
-    Excludes special meta keys (meta_project, meta_changespec, meta_workspace)
+    Excludes special meta keys (meta_project, meta_patch, meta_workspace)
     that are rendered in the header section instead.
 
     Args:

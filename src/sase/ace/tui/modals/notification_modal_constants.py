@@ -5,7 +5,7 @@ from __future__ import annotations
 
 # Action badge mapping
 ACTION_BADGES: dict[str | None, str] = {
-    "JumpToChangeSpec": "[CS]",
+    "JumpToPatch": "[CS]",
     "JumpToMentorReview": "[mentor]",
     "Tmux": "[tmux]",
     "HITL": "[HITL]",
@@ -27,7 +27,7 @@ ACTION_BADGES: dict[str | None, str] = {
 ACTION_ICONS: dict[str | None, str] = {
     None: "🔔",
     "JumpToAgent": "🤖",
-    "JumpToChangeSpec": "📋",
+    "JumpToPatch": "📋",
     "JumpToMentorReview": "👀",
     "Tmux": "🖥️",
     "HITL": "✋",

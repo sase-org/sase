@@ -201,9 +201,9 @@ class StatisticsHelpModal(ModalScreen[None]):
     def _projects_group_label(self) -> str:
         if self._projects_group_by == "project":
             return "By Project"
-        if self._projects_group_by == "changespec":
-            return "By ChangeSpec"
-        return "Project → ChangeSpec"
+        if self._projects_group_by == "patch":
+            return "By Patch"
+        return "Project → Patch"
 
     def _xprompts_group_label(self) -> str:
         if self._xprompts_group_by == "usage":

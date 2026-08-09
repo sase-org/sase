@@ -26,7 +26,7 @@ class AgentRevertMixin:
     a revertable status plus a resolvable agent name and git workspace, builds a
     :class:`RevertIntent`, then submits a tracked *preview* task. The preview and
     execute backends each claim a fresh short-lived workspace, prepare it on the
-    ChangeSpec branch, and release it — they never reuse the directory the agent
+    Patch branch, and release it — they never reuse the directory the agent
     originally ran in. Preview completion opens :class:`ConfirmRevertAgentModal`;
     confirmation submits a tracked *revert* task that creates the revert commit
     and refreshes the Agents tab.
@@ -205,7 +205,7 @@ class AgentRevertMixin:
 
         Resolves live marked rows, drops stale marks, skips non-revertable and
         unresolvable rows (with feedback), rejects mixed workspaces and mixed
-        ChangeSpec branches (a fresh checkout can only represent one branch),
+        Patch branches (a fresh checkout can only represent one branch),
         then submits one tracked bulk *preview* task.
         """
         prune = getattr(self, "_prune_stale_marked_agents", None)
@@ -284,8 +284,7 @@ class AgentRevertMixin:
         branches = {(a.project_file, a.cl_name) for a in target_agents}
         if len(branches) > 1:
             self.notify(  # type: ignore[attr-defined]
-                "Marked agents span multiple ChangeSpec branches; "
-                "no changes were applied",
+                "Marked agents span multiple Patch branches; no changes were applied",
                 severity="error",
             )
             return

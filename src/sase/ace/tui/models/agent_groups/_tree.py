@@ -25,7 +25,7 @@ from ._buckets import (
 from ._keys import (
     GroupingKeys,
     grouping_keys_for,
-    panel_uses_changespec_level,
+    panel_uses_patch_level,
     walk_anchors,
     walk_order,
 )
@@ -36,7 +36,7 @@ class GroupRow:
     """A banner row in the grouped agent tree."""
 
     # 0 = project/date/status bucket. Deeper levels are structural
-    # descendants: ChangeSpec, BY_DATE subgroup, name-root, or dotted
+    # descendants: Patch, BY_DATE subgroup, name-root, or dotted
     # name-prefix subgroup depending on the active layout.
     level: int
     group_key: tuple[str, ...]
@@ -69,7 +69,7 @@ class _GroupedWalk:
     """Anchored grouping metadata and atomic-cluster render order."""
 
     keys_per_agent: list[GroupingKeys]
-    use_changespec_level: bool
+    use_patch_level: bool
     indices: list[int]
 
 
@@ -97,7 +97,7 @@ def _grouped_walk(
         mode,
         anchors=anchors,
     )
-    use_cs = panel_uses_changespec_level(
+    use_cs = panel_uses_patch_level(
         agents,
         mode,
         parent_lookup=parent_lookup,
@@ -111,13 +111,13 @@ def _grouped_walk(
     indices = walk_order(
         keys_per_agent,
         time_anchors,
-        use_changespec_level=use_cs,
+        use_patch_level=use_cs,
         mode=mode,
         cluster_roots=cluster_roots,
     )
     return _GroupedWalk(
         keys_per_agent=keys_per_agent,
-        use_changespec_level=use_cs,
+        use_patch_level=use_cs,
         indices=indices,
     )
 
@@ -162,15 +162,13 @@ def enumerate_group_keys(
         panel_agents = [agents[i] for i in indices]
         grouped_walk = _grouped_walk(panel_agents, mode, reference)
         keys_per_agent = grouped_walk.keys_per_agent
-        use_cs = grouped_walk.use_changespec_level
+        use_cs = grouped_walk.use_patch_level
         walk = grouped_walk.indices
         root_counts: dict[tuple[tuple[str, ...], str], int] = {}
         prefix_counts: dict[tuple[tuple[str, ...], str, str], int] = {}
         subgroup_counts: dict[tuple[str, str], int] = {}
         for k in keys_per_agent:
-            parent: tuple[str, ...] = (
-                (k.project, k.changespec) if use_cs else (k.project,)
-            )
+            parent: tuple[str, ...] = (k.project, k.patch) if use_cs else (k.project,)
             if k.name_root:
                 root_counts[(parent, k.name_root)] = (
                     root_counts.get((parent, k.name_root), 0) + 1
@@ -190,7 +188,7 @@ def enumerate_group_keys(
                 seen.add(l0)
                 out.append(l0)
             if use_cs:
-                l1: GroupKey = (k.project, k.changespec)
+                l1: GroupKey = (k.project, k.patch)
                 if l1 not in seen:
                     seen.add(l1)
                     out.append(l1)
@@ -236,8 +234,8 @@ def build_agent_tree(
         fold_registry: Optional per-group collapse registry.  ``None``
             (or an empty registry) renders every group expanded.
         mode: How to bucket agents at L0.  Defaults to ``STANDARD``
-            (existing project / ChangeSpec hierarchy).  ``BY_DATE`` and
-            ``BY_STATUS`` drop the ChangeSpec level entirely; L0 becomes
+            (existing project / Patch hierarchy).  ``BY_DATE`` and
+            ``BY_STATUS`` drop the Patch level entirely; L0 becomes
             the bucket.  ``BY_DATE`` uses date-aware subgroup banners under
             the bucket (1-hour under Today/Yesterday, calendar day under
             This Week, Monday-start week under Earlier); ``BY_STATUS``
@@ -254,7 +252,7 @@ def build_agent_tree(
     reference = now if now is not None else local_now()
     grouped_walk = _grouped_walk(agents, mode, reference)
     keys_per_agent = grouped_walk.keys_per_agent
-    use_cs = grouped_walk.use_changespec_level
+    use_cs = grouped_walk.use_patch_level
     walk = grouped_walk.indices
 
     proj_indices: dict[str, list[int]] = {}
@@ -266,8 +264,8 @@ def build_agent_tree(
         k = keys_per_agent[i]
         proj_indices.setdefault(k.project, []).append(i)
         if use_cs:
-            cs_indices.setdefault((k.project, k.changespec), []).append(i)
-            parent: tuple[str, ...] = (k.project, k.changespec)
+            cs_indices.setdefault((k.project, k.patch), []).append(i)
+            parent: tuple[str, ...] = (k.project, k.patch)
         else:
             parent = (k.project,)
         if mode is GroupingMode.BY_DATE and k.date_subgroup:
@@ -327,8 +325,8 @@ def build_agent_tree(
             continue
 
         if use_cs:
-            if cur_cs is None or k.changespec != cur_cs:
-                l1_key: GroupKey = (k.project, k.changespec)
+            if cur_cs is None or k.patch != cur_cs:
+                l1_key: GroupKey = (k.project, k.patch)
                 cur_cs_collapsed = registry.is_collapsed(l1_key)
                 entries.append(
                     TreeEntry(
@@ -336,20 +334,20 @@ def build_agent_tree(
                         group=GroupRow(
                             level=1,
                             group_key=l1_key,
-                            agent_indices=tuple(cs_indices[(k.project, k.changespec)]),
+                            agent_indices=tuple(cs_indices[(k.project, k.patch)]),
                             is_collapsed=cur_cs_collapsed,
                             has_child_groups=True,
                         ),
                     )
                 )
-                cur_cs = k.changespec
+                cur_cs = k.patch
                 cur_root = ""
                 cur_prefix = ""
                 cur_root_collapsed = False
                 cur_prefix_collapsed = False
             if cur_cs_collapsed:
                 continue
-            parent_key: tuple[str, ...] = (k.project, k.changespec)
+            parent_key: tuple[str, ...] = (k.project, k.patch)
             deep_level = 2
         else:
             parent_key = (k.project,)
@@ -481,8 +479,8 @@ def banner_label_for_group_key(group_key: tuple[str, ...]) -> str:
     """Compose the human-readable banner label for *group_key*.
 
     * Level 0 (1-tuple ``(project,)``) → project name or ``"(no project)"``.
-    * Level 1, 3-level mode (2-tuple ``(project, changespec)``) → the
-      ChangeSpec name or the synthetic ``"(no ChangeSpec)"`` bucket.
+    * Level 1, 3-level mode (2-tuple ``(project, patch)``) → the
+      Patch name or the synthetic ``"(no Patch)"`` bucket.
     * Level 1, 2-level mode (2-tuple ``(project, name_root)``) → the
       bare name-root (always non-empty for a real banner).
     * Level 1, BY_DATE mode (2-tuple ``(date_bucket, subgroup)``) → the

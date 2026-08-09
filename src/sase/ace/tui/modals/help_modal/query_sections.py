@@ -7,7 +7,7 @@ from rich.text import Text
 from ....query_history import load_query_history
 from ....saved_queries import KEY_ORDER, load_saved_queries
 from ...widgets._completion_match_highlight import append_highlighted
-from ...widgets.changespec_detail import build_query_text
+from ...widgets.patch_detail import build_query_text
 from .bindings import CONTENT_WIDTH
 
 
@@ -20,7 +20,7 @@ def add_saved_queries_section(
     content_width: int = CONTENT_WIDTH,
     title_runs: tuple[tuple[int, int], ...] = (),
 ) -> None:
-    """Add the saved queries section (ChangeSpecs tab only).
+    """Add the saved queries section (Patches tab only).
 
     Args:
         text: The Text object to append to.
@@ -109,7 +109,7 @@ def add_query_history_section(
     border_color: str = "#FFD700",
     title_runs: tuple[tuple[int, int], ...] = (),
 ) -> None:
-    """Add the query history stacks section (ChangeSpecs tab only).
+    """Add the query history stacks section (Patches tab only).
 
     Shows last 5 entries from each stack with visual indicators.
 

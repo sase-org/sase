@@ -20,7 +20,7 @@ class _CommandDisplayItem:
 
     entry: CommandEntry
     marker: str  # "*", "~", or " "
-    display_context: str  # Padded project/ChangeSpec context
+    display_context: str  # Padded project/Patch context
     display_project: str
 
 
@@ -40,7 +40,7 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
         """Initialize the command history modal.
 
         Args:
-            current_cl: ChangeSpec name to prioritize in sorting.
+            current_cl: Patch name to prioritize in sorting.
             current_project: Project name for secondary sorting.
         """
         super().__init__()
@@ -145,7 +145,7 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
         else:
             text.append("  ")
 
-        # Project/ChangeSpec context (dimmed)
+        # Project/Patch context (dimmed)
         text.append(item.display_context, style="dim cyan")
         text.append(" | ", style="dim")
 
@@ -255,7 +255,7 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
             meta_text.append("Project: ", style="bold")
             meta_text.append(f"{item.display_project}\n")
             if item.entry.cl_name:
-                meta_text.append("ChangeSpec: ", style="bold")
+                meta_text.append("Patch: ", style="bold")
                 meta_text.append(f"{humanize_cl_name(item.entry.cl_name)}\n")
             meta_text.append("Created: ", style="bold")
             meta_text.append(f"{item.entry.timestamp}\n")

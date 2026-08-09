@@ -27,8 +27,8 @@ type AppCommandMeta = tuple[
 # (entry-level applicability is layered on by ``availability.py``).
 APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     # Navigation
-    ("next_changespec", "Next entry", "Navigation", ALL_TABS, ("down", "j")),
-    ("prev_changespec", "Previous entry", "Navigation", ALL_TABS, ("up", "k")),
+    ("next_patch", "Next entry", "Navigation", ALL_TABS, ("down", "j")),
+    ("prev_patch", "Previous entry", "Navigation", ALL_TABS, ("up", "k")),
     ("scroll_to_top", "Scroll to top", "Navigation", ALL_TABS, ("g",)),
     ("scroll_to_bottom", "Scroll to bottom", "Navigation", ALL_TABS, ("G",)),
     ("scroll_detail_down", "Scroll detail down", "Navigation", ALL_TABS, ()),
@@ -263,26 +263,26 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         ("fix issue",),
     ),
-    ("focus_bug_links", "Focus linked epics and PRs", "Bugs", CL_ONLY, ()),
+    ("focus_bug_links", "Focus linked epics and patches", "Bugs", CL_ONLY, ()),
     ("activate_bug_link", "Open focused bug link", "Bugs", CL_ONLY, ()),
     ("refresh_bugs", "Refresh bugs", "Bugs", CL_ONLY, ("reload issues",)),
-    # PR Actions
+    # Patch actions
     ("quit", "Quit ace", "Misc", ALL_TABS, ("exit",)),
-    ("change_status", "Change PR status", "PR Actions", CL_ONLY, ()),
+    ("change_status", "Change Patch status", "Patch Actions", CL_ONLY, ()),
     (
         "run_workflow",
         "Run workflow / retry agent / re-run",
-        "PR Actions",
+        "Patch Actions",
         ALL_TABS,
         ("retry", "relaunch", "edit prompt"),
     ),
-    ("mail", "Mail PR", "PR Actions", CL_ONLY, ("send",)),
-    ("show_diff", "Show diff", "PR Actions", CL_ONLY, ()),
-    ("reword", "Reword PR", "PR Actions", CL_ONLY, ()),
+    ("mail", "Mail Patch", "Patch Actions", CL_ONLY, ("send",)),
+    ("show_diff", "Show diff", "Patch Actions", CL_ONLY, ()),
+    ("reword", "Reword Patch", "Patch Actions", CL_ONLY, ()),
     (
         "add_tag",
         "Add tag / wait for agent, clan, or tribe",
-        "PR Actions",
+        "Patch Actions",
         CL_AGENTS,
         (
             "wait",
@@ -292,11 +292,11 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
             "new prompt with wait",
         ),
     ),
-    ("view_files", "View PR files", "PR Actions", CL_ONLY, ()),
+    ("view_files", "View Patch files", "Patch Actions", CL_ONLY, ()),
     (
         "edit_spec",
         "Edit spec / chat / AXE config",
-        "PR Actions",
+        "Patch Actions",
         ALL_TABS,
         ("edit lumberjack", "edit chop config"),
     ),
@@ -314,21 +314,21 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AXE_ONLY,
         ("description", "expand description", "collapse description"),
     ),
-    ("rename_cl", "Rename PR / agent", "PR Actions", CL_AGENTS, ()),
-    # ChangeSpec edits
+    ("rename_cl", "Rename Patch / agent", "Patch Actions", CL_AGENTS, ()),
+    # Patch edits
     (
         "edit_hooks",
         "Edit hooks / fork agent, clan, or tribe",
-        "ChangeSpec Edits",
+        "Patch Edits",
         CL_AGENTS,
         ("fork",),
     ),
     # Proposals & Sync
     ("accept_proposal", "Accept proposal", "Proposals & Sync", CL_AGENTS, ()),
-    ("rebase", "Rebase PR", "Proposals & Sync", CL_ONLY, ()),
+    ("rebase", "Rebase Patch", "Proposals & Sync", CL_ONLY, ()),
     (
         "start_rewind",
-        "Rewind PR / Revive agent",
+        "Rewind Patch / Revive agent",
         "Proposals & Sync",
         CL_AGENTS,
         (),
@@ -418,8 +418,8 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("home", "home mode", "~"),
     ),
     (
-        "start_agent_from_changespec",
-        "Run agent from PR",
+        "start_agent_from_patch",
+        "Run agent from Patch",
         "Agents",
         CL_AGENTS,
         (),
@@ -439,11 +439,11 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("stash", "restore", "pop"),
     ),
     (
-        "jump_to_agent_changespec",
-        "Jump to agent's PR",
+        "jump_to_agent_patch",
+        "Jump to agent's Patch",
         "Agents",
         AGENTS_ONLY,
-        ("go to pr",),
+        ("go to patch",),
     ),
     (
         "zoom_panel",
@@ -544,14 +544,14 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "open_saved_query_picker",
-        "Choose saved PR query",
+        "Choose saved Patch query",
         "Saved Queries",
         CL_ONLY,
         ("saved query", "query slots", "star query"),
     ),
     (
         "start_saved_query_mode",
-        "Load saved PR query by slot",
+        "Load saved Patch query by slot",
         "Saved Queries",
         CL_ONLY,
         ("saved query slot", "query slot"),

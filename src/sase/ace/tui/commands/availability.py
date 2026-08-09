@@ -9,7 +9,7 @@ Phase 1 ships the entry-level scoping that mirrors the existing
 footer logic and the help modal's tab buckets:
 
 - Tab scope: a command must list the current tab in ``spec.tabs``.
-- ChangeSpec-tab entry predicates: most ChangeSpec actions need a selected ChangeSpec
+- Patch-tab entry predicates: most Patch actions need a selected Patch
   with a PR number; status-gated ones (mail/rebase/sync) follow the
   same gates as the footer.
 - Agents-tab predicates: kill/dismiss splits by status + group focus
@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 # Statuses used by footer for editable PR gating.
 _EDITABLE_STATUSES: frozenset[str] = frozenset({"WIP", "Draft", "Ready", "Mailed"})
 
-# ChangeSpec actions that require a selected PR with a PR number.
+# Patch actions that require a selected PR with a PR number.
 _REQUIRES_CL_NUMBER: frozenset[str] = frozenset(
     {
         "app.show_diff",
@@ -62,7 +62,7 @@ _REQUIRES_CL_NUMBER: frozenset[str] = frozenset(
     }
 )
 
-# ChangeSpec actions that require an editable status (WIP/Draft/Ready/Mailed).
+# Patch actions that require an editable status (WIP/Draft/Ready/Mailed).
 _REQUIRES_EDITABLE_STATUS: frozenset[str] = frozenset(
     {
         "app.reword",
@@ -72,7 +72,7 @@ _REQUIRES_EDITABLE_STATUS: frozenset[str] = frozenset(
     }
 )
 
-# ChangeSpec actions that don't apply to Submitted / Reverted ChangeSpecs.
+# Patch actions that don't apply to Submitted / Reverted Patches.
 _REQUIRES_NON_TERMINAL_STATUS: frozenset[str] = frozenset(
     {
         "app.start_rewind",
@@ -212,8 +212,8 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
         "app.rename_cl",
         "app.toggle_attempt_view",
         "app.toggle_agent_unread",
-        "app.start_agent_from_changespec",
-        "app.jump_to_agent_changespec",
+        "app.start_agent_from_patch",
+        "app.jump_to_agent_patch",
     }
 )
 
@@ -238,12 +238,12 @@ _DONE_AGENT_STATUSES: frozenset[str] = frozenset({"DONE", "FAILED"})
 
 
 def _get_base_status(status: str) -> str:
-    """Lazy-import wrapper for ``changespec.get_base_status``.
+    """Lazy-import wrapper for ``patch.get_base_status``.
 
     Avoids a hard import-time dependency from a pure predicate
-    module on the heavier changespec package.
+    module on the heavier patch package.
     """
-    from sase.ace.changespec import get_base_status
+    from sase.ace.patch import get_base_status
 
     return get_base_status(status)
 
@@ -253,7 +253,7 @@ def _get_base_status(status: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
+def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id.startswith("copy.artifacts_"):
         if not spec.id.startswith(f"copy.artifacts_{ctx.artifacts_subtab}."):
             return False
@@ -282,8 +282,8 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return spec.id.startswith("artifacts.") or spec.id in _NON_PRS_ARTIFACT_COMMANDS
     if spec.id == "app.pick_artifacts_project":
         return False
-    cs = ctx.changespec
-    # ChangeSpec-required commands need a selected ChangeSpec.
+    cs = ctx.patch
+    # Patch-required commands need a selected Patch.
     if spec.id in _REQUIRES_CL_NUMBER and (cs is None or cs.pr_url is None):
         return False
 
@@ -319,7 +319,7 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.mark_count > 0
 
     # change_status / run_workflow / edit_spec / toggle_mark / rename_cl
-    # / edit_hooks all need a selected ChangeSpec row but no further gating in
+    # / edit_hooks all need a selected Patch row but no further gating in
     # Phase 1 — the action methods already no-op when invalid.
     if spec.id in {
         "app.change_status",
@@ -328,26 +328,26 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         "app.toggle_mark",
         "app.rename_cl",
         "app.edit_hooks",
-        "app.start_agent_from_changespec",
+        "app.start_agent_from_patch",
     }:
         return cs is not None
 
-    # Copy-mode commands scoped to changespecs need a ChangeSpec row.
-    if spec.id.startswith("copy.changespecs."):
+    # Copy-mode commands scoped to patches need a Patch row.
+    if spec.id.startswith("copy.patches."):
         if cs is None:
             return False
         if (
-            spec.id in {"copy.changespecs.pr_number", "copy.changespecs.cl_number"}
+            spec.id in {"copy.patches.pr_number", "copy.patches.cl_number"}
             and not cs.pr_url
         ):
             return False
-        if spec.id == "copy.changespecs.link" and not cs.pr_url:
+        if spec.id == "copy.patches.link" and not cs.pr_url:
             return False
-        if spec.id == "copy.changespecs.bug" and not getattr(cs, "bug", None):
+        if spec.id == "copy.patches.bug" and not getattr(cs, "bug", None):
             return False
         return True
 
-    # Leader commands scoped to ChangeSpec only.
+    # Leader commands scoped to Patch only.
     if spec.id in {
         "leader.run_cmd",
         "leader.kill_mentors",
@@ -438,9 +438,9 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return False
         return bool(getattr(agent, "attempt_history", None))
 
-    # jump_to_agent_changespec needs a resolvable target.
-    if spec.id == "app.jump_to_agent_changespec":
-        return agent is not None and ctx.can_jump_to_changespec
+    # jump_to_agent_patch needs a resolvable target.
+    if spec.id == "app.jump_to_agent_patch":
+        return agent is not None and ctx.can_jump_to_patch
 
     # accept_proposal on agents tab → answer/approve, only when status fits.
     if spec.id == "app.accept_proposal":
@@ -592,7 +592,7 @@ def _axe_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id.startswith("copy.axe."):
         return item is not None
 
-    # Most ChangeSpec/agent actions don't apply on AXE — they're already
+    # Most Patch/agent actions don't apply on AXE — they're already
     # filtered by spec.tabs, so this branch only sees commands that
     # listed "axe" in their tabs (mode prefixes, navigation, etc.).
     return True
@@ -613,8 +613,8 @@ def is_command_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if ctx.tab not in spec.tabs:
         return False
 
-    if ctx.tab == "changespecs":
-        return _changespecs_available(spec, ctx)
+    if ctx.tab == "artifacts":
+        return _patches_available(spec, ctx)
     if ctx.tab == "agents":
         return _agents_available(spec, ctx)
     if ctx.tab == "axe":

@@ -90,7 +90,7 @@ async def test_admin_center_reaches_projects_tab_from_config(
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "logs")
         assert switcher.current == "logs"
-        assert page.app.current_tab == "changespecs"
+        assert page.app.current_tab == "artifacts"
 
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "projects")
@@ -106,7 +106,7 @@ async def test_admin_center_reaches_projects_tab_from_config(
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "statistics")
         assert switcher.current == "statistics"
-        assert page.app.current_tab == "changespecs"
+        assert page.app.current_tab == "artifacts"
 
 
 async def test_projects_session_restores_project_by_identity(
@@ -197,7 +197,7 @@ async def test_admin_center_leaves_projects_tab_with_shift_tab(
         await page.press("shift+tab")
         await page.wait_for(lambda _s: modal._active_tab == "logs")
         assert switcher.current == "logs"
-        assert page.app.current_tab == "changespecs"
+        assert page.app.current_tab == "artifacts"
 
 
 async def _focus_projects_filter(page: AcePage) -> None:
@@ -263,12 +263,12 @@ async def test_projects_filter_yields_tab_to_admin_center(
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "statistics")
         assert pane._active_subtab == "projects"
-        assert page.app.current_tab == "changespecs"
+        assert page.app.current_tab == "artifacts"
 
         await page.press("shift+tab")
         await page.wait_for(lambda _s: modal._active_tab == "projects")
         assert pane._active_subtab == "projects"
-        assert page.app.current_tab == "changespecs"
+        assert page.app.current_tab == "artifacts"
 
 
 async def test_inventory_escape_clears_project_before_closing_admin_center(

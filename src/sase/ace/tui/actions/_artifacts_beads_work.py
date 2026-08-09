@@ -153,7 +153,7 @@ class ArtifactsBeadsWorkActionsMixin(ArtifactsBeadsCommonMixin):
         pane, row = selected
         snapshot = pane.snapshot
         issue = epic_for_bead_row(row, snapshot)
-        if issue is None or not issue.changespec_bug_id:
+        if issue is None or not issue.patch_bug_id:
             self.notify(  # type: ignore[attr-defined]
                 "The selected epic has no external bug", severity="warning"
             )
@@ -166,7 +166,7 @@ class ArtifactsBeadsWorkActionsMixin(ArtifactsBeadsCommonMixin):
                 "The selected project workspace is unavailable", severity="warning"
             )
             return
-        bug_id = issue.changespec_bug_id.lstrip("#")
+        bug_id = issue.patch_bug_id.lstrip("#")
         if not bug_id.isdigit():
             self._notify_beads(
                 f"Bug id is not a numeric tracker issue: {bug_id}",

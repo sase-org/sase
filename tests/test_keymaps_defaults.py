@@ -447,9 +447,9 @@ def test_binding_meta_matches_app_keymaps() -> None:
     assert meta_actions == field_names
 
 
-def test_pr_facing_binding_meta_uses_pr_labels() -> None:
-    """Visible binding names should match the PR terminology used by ACE."""
+def test_patch_facing_binding_meta_uses_patch_labels() -> None:
+    """Visible binding names should match Patch terminology."""
     meta_labels = {action: label for action, label, _priority in _BINDING_META}
 
-    assert meta_labels["start_agent_from_changespec"] == "Run Agent (PR)"
-    assert meta_labels["jump_to_agent_changespec"] == "Go to PR"
+    assert meta_labels["start_agent_from_patch"] == "Run Agent (Patch)"
+    assert meta_labels["jump_to_agent_patch"] == "Go to Patch"

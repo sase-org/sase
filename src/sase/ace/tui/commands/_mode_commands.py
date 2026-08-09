@@ -19,12 +19,12 @@ if TYPE_CHECKING:
 # three; copy_mode subkeys are scoped per-tab by their nesting and have
 # their tabs derived in ``iter_mode_commands``.
 _FOLD_LABELS: dict[str, str] = {
-    "cycle_commits": "Cycle commits fold",
+    "cycle_stitches": "Cycle stitches fold",
     "cycle_hooks": "Cycle hooks fold",
     "cycle_mentors": "Cycle mentors fold",
     "cycle_timestamps": "Cycle timestamps fold",
     "cycle_deltas": "Cycle deltas summary/files/lines",
-    "toggle_commits": "Toggle commits fold",
+    "toggle_stitches": "Toggle stitches fold",
     "toggle_hooks": "Toggle hooks fold",
     "toggle_mentors": "Toggle mentors fold",
     "toggle_timestamps": "Toggle timestamps fold",
@@ -56,14 +56,14 @@ _LEADER_LABELS: dict[str, str] = {
     "kill_mentors": "Kill mentor workflows",
     "review_mentors": "Review mentor results",
     "agent_home": "Agent (home mode)",
-    "agent_from_cl": "Agent from PR (quick)",
+    "agent_from_cl": "Agent from Patch (quick)",
     "toggle_agent_panel_grouping": "Toggle agent panel grouping",
     "jump_to_next_unread_done_agent": "Jump to next unread completed agent",
     "jump_to_next_stopped_agent": "Jump to next stopped agent",
     "full_history_refresh": "Refresh Agents from full history",
     "mark_all_unread_done_agents_read": "Mark all unread completed agents read or undo",
     "kill_and_edit": "Kill agent and edit",
-    "clear_comments": "Clear PR comments",
+    "clear_comments": "Clear Patch comments",
     "open_prompt_stash": "Open prompt stash",
     "prompt_history": "Prompt history",
     "prompt_history_edit_first": "Edit first prompt history entry",
@@ -149,13 +149,14 @@ def _iter_copy_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
     copy = registry.copy_mode
     prefix = copy.prefix
     tab_to_command_tab: dict[str, CommandTab] = {
-        "changespecs": "changespecs",
-        "artifacts_commits": "changespecs",
-        "artifacts_plans": "changespecs",
-        "artifacts_beads": "changespecs",
-        "artifacts_chats": "changespecs",
-        "artifacts_other": "changespecs",
-        "artifacts_bugs": "changespecs",
+        "artifacts": "artifacts",
+        "artifacts_commits": "artifacts",
+        "artifacts_plans": "artifacts",
+        "artifacts_beads": "artifacts",
+        "artifacts_chats": "artifacts",
+        "artifacts_other": "artifacts",
+        "artifacts_bugs": "artifacts",
+        "patches": "artifacts",
         "agents": "agents",
         "axe": "axe",
     }

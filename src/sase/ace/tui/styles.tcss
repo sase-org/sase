@@ -59,8 +59,8 @@
     height: 1fr;
 }
 
-/* Artifacts Tab View (internal id remains changespecs) */
-#changespecs-view {
+/* Artifacts Tab View (internal id remains patches) */
+#artifacts-view {
     width: 100%;
     height: 100%;
 }
@@ -878,11 +878,11 @@ IssueEditModal {
     align-horizontal: center;
 }
 
-#changespecs-view.-onboarding-active #list-container {
+#artifacts-view.-onboarding-active #list-container {
     display: none;
 }
 
-#changespecs-view.-onboarding-active #detail-scroll {
+#artifacts-view.-onboarding-active #detail-scroll {
     display: none;
 }
 
@@ -940,7 +940,7 @@ IssueEditModal {
     height: auto;
 }
 
-#changespec-quickstart-panel {
+#patch-quickstart-panel {
     width: 100%;
     height: 1fr;
     padding: 1 2;
@@ -979,7 +979,7 @@ IssueEditModal {
     border-title-color: #87D7FF;
 }
 
-.tab-quickstart-card.-changespecs {
+.tab-quickstart-card.-patches {
     border-title-color: #00D7AF;
 }
 
@@ -993,7 +993,7 @@ IssueEditModal {
     margin-top: 1;
 }
 
-#changespec-onboarding-hero {
+#patch-onboarding-hero {
     width: 100%;
     max-width: 90;
     height: auto;
@@ -1002,7 +1002,7 @@ IssueEditModal {
     margin-bottom: 1;
 }
 
-.changespec-onboarding-card {
+.patch-onboarding-card {
     width: 100%;
     max-width: 90;
     height: auto;
@@ -1030,17 +1030,17 @@ IssueEditModal {
 }
 
 /* List panel styling */
-ChangeSpecList {
+PatchList {
     scrollbar-gutter: stable;
     text-wrap: nowrap;
     text-overflow: clip;
 }
 
-ChangeSpecList > .option-list--option {
+PatchList > .option-list--option {
     padding: 0 1;
 }
 
-ChangeSpecList > .option-list--option-highlighted {
+PatchList > .option-list--option-highlighted {
     background: $accent 25%;
     text-style: bold;
     border-left: thick $accent;
@@ -4439,7 +4439,7 @@ HelpModal > Container {
     padding: 1 1;
 }
 
-HelpModal #help-modal-container.-tab-changespecs {
+HelpModal #help-modal-container.-tab-patches {
     border: round #00D7AF;
 }
 
@@ -4505,7 +4505,7 @@ HelpModal #help-filter-prompt {
     color: #FFD700;
 }
 
-HelpModal #help-modal-container.-tab-changespecs #help-filter-prompt {
+HelpModal #help-modal-container.-tab-patches #help-filter-prompt {
     color: #00D7AF;
 }
 

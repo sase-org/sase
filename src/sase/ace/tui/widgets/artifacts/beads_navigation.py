@@ -394,7 +394,7 @@ def _bead_row_linked_bug(
 ) -> Issue | None:
     issue = row.issue
     if row.kind == "epic":
-        return issue if issue.changespec_bug_id else None
+        return issue if issue.patch_bug_id else None
     if issue.parent_id is None or snapshot is None:
         return None
     epic = next(
@@ -405,7 +405,7 @@ def _bead_row_linked_bug(
         ),
         None,
     )
-    return epic if epic is not None and epic.changespec_bug_id else None
+    return epic if epic is not None and epic.patch_bug_id else None
 
 
 __all__ = ["BeadsNavigationMixin", "BeadsOptionList"]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Literal, cast
 
 from ._types import NavigationMixinBase
 from .jump_hints import EntryJumpAnchor
@@ -33,18 +33,19 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
 
     def _entry_jump_index_is_valid(self, tab: str, idx: int) -> bool:
         """Return whether ``idx`` still identifies a row in ``tab``."""
-        if tab == "changespecs":
-            return 0 <= idx < len(self.changespecs)
+        if tab in {"artifacts", "patches", "changespecs"}:
+            patches = getattr(self, "patches", getattr(self, "changespecs", []))
+            return 0 <= idx < len(patches)
         if tab == "axe":
             return 0 <= idx < len(self._axe_items)  # type: ignore[attr-defined]
         return False
 
-    def _changespec_banner_anchor_is_valid(
+    def _patch_banner_anchor_is_valid(
         self,
         group_key: tuple[str, ...],
     ) -> bool:
-        """Return whether ``group_key`` is a selectable ChangeSpec banner right now."""
-        stops_fn = getattr(self, "_changespec_navigation_stops", None)
+        """Return whether ``group_key`` is a selectable Patch banner right now."""
+        stops_fn = getattr(self, "_patch_navigation_stops", None)
         if not callable(stops_fn):
             return False
         try:
@@ -63,18 +64,25 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
             return self._entry_jump_index_is_valid(tab, anchor)
         kind, group_key = anchor
         return (
-            kind == "changespec_banner"
-            and tab == "changespecs"
-            and self._changespec_banner_anchor_is_valid(group_key)
+            kind in {"patch_banner", "changespec_banner"}
+            and tab in {"artifacts", "patches", "changespecs"}
+            and self._patch_banner_anchor_is_valid(group_key)
         )
 
     def _current_entry_jump_anchor(self) -> EntryJumpAnchor | None:
-        """Snapshot the current non-Agents cursor as a row or ChangeSpec banner."""
-        if self.current_tab == "changespecs":
-            group_key = getattr(self, "_current_changespec_group_key", None)
+        """Snapshot the current non-Agents cursor as a row or Patch banner."""
+        if self.current_tab in {"artifacts", "patches", "changespecs"}:
+            group_key = getattr(self, "_current_patch_group_key", None)
+            if group_key is None:
+                group_key = getattr(self, "_current_changespec_group_key", None)
             if group_key is not None:
+                kind: Literal["patch_banner", "changespec_banner"] = (
+                    "patch_banner"
+                    if self.current_tab == "artifacts"
+                    else "changespec_banner"
+                )
                 banner_anchor: EntryJumpAnchor = (
-                    "changespec_banner",
+                    kind,
                     tuple(group_key),
                 )
                 if self._entry_jump_anchor_is_valid(self.current_tab, banner_anchor):
@@ -108,9 +116,12 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
     ) -> None:
         """Push the current non-Agents row when a jump will move focus."""
         row_changed = target_idx is not None and target_idx != self.current_idx
+        current_group_key = getattr(self, "_current_patch_group_key", None)
+        if current_group_key is None:
+            current_group_key = getattr(self, "_current_changespec_group_key", None)
         group_changed = (
-            self.current_tab == "changespecs"
-            and target_group_key != getattr(self, "_current_changespec_group_key", None)
+            self.current_tab in {"artifacts", "patches", "changespecs"}
+            and target_group_key != current_group_key
         )
         if not row_changed and not group_changed:
             return
@@ -120,15 +131,18 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         self._push_entry_jump_anchor_to_stack(self._entry_jump_index_stack, anchor)
         self._clear_current_entry_jump_forward_stack()
 
-    def _push_changespec_to_history(self) -> None:
-        """Push the current PRs-tab cursor onto the jump-back stack."""
-        if self.current_tab != "changespecs":
+    def _push_patch_to_history(self) -> None:
+        """Push the current Patch cursor onto the jump-back stack."""
+        if self.current_tab not in {"artifacts", "patches", "changespecs"}:
             return
         anchor = self._current_entry_jump_anchor()
         if anchor is None:
             return
         self._push_entry_jump_anchor_to_stack(self._entry_jump_index_stack, anchor)
         self._clear_current_entry_jump_forward_stack()
+
+    def _push_changespec_to_history(self) -> None:
+        self._push_patch_to_history()
 
     def _pop_entry_jump_anchor_from(
         self,
@@ -154,20 +168,24 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         if not self._entry_jump_anchor_is_valid(self.current_tab, anchor):
             return False
         if isinstance(anchor, int):
-            if self.current_tab == "changespecs":
-                self._current_changespec_group_key = None  # type: ignore[attr-defined]
+            if self.current_tab in {"artifacts", "patches", "changespecs"}:
+                self._current_patch_group_key = None  # type: ignore[attr-defined]
+                if hasattr(self, "_current_changespec_group_key"):
+                    self._current_changespec_group_key = None  # type: ignore[attr-defined]
             self.current_idx = anchor
             return True
 
         _, group_key = anchor
-        self._current_changespec_group_key = group_key  # type: ignore[attr-defined]
+        self._current_patch_group_key = group_key  # type: ignore[attr-defined]
+        if hasattr(self, "_current_changespec_group_key"):
+            self._current_changespec_group_key = group_key  # type: ignore[attr-defined]
         return True
 
     def _refresh_after_entry_jump_restore(self) -> None:
         """Refresh the tab after a direct jump-stack restore."""
         if self.current_tab == "agents":
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-        elif self.current_tab == "changespecs":
+        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
             self._refresh_display()  # type: ignore[attr-defined]
         else:
             self._refresh_current_tab()  # type: ignore[attr-defined]

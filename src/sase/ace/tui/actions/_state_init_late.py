@@ -79,8 +79,8 @@ def init_late_startup_state(
     self._axe_detail_debouncer = DetailPanelDebouncer(self)
     self._axe_loading_placeholder_shown = False
 
-    # Debouncer for changespecs j/k navigation detail updates.
-    self._changespec_detail_debouncer = DetailPanelDebouncer(self)
+    # Debouncer for patches j/k navigation detail updates.
+    self._patch_detail_debouncer = DetailPanelDebouncer(self)
 
     # Lumberjack cycling state (new axe architecture)
     self._axe_lumberjack_names = []
@@ -101,7 +101,7 @@ def init_late_startup_state(
 
     self._query_history = load_query_history()
 
-    # Per-query ChangeSpec selection persistence
+    # Per-query Patch selection persistence
     from ...query_selection import load_query_selections
 
     self._query_selections = load_query_selections()
@@ -259,7 +259,7 @@ def init_late_startup_state(
     log.debug(
         "Keymap registry loaded: %d bindings, display=%s",
         len(_app_bindings),
-        key_display_name(self._keymap_registry.app.next_changespec),
+        key_display_name(self._keymap_registry.app.next_patch),
     )
 
     # Set global model tier override in environment if specified.

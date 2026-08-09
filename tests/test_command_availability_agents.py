@@ -325,7 +325,7 @@ def test_bulk_change_status_is_changespec_only() -> None:
 
 def test_jump_to_agent_changespec_requires_resolution() -> None:
     catalog = _catalog_by_id()
-    spec = catalog["app.jump_to_agent_changespec"]
+    spec = catalog["app.jump_to_agent_patch"]
     agent = _make_agent()
     assert not is_command_available(
         spec,

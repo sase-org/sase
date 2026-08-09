@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     pass
 
-# Import ChangeSpec and Agent unconditionally since they are used as type
+# Import Patch and Agent unconditionally since they are used as type
 # annotations in attribute declarations (not just in function signatures)
-from ....changespec import ChangeSpec
+from ....patch import Patch
 from ...tools.report import SlowToolCallReportSpec
 from ...models.agent import Agent
 from ...widgets import HintInputBar
@@ -24,8 +24,8 @@ class HintMixinBase:
     All hint action sub-mixins should inherit from this class.
     """
 
-    # ChangeSpec state
-    changespecs: list[ChangeSpec]
+    # Patch state
+    patches: list[Patch]
     current_idx: int
 
     # Tab and agents state
@@ -41,7 +41,7 @@ class HintMixinBase:
     _hook_hint_to_idx: dict[int, int]
     _hint_to_entry_id: dict[int, str]
     _mentor_hint_to_info: dict[int, tuple[str, str]]
-    _hint_changespec_name: str
+    _hint_patch_name: str
     _agent_hint_render_session: int
     _agent_hint_render_identity: tuple[object, ...] | None
     _agent_hint_render_ready: asyncio.Event | None

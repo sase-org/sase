@@ -25,9 +25,9 @@ from ..date_subgroups import (
 #: Sentinel used as the project key for agents without a ``project_file``.
 NO_PROJECT = ""
 
-#: Synthetic ChangeSpec bucket label for agents with no ``cl_name`` in a
-#: panel that otherwise has at least one ChangeSpec.
-NO_CHANGESPEC_LABEL = "(no ChangeSpec)"
+#: Synthetic Patch bucket label for agents with no ``cl_name`` in a
+#: panel that otherwise has at least one Patch.
+NO_CHANGESPEC_LABEL = "(no Patch)"
 
 #: Synthetic subgroup label for agents with no usable anchor time
 #: under :data:`GroupingMode.BY_DATE`.  Sorts last within its date bucket.
@@ -37,7 +37,7 @@ NO_HOUR_LABEL = "(no time)"
 class GroupingMode(Enum):
     """How the Agents-tab tree is bucketed at L0.
 
-    - ``STANDARD``: existing behavior — L0 is the project; ChangeSpec
+    - ``STANDARD``: existing behavior — L0 is the project; Patch
       level is added per-panel when at least one agent has a ``cl_name``.
     - ``BY_DATE``: L0 is a date bucket (``Today`` / ``Yesterday`` /
       ``This Week`` / ``Earlier``) derived from each agent's ``start_time``.
@@ -45,7 +45,7 @@ class GroupingMode(Enum):
       ``Running`` / ``Queued`` / ``Waiting`` / ``Done`` / ``Starting``)
       derived from each agent's ``status``.
 
-    In ``BY_DATE`` and ``BY_STATUS`` modes the project and ChangeSpec
+    In ``BY_DATE`` and ``BY_STATUS`` modes the project and Patch
     levels disappear.  ``BY_DATE`` renders date bucket → date-aware
     subgroup (1-hour under Today/Yesterday, calendar day under This Week,
     Monday-start week under Earlier), while ``BY_STATUS`` renders status
@@ -146,7 +146,7 @@ def date_subgroup_sort_key(
     """Sort key for BY_DATE L1 subgroups within a date bucket.
 
     Newest-first within real labels, with ``NO_HOUR_LABEL`` placed last.
-    Mirrors the ChangeSpecs tab's sort rule so both tabs agree on subgroup order.
+    Mirrors the Patches tab's sort rule so both tabs agree on subgroup order.
     """
     if not subgroup:
         return (0, 0)

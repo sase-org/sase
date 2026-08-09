@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from ...modals import AutoApproveChoice
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 # Agent statuses for which auto-approval can be configured.
 _APPROVE_ELIGIBLE = AUTO_APPROVE_ELIGIBLE_STATUSES

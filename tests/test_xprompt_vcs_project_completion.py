@@ -396,8 +396,8 @@ def test_builder_appends_active_changespecs_after_projects() -> None:
     assert [(entry.kind, entry.project, entry.name) for entry in entries] == [
         ("project", "bob", "bob"),
         ("project", "sase", "sase"),
-        ("changespec", "bob", "draft-b"),
-        ("changespec", "sase", "ship-z"),
+        ("patch", "bob", "draft-b"),
+        ("patch", "sase", "ship-z"),
     ]
     draft = entries[2]
     assert draft.display_tag == "#git:draft-b"
@@ -433,7 +433,7 @@ def test_builder_projects_changespec_rows_but_keeps_canonical_search_identity(
             use_cache=False,
         )
 
-    changespec = next(entry for entry in entries if entry.kind == "changespec")
+    changespec = next(entry for entry in entries if entry.kind == "patch")
     assert changespec.name == project_display_case.changespec_label
     assert changespec.display_tag == f"#gh:{project_display_case.changespec_label}"
     assert changespec.project == project_display_case.project_key
@@ -468,7 +468,7 @@ def test_builder_filters_changespec_status_and_missing_project() -> None:
 
     assert [(entry.kind, entry.name) for entry in entries] == [
         ("project", "sase"),
-        ("changespec", "active"),
+        ("patch", "active"),
     ]
 
 
@@ -492,7 +492,7 @@ def test_builder_allows_changespec_name_to_match_project_name() -> None:
 
     assert [(entry.kind, entry.name, entry.display_tag) for entry in entries] == [
         ("project", "sase", "#gh:sase"),
-        ("changespec", "sase", "#gh:sase"),
+        ("patch", "sase", "#gh:sase"),
     ]
 
 
@@ -580,9 +580,9 @@ def test_cache_invalidates_when_project_spec_mtime_changes(tmp_path) -> None:
         )
         third = build_vcs_project_completion_entries(projects_dir=tmp_path)
 
-    assert [entry.name for entry in first if entry.kind == "changespec"] == ["first"]
+    assert [entry.name for entry in first if entry.kind == "patch"] == ["first"]
     assert second == first
-    assert [entry.name for entry in third if entry.kind == "changespec"] == ["second"]
+    assert [entry.name for entry in third if entry.kind == "patch"] == ["second"]
     assert list_mock.call_count == 2
     assert changespec_mock.call_count == 2
 

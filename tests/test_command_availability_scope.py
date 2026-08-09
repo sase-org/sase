@@ -48,7 +48,7 @@ def test_metadata_sections_are_agents_only_and_forward_jump_is_all_tab() -> None
 
 def test_fold_palette_commands_are_scoped_by_fold_surface() -> None:
     catalog = _catalog_by_id()
-    changespec_fold = catalog["fold.cycle_commits"]
+    changespec_fold = catalog["fold.cycle_stitches"]
     agent_fold = catalog["fold.agents.cycle_level"]
     regular_agent = SimpleNamespace(is_family_container_row=False)
 

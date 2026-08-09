@@ -65,7 +65,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
                 surface artifacts the persistent index may not yet know
                 about.
         """
-        from ....changespec import find_all_changespecs_cached
+        from ....patch import find_all_patches_cached
         from sase.config.core import get_max_running_agents
 
         source = normalize_refresh_source(source)
@@ -82,10 +82,10 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
 
         self._merge_external_dismissals()
         dismissed_snapshot = set(self._dismissed_agents)
-        changespec_snapshot = find_all_changespecs_cached(include_states="all")
+        patch_snapshot = find_all_patches_cached(include_states="all")
         load_result = _resolve_load_agents_from_disk_with_state()(
             dismissed_snapshot,
-            changespec_snapshot=changespec_snapshot,
+            patch_snapshot=patch_snapshot,
             full_history=full_history,
             use_artifact_index=not getattr(
                 self, "_artifact_index_schema_bypass", False
@@ -157,7 +157,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
         """
         import asyncio
 
-        from ....changespec import find_all_changespecs_cached
+        from ....patch import find_all_patches_cached
 
         source = normalize_refresh_source(source)
         merge_result = await asyncio.to_thread(
@@ -165,15 +165,15 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
         )
         self._apply_external_dismissal_merge(merge_result)
         dismissed_snapshot = set(self._dismissed_agents)
-        changespec_snapshot = await asyncio.to_thread(
-            find_all_changespecs_cached,
+        patch_snapshot = await asyncio.to_thread(
+            find_all_patches_cached,
             include_states="all",
         )
         disk_start = time.perf_counter()
         load_result = await asyncio.to_thread(
             _resolve_load_agents_from_disk_with_state(),
             dismissed_snapshot,
-            changespec_snapshot=changespec_snapshot,
+            patch_snapshot=patch_snapshot,
             full_history=full_history,
             use_artifact_index=not getattr(
                 self, "_artifact_index_schema_bypass", False
@@ -328,7 +328,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
         """
         import asyncio
 
-        from ....changespec import find_all_changespecs_cached
+        from ....patch import find_all_patches_cached
 
         source = normalize_refresh_source(source)
         merge_result = await asyncio.to_thread(
@@ -336,8 +336,8 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
         )
         self._apply_external_dismissal_merge(merge_result)
         dismissed_snapshot = set(self._dismissed_agents)
-        changespec_snapshot = await asyncio.to_thread(
-            find_all_changespecs_cached,
+        patch_snapshot = await asyncio.to_thread(
+            find_all_patches_cached,
             include_states="all",
         )
         disk_start = time.perf_counter()
@@ -345,7 +345,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             _loading_helpers.load_agent_artifact_delta_from_disk_with_state,
             dismissed_snapshot,
             artifact_dirs,
-            changespec_snapshot=changespec_snapshot,
+            patch_snapshot=patch_snapshot,
             source=source,
             update_index=not getattr(self, "_artifact_index_schema_bypass", False),
             deleted_artifact_dirs=deleted_artifact_dirs or (),

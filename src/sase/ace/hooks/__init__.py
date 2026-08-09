@@ -84,6 +84,10 @@ from .workflow_queries import (
     has_failing_hooks_for_fix,
 )
 
+add_hook_to_patch = add_hook_to_changespec
+add_test_target_hooks_to_patch = add_test_target_hooks_to_changespec
+update_patch_hooks_field = update_changespec_hooks_field
+
 __all__ = [
     # Constants
     "TEST_TARGET_HOOK_PREFIX",
@@ -119,7 +123,9 @@ __all__ = [
     "mark_mentor_agents_as_killed",
     # Operations functions
     "add_hook_to_changespec",
+    "add_hook_to_patch",
     "add_test_target_hooks_to_changespec",
+    "add_test_target_hooks_to_patch",
     "check_hook_completion",
     "clear_failed_test_target_hook_status",
     "clear_hook_suffix",
@@ -143,5 +149,6 @@ __all__ = [
     "try_claim_hook_for_fix",
     "transform_changespec_hooks_field",
     "update_changespec_hooks_field",
+    "update_patch_hooks_field",
     "update_hook_status_line_suffix_type",
 ]

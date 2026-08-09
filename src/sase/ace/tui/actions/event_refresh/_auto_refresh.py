@@ -181,7 +181,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
             )
             self._dirty_notifications = False
 
-        # Skip changespec/agent refresh if the user is in a transient input
+        # Skip patch/agent refresh if the user is in a transient input
         # mode (hint bar or similar is active).
         if getattr(self, "_hint_mode_active", False):
             return
@@ -234,30 +234,30 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
             self._refresh_selected_agent_file_panel()
 
         if (
-            self.current_tab == "changespecs"
+            self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_subtab", "prs") == "prs"
-            and _should_refresh("_dirty_changespecs")
+            and _should_refresh("_dirty_patches")
         ):
-            run_changespecs_refresh = getattr(
+            run_patches_refresh = getattr(
                 self,
-                "_run_changespecs_async_refresh",
+                "_run_patches_async_refresh",
                 None,
             )
-            if callable(run_changespecs_refresh):
-                if not getattr(self, "_changespecs_loading", False) and not getattr(
+            if callable(run_patches_refresh):
+                if not getattr(self, "_patches_loading", False) and not getattr(
                     self,
-                    "_changespecs_refresh_scheduled",
+                    "_patches_refresh_scheduled",
                     False,
                 ):
-                    await run_changespecs_refresh()
-                    self._dirty_changespecs = False
+                    await run_patches_refresh()
+                    self._dirty_patches = False
             else:
                 # Narrow EventAutoRefreshMixin test doubles do not include the
-                # ChangeSpec loader mixin; production uses its overlap guard.
+                # Patch loader mixin; production uses its overlap guard.
                 await self._reload_and_reposition_async()  # type: ignore[attr-defined]
-                self._dirty_changespecs = False
+                self._dirty_patches = False
         elif (
-            self.current_tab == "changespecs"
+            self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_subtab", "prs") != "prs"
         ):
             self._request_active_artifacts_refresh()  # type: ignore[attr-defined]

@@ -23,7 +23,7 @@ StatisticsView = Literal[
     "xprompts",
     "plans_questions",
 ]
-ProjectsGroupBy = Literal["project", "changespec", "drilldown"]
+ProjectsGroupBy = Literal["project", "patch", "drilldown"]
 XPromptsGroupBy = Literal["usage", "model", "project", "pairing"]
 _FIXED_RUNTIME_GROUP_BY: RuntimeGroupBy = "tribe"
 
@@ -61,7 +61,7 @@ VIEW_MICRO_LABELS: dict[StatisticsView, str] = {
 VIEW_DESCRIPTIONS: dict[StatisticsView, str] = {
     "overview": "Totals and trends across runs, commits, plans, and questions.",
     "runners": "Runner occupancy, concurrency trends, and current-limit context.",
-    "projects": "Run, ChangeSpec, commit, and runtime activity by project.",
+    "projects": "Run, Patch, commit, and runtime activity by project.",
     "providers": "Provider, model, and effort usage with success and runtime measures.",
     "activity": "Skill and memory usage across agents in the selected scope.",
     "xprompts": (
@@ -72,7 +72,7 @@ VIEW_DESCRIPTIONS: dict[StatisticsView, str] = {
 
 PROJECTS_GROUP_ORDER: tuple[ProjectsGroupBy, ...] = (
     "project",
-    "changespec",
+    "patch",
     "drilldown",
 )
 XPROMPTS_GROUP_ORDER: tuple[XPromptsGroupBy, ...] = (

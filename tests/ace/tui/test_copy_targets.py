@@ -263,6 +263,6 @@ def test_changespec_link_uses_humanized_name_and_pr_url(
     assert scheduled == [
         (
             "[SASE copy](https://github.com/sase-org/sase/pull/42)",
-            "ChangeSpec Markdown link",
+            "Patch Markdown link",
         )
     ]

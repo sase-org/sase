@@ -22,7 +22,7 @@ class AgentState:
     """Mutable state stored for a single agent row."""
 
     agent_type: AgentType
-    cl_name: str  # ChangeSpec name
+    cl_name: str  # Patch name
     project_file: str  # Path to project spec file
     status: str  # "RUNNING", etc.
     start_time: datetime | None  # Parsed from timestamp suffix
@@ -265,8 +265,8 @@ class AgentState:
         None  # "retrying" | "running_retry" | "running_fallback" | None
     )
 
-    # Whether this agent was loaded from a ChangeSpec field (HOOKS/MENTORS/COMMENTS)
-    _from_changespec: bool = False
+    # Whether this agent was loaded from a Patch field (HOOKS/MENTORS/COMMENTS)
+    _from_patch: bool = False
 
     # Whether this agent has plan auto-approval enabled (via %auto, %auto:tale,
     # %auto:epic, or the Auto-Approve menu). Stays True in memory for tale/epic

@@ -9,31 +9,37 @@ from ..tab_order import ARTIFACTS_TAB
 from ..modals import StatusModal
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "patches", "changespecs", "agents", "axe"]
 
 
 class MarkingMixin:
-    """Mixin providing marking actions for ChangeSpecs."""
+    """Mixin providing marking actions for Patches."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     marked_indices: set[int]
 
+    def _is_patch_tab(self) -> bool:
+        return self.current_tab in {ARTIFACTS_TAB, "patches", "changespecs"}
+
+    def _visible_patches(self) -> list[Patch]:
+        return getattr(self, "patches", getattr(self, "changespecs", []))
+
     def action_toggle_mark(self) -> None:
-        """Toggle mark on the current ChangeSpec or agent."""
+        """Toggle mark on the current Patch or agent."""
         if (
-            self.current_tab == ARTIFACTS_TAB
+            self._is_patch_tab()
             and getattr(self, "current_artifacts_pane_key", "prs") != "prs"
         ):
             self._toggle_artifacts_entry_mark()  # type: ignore[attr-defined]
             return
-        if self.current_tab == "changespecs":
-            self._toggle_mark_changespec()
+        if self._is_patch_tab():
+            self._toggle_mark_patch()
             return
         if self.current_tab == "agents":
             self._toggle_mark_agent()  # type: ignore[attr-defined]
@@ -45,10 +51,11 @@ class MarkingMixin:
             self._toggle_agent_unread()  # type: ignore[attr-defined]
             return
 
-    def _toggle_mark_changespec(self) -> None:
-        """Toggle mark on the currently-selected ChangeSpec."""
-        if not self.changespecs:
-            self.notify("No ChangeSpecs to mark", severity="warning")  # type: ignore[attr-defined]
+    def _toggle_mark_patch(self) -> None:
+        """Toggle mark on the currently-selected Patch."""
+        patches = self._visible_patches()
+        if not patches:
+            self.notify("No Patches to mark", severity="warning")  # type: ignore[attr-defined]
             return
 
         idx = self.current_idx
@@ -64,32 +71,40 @@ class MarkingMixin:
 
         # Patch only the toggled row in place; falls back to a full refresh
         # if the widget can't accept the patch (e.g. width grew).
-        if not self._try_patch_changespec_row(idx):  # type: ignore[attr-defined]
+        patch_row = getattr(
+            self,
+            "_try_patch_patch_row",
+            getattr(self, "_try_patch_changespec_row", None),
+        )
+        if not callable(patch_row) or not patch_row(idx):
             self._refresh_display()  # type: ignore[attr-defined]
         else:
             self._update_info_panel()  # type: ignore[attr-defined]
 
         # Auto-navigate to next spec (with wraparound)
-        if len(self.changespecs) > 1:
-            self.current_idx = (self.current_idx + 1) % len(self.changespecs)
+        if len(patches) > 1:
+            self.current_idx = (self.current_idx + 1) % len(patches)
+
+    def _toggle_mark_changespec(self) -> None:
+        self._toggle_mark_patch()
 
     def action_clear_marks(self) -> None:
         """Clear all marks on the active tab."""
         if (
-            self.current_tab == ARTIFACTS_TAB
+            self._is_patch_tab()
             and getattr(self, "current_artifacts_pane_key", "prs") != "prs"
         ):
             self._clear_artifacts_marks()  # type: ignore[attr-defined]
             return
-        if self.current_tab == "changespecs":
-            self._clear_changespec_marks()
+        if self._is_patch_tab():
+            self._clear_patch_marks()
             return
         if self.current_tab == "agents":
             self._clear_agent_marks()  # type: ignore[attr-defined]
             return
 
-    def _clear_changespec_marks(self) -> None:
-        """Clear all ChangeSpec marks."""
+    def _clear_patch_marks(self) -> None:
+        """Clear all Patch marks."""
         if not self.marked_indices:
             self.notify("No marks to clear", severity="warning")  # type: ignore[attr-defined]
             return
@@ -99,17 +114,21 @@ class MarkingMixin:
         self._refresh_display()  # type: ignore[attr-defined]
         self.notify(f"Cleared {count} mark(s)")  # type: ignore[attr-defined]
 
+    def _clear_changespec_marks(self) -> None:
+        self._clear_patch_marks()
+
     def action_bulk_change_status(self) -> None:
-        """Change status for marked ChangeSpecs."""
-        if self.current_tab != "changespecs":
+        """Change status for marked Patches."""
+        if not self._is_patch_tab():
             return
 
         if not self.marked_indices:
-            self.notify("No ChangeSpecs marked", severity="warning")  # type: ignore[attr-defined]
+            self.notify("No Patches marked", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Get marked changespecs (sorted by index for consistent ordering)
-        marked_specs = [self.changespecs[i] for i in sorted(self.marked_indices)]
+        # Get marked patches (sorted by index for consistent ordering)
+        patches = self._visible_patches()
+        marked_specs = [patches[i] for i in sorted(self.marked_indices)]
 
         # Find common available statuses (intersection)
         common_statuses: set[str] | None = None
@@ -140,14 +159,12 @@ class MarkingMixin:
             return
         self._prompt_and_save_marked_agent_group()  # type: ignore[attr-defined]
 
-    def _apply_bulk_status_change(
-        self, changespecs: list[ChangeSpec], new_status: str
-    ) -> None:
-        """Apply status change to multiple ChangeSpecs."""
+    def _apply_bulk_status_change(self, patches: list[Patch], new_status: str) -> None:
+        """Apply status change to multiple Patches."""
         success_count = 0
         fail_count = 0
 
-        for spec in changespecs:
+        for spec in patches:
             try:
                 self._apply_status_change(spec, new_status)  # type: ignore[attr-defined]
                 success_count += 1
@@ -162,7 +179,7 @@ class MarkingMixin:
 
         # Show summary notification
         if fail_count == 0:
-            self.notify(f"Changed {success_count} ChangeSpec(s) to {new_status}")  # type: ignore[attr-defined]
+            self.notify(f"Changed {success_count} Patch(s) to {new_status}")  # type: ignore[attr-defined]
         else:
             self.notify(  # type: ignore[attr-defined]
                 f"Changed {success_count}, failed {fail_count}",

@@ -42,7 +42,7 @@ def _entry(
     provider: str = "GitHub",
     description: str = "",
     aliases: tuple[str, ...] = (),
-    kind: Literal["project", "changespec"] = "project",
+    kind: Literal["project", "patch", "changespec"] = "project",
     project: str | None = None,
     status: str = "",
 ) -> VcsProjectEntry:
@@ -128,7 +128,7 @@ def test_candidates_include_changespec_metadata() -> None:
     assert [c.name for c in candidates] == ["ship-completion"]
     entry = candidates[0].metadata
     assert isinstance(entry, VcsProjectEntry)
-    assert entry.kind == "changespec"
+    assert entry.kind == "patch"
     assert entry.project == "sase"
     assert entry.status == "Ready"
 

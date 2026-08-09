@@ -16,7 +16,7 @@ class DirectAgentsDataProvider:
     def load_agents(
         self,
         *,
-        changespec_snapshot: list[Any] | None = None,
+        patch_snapshot: list[Any] | None = None,
         full_history: bool = False,
         search_query: str | None = None,
         viewport: AgentsViewport | None = None,
@@ -25,7 +25,7 @@ class DirectAgentsDataProvider:
 
         del search_query, viewport
         agents, load_state = load_tiered_agents(
-            changespec_snapshot=changespec_snapshot,
+            patch_snapshot=patch_snapshot,
             full_history=full_history,
         )
         shared_snapshot = agent_snapshot(

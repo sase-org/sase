@@ -113,10 +113,10 @@ def bead_properties_header(
                 _dependencies_text(issue, snapshot, project=project),
             ),
             ("References", _references_text(issue)),
-            ("ChangeSpec", issue.changespec_name),
+            ("Patch", issue.patch_name),
             (
                 "External bug",
-                f"#{issue.changespec_bug_id}" if issue.changespec_bug_id else "",
+                f"#{issue.patch_bug_id}" if issue.patch_bug_id else "",
             ),
         ]
     )
@@ -187,10 +187,10 @@ def bead_preview_markdown(
         lines.append(f"**Owner:** {issue.owner}  ")
     if issue.model:
         lines.append(f"**Model:** {issue.model}  ")
-    if issue.changespec_name:
-        lines.append(f"**ChangeSpec:** {issue.changespec_name}  ")
-    if issue.changespec_bug_id:
-        lines.append(f"**External bug:** #{issue.changespec_bug_id}  ")
+    if issue.patch_name:
+        lines.append(f"**Patch:** {issue.patch_name}  ")
+    if issue.patch_bug_id:
+        lines.append(f"**External bug:** #{issue.patch_bug_id}  ")
     if issue.design.strip():
         lines.append(f"**Plan reference:** {issue.design.strip()}  ")
         path = (

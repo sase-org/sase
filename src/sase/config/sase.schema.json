@@ -171,7 +171,7 @@
                 "required": ["provider"],
                 "additionalProperties": false,
                 "properties": {
-                  "provider": { "enum": ["changespec", "agent_hood", "agent_clan"] },
+                  "provider": { "enum": ["patch", "changespec", "agent_hood", "agent_clan"] },
                   "name_prefix": { "type": "string" },
                   "statuses": { "type": "array", "items": { "type": "string" } },
                   "hood": { "type": "string", "minLength": 1 },
@@ -181,7 +181,7 @@
             },
             {
               "type": "object",
-              "propertyNames": { "enum": ["changespec", "agent_hood", "agent_clan"] },
+              "propertyNames": { "enum": ["patch", "changespec", "agent_hood", "agent_clan"] },
               "additionalProperties": {
                 "oneOf": [
                   { "type": "object" },
@@ -1195,7 +1195,7 @@
                                 "required": ["provider"],
                                 "additionalProperties": false,
                                 "properties": {
-                                  "provider": { "enum": ["changespec", "agent_hood", "agent_clan"] },
+                                  "provider": { "enum": ["patch", "changespec", "agent_hood", "agent_clan"] },
                                   "name_prefix": { "type": "string" },
                                   "statuses": {
                                     "type": "array",
@@ -1209,7 +1209,7 @@
                             {
                               "type": "object",
                               "propertyNames": {
-                                "enum": ["changespec", "agent_hood", "agent_clan"]
+                                "enum": ["patch", "changespec", "agent_hood", "agent_clan"]
                               },
                               "additionalProperties": {
                                 "oneOf": [

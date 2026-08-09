@@ -100,7 +100,7 @@ def test_awaiting_question_pane_contains_identity_prompt_and_options(
     assert title == "Agent Question"
     assert "Question from codex--fix-hook" in plain
     assert "CODEX(gpt-5.6-sol)" in plain
-    assert "ChangeSpec memory-protection · session 3f2a1234…" in plain
+    assert "Patch memory-protection · session 3f2a1234…" in plain
     assert "Awaiting your answer" in plain
     assert "press Enter to answer" in plain
     assert "Protected memory regenerated" in plain

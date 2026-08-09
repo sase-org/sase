@@ -153,13 +153,13 @@ def _persist_running_kill(agent: Agent) -> None:
 def _persist_hook_kill(agent: Agent) -> None:
     if agent.pid is None:
         return
-    from ....changespec import parse_project_file
-    from ....hooks import update_changespec_hooks_field
+    from ....patch import parse_project_file
+    from ....hooks import update_patch_hooks_field
     from ....hooks.processes import mark_hook_agents_as_killed
     from sase.core.agent_cleanup_execution import mark_hook_agents_as_killed_rust
 
-    changespecs = parse_project_file(agent.project_file)
-    for cs in changespecs:
+    patches = parse_project_file(agent.project_file)
+    for cs in patches:
         if cs.name == agent.cl_name and cs.hooks:
             matched_suffixes: list[str] = []
             killed_hook_agents = []
@@ -178,7 +178,7 @@ def _persist_hook_kill(agent: Agent) -> None:
                 updated_hooks = mark_hook_agents_as_killed_rust(
                     cs.hooks, matched_suffixes
                 ) or mark_hook_agents_as_killed(cs.hooks, killed_hook_agents)
-                update_changespec_hooks_field(
+                update_patch_hooks_field(
                     agent.project_file, agent.cl_name, updated_hooks
                 )
             break
@@ -187,13 +187,13 @@ def _persist_hook_kill(agent: Agent) -> None:
 def _persist_mentor_kill(agent: Agent) -> None:
     if agent.pid is None:
         return
-    from ....changespec import parse_project_file
+    from ....patch import parse_project_file
     from ....hooks.processes import mark_mentor_agents_as_killed
-    from ....mentors import update_changespec_mentors_field
+    from ....mentors import update_patch_mentors_field
     from sase.core.agent_cleanup_execution import mark_mentor_agents_as_killed_rust
 
-    changespecs = parse_project_file(agent.project_file)
-    for cs in changespecs:
+    patches = parse_project_file(agent.project_file)
+    for cs in patches:
         if cs.name == agent.cl_name and cs.mentors:
             matched_suffixes: list[str] = []
             killed_mentor_agents = []
@@ -212,7 +212,7 @@ def _persist_mentor_kill(agent: Agent) -> None:
                 updated_mentors = mark_mentor_agents_as_killed_rust(
                     cs.mentors, matched_suffixes
                 ) or mark_mentor_agents_as_killed(cs.mentors, killed_mentor_agents)
-                update_changespec_mentors_field(
+                update_patch_mentors_field(
                     agent.project_file, agent.cl_name, updated_mentors
                 )
             break
@@ -221,13 +221,13 @@ def _persist_mentor_kill(agent: Agent) -> None:
 def _persist_crs_kill(agent: Agent) -> None:
     if agent.pid is None:
         return
-    from ....changespec import parse_project_file
-    from ....comments import update_changespec_comments_field
+    from ....patch import parse_project_file
+    from ....comments import update_patch_comments_field
     from ....comments.operations import mark_comment_agents_as_killed
     from sase.core.agent_cleanup_execution import mark_comment_agents_as_killed_rust
 
-    changespecs = parse_project_file(agent.project_file)
-    for cs in changespecs:
+    patches = parse_project_file(agent.project_file)
+    for cs in patches:
         if cs.name == agent.cl_name and cs.comments:
             matched_suffixes: list[str] = []
             killed_comment_agents = []
@@ -244,7 +244,7 @@ def _persist_crs_kill(agent: Agent) -> None:
                 updated_comments = mark_comment_agents_as_killed_rust(
                     cs.comments, matched_suffixes
                 ) or mark_comment_agents_as_killed(cs.comments, killed_comment_agents)
-                update_changespec_comments_field(
+                update_patch_comments_field(
                     agent.project_file, agent.cl_name, updated_comments
                 )
             break
@@ -282,7 +282,7 @@ def _persist_workflow_kill(
                 f"workflow({workflow_name})",
             )
 
-    if not agent._from_changespec:
+    if not agent._from_patch:
         save_dismissed_bundle(agent)
     artifact_delete_paths = [agent.artifacts_dir or agent.get_artifacts_dir()]
     if not agent.is_workflow_child and agent.raw_suffix:
@@ -292,7 +292,7 @@ def _persist_workflow_kill(
                 and step.parent_timestamp == agent.raw_suffix
                 and step.parent_workflow == agent.workflow
             ):
-                if not step._from_changespec:
+                if not step._from_patch:
                     save_dismissed_bundle(step)
                 artifact_delete_paths.append(
                     step.artifacts_dir or step.get_artifacts_dir()

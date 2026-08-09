@@ -61,10 +61,10 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
     ace_parser.add_argument(
         "-t",
         "--tab",
-        choices=["artifacts", "changespecs", "agents", "axe"],
+        choices=["artifacts", "changespecs", "patches", "agents", "axe"],
         default="agents",
-        help="Tab to focus on startup; 'changespecs' remains a legacy alias for "
-        "'artifacts' (default: agents)",
+        help="Tab to focus on startup; 'changespecs' and 'patches' remain legacy "
+        "aliases for 'artifacts' (default: agents)",
     )
     ace_parser.add_argument(
         "-T",

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from rich.text import Text
 
-from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
+from sase.ace.patch.models import DeltaEntry, DeltaLineStats
 from sase.ace.deltas.compute import semantic_line_stats
 
 from ...models.agent import Agent

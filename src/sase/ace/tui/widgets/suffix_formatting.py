@@ -1,4 +1,4 @@
-"""Suffix formatting utilities for ChangeSpec detail display.
+"""Suffix formatting utilities for Patch detail display.
 
 Contains common styling logic for suffix types used across different sections
 (COMMITS, HOOKS, COMMENTS, MENTORS).

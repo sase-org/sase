@@ -5,7 +5,7 @@ from __future__ import annotations
 from textual.containers import VerticalScroll
 
 from ...keymaps import KeymapRegistry
-from ...widgets import AgentOnboarding, AxeOnboarding, ChangeSpecOnboarding
+from ...widgets import AgentOnboarding, AxeOnboarding, PatchOnboarding
 from .binding_common import TabName
 
 
@@ -17,10 +17,10 @@ def build_guide_view(
     agents_plugins_installed: bool = True,
 ) -> VerticalScroll:
     """Build a fresh onboarding guide widget for the selected app tab."""
-    if current_tab == "changespecs":
-        changespecs_guide = ChangeSpecOnboarding(classes="help-guide-content")
-        changespecs_guide.set_keymap_registry(registry)
-        return changespecs_guide
+    if current_tab == "artifacts":
+        patches_guide = PatchOnboarding(classes="help-guide-content")
+        patches_guide.set_keymap_registry(registry)
+        return patches_guide
     if current_tab == "agents":
         agents_guide = AgentOnboarding(classes="help-guide-content")
         agents_guide.set_launch_targets_available(

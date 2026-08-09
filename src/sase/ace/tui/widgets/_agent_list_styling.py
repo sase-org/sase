@@ -15,7 +15,7 @@ _MIN_BANNER_WIDTH = 40
 # L0 (project) banners split into a heavyweight bar+label region (bold sky
 # blue) and a dimmer rule+chip region (dim sky blue) so the label reads as
 # the brightest element while the rule and right-aligned chip stay
-# secondary.  Level-2 visual banners (STANDARD L1 ChangeSpec and real
+# secondary.  Level-2 visual banners (STANDARD L1 Patch and real
 # BY_DATE L1 subgroup banners) inherit the same bar+rule treatment but in
 # a slightly cooler accent so the top-level bucket still reads as the
 # dominant header.  Level-3 visual banners (name-root) use a single
@@ -134,5 +134,5 @@ _FAMILY_NAME_STYLE = _FAMILY_IDENTITY_COLOR
 _TYPE_GLYPHS: dict[str, str] = {
     "workflow": "≡",
     "cl": "❑",
-    "changespec": "❑",
+    "patch": "❑",
 }

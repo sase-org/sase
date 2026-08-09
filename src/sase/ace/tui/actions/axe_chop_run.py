@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from .axe_display import ChopSnapshot
     from ..widgets.bgcmd_list import AxeItem
 
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 class AxeChopRunMixin:

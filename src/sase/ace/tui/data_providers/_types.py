@@ -54,7 +54,7 @@ class AgentsDataProvider(Protocol):
     def load_agents(
         self,
         *,
-        changespec_snapshot: list[Any] | None = None,
+        patch_snapshot: list[Any] | None = None,
         full_history: bool = False,
         search_query: str | None = None,
         viewport: AgentsViewport | None = None,

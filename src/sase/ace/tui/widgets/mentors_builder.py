@@ -1,10 +1,10 @@
-"""MENTORS section builder for ChangeSpec detail display."""
+"""MENTORS section builder for Patch detail display."""
 
 import os
 
 from rich.text import Text
 
-from ...changespec import ChangeSpec
+from ...patch import Patch
 from ...display_helpers import format_profile_with_count
 from ...hooks import format_timestamp_display
 from ...scheduler.mentor_runner import get_mentor_chat_path
@@ -15,7 +15,7 @@ from .suffix_formatting import SUFFIX_STYLES, append_suffix_to_text
 
 def build_mentors_section(
     text: Text,
-    changespec: ChangeSpec,
+    patch: Patch,
     mentors_fold: FoldLevel = FoldLevel.COLLAPSED,
     with_hints: bool = False,
     hints_for: str | None = None,
@@ -31,7 +31,7 @@ def build_mentors_section(
 
     Args:
         text: The Rich Text object to append to.
-        changespec: The ChangeSpec to display.
+        patch: The Patch to display.
         mentors_fold: Fold level for the mentors section.
         with_hints: Whether to show hint numbers for viewable entries.
         hint_tracker: Current hint tracking state (counter, mappings, etc.).
@@ -46,7 +46,7 @@ def build_mentors_section(
     hint_to_entry_id = dict(hint_tracker.hint_to_entry_id) if hint_tracker else {}
     mentor_hint_to_info = dict(hint_tracker.mentor_hint_to_info) if hint_tracker else {}
 
-    if not changespec.mentors:
+    if not patch.mentors:
         return HintTracker(
             counter=hint_counter,
             mappings=hint_mappings,
@@ -57,8 +57,8 @@ def build_mentors_section(
 
     # Find the latest (highest numeric) commit ID from COMMITS field
     latest_entry_id: str | None = None
-    if changespec.commits:
-        for commit in changespec.commits:
+    if patch.commits:
+        for commit in patch.commits:
             # Only consider all-numeric entries (e.g., "5", not "5a")
             if commit.proposal_letter is None:
                 if latest_entry_id is None or commit.number > int(latest_entry_id):
@@ -72,7 +72,7 @@ def build_mentors_section(
         hint_counter += 1
     text.append("MENTORS:\n", style="bold #87D7FF")
 
-    for mentor_entry in changespec.mentors:
+    for mentor_entry in patch.mentors:
         visible_profiles = mentor_entry.profiles
 
         # Skip entry entirely if no visible profiles
@@ -212,7 +212,7 @@ def build_mentors_section(
                     and msl.status in ("PASSED", "COMMENTED", "FAILED")
                 ):
                     chat_path = get_mentor_chat_path(
-                        changespec.name, msl.mentor_name, msl.timestamp
+                        patch.name, msl.mentor_name, msl.timestamp
                     )
                     if os.path.exists(chat_path):
                         hint_mappings[hint_counter] = chat_path

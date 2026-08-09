@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.modals.project_discovery import is_launchable_project
 
@@ -17,7 +17,7 @@ from ._entry_quick_launch import EntryQuickLaunchMixin
 from ._entry_relaunch import EntryRelaunchMixin
 
 if TYPE_CHECKING:
-    from ....changespec import ChangeSpec
+    from ....patch import Patch
     from ...models import Agent
     from ...modals import SelectionItem
     from ._types import PromptContext, TabName
@@ -28,7 +28,7 @@ def _vcs_prompt_prefix(project_file: str, name: str) -> str:
 
     Args:
         project_file: Path to the project spec file.
-        name: Project or ChangeSpec name to embed in the prefix.
+        name: Project or Patch name to embed in the prefix.
 
     Returns:
         A string such as ``"#gh:my_cl "``.
@@ -65,7 +65,7 @@ class _EntryPointsBaseMixin:
     """Shared state and compatibility helpers for entry point mixins."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     marked_indices: set[int]
@@ -74,9 +74,25 @@ class _EntryPointsBaseMixin:
     # State for prompt input
     _prompt_context: PromptContext | None = None
     # State for bulk agent runs
-    _bulk_changespecs: list[ChangeSpec] | None = None
+    _bulk_patches: list[Patch] | None = None
     # State for repeat-last-+/Ctrl+Space selection
     _last_custom_agent_selection: SelectionItem | None = None
+
+    @property
+    def changespecs(self) -> list[Patch]:
+        return getattr(self, "patches", [])
+
+    @changespecs.setter
+    def changespecs(self, value: list[Patch]) -> None:
+        self.patches = value
+
+    @property
+    def _bulk_changespecs(self) -> Any:
+        return getattr(self, "_bulk_patches", None)
+
+    @_bulk_changespecs.setter
+    def _bulk_changespecs(self, value: Any) -> None:
+        self._bulk_patches = value
 
     def _vcs_prompt_prefix_or_notify(self, project_file: str, name: str) -> str | None:
         """Build a VCS prompt prefix, or show a TUI error when detection fails."""
@@ -159,7 +175,7 @@ class _EntryPointsBaseMixin:
         if not name:
             return False
 
-        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+        from sase.ace.patch.project_spec_path import preferred_project_spec_path
         from sase.core.paths import sase_projects_dir
 
         project_dir = str(sase_projects_dir() / selection.project_name)

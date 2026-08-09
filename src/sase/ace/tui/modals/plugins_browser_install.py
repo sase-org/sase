@@ -69,7 +69,7 @@ def plan_install_preview(name: str, *, offline: bool) -> InstallPreview:
     """Plan ``install <name>`` (index, then git) for the confirm-preview modal.
 
     Delegates to :func:`sase.plugins.operations.plan_install` — the single
-    source of truth shared with the ChangeSpecI — once per source. Cache-first
+    source of truth shared with the PatchI — once per source. Cache-first
     (``refresh=False``); the optional git variant is only resolved when the
     index plan is ready, so a terminal outcome short-circuits the second load.
     """
@@ -133,7 +133,7 @@ def install_many_success_message(outcome: InstallManyOutcome) -> str:
 def missing_plugin_message(
     query: str, suggestions: tuple[PluginCatalogEntry, ...]
 ) -> str:
-    """The not-found toast, mirroring the ChangeSpecI's ranked-suggestions wording."""
+    """The not-found toast, mirroring the PatchI's ranked-suggestions wording."""
     if suggestions:
         names = ", ".join(entry.name for entry in suggestions)
         return f"No plugin named '{query}' in the catalog. Did you mean: {names}?"

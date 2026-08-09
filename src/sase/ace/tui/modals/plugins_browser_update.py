@@ -50,7 +50,7 @@ class UpdatePreview:
 
     *plan* is the single :class:`UpdatePlan` outcome — a terminal one
     (:class:`NotUvTool` / :class:`NotInstalled` / :class:`UpdateUnknown`) routed
-    to a ChangeSpecI-matching toast, or an :class:`UpdateReady` opened in the
+    to a PatchI-matching toast, or an :class:`UpdateReady` opened in the
     confirm-preview modal. *error* carries a catalog/receipt failure message
     instead of a plan. Unlike install, update offers no source toggle, so there
     is only ever one plan.
@@ -66,7 +66,7 @@ def plan_update_preview(
     """Plan ``update <query>`` / ``update --all`` for the confirm-preview modal.
 
     Delegates to :func:`sase.plugins.operations.plan_update` — the single source
-    of truth shared with the ChangeSpecI — once, cache-first (``refresh=False``). A
+    of truth shared with the PatchI — once, cache-first (``refresh=False``). A
     catalog/receipt failure becomes a toast-able error rather than a plan.
     """
     try:
@@ -84,7 +84,7 @@ def update_subject(plan: UpdateReady) -> str:
 def update_summary(plan: UpdateReady) -> str:
     """The resolved-plugin-set line shown in the confirm-preview modal.
 
-    Mirrors the ChangeSpecI's ``update --dry-run`` "Upgrades ... (sase core stays pinned)".
+    Mirrors the PatchI's ``update --dry-run`` "Upgrades ... (sase core stays pinned)".
     """
     return f"Upgrades {update_subject(plan)}  (sase core stays pinned)"
 
@@ -104,7 +104,7 @@ def update_success_message(outcome: UpdateOutcome) -> str:
 
 
 def not_installed_message(name: str) -> str:
-    """The ``update`` not-installed toast, mirroring the ChangeSpecI's wording."""
+    """The ``update`` not-installed toast, mirroring the PatchI's wording."""
     return f"{name} is not installed. Run `sase plugin install {name}` to add it first."
 
 

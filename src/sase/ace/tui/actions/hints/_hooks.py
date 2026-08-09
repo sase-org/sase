@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from ....changespec import ChangeSpec
+from ....patch import Patch
 from ....hint_types import EditHooksResult
 from ....hooks import get_failed_hooks_file_path
-from ...widgets import ChangeSpecDetail, HintInputBar
+from ...widgets import PatchDetail, HintInputBar
 from ._types import HintMixinBase
 
 
@@ -13,7 +13,7 @@ class HookEditingMixin(HintMixinBase):
     """Mixin providing hook editing actions."""
 
     def action_edit_hooks(self) -> None:
-        """Edit hooks for the current ChangeSpec."""
+        """Edit hooks for the current Patch."""
         if self._refocus_existing_hint_bar():
             return
 
@@ -21,24 +21,24 @@ class HookEditingMixin(HintMixinBase):
             self.action_fork_agent()  # type: ignore[attr-defined]
             return
 
-        if getattr(self, "current_tab", None) != "changespecs":
+        if getattr(self, "current_tab", None) != "artifacts":
             return
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Re-render detail with hints for hooks_latest_only
-        detail_widget = self.query_one("#detail-panel", ChangeSpecDetail)  # type: ignore[attr-defined]
+        detail_widget = self.query_one("#detail-panel", PatchDetail)  # type: ignore[attr-defined]
         query_str = self.canonical_query_string  # type: ignore[attr-defined]
         hint_mappings, hook_hint_to_idx, hint_to_entry_id, mentor_hint_to_info = (
             detail_widget.update_display_with_hints(
-                changespec,
+                patch,
                 query_str,
                 hints_for="hooks_latest_only",
                 hooks_collapsed=self.hooks_collapsed,  # type: ignore[attr-defined]
-                commits_collapsed=self.commits_collapsed,  # type: ignore[attr-defined]
+                stitches_collapsed=self.stitches_collapsed,  # type: ignore[attr-defined]
                 mentors_collapsed=self.mentors_collapsed,  # type: ignore[attr-defined]
                 timestamps_collapsed=self.timestamps_collapsed,  # type: ignore[attr-defined]
                 deltas_collapsed=self.deltas_collapsed,  # type: ignore[attr-defined]
@@ -52,7 +52,8 @@ class HookEditingMixin(HintMixinBase):
         self._hook_hint_to_idx = hook_hint_to_idx
         self._hint_to_entry_id = hint_to_entry_id
         self._mentor_hint_to_info = mentor_hint_to_info
-        self._hint_changespec_name = changespec.name
+        self._hint_patch_name = patch.name
+        self._hint_changespec_name = patch.name  # type: ignore[attr-defined]
 
         # Mount the hint input bar
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
@@ -66,13 +67,13 @@ class HookEditingMixin(HintMixinBase):
         if self._refocus_existing_hint_bar():
             return
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Get the failed hooks file path
-        file_path = get_failed_hooks_file_path(changespec)
+        file_path = get_failed_hooks_file_path(patch)
         if not file_path:
             self.notify("No failed hooks file found", severity="warning")  # type: ignore[attr-defined]
             return
@@ -100,10 +101,11 @@ class HookEditingMixin(HintMixinBase):
         self._failed_hooks_targets = targets
         self._failed_hooks_file_path = file_path
         self._hint_mode_active = True
-        self._hint_changespec_name = changespec.name
+        self._hint_patch_name = patch.name
+        self._hint_changespec_name = patch.name  # type: ignore[attr-defined]
 
         # Update detail panel to show numbered targets
-        detail_widget = self.query_one("#detail-panel", ChangeSpecDetail)  # type: ignore[attr-defined]
+        detail_widget = self.query_one("#detail-panel", PatchDetail)  # type: ignore[attr-defined]
         detail_widget.show_failed_hooks_targets(targets, file_path)
 
         # Mount the hint input bar
@@ -115,21 +117,21 @@ class HookEditingMixin(HintMixinBase):
 
     def _apply_hook_changes(
         self,
-        changespec: ChangeSpec,
+        patch: Patch,
         result: EditHooksResult,
         hook_hint_to_idx: dict[int, int],
     ) -> bool:
         """Apply hook changes based on modal result."""
         if result.action_type == "rerun_delete":
-            return self._handle_rerun_delete_hooks(changespec, result, hook_hint_to_idx)
+            return self._handle_rerun_delete_hooks(patch, result, hook_hint_to_idx)
         elif result.action_type == "test_targets":
-            return self._add_test_target_hooks(changespec, result.test_targets)
+            return self._add_test_target_hooks(patch, result.test_targets)
         else:
-            return self._add_custom_hook(changespec, result.hook_command)
+            return self._add_custom_hook(patch, result.hook_command)
 
     def _handle_rerun_delete_hooks(
         self,
-        changespec: ChangeSpec,
+        patch: Patch,
         result: EditHooksResult,
         hook_hint_to_idx: dict[int, int],
     ) -> bool:
@@ -202,14 +204,14 @@ class HookEditingMixin(HintMixinBase):
             # Kill any running processes/agents for hooks being rerun or deleted
             all_affected_indices = hook_indices_to_rerun | hook_indices_to_delete
             killed_count = kill_running_processes_for_hooks(
-                changespec.hooks, all_affected_indices
+                patch.hooks, all_affected_indices
             )
             if killed_count > 0:
                 self.notify(f"Killed {killed_count} running process(es)")  # type: ignore[attr-defined]
 
             # Extract command strings from in-memory hooks (may be stale, but just
             # using for identification - actual hooks will be re-read from disk)
-            hooks_list = changespec.hooks or []
+            hooks_list = patch.hooks or []
             commands_to_rerun: set[str] = set()
             commands_to_delete: set[str] = set()
             for idx in hook_indices_to_rerun:
@@ -221,8 +223,8 @@ class HookEditingMixin(HintMixinBase):
 
             # Use the new function that re-reads fresh state from disk
             hook_success = rerun_delete_hooks_by_command(
-                changespec.file_path,
-                changespec.name,
+                patch.file_path,
+                patch.name,
                 commands_to_rerun,
                 commands_to_delete,
                 entry_ids_to_clear,
@@ -251,8 +253,8 @@ class HookEditingMixin(HintMixinBase):
                 mentors_to_clear_by_entry[entry_id].add((mentor_name, profile_name))
 
             mentor_success = clear_mentor_status_lines(
-                changespec.file_path,
-                changespec.name,
+                patch.file_path,
+                patch.name,
                 mentors_to_clear_by_entry,
             )
 
@@ -269,17 +271,15 @@ class HookEditingMixin(HintMixinBase):
 
         return success
 
-    def _add_test_target_hooks(
-        self, changespec: ChangeSpec, test_targets: list[str]
-    ) -> bool:
+    def _add_test_target_hooks(self, patch: Patch, test_targets: list[str]) -> bool:
         """Add bb_rabbit_test hooks for each test target."""
-        from ....hooks import add_test_target_hooks_to_changespec
+        from ....hooks import add_test_target_hooks_to_patch
 
-        # Use add_test_target_hooks_to_changespec which handles multiple targets
+        # Use add_test_target_hooks_to_patch which handles multiple targets
         # correctly by adding all hooks in a single write operation
-        success = add_test_target_hooks_to_changespec(
-            changespec.file_path,
-            changespec.name,
+        success = add_test_target_hooks_to_patch(
+            patch.file_path,
+            patch.name,
             test_targets,
             None,  # Re-read fresh from disk to avoid overwriting concurrent changes
         )
@@ -291,18 +291,16 @@ class HookEditingMixin(HintMixinBase):
             self.notify("Error adding hooks", severity="error")  # type: ignore[attr-defined]
             return False
 
-    def _add_custom_hook(
-        self, changespec: ChangeSpec, hook_command: str | None
-    ) -> bool:
+    def _add_custom_hook(self, patch: Patch, hook_command: str | None) -> bool:
         """Add a custom hook command."""
-        from ....hooks import add_hook_to_changespec
+        from ....hooks import add_hook_to_patch
 
         if not hook_command:
             return False
 
-        success = add_hook_to_changespec(
-            changespec.file_path,
-            changespec.name,
+        success = add_hook_to_patch(
+            patch.file_path,
+            patch.name,
             hook_command,
             None,  # Re-read fresh from disk to avoid overwriting concurrent changes
         )

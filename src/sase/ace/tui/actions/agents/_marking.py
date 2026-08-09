@@ -46,7 +46,7 @@ def _persist_marked_agent_group_save(
     )
 
     for agent in agents:
-        if not agent._from_changespec:
+        if not agent._from_patch:
             save_dismissed_bundle(agent)
 
     save_dismissed_agent_group(group)

@@ -74,7 +74,7 @@ async def test_range_and_project_group_switches_coalesce_to_latest_selection(
         assert calls[-1][2] == "sase"
         assert pane._preset_key == "30d"
         assert pane._range.display_label == "Last 30 days"
-        assert pane._projects_group_by == "changespec"
+        assert pane._projects_group_by == "patch"
         _assert_range_scope_matches_selection(pane)
 
 
@@ -148,9 +148,9 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
         pane.action_cycle_group()
         await page.pause()
 
-        assert pane._projects_group_by == "changespec"
+        assert pane._projects_group_by == "patch"
         assert len(calls) == 1
-        assert "Projects · By ChangeSpec" in _scope_plain(pane, "group")
+        assert "Projects · By Patch" in _scope_plain(pane, "group")
         assert "group" not in (
             pane.query_one("#statistics-hints", Static).render().plain
         )
@@ -165,7 +165,7 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
         pane._set_view("providers")
         pane.action_cycle_group()
         await page.pause()
-        assert pane._projects_group_by == "changespec"
+        assert pane._projects_group_by == "patch"
         assert pane._xprompts_group_by == "model"
         assert len(calls) == 1
         assert pane.query_one("#statistics-scope-group", Static).display is False
@@ -173,7 +173,7 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
         pane._set_view("projects")
         await page.pause()
         assert pane.query_one("#statistics-scope-group", Static).display is True
-        assert "Projects · By ChangeSpec" in _scope_plain(pane, "group")
+        assert "Projects · By Patch" in _scope_plain(pane, "group")
         assert len(calls) == 1
 
 

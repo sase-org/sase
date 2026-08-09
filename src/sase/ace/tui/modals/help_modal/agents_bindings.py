@@ -31,11 +31,11 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             "Navigation",
             [
                 (
-                    f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
+                    f"{d(a.next_patch)} / {d(a.prev_patch)}",
                     "Move row / selected panel",
                 ),
                 (
-                    f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
+                    f"{d(a.next_patch)} / {d(a.prev_patch)}",
                     "Lone row: cycle whole panels",
                 ),
                 (
@@ -359,7 +359,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             "Agent Query Syntax",
             [
                 ("status:VAL", "Substring on status (e.g. queued)"),
-                ("cl:VAL", "Substring on ChangeSpec name"),
+                ("cl:VAL", "Substring on Patch name"),
                 ("project:VAL", "Substring on project basename"),
                 ("name:VAL", "Substring on agent name"),
                 ("model:VAL", "Substring on model"),
@@ -414,7 +414,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ("↺", "Reverted (changes undone)"),
                 ("↻N", "N attempts / retry depth"),
                 ("≡", "Workflow row"),
-                ("❑", "ChangeSpec row"),
+                ("❑", "Patch row"),
                 ("⚡", "Auto-approve (plan)"),
                 ("⚡T", "Auto-approve as tale"),
                 ("⚡E", "Auto-approve as epic"),
@@ -435,7 +435,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
                 ("[ / ]", "Switch Keymaps / Guide"),
                 (
-                    d(a.start_agent_from_changespec),
+                    d(a.start_agent_from_patch),
                     "Repeat last +/Ctrl+Space selection",
                 ),
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),

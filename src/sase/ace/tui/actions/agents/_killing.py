@@ -14,9 +14,9 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
 
-# Import ChangeSpec unconditionally since it's used as a type annotation
+# Import Patch unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures).
-from ....changespec import ChangeSpec
+from ....patch import Patch
 
 from ._dismissing import AgentDismissingMixin
 from ._kill_all_actions import AgentKillAllActionsMixin
@@ -73,8 +73,8 @@ class AgentKillingMixin(
     declare attributes that are defined at runtime by AceApp.
     """
 
-    # ChangeSpec state
-    changespecs: list[ChangeSpec]
+    # Patch state
+    patches: list[Patch]
     current_idx: int
     current_tab: str
 

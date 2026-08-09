@@ -14,7 +14,7 @@ from rich.text import Text
 
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 
-from ...changespec import ChangeSpec
+from ...patch import Patch
 from ...hooks import get_failed_hooks_file_path
 from ...operations import get_available_workflows
 from ..models.agent_family_members import family_roster_container
@@ -104,7 +104,7 @@ class KeybindingBindingsMixin:
         agent: "Agent | None",
         *,
         completed_count: int = 0,
-        can_jump_to_changespec: bool = False,
+        can_jump_to_patch: bool = False,
         marked_count: int = 0,
         attempt_pinned: bool = False,
         panel_focused: bool = False,
@@ -187,7 +187,7 @@ class KeybindingBindingsMixin:
         if panel_focused:
             bindings.append(
                 (
-                    f"{self._kd('next_changespec')}/{self._kd('prev_changespec')}",
+                    f"{self._kd('next_patch')}/{self._kd('prev_patch')}",
                     "panel",
                 )
             )
@@ -347,9 +347,9 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("start_tmux_mode"), "tmux"))
             bindings.append((self._kd("open_tmux"), "tmux (primary)"))
 
-        # Jump to PR (only when resolution logic found a valid ChangeSpec)
-        if can_jump_to_changespec:
-            bindings.append((self._kd("jump_to_agent_changespec"), "go to PR"))
+        # Jump to PR (only when resolution logic found a valid Patch)
+        if can_jump_to_patch:
+            bindings.append((self._kd("jump_to_agent_patch"), "go to PR"))
 
         if has_artifact_files and marked_count == 0:
             bindings.append((self._kd("open_artifact_files"), "artifact files"))
@@ -377,39 +377,39 @@ class KeybindingBindingsMixin:
 
     def _compute_available_bindings(
         self,
-        changespec: ChangeSpec,
+        patch: Patch,
         *,
         mark_count: int = 0,
     ) -> list[tuple[str, str]]:
-        """Compute conditional bindings for ChangeSpecs tab.
+        """Compute conditional bindings for Patches tab.
 
-        Includes entry-dependent bindings (based on the selected ChangeSpec)
+        Includes entry-dependent bindings (based on the selected Patch)
         and app-state bindings (e.g. marks exist).
         """
         bindings: list[tuple[str, str]] = []
 
         # Accept proposal (only if proposed entries exist)
-        if changespec.commits and any(e.is_proposed for e in changespec.commits):
+        if patch.commits and any(e.is_proposed for e in patch.commits):
             bindings.append((self._kd("accept_proposal"), "accept"))
 
         # Diff (only if PR exists)
-        if changespec.pr_url is not None:
+        if patch.pr_url is not None:
             bindings.append((self._kd("show_diff"), "diff"))
 
         # Get base status for visibility checks
-        from ...changespec import get_base_status
+        from ...patch import get_base_status
 
-        base_status = get_base_status(changespec.status)
+        base_status = get_base_status(patch.status)
 
         _EDITABLE = ("WIP", "Draft", "Ready", "Mailed")
 
         # Reword (only if PR exists AND status is editable)
-        if changespec.pr_url is not None:
+        if patch.pr_url is not None:
             if base_status in _EDITABLE:
                 bindings.append((self._kd("reword"), "reword"))
 
         # Add tag (only if PR exists AND status is editable)
-        if changespec.pr_url is not None:
+        if patch.pr_url is not None:
             if base_status in _EDITABLE:
                 bindings.append((self._kd("add_tag"), "add tag"))
 
@@ -422,8 +422,8 @@ class KeybindingBindingsMixin:
             bindings.append((self._kd("rebase"), "rebase"))
 
         # Rewind (only if status is not Submitted/Reverted and >=2 accepted entries)
-        if base_status not in ("Submitted", "Reverted") and changespec.commits:
-            numeric_entries = [e for e in changespec.commits if not e.is_proposed]
+        if base_status not in ("Submitted", "Reverted") and patch.commits:
+            numeric_entries = [e for e in patch.commits if not e.is_proposed]
             if len(numeric_entries) >= 2:
                 bindings.append((self._kd("start_rewind"), "rewind"))
 
@@ -436,15 +436,15 @@ class KeybindingBindingsMixin:
             bindings.append((self._kd("rename_cl"), "rename"))
 
         # View files (only if PR exists)
-        if changespec.pr_url is not None:
+        if patch.pr_url is not None:
             bindings.append((self._kd("view_files"), "files"))
 
         # Hooks from failed targets (only if failed hooks file exists)
-        if get_failed_hooks_file_path(changespec):
+        if get_failed_hooks_file_path(patch):
             bindings.append((self._kd("hooks_or_collapse_all"), "hooks (failed)"))
 
-        # Run workflows (only if workflows available for this ChangeSpec)
-        workflows = get_available_workflows(changespec)
+        # Run workflows (only if workflows available for this Patch)
+        workflows = get_available_workflows(patch)
         if len(workflows) == 1:
             bindings.append((self._kd("run_workflow"), f"run {workflows[0]}"))
         elif len(workflows) > 1:

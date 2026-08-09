@@ -278,7 +278,7 @@ async def test_tab_switches_admin_center_tab_on_eligible_row(
 
         assert not page.app.query("#prompt-input-bar")
         await page.expect_modal("ConfigCenterModal")
-        assert page.app.current_tab == "changespecs"
+        assert page.app.current_tab == "artifacts"
 
 
 async def test_shift_tab_switches_admin_center_tab_on_yaml_backed_row(
@@ -294,7 +294,7 @@ async def test_shift_tab_switches_admin_center_tab_on_yaml_backed_row(
 
         assert not page.app.query("#prompt-input-bar")
         await page.expect_modal("ConfigCenterModal")
-        assert page.app.current_tab == "changespecs"
+        assert page.app.current_tab == "artifacts"
 
 
 async def test_empty_filter_reserves_numeric_tab_keys(
@@ -389,4 +389,4 @@ async def test_tab_switches_main_tab_after_typed_filter_text(
         assert not page.app.query("#prompt-input-bar")
         await page.expect_modal("ConfigCenterModal")
         assert filter_input.value == "n"
-        assert page.app.current_tab == "changespecs"
+        assert page.app.current_tab == "artifacts"

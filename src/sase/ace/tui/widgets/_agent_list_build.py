@@ -91,8 +91,8 @@ def compute_tier_styles(
 
     The gutter for a row is the list of visible ancestor tier styles that
     contribute a ``│  `` segment.  L0 (project / bucket) banners always
-    contribute.  Middle-tier banners contribute the cooler ChangeSpec
-    rule style: STANDARD L1 ChangeSpec banners, real BY_DATE L1 subgroup
+    contribute.  Middle-tier banners contribute the cooler Patch
+    rule style: STANDARD L1 Patch banners, real BY_DATE L1 subgroup
     banners, and name-root banners that own dotted-name prefix subgroups.
     Terminal branch banners and synthetic ``(no time)`` buckets do not
     add a descendant tier.  Order is outermost first.

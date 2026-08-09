@@ -496,3 +496,6 @@ def mark_comment_agents_as_killed(
             updated_comments.append(comment)
 
     return updated_comments
+
+
+update_patch_comments_field = update_changespec_comments_field

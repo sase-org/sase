@@ -26,7 +26,7 @@ class AgentPanelDetailMixin:
         if self.current_tab == "agents":
             self._refresh_agent_file()
         else:
-            # Call parent implementation for ChangeSpecs
+            # Call parent implementation for Patches
             super().action_show_diff()  # type: ignore[misc]
 
     def _refresh_agent_file(self) -> None:
@@ -51,7 +51,7 @@ class AgentPanelDetailMixin:
         elif self.current_tab == "axe":
             self._open_selected_axe_entry_editor()  # type: ignore[attr-defined]
         else:
-            # Call parent implementation for ChangeSpecs
+            # Call parent implementation for Patches
             super().action_edit_spec()  # type: ignore[misc]
 
     def _open_agent_chat(self) -> None:

@@ -46,7 +46,7 @@ class AgentWaitActionsMixin:
         if self.current_tab == "agents":
             self._wait_agent()
         else:
-            # Call parent implementation for ChangeSpecs
+            # Call parent implementation for Patches
             super().action_reword()  # type: ignore[misc]
 
     def _wait_agent(self) -> None:

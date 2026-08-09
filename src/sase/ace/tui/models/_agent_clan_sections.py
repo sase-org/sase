@@ -48,7 +48,7 @@ CLAN_CONTEXT_LANE_ORDER = (
     "WORKSPACES",
 )
 
-_SPECIAL_META_KEYS = frozenset({"meta_project", "meta_changespec", "meta_workspace"})
+_SPECIAL_META_KEYS = frozenset({"meta_project", "meta_patch", "meta_workspace"})
 _COMMIT_META_KEYS = frozenset(
     {"meta_commit_message", "meta_new_commit", "meta_commit_cwd", "meta_commits"}
 )

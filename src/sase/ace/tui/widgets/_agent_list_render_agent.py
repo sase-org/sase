@@ -238,7 +238,7 @@ def format_agent_option(
             name_style = "bold #00D7AF" if is_selected else "#00D7AF"
 
         # Agent display name (workflow name for top-level workflows,
-        # ChangeSpec name otherwise).
+        # Patch name otherwise).
         text.append(agent.display_name, style=name_style)
         if tribe_label:
             text.append(

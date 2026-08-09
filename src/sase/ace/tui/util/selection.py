@@ -90,7 +90,7 @@ def restore_selection_by_identity[T, K](
             before the rebuild, used as a deterministic neighbor
             fallback when the prior identity disappeared.
         identity_fn: Callable that maps an item to its stable identity
-            key. Identity types differ per tab (``str`` for ChangeSpec
+            key. Identity types differ per tab (``str`` for Patch
             name, ``tuple`` for Agent identity, etc.) so this is
             parameterized.
 

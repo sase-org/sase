@@ -8,7 +8,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Header
 
-from ._changespec_list_layout import (
+from ._patch_list_layout import (
     CL_LIST_MAX_PANEL_WIDTH,
     CL_LIST_MIN_PANEL_WIDTH,
 )
@@ -56,7 +56,7 @@ class AppLayoutMixin:
     def compose(self: Any) -> ComposeResult:
         """Compose the app layout."""
         initial_tab = self.current_tab
-        cs_classes = "" if initial_tab == "changespecs" else "hidden"
+        cs_classes = "" if initial_tab == "artifacts" else "hidden"
         agents_classes = "" if initial_tab == "agents" else "hidden"
         axe_classes = "" if initial_tab == "axe" else "hidden"
         yield Header()
@@ -72,7 +72,7 @@ class AppLayoutMixin:
         with Horizontal(id="main-container"):
             yield ArtifactsView(
                 commits_default_filter=self._commits_default_filter,
-                id="changespecs-view",
+                id="artifacts-view",
                 classes=cs_classes,
             )
             with Vertical(id="agents-view", classes=agents_classes):

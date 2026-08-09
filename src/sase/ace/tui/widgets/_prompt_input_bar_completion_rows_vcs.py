@@ -21,7 +21,7 @@ def vcs_project_label_width(candidate: CompletionCandidate) -> int:
     )
     if entry is None:
         return len(candidate.display)
-    badge_width = 5 if entry.kind == "changespec" else 4
+    badge_width = 5 if entry.kind == "patch" else 4
     return badge_width + len(entry.name)
 
 
@@ -37,7 +37,7 @@ def vcs_ref_label_width(candidate: CompletionCandidate) -> int:
     """Visible width for the badge + primary label in a VCS ref row."""
     metadata = candidate.metadata
     if isinstance(metadata, VcsProjectEntry):
-        badge_width = 5 if metadata.kind == "changespec" else 4
+        badge_width = 5 if metadata.kind == "patch" else 4
         return badge_width + len(metadata.name)
     if isinstance(metadata, VcsNamespaceEntry):
         badge_width = len(f"[{metadata.kind_label.upper()}] ")
@@ -53,7 +53,7 @@ def append_vcs_project_completion_row(
 ) -> None:
     """Append one ``+`` project/PR completion row.
 
-    Project and ChangeSpec rows use the same badges as the ProjectSelect modal.
+    Project and Patch rows use the same badges as the ProjectSelect modal.
     The empty-catalog placeholder (no :class:`VcsProjectEntry` metadata) renders
     as a single dim row.
     """
@@ -64,7 +64,7 @@ def append_vcs_project_completion_row(
         content.append(candidate.display, style="dim italic")
         return
 
-    if entry.kind == "changespec":
+    if entry.kind == "patch":
         badge = "[PR] "
         badge_style = "bold #00D7AF"
         name_style = "bold #00D7AF" if is_selected else "#00D7AF"
@@ -80,7 +80,7 @@ def append_vcs_project_completion_row(
         content.append(" " * padding)
 
     content.append(f"  {entry.display_tag}", style="dim green")
-    if entry.kind == "changespec":
+    if entry.kind == "patch":
         if entry.status:
             content.append(f"  {entry.status}", style="dim")
         if entry.project:
@@ -169,8 +169,8 @@ def _append_vcs_ref_project_row(
     is_selected: bool,
     label_width: int,
 ) -> None:
-    """Append one project or ChangeSpec row in a VCS ref-root menu."""
-    if entry.kind == "changespec":
+    """Append one project or Patch row in a VCS ref-root menu."""
+    if entry.kind == "patch":
         badge = "[PR] "
         badge_style = "bold #00D7AF"
         name_style = "bold #00D7AF" if is_selected else "#00D7AF"
@@ -185,7 +185,7 @@ def _append_vcs_ref_project_row(
     if padding:
         content.append(" " * padding)
 
-    if entry.kind == "changespec":
+    if entry.kind == "patch":
         if entry.status:
             content.append(f"  {entry.status}", style="dim")
         if entry.project:

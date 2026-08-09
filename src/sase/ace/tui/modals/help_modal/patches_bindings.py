@@ -1,4 +1,4 @@
-"""ChangeSpec tab keybinding sections for the help modal."""
+"""Patch tab keybinding sections for the help modal."""
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .binding_common import (
@@ -10,12 +10,12 @@ from .binding_common import (
     key_sequence_display,
     sk,
 )
-from .changespecs_artifact_bindings import artifact_sections
-from .changespecs_copy_bindings import copy_mode_sections
+from .patches_artifact_bindings import artifact_sections
+from .patches_copy_bindings import copy_mode_sections
 
 
 def cls_bindings(km: KeymapRegistry) -> Sections:
-    """Build keybinding sections for the ChangeSpecs tab."""
+    """Build keybinding sections for the Patches pane."""
     d = key_display_name
     a = km.app
     fm = km.fold_mode
@@ -27,8 +27,8 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             "PR Navigation",
             [
                 (
-                    f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
-                    "Move to next / previous ChangeSpec",
+                    f"{d(a.next_patch)} / {d(a.prev_patch)}",
+                    "Move to next / previous Patch",
                 ),
                 (
                     f"{d(a.start_ancestor_mode)} / {d(a.start_child_mode)} / {d(a.start_sibling_mode)}",
@@ -42,38 +42,38 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
-                    "Scroll PR detail down / up",
+                    "Scroll Patch detail down / up",
                 ),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
-                    "Scroll PR detail top / bottom",
+                    "Scroll Patch detail top / bottom",
                 ),
             ],
         ),
         (
-            "PR Actions",
+            "Patch Actions",
             [
                 (d(a.accept_proposal), "Accept (! = spec only, @ = mail)"),
-                (d(a.rebase), "Rebase PR onto parent"),
+                (d(a.rebase), "Rebase Patch onto parent"),
                 (
                     f"{d(a.checkout)} / {d(a.start_checkout_mode)}1-{d(a.start_checkout_mode)}9",
-                    "Checkout PR (workspace 1-9)",
+                    "Checkout Patch (workspace 1-9)",
                 ),
                 (d(a.show_diff), "Show diff"),
                 (d(a.edit_hooks), "Edit hooks"),
                 (d(a.hooks_or_collapse_all), "Add hooks from failed targets"),
                 (d(a.show_agent_run_log), "Agent run log"),
-                (d(a.mail), "Mail PR"),
-                (d(a.toggle_mark), "Mark/unmark current PR"),
-                (d(a.rename_cl), "Rename PR (non-Sub/Rev)"),
+                (d(a.mail), "Mail Patch"),
+                (d(a.toggle_mark), "Mark/unmark current Patch"),
+                (d(a.rename_cl), "Rename Patch (non-Sub/Rev)"),
                 (d(a.start_rewind), "Rewind to prev commit (! skip VCS)"),
                 (d(a.change_status), "Change status"),
-                (d(a.bulk_change_status), "Bulk status change (marked PRs)"),
+                (d(a.bulk_change_status), "Bulk status change (marked Patches)"),
                 (d(a.start_tmux_mode), "Checkout + tmux (prompts ws#)"),
                 (d(a.clear_marks), "Clear all marks"),
                 (d(a.view_files), "View files"),
-                (d(a.reword), "Reword PR description"),
-                (d(a.add_tag), "Add tag to PR description"),
+                (d(a.reword), "Reword Patch description"),
+                (d(a.add_tag), "Add tag to Patch description"),
                 (d(a.sync), "Sync workspace"),
                 (d(a.edit_spec), "Edit spec file"),
             ],
@@ -92,8 +92,8 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Set all folds to level 1-3",
                 ),
                 (
-                    f"{d(fm.prefix)} {d(sk(fm.keys, 'cycle_commits'))}",
-                    "Cycle commits folding",
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'cycle_stitches'))}",
+                    "Cycle stitches folding",
                 ),
                 (
                     f"{d(fm.prefix)} {d(sk(fm.keys, 'cycle_hooks'))}",
@@ -112,8 +112,8 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Cycle deltas summary/files/lines",
                 ),
                 (
-                    f"{d(fm.prefix)} {d(sk(fm.keys, 'toggle_commits'))}",
-                    "Toggle commits collapsed/expanded",
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'toggle_stitches'))}",
+                    "Toggle stitches collapsed/expanded",
                 ),
                 (
                     f"{d(fm.prefix)} {d(sk(fm.keys, 'toggle_hooks'))}",
@@ -148,7 +148,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.start_custom_agent), "Run an agent"),
                 (d(a.start_agent_home), "Run agent (home)"),
                 (
-                    d(a.start_agent_from_changespec),
+                    d(a.start_agent_from_patch),
                     "Repeat last +/Ctrl+Space selection",
                 ),
                 (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
@@ -181,7 +181,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'run_cmd'))}",
-                    "Run command (use current PR)",
+                    "Run command (use current Patch)",
                 ),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
@@ -198,7 +198,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_from_cl")),
-                    "Run agent from current PR",
+                    "Run agent from current Patch",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",
@@ -236,9 +236,9 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.edit_query), "Edit search query"),
                 (
                     f"{d(a.start_saved_query_mode)}1-9 / {d(a.start_saved_query_mode)}0",
-                    "Load saved PR query slot",
+                    "Load saved Patch query slot",
                 ),
-                (d(a.open_saved_query_picker), "Choose saved PR query"),
+                (d(a.open_saved_query_picker), "Choose saved Patch query"),
                 (d(a.prev_query), "Previous query"),
                 (d(a.next_query), "Next query"),
             ],

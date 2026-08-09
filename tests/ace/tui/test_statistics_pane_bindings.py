@@ -98,7 +98,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         await page.press("f11", "f11", "f7")
         await page.wait_for(
             lambda _state: (
-                pane._view == "projects" and pane._projects_group_by == "changespec"
+                pane._view == "projects" and pane._projects_group_by == "patch"
             )
         )
         assert pane.query_one("#statistics-scope-group", Static).display is True

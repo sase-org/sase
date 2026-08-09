@@ -84,7 +84,7 @@ def persist_cleanup_side_effect_intents(
 
     for intent in getattr(side_effects, "bundle_save_candidates", ()):
         agent = by_identity.get(wire_identity_key(intent.identity))
-        if agent is not None and not agent._from_changespec:
+        if agent is not None and not agent._from_patch:
             save_dismissed_bundle(agent)
 
     for intent in getattr(side_effects, "workspace_release_requests", ()):
@@ -154,14 +154,14 @@ def _save_dismissed_bundles_for(
 ) -> None:
     from ....dismissed_agents import save_dismissed_bundle
 
-    if agent._from_changespec:
+    if agent._from_patch:
         return
     save_dismissed_bundle(agent)
     for member in clan_members_for_container(
         agent,
         agents_with_children_snapshot,
     ):
-        if not member._from_changespec:
+        if not member._from_patch:
             save_dismissed_bundle(member)
     if agent.is_workflow_child or not agent.raw_suffix:
         return
@@ -170,7 +170,7 @@ def _save_dismissed_bundles_for(
             step.is_workflow_child
             and step.parent_timestamp == agent.raw_suffix
             and step.parent_workflow == agent.workflow
-            and not step._from_changespec
+            and not step._from_patch
         ):
             save_dismissed_bundle(step)
 

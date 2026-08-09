@@ -217,7 +217,7 @@ def test_mixed_project_scoped_agent_uses_no_changespec_bucket() -> None:
     plains = [option.prompt.plain for option in options]  # type: ignore[union-attr]
     assert widget._row_entries == [BR, BR, (0, None), BR, (1, None)]
     assert "fix-bug-id" in plains[1]
-    assert "(no ChangeSpec)" in plains[3]
+    assert "(no Patch)" in plains[3]
 
 
 def test_by_status_parent_marker_renders_inside_prefix_group() -> None:

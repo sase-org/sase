@@ -6,7 +6,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Protocol, cast
 
-from sase.ace.changespec.models import ChangeSpec
+from sase.ace.patch.models import Patch
 from sase.bead.model import Issue
 from sase.bug_links import BugLinks, find_bug_links
 from sase.vcs_provider import IssueListState, IssueState, IssueWire
@@ -126,7 +126,7 @@ def _resolve_bug_scope(project: str) -> _BugScope:
 def collect_bug_snapshot(
     project: str | None,
     state_filter: IssueListState,
-    changespecs: Iterable[ChangeSpec],
+    patches: Iterable[Patch],
     *,
     limit: int = 100,
 ) -> BugSnapshot:
@@ -168,11 +168,11 @@ def collect_bug_snapshot(
         )
 
     beads, warning = _load_project_beads(scope.project_key)
-    changespec_snapshot = tuple(changespecs)
+    patch_snapshot = tuple(patches)
     links = tuple(
         (
             issue.number,
-            find_bug_links(issue.number, beads, changespec_snapshot),
+            find_bug_links(issue.number, beads, patch_snapshot),
         )
         for issue in issues
     )

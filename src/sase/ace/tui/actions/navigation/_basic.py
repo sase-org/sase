@@ -170,14 +170,14 @@ class BasicNavigationMixin(NavigationMixinBase):
         new_pos = (pos + direction) % len(visible)
         self.current_idx = visible[new_pos]
 
-    def action_next_changespec(self) -> None:
+    def action_next_patch(self) -> None:
         """Navigate to the next item, cycling to start if at end."""
         self._jk_perf_begin("next")  # type: ignore[attr-defined]
         self._record_jk_navigation()  # type: ignore[attr-defined]
-        if self.current_tab == "changespecs":
-            if len(self.changespecs) == 0:
+        if self.current_tab == "artifacts":
+            if len(self.patches) == 0:
                 return
-            self._navigate_changespec_panel(1)  # type: ignore[attr-defined]
+            self._navigate_patch_panel(1)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             self._navigate_agents_panel(1)
         else:  # axe tab
@@ -188,14 +188,18 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = 0
 
-    def action_prev_changespec(self) -> None:
+    def action_next_changespec(self) -> None:
+        """Legacy alias for :meth:`action_next_patch`."""
+        self.action_next_patch()
+
+    def action_prev_patch(self) -> None:
         """Navigate to the previous item, cycling to end if at start."""
         self._jk_perf_begin("prev")  # type: ignore[attr-defined]
         self._record_jk_navigation()  # type: ignore[attr-defined]
-        if self.current_tab == "changespecs":
-            if len(self.changespecs) == 0:
+        if self.current_tab == "artifacts":
+            if len(self.patches) == 0:
                 return
-            self._navigate_changespec_panel(-1)  # type: ignore[attr-defined]
+            self._navigate_patch_panel(-1)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             self._navigate_agents_panel(-1)
         else:  # axe tab
@@ -205,6 +209,10 @@ class BasicNavigationMixin(NavigationMixinBase):
                 self.current_idx -= 1
             else:
                 self.current_idx = len(self._axe_items) - 1  # type: ignore[attr-defined]
+
+    def action_prev_changespec(self) -> None:
+        """Legacy alias for :meth:`action_prev_patch`."""
+        self.action_prev_patch()
 
     def _get_agent_detail_scroll_id(self) -> str:
         """Get the scroll container ID for the active agent detail panel.
@@ -228,7 +236,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         route_artifacts = getattr(self, "_scroll_non_pr_artifacts_detail", None)
         if callable(route_artifacts) and route_artifacts(1):
             return
-        if self.current_tab == "changespecs":
+        if self.current_tab == "artifacts":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
@@ -245,7 +253,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         route_artifacts = getattr(self, "_scroll_non_pr_artifacts_detail", None)
         if callable(route_artifacts) and route_artifacts(-1):
             return
-        if self.current_tab == "changespecs":
+        if self.current_tab == "artifacts":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
@@ -399,7 +407,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_home(animate=False)
-        elif self.current_tab == "changespecs":
+        elif self.current_tab == "artifacts":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_home(animate=False)
 
@@ -434,17 +442,23 @@ class BasicNavigationMixin(NavigationMixinBase):
                 scroll_container.scroll_to(y=target, animate=False, immediate=True)
             else:
                 scroll_container.scroll_end(animate=False)
-        elif self.current_tab == "changespecs":
+        elif self.current_tab == "artifacts":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_end(animate=False)
 
     # --- Tab Switching Actions ---
 
-    def _get_clamped_changespecs_idx(self) -> int:
-        """Get changespecs index clamped to valid range."""
-        if not self.changespecs:
+    def _get_clamped_patches_idx(self) -> int:
+        """Get patches index clamped to valid range."""
+        patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        if not patches:
             return 0
-        return min(self._changespecs_last_idx, len(self.changespecs) - 1)
+        last_idx = getattr(self, "_patches_last_idx", None)
+        if last_idx is None:
+            last_idx = getattr(self, "_changespecs_last_idx", 0)
+        if not isinstance(last_idx, int):
+            last_idx = 0
+        return min(last_idx, len(patches) - 1)
 
     def _get_clamped_agents_idx(self) -> int:
         """Get agents index clamped to valid range."""
@@ -467,19 +481,29 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def _clamped_idx_for_tab(self, tab: TabName) -> int:
         """Return the restored selection index for ``tab``."""
-        if tab == "changespecs":
-            return self._get_clamped_changespecs_idx()
+        if tab == "artifacts":
+            return self._get_clamped_patches_idx()
         if tab == "agents":
             return self._get_clamped_agents_idx()
         return self._get_clamped_axe_idx()
 
     def _switch_to_tab(self, tab: TabName) -> None:
         """Activate ``tab`` and restore its last selection index."""
-        self.current_tab = tab
+        next_tab = (
+            "changespecs"
+            if tab == "artifacts"
+            and not hasattr(self, "patches")
+            and hasattr(self, "changespecs")
+            else tab
+        )
+        if next_tab == "changespecs":
+            self.__dict__["current_tab"] = next_tab
+        else:
+            self.current_tab = next_tab
         self.current_idx = self._clamped_idx_for_tab(tab)
 
     def action_next_tab(self) -> None:
-        """Switch to the next tab (cycling: Agents -> ChangeSpecs -> Axe -> Agents)."""
+        """Switch to the next tab (cycling: Agents -> Patches -> Axe -> Agents)."""
         self._last_input_action = "next_tab"  # type: ignore[attr-defined]
         self._record_input_event()  # type: ignore[attr-defined]
         if self.current_tab == "agents":
@@ -492,7 +516,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         self._switch_to_tab(adjacent_tab(self.current_tab, 1))
 
     def action_prev_tab(self) -> None:
-        """Switch to the previous tab (cycling: Agents <- ChangeSpecs <- Axe <- Agents)."""
+        """Switch to the previous tab (cycling: Agents <- Patches <- Axe <- Agents)."""
         self._last_input_action = "prev_tab"  # type: ignore[attr-defined]
         self._record_input_event()  # type: ignore[attr-defined]
         self._save_current_tab_position()
@@ -507,12 +531,12 @@ class BasicNavigationMixin(NavigationMixinBase):
         background refresh on an inactive tab would silently shift the
         saved row to a different logical entry.
         """
-        if self.current_tab == "changespecs":
-            self._changespecs_last_idx = self.current_idx
-            if self.changespecs and 0 <= self.current_idx < len(self.changespecs):
-                self._changespecs_last_name = self.changespecs[self.current_idx].name
+        if self.current_tab == "artifacts":
+            self._patches_last_idx = self.current_idx
+            if self.patches and 0 <= self.current_idx < len(self.patches):
+                self._patches_last_name = self.patches[self.current_idx].name
             else:
-                self._changespecs_last_name = None
+                self._patches_last_name = None
         elif self.current_tab == "agents":
             self._agents_last_idx = self.current_idx
             if self._agents and 0 <= self.current_idx < len(self._agents):

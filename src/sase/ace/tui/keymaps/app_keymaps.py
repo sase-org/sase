@@ -15,8 +15,8 @@ class AppKeymaps:
     """
 
     # Navigation
-    next_changespec: str
-    prev_changespec: str
+    next_patch: str
+    prev_patch: str
     scroll_to_top: str
     scroll_to_bottom: str
     scroll_detail_down: str
@@ -106,7 +106,7 @@ class AppKeymaps:
     focus_bug_links: str
     activate_bug_link: str
     refresh_bugs: str
-    # ChangeSpec actions
+    # Patch actions
     quit: str
     change_status: str
     run_workflow: str
@@ -123,7 +123,7 @@ class AppKeymaps:
     add_axe_item: str
     toggle_axe_description: str
     rename_cl: str
-    # ChangeSpec edits
+    # Patch edits
     edit_hooks: str
     # Proposals & sync
     accept_proposal: str
@@ -148,10 +148,10 @@ class AppKeymaps:
     stop_axe_and_quit: str
     start_custom_agent: str
     start_agent_home: str
-    start_agent_from_changespec: str
+    start_agent_from_patch: str
     start_last_vcs_xprompt_in_editor: str
     restore_prompt_stash: str
-    jump_to_agent_changespec: str
+    jump_to_agent_patch: str
     edit_panel: str
     show_agent_run_log: str
     open_artifact_files: str
@@ -197,6 +197,42 @@ class AppKeymaps:
     start_leader_mode: str
     start_bang_mode: str
     copy_tab_content: str
+
+    @property
+    def next_changespec(self) -> str:
+        """Legacy alias for :attr:`next_patch`."""
+        return self.next_patch
+
+    @next_changespec.setter
+    def next_changespec(self, value: str) -> None:
+        self.next_patch = value
+
+    @property
+    def prev_changespec(self) -> str:
+        """Legacy alias for :attr:`prev_patch`."""
+        return self.prev_patch
+
+    @prev_changespec.setter
+    def prev_changespec(self, value: str) -> None:
+        self.prev_patch = value
+
+    @property
+    def start_agent_from_changespec(self) -> str:
+        """Legacy alias for :attr:`start_agent_from_patch`."""
+        return self.start_agent_from_patch
+
+    @start_agent_from_changespec.setter
+    def start_agent_from_changespec(self, value: str) -> None:
+        self.start_agent_from_patch = value
+
+    @property
+    def jump_to_agent_changespec(self) -> str:
+        """Legacy alias for :attr:`jump_to_agent_patch`."""
+        return self.jump_to_agent_patch
+
+    @jump_to_agent_changespec.setter
+    def jump_to_agent_changespec(self, value: str) -> None:
+        self.jump_to_agent_patch = value
 
 
 @dataclass

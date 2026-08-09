@@ -22,7 +22,7 @@ class AppWatchersMixin:
                 self.current_tab == ARTIFACTS_TAB
                 and self.current_artifacts_subtab == "prs"
             ):
-                self._refresh_changespecs_display_debounced()
+                self._refresh_patches_display_debounced()
             elif self.current_tab == "agents":
                 self._refresh_agents_display_debounced()
             elif self.current_tab == "axe":
@@ -63,7 +63,7 @@ class AppWatchersMixin:
         elif old_tab == "axe":
             self._axe_detail_debouncer.cancel()
         elif old_tab == ARTIFACTS_TAB and self.current_artifacts_subtab == "prs":
-            self._changespec_detail_debouncer.cancel()
+            self._patch_detail_debouncer.cancel()
 
         if old_tab == "agents" and getattr(self, "_panel_fold_hint_mode_active", False):
             self._teardown_panel_fold_hint_mode(refresh_titles=False)
@@ -79,27 +79,27 @@ class AppWatchersMixin:
         self._entry_jump_banner_to_hint: dict[BannerJumpTarget, str] = {}
         self._entry_jump_hint_to_panel: dict[str, PanelJumpTarget] = {}
         self._entry_jump_panel_to_hint: dict[PanelJumpTarget, str] = {}
-        self._entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]] = {}
-        self._entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str] = {}
+        self._entry_jump_hint_to_patch_banner: dict[str, tuple[str, ...]] = {}
+        self._entry_jump_patch_banner_to_hint: dict[tuple[str, ...], str] = {}
 
         tab_bar = self.query_one("#tab-bar", TabBar)
         tab_bar.update_tab(new_tab)
 
-        changespecs_view = self.query_one("#changespecs-view", ArtifactsView)
+        patches_view = self.query_one("#artifacts-view", ArtifactsView)
         agents_view = self.query_one("#agents-view")
         axe_view = self.query_one("#axe-view")
 
         if old_tab == ARTIFACTS_TAB:
-            changespecs_view.deactivate_current()
+            patches_view.deactivate_current()
 
         if new_tab == ARTIFACTS_TAB:
-            changespecs_view.remove_class("hidden")
+            patches_view.remove_class("hidden")
             agents_view.add_class("hidden")
             axe_view.add_class("hidden")
-            changespecs_view.activate_current()
+            patches_view.activate_current()
             self._sync_active_artifacts_entry_state()
         elif new_tab == "agents":
-            changespecs_view.add_class("hidden")
+            patches_view.add_class("hidden")
             agents_view.remove_class("hidden")
             axe_view.add_class("hidden")
             self._sync_artifact_file_viewer_layout()
@@ -114,7 +114,7 @@ class AppWatchersMixin:
                     if hasattr(self, "_schedule_agents_async_refresh"):
                         self._schedule_agents_async_refresh(source="tab_switch")
         else:  # axe
-            changespecs_view.add_class("hidden")
+            patches_view.add_class("hidden")
             agents_view.add_class("hidden")
             axe_view.remove_class("hidden")
             self._refresh_axe_display()
@@ -153,11 +153,11 @@ class AppWatchersMixin:
         else:
             self._cancel_non_pr_artifacts_jump_mode()
         try:
-            view = self.query_one("#changespecs-view", ArtifactsView)
+            view = self.query_one("#artifacts-view", ArtifactsView)
         except Exception:
             return
         if old_subtab == "prs":
-            self._changespec_detail_debouncer.cancel()
+            self._patch_detail_debouncer.cancel()
         view.switch_to(new_subtab)
         if self.current_tab != ARTIFACTS_TAB:
             return

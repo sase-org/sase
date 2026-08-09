@@ -69,7 +69,7 @@ def test_status_and_grouping_render_on_separate_lines() -> None:
 
     lines = _collect_text(panel).splitlines()
 
-    assert lines[0].startswith("ChangeSpec: 2/5")
+    assert lines[0].startswith("Patch: 2/5")
     assert "+1X" in lines[0]
     assert "+1S" in lines[0]
     assert "group:" not in lines[0]
@@ -86,5 +86,5 @@ def test_update_countdown_keeps_countdown_on_second_line() -> None:
 
     rendered = update.call_args.args[0]
     lines = rendered.plain.splitlines()
-    assert lines[0] == "ChangeSpec: 0/0"
+    assert lines[0] == "Patch: 0/0"
     assert "(auto-refresh in 4s)" in lines[1]

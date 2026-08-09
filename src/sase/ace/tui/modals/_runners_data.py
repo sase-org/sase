@@ -1,6 +1,6 @@
 """Data collection and parsing for the runners modal.
 
-Collects information about running processes and agents from changespecs
+Collects information about running processes and agents from patches
 and project files.
 """
 
@@ -10,12 +10,12 @@ from typing import Literal
 
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 
-from ...changespec import (
-    ChangeSpec,
+from ...patch import (
+    Patch,
     HookEntry,
     HookStatusLine,
     MentorStatusLine,
-    find_all_changespecs,
+    find_all_patches,
 )
 from ..models._loaders import get_all_project_files
 
@@ -90,14 +90,14 @@ def _extract_pid_and_timestamp_from_suffix(
 
 
 def _collect_hook_runners(
-    changespec: ChangeSpec,
+    patch: Patch,
     hook: HookEntry,
     status_line: HookStatusLine,
 ) -> RunnerInfo | None:
     """Collect runner info from a hook status line.
 
     Args:
-        changespec: The ChangeSpec containing the hook.
+        patch: The Patch containing the hook.
         hook: The HookEntry containing the status line.
         status_line: The HookStatusLine to examine.
 
@@ -112,9 +112,9 @@ def _collect_hook_runners(
         pid = int(suffix) if suffix and suffix.isdigit() else None
         return RunnerInfo(
             runner_type="process",
-            cl_name=changespec.name,
-            project_name=changespec.project_basename,
-            project_file=changespec.file_path,
+            cl_name=patch.name,
+            project_name=patch.project_basename,
+            project_file=patch.file_path,
             hook_command=hook.display_command,
             agent_type=None,
             pid=pid,
@@ -131,9 +131,9 @@ def _collect_hook_runners(
             agent_type = "summarize-hook"
         return RunnerInfo(
             runner_type="agent",
-            cl_name=changespec.name,
-            project_name=changespec.project_basename,
-            project_file=changespec.file_path,
+            cl_name=patch.name,
+            project_name=patch.project_basename,
+            project_file=patch.file_path,
             hook_command=hook.display_command,
             agent_type=agent_type,
             pid=pid,
@@ -145,13 +145,13 @@ def _collect_hook_runners(
 
 
 def _collect_mentor_runners(
-    changespec: ChangeSpec,
+    patch: Patch,
     status_line: MentorStatusLine,
 ) -> RunnerInfo | None:
     """Collect runner info from a mentor status line.
 
     Args:
-        changespec: The ChangeSpec containing the mentor.
+        patch: The Patch containing the mentor.
         status_line: The MentorStatusLine to examine.
 
     Returns:
@@ -163,9 +163,9 @@ def _collect_mentor_runners(
     pid, ts = _extract_pid_and_timestamp_from_suffix(status_line.suffix or "")
     return RunnerInfo(
         runner_type="agent",
-        cl_name=changespec.name,
-        project_name=changespec.project_basename,
-        project_file=changespec.file_path,
+        cl_name=patch.name,
+        project_name=patch.project_basename,
+        project_file=patch.file_path,
         hook_command=None,
         agent_type=f"mentor:{status_line.profile_name}:{status_line.mentor_name}",
         pid=pid,
@@ -175,20 +175,20 @@ def _collect_mentor_runners(
     )
 
 
-def _collect_comment_runners(changespec: ChangeSpec) -> list[RunnerInfo]:
+def _collect_comment_runners(patch: Patch) -> list[RunnerInfo]:
     """Collect runner info from comment entries (CRS agents).
 
     Args:
-        changespec: The ChangeSpec to examine.
+        patch: The Patch to examine.
 
     Returns:
         List of RunnerInfo for running CRS agents.
     """
     runners: list[RunnerInfo] = []
-    if not changespec.comments:
+    if not patch.comments:
         return runners
 
-    for comment in changespec.comments:
+    for comment in patch.comments:
         if comment.suffix_type != "running_agent":
             continue
 
@@ -196,9 +196,9 @@ def _collect_comment_runners(changespec: ChangeSpec) -> list[RunnerInfo]:
         runners.append(
             RunnerInfo(
                 runner_type="agent",
-                cl_name=changespec.name,
-                project_name=changespec.project_basename,
-                project_file=changespec.file_path,
+                cl_name=patch.name,
+                project_name=patch.project_basename,
+                project_file=patch.file_path,
                 hook_command=None,
                 agent_type="crs",
                 pid=pid,
@@ -350,7 +350,7 @@ def _resolve_workspace_num(
     Args:
         runner: The runner info to resolve.
         pid_to_ws: PID-to-workspace mapping.
-        cl_to_ws: ChangeSpec-name-to-workspace mapping.
+        cl_to_ws: Patch-name-to-workspace mapping.
 
     Returns:
         The workspace number, or None if it cannot be resolved.
@@ -379,13 +379,13 @@ def _collect_runners_raw() -> tuple[
     processes: list[RunnerInfo] = []
     axe_agents: list[RunnerInfo] = []
 
-    for changespec in find_all_changespecs(include_states="all"):
+    for patch in find_all_patches(include_states="all"):
         # Collect from HOOKS
-        if changespec.hooks:
-            for hook in changespec.hooks:
+        if patch.hooks:
+            for hook in patch.hooks:
                 if hook.status_lines:
                     for sl in hook.status_lines:
-                        runner = _collect_hook_runners(changespec, hook, sl)
+                        runner = _collect_hook_runners(patch, hook, sl)
                         if runner:
                             if runner.runner_type == "process":
                                 processes.append(runner)
@@ -393,14 +393,14 @@ def _collect_runners_raw() -> tuple[
                                 axe_agents.append(runner)
 
         # Collect from COMMENTS (CRS agents)
-        axe_agents.extend(_collect_comment_runners(changespec))
+        axe_agents.extend(_collect_comment_runners(patch))
 
         # Collect from MENTORS
-        if changespec.mentors:
-            for mentor in changespec.mentors:
+        if patch.mentors:
+            for mentor in patch.mentors:
                 if mentor.status_lines:
                     for msl in mentor.status_lines:
-                        runner = _collect_mentor_runners(changespec, msl)
+                        runner = _collect_mentor_runners(patch, msl)
                         if runner:
                             axe_agents.append(runner)
 

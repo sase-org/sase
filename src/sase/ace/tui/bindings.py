@@ -9,8 +9,8 @@ from .artifact_tabs import ARTIFACTS_SUBTAB_ORDER
 # Default bindings for AceApp. These are overridden at runtime by the keymap
 # registry (see keymaps/ module), but serve as the fallback definition.
 DEFAULT_BINDINGS: list[BindingType] = [
-    Binding("j", "next_changespec", "Next", show=False),
-    Binding("k", "prev_changespec", "Previous", show=False),
+    Binding("j", "next_patch", "Next", show=False),
+    Binding("k", "prev_patch", "Previous", show=False),
     Binding("q", "quit", "Quit", show=False),
     Binding("s", "change_status", "Status", show=False),
     Binding("r", "run_workflow", "Run", show=False),
@@ -186,11 +186,11 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Agent cleanup on Agents; clear output on AXE.
     Binding("X", "open_agent_cleanup_panel", "Agent Cleanup", show=False),
     Binding("Q", "stop_axe_and_quit", "Quit / Restart", show=False),
-    # Agent workflow (all tabs) - shows project/PR selection modals
+    # Agent workflow (all tabs) - shows project/Patch selection modals
     Binding("plus", "start_custom_agent", "Run Agent", show=False),
     Binding("space", "start_agent_home", "Run Agent (Home)", show=False),
-    # Run agent from ChangeSpec (PRs tab only)
-    Binding("ctrl+@", "start_agent_from_changespec", "Run Agent (PR)", show=False),
+    # Run agent from Patch (Patches view only)
+    Binding("ctrl+@", "start_agent_from_patch", "Run Agent (Patch)", show=False),
     Binding(
         "ctrl+g",
         "start_last_vcs_xprompt_in_editor",
@@ -201,7 +201,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("at", "restore_prompt_stash", "Restore Prompt Stash", show=False),
     # Bang mode prefix (all tabs) - !x = toggle axe, !! = run bgcmd
     Binding("exclamation_mark", "start_bang_mode", "Bang Mode", show=False),
-    # Marking (PRs tab only)
+    # Marking (Patches view only)
     Binding("m", "toggle_mark", "Mark", show=False),
     Binding("n", "rename_cl", "Rename", show=False),
     Binding("u", "clear_marks", "Unmark All", show=False),
@@ -221,7 +221,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Tribe-driven side-panel focus cycling (agents tab)
     Binding("J", "focus_next_agent_panel", "Next Panel", show=False),
     Binding("K", "focus_prev_agent_panel", "Prev Panel", show=False),
-    # Copy to clipboard (changespecs tab - % followed by key)
+    # Copy to clipboard (patches tab - % followed by key)
     Binding("percent_sign", "copy_tab_content", "Copy", show=False),
     # Scroll to top/bottom (Axe tab)
     Binding("g", "scroll_to_top", "Top", show=False),
@@ -252,8 +252,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+n", "next_agent_file", "Next File", show=False),
     Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
     Binding("E", "edit_panel", "Edit Panel / Chop Output", show=False),
-    # Jump to PR from agent (agents tab)
-    Binding("enter", "jump_to_agent_changespec", "Go to PR", show=False),
+    # Jump to Patch from agent (agents tab)
+    Binding("enter", "jump_to_agent_patch", "Go to Patch", show=False),
     Binding("V", "show_agent_run_log", "Agent Run Log", show=False),
     Binding("ctrl+l", "dismiss_toasts", "Dismiss Toasts", show=False),
 ]

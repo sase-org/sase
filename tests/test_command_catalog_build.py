@@ -36,7 +36,7 @@ def test_build_command_catalog_includes_all_buckets() -> None:
     for d in range(10):
         assert f"saved_query.{d}" in ids
     # Mode (sample one of each)
-    assert "fold.cycle_commits" in ids
+    assert "fold.cycle_stitches" in ids
     assert "fold.agents.cycle_level" in ids
     assert "copy.agents.name" in ids
     assert "leader.models_panel" in ids
@@ -49,7 +49,7 @@ def test_agent_run_log_leader_command_is_cl_only() -> None:
 
     assert spec.label == "Agent run log"
     assert spec.key_display == ",A"
-    assert spec.tabs == ("changespecs",)
+    assert spec.tabs == ("artifacts",)
     assert spec.executor.kind == "leader_mode_key"
     assert spec.executor.subkey == "A"
 
@@ -75,7 +75,7 @@ def test_visible_agent_folds_use_contextual_app_command() -> None:
         == "Toggle a fold in the selected tribe / expand all folds on other tabs"
     )
     assert spec.key_display == "L"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "expand_all_folds"
 
@@ -90,7 +90,7 @@ def test_projects_command_is_keyless_and_global() -> None:
     assert spec.label == "Open project management panel"
     assert spec.key_display == ""
     assert spec.key_sequence == ()
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "open_projects_panel"
     assert "project management" in spec.aliases
@@ -106,7 +106,7 @@ def test_logs_command_is_keyless_and_global() -> None:
     assert spec.label == "Open logs panel"
     assert spec.key_display == ""
     assert spec.key_sequence == ()
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "open_log_panel"
     assert "launch failures" in spec.aliases
@@ -122,7 +122,7 @@ def test_tasks_command_is_keyless_and_global() -> None:
     assert spec.label == "Open tasks panel"
     assert spec.key_display == ""
     assert spec.key_sequence == ()
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "open_tasks_panel"
     assert "task queue" in spec.aliases
@@ -156,7 +156,7 @@ def test_repeat_last_leader_command_is_global() -> None:
 
     assert spec.label == "Repeat last leader command"
     assert spec.key_display == ",,"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "leader_mode_key"
     assert spec.executor.subkey == "comma"
 
@@ -165,10 +165,10 @@ def test_agent_from_cl_leader_command_uses_space() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.agent_from_cl")
 
-    assert spec.label == "Agent from PR (quick)"
+    assert spec.label == "Agent from Patch (quick)"
     assert spec.key_sequence == ("comma", "space")
     assert spec.key_display == ", Space"
-    assert spec.tabs == ("changespecs", "agents")
+    assert spec.tabs == ("artifacts", "agents")
     assert spec.executor.kind == "leader_mode_key"
     assert spec.executor.subkey == "space"
 
@@ -180,7 +180,7 @@ def test_agent_home_leader_command_uses_h() -> None:
     assert spec.label == "Agent (home mode)"
     assert spec.key_sequence == ("comma", "h")
     assert spec.key_display == ",h"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "leader_mode_key"
     assert spec.executor.subkey == "h"
 
@@ -243,7 +243,7 @@ def test_models_panel_leader_command_uses_m() -> None:
 
     assert spec.label == "Models panel"
     assert spec.key_display == ",m"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "leader_mode_key"
     assert spec.executor.subkey == "m"
 
@@ -254,7 +254,7 @@ def test_update_sase_leader_command_uses_uppercase_u() -> None:
 
     assert spec.label == "Update SASE, agent CLIs, and cached agent hoods"
     assert spec.key_display == ",U"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "leader_mode_key"
     assert spec.executor.subkey == "U"
 
@@ -264,7 +264,7 @@ def test_review_mentors_leader_command_uses_uppercase_c() -> None:
     spec = next(c for c in catalog if c.id == "leader.review_mentors")
 
     assert spec.key_display == ",C"
-    assert spec.tabs == ("changespecs",)
+    assert spec.tabs == ("artifacts",)
     assert spec.executor.kind == "leader_mode_key"
     assert spec.executor.subkey == "C"
 
@@ -275,7 +275,7 @@ def test_prompt_history_edit_first_leader_command_uses_ctrl_g() -> None:
 
     assert spec.label == "Edit first prompt history entry"
     assert spec.key_display == ", Ctrl+G"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "leader_mode_key"
     assert spec.executor.subkey == "ctrl+g"
 

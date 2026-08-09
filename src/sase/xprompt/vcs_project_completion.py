@@ -1,4 +1,4 @@
-"""Headless foundations for the ``+`` project/PR-completion feature.
+"""Headless foundations for the ``+`` project/patch-completion feature.
 
 This module provides the pure-logic building blocks shared by the TUI prompt
 input widget (consuming these helpers directly) and the Rust xprompt LSP
@@ -7,11 +7,11 @@ input widget (consuming these helpers directly) and the Rust xprompt LSP
 
 The four public helpers are:
 
-* :func:`build_vcs_project_completion_entries` -- the enabled project/PR catalog.
+* :func:`build_vcs_project_completion_entries` -- the enabled project/patch catalog.
 * :func:`filter_vcs_project_entries` -- case-insensitive prefix filtering.
 * :func:`find_vcs_project_trigger` -- detect a ``+query`` trigger token at
   prompt offset zero or immediately after a literal ASCII space.
-* :func:`apply_vcs_project_selection` -- expand a selected project or PR into
+* :func:`apply_vcs_project_selection` -- expand a selected project or patch into
   the prompt via the canonical VCS-tag expansion algorithm.
 
 The canonical expansion algorithm implemented by
@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Literal
 
 from sase.ace.changespec import (
-    ChangeSpec,
+    ChangeSpec as Patch,
     iter_changespec_project_files,
     parse_project_file,
 )
@@ -47,33 +47,43 @@ from sase.xprompt import _parsing
 # The system-managed project that must never appear as a completion candidate.
 _HOME_PROJECT_NAME = "home"
 
-_ACTIVE_CHANGESPEC_STATUSES = frozenset({"WIP", "Draft", "Ready", "Mailed"})
+_ACTIVE_PATCH_STATUSES = frozenset({"WIP", "Draft", "Ready", "Mailed"})
 
 # Schema version for the materialized JSON catalog handed to the Rust LSP. Bump
 # when the on-disk shape changes; the Rust loader tolerates unknown extra keys.
-VCS_PROJECT_CATALOG_SCHEMA_VERSION = 3
+VCS_PROJECT_CATALOG_SCHEMA_VERSION = 4
 
-VcsProjectEntryKind = Literal["project", "changespec"]
+VcsProjectEntryKind = Literal["project", "patch", "changespec"]
+
+
+def _canonical_vcs_project_entry_kind(kind: str) -> str:
+    """Return the canonical entry discriminator for current in-process code."""
+    return "patch" if kind == "changespec" else kind
+
+
+def _legacy_vcs_project_entry_kind(kind: str) -> str:
+    """Return the legacy discriminator used by old catalog consumers."""
+    return "changespec" if _canonical_vcs_project_entry_kind(kind) == "patch" else kind
 
 
 @dataclass(frozen=True)
 class VcsProjectEntry:
-    """One enabled project or ChangeSpec completion candidate.
+    """One enabled project or patch completion candidate.
 
     Attributes:
-        name: Project name (e.g. ``"sase"``) or ChangeSpec name.
+        name: Project name (e.g. ``"sase"``) or patch name.
         vcs_prefix: VCS workflow prefix (e.g. ``"gh"``, ``"git"``).
         display_tag: The resulting VCS workflow tag, without a trailing space
             (e.g. ``"#gh:sase"``).
         provider_display: Human-readable provider name (e.g. ``"GitHub"``),
             falling back to ``vcs_prefix`` when no display name is registered.
         description: Project description, when available (empty otherwise).
-        aliases: Alternate names the project can be matched by. ChangeSpecs do
+        aliases: Alternate names the project can be matched by. Patches do
             not currently carry aliases.
-        kind: ``"project"`` for project rows, ``"changespec"`` for PR rows.
+        kind: ``"project"`` for project rows, ``"patch"`` for patch rows.
         project: Owning project basename. For project rows, this equals
             ``name``.
-        status: Base ChangeSpec status for PR rows; empty for project rows.
+        status: Base patch status for patch rows; empty for project rows.
     """
 
     name: str
@@ -85,6 +95,13 @@ class VcsProjectEntry:
     kind: VcsProjectEntryKind = "project"
     project: str = ""
     status: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "kind",
+            _canonical_vcs_project_entry_kind(self.kind),
+        )
 
 
 @dataclass(frozen=True)
@@ -112,7 +129,7 @@ class VcsProjectTrigger:
 # --- Catalog ---------------------------------------------------------------
 
 # Module-level cache: (signature, entries). Invalidated by ProjectSpec file
-# mtimes so both project membership and ChangeSpec edits are picked up, and
+# mtimes so both project membership and patch edits are picked up, and
 # explicitly clearable via :func:`_clear_vcs_project_completion_cache`.
 _ENTRIES_CACHE: tuple[object, tuple[VcsProjectEntry, ...]] | None = None
 
@@ -120,7 +137,7 @@ _ENTRIES_CACHE: tuple[object, tuple[VcsProjectEntry, ...]] | None = None
 def _catalog_signature(projects_dir: Path) -> object | None:
     """Return a cheap cache signature for *projects_dir*, or ``None``.
 
-    The catalog now includes ChangeSpecs, so a top-level projects-directory
+    The catalog now includes patches, so a top-level projects-directory
     ``stat`` would miss status/name edits inside ProjectSpec files. Use the
     lifecycle-selected ProjectSpec files themselves as the cache key.
     """
@@ -148,8 +165,8 @@ def vcs_project_catalog_signature(projects_dir: Path) -> object | None:
     return _catalog_signature(projects_dir)
 
 
-def _iter_enabled_project_changespecs(projects_dir: Path) -> Iterator[ChangeSpec]:
-    """Yield ChangeSpecs from enabled projects' ProjectSpec files."""
+def _iter_enabled_project_changespecs(projects_dir: Path) -> Iterator[Patch]:
+    """Yield patches from enabled projects' ProjectSpec files."""
     for project_file in iter_changespec_project_files(
         projects_dir=projects_dir,
         include_states=("enabled",),
@@ -158,8 +175,13 @@ def _iter_enabled_project_changespecs(projects_dir: Path) -> Iterator[ChangeSpec
         yield from parse_project_file(str(project_file))
 
 
+def _iter_enabled_project_patches(projects_dir: Path) -> Iterator[Patch]:
+    """Yield patches from enabled projects' ProjectSpec files."""
+    yield from _iter_enabled_project_changespecs(projects_dir)
+
+
 def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
-    """Build the enabled project/PR completion catalog from *projects_dir*."""
+    """Build the enabled project/patch completion catalog from *projects_dir*."""
     project_entries: dict[str, VcsProjectEntry] = {}
     prefix_by_project: dict[str, tuple[str, str]] = {}
     records = list_project_records(projects_dir, "enabled")
@@ -196,22 +218,22 @@ def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
         )
         prefix_by_project[record.project_name] = (vcs_prefix, provider_display)
 
-    changespec_entries: list[VcsProjectEntry] = []
-    for changespec in _iter_enabled_project_changespecs(projects_dir):
-        base_status = remove_workspace_suffix(changespec.status)
-        if base_status not in _ACTIVE_CHANGESPEC_STATUSES:
+    patch_entries: list[VcsProjectEntry] = []
+    for patch in _iter_enabled_project_patches(projects_dir):
+        base_status = remove_workspace_suffix(patch.status)
+        if base_status not in _ACTIVE_PATCH_STATUSES:
             continue
-        project = changespec.project_basename
+        project = patch.project_basename
         prefix_info = prefix_by_project.get(project)
         if prefix_info is None:
             continue
         vcs_prefix, provider_display = prefix_info
         display_name = humanize_cl_name(
-            changespec.name,
+            patch.name,
             snapshot=project_display_snapshot,
         )
-        aliases = (changespec.name,) if display_name != changespec.name else ()
-        changespec_entries.append(
+        aliases = (patch.name,) if display_name != patch.name else ()
+        patch_entries.append(
             VcsProjectEntry(
                 name=display_name,
                 vcs_prefix=vcs_prefix,
@@ -219,7 +241,7 @@ def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
                 provider_display=provider_display,
                 description="",
                 aliases=aliases,
-                kind="changespec",
+                kind="patch",
                 project=project,
                 status=base_status,
             )
@@ -227,7 +249,7 @@ def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
 
     return [
         *sorted(project_entries.values(), key=lambda entry: entry.name),
-        *sorted(changespec_entries, key=lambda entry: (entry.project, entry.name)),
+        *sorted(patch_entries, key=lambda entry: (entry.project, entry.name)),
     ]
 
 
@@ -236,11 +258,11 @@ def build_vcs_project_completion_entries(
     *,
     use_cache: bool = True,
 ) -> list[VcsProjectEntry]:
-    """Return ordered completion entries for launchable enabled projects and PRs.
+    """Return ordered completion entries for launchable enabled projects and patches.
 
     Records that are system-managed, non-launchable, or whose workflow type
     cannot be detected are excluded. Project rows are deduped by name and sorted
-    by name; active ChangeSpec rows follow, grouped by owning project and name.
+    by name; active patch rows follow, grouped by owning project and name.
 
     Args:
         projects_dir: Projects root to enumerate. Defaults to the SASE projects
@@ -270,7 +292,7 @@ def build_vcs_project_completion_entries(
 
 
 def _clear_vcs_project_completion_cache() -> None:
-    """Drop the cached project/PR-completion catalog.
+    """Drop the cached project/patch-completion catalog.
 
     Test-only helper for resetting the module-level cache between cases; the
     cache is otherwise invalidated automatically by the projects directory
@@ -312,23 +334,29 @@ def vcs_project_catalog_payload(
         workflow_names,
         projects_dir,
     )
+    serialized_entries: list[dict[str, object]] = []
+    for entry in entries:
+        entry_kind = _canonical_vcs_project_entry_kind(entry.kind)
+        serialized_entry: dict[str, object] = {
+            "name": entry.name,
+            "vcs_prefix": entry.vcs_prefix,
+            "display_tag": entry.display_tag,
+            "provider_display": entry.provider_display,
+            "description": entry.description,
+            "aliases": list(entry.aliases),
+            # Legacy readers only understand `changespec` for patch rows.
+            "kind": _legacy_vcs_project_entry_kind(entry_kind),
+            "project": entry.project,
+            "status": entry.status,
+        }
+        if entry_kind != "project":
+            serialized_entry["entry_kind"] = entry_kind
+        serialized_entries.append(serialized_entry)
+
     return {
         "schema_version": VCS_PROJECT_CATALOG_SCHEMA_VERSION,
         "workflow_names": workflow_names,
-        "entries": [
-            {
-                "name": entry.name,
-                "vcs_prefix": entry.vcs_prefix,
-                "display_tag": entry.display_tag,
-                "provider_display": entry.provider_display,
-                "description": entry.description,
-                "aliases": list(entry.aliases),
-                "kind": entry.kind,
-                "project": entry.project,
-                "status": entry.status,
-            }
-            for entry in entries
-        ],
+        "entries": serialized_entries,
         "namespaces": {
             workflow: [
                 {

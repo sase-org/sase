@@ -24,8 +24,8 @@ from sase.project_display_names import (
     humanize_cl_name,
 )
 
-from ...changespec import ChangeSpec, find_all_changespecs, parse_project_file
-from ...changespec.project_spec_path import (
+from ...patch import Patch, find_all_patches, parse_project_file
+from ...patch.project_spec_path import (
     archive_project_spec_filename,
     preferred_project_spec_path,
 )
@@ -34,13 +34,33 @@ from .confirm_delete_modal import ConfirmDeleteModal
 from .project_discovery import load_launchable_project_snapshot
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class _ProjectSelectData:
     """Worker-loaded identity and presentation snapshot for the picker."""
 
     projects: tuple[ProjectDisplayProjection, ...]
-    changespecs: tuple[ChangeSpec, ...]
+    patches: tuple[Patch, ...]
     project_display_snapshot: ProjectDisplaySnapshot
+
+    def __init__(
+        self,
+        *,
+        projects: tuple[ProjectDisplayProjection, ...],
+        project_display_snapshot: ProjectDisplaySnapshot,
+        patches: tuple[Patch, ...] = (),
+        changespecs: tuple[Patch, ...] = (),
+    ) -> None:
+        object.__setattr__(self, "projects", projects)
+        object.__setattr__(
+            self,
+            "patches",
+            patches if patches else changespecs,
+        )
+        object.__setattr__(
+            self,
+            "project_display_snapshot",
+            project_display_snapshot,
+        )
 
 
 def _load_project_select_data() -> _ProjectSelectData:
@@ -48,7 +68,7 @@ def _load_project_select_data() -> _ProjectSelectData:
     project_display_snapshot, projects = load_launchable_project_snapshot()
     return _ProjectSelectData(
         projects=projects,
-        changespecs=tuple(find_all_changespecs()),
+        patches=tuple(find_all_patches()),
         project_display_snapshot=project_display_snapshot,
     )
 
@@ -103,7 +123,7 @@ class SelectionItem:
     display_name: str  # What to show in the list (e.g., "[P] myproject")
     item_type: Literal["project", "cl", "home", "all"]  # Type for processing
     project_name: str  # Project name
-    cl_name: str | None  # ChangeSpec name if type is "cl", None for projects/home
+    cl_name: str | None  # Patch name if type is "cl", None for projects/home
     project_label: str | None = None
     selection_label: str | None = None
 
@@ -183,15 +203,15 @@ class ProjectSelectModal(
             )
 
         # Load PRs with WIP, Draft, Ready, or Mailed status
-        changespec_items: list[SelectionItem] = []
-        for cs in self._data.changespecs:
+        patch_items: list[SelectionItem] = []
+        for cs in self._data.patches:
             base_status = remove_workspace_suffix(cs.status)
             if base_status in ("WIP", "Draft", "Ready", "Mailed"):
                 display_cl_name = humanize_cl_name(
                     cs.name,
                     snapshot=self._data.project_display_snapshot,
                 )
-                changespec_items.append(
+                patch_items.append(
                     SelectionItem(
                         display_name=(f"[PR] {display_cl_name} [{base_status}]"),
                         item_type="cl",
@@ -203,14 +223,14 @@ class ProjectSelectModal(
                         selection_label=display_cl_name,
                     )
                 )
-        changespec_items.sort(
+        patch_items.sort(
             key=lambda item: (
                 item.display_name.casefold(),
                 item.project_name,
                 item.cl_name or "",
             )
         )
-        self.all_items.extend(changespec_items)
+        self.all_items.extend(patch_items)
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -359,7 +379,7 @@ class ProjectSelectModal(
         self.dismiss(ProjectSelectResult(selection=item, open_in_editor=open_in_editor))
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle Enter key in input - select highlighted item or use as custom ChangeSpec."""
+        """Handle Enter key in input - select highlighted item or use as custom Patch."""
         filter_text = event.value.strip()
         filtered_items = self._get_filtered_items(filter_text)
 
@@ -372,7 +392,7 @@ class ProjectSelectModal(
             else:
                 self._dismiss_selection(filtered_items[0])
         elif filter_text:
-            # No match but user typed something - use input as custom ChangeSpec name
+            # No match but user typed something - use input as custom Patch name
             self._dismiss_selection(filter_text)
         else:
             # Empty input and no items - cancel
@@ -431,12 +451,12 @@ class ProjectSelectModal(
 
         if item.item_type != "project":
             self.notify(
-                "Can only delete project files, not ChangeSpecs/home",
+                "Can only delete project files, not Patches/home",
                 severity="error",
             )
             return
 
-        # Check if project file or archive file contains any ChangeSpecs
+        # Check if project file or archive file contains any Patches
         project_label = self._data.project_display_snapshot.label_for(item.project_name)
         # File paths and deletion targets stay canonical.
         project_dir = sase_projects_dir() / item.project_name
@@ -452,12 +472,12 @@ class ProjectSelectModal(
             archive_path = project_dir / archive_project_spec_filename(
                 item.project_name
             )
-        changespecs = parse_project_file(str(active_path))
+        patches = parse_project_file(str(active_path))
         if archive_path.exists():
-            changespecs.extend(parse_project_file(str(archive_path)))
-        if changespecs:
+            patches.extend(parse_project_file(str(archive_path)))
+        if patches:
             self.notify(
-                f"Cannot delete project '{project_label}': file contains ChangeSpecs",
+                f"Cannot delete project '{project_label}': file contains Patches",
                 severity="error",
             )
             return

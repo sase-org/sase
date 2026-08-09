@@ -251,8 +251,8 @@ ace:
       help: "question_mark"
     app:
       # Navigation
-      next_changespec: "j"
-      prev_changespec: "k"
+      next_patch: "j"
+      prev_patch: "k"
       scroll_to_top: "g"
       scroll_to_bottom: "G"
       scroll_detail_down: "ctrl+d"
@@ -360,7 +360,7 @@ ace:
       # AXE-tab only.
       toggle_axe_description: "d"
       rename_cl: "n"
-      # ChangeSpec edits
+      # Patch edits
       edit_hooks: "f"
       # Proposals & sync
       accept_proposal: "A"
@@ -396,10 +396,10 @@ ace:
       stop_axe_and_quit: "Q"
       start_custom_agent: "plus"
       start_agent_home: "space"
-      start_agent_from_changespec: "ctrl+@"
+      start_agent_from_patch: "ctrl+@"
       start_last_vcs_xprompt_in_editor: "ctrl+g"
       restore_prompt_stash: "at"
-      jump_to_agent_changespec: "enter"
+      jump_to_agent_patch: "enter"
       edit_panel: "E"
       show_agent_run_log: "V"
       open_artifact_files: "a"
@@ -453,12 +453,12 @@ ace:
       fold_mode:
         prefix: "z"
         keys:
-          cycle_commits: "c"
+          cycle_stitches: "c"
           cycle_hooks: "h"
           cycle_mentors: "m"
           cycle_timestamps: "t"
           cycle_deltas: "d"
-          toggle_commits: "C"
+          toggle_stitches: "C"
           toggle_hooks: "H"
           toggle_mentors: "M"
           toggle_timestamps: "T"
@@ -480,7 +480,7 @@ ace:
       copy_mode:
         prefix: "percent_sign"
         keys:
-          changespecs:
+          patches:
             raw: "percent_sign"
             with_snapshot: "exclamation_mark"
             bug: "b"

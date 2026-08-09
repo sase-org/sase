@@ -5,13 +5,13 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir, sase_subdir
 
 from ._types import PromptContext
 
 if TYPE_CHECKING:
-    from ....changespec import ChangeSpec, MentorEntry
+    from ....patch import Patch, MentorEntry
 
 
 _REVIEWABLE_MENTOR_STATUSES = ("COMMENTED", "FAILED", "RUNNING", "PASSED")
@@ -32,36 +32,36 @@ class MentorReviewMixin:
     """Mixin providing mentor review and comment clearing."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     _prompt_context: PromptContext | None
 
     def _open_mentor_review(self) -> None:
         """Open the Mentor Review popup for the latest commit's mentors."""
-        if not self.changespecs:
-            self.notify("No ChangeSpecs available", severity="warning")  # type: ignore[attr-defined]
+        if not self.patches:
+            self.notify("No Patches available", severity="warning")  # type: ignore[attr-defined]
             return
 
-        changespec = self.changespecs[self.current_idx]
-        if not changespec.mentors:
-            self.notify("No mentors for this ChangeSpec", severity="warning")  # type: ignore[attr-defined]
+        patch = self.patches[self.current_idx]
+        if not patch.mentors:
+            self.notify("No mentors for this Patch", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Find the latest mentor entry (highest entry_id)
-        latest_entry = max(changespec.mentors, key=lambda e: e.entry_id)
+        latest_entry = max(patch.mentors, key=lambda e: e.entry_id)
 
         if not has_reviewable_mentors(latest_entry):
             self.notify("No mentor results to review", severity="warning")  # type: ignore[attr-defined]
             return
 
-        self._open_mentor_review_for_entry(changespec, latest_entry)
+        self._open_mentor_review_for_entry(patch, latest_entry)
 
     def _open_mentor_review_for_entry(
         self,
-        changespec: ChangeSpec,
+        patch: Patch,
         entry: MentorEntry,
     ) -> None:
-        """Push the Mentor Review modal for an explicit (changespec, entry).
+        """Push the Mentor Review modal for an explicit (patch, entry).
 
         Shared by the ``review_mentors`` keymap and the ``JumpToMentorReview``
         notification handler. Caller is responsible for verifying that the
@@ -75,9 +75,9 @@ class MentorReviewMixin:
             build_mentor_review_data,
         )
 
-        # Capture changespec info for the callback closure
-        project_file = changespec.file_path
-        project_basename = changespec.project_basename
+        # Capture patch info for the callback closure
+        project_file = patch.file_path
+        project_basename = patch.project_basename
 
         # Get VCS provider from the primary workspace (read-only, no claim needed)
         from sase.running_field import get_workspace_directory_for_num
@@ -89,15 +89,13 @@ class MentorReviewMixin:
         try:
             ws_dir, _ = get_workspace_directory_for_num(1, project_basename)
             provider = get_vcs_provider(ws_dir)
-            revision = provider.resolve_revision(
-                changespec.name, project_basename, ws_dir
-            )
+            revision = provider.resolve_revision(patch.name, project_basename, ws_dir)
         except Exception:
             pass
 
         data = build_mentor_review_data(
             entry,
-            changespec.name,
+            patch.name,
             vcs_provider=provider,
             revision=revision,
             vcs_cwd=ws_dir,
@@ -138,7 +136,7 @@ class MentorReviewMixin:
 
         Args:
             accepted_comments: The accepted mentor comment dicts.
-            cl_name: The ChangeSpec name.
+            cl_name: The Patch name.
             project_file: Path to the project spec file.
             mode: ``"commit"`` or ``"propose"`` — determines which
                 post-apply xprompt to append.
@@ -233,7 +231,7 @@ class MentorReviewMixin:
         """Start unstarted mentors for a profile selected from the review modal."""
         import logging
 
-        from sase.ace.changespec import parse_project_file
+        from sase.ace.patch import parse_project_file
         from sase.ace.mentors.entries import add_mentor_entry
         from sase.ace.scheduler.mentor_runner import start_single_mentor
         from sase.config.mentor import get_mentor_profile_by_name
@@ -250,23 +248,23 @@ class MentorReviewMixin:
             return
 
         # Re-read fresh state from disk for concurrency safety
-        changespecs = parse_project_file(project_file)
+        patches = parse_project_file(project_file)
         target_cs = None
-        for cs in changespecs:
+        for cs in patches:
             if cs.name == cl_name:
                 target_cs = cs
                 break
 
         if target_cs is None:
-            self.notify("ChangeSpec not found", severity="error")  # type: ignore[attr-defined]
+            self.notify("Patch not found", severity="error")  # type: ignore[attr-defined]
             return
 
         # Ensure profile is in the MENTORS entry
         add_mentor_entry(project_file, cl_name, entry_id, [profile_name])
 
         # Re-parse after add_mentor_entry may have modified the file
-        changespecs = parse_project_file(project_file)
-        for cs in changespecs:
+        patches = parse_project_file(project_file)
+        for cs in patches:
             if cs.name == cl_name:
                 target_cs = cs
                 break
@@ -320,7 +318,7 @@ class MentorReviewMixin:
         import os
         import signal
 
-        from sase.ace.changespec import (
+        from sase.ace.patch import (
             extract_pid_from_agent_suffix,
             parse_project_file,
         )
@@ -328,7 +326,7 @@ class MentorReviewMixin:
             extract_mentor_workflow_from_suffix,
             mark_mentor_agents_as_killed,
         )
-        from sase.ace.mentors import update_changespec_mentors_field
+        from sase.ace.mentors import update_patch_mentors_field
 
         entry_id: str = kill_result.entry_id  # type: ignore[attr-defined]
         mentor_name: str = kill_result.mentor_name  # type: ignore[attr-defined]
@@ -336,15 +334,15 @@ class MentorReviewMixin:
         cl_name: str = kill_result.cl_name  # type: ignore[attr-defined]
 
         # Re-read fresh state from disk for concurrency safety
-        changespecs = parse_project_file(project_file)
+        patches = parse_project_file(project_file)
         target_cs = None
-        for cs in changespecs:
+        for cs in patches:
             if cs.name == cl_name:
                 target_cs = cs
                 break
 
         if target_cs is None or not target_cs.mentors:
-            self.notify("ChangeSpec not found", severity="error")  # type: ignore[attr-defined]
+            self.notify("Patch not found", severity="error")  # type: ignore[attr-defined]
             return
 
         # Find and kill the matching running mentor
@@ -382,7 +380,7 @@ class MentorReviewMixin:
 
         # Mark killed and persist to project file
         updated_mentors = mark_mentor_agents_as_killed(target_cs.mentors, killed_agents)
-        update_changespec_mentors_field(project_file, cl_name, updated_mentors)
+        update_patch_mentors_field(project_file, cl_name, updated_mentors)
 
         # Release workspaces claimed by the killed mentor
         from sase.running_field import get_claimed_workspaces, release_workspace
@@ -403,24 +401,24 @@ class MentorReviewMixin:
         self.notify(f"Killed mentor: {mentor_name}")  # type: ignore[attr-defined]
         self._reload_and_reposition()  # type: ignore[attr-defined]
 
-    def _clear_changespec_comments(self) -> None:
+    def _clear_patch_comments(self) -> None:
         """Remove the COMMENTS field, kill running CRS agents, and delete proposals."""
-        if not self.changespecs:
-            self.notify("No ChangeSpecs available", severity="warning")  # type: ignore[attr-defined]
+        if not self.patches:
+            self.notify("No Patches available", severity="warning")  # type: ignore[attr-defined]
             return
 
-        changespec = self.changespecs[self.current_idx]
-        if not changespec.comments:
+        patch = self.patches[self.current_idx]
+        if not patch.comments:
             self.notify("No comments to clear", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Kill any running CRS agents
         import signal
 
-        from sase.ace.changespec import extract_pid_from_agent_suffix
+        from sase.ace.patch import extract_pid_from_agent_suffix
 
         killed_agents = 0
-        for comment in changespec.comments:
+        for comment in patch.comments:
             if (
                 comment.suffix_type == "running_agent"
                 and comment.suffix
@@ -436,13 +434,11 @@ class MentorReviewMixin:
 
         # Delete any CRS proposal commits associated with comments
         deleted_proposals = 0
-        if changespec.commits:
+        if patch.commits:
             from sase.ace.change_actions import delete_proposal_entry
 
             crs_proposals = [
-                c
-                for c in changespec.commits
-                if c.is_proposed and c.note.startswith("[crs")
+                c for c in patch.commits if c.is_proposed and c.note.startswith("[crs")
             ]
             for entry in crs_proposals:
                 if entry.diff:
@@ -454,27 +450,25 @@ class MentorReviewMixin:
                         pass
                 if entry.proposal_letter:
                     if delete_proposal_entry(
-                        changespec.file_path,
-                        changespec.name,
+                        patch.file_path,
+                        patch.name,
                         entry.number,
                         entry.proposal_letter,
                     ):
                         deleted_proposals += 1
 
-        from sase.ace.comments.operations import update_changespec_comments_field
+        from sase.ace.comments.operations import update_patch_comments_field
 
-        ok = update_changespec_comments_field(
-            changespec.file_path, changespec.name, None
-        )
+        ok = update_patch_comments_field(patch.file_path, patch.name, None)
         from sase.project_display_names import humanize_cl_name
 
-        display_name = humanize_cl_name(changespec.name)
+        display_name = humanize_cl_name(patch.name)
         if ok:
-            changespec.comments = None
-            if changespec.commits and deleted_proposals:
-                changespec.commits = [
+            patch.comments = None
+            if patch.commits and deleted_proposals:
+                patch.commits = [
                     c
-                    for c in changespec.commits
+                    for c in patch.commits
                     if not (c.is_proposed and c.note.startswith("[crs"))
                 ]
             msg = f"Cleared COMMENTS for {display_name}"

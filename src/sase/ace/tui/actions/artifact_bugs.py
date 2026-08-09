@@ -51,7 +51,7 @@ class ArtifactBugsMixin:
     current_artifacts_subtab: str
     artifacts_project_scope: str | None
     artifacts_plan_target_bead_id: str | None
-    changespecs: list[Any]
+    patches: list[Any]
     current_idx: int
 
     if TYPE_CHECKING:
@@ -126,10 +126,10 @@ class ArtifactBugsMixin:
             self.notify("Pick a project before refreshing Bugs", severity="warning")  # type: ignore[attr-defined]
             return
         state_filter = pane.state_filter
-        changespecs = tuple(self.changespecs)
+        patches = tuple(self.patches)
 
         def _task() -> TrackedTaskResult[BugSnapshot]:
-            snapshot = collect_bug_snapshot(project, state_filter, changespecs)
+            snapshot = collect_bug_snapshot(project, state_filter, patches)
             if snapshot.error:
                 return TrackedTaskResult(
                     False,
@@ -446,11 +446,7 @@ class ArtifactBugsMixin:
             self._switch_artifacts_subtab("beads")  # type: ignore[attr-defined]
             return
         index = next(
-            (
-                i
-                for i, changespec in enumerate(self.changespecs)
-                if changespec.name == target
-            ),
+            (i for i, patch in enumerate(self.patches) if patch.name == target),
             None,
         )
         if index is None:
@@ -468,7 +464,7 @@ def bug_agent_prompt(prefix: str, issue: IssueWire) -> str:
         f"{prefix}Work on external bug #{issue.number}: {issue.title}\n\n"
         f"Issue context:\n{body}\n\n"
         f"Keep bug_id: {issue.number} on any epic plan you create so its beads "
-        "and resulting ChangeSpecs remain linked to this issue."
+        "and resulting Patches remain linked to this issue."
     )
 
 

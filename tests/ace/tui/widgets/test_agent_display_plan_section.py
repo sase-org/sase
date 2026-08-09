@@ -66,7 +66,7 @@ def test_plan_lane_follows_optional_sections_inside_sase_context() -> None:
     assert plain.count("Goal:") == 1
     assert "Tier:" not in plain
     assert "SASE PLAN" not in plain
-    assert plain.splitlines()[1].startswith("ChangeSpec:")
+    assert plain.splitlines()[1].startswith("Patch:")
     assert_span_covers(header, "▸ PLAN", "bold #AF87FF")
     assert_span_covers(header, "Title: ", COLOR_SUMMARY)
     assert_span_covers(header, "Required plan titles", COLOR_PLAN_PRIMARY)
@@ -268,7 +268,7 @@ def test_plan_and_artifacts_lead_context_in_maximal_append_flow(
     assert "SASE PLAN" not in plain
     for metadata_label in (
         "Name:",
-        "ChangeSpec:",
+        "Patch:",
         "Model:",
         "Xprompts:",
         "VCS:",

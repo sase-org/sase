@@ -53,7 +53,7 @@ def run_single_agent_launch_body(
 
     # Capture these *before* normalization/resolution can mutate them.
     # ``entered_home_mode`` distinguishes a home-mode launch (where ctx is
-    # baked from the last selection) from a project/changespec launch.
+    # baked from the last selection) from a project/patch launch.
     # ``had_explicit_vcs_tag`` records whether the *user* wrote a VCS tag,
     # so the unresolved-tag guard below does not fire for a plain prompt
     # that normalization later decorates with the default ``#git:home``.
@@ -150,7 +150,7 @@ def run_single_agent_launch_body(
     # must NOT silently launch under the baked home-mode identity. This is
     # the ``<ctrl+p>`` desync: the bar opens for one ref (ctx baked from the
     # last selection) and the user cycles to a different ref that no longer
-    # resolves (e.g. a submitted/archived ``#gh:<changespec>``). Falling
+    # resolves (e.g. a submitted/archived ``#gh:<patch>``). Falling
     # through here would launch in the *previous* ref's project/workspace
     # and skip the replay/MRU updates. Abort loudly instead.
     if entered_home_mode and had_explicit_vcs_tag and vcs_ref is None:

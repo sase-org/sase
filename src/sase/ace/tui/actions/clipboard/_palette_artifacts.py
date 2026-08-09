@@ -55,7 +55,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
         count=count,
     )
     ctx = CommandContext(
-        tab="changespecs",
+        tab="artifacts",
         artifacts_subtab=subtab,  # type: ignore[arg-type]
         artifact_selection_present=True,
         artifact_available_targets=frozenset(available),

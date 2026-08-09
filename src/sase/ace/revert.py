@@ -221,3 +221,7 @@ def revert_changespec(
         console.print("[green]Status updated to Reverted, PR removed[/green]")
 
     return (True, None)
+
+
+update_patch_name_atomic = update_changespec_name_atomic
+revert_patch = revert_changespec

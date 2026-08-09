@@ -7,7 +7,7 @@ from .axe import AxeMixin
 from .artifacts import ArtifactsMixin
 from .artifact_bugs import ArtifactBugsMixin
 from .base import BaseActionsMixin
-from .changespec import ChangeSpecMixin
+from .patch import PatchMixin
 from .clipboard import ClipboardMixin
 from .custom_modes import CustomModeMixin
 from .event_handlers import EventHandlersMixin
@@ -35,7 +35,7 @@ __all__ = [
     "ArtifactsMixin",
     "ArtifactBugsMixin",
     "BaseActionsMixin",
-    "ChangeSpecMixin",
+    "PatchMixin",
     "ClipboardMixin",
     "CustomModeMixin",
     "EventHandlersMixin",

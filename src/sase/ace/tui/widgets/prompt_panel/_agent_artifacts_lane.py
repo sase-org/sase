@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.ace.changespec.models import DeltaEntry
+from sase.ace.patch.models import DeltaEntry
 
 from ...models.agent import Agent
 from ..file_panel._linked_deltas import LinkedDeltaGroup

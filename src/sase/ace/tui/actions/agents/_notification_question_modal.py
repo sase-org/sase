@@ -307,7 +307,7 @@ def _loaded_root_rows_for_child(app: object, agent: Agent) -> list[Agent]:
 
     Timestamp matching is the primary signal here: a child's
     ``parent_timestamp`` points at exactly its root row's ``raw_suffix``, so
-    this does not broaden to unrelated rows that merely share a ChangeSpec
+    this does not broaden to unrelated rows that merely share a Patch
     name.
     """
     parent_timestamp = _normalize_timestamp(getattr(agent, "parent_timestamp", None))

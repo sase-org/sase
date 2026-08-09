@@ -50,27 +50,25 @@ def build_workflow_detail_renderable(
 
     # Extract meta_* overrides from step outputs
     meta_project = None
-    meta_changespec = None
+    meta_patch = None
     meta_workspace = None
     meta_fields_data = snapshot.meta_raw
     if meta_fields_data:
         meta_project = meta_fields_data.get("meta_project")
-        meta_changespec = meta_fields_data.get("meta_changespec")
+        meta_patch = meta_fields_data.get("meta_patch")
         meta_workspace = meta_fields_data.get("meta_workspace")
 
-    # Project/ChangeSpec with meta_* priority
+    # Project/Patch with meta_* priority
     if meta_project:
         header_text.append("Project: ", style="bold #87D7FF")
         header_text.append(
             f"{project_display_label(agent, meta_project)}\n", style="#00D7AF"
         )
-    elif meta_changespec:
-        header_text.append("ChangeSpec: ", style="bold #87D7FF")
-        header_text.append(
-            f"{humanize_cl_name(str(meta_changespec))}\n", style="#00D7AF"
-        )
+    elif meta_patch:
+        header_text.append("Patch: ", style="bold #87D7FF")
+        header_text.append(f"{humanize_cl_name(str(meta_patch))}\n", style="#00D7AF")
     else:
-        header_text.append("ChangeSpec: ", style="bold #87D7FF")
+        header_text.append("Patch: ", style="bold #87D7FF")
         header_text.append(f"{humanize_cl_name(agent.cl_name)}\n", style="#00D7AF")
 
     # Workspace (if available) - check meta_workspace first, then agent field

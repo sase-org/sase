@@ -203,7 +203,7 @@ class TestProjectAgentNoMeta:
         )
         app = FakeApp(agents=[agent])
         app.action_jump_to_agent_changespec()
-        assert any("No ChangeSpec" in msg for msg, _ in app._notifications)
+        assert any("No Patch" in msg for msg, _ in app._notifications)
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +228,7 @@ class TestUnknownClName:
         agent = _make_agent(cl_name="unknown")
         app = FakeApp(agents=[agent])
         app.action_jump_to_agent_changespec()
-        assert any("No ChangeSpec" in msg for msg, _ in app._notifications)
+        assert any("No Patch" in msg for msg, _ in app._notifications)
 
 
 # ---------------------------------------------------------------------------

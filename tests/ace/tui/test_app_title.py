@@ -36,11 +36,20 @@ def test_app_default_initial_tab_is_agents() -> None:
     assert app.current_tab == "agents"
 
 
-@pytest.mark.parametrize("tab", ["changespecs", "agents", "axe"])
-def test_app_initial_tab_assigned_during_init(tab: str) -> None:
+@pytest.mark.parametrize(
+    ("tab", "expected"),
+    [
+        ("artifacts", "artifacts"),
+        ("patches", "artifacts"),
+        ("changespecs", "artifacts"),
+        ("agents", "agents"),
+        ("axe", "axe"),
+    ],
+)
+def test_app_initial_tab_assigned_during_init(tab: str, expected: str) -> None:
     app = AceApp(query="!!!", auto_start_axe=False, initial_tab=tab)  # type: ignore[arg-type]
 
-    assert app.current_tab == tab
+    assert app.current_tab == expected
 
 
 def test_initial_app_version_is_dunder_version() -> None:

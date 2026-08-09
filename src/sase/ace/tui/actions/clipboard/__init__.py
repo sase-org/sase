@@ -8,7 +8,7 @@ go through ``schedule_copy_delivery``.
 from ._agents import ClipboardAgentsMixin
 from ._artifacts import ClipboardArtifactsMixin
 from ._axe import ClipboardAxeMixin
-from ._changespec import ClipboardChangeSpecMixin
+from ._patch import ClipboardPatchMixin
 from ._core import ClipboardCoreMixin
 from ._delivery import (
     CopyDeliveryOutcome,
@@ -21,7 +21,7 @@ from ._delivery import (
 class ClipboardMixin(
     ClipboardCoreMixin,
     ClipboardArtifactsMixin,
-    ClipboardChangeSpecMixin,
+    ClipboardPatchMixin,
     ClipboardAgentsMixin,
     ClipboardAxeMixin,
 ):

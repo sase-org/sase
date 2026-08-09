@@ -26,14 +26,14 @@ from .axe_config_actions import AxeConfigActionsMixin
 from .axe_display import AxeDisplayMixin
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
     from ..keymaps import KeymapRegistry
     from ..modals import QuitOption
     from .axe_display._loaders import AxeItemKey
     from .axe_display._data import AxeStatusDegradation
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
 AxeViewType = Literal["axe"] | int
@@ -46,7 +46,7 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
     """Mixin providing axe daemon control and display methods."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     refresh_interval: int
@@ -443,10 +443,10 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             if result is None:
                 return
 
-            if result.jump_tab == "changespecs":
-                from .agents._notification_actions import navigate_to_changespec_tab
+            if result.jump_tab == "artifacts":
+                from .agents._notification_actions import navigate_to_patch_tab
 
-                navigate_to_changespec_tab(self, result.cl_name, result.project_file)
+                navigate_to_patch_tab(self, result.cl_name, result.project_file)
             else:  # agents
                 from .agents._notification_actions import navigate_to_agent_tab
 

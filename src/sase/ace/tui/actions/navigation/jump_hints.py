@@ -31,7 +31,7 @@ class _JumpHintMatch[T]:
 
 
 # Agents-tab jump targets distinguish a global agent index, a panel-scoped
-# banner identity, and a stable-key panel header. ChangeSpecs and AXE
+# banner identity, and a stable-key panel header. Patches and AXE
 # tabs continue to pass plain ints — the generic map builder accepts hashables.
 AgentJumpTarget = tuple[Literal["agent"], int]
 BannerJumpTarget = tuple[Literal["banner"], int, tuple[str, ...]]
@@ -42,8 +42,10 @@ AgentJumpAnchor = (
     | tuple[Literal["banner"], PanelKey, tuple[str, ...]]
     | PanelJumpTarget
 )
-ChangeSpecBannerJumpAnchor = tuple[Literal["changespec_banner"], tuple[str, ...]]
-EntryJumpAnchor = int | ChangeSpecBannerJumpAnchor
+PatchBannerJumpAnchor = tuple[
+    Literal["patch_banner", "changespec_banner"], tuple[str, ...]
+]
+EntryJumpAnchor = int | PatchBannerJumpAnchor
 
 
 def normalize_jump_key(key: str, character: str | None = None) -> str:

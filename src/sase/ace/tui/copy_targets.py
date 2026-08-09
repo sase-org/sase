@@ -45,7 +45,7 @@ def _target(
 
 COPY_TARGETS: tuple[_CopyTarget, ...] = (
     _target(
-        "changespecs",
+        "patches",
         "raw",
         "raw",
         "Copy raw line",
@@ -53,7 +53,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         "raw lines",
     ),
     _target(
-        "changespecs",
+        "patches",
         "with_snapshot",
         "+snap",
         "Copy line + snapshot",
@@ -61,7 +61,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         "lines + snapshots",
     ),
     _target(
-        "changespecs",
+        "patches",
         "bug",
         "bug",
         "Copy bug id",
@@ -69,7 +69,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         "bug ids",
     ),
     _target(
-        "changespecs",
+        "patches",
         "pr_number",
         "PR#",
         "Copy PR number",
@@ -77,15 +77,15 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         "PR numbers",
     ),
     _target(
-        "changespecs",
+        "patches",
         "name",
         "name",
-        "Copy ChangeSpec name",
+        "Copy Patch name",
         "Identity",
-        "ChangeSpec names",
+        "Patch names",
     ),
     _target(
-        "changespecs",
+        "patches",
         "link",
         "link",
         "Copy Markdown link",
@@ -93,7 +93,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         "Markdown links",
     ),
     _target(
-        "changespecs",
+        "patches",
         "spec",
         "spec",
         "Copy spec text",
@@ -101,7 +101,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         "spec texts",
     ),
     _target(
-        "changespecs",
+        "patches",
         "snapshot",
         "snap",
         "Copy snapshot",
@@ -658,16 +658,23 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
 _TARGETS_BY_KEY = {(item.group, item.target): item for item in COPY_TARGETS}
 
 
+def _normalize_copy_group(group: str) -> str:
+    """Return the canonical copy-mode group id."""
+    return "patches" if group == "changespecs" else group
+
+
 def copy_targets_for(group: str) -> tuple[_CopyTarget, ...]:
     """Return the registry entries for *group* in presentation order."""
 
+    group = _normalize_copy_group(group)
     return tuple(item for item in COPY_TARGETS if item.group == group)
 
 
 def copy_target_for(group: str, target: str) -> _CopyTarget | None:
-    """Return one target, preserving the legacy ChangeSpec alias."""
+    """Return one target, preserving the legacy Patch alias."""
 
-    if group == "changespecs" and target == "cl_number":
+    group = _normalize_copy_group(group)
+    if group == "patches" and target == "cl_number":
         target = "pr_number"
     return _TARGETS_BY_KEY.get((group, target))
 

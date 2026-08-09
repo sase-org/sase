@@ -118,7 +118,10 @@ def evaluate_chop_preflight(
         checkpoint = _read_checkpoint_document(lumberjack_name, chop.name)
         changespecs = (
             _changespec_snapshots(context_file)
-            if any(guard.get("provider") == "changespec" for guard in chop.inhibit_if)
+            if any(
+                guard.get("provider") in {"patch", "changespec"}
+                for guard in chop.inhibit_if
+            )
             else []
         )
         agents = (
@@ -474,15 +477,15 @@ def _git_snapshot(
 
 def _changespec_snapshots(context_file: str | None) -> list[dict[str, str]]:
     if not context_file:
-        raise ValueError("changespec guard requires a chop context file")
+        raise ValueError("patch guard requires a chop context file")
     try:
         context = json.loads(Path(context_file).read_text(encoding="utf-8"))
         changespec_path = Path(str(context["all_changespecs_file"]))
         rows = json.loads(changespec_path.read_text(encoding="utf-8"))
     except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
-        raise ValueError(f"could not load ChangeSpec guard snapshot: {exc}") from exc
+        raise ValueError(f"could not load Patch guard snapshot: {exc}") from exc
     if not isinstance(rows, list):
-        raise ValueError("ChangeSpec guard snapshot must be a list")
+        raise ValueError("Patch guard snapshot must be a list")
     return [
         {"name": str(row.get("name") or ""), "status": str(row.get("status") or "")}
         for row in rows

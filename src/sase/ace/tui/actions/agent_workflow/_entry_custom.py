@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
 
 if TYPE_CHECKING:
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class EntryCustomMixin:
-    """Mixin providing custom project/ChangeSpec launch entry points."""
+    """Mixin providing custom project/Patch launch entry points."""
 
     _last_custom_agent_selection: SelectionItem | None
 
@@ -32,14 +32,22 @@ class EntryCustomMixin:
             self, project_file: str, name: str
         ) -> str | None: ...
 
-    def action_start_agent_from_changespec(self) -> None:
+    def action_start_agent_from_patch(self) -> None:
         """Repeat last +/Ctrl+Space agent selection."""
+        legacy_override = self.__dict__.get("action_start_agent_from_changespec")
+        if callable(legacy_override):
+            legacy_override()
+            return
         last, stale_cleared = self._load_last_custom_agent_selection()
         if last is None:
             if not stale_cleared:
                 self.notify("No previous +/Ctrl+Space selection", severity="warning")  # type: ignore[attr-defined]
             return
         self._start_custom_agent_from_selection(last)
+
+    def action_start_agent_from_changespec(self) -> None:
+        """Legacy alias for :meth:`action_start_agent_from_patch`."""
+        self.action_start_agent_from_patch()
 
     def action_start_agent_home(self) -> None:
         """Start a home-mode agent prompt."""
@@ -126,7 +134,7 @@ class EntryCustomMixin:
         """Start a custom agent from a previously resolved selection.
 
         Args:
-            selection: The project/ChangeSpec selection item.
+            selection: The project/Patch selection item.
             open_in_editor: Whether to open in editor instead of prompt bar.
         """
         project_name: str = selection.project_name

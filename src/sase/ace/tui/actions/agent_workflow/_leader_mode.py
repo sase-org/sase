@@ -10,7 +10,7 @@ from ..agents._unread_state import BulkUnreadToggleOutcome
 from ._types import TabName
 
 if TYPE_CHECKING:
-    from ....changespec import ChangeSpec
+    from ....patch import Patch
     from ...keymaps import KeymapRegistry
     from ...models import Agent
 
@@ -19,7 +19,7 @@ class LeaderModeMixin:
     """Mixin providing leader mode key handling and footer updates."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     marked_indices: set[int]
@@ -82,10 +82,10 @@ class LeaderModeMixin:
 
         if key == leader_keys["run_cmd"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab != "changespecs":
+            if self.current_tab != "artifacts":
                 self._refresh_current_tab()  # type: ignore[attr-defined]
                 return True
-            self._start_bgcmd_from_changespec()  # type: ignore[attr-defined]
+            self._start_bgcmd_from_patch()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
@@ -104,14 +104,14 @@ class LeaderModeMixin:
 
         if key == leader_keys["kill_mentors"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab == "changespecs":
+            if self.current_tab == "artifacts":
                 self.action_kill_mentors()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["review_mentors"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab == "changespecs":
+            if self.current_tab == "artifacts":
                 self._open_mentor_review()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
@@ -125,11 +125,17 @@ class LeaderModeMixin:
 
         if key == leader_keys["agent_from_cl"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab == "changespecs":
+            if self.current_tab in {"artifacts", "patches", "changespecs"}:
                 if self.marked_indices:
                     self._start_agents_from_marked()  # type: ignore[attr-defined]
                 else:
-                    self._start_agent_from_changespec_quick()  # type: ignore[attr-defined]
+                    legacy_quick = getattr(
+                        self, "_start_agent_from_changespec_quick", None
+                    )
+                    if callable(legacy_quick):
+                        legacy_quick()
+                    else:
+                        self._start_agent_from_patch_quick()  # type: ignore[attr-defined]
             elif self.current_tab == "agents":
                 self._start_agent_from_agent_quick()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
@@ -199,8 +205,8 @@ class LeaderModeMixin:
 
         if key == leader_keys["clear_comments"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab == "changespecs":
-                self._clear_changespec_comments()  # type: ignore[attr-defined]
+            if self.current_tab == "artifacts":
+                self._clear_patch_comments()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
@@ -253,7 +259,7 @@ class LeaderModeMixin:
 
         if key == leader_keys["agent_run_log"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab == "changespecs":
+            if self.current_tab in {"artifacts", "patches", "changespecs"}:
                 self.action_show_agent_run_log()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
@@ -317,7 +323,7 @@ class LeaderModeMixin:
             callback=_on_dismissed,
         )
 
-    def _update_leader_footer(self, *, current_tab: TabName = "changespecs") -> None:
+    def _update_leader_footer(self, *, current_tab: TabName = "artifacts") -> None:
         """Update the footer to show leader mode bindings.
 
         Args:
@@ -327,8 +333,9 @@ class LeaderModeMixin:
 
         has_comments = False
         has_mentor_results = False
-        if current_tab == "changespecs" and self.changespecs:
-            cs = self.changespecs[self.current_idx]
+        patches = getattr(self, "patches", getattr(self, "changespecs", []))
+        if current_tab in {"artifacts", "patches", "changespecs"} and patches:
+            cs = patches[self.current_idx]
             has_comments = bool(cs.comments)
             if cs.mentors:
                 for entry in cs.mentors:

@@ -27,16 +27,16 @@ def test_build_app_bindings_priority() -> None:
     assert by_action["next_tab"].priority is True
     assert by_action["prev_tab"].priority is True
     assert by_action["activate_bug_link"].priority is True
-    assert by_action["next_changespec"].priority is False
+    assert by_action["next_patch"].priority is False
     assert by_action["quit"].priority is False
 
 
 def test_build_app_bindings_uses_config_keys() -> None:
     """Bindings reflect overridden keys from AppKeymaps."""
-    km = default_app_keymaps(next_changespec="n", quit="Q")
+    km = default_app_keymaps(next_patch="n", quit="Q")
     bindings = build_app_bindings(km)
     by_action = {b.action: b for b in bindings}
-    assert by_action["next_changespec"].key == "n"
+    assert by_action["next_patch"].key == "n"
     assert by_action["quit"].key == "Q"
 
 
@@ -87,10 +87,10 @@ def test_build_app_bindings_uses_ctrl_space_agent_binding() -> None:
     by_key = {b.key: b.action for b in bindings}
 
     assert by_action["start_agent_home"].key == "space"
-    assert by_action["start_agent_from_changespec"].key == "ctrl+@"
+    assert by_action["start_agent_from_patch"].key == "ctrl+@"
     assert by_key["space"] == "start_agent_home"
     assert not any(
-        b.action == "start_agent_from_changespec" and b.key == "space" for b in bindings
+        b.action == "start_agent_from_patch" and b.key == "space" for b in bindings
     )
 
 

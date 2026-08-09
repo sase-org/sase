@@ -1,9 +1,9 @@
-"""Grouping-mode cycle action shared by the Agents and ChangeSpecs tabs.
+"""Grouping-mode cycle action shared by the Agents and Patches tabs.
 
 The cycle key (``o`` by default) advances per-tab grouping state and
 re-renders that tab.  Per-mode fold registries are kept in
 :attr:`_group_fold_registries` (Agents) and
-:attr:`_changespec_group_fold_registries` (ChangeSpecs) so a mode-specific
+:attr:`_patch_group_fold_registries` (Patches) so a mode-specific
 collapse layout is restored when the user cycles back to a
 previously-visited mode.
 
@@ -23,11 +23,11 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_groups import GroupingMode
-    from ...models.changespec_groups import ChangeSpecGroupingMode
+    from ...models.patch_groups import PatchGroupingMode
     from ...models.group_fold import GroupFoldRegistry
 
-TabName = Literal["changespecs", "agents", "axe"]
-GroupingSaveTarget = Literal["agents", "changespecs"]
+TabName = Literal["artifacts", "patches", "changespecs", "agents", "axe"]
+GroupingSaveTarget = Literal["agents", "artifacts", "changespecs"]
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ _MODE_LABELS: dict[str, str] = {
     "BY_STATUS": "by status",
 }
 
-#: ChangeSpecs-tab cycle order — BY_PROJECT is the first-paint default; the cycle
+#: Patches-tab cycle order — BY_PROJECT is the first-paint default; the cycle
 #: walks through the three real grouping strategies and wraps back.
 _CHANGESPEC_GROUPING_CYCLE: tuple[str, ...] = (
     "BY_PROJECT",
@@ -50,7 +50,7 @@ _CHANGESPEC_GROUPING_CYCLE: tuple[str, ...] = (
     "BY_STATUS",
 )
 
-#: Human-readable labels for the ChangeSpecs-tab toast emitted on each step.
+#: Human-readable labels for the Patches-tab toast emitted on each step.
 _CHANGESPEC_MODE_LABELS: dict[str, str] = {
     "BY_PROJECT": "by project",
     "BY_DATE": "by date",
@@ -68,13 +68,48 @@ class AgentGroupingMixin:
     _group_fold_registry: AgentGroupFoldRegistry
     _group_fold_registries: dict[GroupingMode, AgentGroupFoldRegistry]
     _current_group_key: tuple[str, ...] | None
-    _changespec_grouping_mode: ChangeSpecGroupingMode
-    _changespec_group_fold_registry: GroupFoldRegistry
-    _changespec_group_fold_registries: dict[ChangeSpecGroupingMode, GroupFoldRegistry]
-    _current_changespec_group_key: tuple[str, ...] | None
+    _patch_grouping_mode: PatchGroupingMode
+    _patch_group_fold_registry: GroupFoldRegistry
+    _patch_group_fold_registries: dict[PatchGroupingMode, GroupFoldRegistry]
+    _current_patch_group_key: tuple[str, ...] | None
     _grouping_mode_save_pending: dict[str, object]
     _grouping_mode_save_inflight: set[str]
     _grouping_mode_save_active: dict[str, object]
+
+    @property
+    def _changespec_grouping_mode(self) -> Any:
+        return getattr(self, "_patch_grouping_mode", None)
+
+    @_changespec_grouping_mode.setter
+    def _changespec_grouping_mode(self, value: Any) -> None:
+        self._patch_grouping_mode = value
+
+    @property
+    def _changespec_group_fold_registry(self) -> Any:
+        return getattr(self, "_patch_group_fold_registry", None)
+
+    @_changespec_group_fold_registry.setter
+    def _changespec_group_fold_registry(self, value: Any) -> None:
+        self._patch_group_fold_registry = value
+
+    @property
+    def _changespec_group_fold_registries(self) -> Any:
+        return getattr(self, "_patch_group_fold_registries", {})
+
+    @_changespec_group_fold_registries.setter
+    def _changespec_group_fold_registries(self, value: Any) -> None:
+        self._patch_group_fold_registries = value
+
+    @property
+    def _current_changespec_group_key(self) -> Any:
+        return getattr(self, "_current_patch_group_key", None)
+
+    @_current_changespec_group_key.setter
+    def _current_changespec_group_key(self, value: Any) -> None:
+        self._current_patch_group_key = value
+
+    def _ensure_changespec_mode_registry(self, mode: Any) -> Any:
+        return self._ensure_patch_mode_registry(mode)
 
     def _next_grouping_mode(self, *, reverse: bool = False) -> GroupingMode:
         """Return the mode that follows :attr:`_grouping_mode` in the cycle."""
@@ -87,15 +122,13 @@ class AgentGroupingMixin:
             return order[0]
         return order[(idx + (-1 if reverse else 1)) % len(order)]
 
-    def _next_changespec_grouping_mode(
-        self, *, reverse: bool = False
-    ) -> ChangeSpecGroupingMode:
-        """Return the PR mode that follows :attr:`_changespec_grouping_mode`."""
-        from ...models.changespec_groups import ChangeSpecGroupingMode
+    def _next_patch_grouping_mode(self, *, reverse: bool = False) -> PatchGroupingMode:
+        """Return the PR mode that follows :attr:`_patch_grouping_mode`."""
+        from ...models.patch_groups import PatchGroupingMode
 
-        order = [ChangeSpecGroupingMode[name] for name in _CHANGESPEC_GROUPING_CYCLE]
+        order = [PatchGroupingMode[name] for name in _CHANGESPEC_GROUPING_CYCLE]
         try:
-            idx = order.index(self._changespec_grouping_mode)
+            idx = order.index(self._patch_grouping_mode)
         except ValueError:
             return order[0]
         return order[(idx + (-1 if reverse else 1)) % len(order)]
@@ -110,16 +143,14 @@ class AgentGroupingMixin:
             self._group_fold_registries[mode] = registry
         return registry
 
-    def _ensure_changespec_mode_registry(
-        self, mode: ChangeSpecGroupingMode
-    ) -> GroupFoldRegistry:
+    def _ensure_patch_mode_registry(self, mode: PatchGroupingMode) -> GroupFoldRegistry:
         """Return the PR fold registry for *mode*, lazily allocating one."""
         from ...models.group_fold import GroupFoldRegistry
 
-        registry = self._changespec_group_fold_registries.get(mode)
+        registry = self._patch_group_fold_registries.get(mode)
         if registry is None:
             registry = GroupFoldRegistry()
-            self._changespec_group_fold_registries[mode] = registry
+            self._patch_group_fold_registries[mode] = registry
         return registry
 
     def _ensure_grouping_mode_save_state(self) -> None:
@@ -134,7 +165,7 @@ class AgentGroupingMixin:
     def _schedule_grouping_mode_save(
         self,
         target: GroupingSaveTarget,
-        mode: GroupingMode | ChangeSpecGroupingMode,
+        mode: GroupingMode | PatchGroupingMode,
     ) -> None:
         """Persist the latest grouping mode for *target* off the key path."""
         self._ensure_grouping_mode_save_state()
@@ -190,36 +221,39 @@ class AgentGroupingMixin:
         from ....grouping_strategy import (
             save_agent_grouping_mode,
             save_changespec_grouping_mode,
+            save_patch_grouping_mode,
         )
         from ...models.agent_groups import GroupingMode
-        from ...models.changespec_groups import ChangeSpecGroupingMode
+        from ...models.patch_groups import PatchGroupingMode
 
         if target == "agents":
             if not isinstance(mode, GroupingMode):
                 return False
             return save_agent_grouping_mode(mode)
-        if not isinstance(mode, ChangeSpecGroupingMode):
+        if not isinstance(mode, PatchGroupingMode):
             return False
-        return save_changespec_grouping_mode(mode)
+        if target == "changespecs":
+            return save_changespec_grouping_mode(mode)
+        return save_patch_grouping_mode(mode)
 
     def action_cycle_grouping_mode(self) -> None:
         """Advance the focused tab's grouping mode by one step.
 
-        On Agents and ChangeSpecs the active mode advances and the tab is
+        On Agents and Patches the active mode advances and the tab is
         refreshed.  On AXE (which has no grouping model) the action is a
         silent no-op.
         """
         if self.current_tab == "agents":
             self._cycle_agents_grouping_mode()
-        elif self.current_tab == "changespecs":
-            self._cycle_changespec_grouping_mode()
+        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+            self._cycle_patch_grouping_mode()
 
     def action_cycle_grouping_mode_reverse(self) -> None:
         """Advance the focused tab's grouping mode by one step in reverse."""
         if self.current_tab == "agents":
             self._cycle_agents_grouping_mode(reverse=True)
-        elif self.current_tab == "changespecs":
-            self._cycle_changespec_grouping_mode(reverse=True)
+        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+            self._cycle_patch_grouping_mode(reverse=True)
 
     def _cycle_agents_grouping_mode(self, *, reverse: bool = False) -> None:
         next_mode = self._next_grouping_mode(reverse=reverse)
@@ -243,18 +277,19 @@ class AgentGroupingMixin:
             pass
         self._refilter_agents()  # type: ignore[attr-defined]
 
-    def _cycle_changespec_grouping_mode(self, *, reverse: bool = False) -> None:
-        next_mode = self._next_changespec_grouping_mode(reverse=reverse)
-        if next_mode is self._changespec_grouping_mode:
+    def _cycle_patch_grouping_mode(self, *, reverse: bool = False) -> None:
+        next_mode = self._next_patch_grouping_mode(reverse=reverse)
+        if next_mode is self._patch_grouping_mode:
             return
-        self._changespec_grouping_mode = next_mode
-        self._changespec_group_fold_registry = self._ensure_changespec_mode_registry(
-            next_mode
-        )
+        self._patch_grouping_mode = next_mode
+        self._patch_group_fold_registry = self._ensure_patch_mode_registry(next_mode)
         # Drop any banner focus from the previous mode — its tuple key
         # belongs to a different tree and would highlight nothing.
-        self._current_changespec_group_key = None
-        self._schedule_grouping_mode_save("changespecs", next_mode)
+        self._current_patch_group_key = None
+        target: GroupingSaveTarget = (
+            "artifacts" if self.current_tab == "artifacts" else "changespecs"
+        )
+        self._schedule_grouping_mode_save(target, next_mode)
         try:
             label = _CHANGESPEC_MODE_LABELS.get(next_mode.name, next_mode.name)
             self.notify(  # type: ignore[attr-defined]

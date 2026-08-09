@@ -229,3 +229,6 @@ def restore_changespec(
         console.print("[green]ChangeSpec restored successfully[/green]")
 
     return (True, None)
+
+
+restore_patch = restore_changespec

@@ -58,12 +58,17 @@ def _grouping_name(agent: Agent) -> str:
 @dataclass(frozen=True)
 class GroupingKeys:
     project: str  # project_name (or NO_PROJECT)
-    changespec: str  # real ChangeSpec name (may be "")
+    patch: str  # real Patch name (may be "")
     name_root: str
     name_prefix: str
     name_prefix_member_rank: int = 1  # exact prefix marker before descendants
     date_subgroup: str = ""  # populated only under BY_DATE; "" otherwise
     anchor: datetime | None = None  # subgroup sort anchor under BY_DATE
+    changespec: str = ""  # legacy alias for ``patch``
+
+    def __post_init__(self) -> None:
+        if not self.changespec:
+            object.__setattr__(self, "changespec", self.patch)
 
 
 def _project_name(agent: Agent) -> str:
@@ -120,11 +125,11 @@ def status_grouping_signature(
     )
 
 
-def _changespec_name_for_grouping(agent: Agent) -> str:
-    """Return the real ChangeSpec name for grouping, if any.
+def _patch_name_for_grouping(agent: Agent) -> str:
+    """Return the real Patch name for grouping, if any.
 
     Project-scoped agents use their project name in ``Agent.cl_name`` for
-    display/identity, but that value is not a ChangeSpec and should not create
+    display/identity, but that value is not a Patch and should not create
     a duplicate project-name bucket under the project banner.
     """
     if agent.is_clan_container:
@@ -147,10 +152,10 @@ def _project_sort_key(mode: GroupingMode, project: str) -> tuple[int, str | int]
     return (0, bucket_sort_index(mode, project))
 
 
-def _changespec_sort_key(changespec: str) -> tuple[int, str]:
-    """Sort key for ChangeSpecs — named first, synthetic bucket last."""
-    if changespec:
-        return (0, changespec.lower())
+def _patch_sort_key(patch: str) -> tuple[int, str]:
+    """Sort key for Patches — named first, synthetic bucket last."""
+    if patch:
+        return (0, patch.lower())
     return (1, "")
 
 
@@ -194,12 +199,12 @@ def grouping_keys_for(
     *,
     anchors: dict[int, Agent] | None = None,
 ) -> GroupingKeys:
-    """Compute (L0, changespec, name_root, name_prefix) for *agent*.
+    """Compute (L0, patch, name_root, name_prefix) for *agent*.
 
     Structural descendants inherit grouping from their outer presentation
     anchor so a banner is never inserted inside a rendered subtree.  ``now``
     is only consulted for ``BY_DATE`` (defaults to ``datetime.now()``);
-    ``changespec`` is always empty in non-STANDARD modes since the ChangeSpec
+    ``patch`` is always empty in non-STANDARD modes since the Patch
     level disappears from the hierarchy.  ``name_root`` and ``name_prefix``
     are additionally suppressed under ``BY_DATE`` — within a date bucket,
     same-base-name agents are not a meaningful sub-unit, so the bucket renders
@@ -210,10 +215,8 @@ def grouping_keys_for(
     l0 = _l0_value_for(target, mode, reference)
     return GroupingKeys(
         project=l0,
-        changespec=(
-            _changespec_name_for_grouping(target)
-            if mode is GroupingMode.STANDARD
-            else ""
+        patch=(
+            _patch_name_for_grouping(target) if mode is GroupingMode.STANDARD else ""
         ),
         name_root="" if mode is GroupingMode.BY_DATE else _name_root(target),
         name_prefix="" if mode is GroupingMode.BY_DATE else _name_prefix(target),
@@ -242,7 +245,7 @@ def grouping_keys_for_agents(
     ]
 
 
-def panel_uses_changespec_level(
+def panel_uses_patch_level(
     panel_agents: list[Agent],
     mode: GroupingMode = GroupingMode.STANDARD,
     *,
@@ -252,7 +255,7 @@ def panel_uses_changespec_level(
     """Whether *panel_agents* should use the 3-level layout.
 
     Only applies to ``STANDARD`` mode — ``BY_DATE`` and ``BY_STATUS``
-    drop the ChangeSpec level entirely, so they always render as
+    drop the Patch level entirely, so they always render as
     bucket → name-root.
     """
     if mode is not GroupingMode.STANDARD:
@@ -267,7 +270,7 @@ def panel_uses_changespec_level(
     )
     for agent in panel_agents:
         target = presentation_anchor(agent, lookup, anchor_lookup)
-        if _changespec_name_for_grouping(target):
+        if _patch_name_for_grouping(target):
             return True
     return False
 
@@ -328,13 +331,13 @@ def walk_order(
     keys_per_agent: list[GroupingKeys],
     anchors: list[tuple[float, int]],
     *,
-    use_changespec_level: bool,
+    use_patch_level: bool,
     mode: GroupingMode = GroupingMode.STANDARD,
     cluster_roots: list[int] | None = None,
 ) -> list[int]:
     """Return a stable permutation, optionally treating root trees atomically."""
     parent_keys: list[tuple[str, str]] = [
-        (k.project, k.changespec) if use_changespec_level else (k.project, "")
+        (k.project, k.patch) if use_patch_level else (k.project, "")
         for k in keys_per_agent
     ]
     root_counts: dict[tuple[tuple[str, str], str], int] = {}
@@ -455,11 +458,7 @@ def walk_order(
         sortable_indices,
         key=lambda i: (
             _project_sort_key(mode, keys_per_agent[i].project),
-            (
-                _changespec_sort_key(keys_per_agent[i].changespec)
-                if use_changespec_level
-                else (0, "")
-            ),
+            (_patch_sort_key(keys_per_agent[i].patch) if use_patch_level else (0, "")),
             status_sort_keys[i],
             _date_subgroup_sort_key(
                 keys_per_agent[i].project,

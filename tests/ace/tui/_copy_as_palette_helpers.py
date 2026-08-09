@@ -223,7 +223,7 @@ def modal_context(*rows: CopyAsRow) -> CopyAsContext:
     return CopyAsContext(
         group="changespecs",
         subtitle="SASE · copy_as_palette",
-        unknown_context="ChangeSpecs",
+        unknown_context="Patches",
         rows=rows,
     )
 

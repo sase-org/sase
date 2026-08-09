@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
-from sase.ace.changespec.models import DeltaEntry
+from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 
 from ...models._agent_clan_sections import ClanContextEntry

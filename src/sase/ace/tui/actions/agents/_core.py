@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 from ._approve import AgentApproveMixin
-from ._changespec_navigation import AgentChangespecNavigationMixin
+from ._patch_navigation import AgentPatchNavigationMixin
 from ._display import AgentDisplayMixin
 from ._filter_actions import AgentFilterActionsMixin
 from ._fold_persistence import AgentFoldPersistenceMixin
@@ -41,15 +41,15 @@ if TYPE_CHECKING:
     from ...util.debounce import DetailPanelDebouncer
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
 
-# Import ChangeSpec unconditionally since it's used as a type annotation
+# Import Patch unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures)
-from ....changespec import ChangeSpec
+from ....patch import Patch
 
 # Re-export constants for backwards compatibility (imported by other modules)
 from ._loading import DISMISSABLE_STATUSES
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 class AgentsMixinCore(
@@ -68,7 +68,7 @@ class AgentsMixinCore(
     AgentNavigationOrderMixin,
     AgentSelectionMixin,
     AgentUnreadMixin,
-    AgentChangespecNavigationMixin,
+    AgentPatchNavigationMixin,
     AgentFilterActionsMixin,
     AgentNotificationMixin,
     AgentKillingMixin,
@@ -82,8 +82,8 @@ class AgentsMixinCore(
     Type hints below declare attributes that are defined at runtime by AceApp.
     """
 
-    # ChangeSpec state
-    changespecs: list[ChangeSpec]
+    # Patch state
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     refresh_interval: int

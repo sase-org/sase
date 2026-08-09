@@ -58,7 +58,7 @@ class RunnerJumpTarget:
 
     cl_name: str
     project_file: str
-    jump_tab: Literal["changespecs", "agents"]
+    jump_tab: Literal["artifacts", "agents"]
     pid: int | None = None
     raw_suffix: str | None = None
 
@@ -201,8 +201,8 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
         jumpable = self._jumpable_runners[idx]
         runner = jumpable.runner
 
-        jump_tab: Literal["changespecs", "agents"] = (
-            "agents" if jumpable.section == "axe" else "changespecs"
+        jump_tab: Literal["artifacts", "agents"] = (
+            "agents" if jumpable.section == "axe" else "artifacts"
         )
 
         target = RunnerJumpTarget(
@@ -390,7 +390,7 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
         parts.append((" ", ""))
         content_len += len(ws_str) + 1
 
-        # ChangeSpec name (no truncation)
+        # Patch name (no truncation)
         cl_name = humanize_cl_name(runner.cl_name)
         parts.append((cl_name, "bold #87D7FF"))
         parts.append((" ", ""))
@@ -513,7 +513,7 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
             parts.append((hint_str, "bold #FFFF00"))
             content_len += len(hint_str)
 
-        # ChangeSpec name
+        # Patch name
         cl_name = humanize_cl_name(task.cl_name)
         parts.append((cl_name, "bold #87D7FF"))
         parts.append((" ", ""))

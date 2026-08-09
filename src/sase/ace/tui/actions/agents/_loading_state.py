@@ -7,7 +7,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ....changespec import ChangeSpec
+from ....patch import Patch
 from ._loading_compute import (
     PreparedApplyBoundary,
     PreparedApplyData,
@@ -48,8 +48,8 @@ class AgentLoadingStateMixin:
     split loading implementation modules.
     """
 
-    # ChangeSpec state
-    changespecs: list[ChangeSpec]
+    # Patch state
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     refresh_interval: int

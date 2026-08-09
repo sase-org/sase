@@ -224,7 +224,7 @@ def test_clear_marks_only_when_marks_exist() -> None:
 
 def test_copy_changespecs_pr_number_requires_pr() -> None:
     catalog = _catalog_by_id()
-    spec = catalog["copy.changespecs.pr_number"]
+    spec = catalog["copy.patches.pr_number"]
     cs_with_cl = _make_changespec(cl="12345")
     cs_without_cl = _make_changespec(cl=None)
     assert is_command_available(

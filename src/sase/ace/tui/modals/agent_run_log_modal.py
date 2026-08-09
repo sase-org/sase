@@ -1,4 +1,4 @@
-"""Agent Run Log modal for viewing agent history of a ChangeSpec."""
+"""Agent Run Log modal for viewing agent history of a Patch."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from sase.ace.dismissed_agents import (
 from sase.ace.hints import build_editor_args
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_loader import load_all_agents
-from sase.core.changespec import changespec_names_match
+from sase.core.patch import patch_names_match
 from sase.core.time import local_now
 from sase.ace.tui.widgets.prompt_panel._helpers import append_model_field
 
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 def _load_agents_for_cl(
     cl_name: str,
 ) -> tuple[list[Agent], set[tuple[AgentType, str, str | None]]]:
-    """Load agents for a specific ChangeSpec, including dismissed ones.
+    """Load agents for a specific Patch, including dismissed ones.
 
     Also includes agents that created this PR via meta_new_cl or
     meta_new_pr output variables in embedded xprompt workflows.
@@ -46,7 +46,7 @@ def _load_agents_for_cl(
         dismissed_identities is the set of all dismissed agent identity tuples.
     """
     from sase.ace.tui.actions.agents._notification_actions import (
-        get_meta_changespec_name,
+        get_meta_patch_name,
     )
 
     all_agents = load_all_agents()
@@ -55,13 +55,13 @@ def _load_agents_for_cl(
     for a in all_agents:
         if a.is_workflow_child:
             continue
-        if changespec_names_match(a.cl_name, cl_name):
+        if patch_names_match(a.cl_name, cl_name):
             active.append(a)
             active_ids.add(id(a))
             continue
         # Include project agents that created this PR
-        cs_name = get_meta_changespec_name(a)
-        if cs_name and changespec_names_match(cs_name, cl_name):
+        cs_name = get_meta_patch_name(a)
+        if cs_name and patch_names_match(cs_name, cl_name):
             active.append(a)
             active_ids.add(id(a))
 
@@ -74,7 +74,7 @@ def _load_agents_for_cl(
     candidate_dismissed_suffixes: set[str] = {
         raw_suffix
         for _, dismissed_cl_name, raw_suffix in dismissed_ids
-        if raw_suffix is not None and changespec_names_match(dismissed_cl_name, cl_name)
+        if raw_suffix is not None and patch_names_match(dismissed_cl_name, cl_name)
     }
     for summary in load_dismissed_bundle_summaries(
         cl_name=cl_name,
@@ -83,7 +83,7 @@ def _load_agents_for_cl(
         if summary.raw_suffix:
             candidate_dismissed_suffixes.add(summary.raw_suffix)
 
-    # Load dismissed bundles for this ChangeSpec, deduplicating against active agents
+    # Load dismissed bundles for this Patch, deduplicating against active agents
     active_identities = {a.identity for a in active}
     active_suffixes = {a.raw_suffix for a in active if a.raw_suffix is not None}
 
@@ -97,9 +97,8 @@ def _load_agents_for_cl(
         if agent.is_workflow_child:
             continue
         # Match by cl_name or by meta PR creation
-        if not changespec_names_match(agent.cl_name, cl_name) and not (
-            (meta := get_meta_changespec_name(agent))
-            and changespec_names_match(meta, cl_name)
+        if not patch_names_match(agent.cl_name, cl_name) and not (
+            (meta := get_meta_patch_name(agent)) and patch_names_match(meta, cl_name)
         ):
             continue
         # Skip if already present as an active agent
@@ -174,7 +173,7 @@ def _status_icon(status: str, *, dismissed: bool = False) -> tuple[str, str]:
 
 
 class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
-    """Modal for viewing agent run history of a ChangeSpec."""
+    """Modal for viewing agent run history of a Patch."""
 
     _option_list_id = "agent-log-list"
     BINDINGS = [
@@ -299,7 +298,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             try:
                 detail = self.query_one("#agent-log-detail", Static)
                 detail.update(
-                    Text("No agent runs found for this ChangeSpec.", style="dim italic")
+                    Text("No agent runs found for this Patch.", style="dim italic")
                 )
             except Exception:
                 pass

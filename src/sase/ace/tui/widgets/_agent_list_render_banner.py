@@ -1,4 +1,4 @@
-"""Banner row rendering for project / ChangeSpec / bucket / name-root
+"""Banner row rendering for project / Patch / bucket / name-root
 group banners, plus a memoized wrapper backed by
 :class:`AgentRenderCache`.
 """
@@ -61,7 +61,7 @@ def format_banner_option(
 
     - STANDARD L0 (project): bold sky-blue ``▌`` bar + label, dim sky-blue
       heavy rule ``━`` and chip.
-    - STANDARD L1 (ChangeSpec, 3-level mode), BY_DATE L1 subgroup
+    - STANDARD L1 (Patch, 3-level mode), BY_DATE L1 subgroup
       banners (1-hour ``HH:00``, calendar day, week range), and
       name-root banners that own dotted-name prefix subgroups: cooler
       accent + ``▎`` bar, light rule ``─``.
@@ -80,18 +80,16 @@ def format_banner_option(
     summary = compute_banner_summary(group, agents)
     chip = banner_summary_text(summary)
 
-    # Only STANDARD mode uses agents' ChangeSpec names for banner rows;
-    # BY_DATE / BY_STATUS collapse the project + ChangeSpec layers into
+    # Only STANDARD mode uses agents' Patch names for banner rows;
+    # BY_DATE / BY_STATUS collapse the project + Patch layers into
     # the bucket.  BY_DATE's real L1 time windows still reuse the same
-    # visual register as STANDARD ChangeSpec banners.
-    panel_uses_changespec = mode is GroupingMode.STANDARD and any(
-        a.cl_name for a in agents
-    )
-    is_changespec_banner = (
-        group.level == 1 and panel_uses_changespec and len(group.group_key) == 2
+    # visual register as STANDARD Patch banners.
+    panel_uses_patch = mode is GroupingMode.STANDARD and any(a.cl_name for a in agents)
+    is_patch_banner = (
+        group.level == 1 and panel_uses_patch and len(group.group_key) == 2
     )
     is_middle_tier_banner = (
-        is_changespec_banner
+        is_patch_banner
         or (group.level == 1 and mode is GroupingMode.BY_DATE)
         or (group.level > 0 and group.has_child_groups)
     )

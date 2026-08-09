@@ -1,10 +1,10 @@
-"""Section builders for ChangeSpec detail display.
+"""Section builders for Patch detail display.
 
 Re-exports from individual builder modules for backward compatibility.
 """
 
 from .comments_builder import build_comments_section
-from .commits_builder import build_commits_section
+from .stitches_builder import build_stitches_section
 from .deltas_builder import build_deltas_section
 from .hint_tracker import HintTracker
 from .hooks_builder import build_hooks_section
@@ -14,7 +14,7 @@ from .timestamps_builder import build_timestamps_section
 
 __all__ = [
     "HintTracker",
-    "build_commits_section",
+    "build_stitches_section",
     "build_deltas_section",
     "build_hooks_section",
     "build_comments_section",

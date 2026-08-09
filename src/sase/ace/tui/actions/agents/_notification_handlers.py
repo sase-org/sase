@@ -1,6 +1,6 @@
 """Simple notification action handlers.
 
-Dispatches jump-to-agent, jump-to-changespec, view-error-report, and tmux actions.
+Dispatches jump-to-agent, jump-to-patch, view-error-report, and tmux actions.
 """
 
 from __future__ import annotations
@@ -122,70 +122,79 @@ def handle_memory_review(app: object, notification: Notification) -> bool:
     return True
 
 
-def handle_jump_to_changespec(app: object, notification: Notification) -> bool:
-    """Jump to the changespec referenced in the notification.
+def handle_jump_to_patch(app: object, notification: Notification) -> bool:
+    """Jump to the patch referenced in the notification.
 
     Args:
         app: The AceApp instance.
-        notification: The notification with action_data containing changespec_name.
+        notification: The notification with action_data containing patch_name.
 
     Returns:
-        True if the changespec was found and selected.
+        True if the patch was found and selected.
     """
-    from ._notification_navigation import navigate_to_changespec_tab
+    from ._notification_navigation import navigate_to_patch_tab
 
-    changespec_name = notification.action_data.get("changespec_name")
-    if not changespec_name:
-        app.notify("No changespec_name in notification", severity="warning")  # type: ignore[attr-defined]
+    patch_name = notification.action_data.get("patch_name")
+    if not patch_name:
+        app.notify("No patch_name in notification", severity="warning")  # type: ignore[attr-defined]
         return False
 
     project_file = notification.action_data.get("project_file", "")
-    return navigate_to_changespec_tab(app, changespec_name, project_file)
+    return navigate_to_patch_tab(app, patch_name, project_file)
 
 
 def handle_jump_to_mentor_review(app: object, notification: Notification) -> bool:
-    """Jump to the changespec and open Mentor Review iff comments exist.
+    """Jump to the patch and open Mentor Review iff comments exist.
 
-    Navigates to the ChangeSpecs tab, selects the target ChangeSpec, then — if the
+    Navigates to the Patches tab, selects the target Patch, then — if the
     referenced entry has reviewable mentors — pushes the Mentor Review modal.
 
     Args:
         app: The AceApp instance.
         notification: The notification with action_data containing
-            ``changespec_name``, ``project_file``, and ``entry_id``.
+            ``patch_name``, ``project_file``, and ``entry_id``.
 
     Returns:
         True if navigation succeeded (modal push is best-effort).
     """
     from ...actions.agent_workflow._mentor_review import has_reviewable_mentors
-    from ._notification_navigation import navigate_to_changespec_tab
+    from . import _notification_navigation
 
-    changespec_name = notification.action_data.get("changespec_name")
-    if not changespec_name:
-        app.notify("No changespec_name in notification", severity="warning")  # type: ignore[attr-defined]
+    patch_name = notification.action_data.get("patch_name")
+    legacy_payload = False
+    if not patch_name:
+        patch_name = notification.action_data.get("changespec_name")
+        legacy_payload = bool(patch_name)
+    if not patch_name:
+        app.notify("No patch_name in notification", severity="warning")  # type: ignore[attr-defined]
         return False
 
     project_file = notification.action_data.get("project_file", "")
     entry_id = notification.action_data.get("entry_id")
 
-    if not navigate_to_changespec_tab(app, changespec_name, project_file):
+    navigate = (
+        _notification_navigation.navigate_to_changespec_tab
+        if legacy_payload
+        else _notification_navigation.navigate_to_patch_tab
+    )
+    if not navigate(app, patch_name, project_file):
         return False
 
     if not entry_id:
         return True
 
-    # Look up the freshly-selected ChangeSpec and the matching MentorEntry.
-    changespecs = app.changespecs  # type: ignore[attr-defined]
+    # Look up the freshly-selected Patch and the matching MentorEntry.
+    patches = getattr(app, "patches", getattr(app, "changespecs", []))
     current_idx = app.current_idx  # type: ignore[attr-defined]
-    if current_idx is None or current_idx < 0 or current_idx >= len(changespecs):
+    if current_idx is None or current_idx < 0 or current_idx >= len(patches):
         return True
 
-    changespec = changespecs[current_idx]
-    if not changespec.mentors:
+    patch = patches[current_idx]
+    if not patch.mentors:
         return True
 
     target_entry = None
-    for entry in changespec.mentors:
+    for entry in patch.mentors:
         if entry.entry_id == entry_id:
             target_entry = entry
             break
@@ -196,7 +205,7 @@ def handle_jump_to_mentor_review(app: object, notification: Notification) -> boo
     if not has_reviewable_mentors(target_entry):
         return True
 
-    app._open_mentor_review_for_entry(changespec, target_entry)  # type: ignore[attr-defined]
+    app._open_mentor_review_for_entry(patch, target_entry)  # type: ignore[attr-defined]
     return True
 
 

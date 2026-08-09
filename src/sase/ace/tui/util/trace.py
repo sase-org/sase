@@ -125,7 +125,7 @@ def tui_trace(span: str, **counters: Any) -> Generator[dict[str, Any], None, Non
 
     Use as::
 
-        with tui_trace("changespec.refresh_display", count=len(specs)):
+        with tui_trace("patch.refresh_display", count=len(specs)):
             ...
 
     The context manager yields a mutable mapping that callers may write

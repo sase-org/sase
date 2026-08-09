@@ -4,7 +4,7 @@ from typing import Literal
 
 from ...keymaps import BUILTIN_MODE_NAMES, KeymapRegistry, key_display_name
 
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 # Box dimensions for consistent formatting
 BOX_WIDTH = 57  # Total box width in characters
@@ -128,14 +128,14 @@ _custom_mode_sections = custom_mode_sections
 
 
 TAB_DISPLAY_NAMES = {
-    "changespecs": "Artifacts",
+    "artifacts": "Artifacts",
     "agents": "Agents",
     "axe": "Axe",
 }
 
 # Column split indices for each tab (left column gets indices < split, right gets >= split)
 COLUMN_SPLITS = {
-    "changespecs": 11,  # Balance artifact panes + PR actions against modes/copy help.
+    "artifacts": 11,  # Balance artifact panes + PR actions against modes/copy help.
     "agents": 3,  # Left: Navigation, Agent Actions, Workflow Folding; Right: rest
     "axe": 3,  # Left: Navigation, BgCmds, Leader Mode; Right: rest
 }

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 def _callable_accepts_kwarg(callback: Callable[..., object], name: str) -> bool:

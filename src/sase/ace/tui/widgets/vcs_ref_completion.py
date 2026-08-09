@@ -19,7 +19,7 @@ VCS_REF_COMPLETION_KIND = "vcs_ref"
 _NO_KNOWN_REFS_LABEL = "no known projects, PRs, or organizations"
 """Placeholder row text shown when a workflow has no ref-root candidates."""
 
-VcsRefCandidateKind = Literal["project", "changespec", "namespace"]
+VcsRefCandidateKind = Literal["project", "patch", "namespace"]
 
 
 def build_no_known_refs_placeholder() -> CompletionCandidate:

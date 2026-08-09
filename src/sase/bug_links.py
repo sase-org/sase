@@ -28,6 +28,11 @@ class BugLinks:
         """Presentation alias for ChangeSpecs shown in the Bugs pane."""
         return self.changespecs
 
+    @property
+    def patches(self) -> tuple[ChangeSpec, ...]:
+        """Canonical presentation alias for linked patches."""
+        return self.changespecs
+
 
 def _normalize_bug_id(value: str | int | None) -> str:
     """Normalize common BUG-tag spellings to a comparable tracker id.

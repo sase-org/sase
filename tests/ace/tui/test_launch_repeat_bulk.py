@@ -123,7 +123,7 @@ def test_bulk_launch_takes_changespec_snapshot() -> None:
     assert app._bulk_changespecs is None
     # A tracked launch task was submitted to drive the worker.
     assert len(app.launch_tasks) == 1
-    assert app.launch_tasks[0]["display_name"] == "launch bulk 2 ChangeSpecs"
+    assert app.launch_tasks[0]["display_name"] == "launch bulk 2 Patches"
     # The shared prompt rides along as payloadless-failure recovery metadata.
     assert app.launch_tasks[0]["submitted_prompt"] == "the prompt"
 

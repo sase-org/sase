@@ -146,7 +146,7 @@ class AgentNotificationModalMixin:
             handle_custom_gate,
             handle_hitl,
             handle_jump_to_agent,
-            handle_jump_to_changespec,
+            handle_jump_to_patch,
             handle_jump_to_mentor_review,
             handle_launch_approval,
             handle_memory_review,
@@ -179,8 +179,8 @@ class AgentNotificationModalMixin:
             if result.action in PRIVILEGED_GATE_ACTIONS:
                 self._read_notification_pending_actions_from_provider()
 
-            if result.action == "JumpToChangeSpec":
-                handle_jump_to_changespec(self, result)
+            if result.action == "JumpToPatch":
+                handle_jump_to_patch(self, result)
             elif result.action == "JumpToMentorReview":
                 handle_jump_to_mentor_review(self, result)
             elif result.action == "JumpToAgent":

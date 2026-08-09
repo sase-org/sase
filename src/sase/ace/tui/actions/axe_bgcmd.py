@@ -23,11 +23,11 @@ from ..bgcmd import (
 )
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
     from ..modals.project_select_modal import ProjectSelectResult
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 def _bgcmd_description(info: BackgroundCommandInfo) -> str:
@@ -81,7 +81,7 @@ class AxeBgCmdMixin:
     """Mixin providing background command management."""
 
     # Type hints for attributes accessed from AceApp
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     axe_running: bool
@@ -95,7 +95,7 @@ class AxeBgCmdMixin:
             self.notify("Maximum background commands reached", severity="error")  # type: ignore[attr-defined]
             return
 
-        # Show project select modal. Its lifecycle/ChangeSpec snapshot is loaded
+        # Show project select modal. Its lifecycle/Patch snapshot is loaded
         # off-thread before the pure modal is mounted.
         from ..modals.project_select_modal import show_project_select_modal
 
@@ -107,7 +107,7 @@ class AxeBgCmdMixin:
 
             selection = result.selection
 
-            # Extract project name and optional ChangeSpec name
+            # Extract project name and optional Patch name
             if isinstance(selection, str):
                 project = selection
                 cl_name = None
@@ -128,17 +128,17 @@ class AxeBgCmdMixin:
 
         show_project_select_modal(self, on_project_selected)
 
-    def _start_bgcmd_from_changespec(self) -> None:
-        """Start background command from current ChangeSpec (ChangeSpecs tab only).
+    def _start_bgcmd_from_patch(self) -> None:
+        """Start background command from current Patch (Patches tab only).
 
         This is the quick version triggered from leader mode that skips
-        ProjectSelectModal, using the current ChangeSpec's project and ChangeSpec name.
+        ProjectSelectModal, using the current Patch's project and Patch name.
         """
-        if self.current_tab != "changespecs":
+        if self.current_tab != "artifacts":
             return
 
-        if not self.changespecs:
-            self.notify("No ChangeSpecs available", severity="warning")  # type: ignore[attr-defined]
+        if not self.patches:
+            self.notify("No Patches available", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Check for available slot
@@ -147,9 +147,9 @@ class AxeBgCmdMixin:
             self.notify("Maximum background commands reached", severity="error")  # type: ignore[attr-defined]
             return
 
-        changespec = self.changespecs[self.current_idx]
-        project = changespec.project_basename
-        cl_name = changespec.name
+        patch = self.patches[self.current_idx]
+        project = patch.project_basename
+        cl_name = patch.name
 
         # Go directly to workspace input, skipping ProjectSelectModal
         self._show_workspace_input(slot, project, cl_name)
@@ -162,7 +162,7 @@ class AxeBgCmdMixin:
         Args:
             slot: Slot number to use.
             project: Project name.
-            cl_name: Optional ChangeSpec name to checkout before running command.
+            cl_name: Optional Patch name to checkout before running command.
         """
         from ..modals import WorkspaceInputModal
 
@@ -184,7 +184,7 @@ class AxeBgCmdMixin:
             slot: Slot number to use.
             project: Project name.
             workspace_num: Workspace number.
-            cl_name: Optional ChangeSpec name to checkout before running command.
+            cl_name: Optional Patch name to checkout before running command.
         """
         from ..modals import CommandHistoryModal
 
@@ -217,7 +217,7 @@ class AxeBgCmdMixin:
             command: Shell command to run.
             project: Project name.
             workspace_num: Workspace number.
-            cl_name: Optional ChangeSpec name to checkout before running command.
+            cl_name: Optional Patch name to checkout before running command.
         """
         try:
             workspace_dir = get_workspace_directory(project, workspace_num)
@@ -225,13 +225,13 @@ class AxeBgCmdMixin:
             self.notify(f"Failed to get workspace: {e}", severity="error")  # type: ignore[attr-defined]
             return
 
-        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+        from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
         project_file = preferred_project_spec_path(
             str(sase_projects_dir() / project), project
         )
 
-        # Synthetic dedup key for the no-ChangeSpec path, scoped per slot so two
+        # Synthetic dedup key for the no-Patch path, scoped per slot so two
         # concurrent !!-launches against different slots don't collide.
         is_synthetic_key = cl_name is None
         dedup_key = cl_name if cl_name is not None else f"bgcmd-slot-{slot}"

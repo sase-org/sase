@@ -27,18 +27,22 @@ class NavigationModalMixin(NavigationMixinBase):
             self._jump_all_last_position = pre_jump_position
             self._save_current_tab_position()  # type: ignore[attr-defined]
             if result.tab == ARTIFACTS_TAB:
-                # The modal only lists ChangeSpec entries under the
+                # The modal only lists Patch entries under the
                 # Artifacts tab, so PRs is unconditionally the right pane.
                 from ...artifact_tabs import switch_to_artifacts_subtab
 
                 switch_to_artifacts_subtab(self, "prs")
+            elif result.tab in {"patches", "changespecs"}:
+                self.current_artifacts_subtab = "prs"  # type: ignore[attr-defined]
+                self.current_tab = result.tab  # type: ignore[assignment]
             else:
                 self.current_tab = result.tab  # type: ignore[assignment]
             self.current_idx = result.index
 
+        patches = getattr(self, "patches", getattr(self, "changespecs", []))
         self.push_screen(  # type: ignore[attr-defined]
             JumpAllModal(
-                changespecs=self.changespecs,
+                patches=patches,
                 agents=self._agents,
                 axe_items=self._axe_items,
                 last_position=self._jump_all_last_position,

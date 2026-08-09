@@ -13,14 +13,14 @@ from ..failure_messages import with_log_panel_hint
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from sase.ace.changespec import ChangeSpec
+    from sase.ace.patch import Patch
     from sase.ace.tui.modals import SelectionItem
 
 
 class AgentLaunchBodyMixin:
     """Mixin providing the worker-thread launch body."""
 
-    _bulk_changespecs: list[ChangeSpec] | None
+    _bulk_patches: list[Patch] | None
     _prompt_context: PromptContext | None
     _last_custom_agent_selection: SelectionItem | None
 

@@ -33,7 +33,7 @@ from .operations import (
 )
 
 
-def archive_changespec(
+def archive_patch(
     changespec: ChangeSpec, console: Console | None = None
 ) -> tuple[bool, str | None]:
     """Archive a ChangeSpec by archiving its revision and updating its status.
@@ -226,3 +226,6 @@ def archive_changespec(
         )
         if console:
             console.print(f"[cyan]Released workspace #{workspace_num}[/cyan]")
+
+
+archive_changespec = archive_patch

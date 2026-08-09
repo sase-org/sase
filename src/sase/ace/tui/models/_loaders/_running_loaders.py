@@ -85,7 +85,7 @@ def get_all_project_files() -> list[str]:
         file per project and falls back to the legacy ``.gp`` file when the
         canonical sibling is not yet on disk.
     """
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
     projects_dir = sase_projects_dir()
 
@@ -115,8 +115,8 @@ def load_agents_from_running_field(
 
     Args:
         project_files: List of project file paths.
-        bug_by_cl_name: Mapping of ChangeSpec names to bug URLs.
-        cl_by_cl_name: Mapping of ChangeSpec names to PR numbers.
+        bug_by_cl_name: Mapping of Patch names to bug URLs.
+        cl_by_cl_name: Mapping of Patch names to PR numbers.
 
     Returns:
         List of Agent objects from RUNNING field claims.
@@ -193,7 +193,7 @@ def load_running_home_agents_from_snapshot(
     keep behavior parity, but the cleanup uses the absolute artifact
     path embedded in the record rather than rebuilding it.
     """
-    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
 
     agents: list[Agent] = []
     home_project_file = preferred_project_spec_path(
@@ -292,7 +292,7 @@ def load_running_home_agents() -> list[Agent]:
             start_time = parse_timestamp_14_digit(timestamp_str)
 
             cl_name = data.get("cl_name", "~")
-            from sase.ace.changespec.project_spec_path import (
+            from sase.ace.patch.project_spec_path import (
                 preferred_project_spec_path,
             )
 

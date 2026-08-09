@@ -37,7 +37,7 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert by_key["V"] == "show_agent_run_log"
     assert by_key["J"] == "focus_next_agent_panel"
     assert by_key["space"] == "start_agent_home"
-    assert by_key["ctrl+@"] == "start_agent_from_changespec"
+    assert by_key["ctrl+@"] == "start_agent_from_patch"
 
 
 def test_action_start_agent_home_opens_home_prompt() -> None:

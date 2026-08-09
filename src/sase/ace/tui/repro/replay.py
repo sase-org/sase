@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import Literal
 from unittest.mock import patch
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.patch import Patch
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent
@@ -89,7 +89,7 @@ async def replay_agents_tab_bundle(
     *,
     merge_mode: ReplayMergeMode = "current",
     size: tuple[int, int] = (120, 40),
-    changespecs: list[ChangeSpec] | None = None,
+    patches: list[Patch] | None = None,
 ) -> ReproReplayResult:
     """Replay a bundle through ``AceApp.run_test()`` and check invariants."""
 
@@ -98,7 +98,7 @@ async def replay_agents_tab_bundle(
         async with AcePage(
             query='"sase-repro"',
             size=size,
-            changespecs=[] if changespecs is None else changespecs,
+            patches=[] if patches is None else patches,
             initial_tab="agents",
             wait_for_startup_state=False,
         ) as page:

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from ...app import AceApp
 
 from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ...tab_order import normalize_tab_name
 from ...widgets.panel_tab_strip import PanelTab, PanelTabStrip
 from .bindings import (
     COLUMN_SPLITS,
@@ -54,12 +55,12 @@ _HELP_PANEL_LABELS: dict[HelpPanelTab, str] = {
     _HELP_GUIDE_TAB: "Guide",
 }
 _TAB_ACCENTS: dict[TabName, str] = {
-    "changespecs": "#00D7AF",
+    "artifacts": "#00D7AF",
     "agents": "#87D7FF",
     "axe": "#FF5F5F",
 }
 _TAB_CLASSES: dict[TabName, str] = {
-    "changespecs": "-tab-changespecs",
+    "artifacts": "-tab-patches",
     "agents": "-tab-agents",
     "axe": "-tab-axe",
 }
@@ -94,7 +95,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
         ("slash", "focus_filter", "Filter"),
-        # Query history navigation (ChangeSpecs tab only)
+        # Query history navigation (Patches tab only)
         Binding("circumflex_accent", "go_prev_query", "Prev Query", show=False),
         Binding("underscore", "go_next_query", "Next Query", show=False),
     ]
@@ -121,7 +122,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
             agents_plugins_installed: Agents guide plugin-install state.
         """
         super().__init__()
-        self._current_tab = current_tab
+        self._current_tab = cast(TabName, normalize_tab_name(current_tab))
         self._active_query = active_query
         self._registry = registry
         self._saved_queries = dict(saved_queries) if saved_queries is not None else None
@@ -238,8 +239,8 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
                 saved_query_prefix=key_display_name(km.app.start_saved_query_mode),
                 title_runs=saved_runs or (),
             )
-        # Query history is ChangeSpecs-tab only
-        if self._current_tab == "changespecs":
+        # Query history is Patches-tab only
+        if self._current_tab == "artifacts":
             history_runs = (
                 matches_title("Query History", self._filter_query)
                 if result.active
@@ -319,7 +320,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
     ) -> list[tuple[str, list[tuple[str, str]]]]:
         """Get the keybinding sections for the current tab."""
         km = self._get_km()
-        if self._current_tab == "changespecs":
+        if self._current_tab == "artifacts":
             return cls_bindings(km)
         elif self._current_tab == "agents":
             return agents_bindings(km)
@@ -569,18 +570,18 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         """Switch the underlying ACE app to the previous tab."""
         cast("AceApp", self.app).action_prev_tab()
 
-    # --- Query history navigation actions (ChangeSpecs tab only) ---
+    # --- Query history navigation actions (Patches tab only) ---
 
     def action_go_prev_query(self) -> None:
         """Navigate to previous query and close modal."""
-        if self._current_tab != "changespecs":
+        if self._current_tab != "artifacts":
             return
         self.dismiss(None)
         cast("AceApp", self.app).action_prev_query()
 
     def action_go_next_query(self) -> None:
         """Navigate to next query and close modal."""
-        if self._current_tab != "changespecs":
+        if self._current_tab != "artifacts":
             return
         self.dismiss(None)
         cast("AceApp", self.app).action_next_query()

@@ -3,7 +3,7 @@
 When the selected Agents-tab row has a visible ``WORKSPACES`` lane in
 ``SASE CONTEXT``, pressing ``t`` opens this keyboard-first chooser instead of
 immediately opening the agent's own workspace. It offers one ``CURRENT`` option
-for the agent's own project / ChangeSpec workspace plus one ``LINKED`` option
+for the agent's own project / Patch workspace plus one ``LINKED`` option
 for every unique repository the agent context opened through ``sase repo open``.
 """
 

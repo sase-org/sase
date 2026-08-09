@@ -16,7 +16,7 @@ async def test_ace_page_initial_state() -> None:
         state = page.state
         assert state["idx"] == 0
         assert state["total"] == 3
-        assert state["tab"] == "changespecs"
+        assert state["tab"] == "artifacts"
         assert state["modal"] is None
         assert state["selected"]["name"] == "feature_a"
 
@@ -64,7 +64,7 @@ async def test_expect_state_passes() -> None:
     async with AcePage() as page:
         await page.expect_state("idx", 0)
         await page.expect_state("total", 3)
-        await page.expect_state("tab", "changespecs")
+        await page.expect_state("tab", "artifacts")
 
 
 async def test_expect_state_fails_on_timeout() -> None:

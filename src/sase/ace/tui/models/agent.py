@@ -217,7 +217,7 @@ class Agent(AgentState):
         """Name to show in list display.
 
         Top-level workflow entries show the workflow name (e.g. "refresh_cl_desc")
-        instead of the ChangeSpec name, since that's what the user cares about.
+        instead of the Patch name, since that's what the user cares about.
         """
         if self.is_clan_container and self.agent_clan:
             return self.presented_agent_name or self.agent_clan
@@ -435,7 +435,7 @@ class Agent(AgentState):
 
     @property
     def is_project_agent(self) -> bool:
-        """Check if this agent runs against a project (not a specific ChangeSpec)."""
+        """Check if this agent runs against a project (not a specific Patch)."""
         if self.is_clan_container:
             return False
         if not self.project_file:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ...changespec import ChangeSpec
+from ...patch import Patch
 from ..keymaps import KeymapRegistry, footer_key_display
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ class KeybindingModesMixin:
 
         def _compute_available_bindings(
             self,
-            changespec: ChangeSpec,
+            patch: Patch,
             *,
             mark_count: int = 0,
         ) -> list[tuple[str, str]]: ...
@@ -41,7 +41,7 @@ class KeybindingModesMixin:
             agent: Agent | None,
             *,
             completed_count: int = 0,
-            can_jump_to_changespec: bool = False,
+            can_jump_to_patch: bool = False,
             marked_count: int = 0,
             attempt_pinned: bool = False,
             panel_focused: bool = False,
@@ -79,9 +79,9 @@ class KeybindingModesMixin:
             description_expanded: bool = True,
         ) -> list[tuple[str, str]]: ...
 
-    def update_bindings(self, changespec: ChangeSpec, *, mark_count: int = 0) -> None:
-        """Update bindings based on current ChangeSpec and app state."""
-        bindings = self._compute_available_bindings(changespec, mark_count=mark_count)
+    def update_bindings(self, patch: Patch, *, mark_count: int = 0) -> None:
+        """Update bindings based on current Patch and app state."""
+        bindings = self._compute_available_bindings(patch, mark_count=mark_count)
         bindings.append((self._kd("edit_query"), "edit query"))
         self._update_display(bindings)
 
@@ -118,7 +118,7 @@ class KeybindingModesMixin:
         agent: Agent | None,
         *,
         completed_count: int = 0,
-        can_jump_to_changespec: bool = False,
+        can_jump_to_patch: bool = False,
         marked_count: int = 0,
         attempt_pinned: bool = False,
         panel_focused: bool = False,
@@ -146,7 +146,7 @@ class KeybindingModesMixin:
         bindings = self._compute_agent_bindings(
             agent,
             completed_count=completed_count,
-            can_jump_to_changespec=can_jump_to_changespec,
+            can_jump_to_patch=can_jump_to_patch,
             marked_count=marked_count,
             attempt_pinned=attempt_pinned,
             panel_focused=panel_focused,
@@ -200,7 +200,7 @@ class KeybindingModesMixin:
     def update_fold_bindings(
         self,
         *,
-        current_tab: str = "changespecs",
+        current_tab: str = "artifacts",
         fold_scale: FoldScale | None = None,
     ) -> None:
         """Update bindings to show the active tab's fold mode options."""
@@ -235,12 +235,12 @@ class KeybindingModesMixin:
             (k("set_level_1"), "level 1"),
             (k("set_level_2"), "level 2"),
             (k("set_level_3"), "level 3"),
-            (k("cycle_commits"), "commits"),
+            (k("cycle_stitches"), "stitches"),
             (k("cycle_hooks"), "hooks"),
             (k("cycle_mentors"), "mentors"),
             (k("cycle_timestamps"), "timestamps"),
             (k("cycle_deltas"), "deltas"),
-            (k("toggle_commits"), "toggle commits"),
+            (k("toggle_stitches"), "toggle stitches"),
             (k("toggle_hooks"), "toggle hooks"),
             (k("toggle_mentors"), "toggle mentors"),
             (k("toggle_timestamps"), "toggle timestamps"),
@@ -271,7 +271,7 @@ class KeybindingModesMixin:
     def update_leader_bindings(
         self,
         *,
-        current_tab: str = "changespecs",
+        current_tab: str = "artifacts",
         has_comments: bool = False,
         has_notification: bool = False,
         has_mentor_results: bool = False,
@@ -285,9 +285,9 @@ class KeybindingModesMixin:
 
         Args:
             current_tab: The currently active tab name.
-            has_comments: Whether the selected ChangeSpec has a COMMENTS field.
+            has_comments: Whether the selected Patch has a COMMENTS field.
             has_notification: Whether the selected agent has a pending notification.
-            has_mentor_results: Whether the selected ChangeSpec has mentor results.
+            has_mentor_results: Whether the selected Patch has mentor results.
             has_unread_completed_agent: Whether any completed agent is unread.
             has_bulk_read_undo_available: Whether the last bulk read can be undone.
             has_stopped_agent: Whether any stopped agent is loaded.
@@ -298,6 +298,9 @@ class KeybindingModesMixin:
                 ``revert marked (N)``.
         """
         d = footer_key_display
+        current_tab = (
+            "artifacts" if current_tab in {"patches", "changespecs"} else current_tab
+        )
         keys = self._kr().leader_mode.keys
 
         def k(name: str) -> str:
@@ -309,7 +312,7 @@ class KeybindingModesMixin:
         bindings.append((k("repeat_last"), "repeat"))
         if current_tab == "agents":
             bindings.append((k("edit_query"), "edit query"))
-        if current_tab == "changespecs":
+        if current_tab == "artifacts":
             if has_comments:
                 bindings.append((k("clear_comments"), "clear comments"))
             bindings.append((k("run_cmd"), "run cmd (PR)"))
@@ -320,7 +323,7 @@ class KeybindingModesMixin:
         if self._runner_count > 0:
             bindings.append((k("runners"), f"runners ({self._runner_count})"))
         bindings.append((k("agent_home"), "agent (home)"))
-        if current_tab in ("changespecs", "agents"):
+        if current_tab in ("artifacts", "agents"):
             bindings.append((k("agent_from_cl"), "run agent (PR)"))
         if current_tab == "agents":
             bindings.append((k("toggle_agent_panel_grouping"), "group panels"))
@@ -431,14 +434,15 @@ class KeybindingModesMixin:
         """Update bindings to show copy mode options for the current tab.
 
         Args:
-            tab: Current tab name ("changespecs", "agents", or "axe").
-            artifacts_pane_key: Visible leaf pane when ``tab`` is changespecs.
+            tab: Current tab name ("artifacts", "agents", or "axe").
+            artifacts_pane_key: Visible leaf pane when ``tab`` is patches.
             file_visible: Whether the file panel is visible (agents tab only).
         """
         d = footer_key_display
+        tab = "artifacts" if tab in {"patches", "changespecs"} else tab
         key_group = (
             f"artifacts_{artifacts_pane_key}"
-            if tab == "changespecs"
+            if tab == "artifacts"
             and artifacts_pane_key
             in {"commits", "beads", "plans", "chats", "bugs", "other"}
             else tab

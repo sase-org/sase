@@ -56,7 +56,7 @@ def get_artifacts_dir(agent: Agent) -> str | None:
             profile = workflow[7:-1]
             workflow_name = f"mentor-{profile}"
         elif workflow == "mentor" and agent.mentor_name:
-            # ChangeSpec-sourced mentor: workflow="mentor", mentor_name="code_quality"
+            # Patch-sourced mentor: workflow="mentor", mentor_name="code_quality"
             # -> artifacts dir "mentor-code_quality"
             workflow_name = f"mentor-{agent.mentor_name}"
         elif workflow == "fix_hook":
@@ -116,7 +116,7 @@ def extract_artifacts_timestamp(agent: Agent) -> str | None:
     """Extract and convert timestamp from raw_suffix to artifacts format.
 
     For RUNNING agents: raw_suffix is already YYYYmmddHHMMSS (14 chars)
-    For ChangeSpec-sourced agents: raw_suffix uses YYmmdd_HHMMSS format (13 chars with underscore)
+    For Patch-sourced agents: raw_suffix uses YYmmdd_HHMMSS format (13 chars with underscore)
     artifacts_dir expects: YYYYmmddHHMMSS format (14 chars, no underscore)
 
     Returns:

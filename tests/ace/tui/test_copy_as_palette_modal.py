@@ -48,7 +48,7 @@ async def test_modal_navigation_enter_unknown_and_cancel_behavior() -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.press("z")
         assert isinstance(app.screen_stack[-1], CopyAsModal)
-        assert app.messages == [("Unknown copy key (ChangeSpecs: x, y)", "warning")]
+        assert app.messages == [("Unknown copy key (Patches: x, y)", "warning")]
 
         await pilot.press("j", "enter")
         await pilot.pause()
@@ -198,7 +198,7 @@ async def test_unknown_key_retains_real_palette_and_copy_mode(
 
         assert isinstance(page.app.screen_stack[-1], CopyAsModal)
         assert page.app._copy_mode_active is True
-        assert messages[-1][0].startswith("Unknown copy key (ChangeSpecs:")
+        assert messages[-1][0].startswith("Unknown copy key (Patches:")
 
 
 async def test_copy_palette_stacks_over_forwarding_modal() -> None:

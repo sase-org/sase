@@ -10,7 +10,7 @@ from threading import Lock
 from typing import NamedTuple
 
 from sase.agent.status_buckets import status_bucket_for_values
-from sase.ace.changespec.models import DeltaEntry
+from sase.ace.patch.models import DeltaEntry
 from sase.core.time import local_now
 from sase.linked_repos import OpenedRepoKind
 from sase.vcs_provider import VCSProviderNotFoundError

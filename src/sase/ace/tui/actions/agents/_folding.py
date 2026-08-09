@@ -7,13 +7,9 @@ from typing import Literal
 from ._folding_agents import AgentTreeFoldingMixin
 from ._folding_axe import AxeFoldingMixin
 
-TabName = Literal["changespecs", "agents", "axe"]
-
 
 class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
     """Route folding actions to the active TUI surface."""
-
-    current_tab: TabName
 
     def _route_tools_detail_level(
         self, action: Literal["collapse", "expand", "min", "max"]
@@ -52,15 +48,20 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
         return True
 
     def action_expand_or_layout(self) -> None:
-        """Expand fold on agents/axe tab, or expand ChangeSpec group when grouped."""
+        """Expand fold on agents/axe tab, or expand Patch group when grouped."""
         if self._route_tools_detail_level("expand"):
             return
         if self.current_tab == "agents":
             self._expand_fold()
         elif self.current_tab == "axe":
             self._expand_axe_fold()
-        elif self.current_tab == "changespecs":
-            if self._expand_changespec_group_fold():  # type: ignore[attr-defined]
+        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+            expand = getattr(
+                self,
+                "_expand_patch_group_fold",
+                getattr(self, "_expand_changespec_group_fold", None),
+            )
+            if callable(expand) and expand():
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse(self) -> None:
@@ -69,8 +70,13 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             self._collapse_fold()
         elif self.current_tab == "axe":
             self._collapse_axe_fold()
-        elif self.current_tab == "changespecs":
-            if self._collapse_changespec_group_fold():  # type: ignore[attr-defined]
+        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+            collapse = getattr(
+                self,
+                "_collapse_patch_group_fold",
+                getattr(self, "_collapse_changespec_group_fold", None),
+            )
+            if callable(collapse) and collapse():
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse_all(self) -> None:
@@ -125,8 +131,13 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._collapse_group_fold()
         elif self.current_tab == "axe":
             self._collapse_all_axe_folds()
-        elif self.current_tab == "changespecs":
-            if self._collapse_all_changespec_group_folds():  # type: ignore[attr-defined]
+        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+            collapse = getattr(
+                self,
+                "_collapse_all_patch_group_folds",
+                getattr(self, "_collapse_all_changespec_group_folds", None),
+            )
+            if callable(collapse) and collapse():
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_expand_all_folds(self) -> None:
@@ -138,9 +149,14 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             return
         if self.current_tab == "axe":
             self._expand_all_axe_folds()
-        elif self.current_tab == "changespecs":
-            if self._expand_all_changespec_group_folds():  # type: ignore[attr-defined]
+        elif self.current_tab in {"artifacts", "patches", "changespecs"}:
+            expand = getattr(
+                self,
+                "_expand_all_patch_group_folds",
+                getattr(self, "_expand_all_changespec_group_folds", None),
+            )
+            if callable(expand) and expand():
                 self._refresh_display()  # type: ignore[attr-defined]
 
 
-__all__ = ["AgentFoldingMixin", "TabName"]
+__all__ = ["AgentFoldingMixin"]

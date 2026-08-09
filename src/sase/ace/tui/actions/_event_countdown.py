@@ -25,7 +25,7 @@ class EventCountdownMixin(EventHandlersBase):
         self._countdown_remaining -= 1
         if self._countdown_remaining < 0:
             self._countdown_remaining = self.refresh_interval
-        if self.current_tab == "changespecs":
+        if self.current_tab == "artifacts":
             self._update_info_panel()  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             # The cosmetic countdown/runtime repaint and STARTING-marker poll

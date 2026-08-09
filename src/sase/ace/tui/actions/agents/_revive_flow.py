@@ -34,7 +34,7 @@ class AgentReviveFlowMixin:
     _recent_dismissed_agent_groups: list[SavedAgentGroupWire]
 
     def action_start_rewind(self) -> None:
-        """Dispatch R key: revive on Agents tab, rewind on ChangeSpecs tab."""
+        """Dispatch R key: revive on Agents tab, rewind on Patches tab."""
         if self.current_tab == "agents":
             self._revive_agent()
         else:

@@ -17,6 +17,8 @@ from sase.ace.mentors.status import (
     update_changespec_mentors_field,
 )
 
+update_patch_mentors_field = update_changespec_mentors_field
+
 __all__ = [
     "add_mentor_entry",
     "clear_mentor_draft_flags",
@@ -28,4 +30,5 @@ __all__ = [
     "set_mentor_draft_flags",
     "set_mentor_status",
     "update_changespec_mentors_field",
+    "update_patch_mentors_field",
 ]

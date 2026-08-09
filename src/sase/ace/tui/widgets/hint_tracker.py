@@ -1,4 +1,4 @@
-"""Hint tracking for ChangeSpec detail display."""
+"""Hint tracking for Patch detail display."""
 
 from typing import NamedTuple
 

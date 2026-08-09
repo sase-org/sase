@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Literal
 from ..util.shutdown import request_shutdown
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
     from ..modals.notification_modal_tags import NotificationTagTab
 
 # Type alias for tab names (used in type hints)
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 type NotificationActivityCursor = tuple[str, str]
 type NotificationStartupState = tuple[
     set[str],
@@ -26,10 +26,10 @@ class LifecycleMixin:
     """Mixin providing quit, selection persistence, and agent tracking init."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
-    _changespecs_last_idx: int
+    _patches_last_idx: int
     _last_unread_ids: set[str]
     _delivered_notification_activity_cursors: set[NotificationActivityCursor]
 
@@ -153,16 +153,16 @@ class LifecycleMixin:
         indicator.set_tabs(tabs)
 
     def _save_current_selection(self) -> None:
-        """Save the currently selected ChangeSpec name."""
+        """Save the currently selected Patch name."""
         from ...last_selection import save_last_selection
 
-        if self.changespecs:
-            if self.current_tab == "changespecs":
-                idx = min(self.current_idx, len(self.changespecs) - 1)
+        if self.patches:
+            if self.current_tab == "artifacts":
+                idx = min(self.current_idx, len(self.patches) - 1)
             else:
-                idx = min(self._changespecs_last_idx, len(self.changespecs) - 1)
-            changespec = self.changespecs[idx]
-            save_last_selection(changespec.name)
+                idx = min(self._patches_last_idx, len(self.patches) - 1)
+            patch = self.patches[idx]
+            save_last_selection(patch.name)
             self._save_selection_for_current_query()  # type: ignore[attr-defined]
 
     def _read_last_selection_name(self) -> str | None:
@@ -177,7 +177,7 @@ class LifecycleMixin:
         return load_last_selection()
 
     def _restore_last_selection(self, last_name: str | None = None) -> None:
-        """Restore the previously selected ChangeSpec if it exists.
+        """Restore the previously selected Patch if it exists.
 
         ``last_name`` may be pre-loaded off the main thread; if omitted,
         the name is read from disk inline.
@@ -186,7 +186,7 @@ class LifecycleMixin:
             last_name = self._read_last_selection_name()
         if last_name is None:
             return
-        for idx, cs in enumerate(self.changespecs):
+        for idx, cs in enumerate(self.patches):
             if cs.name == last_name:
                 self.current_idx = idx
                 return

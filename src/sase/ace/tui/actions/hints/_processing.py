@@ -31,7 +31,7 @@ class _ViewRequest:
     open_in_editor: bool
     copy_to_clipboard: bool
     user_input: str
-    changespec_name: str
+    patch_name: str
     commit_specs: tuple[CommitViewSpec, ...]
 
 
@@ -254,7 +254,11 @@ class InputProcessingMixin(HintMixinBase):
             open_in_editor=open_in_editor,
             copy_to_clipboard=copy_to_clipboard,
             user_input=user_input,
-            changespec_name=self._hint_changespec_name,
+            patch_name=getattr(
+                self,
+                "_hint_patch_name",
+                getattr(self, "_hint_changespec_name", ""),
+            ),
             commit_specs=commit_specs,
         )
         reports: dict[str, SlowToolCallReportSpec] = getattr(
@@ -309,7 +313,7 @@ class InputProcessingMixin(HintMixinBase):
                 open_in_editor=True,
                 copy_to_clipboard=False,
                 user_input=request.user_input,
-                changespec_name=request.changespec_name,
+                changespec_name=request.patch_name,
             )
             self._open_files_in_editor(result)  # type: ignore[attr-defined]
         else:
@@ -411,7 +415,7 @@ class InputProcessingMixin(HintMixinBase):
             self._show_hook_history_modal()
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         if is_rerun_input(user_input):
             # Rerun/delete hooks
@@ -436,7 +440,7 @@ class InputProcessingMixin(HintMixinBase):
                 hints_to_delete=hints_to_delete,
             )
             success = self._apply_hook_changes(  # type: ignore[attr-defined]
-                changespec, result, self._hook_hint_to_idx
+                patch, result, self._hook_hint_to_idx
             )
             if success:
                 self._reload_and_reposition()  # type: ignore[attr-defined]
@@ -453,7 +457,7 @@ class InputProcessingMixin(HintMixinBase):
                 test_targets=targets,
             )
             success = self._apply_hook_changes(  # type: ignore[attr-defined]
-                changespec, result, self._hook_hint_to_idx
+                patch, result, self._hook_hint_to_idx
             )
             if success:
                 self._reload_and_reposition()  # type: ignore[attr-defined]
@@ -465,7 +469,7 @@ class InputProcessingMixin(HintMixinBase):
                 hook_command=user_input,
             )
             success = self._apply_hook_changes(  # type: ignore[attr-defined]
-                changespec, result, self._hook_hint_to_idx
+                patch, result, self._hook_hint_to_idx
             )
             if success:
                 self._reload_and_reposition()  # type: ignore[attr-defined]
@@ -474,9 +478,9 @@ class InputProcessingMixin(HintMixinBase):
         """Show the hook history modal for selecting a previously used hook."""
         from sase.history.hook import add_or_update_hook
 
-        from ....hooks import add_hook_to_changespec
+        from ....hooks import add_hook_to_patch
         from ...modals import HookHistoryAction, HookHistoryModal, HookHistoryResult
-        from ...widgets import ChangeSpecDetail, HintInputBar
+        from ...widgets import PatchDetail, HintInputBar
 
         def _on_hook_selected(result: HookHistoryResult | None) -> None:
             if result is None:
@@ -487,8 +491,8 @@ class InputProcessingMixin(HintMixinBase):
                     return
 
                 # Re-mount hooks input bar pre-filled with the command
-                detail_widget = self.query_one("#detail-panel", ChangeSpecDetail)  # type: ignore[attr-defined]
-                changespec = self.changespecs[self.current_idx]
+                detail_widget = self.query_one("#detail-panel", PatchDetail)  # type: ignore[attr-defined]
+                patch = self.patches[self.current_idx]
                 query_str = self.canonical_query_string  # type: ignore[attr-defined]
                 (
                     hint_mappings,
@@ -496,11 +500,11 @@ class InputProcessingMixin(HintMixinBase):
                     hint_to_entry_id,
                     mentor_hint_to_info,
                 ) = detail_widget.update_display_with_hints(
-                    changespec,
+                    patch,
                     query_str,
                     hints_for="hooks_latest_only",
                     hooks_collapsed=self.hooks_collapsed,  # type: ignore[attr-defined]
-                    commits_collapsed=self.commits_collapsed,  # type: ignore[attr-defined]
+                    stitches_collapsed=self.stitches_collapsed,  # type: ignore[attr-defined]
                     mentors_collapsed=self.mentors_collapsed,  # type: ignore[attr-defined]
                     timestamps_collapsed=self.timestamps_collapsed,  # type: ignore[attr-defined]
                     deltas_collapsed=self.deltas_collapsed,  # type: ignore[attr-defined]
@@ -511,7 +515,8 @@ class InputProcessingMixin(HintMixinBase):
                 self._hook_hint_to_idx = hook_hint_to_idx
                 self._hint_to_entry_id = hint_to_entry_id
                 self._mentor_hint_to_info = mentor_hint_to_info
-                self._hint_changespec_name = changespec.name
+                self._hint_patch_name = patch.name
+                self._hint_changespec_name = patch.name  # type: ignore[attr-defined]
 
                 detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
                 if not detail_container.is_attached:
@@ -524,11 +529,11 @@ class InputProcessingMixin(HintMixinBase):
                 detail_container.mount(hint_bar)
                 return
 
-            # SUBMIT action — add hook to changespec
-            changespec = self.changespecs[self.current_idx]
-            success = add_hook_to_changespec(
-                changespec.file_path,
-                changespec.name,
+            # SUBMIT action — add hook to patch
+            patch = self.patches[self.current_idx]
+            success = add_hook_to_patch(
+                patch.file_path,
+                patch.name,
                 result.command,
                 None,
             )
@@ -553,7 +558,7 @@ class InputProcessingMixin(HintMixinBase):
         if not user_input:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
         targets = getattr(self, "_failed_hooks_targets", [])
 
         if not targets:
@@ -577,6 +582,6 @@ class InputProcessingMixin(HintMixinBase):
         selected_targets = [targets[i - 1] for i in parsed.numbers]
 
         # Add them as hooks
-        success = self._add_test_target_hooks(changespec, selected_targets)  # type: ignore[attr-defined]
+        success = self._add_test_target_hooks(patch, selected_targets)  # type: ignore[attr-defined]
         if success:
             self._reload_and_reposition()  # type: ignore[attr-defined]

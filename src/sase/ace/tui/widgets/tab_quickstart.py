@@ -16,7 +16,8 @@ from ..keymaps import (
     load_keymap_registry,
 )
 
-TabQuickStartTab = Literal["agents", "changespecs"]
+TabQuickStartTab = Literal["agents", "artifacts"]
+LegacyTabQuickStartTab = Literal["changespecs", "patches"]
 
 _AGENTS_ACCENT = "#87D7FF"
 _CHANGESPECS_ACCENT = "#00D7AF"
@@ -31,11 +32,11 @@ _TAB_META: dict[TabQuickStartTab, tuple[str, str, str, str, str]] = {
         "tool calls, and artifact files live, then jump straight into their work.",
         "Launch an agent and it appears here.",
     ),
-    "changespecs": (
-        "changespec",
+    "artifacts": (
+        "patch",
         "PRs",
         _CHANGESPECS_ACCENT,
-        "Every PR your agents produce is tracked here as a ChangeSpec — "
+        "Every PR your agents produce is tracked here as a Patch — "
         "commits, hooks, review comments, and status, from WIP through Submitted.",
         "Your agents' PRs appear here as they work.",
     ),
@@ -49,7 +50,7 @@ class TabQuickStart(VerticalScroll):
 
     def __init__(self, *, tab: TabQuickStartTab, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self._tab = tab
+        self._tab = _normalize_tab(tab)
         self._registry: KeymapRegistry = load_keymap_registry({})
         self._no_match_total = 0
         self._content_cache_key: tuple[int, int] | None = None
@@ -100,9 +101,9 @@ class TabQuickStart(VerticalScroll):
         self._content_cache_key = None
         self.refresh_content()
 
-    def set_no_match_context(self, total_changespecs: int) -> None:
+    def set_no_match_context(self, total_patches: int) -> None:
         """Show PRs no-match context when a query filtered out existing PRs."""
-        total = max(0, total_changespecs)
+        total = max(0, total_patches)
         if self._no_match_total == total:
             return
         self._no_match_total = total
@@ -134,23 +135,25 @@ class TabQuickStart(VerticalScroll):
         callout.set_class(not self._should_show_callout(), "hidden")
 
     def _should_show_callout(self) -> bool:
-        return self._tab == "changespecs" and self._no_match_total > 0
+        return self._tab == "artifacts" and self._no_match_total > 0
 
     @classmethod
     def render_content(
         cls,
         registry: KeymapRegistry,
         *,
-        tab: TabQuickStartTab,
+        tab: TabQuickStartTab | LegacyTabQuickStartTab,
         no_match_total: int = 0,
     ) -> dict[str, Text]:
         """Build all renderable sections for *registry* without mounting."""
-        prefix = _TAB_META[tab][0]
+        selector_prefix = "changespec" if tab == "changespecs" else None
+        tab = _normalize_tab(tab)
+        prefix = selector_prefix or _TAB_META[tab][0]
         return {
             f"#{prefix}-quickstart-callout": cls._build_callout(
                 registry,
                 tab=tab,
-                total_changespecs=no_match_total,
+                total_patches=no_match_total,
             ),
             f"#{prefix}-quickstart-hero": cls._build_hero(tab),
             f"#{prefix}-quickstart-card": cls._build_card(registry, tab=tab),
@@ -206,7 +209,7 @@ class TabQuickStart(VerticalScroll):
                 "Command palette: fuzzy-run any command.",
             ),
         ]
-        if tab == "changespecs":
+        if tab == "artifacts":
             rows.insert(
                 3,
                 (
@@ -253,14 +256,14 @@ class TabQuickStart(VerticalScroll):
         registry: KeymapRegistry,
         *,
         tab: TabQuickStartTab,
-        total_changespecs: int,
+        total_patches: int,
     ) -> Text:
         text = Text(justify="center")
-        if tab != "changespecs" or total_changespecs <= 0:
+        if tab != "artifacts" or total_patches <= 0:
             return text
-        noun = "exists" if total_changespecs == 1 else "exist"
+        noun = "exists" if total_patches == 1 else "exist"
         text.append("No PRs match this query — ", style=f"bold {_CALLOUT_ACCENT}")
-        text.append(str(total_changespecs), style=f"bold {_CALLOUT_ACCENT}")
+        text.append(str(total_patches), style=f"bold {_CALLOUT_ACCENT}")
         text.append(f" {noun}. ", style=f"bold {_CALLOUT_ACCENT}")
         cls._append_keycap(text, key_display_name(registry.app.edit_query))
         text.append("edits the query.", style=f"bold {_CALLOUT_ACCENT}")
@@ -294,3 +297,11 @@ class TabQuickStart(VerticalScroll):
     @staticmethod
     def _append_keycap(text: Text, label: str) -> None:
         text.append(f" {label} ", style=_KEYCAP_STYLE)
+
+
+def _normalize_tab(tab: TabQuickStartTab | LegacyTabQuickStartTab) -> TabQuickStartTab:
+    if tab == "changespecs" or tab == "patches":
+        return "artifacts"
+    if tab == "agents":
+        return "agents"
+    return "artifacts"

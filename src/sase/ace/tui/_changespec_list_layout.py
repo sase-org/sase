@@ -1,10 +1,3 @@
-"""Shared width contract for the ChangeSpecs side list."""
+"""Legacy aliases for patch list layout constants."""
 
-# Width bounds for dynamic ChangeSpec list panel sizing, in terminal cells.
-CL_LIST_MIN_PANEL_WIDTH = 43
-CL_LIST_MAX_PANEL_WIDTH = 80
-
-# Matches the renderer-side padding used when broadcasting WidthChanged:
-# border, scrollbar, and visual breathing room around option prompts.
-CL_LIST_CONTENT_WIDTH_PADDING = 8
-CL_LIST_MAX_CONTENT_WIDTH = CL_LIST_MAX_PANEL_WIDTH - CL_LIST_CONTENT_WIDTH_PADDING
+from ._patch_list_layout import *  # noqa: F403

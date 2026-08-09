@@ -44,8 +44,8 @@ def test_app_command_spec_uses_configured_key() -> None:
     """A CommandSpec's key sequence must reflect the merged keymap."""
     reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "B"}}})
     by_id = {c.id: c for c in iter_app_commands(reg)}
-    assert by_id["app.next_changespec"].key_sequence == ("B",)
-    assert by_id["app.next_changespec"].key_display == "B"
+    assert by_id["app.next_patch"].key_sequence == ("B",)
+    assert by_id["app.next_patch"].key_display == "B"
 
 
 def test_open_command_palette_command_uses_default_alternatives() -> None:
@@ -68,7 +68,7 @@ def test_jump_commands_use_back_and_forward_defaults_on_every_tab() -> None:
     assert forward.label == "Jump forward through jump stack"
     assert forward.key_sequence == ("ctrl+shift+o",)
     assert forward.key_display == "Ctrl+Shift+O"
-    assert forward.tabs == ("changespecs", "agents", "axe")
+    assert forward.tabs == ("artifacts", "agents", "axe")
     assert "ctrl+shift+o" in forward.aliases
     assert "ctrl+k" not in forward.aliases
     assert by_id["app.next_agent_metadata_section"].tabs == ("agents",)
@@ -83,7 +83,7 @@ def test_last_vcs_xprompt_editor_command_is_all_tab_agent_command() -> None:
     spec = by_id["app.start_last_vcs_xprompt_in_editor"]
     assert spec.label == "Edit last VCS xprompt"
     assert spec.category == "Agents"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.key_sequence == ("ctrl+g",)
     assert spec.key_display == "Ctrl+G"
 
@@ -107,7 +107,7 @@ def test_restore_prompt_stash_command_is_all_tab_at_keymap() -> None:
 
     assert spec.label == "Restore stashed prompt"
     assert spec.category == "Agents"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.key_sequence == ("at",)
     assert spec.key_display == "@"
     assert spec.executor.kind == "app_action"
@@ -124,7 +124,7 @@ def test_show_help_command_is_global_question_mark_keymap() -> None:
 
     assert spec.label == "Show help"
     assert spec.category == "Display"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.key_sequence == ("question_mark",)
     assert spec.key_display == "?"
     assert spec.executor.kind == "app_action"
@@ -132,12 +132,12 @@ def test_show_help_command_is_global_question_mark_keymap() -> None:
     assert "leader.show_help" not in by_id
 
 
-def test_start_agent_from_changespec_command_uses_ctrl_space() -> None:
+def test_start_agent_from_patch_command_uses_ctrl_space() -> None:
     """The repeat-last agent command exposes Ctrl+Space, not bare Space."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}
-    spec = by_id["app.start_agent_from_changespec"]
+    spec = by_id["app.start_agent_from_patch"]
 
-    assert spec.label == "Run agent from PR"
+    assert spec.label == "Run agent from Patch"
     assert spec.key_sequence == ("ctrl+@",)
     assert spec.key_display == "Ctrl+Space"
 
@@ -149,7 +149,7 @@ def test_start_agent_home_command_uses_bare_space() -> None:
 
     assert spec.label == "Run agent (home mode)"
     assert spec.category == "Agents"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.key_sequence == ("space",)
     assert spec.key_display == "Space"
     assert spec.executor.kind == "app_action"
@@ -161,7 +161,7 @@ def test_run_workflow_command_is_contextual_retry_on_agents() -> None:
     spec = by_id["app.run_workflow"]
 
     assert spec.label == "Run workflow / retry agent / re-run"
-    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.key_sequence == ("r",)
     assert spec.key_display == "r"
     assert "retry" in spec.aliases
@@ -172,18 +172,18 @@ def test_add_tag_command_is_contextual_wait_on_agents() -> None:
     spec = by_id["app.add_tag"]
 
     assert spec.label == "Add tag / wait for agent, clan, or tribe"
-    assert spec.tabs == ("changespecs", "agents")
+    assert spec.tabs == ("artifacts", "agents")
     assert spec.key_sequence == ("W",)
     assert "wait for agent" in spec.aliases
     assert "wait for clan" in spec.aliases
     assert "wait for tribe" in spec.aliases
 
 
-def test_pr_sync_commands_use_pr_labels() -> None:
+def test_patch_sync_commands_use_patch_labels() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
 
-    assert by_id["app.rebase"].label == "Rebase PR"
-    assert by_id["app.start_rewind"].label == "Rewind PR / Revive agent"
+    assert by_id["app.rebase"].label == "Rebase Patch"
+    assert by_id["app.start_rewind"].label == "Rewind Patch / Revive agent"
 
 
 def test_bulk_change_status_command_is_changespec_only() -> None:
@@ -191,7 +191,7 @@ def test_bulk_change_status_command_is_changespec_only() -> None:
     spec = by_id["app.bulk_change_status"]
 
     assert spec.label == "Bulk status change"
-    assert spec.tabs == ("changespecs",)
+    assert spec.tabs == ("artifacts",)
 
 
 def test_save_marked_agents_command_covers_agent_save_flow() -> None:
@@ -305,7 +305,7 @@ def test_fold_mode_commands_cover_every_subkey() -> None:
         assert len(spec.key_sequence) == 2
 
     by_id = {spec.id: spec for spec in fold_specs}
-    assert by_id["fold.cycle_commits"].tabs == ("changespecs",)
+    assert by_id["fold.cycle_stitches"].tabs == ("artifacts",)
     assert by_id["fold.agents.cycle_level"].tabs == ("agents",)
     assert by_id["fold.agents.toggle_all"].label == "Toggle all metadata folds"
     assert "fold.agents.cycle_level_back" not in by_id
@@ -322,7 +322,7 @@ def test_copy_mode_commands_per_tab_scope() -> None:
     ]
     by_id = {c.id: c for c in copy_specs}
     # Each per-tab subdict produces commands tagged with that single tab.
-    assert by_id["copy.changespecs.bug"].tabs == ("changespecs",)
+    assert by_id["copy.patches.bug"].tabs == ("artifacts",)
     assert by_id["copy.agents.name"].tabs == ("agents",)
     assert by_id["copy.axe.visible"].tabs == ("axe",)
     # Coverage for every nested key.

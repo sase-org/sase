@@ -8,23 +8,47 @@ from ._types import NavigationMixinBase
 class TreeNavigationMixin(NavigationMixinBase):
     """Mixin providing ancestry/child/sibling tree navigation."""
 
+    def _is_patch_tree_tab(self) -> bool:
+        return self.current_tab in {"artifacts", "patches", "changespecs"}
+
+    def _tree_patches(self) -> list[object]:
+        return getattr(self, "patches", getattr(self, "changespecs", []))
+
+    def _navigate_to_patch_compat(
+        self,
+        target_name: str,
+        *,
+        is_ancestor: bool,
+        is_sibling: bool = False,
+    ) -> None:
+        legacy_navigate = getattr(self, "_navigate_to_changespec", None)
+        patch_navigate = getattr(self, "_navigate_to_patch", None)
+        navigate = (
+            legacy_navigate
+            if self.current_tab in {"patches", "changespecs"}
+            and callable(legacy_navigate)
+            else patch_navigate or legacy_navigate
+        )
+        if callable(navigate):
+            navigate(target_name, is_ancestor, is_sibling)
+
     # --- Ancestry Navigation Actions ---
 
     def action_start_ancestor_mode(self) -> None:
         """Enter ancestor navigation mode (< key pressed)."""
-        if self.current_tab != "changespecs" or not self.changespecs:
+        if not self._is_patch_tree_tab() or not self._tree_patches():
             return
 
         # If only one ancestor, navigate directly
         if len(self._ancestor_keys) == 1:
             target = list(self._ancestor_keys.keys())[0]
-            self._navigate_to_changespec(target, is_ancestor=True)
+            self._navigate_to_patch_compat(target, is_ancestor=True)
         elif len(self._ancestor_keys) > 1:
             self._ancestor_mode_active = True
 
     def action_start_child_mode(self) -> None:
         """Enter child navigation mode (> key pressed)."""
-        if self.current_tab != "changespecs" or not self.changespecs:
+        if not self._is_patch_tree_tab() or not self._tree_patches():
             return
 
         if not self._children_keys:
@@ -33,7 +57,7 @@ class TreeNavigationMixin(NavigationMixinBase):
         # If only one child with key ">" (single leaf child), navigate directly
         if len(self._children_keys) == 1 and ">" in self._children_keys:
             target = self._children_keys[">"]
-            self._navigate_to_changespec(target, is_ancestor=False)
+            self._navigate_to_patch_compat(target, is_ancestor=False)
         else:
             self._child_key_buffer = ""
             self._child_mode_active = True
@@ -41,7 +65,7 @@ class TreeNavigationMixin(NavigationMixinBase):
     def action_start_sibling_mode(self) -> None:
         """Enter sibling/neighbor navigation mode (~ key pressed).
 
-        On the ChangeSpec tab this drives ChangeSpec sibling navigation; on
+        On the Patch tab this drives Patch sibling navigation; on
         the Agents tab it delegates to dotted-name hood neighbor navigation.
         """
         if self.current_tab == "agents":
@@ -52,7 +76,7 @@ class TreeNavigationMixin(NavigationMixinBase):
                 start_agent_neighbors()
             return
 
-        if self.current_tab != "changespecs" or not self.changespecs:
+        if not self._is_patch_tree_tab() or not self._tree_patches():
             return
 
         if not self._sibling_keys:
@@ -61,7 +85,7 @@ class TreeNavigationMixin(NavigationMixinBase):
         # If only one sibling with key "~", navigate directly
         if len(self._sibling_keys) == 1 and "~" in self._sibling_keys:
             target = self._sibling_keys["~"]
-            self._navigate_to_changespec(target, is_ancestor=False, is_sibling=True)
+            self._navigate_to_patch_compat(target, is_ancestor=False, is_sibling=True)
         else:
             self._sibling_mode_active = True
 
@@ -86,14 +110,14 @@ class TreeNavigationMixin(NavigationMixinBase):
             # << - go to first ancestor (parent)
             if self._ancestor_keys:
                 target = list(self._ancestor_keys.keys())[0]
-                self._navigate_to_changespec(target, is_ancestor=True)
+                self._navigate_to_patch_compat(target, is_ancestor=True)
             return True
         elif len(key) == 1 and key.isalpha() and key.islower():
             # <a, <b, etc. - find matching ancestor
             expected_key = f"<{key}"
             for name, keybind in self._ancestor_keys.items():
                 if keybind == expected_key:
-                    self._navigate_to_changespec(name, is_ancestor=True)
+                    self._navigate_to_patch_compat(name, is_ancestor=True)
                     return True
         return True  # Consume the key regardless
 
@@ -110,7 +134,7 @@ class TreeNavigationMixin(NavigationMixinBase):
             # >> - go to first child
             target_key = ">>"
             if target_key in self._children_keys:
-                self._navigate_to_changespec(
+                self._navigate_to_patch_compat(
                     self._children_keys[target_key], is_ancestor=False
                 )
             self._child_key_buffer = ""
@@ -121,7 +145,7 @@ class TreeNavigationMixin(NavigationMixinBase):
             # Navigate to non-leaf node
             target_key = ">" + self._child_key_buffer + "."
             if target_key in self._children_keys:
-                self._navigate_to_changespec(
+                self._navigate_to_patch_compat(
                     self._children_keys[target_key], is_ancestor=False
                 )
             self._child_key_buffer = ""
@@ -135,7 +159,7 @@ class TreeNavigationMixin(NavigationMixinBase):
             # Check if buffer matches a leaf node (no "." suffix)
             target_key = ">" + self._child_key_buffer
             if target_key in self._children_keys:
-                self._navigate_to_changespec(
+                self._navigate_to_patch_compat(
                     self._children_keys[target_key], is_ancestor=False
                 )
                 self._child_key_buffer = ""
@@ -171,14 +195,18 @@ class TreeNavigationMixin(NavigationMixinBase):
             # ~~ - go to first sibling
             if "~~" in self._sibling_keys:
                 target = self._sibling_keys["~~"]
-                self._navigate_to_changespec(target, is_ancestor=False, is_sibling=True)
+                self._navigate_to_patch_compat(
+                    target, is_ancestor=False, is_sibling=True
+                )
             return True
         elif len(key) == 1 and key.isalpha() and key.islower():
             # ~a, ~b, etc. - find matching sibling
             expected_key = f"~{key}"
             if expected_key in self._sibling_keys:
                 target = self._sibling_keys[expected_key]
-                self._navigate_to_changespec(target, is_ancestor=False, is_sibling=True)
+                self._navigate_to_patch_compat(
+                    target, is_ancestor=False, is_sibling=True
+                )
             return True
 
         return True  # Consume the key regardless
@@ -210,16 +238,16 @@ class TreeNavigationMixin(NavigationMixinBase):
             # After letter, expect digit
             return key.isdigit() and "2" <= key <= "9"
 
-    def _navigate_to_changespec(
+    def _navigate_to_patch(
         self, target_name: str, is_ancestor: bool, is_sibling: bool = False
     ) -> None:
-        """Navigate to a ChangeSpec by name.
+        """Navigate to a Patch by name.
 
         If target is in current filtered list, just jump to it.
         If not, change query to ancestor:<name> or sibling:<base_name> and jump.
         """
-        # Push current ChangeSpec to history before navigating away
-        self._push_changespec_to_history()  # type: ignore[attr-defined]
+        # Push current Patch to history before navigating away
+        self._push_patch_to_history()  # type: ignore[attr-defined]
 
         # Check if target is in current filtered list
         target_idx = self._find_in_current_list(target_name)
@@ -232,9 +260,9 @@ class TreeNavigationMixin(NavigationMixinBase):
             self._change_query_for_navigation(target_name, is_ancestor, is_sibling)
 
     def _find_in_current_list(self, name: str) -> int | None:
-        """Find a ChangeSpec by name in current filtered list."""
+        """Find a Patch by name in current filtered list."""
         name_lower = name.lower()
-        for idx, cs in enumerate(self.changespecs):
+        for idx, cs in enumerate(self.patches):
             if cs.name.lower() == name_lower:
                 return idx
         return None
@@ -252,23 +280,23 @@ class TreeNavigationMixin(NavigationMixinBase):
         - For ancestor navigation: ancestor:<ancestor_name>
         - For child navigation: ancestor:<current_name>
         """
-        from sase.core.changespec import strip_reverted_suffix
+        from sase.core.patch import strip_reverted_suffix
 
         from ....query import parse_query, to_canonical_string
         from ....query_history import push_to_prev_stack, save_query_history
 
         if is_sibling:
             # For sibling navigation: use sibling:<base_name>
-            current_cs = self.changespecs[self.current_idx]
+            current_cs = self.patches[self.current_idx]
             base_name = strip_reverted_suffix(current_cs.name)
             new_query = f"sibling:{base_name}"
         elif is_ancestor:
             # Going to ancestor: use ancestor's name
             new_query = f"ancestor:{target_name}"
         else:
-            # Going to child: use current ChangeSpec's name
+            # Going to child: use current Patch's name
             # This shows all descendants of current
-            current_cs = self.changespecs[self.current_idx]
+            current_cs = self.patches[self.current_idx]
             new_query = f"ancestor:{current_cs.name}"
 
         try:
@@ -283,7 +311,7 @@ class TreeNavigationMixin(NavigationMixinBase):
 
             self.parsed_query = new_parsed
             self.query_string = new_query
-            self._load_changespecs()  # type: ignore[attr-defined]
+            self._load_patches()  # type: ignore[attr-defined]
             self._save_current_query()  # type: ignore[attr-defined]
 
             # Find and select the target

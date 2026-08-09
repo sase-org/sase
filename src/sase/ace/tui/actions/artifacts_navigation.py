@@ -44,7 +44,7 @@ class ArtifactsNavigationActionsMixin:
     def _artifacts_view(self) -> ArtifactsView | None:
         try:
             return self.query_one(  # type: ignore[attr-defined]
-                "#changespecs-view", ArtifactsView
+                "#artifacts-view", ArtifactsView
             )
         except Exception:
             return None

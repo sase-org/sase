@@ -19,7 +19,7 @@ class FoldLevel(Enum):
 
 
 def cycle_forward(level: FoldLevel) -> FoldLevel:
-    """Cycle the legacy three-level ChangeSpec/axe fold ladder forward."""
+    """Cycle the legacy three-level Patch/axe fold ladder forward."""
     if level == FoldLevel.COLLAPSED:
         return FoldLevel.EXPANDED
     if level == FoldLevel.EXPANDED:

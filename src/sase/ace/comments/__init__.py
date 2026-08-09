@@ -16,6 +16,8 @@ from .operations import (
     update_comment_suffix_type,
 )
 
+update_patch_comments_field = update_changespec_comments_field
+
 __all__ = [
     # core.py
     "comment_needs_crs",
@@ -29,5 +31,6 @@ __all__ = [
     "set_comment_suffix",
     "transform_changespec_comments_field",
     "update_changespec_comments_field",
+    "update_patch_comments_field",
     "update_comment_suffix_type",
 ]

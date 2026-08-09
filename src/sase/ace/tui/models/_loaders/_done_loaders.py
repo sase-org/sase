@@ -356,8 +356,8 @@ def load_done_agents(
     Supported workflow directories: ace-run, fix-hook, crs, summarize-hook, mentor-*.
 
     Args:
-        bug_by_cl_name: Mapping of ChangeSpec names to bug URLs.
-        cl_by_cl_name: Mapping of ChangeSpec names to PR numbers.
+        bug_by_cl_name: Mapping of Patch names to bug URLs.
+        cl_by_cl_name: Mapping of Patch names to PR numbers.
 
     Returns:
         List of Agent objects with DONE or FAILED status.

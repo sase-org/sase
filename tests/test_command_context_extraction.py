@@ -60,7 +60,7 @@ def test_extract_context_changespecs_tab_picks_selected_cs() -> None:
         marked_indices={0, 1},
     )
     ctx = extract_command_context(app)  # type: ignore[arg-type]
-    assert ctx.tab == "changespecs"
+    assert ctx.tab == "artifacts"
     assert ctx.changespec is cs1
     assert ctx.agent is None
     assert ctx.axe_item is None

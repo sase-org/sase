@@ -32,7 +32,7 @@ from .base import FilterInput
 
 # Per-tab context badge label + accent.
 _TAB_BADGE: dict[CommandTab, tuple[str, str]] = {
-    "changespecs": ("Artifacts", "#00D7AF"),
+    "artifacts": ("Artifacts", "#00D7AF"),
     "agents": ("Agents", "#87D7FF"),
     "axe": ("AXE", "#FFD700"),
 }
@@ -249,7 +249,7 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
             entries for the current tab and selection. The caller
             (Phase 3 wiring) is responsible for producing this list
             from the catalog + ``is_command_available``.
-        tab: The current tab (``"changespecs"``, ``"agents"``, or
+        tab: The current tab (``"artifacts"``, ``"agents"``, or
             ``"axe"``); used only for the context badge in the title.
     """
 
@@ -266,7 +266,7 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
     def __init__(
         self,
         specs: list[CommandSpec],
-        tab: CommandTab = "changespecs",
+        tab: CommandTab = "artifacts",
     ) -> None:
         super().__init__()
         ordered = sort_specs_by_category(specs)

@@ -3,8 +3,8 @@
 # Binding metadata: (action_name, description, priority)
 # Order matches the original hardcoded BINDINGS in app.py.
 _BINDING_META: list[tuple[str, str, bool]] = [
-    ("next_changespec", "Next", False),
-    ("prev_changespec", "Previous", False),
+    ("next_patch", "Next", False),
+    ("prev_patch", "Previous", False),
     ("quit", "Quit", False),
     ("change_status", "Status", False),
     ("run_workflow", "Run", False),
@@ -125,7 +125,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("stop_axe_and_quit", "Quit / Restart", False),
     ("start_custom_agent", "Run Agent", False),
     ("start_agent_home", "Run Agent (Home)", False),
-    ("start_agent_from_changespec", "Run Agent (PR)", False),
+    ("start_agent_from_patch", "Run Agent (Patch)", False),
     ("start_last_vcs_xprompt_in_editor", "Edit Last VCS XPrompt", False),
     ("restore_prompt_stash", "Restore Prompt Stash", False),
     ("start_bang_mode", "Bang Mode", False),
@@ -157,7 +157,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("next_agent_file", "Next File", False),
     ("prev_agent_file", "Prev File", False),
     ("edit_panel", "Edit Panel", False),
-    ("jump_to_agent_changespec", "Go to PR", False),
+    ("jump_to_agent_patch", "Go to Patch", False),
     ("open_artifact_files", "Artifact Files", False),
     ("toggle_attempt_view", "Toggle Attempt View", False),
     ("toggle_agent_unread", "Toggle Agent Unread", False),

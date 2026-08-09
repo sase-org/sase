@@ -295,7 +295,7 @@ def test_partial_mode_override() -> None:
             },
         }
     )
-    assert reg.fold_mode.keys["cycle_commits"] == "x"
+    assert reg.fold_mode.keys["cycle_stitches"] == "x"
     assert reg.fold_mode.keys["cycle_hooks"] == "h"  # unchanged
     assert reg.fold_mode.prefix == "z"  # unchanged
 
@@ -325,7 +325,7 @@ def test_fold_mode_agent_defaults_and_nested_override() -> None:
         "set_level_3": "3",
         "set_level_4": "4",
     }
-    assert reg.fold_mode.keys["cycle_commits"] == "c"
+    assert reg.fold_mode.keys["cycle_stitches"] == "c"
 
 
 def test_legacy_agents_reverse_cycle_override_migrates_to_toggle_all(
@@ -465,9 +465,9 @@ def test_copy_mode_nested_defaults() -> None:
     """Copy mode preserves nested per-tab key structure."""
     reg = load_keymap_registry({})
     keys = reg.copy_mode.keys
-    assert isinstance(keys["changespecs"], dict)
-    assert keys["changespecs"]["raw"] == "percent_sign"
-    assert keys["changespecs"]["bug"] == "b"
+    assert isinstance(keys["patches"], dict)
+    assert keys["patches"]["raw"] == "percent_sign"
+    assert keys["patches"]["bug"] == "b"
     assert isinstance(keys["agents"], dict)
     assert keys["agents"]["chat"] == "c"
     assert keys["agents"]["name"] == "n"
@@ -490,7 +490,7 @@ def test_copy_mode_nested_override() -> None:
             },
         }
     )
-    cs_keys = reg.copy_mode.keys["changespecs"]
+    cs_keys = reg.copy_mode.keys["patches"]
     assert isinstance(cs_keys, dict)
     assert cs_keys["bug"] == "B"  # overridden
     assert cs_keys["raw"] == "percent_sign"  # unchanged

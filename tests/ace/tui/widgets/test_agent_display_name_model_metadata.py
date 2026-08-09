@@ -59,9 +59,7 @@ class TestAgentNameMetadata:
         assert header.plain.count("Name: ") == 1
         assert_metadata_prefix(header, "Name: unassigned")
         assert_span_covers(header, "unassigned", "dim")
-        assert header.plain.index("Name: unassigned\n") < header.plain.index(
-            "ChangeSpec:"
-        )
+        assert header.plain.index("Name: unassigned\n") < header.plain.index("Patch:")
         assert "Bead:" not in header.plain
 
     def test_named_agent_renders_name_first(self) -> None:
@@ -72,9 +70,7 @@ class TestAgentNameMetadata:
         assert header.plain.count("Name: ") == 1
         assert_metadata_prefix(header, "Name: reviewer")
         assert_span_covers(header, "reviewer", "#FFD700")
-        assert header.plain.index("Name: reviewer\n") < header.plain.index(
-            "ChangeSpec:"
-        )
+        assert header.plain.index("Name: reviewer\n") < header.plain.index("Patch:")
 
     def test_retry_chain_renders_name_before_retry_chain(self) -> None:
         agent = make_agent(

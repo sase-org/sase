@@ -231,7 +231,7 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
         self._loading = True
         generation = self._load_generation
         state_filter = self.state_filter
-        changespecs = tuple(getattr(self.app, "changespecs", ()))
+        patches = tuple(getattr(self.app, "artifacts", ()))
         self._set_loading_message()
 
         async def _runner() -> None:
@@ -240,7 +240,7 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
                     collect_bug_snapshot,
                     project,
                     state_filter,
-                    changespecs,
+                    patches,
                 )
                 self._cache[(project, state_filter)] = (time.monotonic(), snapshot)
                 if (
@@ -523,16 +523,16 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
                     id=f"epic-{epic.id}",
                 )
             )
-        for changespec in bug_links.changespecs:
-            self._link_targets.append(("pr", changespec.name))
+        for patch in bug_links.patches:
+            self._link_targets.append(("pr", patch.name))
             options.append(
                 Option(
                     Text.assemble(
                         (" PR    ", "bold #00D7AF"),
-                        (changespec.name, "bold white"),
-                        (f"  {changespec.status}", "dim"),
+                        (patch.name, "bold white"),
+                        (f"  {patch.status}", "dim"),
                     ),
-                    id=f"pr-{changespec.name}",
+                    id=f"pr-{patch.name}",
                 )
             )
         links.add_options(options)

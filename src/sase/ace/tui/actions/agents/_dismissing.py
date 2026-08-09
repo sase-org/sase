@@ -13,9 +13,9 @@ if TYPE_CHECKING:
     from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
 
-# Import ChangeSpec unconditionally since it's used as a type annotation
+# Import Patch unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures).
-from ....changespec import ChangeSpec
+from ....patch import Patch
 
 from ._cleanup_tasks import CleanupTaskMixin, CleanupTaskOutcome
 from ._dismiss_cleanup import (
@@ -61,8 +61,8 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
     Type hints below declare attributes that are defined at runtime by AceApp.
     """
 
-    # ChangeSpec state
-    changespecs: list[ChangeSpec]
+    # Patch state
+    patches: list[Patch]
     current_idx: int
     current_tab: str
 

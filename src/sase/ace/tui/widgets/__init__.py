@@ -29,10 +29,11 @@ from .artifacts import (
     CommitsTimeline,
 )
 from .bgcmd_list import BgCmdList
-from .changespec_detail import ChangeSpecDetail, SearchQueryPanel
-from .changespec_info_panel import ChangeSpecInfoPanel
-from .changespec_list import ChangeSpecList
-from .changespec_onboarding import ChangeSpecOnboarding
+from .changespec_detail import ChangeSpecDetail
+from .patch_detail import PatchDetail, SearchQueryPanel
+from .patch_info_panel import PatchInfoPanel
+from .patch_list import PatchList
+from .patch_onboarding import PatchOnboarding
 from .hint_input_bar import HintInputBar
 from .keybinding_footer import KeybindingFooter
 from .tools_panel import AgentToolsPanel, ToolDetailLevel, ToolsVisibilityChanged
@@ -58,6 +59,10 @@ from .xprompt_arg_assist import (
     visible_inputs,
     xprompt_completion_skeleton,
 )
+
+ChangeSpecInfoPanel = PatchInfoPanel
+ChangeSpecList = PatchList
+ChangeSpecOnboarding = PatchOnboarding
 
 __all__ = [
     "AgentDetail",
@@ -93,6 +98,10 @@ __all__ = [
     "ChangeSpecInfoPanel",
     "ChangeSpecList",
     "ChangeSpecOnboarding",
+    "PatchDetail",
+    "PatchInfoPanel",
+    "PatchList",
+    "PatchOnboarding",
     "FileLineCountChanged",
     "HintInputBar",
     "KeybindingFooter",

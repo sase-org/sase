@@ -133,7 +133,7 @@ def _identity_header(
             cl_name = humanize_cl_name(summary.asker_cl_name)
         except Exception:
             cl_name = summary.asker_cl_name
-        metadata.append(f"ChangeSpec {cl_name}")
+        metadata.append(f"Patch {cl_name}")
     if summary.session_id:
         metadata.append(f"session {_short_session_id(summary.session_id)}")
     header.append("\n")

@@ -12,7 +12,7 @@ from .jump_hints import (
 )
 
 if TYPE_CHECKING:
-    from ....changespec import ChangeSpec
+    from ....patch import Patch
     from ....query.types import QueryExpr
     from ....query_history import QueryHistoryStacks
     from ...bgcmd import BackgroundCommandInfo
@@ -32,20 +32,20 @@ if TYPE_CHECKING:
 AxeViewType = Literal["axe"] | int
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 class NavigationMixinBase:
     """Base class with type hints for attributes accessed from AceApp."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_attempt_number: int | None
     current_tab: TabName
     _last_input_action: str | None
     hooks_collapsed: FoldLevel
-    commits_collapsed: FoldLevel
+    stitches_collapsed: FoldLevel
     mentors_collapsed: FoldLevel
     timestamps_collapsed: FoldLevel
     deltas_collapsed: FoldLevel
@@ -58,8 +58,8 @@ class NavigationMixinBase:
     _member_jump_maps: dict[tuple[Any, ...], MemberJumpMap]
     _member_jump_pending_digit: str | None
     _member_jump_pending_container_identity: tuple[Any, ...] | None
-    _changespecs_last_idx: int
-    _changespecs_last_name: str | None
+    _patches_last_idx: int
+    _patches_last_name: str | None
     _agents_last_idx: int
     _agents_last_identity: tuple[Any, ...] | None  # AgentType / str / str|None tuple
     _keymap_registry: KeymapRegistry
@@ -84,11 +84,11 @@ class NavigationMixinBase:
     _entry_jump_banner_to_hint: dict[BannerJumpTarget, str]
     _entry_jump_hint_to_panel: dict[str, PanelJumpTarget]
     _entry_jump_panel_to_hint: dict[PanelJumpTarget, str]
-    # ChangeSpecs-tab banner jump-hint maps (grouped mode only).  Banner key is
-    # the tuple group identity; ChangeSpecs have no panel scope.
-    _entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]]
-    _entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str]
-    _current_changespec_group_key: tuple[str, ...] | None
+    # Patches-tab banner jump-hint maps (grouped mode only).  Banner key is
+    # the tuple group identity; Patches have no panel scope.
+    _entry_jump_hint_to_patch_banner: dict[str, tuple[str, ...]]
+    _entry_jump_patch_banner_to_hint: dict[tuple[str, ...], str]
+    _current_patch_group_key: tuple[str, ...] | None
     # Back-jump anchors for the agents tab distinguish agent rows, in-panel
     # group banners, and stable-key collapsed whole-panel headers.
     _entry_jump_agents_anchor_stack: list[AgentJumpAnchor]
@@ -103,7 +103,7 @@ class NavigationMixinBase:
     _ancestor_keys: dict[str, str]
     _children_keys: dict[str, str]
     _sibling_keys: dict[str, str]
-    _all_changespecs: list[ChangeSpec]
+    _all_patches: list[Patch]
     _query_history: QueryHistoryStacks
     _saved_queries: dict[str, str]
     query_string: str

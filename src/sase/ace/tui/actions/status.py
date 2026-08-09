@@ -9,26 +9,26 @@ from sase.project_display_names import humanize_cl_name
 from ..modals import StatusModal
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
 
 # Type alias for tab names (used in type hints)
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 def _revert_task(file_path: str, name: str) -> tuple[bool, str]:
     """Execute revert workflow as a background task."""
     from rich.console import Console
 
-    from sase.ace.changespec import parse_project_file
-    from sase.ace.revert import revert_changespec
+    from sase.ace.patch import parse_project_file
+    from sase.ace.revert import revert_patch
 
-    changespecs = parse_project_file(file_path)
-    cs = next((c for c in changespecs if c.name == name), None)
+    patches = parse_project_file(file_path)
+    cs = next((c for c in patches if c.name == name), None)
     display_name = humanize_cl_name(name)
     if cs is None:
-        return (False, f"ChangeSpec '{display_name}' not found")
+        return (False, f"Patch '{display_name}' not found")
 
-    success, error_msg = revert_changespec(cs, Console())
+    success, error_msg = revert_patch(cs, Console())
     if success:
         return (True, f"Reverted {display_name}")
     return (False, error_msg or f"Failed to revert {display_name}")
@@ -38,9 +38,9 @@ def _submit_task(file_path: str, name: str, project_basename: str) -> tuple[bool
     """Execute submit workflow as a background task."""
     from rich.console import Console
 
-    from sase.workspace_provider import submit_changespec
+    from sase.workspace_provider import submit_patch
 
-    success, error_msg = submit_changespec(file_path, name, project_basename, Console())
+    success, error_msg = submit_patch(file_path, name, project_basename, Console())
     display_name = humanize_cl_name(name)
     if success:
         return (True, f"Submitted {display_name}")
@@ -51,16 +51,16 @@ def _archive_task(file_path: str, name: str) -> tuple[bool, str]:
     """Execute archive workflow as a background task."""
     from rich.console import Console
 
-    from sase.ace.archive import archive_changespec
-    from sase.ace.changespec import parse_project_file
+    from sase.ace.archive import archive_patch
+    from sase.ace.patch import parse_project_file
 
-    changespecs = parse_project_file(file_path)
-    cs = next((c for c in changespecs if c.name == name), None)
+    patches = parse_project_file(file_path)
+    cs = next((c for c in patches if c.name == name), None)
     display_name = humanize_cl_name(name)
     if cs is None:
-        return (False, f"ChangeSpec '{display_name}' not found")
+        return (False, f"Patch '{display_name}' not found")
 
-    success, error_msg = archive_changespec(cs, Console())
+    success, error_msg = archive_patch(cs, Console())
     if success:
         return (True, f"Archived {display_name}")
     return (False, error_msg or f"Failed to archive {display_name}")
@@ -74,34 +74,34 @@ def _restore_task(file_path: str, name: str, target_status: str) -> tuple[bool, 
     """
     from rich.console import Console
 
-    from sase.ace.changespec import parse_project_file
-    from sase.ace.restore import restore_changespec
-    from sase.core.changespec import strip_reverted_suffix
-    from sase.status_state_machine import transition_changespec_status
+    from sase.ace.patch import parse_project_file
+    from sase.ace.restore import restore_patch
+    from sase.core.patch import strip_reverted_suffix
+    from sase.status_state_machine import transition_patch_status
 
-    changespecs = parse_project_file(file_path)
-    cs = next((c for c in changespecs if c.name == name), None)
+    patches = parse_project_file(file_path)
+    cs = next((c for c in patches if c.name == name), None)
     display_name = humanize_cl_name(name)
     if cs is None:
-        return (False, f"ChangeSpec '{display_name}' not found")
+        return (False, f"Patch '{display_name}' not found")
 
-    success, error_msg = restore_changespec(cs, Console())
+    success, error_msg = restore_patch(cs, Console())
     if not success:
         return (False, error_msg or f"Failed to restore {display_name}")
 
     if target_status in ("Draft", "Ready"):
         base_name = strip_reverted_suffix(name)
-        changespecs = parse_project_file(file_path)
+        patches = parse_project_file(file_path)
         restored_cs = next(
             (
                 c
-                for c in changespecs
+                for c in patches
                 if strip_reverted_suffix(c.name) == base_name and c.status == "WIP"
             ),
             None,
         )
         if restored_cs:
-            success, _, error_msg, _ = transition_changespec_status(
+            success, _, error_msg, _ = transition_patch_status(
                 file_path, restored_cs.name, target_status, validate=False
             )
             if not success:
@@ -121,9 +121,9 @@ def _transition_with_siblings_task(
     """Execute status transition with potential sibling reverts as a background task."""
     from rich.console import Console
 
-    from sase.status_state_machine import transition_changespec_status
+    from sase.status_state_machine import transition_patch_status
 
-    success, old_status, error_msg, sibling_results = transition_changespec_status(
+    success, old_status, error_msg, sibling_results = transition_patch_status(
         file_path, name, new_status, validate=False, console=Console()
     )
 
@@ -144,7 +144,7 @@ class StatusActionsMixin:
     """Mixin providing status change actions."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
     current_tab: TabName
     query_string: str
@@ -152,31 +152,31 @@ class StatusActionsMixin:
 
     def action_change_status(self) -> None:
         """Open status change modal."""
-        if self.current_tab != "changespecs":
+        if self.current_tab != "artifacts":
             return
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         def on_dismiss(new_status: str | None) -> None:
             if new_status:
-                self._apply_status_change(changespec, new_status)
+                self._apply_status_change(patch, new_status)
 
-        self.push_screen(StatusModal(changespec.status), on_dismiss)  # type: ignore[attr-defined]
+        self.push_screen(StatusModal(patch.status), on_dismiss)  # type: ignore[attr-defined]
 
-    def _apply_status_change(self, changespec: ChangeSpec, new_status: str) -> None:
-        """Apply a status change to a ChangeSpec."""
-        from sase.core.changespec import has_suffix
+    def _apply_status_change(self, patch: Patch, new_status: str) -> None:
+        """Apply a status change to a Patch."""
+        from sase.core.patch import has_suffix
         from sase.status_state_machine import (
-            transition_changespec_status,
+            transition_patch_status,
         )
 
         from ...status import STATUS_ARCHIVED, STATUS_REVERTED, STATUS_SUBMITTED
 
-        cl_name = changespec.name
+        cl_name = patch.name
         display_cl_name = humanize_cl_name(cl_name)
-        project_file = changespec.file_path
+        project_file = patch.file_path
 
         # Special handling for "Reverted" status → background task
         if new_status == STATUS_REVERTED:
@@ -197,7 +197,7 @@ class StatusActionsMixin:
 
             vcs_type = detect_workflow_type(project_file)
             if vcs_type in ("git", "gh"):
-                from sase.ace.changespec.project_spec_path import project_spec_basename
+                from sase.ace.patch.project_spec_path import project_spec_basename
 
                 project_basename = project_spec_basename(project_file)
 
@@ -225,7 +225,7 @@ class StatusActionsMixin:
             return
 
         # Special handling for transitioning FROM "Reverted" status → background task
-        if changespec.status == STATUS_REVERTED and new_status in (
+        if patch.status == STATUS_REVERTED and new_status in (
             "WIP",
             "Draft",
             "Ready",
@@ -246,17 +246,15 @@ class StatusActionsMixin:
             from sase.ace.hooks.processes import kill_and_persist_all_running_processes
 
             kill_and_persist_all_running_processes(
-                changespec,
+                patch,
                 project_file,
                 cl_name,
-                "Killed: ChangeSpec transitioned to WIP.",
+                "Killed: Patch transitioned to WIP.",
             )
 
         # Check if this is a Draft→Ready transition with suffix (may trigger sibling reverts)
         may_have_sibling_reverts = (
-            changespec.status == "Draft"
-            and new_status == "Ready"
-            and has_suffix(cl_name)
+            patch.status == "Draft" and new_status == "Ready" and has_suffix(cl_name)
         )
 
         if may_have_sibling_reverts:
@@ -273,7 +271,7 @@ class StatusActionsMixin:
             return
 
         # Standard transition (synchronous, fast)
-        success, old_status, error_msg, sibling_results = transition_changespec_status(
+        success, old_status, error_msg, sibling_results = transition_patch_status(
             project_file,
             cl_name,
             new_status,

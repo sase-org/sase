@@ -1,12 +1,12 @@
-"""DELTAS section builder for ChangeSpec detail display."""
+"""DELTAS section builder for Patch detail display."""
 
 import os
 from collections.abc import Sequence
 
 from rich.text import Text
 
-from ...changespec import ChangeSpec
-from ...changespec.models import DeltaEntry, DeltaLineStats
+from ...patch import Patch
+from ...patch.models import DeltaEntry, DeltaLineStats
 from ..models.fold_state import FoldLevel
 from .file_panel._linked_deltas import LinkedDeltaGroup
 from .hint_tracker import HintTracker
@@ -139,7 +139,7 @@ def _append_entry(
 
 def build_deltas_section(
     text: Text,
-    changespec: ChangeSpec,
+    patch: Patch,
     deltas_fold: FoldLevel = FoldLevel.COLLAPSED,
     hint_tracker: HintTracker | None = None,
     show_file_hints: bool = False,
@@ -152,12 +152,12 @@ def build_deltas_section(
     - Expanded: header + alphabetical entry list with bold basename.
     - Fully expanded: expanded entries plus per-entry line stats.
 
-    The section is also fully omitted when ``changespec.deltas`` is ``None``
+    The section is also fully omitted when ``patch.deltas`` is ``None``
     (never computed) or ``[]`` (computed; no file changes).
 
     Args:
         text: The Rich Text object to append to.
-        changespec: The ChangeSpec to display.
+        patch: The Patch to display.
         deltas_fold: Fold level for the DELTAS section.
         hint_tracker: Current hint tracking state.
         show_file_hints: Whether to show file path hints on visible entries.
@@ -168,7 +168,7 @@ def build_deltas_section(
     """
     return build_delta_entries_section(
         text,
-        changespec.deltas,
+        patch.deltas,
         deltas_fold=deltas_fold,
         hint_tracker=hint_tracker,
         show_file_hints=show_file_hints,

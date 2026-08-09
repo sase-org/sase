@@ -1,11 +1,18 @@
-"""ChangeSpec management mixin for the ace TUI app."""
+"""Legacy aliases for the patch action mixins."""
 
-from ._core import ChangeSpecMixin
-from ._display import ChangeSpecDisplayMixin
+from ..patch import (
+    PatchDisplayMixin,
+    PatchLoadingMixin,
+    PatchMixin,
+    PatchQueryMixin,
+)
 from ._grouping_nav import ChangeSpecGroupingNavMixin
-from ._loading import ChangeSpecLoadingMixin
 from ._onboarding import ChangeSpecOnboardingMixin
-from ._query import ChangeSpecQueryMixin
+
+ChangeSpecDisplayMixin = PatchDisplayMixin
+ChangeSpecLoadingMixin = PatchLoadingMixin
+ChangeSpecMixin = PatchMixin
+ChangeSpecQueryMixin = PatchQueryMixin
 
 __all__ = [
     "ChangeSpecDisplayMixin",

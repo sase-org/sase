@@ -3,7 +3,7 @@
 Footer Convention
 -----------------
 The footer displays **conditional** keymaps — bindings whose availability
-is determined by the currently selected entry (ChangeSpec, Agent, etc.) or
+is determined by the currently selected entry (Patch, Agent, etc.) or
 by transient app state (e.g. marks exist, completed agents present).
 
 Rules:

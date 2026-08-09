@@ -284,7 +284,7 @@ def test_open_command_palette_command_is_always_present() -> None:
     catalog = build_command_catalog(_registry())
     spec = get_command_by_id(catalog, "app.open_command_palette")
     assert spec is not None
-    assert "changespecs" in spec.tabs
+    assert "artifacts" in spec.tabs
     assert "agents" in spec.tabs
     assert "axe" in spec.tabs
 
@@ -299,9 +299,9 @@ def test_tree_navigation_command_tab_scopes() -> None:
     assert ancestor is not None
     assert child is not None
     assert sibling is not None
-    assert ancestor.tabs == ("changespecs",)
-    assert child.tabs == ("changespecs",)
-    assert sibling.tabs == ("changespecs", "agents")
+    assert ancestor.tabs == ("artifacts",)
+    assert child.tabs == ("artifacts",)
+    assert sibling.tabs == ("artifacts", "agents")
 
 
 # ---------------------------------------------------------------------------

@@ -47,9 +47,9 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
         _MetricLegend("Success", "completed ÷ all runs"),
         _MetricLegend("Share", "share of runs in range"),
         _MetricLegend("Wall", "summed agent runtime"),
-        _MetricLegend("Specs", "distinct ChangeSpecs"),
+        _MetricLegend("Specs", "distinct Patches"),
         _MetricLegend("✓/×", "completed/failed runs"),
-        _MetricLegend("Unattributed", "runs with no ChangeSpec"),
+        _MetricLegend("Unattributed", "runs with no Patch"),
     ),
     "providers": (
         _MetricLegend("Share", "share of all runs"),

@@ -18,7 +18,7 @@ from sase.agent.status_buckets import (
 )
 
 if TYPE_CHECKING:
-    from ....changespec import ChangeSpec
+    from ....patch import Patch
     from ...models import Agent
     from ...models.agent import AgentType  # noqa: F401
     from ...models.agent_loader import AgentLoadState
@@ -28,7 +28,7 @@ from ...util.trace import tui_trace
 from ._refresh_trace import classify_agents_data_cost
 
 # Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 # Loaded statuses that mean the agent has resumed past an asking/answered
 # pause: it is executing again or a plan-action milestone landed. An in-memory
@@ -219,7 +219,7 @@ def is_axe_spawned_agent(agent: Agent) -> bool:
         # axe-spawned workflows start with axe(...)
         if workflow.startswith(("axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor(")):
             return True
-        # Plain workflow names for axe-spawned types (from workflow_state.json or ChangeSpec)
+        # Plain workflow names for axe-spawned types (from workflow_state.json or Patch)
         if workflow in ("fix_hook", "crs", "mentor", "summarize_hook"):
             return True
 
@@ -229,7 +229,8 @@ def is_axe_spawned_agent(agent: Agent) -> bool:
 def load_agents_from_disk_with_state(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
     *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
+    patch_snapshot: list[Patch] | None = None,
+    changespec_snapshot: list[Patch] | None = None,
     full_history: bool = False,
     use_artifact_index: bool = True,
     source: str = "unknown",
@@ -237,6 +238,9 @@ def load_agents_from_disk_with_state(
     """Load agents from disk and include the tiered load state."""
 
     from ....dismissed_agents import dismissed_bundle_identities_snapshot
+
+    if patch_snapshot is None:
+        patch_snapshot = changespec_snapshot
 
     with tui_trace(
         "agents.load_from_disk",
@@ -247,7 +251,7 @@ def load_agents_from_disk_with_state(
         result = _load_agents_from_disk_impl(
             dismissed_agents,
             dismissed_bundle_identities,
-            changespec_snapshot=changespec_snapshot,
+            patch_snapshot=patch_snapshot,
             full_history=full_history,
             use_artifact_index=use_artifact_index,
         )
@@ -272,7 +276,8 @@ def load_agent_artifact_delta_from_disk_with_state(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
     artifact_dirs: Sequence[Path | str],
     *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
+    patch_snapshot: list[Patch] | None = None,
+    changespec_snapshot: list[Patch] | None = None,
     source: str = "unknown",
     update_index: bool = True,
     deleted_artifact_dirs: Sequence[Path | str] = (),
@@ -280,6 +285,9 @@ def load_agent_artifact_delta_from_disk_with_state(
     """Load agents from exact artifact dirs and include the delta load state."""
 
     from ....dismissed_agents import dismissed_bundle_identities_snapshot
+
+    if patch_snapshot is None:
+        patch_snapshot = changespec_snapshot
 
     with tui_trace(
         "agents.load_artifact_delta_from_disk",
@@ -291,7 +299,7 @@ def load_agent_artifact_delta_from_disk_with_state(
             dismissed_agents,
             dismissed_bundle_identities,
             artifact_dirs,
-            changespec_snapshot=changespec_snapshot,
+            patch_snapshot=patch_snapshot,
             update_index=update_index,
             deleted_artifact_dirs=deleted_artifact_dirs,
         )
@@ -408,14 +416,14 @@ def _load_agents_from_disk_impl(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
     dismissed_bundle_identities: set[tuple[AgentType, str, str | None]],
     *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
+    patch_snapshot: list[Patch] | None = None,
     full_history: bool = False,
     use_artifact_index: bool = True,
 ) -> _AgentDiskLoadResult:
     from ...models.agent_loader import load_tiered_agents
 
     all_agents, load_state = load_tiered_agents(
-        changespec_snapshot=changespec_snapshot,
+        patch_snapshot=patch_snapshot,
         full_history=full_history,
         use_artifact_index=use_artifact_index,
     )
@@ -432,7 +440,7 @@ def _load_agent_artifact_delta_from_disk_impl(
     dismissed_bundle_identities: set[tuple[AgentType, str, str | None]],
     artifact_dirs: Sequence[Path | str],
     *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
+    patch_snapshot: list[Patch] | None = None,
     update_index: bool = True,
     deleted_artifact_dirs: Sequence[Path | str] = (),
 ) -> _AgentDiskLoadResult:
@@ -440,7 +448,7 @@ def _load_agent_artifact_delta_from_disk_impl(
 
     all_agents, load_state = load_artifact_delta_agents(
         artifact_dirs,
-        changespec_snapshot=changespec_snapshot,
+        patch_snapshot=patch_snapshot,
         update_index=update_index,
         deleted_artifact_dirs=deleted_artifact_dirs,
     )

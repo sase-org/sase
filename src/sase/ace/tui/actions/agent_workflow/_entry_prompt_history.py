@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
 
 from ._prompt_bar_mount import strip_editor_review_markers
@@ -51,7 +51,7 @@ class EntryPromptHistoryMixin:
 
         # Resolve VCS prefix. The substituted prefix and bar label show the
         # configured project name; the history grouping key stays the canonical
-        # directory key (ChangeSpec names are already user-facing on both).
+        # directory key (Patch names are already user-facing on both).
         from sase.project_display_names import project_display_name_for
 
         project_name: str = last.project_name

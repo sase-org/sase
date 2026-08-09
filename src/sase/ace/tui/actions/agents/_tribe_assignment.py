@@ -26,7 +26,7 @@ from ._directive_persistence import (
     persist_agent_directive_update,
 )
 
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 __all__ = ["AgentTribeAssignmentMixin", "DEFAULT_PINNED_TRIBE"]
 

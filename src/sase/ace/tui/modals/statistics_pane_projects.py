@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from sase.ace.tui.changespec_status import changespec_status_glyph
+from sase.ace.tui.patch_status import patch_status_glyph
 from sase.core.time import format_local
 from sase.telemetry.render import categorical_color, format_duration
 
@@ -48,8 +48,8 @@ class StatisticsProjectsRenderingMixin:
         return note
 
     def _projects_renderable(self, projects: Any) -> Group:
-        if self._projects_group_by == "changespec":
-            renderable = self._projects_by_changespec_renderable(projects)
+        if self._projects_group_by == "patch":
+            renderable = self._projects_by_patch_renderable(projects)
         elif self._projects_group_by == "drilldown":
             renderable = self._projects_drilldown_renderable(projects)
         else:
@@ -80,7 +80,7 @@ class StatisticsProjectsRenderingMixin:
                 self._project_runs_cell(row),
                 self._percent(row.success_rate),
                 str(row.commits),
-                str(row.distinct_changespecs),
+                str(row.distinct_patches),
                 format_duration(row.total_runtime_seconds),
                 self._share_bar(row.runs, total_runs, width=10),
                 self._format_timestamp(row.last_run_ts),
@@ -91,9 +91,9 @@ class StatisticsProjectsRenderingMixin:
             *self._projects_footnotes(projects),
         )
 
-    def _projects_by_changespec_renderable(self, projects: Any) -> Group:
+    def _projects_by_patch_renderable(self, projects: Any) -> Group:
         table = Table(box=box.SIMPLE, expand=True)
-        table.add_column("ChangeSpec", style="bold", ratio=1)
+        table.add_column("Patch", style="bold", ratio=1)
         table.add_column("Project", ratio=1)
         table.add_column("Runs", justify="right", style=_CYAN)
         table.add_column("Agents", justify="right")
@@ -101,18 +101,18 @@ class StatisticsProjectsRenderingMixin:
         table.add_column("Wall time", justify="right")
         table.add_column("Last run", justify="right")
         rows = sorted(
-            projects.changespecs,
+            projects.patches,
             key=lambda item: (
                 -item.runs,
                 item.project_label.casefold(),
                 item.project_key,
-                item.changespec_label.casefold(),
-                item.changespec_key,
+                item.patch_label.casefold(),
+                item.patch_key,
             ),
         )
         for row in rows:
             table.add_row(
-                self._changespec_cell(row),
+                self._patch_cell(row),
                 self._project_cell(
                     row.project_key,
                     row.project_label,
@@ -125,7 +125,7 @@ class StatisticsProjectsRenderingMixin:
                 self._format_timestamp(row.last_run_ts),
             )
         table.add_row(
-            Text("(no ChangeSpec)", style="dim italic"),
+            Text("(no Patch)", style="dim italic"),
             Text("all projects", style="dim"),
             Text(str(projects.unattributed_runs), style="dim"),
             Text("—", style="dim"),
@@ -138,21 +138,21 @@ class StatisticsProjectsRenderingMixin:
         if not rows:
             notes.append(
                 Text(
-                    "No attributed ChangeSpecs in this range; runs are shown in "
-                    "the (no ChangeSpec) row.",
+                    "No attributed Patches in this range; runs are shown in "
+                    "the (no Patch) row.",
                     style="dim italic",
                 )
             )
         notes.extend(self._projects_footnotes(projects))
         return Group(
             self._projects_summary(projects),
-            Panel(table, title="By ChangeSpec", border_style=_ACCENT),
+            Panel(table, title="By Patch", border_style=_ACCENT),
             *notes,
         )
 
     def _projects_drilldown_renderable(self, projects: Any) -> Group:
         table = Table(box=box.SIMPLE, expand=True)
-        table.add_column("Project → ChangeSpec", ratio=1)
+        table.add_column("Project → Patch", ratio=1)
         table.add_column("Runs", justify="right")
         table.add_column("Agents", justify="right")
         table.add_column("Commits", justify="right")
@@ -175,24 +175,24 @@ class StatisticsProjectsRenderingMixin:
                 self._format_timestamp(project.last_run_ts),
                 style="bold",
             )
-            for changespec in sorted(
-                project.changespecs,
+            for patch in sorted(
+                project.patches,
                 key=lambda item: (
                     -item.runs,
-                    item.changespec_label.casefold(),
-                    item.changespec_key,
+                    item.patch_label.casefold(),
+                    item.patch_key,
                 ),
             ):
                 table.add_row(
-                    self._changespec_cell(changespec, indent=True),
-                    str(changespec.runs),
-                    str(changespec.distinct_agents),
-                    str(changespec.commits),
-                    format_duration(changespec.total_runtime_seconds),
-                    self._format_timestamp(changespec.last_run_ts),
+                    self._patch_cell(patch, indent=True),
+                    str(patch.runs),
+                    str(patch.distinct_agents),
+                    str(patch.commits),
+                    format_duration(patch.total_runtime_seconds),
+                    self._format_timestamp(patch.last_run_ts),
                 )
             table.add_row(
-                Text("  (no ChangeSpec)", style="dim italic"),
+                Text("  (no Patch)", style="dim italic"),
                 Text(str(project.unattributed_runs), style="dim"),
                 Text("—", style="dim"),
                 Text("—", style="dim"),
@@ -202,7 +202,7 @@ class StatisticsProjectsRenderingMixin:
             )
         return Group(
             self._projects_summary(projects),
-            Panel(table, title="Project → ChangeSpec", border_style=_ACCENT),
+            Panel(table, title="Project → Patch", border_style=_ACCENT),
             *self._projects_footnotes(projects),
         )
 
@@ -210,7 +210,7 @@ class StatisticsProjectsRenderingMixin:
     def _projects_summary(projects: Any) -> Text:
         return Text(
             f"{projects.project_count} projects · "
-            f"{projects.changespec_count} ChangeSpecs · "
+            f"{projects.patch_count} Patches · "
             f"{projects.unattributed_runs} unattributed runs",
             style="dim",
         )
@@ -218,18 +218,17 @@ class StatisticsProjectsRenderingMixin:
     @staticmethod
     def _projects_footnotes(projects: Any) -> tuple[Text, ...]:
         notes: list[Text] = []
-        if projects.truncated_changespec_rows:
+        if projects.truncated_patch_rows:
             notes.append(
                 Text(
-                    f"{projects.truncated_changespec_rows} additional ChangeSpec "
-                    "rows not shown.",
+                    f"{projects.truncated_patch_rows} additional Patch rows not shown.",
                     style="dim italic",
                 )
             )
         if projects.malformed_spec_files_skipped:
             notes.append(
                 Text(
-                    f"{projects.malformed_spec_files_skipped} malformed ChangeSpec "
+                    f"{projects.malformed_spec_files_skipped} malformed Patch "
                     "files skipped.",
                     style="dim italic",
                 )
@@ -256,12 +255,12 @@ class StatisticsProjectsRenderingMixin:
         return text
 
     @staticmethod
-    def _changespec_cell(changespec: Any, *, indent: bool = False) -> Text:
+    def _patch_cell(patch: Any, *, indent: bool = False) -> Text:
         text = Text("  " if indent else "")
-        glyph, color = changespec_status_glyph(changespec.status)
+        glyph, color = patch_status_glyph(patch.status)
         text.append(f"{glyph} ", style=f"bold {color}")
-        text.append(changespec.changespec_label, style="bold")
-        if changespec.has_pr:
+        text.append(patch.patch_label, style="bold")
+        if patch.has_pr:
             text.append(" ↗", style="dim")
         return text
 

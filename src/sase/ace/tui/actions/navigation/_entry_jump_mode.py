@@ -27,8 +27,8 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         if self.current_tab == "agents":
             self._begin_agents_jump_mode()
             return
-        if self.current_tab == "changespecs":
-            self._begin_changespec_jump_mode()
+        if self.current_tab in {"artifacts", "patches", "changespecs"}:
+            self._begin_patch_jump_mode()
             return
 
         if not self._prepare_entry_jump_index_maps(self._jump_candidate_indices()):
@@ -48,9 +48,9 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._entry_jump_pending_prefix = ""
         return bool(self._entry_jump_hint_to_index)
 
-    def _prepare_changespec_jump_maps(self) -> bool:
-        """Allocate ChangeSpec-row and collapsed-banner hints without rendering them."""
-        targets = self._changespec_jump_targets()  # type: ignore[attr-defined]
+    def _prepare_patch_jump_maps(self) -> bool:
+        """Allocate Patch-row and collapsed-banner hints without rendering them."""
+        targets = self._patch_jump_targets()  # type: ignore[attr-defined]
         if not targets:
             return False
         hint_to_target, _ = build_jump_hint_maps(targets)
@@ -65,7 +65,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         banner_key_to_hint: dict[tuple[str, ...], str] = {}
         for hint, target in hint_to_target.items():
             kind, payload = target
-            if kind == "changespec":
+            if kind in {"patch", "changespec"}:
                 assert isinstance(payload, int)
                 cs_hint_to_idx[hint] = payload
                 cs_idx_to_hint[payload] = hint
@@ -76,13 +76,15 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
 
         self._entry_jump_hint_to_index = cs_hint_to_idx
         self._entry_jump_index_to_hint = cs_idx_to_hint
+        self._entry_jump_hint_to_patch_banner = banner_hint_to_key
+        self._entry_jump_patch_banner_to_hint = banner_key_to_hint
         self._entry_jump_hint_to_changespec_banner = banner_hint_to_key
         self._entry_jump_changespec_banner_to_hint = banner_key_to_hint
         return True
 
-    def _begin_changespec_jump_mode(self) -> None:
-        """Allocate hints across visible ChangeSpecs + collapsed banners (ChangeSpecs tab, grouped)."""
-        if not self._prepare_changespec_jump_maps():
+    def _begin_patch_jump_mode(self) -> None:
+        """Allocate hints across visible Patches + collapsed banners (Patches tab, grouped)."""
+        if not self._prepare_patch_jump_maps():
             return
         self._entry_jump_mode_active = True
         self._update_jump_footer()
@@ -153,9 +155,10 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
     def _jump_candidate_indices(self) -> list[int]:
-        """Return target indices for jump mode in visual order (ChangeSpecs / AXE only)."""
-        if self.current_tab == "changespecs":
-            return list(range(len(self.changespecs)))
+        """Return target indices for jump mode in visual order (Patches / AXE only)."""
+        if self.current_tab in {"artifacts", "patches", "changespecs"}:
+            patches = getattr(self, "patches", getattr(self, "changespecs", []))
+            return list(range(len(patches)))
         if self.current_tab == "agents":
             # Kept for backward compatibility with tests / callers that
             # only need the agent indices (no banner targets).
@@ -214,6 +217,8 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._entry_jump_banner_to_hint = {}
         self._entry_jump_hint_to_panel = {}
         self._entry_jump_panel_to_hint = {}
+        self._entry_jump_hint_to_patch_banner = {}
+        self._entry_jump_patch_banner_to_hint = {}
         self._entry_jump_hint_to_changespec_banner = {}
         self._entry_jump_changespec_banner_to_hint = {}
         if self.current_tab == "agents":

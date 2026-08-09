@@ -17,7 +17,7 @@ from sase.ace.mentor_output import (
 )
 
 if TYPE_CHECKING:
-    from sase.ace.changespec.models import MentorEntry
+    from sase.ace.patch.models import MentorEntry
     from sase.vcs_provider._base import VCSProvider
 
 _EXTENSION_TO_LEXER: dict[str, str] = {

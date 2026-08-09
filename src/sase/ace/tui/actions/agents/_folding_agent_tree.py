@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.fold_state import FoldStateManager
 
-TabName = Literal["changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "axe"]
 
 
 @dataclass(frozen=True, slots=True)

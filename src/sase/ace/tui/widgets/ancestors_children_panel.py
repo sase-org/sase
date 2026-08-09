@@ -9,12 +9,14 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
-from ...changespec import ChangeSpec
-from ..models.changespec_graph_index import (
-    ChangeSpecGraphIndex,
-    build_changespec_graph_index,
+from ...patch import Patch
+from ..models.patch_graph_index import (
+    PatchGraphIndex,
+    build_patch_graph_index,
 )
 from ..util.trace import tui_trace
+
+build_changespec_graph_index = build_patch_graph_index
 
 
 def _get_simple_status_indicator(status: str) -> tuple[str, str]:
@@ -47,7 +49,7 @@ class _ChildNode:
 
 
 class AncestorsChildrenPanel(Static):
-    """Panel showing ancestors and all descendants of the current ChangeSpec."""
+    """Panel showing ancestors and all descendants of the current Patch."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -68,16 +70,16 @@ class AncestorsChildrenPanel(Static):
 
     def update_relationships(
         self,
-        changespec: ChangeSpec,
-        all_changespecs: list[ChangeSpec],
+        patch: Patch,
+        all_patches: list[Patch],
         hide_reverted: bool = False,
     ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
-        """Update with ancestors and descendants of current ChangeSpec.
+        """Update with ancestors and descendants of current Patch.
 
         Args:
-            changespec: Currently selected ChangeSpec
-            all_changespecs: All changespecs (for finding children)
-            hide_reverted: Whether to hide reverted ChangeSpecs from display
+            patch: Currently selected Patch
+            all_patches: All patches (for finding children)
+            hide_reverted: Whether to hide reverted Patches from display
 
         Returns:
             Tuple of (ancestor_keys, children_keys, sibling_keys) mappings
@@ -87,24 +89,24 @@ class AncestorsChildrenPanel(Static):
         """
         with tui_trace(
             "widget.ancestors_children.update_relationships",
-            count=len(all_changespecs),
+            count=len(all_patches),
         ):
-            index = build_changespec_graph_index(all_changespecs)
+            index = build_patch_graph_index(all_patches)
             return self._update_relationships_impl(
-                changespec, index, hide_reverted=hide_reverted
+                patch, index, hide_reverted=hide_reverted
             )
 
     def update_relationships_from_index(
         self,
-        changespec: ChangeSpec,
-        index: ChangeSpecGraphIndex,
+        patch: Patch,
+        index: PatchGraphIndex,
         hide_reverted: bool = False,
     ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
         """Like :meth:`update_relationships` but using a prebuilt graph index.
 
         Use this on the hot path so 100 selections don't rebuild the
         children / status / sibling maps 100 times. Build the index once
-        per ``_all_changespecs`` change and pass it in here on each
+        per ``_all_patches`` change and pass it in here on each
         selection.
         """
         with tui_trace(
@@ -112,13 +114,13 @@ class AncestorsChildrenPanel(Static):
             count=len(index.name_map),
         ):
             return self._update_relationships_impl(
-                changespec, index, hide_reverted=hide_reverted
+                patch, index, hide_reverted=hide_reverted
             )
 
     def _update_relationships_impl(
         self,
-        changespec: ChangeSpec,
-        index: ChangeSpecGraphIndex,
+        patch: Patch,
+        index: PatchGraphIndex,
         hide_reverted: bool = False,
     ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
         # Reset hidden counts
@@ -127,15 +129,15 @@ class AncestorsChildrenPanel(Static):
         self._hidden_reverted_sibling_count = 0
 
         # Build ancestors (recursive parent traversal)
-        self._ancestors = self._find_ancestors(changespec, index, hide_reverted)
+        self._ancestors = self._find_ancestors(patch, index, hide_reverted)
 
         # Build descendant tree (recursive child traversal)
         self._descendant_tree = self._build_descendant_tree(
-            changespec.name, index, hide_reverted
+            patch.name, index, hide_reverted
         )
 
         # Build siblings (same base name, with or without __<N> suffix)
-        self._siblings = self._find_siblings(changespec, index, hide_reverted)
+        self._siblings = self._find_siblings(patch, index, hide_reverted)
 
         # Assign keybindings
         self._ancestor_keys = self._assign_ancestor_keys(self._ancestors)
@@ -159,15 +161,15 @@ class AncestorsChildrenPanel(Static):
 
     def _find_ancestors(
         self,
-        changespec: ChangeSpec,
-        index: ChangeSpecGraphIndex,
+        patch: Patch,
+        index: PatchGraphIndex,
         hide_reverted: bool = False,
     ) -> list[str]:
         """Find all ancestors recursively (parent, grandparent, etc.).
 
         Args:
-            changespec: The starting ChangeSpec
-            index: Pre-built graph index for ``_all_changespecs``
+            patch: The starting Patch
+            index: Pre-built graph index for ``_all_patches``
             hide_reverted: Whether to hide reverted ancestors from display
                           (but continue traversal through them)
         """
@@ -176,7 +178,7 @@ class AncestorsChildrenPanel(Static):
         self._ancestor_statuses = {}
         visited: set[str] = set()
 
-        current = changespec
+        current = patch
         while current.parent:
             parent_name = current.parent  # Store to preserve type narrowing
             parent_lower = parent_name.lower()
@@ -208,19 +210,19 @@ class AncestorsChildrenPanel(Static):
 
     def _find_siblings(
         self,
-        changespec: ChangeSpec,
-        index: ChangeSpecGraphIndex,
+        patch: Patch,
+        index: PatchGraphIndex,
         hide_reverted: bool = False,
     ) -> list[str]:
-        """Find all sibling ChangeSpecs (same base name, with or without __<N> suffix).
+        """Find all sibling Patches (same base name, with or without __<N> suffix).
 
-        Siblings are ChangeSpecs that share the same base name after stripping
-        the __<N> suffix. Both suffixed and non-suffixed ChangeSpecs can have
+        Siblings are Patches that share the same base name after stripping
+        the __<N> suffix. Both suffixed and non-suffixed Patches can have
         siblings (e.g., a Ready "foo" and its Reverted "foo__1" are siblings).
 
         Args:
-            changespec: The starting ChangeSpec
-            index: Pre-built graph index for ``_all_changespecs``
+            patch: The starting Patch
+            index: Pre-built graph index for ``_all_patches``
             hide_reverted: Whether to hide reverted siblings from display
 
         Returns:
@@ -228,7 +230,7 @@ class AncestorsChildrenPanel(Static):
         """
         self._sibling_statuses = {}
 
-        family = index.get_siblings_of(changespec)
+        family = index.get_siblings_of(patch)
 
         # Sort by suffix number ascending (already sorted in index, defensive resort)
         family.sort(
@@ -252,14 +254,14 @@ class AncestorsChildrenPanel(Static):
     def _build_descendant_tree(
         self,
         parent_name: str,
-        index: ChangeSpecGraphIndex,
+        index: PatchGraphIndex,
         hide_reverted: bool = False,
     ) -> list[_ChildNode]:
         """Build tree of all descendants with assigned keymaps.
 
         Args:
-            parent_name: Name of the parent ChangeSpec
-            index: Pre-built graph index for ``_all_changespecs``
+            parent_name: Name of the parent Patch
+            index: Pre-built graph index for ``_all_patches``
             hide_reverted: Whether to hide reverted descendants
         """
         children_map: dict[str, list[str]] = {

@@ -18,12 +18,12 @@ class FoldModeKeymaps(ModeKeymaps):
     prefix: str = "z"
     keys: dict[str, str | dict[str, str]] = field(
         default_factory=lambda: {
-            "cycle_commits": "c",
+            "cycle_stitches": "c",
             "cycle_hooks": "h",
             "cycle_mentors": "m",
             "cycle_timestamps": "t",
             "cycle_deltas": "d",
-            "toggle_commits": "C",
+            "toggle_stitches": "C",
             "toggle_hooks": "H",
             "toggle_mentors": "M",
             "toggle_timestamps": "T",
@@ -54,7 +54,7 @@ class CopyModeKeymaps(ModeKeymaps):
     prefix: str = "percent_sign"
     keys: dict[str, str | dict[str, str]] = field(
         default_factory=lambda: {
-            "changespecs": {
+            "patches": {
                 "raw": "percent_sign",
                 "with_snapshot": "exclamation_mark",
                 "bug": "b",

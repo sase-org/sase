@@ -1,7 +1,7 @@
 """Deduplication logic for loaded agents.
 
 Handles merging duplicate agents that appear from multiple sources
-(RUNNING field, ChangeSpec fields, workflow_state.json, done.json).
+(RUNNING field, Patch fields, workflow_state.json, done.json).
 """
 
 from ._timestamps import (
@@ -102,7 +102,7 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.retry_terminal = True
     if target.retry_error_category is None and source.retry_error_category is not None:
         target.retry_error_category = source.retry_error_category
-    # ChangeSpec-sourced fields (mentor, hook, CRS metadata)
+    # Patch-sourced fields (mentor, hook, CRS metadata)
     if target.mentor_profile is None and source.mentor_profile is not None:
         target.mentor_profile = source.mentor_profile
     if target.mentor_name is None and source.mentor_name is not None:
@@ -119,8 +119,8 @@ def dedup_axe_spawned_agents(agents: list[Agent]) -> list[Agent]:
     """Deduplicate axe-spawned agents by timestamp.
 
     Axe agents appear in both RUNNING field (as RUNNING type with axe(...) workflow)
-    and ChangeSpec fields (also RUNNING type, with _from_changespec=True).
-    Prefer the RUNNING field entry and merge type-specific metadata from ChangeSpec.
+    and Patch fields (also RUNNING type, with _from_patch=True).
+    Prefer the RUNNING field entry and merge type-specific metadata from Patch.
     """
     # Build index of RUNNING agents with axe(...) workflows by (cl_name, timestamp)
     running_axe_agents_by_key: dict[tuple[str, str], Agent] = {}
@@ -161,10 +161,10 @@ def dedup_axe_spawned_agents(agents: list[Agent]) -> list[Agent]:
                     key = (agent.cl_name, ts_13)
                     running_axe_agents_by_key[key] = agent
 
-    # Match ChangeSpec entries with RUNNING field entries — keep RUNNING field, drop ChangeSpec
+    # Match Patch entries with RUNNING field entries — keep RUNNING field, drop Patch
     final_agents: list[Agent] = []
     for agent in agents:
-        if agent._from_changespec:
+        if agent._from_patch:
             ts = extract_timestamp_str_from_suffix(agent.raw_suffix)
             if ts:
                 key = (agent.cl_name, ts)
@@ -184,13 +184,13 @@ def dedup_axe_spawned_agents(agents: list[Agent]) -> list[Agent]:
                     if matched.start_time is None and agent.start_time is not None:
                         matched.start_time = agent.start_time
                     if matched.raw_suffix is None and agent.raw_suffix:
-                        # ChangeSpec raw_suffix is full suffix
+                        # Patch raw_suffix is full suffix
                         # (e.g. "mentor_code_quality-PID-YYmmdd_HHMMSS");
                         # extract and normalize timestamp to 14-digit format
                         cs_ts = extract_timestamp_str_from_suffix(agent.raw_suffix)
                         if cs_ts:
                             matched.raw_suffix = normalize_to_14_digit(cs_ts)
-                    continue  # Drop the ChangeSpec entry
+                    continue  # Drop the Patch entry
         final_agents.append(agent)
 
     return final_agents

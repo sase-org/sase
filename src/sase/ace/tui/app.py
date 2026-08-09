@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from ..changespec import ChangeSpec
+from ..patch import Patch
 from ..query import to_canonical_string
 from .actions import (
     AgentsMixin,
@@ -26,7 +26,7 @@ from .actions import (
     ArtifactsMixin,
     AxeMixin,
     BaseActionsMixin,
-    ChangeSpecMixin,
+    PatchMixin,
     ClipboardMixin,
     CustomModeMixin,
     EventHandlersMixin,
@@ -80,7 +80,7 @@ from .artifact_tabs import (
 from .bindings import DEFAULT_BINDINGS
 from .exit_action import AceExitAction
 from .models.fold_state import FoldLevel
-from .tab_order import TabName
+from .tab_order import TabInput, TabName, normalize_tab_name
 from .util.perf import JKPerfTimer, is_enabled as _perf_enabled
 
 log = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ class AceApp(
     AxeMixin,
     ArtifactBugsMixin,
     ArtifactsMixin,
-    ChangeSpecMixin,
+    PatchMixin,
     ClipboardMixin,
     CustomModeMixin,
     EventHandlersMixin,
@@ -127,7 +127,7 @@ class AceApp(
     HintActionsMixin,
     App[None],
 ):
-    """TUI application for navigating ChangeSpecs."""
+    """TUI application for navigating Patches."""
 
     TITLE = "sase ace"
     CSS_PATH = "styles.tcss"
@@ -135,11 +135,11 @@ class AceApp(
 
     BINDINGS = DEFAULT_BINDINGS
 
-    changespecs: reactive[list[ChangeSpec]] = reactive([], recompose=False)
+    patches: reactive[list[Patch]] = reactive([], recompose=False)
     hooks_collapsed: reactive[FoldLevel] = reactive(
         FoldLevel.COLLAPSED, recompose=False
     )
-    commits_collapsed: reactive[FoldLevel] = reactive(
+    stitches_collapsed: reactive[FoldLevel] = reactive(
         FoldLevel.COLLAPSED, recompose=False
     )
     mentors_collapsed: reactive[FoldLevel] = reactive(
@@ -154,7 +154,7 @@ class AceApp(
     panel_fold_level: reactive[FoldLevel] = reactive(
         FoldLevel.COLLAPSED, recompose=False
     )
-    current_tab: reactive[TabName] = reactive("changespecs", recompose=False)
+    current_tab: reactive[TabName] = reactive("artifacts", recompose=False)
     current_artifacts_subtab: reactive[ArtifactsSubTab] = reactive(
         DEFAULT_ARTIFACTS_SUBTAB, recompose=False
     )
@@ -218,6 +218,10 @@ class AceApp(
         if old != value and self.current_tab == "agents":
             self._refresh_agents_display_debounced()
 
+    def validate_current_tab(self, value: TabInput) -> TabName:
+        """Normalize legacy tab aliases before storing app state."""
+        return normalize_tab_name(value)
+
     def __init__(
         self,
         query: str = "!!!",
@@ -225,7 +229,7 @@ class AceApp(
         refresh_interval: int = 10,
         auto_start_axe: bool = True,
         restart_axe: bool = False,
-        initial_tab: TabName = "agents",
+        initial_tab: TabInput = "agents",
     ) -> None:
         """Initialize the ace TUI app."""
         super().__init__()
@@ -241,7 +245,7 @@ class AceApp(
             refresh_interval=refresh_interval,
             auto_start_axe=auto_start_axe,
             restart_axe=restart_axe,
-            initial_tab=initial_tab,
+            initial_tab=normalize_tab_name(initial_tab),
         )
 
     def notify(

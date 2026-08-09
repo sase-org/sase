@@ -81,7 +81,7 @@ class StateInitMixin:
         self._current_attempt_number: int | None = None
         # Bypass the ``current_tab`` watcher: setting it via descriptor would
         # try to query widgets that haven't been composed yet. The reactive's
-        # internal storage was initialized to "changespecs" by ``App.__init__``;
+        # internal storage was initialized to "artifacts" by ``App.__init__``;
         # overwrite it here so first paint reflects the requested tab.
         self._reactive_current_tab = initial_tab  # type: ignore[attr-defined]
         # The Admin Center always opens home-first, but a repeated opener may
@@ -123,7 +123,7 @@ class StateInitMixin:
         # Startup loading flags: flipped to True once the first async load
         # completes. Used to distinguish "not yet loaded" from "loaded, empty"
         # in the TUI's agents and axe surfaces.
-        self._changespecs_first_load_done = False
+        self._patches_first_load_done = False
         self._agents_first_load_done = False
         self._axe_first_load_done = False
         self._mount_state_loads_done = False
@@ -212,7 +212,7 @@ class StateInitMixin:
         # set (or when the slow sanity floor below has elapsed). Defaults
         # mark "dirty" so the first tick still primes everything when no
         # watcher event has fired yet.
-        self._dirty_changespecs: bool = True
+        self._dirty_patches: bool = True
         self._dirty_agents: bool = True
         self._dirty_agent_artifact_dirs: tuple[Path, ...] = ()
         self._dirty_deleted_agent_artifact_dirs: tuple[Path, ...] = ()
@@ -244,6 +244,7 @@ class StateInitMixin:
         self._hint_commit_views: dict[int, CommitViewSpec] = {}
         self._hook_hint_to_idx: dict[int, int] = {}
         self._hint_to_entry_id: dict[int, str] = {}
+        self._hint_patch_name: str = ""
         self._hint_changespec_name: str = ""
         self._agent_hint_render_session = 0
         self._agent_hint_render_identity: tuple[object, ...] | None = None
@@ -277,20 +278,20 @@ class StateInitMixin:
         # ``query_one`` walks against the DOM. ``None`` until mount runs;
         # callers must fall back to ``query_one`` while these are unset
         # (e.g. tests that exercise mixin methods without mounting).
-        self._w_changespec_list: Any = None
-        self._w_changespec_detail: Any = None
+        self._w_patch_list: Any = None
+        self._w_patch_detail: Any = None
         self._w_ancestors_children: Any = None
-        self._w_changespec_info_panel: Any = None
+        self._w_patch_info_panel: Any = None
         self._w_footer: Any = None
         self._w_search_query_panel: Any = None
         self._w_agent_detail: Any = None
         self._w_agent_info_panel: Any = None
         self._w_tab_bar: Any = None
 
-        # Cached graph index over ``_all_changespecs``; rebuilt only when the
-        # list identity changes (see ``_get_changespec_graph_index``).
-        self._changespec_graph_index: Any = None
-        self._changespec_graph_index_for_id: int | None = None
+        # Cached graph index over ``_all_patches``; rebuilt only when the
+        # list identity changes (see ``_get_patch_graph_index``).
+        self._patch_graph_index: Any = None
+        self._patch_graph_index_for_id: int | None = None
 
         # Leader mode state (for , key sub-commands)
         self._leader_mode_active: bool = False
@@ -313,7 +314,7 @@ class StateInitMixin:
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
         # Agents-tab banner targets (kept in their own maps so the int-keyed
-        # agent maps above can stay shared with ChangeSpecs / AXE tabs).
+        # agent maps above can stay shared with Patches / AXE tabs).
         from .navigation.jump_hints import (
             AgentJumpAnchor,
             BannerJumpTarget,
@@ -326,12 +327,12 @@ class StateInitMixin:
         self._entry_jump_hint_to_panel: dict[str, PanelJumpTarget] = {}
         self._entry_jump_panel_to_hint: dict[PanelJumpTarget, str] = {}
 
-        # ChangeSpecs-tab banner jump-hint maps for grouped mode.  Banner identity
-        # is the group key tuple — there's no panel scope on ChangeSpecs so the
+        # Patches-tab banner jump-hint maps for grouped mode.  Banner identity
+        # is the group key tuple — there's no panel scope on Patches so the
         # tuple alone is sufficient.  Empty in flat mode and on tabs that
         # don't render banner rows.
-        self._entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]] = {}
-        self._entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str] = {}
+        self._entry_jump_hint_to_patch_banner: dict[str, tuple[str, ...]] = {}
+        self._entry_jump_patch_banner_to_hint: dict[tuple[str, ...], str] = {}
 
         # Entry jump-stack state. Non-Agents tabs keep per-tab row/banner
         # anchor stacks; the Agents tab uses richer anchors so panel and
@@ -373,16 +374,16 @@ class StateInitMixin:
         self._ancestor_keys: dict[str, str] = {}  # name -> keymap
         self._children_keys: dict[str, str] = {}  # key -> name (for navigation)
         self._sibling_keys: dict[str, str] = {}  # key -> name (for sibling navigation)
-        from ...changespec import ChangeSpec
+        from ...patch import Patch
 
-        self._all_changespecs: list[ChangeSpec] = []  # Cache for ancestry lookup
+        self._all_patches: list[Patch] = []  # Cache for ancestry lookup
         self._query_corpus: QueryCorpus | None = None
         self._query_corpus_source_list_id: int | None = None
-        self._hidden_reverted_count: int = 0  # Count of filtered reverted ChangeSpecs
+        self._hidden_reverted_count: int = 0  # Count of filtered reverted Patches
 
         # Tab state - track position in each tab
-        self._changespecs_last_idx: int = 0
-        self._changespecs_last_name: str | None = None
+        self._patches_last_idx: int = 0
+        self._patches_last_name: str | None = None
         self._agents_last_idx: int = 0
         self._agents_last_identity: tuple[AgentType, str, str | None] | None = None
         self._agents: list[Agent] = []
@@ -446,9 +447,9 @@ class StateInitMixin:
             tuple[Any, ...], asyncio.Task[Any]
         ] = {}
         self._post_mount_background_loads_started = False
-        self._changespecs_loading: bool = False
-        self._changespecs_refresh_scheduled: bool = False
-        self._changespecs_refresh_pending: bool = False
+        self._patches_loading: bool = False
+        self._patches_refresh_scheduled: bool = False
+        self._patches_refresh_pending: bool = False
         self._has_always_visible: bool = False
         self._hidden_count: int = 0
         self._agent_search_query: str = ""
@@ -501,7 +502,7 @@ class StateInitMixin:
         # (loading, folding, display) keep reading a single attribute.
         from ...grouping_strategy import (
             load_agent_grouping_mode,
-            load_changespec_grouping_mode,
+            load_patch_grouping_mode,
         )
         from ..models.agent_group_fold import AgentGroupFoldRegistry
         from ..models.agent_groups import GroupingMode
@@ -519,28 +520,26 @@ class StateInitMixin:
         # underlying agent.
         self._current_group_key: tuple[str, ...] | None = None
 
-        # ChangeSpecs-tab grouping state (mirrors the Agents-tab attributes above
+        # Patches-tab grouping state (mirrors the Agents-tab attributes above
         # but with its own enum and per-mode fold registries so cycling
         # one tab cannot leak collapse intent into the other).
         # Empty registry on first paint => every group expanded.
-        from ..models.changespec_groups import ChangeSpecGroupingMode
+        from ..models.patch_groups import PatchGroupingMode
         from ..models.group_fold import GroupFoldRegistry
 
-        self._changespec_grouping_mode: ChangeSpecGroupingMode = (
-            load_changespec_grouping_mode()
-        )
-        self._changespec_group_fold_registries: dict[
-            ChangeSpecGroupingMode, GroupFoldRegistry
+        self._patch_grouping_mode: PatchGroupingMode = load_patch_grouping_mode()
+        self._patch_group_fold_registries: dict[
+            PatchGroupingMode, GroupFoldRegistry
         ] = {
-            self._changespec_grouping_mode: GroupFoldRegistry(),
+            self._patch_grouping_mode: GroupFoldRegistry(),
         }
-        self._changespec_group_fold_registry: GroupFoldRegistry = (
-            self._changespec_group_fold_registries[self._changespec_grouping_mode]
+        self._patch_group_fold_registry: GroupFoldRegistry = (
+            self._patch_group_fold_registries[self._patch_grouping_mode]
         )
-        # Active banner focus on the ChangeSpecs tab (Phase 4 will surface this on
+        # Active banner focus on the Patches tab (Phase 4 will surface this on
         # navigation; Phase 3 just needs a stable attribute to clear on
-        # mode cycle and pass through to ``ChangeSpecList.update_list``).
-        self._current_changespec_group_key: tuple[str, ...] | None = None
+        # mode cycle and pass through to ``PatchList.update_list``).
+        self._current_patch_group_key: tuple[str, ...] | None = None
 
         # Nonblocking grouping-mode persistence state.  The cycle action
         # maintains a latest-value write per target so repeated keypresses

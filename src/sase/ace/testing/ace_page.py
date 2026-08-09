@@ -16,6 +16,16 @@ AceStartupPolicy = Literal["fast", "real"]
 
 _SENTINEL = object()
 
+_LEGACY_SELECTOR_ALIASES = {
+    "#changespecs-view": "#artifacts-view",
+    "#changespec-quickstart-panel": "#patch-quickstart-panel",
+}
+
+_LEGACY_STATE_VALUE_ALIASES = {
+    ("tab", "changespecs"): "artifacts",
+    ("tab", "patches"): "artifacts",
+}
+
 
 def _capture_screen(app: AceApp, height: int) -> str:
     """Capture the current screen content as plain text."""
@@ -105,9 +115,12 @@ class AcePage:
         self,
         query: str = '"feature"',
         size: tuple[int, int] = (120, 40),
+        patches: list[ChangeSpec] | None = None,
         changespecs: list[ChangeSpec] | None = None,
         model_tier_override: Literal["large", "small"] | None = None,
-        initial_tab: Literal["changespecs", "agents", "axe"] = "changespecs",
+        initial_tab: Literal[
+            "artifacts", "patches", "changespecs", "agents", "axe"
+        ] = "artifacts",
         notifications: bool = False,
         wait_for_startup_state: bool = True,
         startup_policy: AceStartupPolicy = "fast",
@@ -116,13 +129,16 @@ class AcePage:
             raise ValueError(f"unsupported AcePage startup policy: {startup_policy!r}")
         self._query = query
         self._size = size
-        self._changespecs = (
-            changespecs if changespecs is not None else DEFAULT_CHANGESPECS
-        )
+        if patches is not None:
+            self._changespecs = patches
+        elif changespecs is not None:
+            self._changespecs = changespecs
+        else:
+            self._changespecs = DEFAULT_CHANGESPECS
         self._model_tier_override: Literal["large", "small"] | None = (
             model_tier_override
         )
-        self._initial_tab: Literal["changespecs", "agents", "axe"] = initial_tab
+        self._initial_tab = initial_tab
         self._notifications = notifications
         self._wait_for_startup_state = wait_for_startup_state
         self._startup_policy = startup_policy
@@ -144,6 +160,12 @@ class AcePage:
             stack.enter_context(
                 patch(
                     "sase.ace.changespec.find_all_changespecs_cached",
+                    return_value=self._changespecs,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "sase.ace.patch.find_all_patches_cached",
                     return_value=self._changespecs,
                 )
             )
@@ -237,12 +259,19 @@ class AcePage:
     def query_widget(self, selector: str) -> Any:
         """Query widgets matching a CSS selector."""
         assert self._app is not None
+        selector = _LEGACY_SELECTOR_ALIASES.get(selector, selector)
         return self._app.query(selector)
 
     def query_one_widget(self, selector: str, widget_type: type | None = None) -> Any:
         """Query a single widget by CSS selector."""
         assert self._app is not None
+        selector = _LEGACY_SELECTOR_ALIASES.get(selector, selector)
         if widget_type is not None:
+            from sase.ace.tui.widgets.changespec_detail import ChangeSpecDetail
+            from sase.ace.tui.widgets.patch_detail import PatchDetail
+
+            if widget_type is ChangeSpecDetail:
+                widget_type = PatchDetail
             return self._app.query_one(selector, widget_type)
         return self._app.query_one(selector)
 
@@ -257,6 +286,7 @@ class AcePage:
 
         Supports dot-notation for nested keys (e.g., "selected.name").
         """
+        value = _LEGACY_STATE_VALUE_ALIASES.get((key, value), value)
         deadline = asyncio.get_event_loop().time() + timeout
         last_actual: Any = _SENTINEL
         while True:

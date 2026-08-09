@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from ....hints import parse_numeric_hint_selection
-from ....changespec import ChangeSpec
-from ...widgets import ChangeSpecDetail, HintInputBar
+from ....patch import Patch
+from ...widgets import PatchDetail, HintInputBar
 from ._types import HintMixinBase
 
 
@@ -16,25 +16,25 @@ class MentorKillingMixin(HintMixinBase):
         if self._refocus_existing_hint_bar():
             return
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
-        if not changespec.mentors:
+        if not patch.mentors:
             self.notify("No mentors to manage", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Re-render detail with manage hints
-        detail_widget = self.query_one("#detail-panel", ChangeSpecDetail)  # type: ignore[attr-defined]
+        detail_widget = self.query_one("#detail-panel", PatchDetail)  # type: ignore[attr-defined]
         query_str = self.canonical_query_string  # type: ignore[attr-defined]
         hint_mappings, hook_hint_to_idx, hint_to_entry_id, mentor_hint_to_info = (
             detail_widget.update_display_with_hints(
-                changespec,
+                patch,
                 query_str,
                 hints_for="mentors_manage",
                 hooks_collapsed=self.hooks_collapsed,  # type: ignore[attr-defined]
-                commits_collapsed=self.commits_collapsed,  # type: ignore[attr-defined]
+                stitches_collapsed=self.stitches_collapsed,  # type: ignore[attr-defined]
                 mentors_collapsed=self.mentors_collapsed,  # type: ignore[attr-defined]
                 timestamps_collapsed=self.timestamps_collapsed,  # type: ignore[attr-defined]
                 deltas_collapsed=self.deltas_collapsed,  # type: ignore[attr-defined]
@@ -52,7 +52,8 @@ class MentorKillingMixin(HintMixinBase):
         self._hook_hint_to_idx = hook_hint_to_idx
         self._hint_to_entry_id = hint_to_entry_id
         self._mentor_hint_to_info = mentor_hint_to_info
-        self._hint_changespec_name = changespec.name
+        self._hint_patch_name = patch.name
+        self._hint_changespec_name = patch.name  # type: ignore[attr-defined]
 
         # Mount the hint input bar
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
@@ -104,14 +105,14 @@ class MentorKillingMixin(HintMixinBase):
             entry_ids_to_delete = set()
             lines_to_delete = {}
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
         self._apply_mentor_deletions(
-            changespec, delete_field, entry_ids_to_delete, lines_to_delete
+            patch, delete_field, entry_ids_to_delete, lines_to_delete
         )
 
     def _apply_mentor_deletions(
         self,
-        changespec: ChangeSpec,
+        patch: Patch,
         delete_field: bool,
         entry_ids_to_delete: set[str],
         lines_to_delete: dict[str, set[tuple[str, str]]],
@@ -120,7 +121,7 @@ class MentorKillingMixin(HintMixinBase):
         import os
         import signal
 
-        from ....changespec import (
+        from ....patch import (
             extract_pid_from_agent_suffix,
             parse_project_file,
         )
@@ -128,15 +129,15 @@ class MentorKillingMixin(HintMixinBase):
         from ....mentors import remove_mentor_data
 
         # Re-read fresh state from disk for killing
-        changespecs = parse_project_file(changespec.file_path)
+        patches = parse_project_file(patch.file_path)
         target_cs = None
-        for cs in changespecs:
-            if cs.name == changespec.name:
+        for cs in patches:
+            if cs.name == patch.name:
                 target_cs = cs
                 break
 
         if target_cs is None or not target_cs.mentors:
-            self.notify("ChangeSpec not found or no mentors", severity="error")  # type: ignore[attr-defined]
+            self.notify("Patch not found or no mentors", severity="error")  # type: ignore[attr-defined]
             return
 
         # Determine which entries have running mentors that need killing
@@ -174,20 +175,20 @@ class MentorKillingMixin(HintMixinBase):
                 workflow = extract_mentor_workflow_from_suffix(suffix)
                 if not workflow:
                     continue
-                for claim in get_claimed_workspaces(changespec.file_path):
-                    if claim.workflow == workflow and claim.cl_name == changespec.name:
+                for claim in get_claimed_workspaces(patch.file_path):
+                    if claim.workflow == workflow and claim.cl_name == patch.name:
                         release_workspace(
-                            changespec.file_path,
+                            patch.file_path,
                             claim.workspace_num,
                             workflow,
-                            changespec.name,
+                            patch.name,
                         )
                         break
 
         # Apply deletions to disk
         success = remove_mentor_data(
-            changespec.file_path,
-            changespec.name,
+            patch.file_path,
+            patch.name,
             delete_field=delete_field,
             entry_ids_to_delete=entry_ids_to_delete or None,
             lines_to_delete=lines_to_delete or None,

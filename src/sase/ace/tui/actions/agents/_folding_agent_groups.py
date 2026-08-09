@@ -87,7 +87,7 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
         :func:`build_agent_tree` to mirror the same per-panel mode +
         singleton-suppression rules the renderer applies.  ``deep_key``
         is the deepest banner that contains the focused agent (a name-
-        root banner if visible, otherwise a ChangeSpec banner in 3-level
+        root banner if visible, otherwise a Patch banner in 3-level
         mode), and ``l0_key`` is its project banner.  Returns
         ``(None, None)`` when no agent is focused.
         """

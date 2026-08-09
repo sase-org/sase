@@ -89,6 +89,14 @@ class ChangeSpecWorkRow:
     first_run_ts: float
     last_run_ts: float
 
+    @property
+    def patch_key(self) -> str:
+        return self.changespec_key
+
+    @property
+    def patch_label(self) -> str:
+        return self.changespec_label
+
 
 @dataclass(frozen=True, slots=True)
 class ProjectWorkRow:
@@ -107,6 +115,14 @@ class ProjectWorkRow:
     total_runtime_seconds: float
     last_run_ts: float
     changespecs: tuple[ChangeSpecWorkRow, ...]
+
+    @property
+    def distinct_patches(self) -> int:
+        return self.distinct_changespecs
+
+    @property
+    def patches(self) -> tuple[ChangeSpecWorkRow, ...]:
+        return self.changespecs
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +170,18 @@ class ProjectsView:
     unattributed_runs: int
     truncated_changespec_rows: int
     malformed_spec_files_skipped: int
+
+    @property
+    def patches(self) -> tuple[ChangeSpecWorkRow, ...]:
+        return self.changespecs
+
+    @property
+    def patch_count(self) -> int:
+        return self.changespec_count
+
+    @property
+    def truncated_patch_rows(self) -> int:
+        return self.truncated_changespec_rows
 
 
 @dataclass(frozen=True, slots=True)

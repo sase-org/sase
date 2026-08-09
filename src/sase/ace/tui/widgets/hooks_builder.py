@@ -1,12 +1,12 @@
-"""HOOKS section builder for ChangeSpec detail display."""
+"""HOOKS section builder for Patch detail display."""
 
 import os
 
 from sase.workflows.accept.parsing import parse_proposal_id
 from rich.text import Text
 
-from ...changespec import (
-    ChangeSpec,
+from ...patch import (
+    Patch,
     HookEntry,
     get_current_and_proposal_entry_ids,
     parse_commit_entry_id,
@@ -24,7 +24,7 @@ from .suffix_formatting import SUFFIX_STYLES, append_suffix_to_text, should_show
 def _is_fix_hook_proposal_for_this_hook(
     hook: HookEntry,
     entry_id: str,
-    changespec: ChangeSpec,
+    patch: Patch,
 ) -> bool:
     """Check if this is a fix-hook proposal running the hook it was fixing.
 
@@ -39,7 +39,7 @@ def _is_fix_hook_proposal_for_this_hook(
     Args:
         hook: The hook entry to check.
         entry_id: The commit entry ID (e.g., "2a").
-        changespec: The ChangeSpec containing commits to check against.
+        patch: The Patch containing commits to check against.
 
     Returns:
         True if this is a fix-hook proposal running its target hook.
@@ -51,10 +51,10 @@ def _is_fix_hook_proposal_for_this_hook(
     base_number, _letter = parsed
 
     # Only show for NEW proposals (base number == highest all-numeric commit)
-    if not changespec.commits:
+    if not patch.commits:
         return False
     max_number = max(
-        (e.number for e in changespec.commits if not e.is_proposed),
+        (e.number for e in patch.commits if not e.is_proposed),
         default=0,
     )
     if base_number != max_number:
@@ -70,7 +70,7 @@ def _is_fix_hook_proposal_for_this_hook(
     return parent_status_line.suffix == entry_id
 
 
-def _is_old_proposal(entry_id: str, changespec: ChangeSpec) -> bool:
+def _is_old_proposal(entry_id: str, patch: Patch) -> bool:
     """Check if entry_id is an OLD proposal (not a new one).
 
     A proposal is "old" if its base number doesn't match the highest
@@ -82,10 +82,10 @@ def _is_old_proposal(entry_id: str, changespec: ChangeSpec) -> bool:
 
     base_number, _letter = parsed
 
-    if not changespec.commits:
+    if not patch.commits:
         return False
     max_number = max(
-        (e.number for e in changespec.commits if not e.is_proposed),
+        (e.number for e in patch.commits if not e.is_proposed),
         default=0,
     )
     return base_number != max_number
@@ -93,7 +93,7 @@ def _is_old_proposal(entry_id: str, changespec: ChangeSpec) -> bool:
 
 def _has_visible_status_lines(
     hook: HookEntry,
-    changespec: ChangeSpec,
+    patch: Patch,
     hooks_fold: FoldLevel,
     hide_passed: bool,
     current_and_proposal_ids: set[str],
@@ -106,7 +106,7 @@ def _has_visible_status_lines(
         if hooks_fold != FoldLevel.FULLY_EXPANDED:
             if sl.status == "PASSED" and hide_passed:
                 if not _is_fix_hook_proposal_for_this_hook(
-                    hook, sl.commit_entry_num, changespec
+                    hook, sl.commit_entry_num, patch
                 ):
                     continue
             if sl.status in ("FAILED", "DEAD"):
@@ -121,7 +121,7 @@ def _has_visible_status_lines(
 
 def build_hooks_section(
     text: Text,
-    changespec: ChangeSpec,
+    patch: Patch,
     with_hints: bool,
     hints_for: str | None,
     hooks_fold: FoldLevel,
@@ -137,7 +137,7 @@ def build_hooks_section(
 
     Args:
         text: The Rich Text object to append to.
-        changespec: The ChangeSpec to display.
+        patch: The Patch to display.
         with_hints: Whether hints are enabled.
         hints_for: Controls which entries get hints.
         hooks_fold: Fold level for the hooks section.
@@ -146,7 +146,7 @@ def build_hooks_section(
     Returns:
         Updated HintTracker with new hint mappings.
     """
-    if not changespec.hooks:
+    if not patch.hooks:
         return hint_tracker
 
     hint_counter = hint_tracker.counter
@@ -155,13 +155,13 @@ def build_hooks_section(
     hint_to_entry_id = dict(hint_tracker.hint_to_entry_id)
 
     # Get current + proposal entry IDs for filtering
-    current_and_proposal_ids = set(get_current_and_proposal_entry_ids(changespec))
+    current_and_proposal_ids = set(get_current_and_proposal_entry_ids(patch))
 
     hide_passed = hooks_fold == FoldLevel.COLLAPSED
     hide_historical = hooks_fold != FoldLevel.FULLY_EXPANDED
 
     text.append("HOOKS:\n", style="bold #87D7FF")
-    for hook_idx, hook in enumerate(changespec.hooks):
+    for hook_idx, hook in enumerate(patch.hooks):
         # Collect hidden status IDs for fold summary
         passed_ids: list[str] = []
         failed_ids: list[str] = []  # Historical only
@@ -170,12 +170,12 @@ def build_hooks_section(
         if hooks_fold != FoldLevel.FULLY_EXPANDED and hook.status_lines:
             for sl in hook.status_lines:
                 # Skip old proposal IDs in folded summary
-                if _is_old_proposal(sl.commit_entry_num, changespec):
+                if _is_old_proposal(sl.commit_entry_num, patch):
                     continue
                 if sl.status == "PASSED" and hide_passed:
                     # Exclude fix-hook proposal PASSED (shown, not folded)
                     if not _is_fix_hook_proposal_for_this_hook(
-                        hook, sl.commit_entry_num, changespec
+                        hook, sl.commit_entry_num, patch
                     ):
                         passed_ids.append(sl.commit_entry_num)
                 elif sl.status == "FAILED":
@@ -204,7 +204,7 @@ def build_hooks_section(
 
         # Check if this hook has any visible status lines
         has_visible = _has_visible_status_lines(
-            hook, changespec, hooks_fold, hide_passed, current_and_proposal_ids
+            hook, patch, hooks_fold, hide_passed, current_and_proposal_ids
         )
 
         # Hook command line with optional hint and status summary
@@ -257,7 +257,7 @@ def build_hooks_section(
                     # (unless fix-hook proposal — always shown)
                     if sl.status == "PASSED" and hide_passed:
                         if not _is_fix_hook_proposal_for_this_hook(
-                            hook, sl.commit_entry_num, changespec
+                            hook, sl.commit_entry_num, patch
                         ):
                             continue
                     # FAILED/DEAD historical: hide unless FULLY_EXPANDED
@@ -282,9 +282,7 @@ def build_hooks_section(
                     show_hint = True
 
                 if show_hint:
-                    hook_output_path = get_hook_output_path(
-                        changespec.name, sl.timestamp
-                    )
+                    hook_output_path = get_hook_output_path(patch.name, sl.timestamp)
                     hint_mappings[hint_counter] = hook_output_path
                     if hints_for == "hooks_latest_only":
                         hook_hint_to_idx[hint_counter] = hook_idx

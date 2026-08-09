@@ -1,6 +1,6 @@
 """Agent and workflow loading functions from various sources."""
 
-from ._changespec_loaders import (
+from ._patch_loaders import (
     load_agents_from_comments,
     load_agents_from_hooks,
     load_agents_from_mentors,

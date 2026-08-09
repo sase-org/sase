@@ -1,18 +1,18 @@
-"""COMMENTS section builder for ChangeSpec detail display."""
+"""COMMENTS section builder for Patch detail display."""
 
 import os
 from pathlib import Path
 
 from rich.text import Text
 
-from ...changespec import ChangeSpec
+from ...patch import Patch
 from .hint_tracker import HintTracker
 from .suffix_formatting import append_suffix_to_text, should_show_suffix
 
 
 def build_comments_section(
     text: Text,
-    changespec: ChangeSpec,
+    patch: Patch,
     show_comment_hints: bool,
     hint_tracker: HintTracker,
 ) -> HintTracker:
@@ -20,21 +20,21 @@ def build_comments_section(
 
     Args:
         text: The Rich Text object to append to.
-        changespec: The ChangeSpec to display.
+        patch: The Patch to display.
         show_comment_hints: Whether to show file path hints.
         hint_tracker: Current hint tracking state.
 
     Returns:
         Updated HintTracker with new hint mappings.
     """
-    if not changespec.comments:
+    if not patch.comments:
         return hint_tracker
 
     hint_counter = hint_tracker.counter
     hint_mappings = dict(hint_tracker.mappings)
 
     text.append("COMMENTS:\n", style="bold #87D7FF")
-    for comment in changespec.comments:
+    for comment in patch.comments:
         text.append("  ", style="")
         # Add hint before the reviewer if enabled
         if show_comment_hints:

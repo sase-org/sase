@@ -16,7 +16,7 @@ from ._launch_tasks import LaunchTaskMixin
 from ._types import PromptContext
 
 if TYPE_CHECKING:
-    from sase.ace.changespec import ChangeSpec
+    from sase.ace.patch import Patch
     from sase.ace.tui.modals import SelectionItem
     from sase.ace.tui.models import Agent
 
@@ -35,12 +35,12 @@ class AgentLaunchMixin(
     """Internal mixin providing agent launching functionality."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     marked_indices: set[int]
     _agents: list[Agent]
 
     # State for bulk agent runs (from AgentWorkflowMixin)
-    _bulk_changespecs: list[ChangeSpec] | None = None
+    _bulk_patches: list[Patch] | None = None
     # State for prompt input (from AgentWorkflowMixin)
     _prompt_context: PromptContext | None = None
     # State for repeat-last-+/Ctrl+Space selection (from EntryPointsMixin)

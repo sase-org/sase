@@ -22,25 +22,27 @@ revolves around:
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from sase.ace.changespec import ChangeSpec
+    from sase.ace.patch import Patch
     from sase.ace.tui.models import Agent
     from sase.ace.tui.widgets.bgcmd_list import AxeItem
 
 
-CommandTab = Literal["changespecs", "agents", "axe"]
+CommandTab = Literal["artifacts", "agents", "axe"]
 """The three top-level tabs that scope command applicability."""
+
+LegacyCommandTab = Literal["changespecs", "patches"]
 
 
 CommandCategory = Literal[
     "Navigation",
     "Tabs",
     "Bugs",
-    "PR Actions",
-    "ChangeSpec Edits",
+    "Patch Actions",
+    "Patch Edits",
     "Proposals & Sync",
     "Folding",
     "Marking",
@@ -67,8 +69,8 @@ CATEGORY_ORDER: tuple[CommandCategory, ...] = (
     "Navigation",
     "Tabs",
     "Bugs",
-    "PR Actions",
-    "ChangeSpec Edits",
+    "Patch Actions",
+    "Patch Edits",
     "Proposals & Sync",
     "Folding",
     "Marking",
@@ -131,7 +133,7 @@ class CommandExecutor:
         command_id: For ``custom_mode_key`` — the named entry inside that
             mode's keys dict.
         copy_tab: For ``copy_mode_key`` — which per-tab subdict the
-            subkey lives under (``"changespecs"``, ``"agents"``, or
+            subkey lives under (``"artifacts"``, ``"agents"``, or
             ``"axe"``).
     """
 
@@ -194,11 +196,12 @@ class CommandContext:
     piecemeal (e.g. ``CommandContext(tab="agents")``).
     """
 
-    tab: CommandTab = "changespecs"
+    tab: CommandTab | LegacyCommandTab = "artifacts"
     artifacts_subtab: Literal[
         "prs", "commits", "bugs", "beads", "plans", "chats", "other"
     ] = "prs"
-    changespec: ChangeSpec | None = None
+    patch: Patch | None = None
+    changespec: InitVar[Patch | None] = None
     agent: Agent | None = None
     axe_item: AxeItem | None = None
     # Warm-only Artifacts copy-palette selection state. ``None`` means the
@@ -206,14 +209,15 @@ class CommandContext:
     # command catalog's conservative legacy behavior.
     artifact_selection_present: bool | None = None
     artifact_available_targets: frozenset[str] | None = None
-    # ChangeSpecs tab state
+    # Patches tab state
     mark_count: int = 0
     # Agents tab state
     completed_agent_count: int = 0
     stopped_agent_count: int = 0
     unread_completed_agent_count: int = 0
     runner_count: int = 0
-    can_jump_to_changespec: bool = False
+    can_jump_to_patch: bool = False
+    can_jump_to_changespec: InitVar[bool | None] = None
     attempt_pinned: bool = False
     panel_focused: bool = False
     panel_collapsed: bool = False
@@ -231,6 +235,40 @@ class CommandContext:
     selected_axe_chop_run_total: int = 0
     selected_axe_chop_enabled: bool = True
     selected_axe_chop_running: bool = False
+
+    def __post_init__(
+        self,
+        changespec: Patch | None,
+        can_jump_to_changespec: bool | None,
+    ) -> None:
+        if self.tab in {"changespecs", "patches"}:
+            object.__setattr__(self, "tab", "artifacts")
+        if self.patch is None and changespec is not None:
+            object.__setattr__(self, "patch", changespec)
+        if can_jump_to_changespec is not None and not self.can_jump_to_patch:
+            object.__setattr__(
+                self,
+                "can_jump_to_patch",
+                can_jump_to_changespec,
+            )
+
+    @property
+    def selected_changespec(self) -> Patch | None:
+        return self.patch
+
+
+def _command_context_changespec(self: CommandContext) -> Patch | None:
+    return self.patch
+
+
+def _command_context_can_jump_to_changespec(self: CommandContext) -> bool:
+    return self.can_jump_to_patch
+
+
+CommandContext.changespec = property(_command_context_changespec)  # type: ignore[attr-defined]
+CommandContext.can_jump_to_changespec = property(  # type: ignore[attr-defined]
+    _command_context_can_jump_to_changespec
+)
 
 
 CommandAvailability = Callable[["CommandSpec", CommandContext], bool]

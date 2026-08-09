@@ -7,16 +7,16 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
-from sase.ace.changespec.project_spec_path import project_spec_basename
+from sase.ace.patch.project_spec_path import project_spec_basename
 from sase.project_display_names import humanize_cl_name
 from sase.vcs_provider import get_vcs_provider
 from sase.workflows.commit_utils import run_sase_hg_clean
 
 if TYPE_CHECKING:
-    from ...changespec import ChangeSpec
+    from ...patch import Patch
 
 # Lock for SASE_SYNC_CWD env var to prevent race conditions
-# between concurrent sync tasks for different ChangeSpecs.
+# between concurrent sync tasks for different Patches.
 _sync_env_lock = threading.Lock()
 
 
@@ -31,8 +31,8 @@ def _abort_if_needed(provider: object, workspace_dir: str) -> None:
 
 
 def _sync_task(
-    changespec_name: str,
-    changespec_file_path: str,
+    patch_name: str,
+    patch_file_path: str,
     project_basename: str,
 ) -> tuple[bool, str]:
     """Execute sync as a background task.
@@ -51,10 +51,10 @@ def _sync_task(
         release_workspace,
     )
 
-    display_name = humanize_cl_name(changespec_name)
+    display_name = humanize_cl_name(patch_name)
 
-    workspace_num = get_first_available_axe_workspace(changespec_file_path)
-    workflow_name = f"sync-{changespec_name}"
+    workspace_num = get_first_available_axe_workspace(patch_file_path)
+    workflow_name = f"sync-{patch_name}"
 
     try:
         workspace_dir, _ = get_workspace_directory_for_num(
@@ -65,7 +65,7 @@ def _sync_task(
 
     pid = os.getpid()
     claim_result = claim_workspace(
-        changespec_file_path, workspace_num, workflow_name, pid, changespec_name
+        patch_file_path, workspace_num, workflow_name, pid, patch_name
     )
     if not claim_result.success:
         return (
@@ -76,17 +76,17 @@ def _sync_task(
     try:
         # Clean workspace before switching branches
         clean_success, clean_error = run_sase_hg_clean(
-            workspace_dir, f"{changespec_name}-sync"
+            workspace_dir, f"{patch_name}-sync"
         )
         if not clean_success:
             print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-        # Checkout the ChangeSpec
+        # Checkout the Patch
         print(f"Checking out {display_name}...")
         provider = get_vcs_provider(workspace_dir)
         # Keep canonical identity for revision resolution and all persistence.
         resolved = provider.resolve_revision(
-            changespec_name, project_basename, workspace_dir
+            patch_name, project_basename, workspace_dir
         )
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
@@ -121,9 +121,9 @@ def _sync_task(
 
                         notify_sync_result(
                             status,
-                            changespec_name,
+                            patch_name,
                             workspace_dir,
-                            changespec_file_path,
+                            patch_file_path,
                         )
 
                     from sase.ace.timestamps.recording import (
@@ -131,8 +131,8 @@ def _sync_task(
                     )
 
                     add_timestamp_entry_atomic(
-                        changespec_file_path,
-                        changespec_name,
+                        patch_file_path,
+                        patch_name,
                         "SYNC",
                         status,
                     )
@@ -140,8 +140,8 @@ def _sync_task(
                     from sase.ace.deltas import refresh_deltas_after_commits_change
 
                     refresh_deltas_after_commits_change(
-                        changespec_file_path,
-                        changespec_name,
+                        patch_file_path,
+                        patch_name,
                         workspace_dir,
                     )
                     return (True, f"Synced {display_name}: {message}")
@@ -149,7 +149,7 @@ def _sync_task(
                     from sase.notifications.senders import notify_sync_result
 
                     notify_sync_result(
-                        status, changespec_name, workspace_dir, changespec_file_path
+                        status, patch_name, workspace_dir, patch_file_path
                     )
                     _abort_if_needed(provider, workspace_dir)
                     return (False, f"sync failed: {message}")
@@ -169,10 +169,10 @@ def _sync_task(
     finally:
         # Always release workspace
         release_workspace(
-            changespec_file_path,
+            patch_file_path,
             workspace_num,
             workflow_name,
-            changespec_name,
+            patch_name,
         )
 
 
@@ -180,37 +180,37 @@ class SyncMixin:
     """Mixin providing workspace sync action."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
-    changespecs: list[ChangeSpec]
+    patches: list[Patch]
     current_idx: int
 
     def action_sync(self) -> None:
-        """Sync the current ChangeSpec's workspace in the background.
+        """Sync the current Patch's workspace in the background.
 
         This action:
         1. Validates STATUS is not "Submitted", "Reverted", or "Archived"
-        2. Checks per-ChangeSpec deduplication (handled by _submit_background_task)
+        2. Checks per-Patch deduplication (handled by _submit_background_task)
         3. Submits a background task that claims/releases workspace
         4. Shows toast notifications for start/completion/failure
         """
-        from ...changespec import get_base_status
+        from ...patch import get_base_status
 
-        if not self.changespecs:
+        if not self.patches:
             return
 
-        changespec = self.changespecs[self.current_idx]
+        patch = self.patches[self.current_idx]
 
         # Validate status
-        base_status = get_base_status(changespec.status)
+        base_status = get_base_status(patch.status)
         if base_status in ("Reverted", "Submitted", "Archived"):
             self.notify(  # type: ignore[attr-defined]
-                "Sync not available for Reverted/Submitted/Archived ChangeSpecs",
+                "Sync not available for Reverted/Submitted/Archived Patches",
                 severity="warning",
             )
             return
 
-        project_basename = project_spec_basename(changespec.file_path)
-        cl_name = changespec.name
-        project_file = changespec.file_path
+        project_basename = project_spec_basename(patch.file_path)
+        cl_name = patch.name
+        project_file = patch.file_path
 
         # Build the task callable (closure capturing all needed data)
         def task_callable() -> tuple[bool, str]:
