@@ -4,159 +4,117 @@ amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructio
 is_sase_managed: true
 glossary:
   Agent Clan:
-    aliases:
-      - agent clans
     definition: >-
-      An agent clan is a named, rootless container for agents that run in
-      parallel. Every member is named inside the clan's hood
-      (`<clan>.<suffix>`) and declares `%clan:<clan>`; the clan name is
-      reserved and is never itself an agent.
+      An agent clan is a named, rootless container for agents that run in parallel.
+      Every member is named inside the clan's hood (`<clan>.<suffix>`) and declares
+      `%clan:<clan>`; the clan name is reserved and is never itself an agent.
   Agent Family:
-    aliases:
-      - agent families
     definition: >-
       An agent family is a strictly sequential chain whose members use
-      `<family>--<suffix>` names. The first `%n(parent, suffix)` attachment
-      renames the original agent with its own suffix and reserves the bare
-      family name as a pure container, so a family always has at least two
-      members.
-  Agent Hoods:
-    aliases:
-      - agent hood
+      `<family>--<suffix>` names. The first `%n(parent, suffix)` attachment renames the
+      original agent with its own suffix and reserves the bare family name as a pure
+      container, so a family always has at least two members.
+  Agent Hood:
     definition: >-
-      An agent hood is a group of agents that are all named with the same
-      `<name>.` prefix. For example, agents named `foo.bar`, `foo.baz`, and
-      `foo.bar.1` are all apart of the same `foo` agent hood. The agent `foo`,
-      if it exists, is also considered part of the `foo` agent hood.
+      An agent hood is a group of agents that are all named with the same `<name>.`
+      prefix. For example, agents named `foo.bar`, `foo.baz`, and `foo.bar.1` are all
+      apart of the same `foo` agent hood. The agent `foo`, if it exists, is also
+      considered part of the `foo` agent hood.
   Agent Lane:
-    aliases:
-      - agent lanes
     definition: >-
-      An agent lane is a term that describes either an agent family or a single
-      agent that does not belong to a family. Agent lanes never have a name that
-      ends with `--<suffix>` since that suffix is reserved for family members.
-      We think of an agent lane like an agent's house (i.e. where they live).
-      When agent's are single, they live in their own lane. When a new member
-      joins their family (which can only happen once the original agent
-      completes, since agents in agent lanes run sequentially), that member
-      moves into the same lane. At that point, the lane and the family share a
-      name instead of the lane and the original agent, which is renamed with its
-      own `--<suffix>`.
-  Agent Instruction Files:
+      An agent lane is a term that describes either an agent family or a single agent
+      that does not belong to a family. Agent lanes never have a name that ends with
+      `--<suffix>` since that suffix is reserved for family members. We think of an
+      agent lane like an agent's house (i.e. where they live). When agent's are single,
+      they live in their own lane. When a new member joins their family (which can only
+      happen once the original agent completes, since agents in agent lanes run
+      sequentially), that member moves into the same lane. At that point, the lane and
+      the family share a name instead of the lane and the original agent, which is
+      renamed with its own `--<suffix>`.
+  Agent Instruction File:
     aliases:
-      - agent instruction file
-      - agents.md files
       - agents.md file
     definition: >-
-      An agent instruction file is a `.md` file that an agent CLI reads
-      automatically when working in a directory that contains it. For example,
-      the `AGENTS.md` file is the name of the agent instruction file that is
-      supported by codex. sase supports one agent instruction file per
-      supported agent CLI (ex: `CLAUDE.md` for claude, `GEMINI.md` for
-      antigravity, etc...). The `sase init` command, which is run automatically
-      as a sase post-commit hook, initializes the top-level agent instruction
-      files using memories in the sase/memory/ directory and ensures that all
-      agent instruction files in the same directory contain the same contents.
-  Agent Neighbors:
-    aliases:
-      - agent neighbor
+      An agent instruction file is a `.md` file that an agent CLI reads automatically
+      when working in a directory that contains it. For example, the `AGENTS.md` file is
+      the name of the agent instruction file that is supported by codex. sase supports
+      one agent instruction file per supported agent CLI (ex: `CLAUDE.md` for claude,
+      `GEMINI.md` for antigravity, etc...). The `sase init` command, which is run
+      automatically as a sase post-commit hook, initializes the top-level agent
+      instruction files using memories in the sase/memory/ directory and ensures that
+      all agent instruction files in the same directory contain the same contents.
+  Agent Neighbor:
     definition: >-
-      An agent neighbor is any agent that is in the same agent hood as another
-      agent. For example, agents named `foo`, `foo.baz`, and `foo.bar.1` are all
-      neighbors of each other because they are all in the same `foo` agent hood.
+      An agent neighbor is any agent that is in the same agent hood as another agent.
+      For example, agents named `foo`, `foo.baz`, and `foo.bar.1` are all neighbors of
+      each other because they are all in the same `foo` agent hood.
   Agent Tribe:
-    aliases:
-      - agent tribes
     definition: >-
       An agent tribe is a user-facing label for related agents across clans and
-      families. Tribes are assigned with `%tribe:<name>` (alias `%t`), managed
-      with `sase agent tribe`, and displayed with an `@` prefix.
+      families. Tribes are assigned with `%tribe:<name>` (alias `%t`), managed with
+      `sase agent tribe`, and displayed with an `@` prefix.
   Patch:
-    aliases:
-      - patches
     definition: >-
-      A Patch is SASE's local unit of change. Every PR created or managed by
-      SASE is associated with exactly one Patch, but a Patch may exist without a
-      PR, represented by an absent `PR:` field. Active Patches live in
-      ProjectSpec `<key>.sase` (directory key `<key>`; see Project, Repo, and
-      Workspace); terminal ones (Submitted, Archived, Reverted) live in
-      `<key>-archive.sase`. Sections: NAME, DESCRIPTION, PARENT, PR, STATUS,
-      STITCHES, HOOKS, COMMENTS, MENTORS. Status lifecycle: WIP -> Draft ->
-      Ready -> Mailed -> Submitted.
+      A Patch is SASE's local unit of change. Every PR created or managed by SASE is
+      associated with exactly one Patch, but a Patch may exist without a PR, represented
+      by an absent `PR:` field. Active Patches live in ProjectSpec `<key>.sase`
+      (directory key `<key>`; see Project, Repo, and Workspace); terminal ones
+      (Submitted, Archived, Reverted) live in `<key>-archive.sase`. Sections: NAME,
+      DESCRIPTION, PARENT, PR, STATUS, STITCHES, HOOKS, COMMENTS, MENTORS. Status
+      lifecycle: WIP -> Draft -> Ready -> Mailed -> Submitted.
   Project:
-    aliases:
-      - projects
     definition: >-
-      A project is a named unit of work registered with SASE. A project is
-      created only when a new VCS xprompt argument resolves to a valid project:
-      `#git:<name>` accepts any valid project name, while `#gh:<org>/<repo>`
-      requires an existing GitHub repository. Its ProjectSpec is
-      `~/.sase/projects/<key>/<key>.sase`, where the directory key `<key>` is
-      `<name>` for `#git` projects but `gh_<org>__<repo>` for `#gh` projects
-      (ex: `gh_sase-org__sase`); the user-facing name is the spec's
-      `PROJECT_NAME:` (ex: `sase`) or, if unset, the key. Projects have exactly
-      two user-facing states, enabled and disabled; missing `PROJECT_STATE:`
-      means enabled, and only an explicit disable changes that. The
-      system-managed `home` project remains hidden.
+      A project is a named unit of work registered with SASE. A project is created only
+      when a new VCS xprompt argument resolves to a valid project: `#git:<name>` accepts
+      any valid project name, while `#gh:<org>/<repo>` requires an existing GitHub
+      repository. Its ProjectSpec is `~/.sase/projects/<key>/<key>.sase`, where the
+      directory key `<key>` is `<name>` for `#git` projects but `gh_<org>__<repo>` for
+      `#gh` projects (ex: `gh_sase-org__sase`); the user-facing name is the spec's
+      `PROJECT_NAME:` (ex: `sase`) or, if unset, the key. Projects have exactly two
+      user-facing states, enabled and disabled; missing `PROJECT_STATE:` means enabled,
+      and only an explicit disable changes that. The system-managed `home` project
+      remains hidden.
   Repo:
     aliases:
-      - repos
       - repository
-      - repositories
     definition: >-
-      A repo is any repository SASE knows: a project's primary repo, an SDD
-      sidecar repo (`<project>--plans` or `<project>--research`), or a repo
-      declared through `linked_repos:`.
+      A repo is any repository SASE knows: a project's primary repo, an SDD sidecar repo
+      (`<project>--plans` or `<project>--research`), or a repo declared through
+      `linked_repos:`.
   Stitch:
-    aliases:
-      - stitches
     definition: >-
-      A stitch is the lightweight ordered change record inside a Patch's
-      `STITCHES:` section. Every VCS commit made through the tracked workflow
-      has an associated numeric stitch, but a stitch need not have a commit:
-      proposals retain numeric-plus-letter IDs such as `(2a)`. The `sase
-      commit` command and real Git/Mercurial commits are still called commits.
+      A stitch is the lightweight ordered change record inside a Patch's `STITCHES:`
+      section. Every VCS commit made through the tracked workflow has an associated
+      numeric stitch, but a stitch need not have a commit: proposals retain
+      numeric-plus-letter IDs such as `(2a)`. The `sase commit` command and real
+      Git/Mercurial commits are still called commits.
   Workspace:
-    aliases:
-      - workspaces
     definition: >-
-      A workspace is a numbered clone of a project's primary repo, managed by
-      the workspace store and tracked in that project's `registry.json`. Each
-      SASE agent claims exactly one workspace until completion. Workspace
-      directories are not repos. Linked-repo clones materialized for a workspace
-      are repo checkouts, not additional workspaces.
-  xprompt:
-    aliases:
-      - xprompts
+      A workspace is a numbered clone of a project's primary repo, managed by the
+      workspace store and tracked in that project's `registry.json`. Each SASE agent
+      claims exactly one workspace until completion. Workspace directories are not
+      repos. Linked-repo clones materialized for a workspace are repo checkouts, not
+      additional workspaces.
+  Xprompt:
     definition: >-
-      Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/
-      directory (.md or .yml file) or in ~/.config/sase/sase.yml (`xprompts`
-      field).
-  xprompt Memory:
+      Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/ directory (.md
+      or .yml file) or in ~/.config/sase/sase.yml (`xprompts` field).
+  Xprompt Memory:
     aliases:
-      - xprompt memories
-      - memory xprompt
-      - memory xprompts
+      - sase memory file
     definition: >-
-      A flat SASE memory note exposed as a namespaced xprompt:
-      `sase/memory/foo.md` expands with `#memory/foo`, and the `memory/` prefix
-      is required.
-  xprompt Part:
-    aliases:
-      - xprompt parts
+      A flat SASE memory note exposed as a namespaced xprompt: `sase/memory/foo.md`
+      expands with `#memory/foo`, and the `memory/` prefix is required.
+  Xprompt Part:
     definition: >-
       .md file -> single `prompt_part` step with the file's content.
-  xprompt Swarm:
-    aliases:
-      - xprompt swarms
+  Xprompt Swarm:
     definition: >-
-      An xprompt whose body contains top-level `---` segment separators outside
-      fenced blocks and fans out into one agent per segment at launch. Literal
-      user prompts can also use `---`, but those are generic multi-agent prompts
-      rather than xprompt swarms.
-  xprompt Workflow:
-    aliases:
-      - xprompt workflows
+      An xprompt whose body contains top-level `---` segment separators outside fenced
+      blocks and fans out into one agent per segment at launch. Literal user prompts can
+      also use `---`, but those are generic multi-agent prompts rather than xprompt
+      swarms.
+  Xprompt Workflow:
     definition: >-
       .yml file -> multiple steps (`prompt_part`, `python`, `bash`, etc.).
 
@@ -171,17 +129,22 @@ repos:
   linked:
     - name: sase-core
       path: ../sase-core
-      description: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
+      description:
+        Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
       auto_clone: true
     - name: sase-github
       path: ../sase-github
-      description: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
+      description:
+        GitHub VCS and workspace provider plugin for repository, issue, and PR
+        workflows.
     - name: sase-telegram
       path: ../sase-telegram
-      description: Telegram integration plugin for chat-driven SASE workflows and notifications.
+      description:
+        Telegram integration plugin for chat-driven SASE workflows and notifications.
     - name: sase-nvim
       path: ../sase-nvim
-      description: Neovim integration plugin for SASE syntax, completion, and editor support.
+      description:
+        Neovim integration plugin for SASE syntax, completion, and editor support.
   sidecar:
     builtin:
       plans:
@@ -189,7 +152,8 @@ repos:
       beads:
         auto_clone: true
       agents:
-        description: Hidden sidecar that stores commit-associated sase agent data for this project.
+        description:
+          Hidden sidecar that stores commit-associated sase agent data for this project.
     custom:
       research:
         description: Durable SASE research reports and generated media.
@@ -217,33 +181,40 @@ mentor_profiles:
   - profile_name: gotchas
     mentors:
       - mentor_name: gotchas
-        role: "repo-specific gotcha detector that catches commonly forgotten follow-up changes"
+        role:
+          "repo-specific gotcha detector that catches commonly forgotten follow-up
+          changes"
         focus_areas:
           # keep-sorted start
           - focus_name: config_schema_sync
             description: >
-              When new config fields are added or changed (in default_config.yml, sase/sase.yml, or code), check that
-              src/sase/config/sase.schema.json is updated to match. Missing schema updates break yaml-language-server
-              LSP validation in editors. This is the single most common gotcha in this repo.
+              When new config fields are added or changed (in default_config.yml,
+              sase/sase.yml, or code), check that src/sase/config/sase.schema.json is
+              updated to match. Missing schema updates break yaml-language-server LSP
+              validation in editors. This is the single most common gotcha in this repo.
           - focus_name: cross_repo_impact
             description: >
-              When renaming files, changing config structure, or modifying shared interfaces, check whether maintained
-              linked repos (sase-github, sase-telegram, sase-nvim, and sase-core when backend behavior is involved) or
-              chezmoi configs (~/.local/share/chezmoi/home/dot_config/sase/) need corresponding updates. Also check
-              importlib.resources paths, error messages, docstrings, and docs/ for stale references.
+              When renaming files, changing config structure, or modifying shared
+              interfaces, check whether maintained linked repos (sase-github,
+              sase-telegram, sase-nvim, and sase-core when backend behavior is involved)
+              or chezmoi configs (~/.local/share/chezmoi/home/dot_config/sase/) need
+              corresponding updates. Also check importlib.resources paths, error
+              messages, docstrings, and docs/ for stale references.
           - focus_name: keymap_config_sync
             description: >
-              When keymaps or leader mode keys are changed in code (e.g. in src/sase/ace/tui/keymaps/), check that
-              src/sase/default_config.yml is updated to reflect the new defaults. Hardcoded defaults in code and the
+              When keymaps or leader mode keys are changed in code (e.g. in
+              src/sase/ace/tui/keymaps/), check that src/sase/default_config.yml is
+              updated to reflect the new defaults. Hardcoded defaults in code and the
               config file must stay in sync.
           - focus_name: nvim_syntax_sync
             description: >
-              When Patch display format, status names, tag names, or other TUI-visible tokens change, check whether
-              ../sase-nvim syntax highlighting files need a corresponding update.
+              When Patch display format, status names, tag names, or other TUI-visible
+              tokens change, check whether ../sase-nvim syntax highlighting files need a
+              corresponding update.
           - focus_name: workflow_schema_sync
             description: >
-              When xprompt workflow step types or their fields are added or changed, check that
-              src/sase/xprompts/workflow.schema.json is updated accordingly.
+              When xprompt workflow step types or their fields are added or changed,
+              check that src/sase/xprompts/workflow.schema.json is updated accordingly.
           # keep-sorted end
     file_globs:
       - "**/*.py"
@@ -254,19 +225,25 @@ mentor_profiles:
   - profile_name: complete
     mentors:
       - mentor_name: complete
-        role: "completeness and correctness reviewer who ensures code changes are fully implemented and free of bugs"
+        role:
+          "completeness and correctness reviewer who ensures code changes are fully
+          implemented and free of bugs"
         focus_areas:
           # keep-sorted start
           - focus_name: bugs
             description: >
-              Check for logic errors, off-by-one mistakes, incorrect assumptions, race conditions, null/None handling
-              issues, and other bugs that would cause incorrect behavior at runtime. Focus on defects that are realistic
-              given the code change—don't flag speculative issues that require exotic conditions to trigger.
+              Check for logic errors, off-by-one mistakes, incorrect assumptions, race
+              conditions, null/None handling issues, and other bugs that would cause
+              incorrect behavior at runtime. Focus on defects that are realistic given
+              the code change—don't flag speculative issues that require exotic
+              conditions to trigger.
           - focus_name: functional_completeness
             description: >
-              Check that the code change fully implements the intended behavior—no partial implementations, missing
-              branches, TODO stubs, or incomplete handling of stated requirements. Compare the change against its stated
-              goal (PR description, commit message, or surrounding context) and flag anything left unfinished.
+              Check that the code change fully implements the intended behavior—no
+              partial implementations, missing branches, TODO stubs, or incomplete
+              handling of stated requirements. Compare the change against its stated
+              goal (PR description, commit message, or surrounding context) and flag
+              anything left unfinished.
           # keep-sorted end
     file_globs:
       - "src/**/*.py"
