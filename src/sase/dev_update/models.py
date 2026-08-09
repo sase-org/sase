@@ -25,6 +25,7 @@ DevPackagePlanStatus = Literal["actionable", "skipped"]
 DevUpdateOutcomeStatus = Literal["updated", "skipped", "failed"]
 DevReconcileStepKind = Literal[
     "uv_tool_install",
+    "rust_dev_install",
     "rust_install_uv_tool",
     "rust_health_check",
     "rust_lsp_install",

@@ -317,9 +317,7 @@ def _run_reconcile_steps(
 
         if not step.available:
             failure = step.reason or f"{step.label} unavailable"
-            if step.kind == "rust_install_uv_tool" and _has_later_rust_health_check(
-                steps, index
-            ):
+            if _is_rust_build_step(step) and _has_later_rust_health_check(steps, index):
                 pending_failure = _join_failures(pending_failure, failure)
                 continue
             return failure
@@ -333,13 +331,15 @@ def _run_reconcile_steps(
         )
         if result.returncode != 0:
             failure = _command_failure(f"{step.label} failed", result)
-            if step.kind == "rust_install_uv_tool" and _has_later_rust_health_check(
-                steps, index
-            ):
+            if _is_rust_build_step(step) and _has_later_rust_health_check(steps, index):
                 pending_failure = _join_failures(pending_failure, failure)
                 continue
             return failure
     return pending_failure
+
+
+def _is_rust_build_step(step: DevReconcileStep) -> bool:
+    return step.kind in {"rust_dev_install", "rust_install_uv_tool"}
 
 
 def _has_later_rust_health_check(

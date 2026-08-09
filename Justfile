@@ -805,6 +805,83 @@ rust-install-uv-tool:
      fi; \
      just rust-install "$TOOL_VENV"
 
+# Build the local `sase_core_rs` extension and `sase-xprompt-lsp` with
+# target-isolated Cargo caches, then install both into a venv.
+rust-dev-install VENV=venv_dir_abs: _venv
+    @if [ ! -d "{{ sase_core_dir }}" ]; then \
+        printf "[rust-dev-install] %s not found; skipping (Rust backend is optional).\n" "{{ sase_core_dir }}"; \
+        exit 0; \
+    fi
+    @if ! command -v cargo > /dev/null 2>&1; then \
+        printf "[rust-dev-install] cargo not on PATH; install rustup to build the Rust backend.\n"; \
+        exit 1; \
+    fi
+    @if [ ! -x "{{ VENV }}/bin/python" ]; then \
+        printf "[rust-dev-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
+        exit 1; \
+    fi
+    @status=0; \
+    "{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || status=$?; \
+    if [ "$status" -eq 3 ]; then \
+        if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
+            printf "[rust-dev-install] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs floor in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
+        else \
+            printf "[rust-dev-install] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun 'just install'.\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
+            exit 1; \
+        fi; \
+    elif [ "$status" -ne 0 ]; then \
+        printf "[rust-dev-install] WARNING: bump the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it.\n"; \
+    fi
+    @"{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
+    # Harden cargo crate downloads against transient crates.io flakiness.
+    # CI has hit `curl ... [16] Error in the HTTP2 framing layer` while
+    # maturin's `cargo metadata` fetches deps; disabling HTTP/2 multiplexing
+    # and raising the retry count makes the download resilient. Both are
+    # overridable from the environment.
+    @sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
+    py_target_dir="$sase_core_abs/target/uv-tool-py"; \
+    marker="$(mktemp)"; \
+    trap 'rm -f "$marker"' EXIT; \
+    touch "$marker"; \
+    cd "$sase_core_abs/crates/sase_core_py" && \
+        VIRTUAL_ENV="{{ VENV }}" \
+        PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 \
+        CARGO_TARGET_DIR="$py_target_dir" \
+        CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
+        CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
+        "{{ VENV }}/bin/maturin" develop --release && \
+    "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/purge_sase_core_rs_extensions" --exclude-newer-than "$marker"
+    @sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
+    lsp_target_dir="$sase_core_abs/target/uv-tool-lsp"; \
+    cd "$sase_core_abs" && \
+        CARGO_TARGET_DIR="$lsp_target_dir" \
+        CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
+        CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
+        cargo build --release -p sase_xprompt_lsp
+    @dest="{{ VENV }}/bin/sase-xprompt-lsp"; \
+    sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
+    src="$sase_core_abs/target/uv-tool-lsp/release/sase-xprompt-lsp"; \
+    tmp="$dest.tmp.$$"; \
+    trap 'rm -f "$tmp"' EXIT; \
+    cp "$src" "$tmp"; \
+    chmod +x "$tmp"; \
+    mv -f "$tmp" "$dest"; \
+    printf "[rust-dev-install] installed %s\n" "$dest"
+
+# Build and install the target-isolated Rust dev artifacts into the uv-tool
+# venv for `sase` (typically ~/.local/share/uv/tools/sase).
+rust-dev-install-uv-tool:
+    @if ! command -v uv > /dev/null 2>&1; then \
+        printf "[rust-dev-install-uv-tool] uv not on PATH; install uv to use this target.\n"; \
+        exit 0; \
+    fi
+    @TOOL_VENV="$(uv tool dir)/sase"; \
+     if [ ! -x "$TOOL_VENV/bin/python" ]; then \
+         printf "[rust-dev-install-uv-tool] no uv-tool venv for sase at %s; run 'uv tool install sase' first.\n" "$TOOL_VENV"; \
+         exit 0; \
+     fi; \
+     just rust-dev-install "$TOOL_VENV"
+
 # Build and install the xprompt LSP server into a venv (defaults to the
 # repo `.venv`). The binary is copied into the target venv's bin directory
 # so `sase lsp` can prefer the update-managed server over stale PATH copies.

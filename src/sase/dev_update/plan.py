@@ -313,40 +313,22 @@ def _reconcile_steps(
         if host_record.source_root:
             steps.append(
                 DevReconcileStep(
-                    kind="rust_install_uv_tool",
-                    label="Rebuild sase-core-rs into the uv-tool venv",
-                    command=("just", "rust-install-uv-tool"),
+                    kind="rust_dev_install",
+                    label="Rebuild Rust dev artifacts into the uv-tool venv",
+                    command=("just", "rust-dev-install-uv-tool"),
                     cwd=host_record.source_root,
                 )
             )
         else:
             steps.append(
                 DevReconcileStep(
-                    kind="rust_install_uv_tool",
-                    label="Rebuild sase-core-rs into the uv-tool venv",
+                    kind="rust_dev_install",
+                    label="Rebuild Rust dev artifacts into the uv-tool venv",
                     command=(),
                     reason="host checkout source root unavailable",
                 )
             )
         steps.append(_rust_health_check_step(host_record, tool_python=tool_python))
-        if host_record.source_root:
-            steps.append(
-                DevReconcileStep(
-                    kind="rust_lsp_install",
-                    label="Rebuild xprompt LSP into the uv-tool venv",
-                    command=("just", "rust-lsp-install-uv-tool"),
-                    cwd=host_record.source_root,
-                )
-            )
-        else:
-            steps.append(
-                DevReconcileStep(
-                    kind="rust_lsp_install",
-                    label="Rebuild xprompt LSP into the uv-tool venv",
-                    command=(),
-                    reason="host checkout source root unavailable",
-                )
-            )
 
     return tuple(steps)
 

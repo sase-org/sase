@@ -315,10 +315,29 @@ just rust-install-uv-tool         # $(uv tool dir)/sase
 just rust-install /path/to/venv   # any other venv (pipx, system Python, custom location)
 ```
 
-Both targets install `maturin` into the target venv on demand and run
+Those extension-only targets install `maturin` into the target venv on demand and run
 `maturin develop --release` inside `../sase-core/crates/sase_core_py/`, so re-running
 them after a `../sase-core` update is the supported way to refresh an existing source
 install.
+
+Editable `sase update` uses `just rust-dev-install-uv-tool` instead. A measured
+feature-unified
+`cargo build --release -p sase_core_py -p sase_xprompt_lsp --features sase_core_py/extension-module`
+still left `maturin develop --release` rebuilding the PyO3 crate through maturin's
+`cargo rustc` path, so the dev-update recipe uses the fallback design from the
+fast-update plan: separate target directories for the Python extension and LSP builds.
+
+```bash
+CARGO_TARGET_DIR=../sase-core/target/uv-tool-py maturin develop --release
+CARGO_TARGET_DIR=../sase-core/target/uv-tool-lsp cargo build --release -p sase_xprompt_lsp
+```
+
+This does not deduplicate the first compile after `cargo clean`, but it prevents the two
+dev-update builds from invalidating each other's cached units on later runs. The recipe
+copies the `sase-xprompt-lsp` binary into the uv-tool venv with the same atomic
+temp-file install used by `just rust-lsp-install`. The older separate `rust-install*`
+and `rust-lsp-install*` targets remain available for direct maintenance, `just install`,
+and CI paths that intentionally exercise the published release profile separately.
 
 ### Required Extension And Cleanup Compatibility Exception
 
@@ -392,22 +411,26 @@ visible.
 Each target prints a friendly skip message when `../sase-core` is absent and exits 0, so
 contributors without the sibling checkout are never blocked.
 
-| Target                      | Description                                                                                                 |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `just rust-install`         | Build + install `sase_core_rs` via `maturin develop --release` (installs maturin if missing)                |
-| `just rust-install-uv-tool` | Same as `rust-install` but targets `$(uv tool dir)/sase` for users who installed sase via `uv tool install` |
-| `just rust-test`            | `cargo test --workspace` in `../sase-core`                                                                  |
-| `just rust-fmt`             | Auto-format Rust sources with `cargo fmt --all`                                                             |
-| `just rust-fmt-check`       | CI-mode formatting verification (`cargo fmt --all -- --check`)                                              |
-| `just rust-clippy`          | `cargo clippy --workspace --all-targets -- -D warnings`                                                     |
-| `just rust-check`           | Combined Rust check: `rust-fmt-check` + `rust-clippy` + `rust-test`                                         |
-| `just rust-bench`           | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)                          |
-| `just bench-core`           | Python `parse_project_bytes` benchmark (Rust-direct + facade rows)                                          |
-| `just bead-perf-smoke`      | Tiny `sase bead` shell/facade/work-plan benchmark used as the CI smoke artifact                             |
-| `just bench-agent-scan`     | Python agent-artifact scan benchmark vs current direct loaders                                              |
-| `just bench-agent-launch`   | Fake-spawn launch benchmark through the Rust preparation binding                                            |
-| `just launch-perf-check`    | CI-friendly launch regression check against the Phase 1 fan-out baseline                                    |
-| `just phase7-perf-check`    | Run the Phase 7 regression-floor checker against the recorded Rust ceilings                                 |
+| Target                          | Description                                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `just rust-install`             | Build + install `sase_core_rs` via `maturin develop --release` (installs maturin if missing)                              |
+| `just rust-install-uv-tool`     | Same as `rust-install` but targets `$(uv tool dir)/sase` for users who installed sase via `uv tool install`               |
+| `just rust-dev-install`         | Build and install `sase_core_rs` and `sase-xprompt-lsp` into a venv using dev-update-only isolated target directories     |
+| `just rust-dev-install-uv-tool` | Same as `rust-dev-install` but targets `$(uv tool dir)/sase`; this is the Rust reconcile step used by editable dev update |
+| `just rust-lsp-install`         | Build and atomically copy only the `sase-xprompt-lsp` binary into a venv                                                  |
+| `just rust-lsp-install-uv-tool` | Same as `rust-lsp-install` but targets `$(uv tool dir)/sase`                                                              |
+| `just rust-test`                | `cargo test --workspace` in `../sase-core`                                                                                |
+| `just rust-fmt`                 | Auto-format Rust sources with `cargo fmt --all`                                                                           |
+| `just rust-fmt-check`           | CI-mode formatting verification (`cargo fmt --all -- --check`)                                                            |
+| `just rust-clippy`              | `cargo clippy --workspace --all-targets -- -D warnings`                                                                   |
+| `just rust-check`               | Combined Rust check: `rust-fmt-check` + `rust-clippy` + `rust-test`                                                       |
+| `just rust-bench`               | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)                                        |
+| `just bench-core`               | Python `parse_project_bytes` benchmark (Rust-direct + facade rows)                                                        |
+| `just bead-perf-smoke`          | Tiny `sase bead` shell/facade/work-plan benchmark used as the CI smoke artifact                                           |
+| `just bench-agent-scan`         | Python agent-artifact scan benchmark vs current direct loaders                                                            |
+| `just bench-agent-launch`       | Fake-spawn launch benchmark through the Rust preparation binding                                                          |
+| `just launch-perf-check`        | CI-friendly launch regression check against the Phase 1 fan-out baseline                                                  |
+| `just phase7-perf-check`        | Run the Phase 7 regression-floor checker against the recorded Rust ceilings                                               |
 
 ## Performance
 

@@ -342,11 +342,10 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
     plan = plan_dev_update([core], host_record=host, tool_python="/tool/bin/python")
 
     assert [step.kind for step in plan.reconcile_steps] == [
-        "rust_install_uv_tool",
+        "rust_dev_install",
         "rust_health_check",
-        "rust_lsp_install",
     ]
-    assert plan.reconcile_steps[0].command == ("just", "rust-install-uv-tool")
+    assert plan.reconcile_steps[0].command == ("just", "rust-dev-install-uv-tool")
     assert plan.reconcile_steps[0].cwd == str(host_root)
     assert plan.reconcile_steps[1].command == (
         "/tool/bin/python",
@@ -363,8 +362,6 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
         "--force-reinstall",
         "sase-core-rs<0.4.0,>=0.3.2",
     )
-    assert plan.reconcile_steps[2].command == ("just", "rust-lsp-install-uv-tool")
-    assert plan.reconcile_steps[2].cwd == str(host_root)
 
 
 def test_plan_dev_update_rebuilds_current_dev_core_after_uv_tool_install(
@@ -398,9 +395,8 @@ def test_plan_dev_update_rebuilds_current_dev_core_after_uv_tool_install(
 
     assert [step.kind for step in plan.reconcile_steps] == [
         "uv_tool_install",
-        "rust_install_uv_tool",
+        "rust_dev_install",
         "rust_health_check",
-        "rust_lsp_install",
     ]
 
 
@@ -456,9 +452,8 @@ def test_plan_dev_update_restores_stale_core_from_buildable_checkout(
     assert core_plans[0].git_root is None
     assert [step.kind for step in plan.reconcile_steps] == [
         "uv_tool_install",
-        "rust_install_uv_tool",
+        "rust_dev_install",
         "rust_health_check",
-        "rust_lsp_install",
     ]
 
 
@@ -519,14 +514,11 @@ def test_plan_dev_update_core_rebuild_steps_need_host_source_root(
     plan = plan_dev_update([core], host_record=host, tool_python="/tool/bin/python")
 
     assert [step.kind for step in plan.reconcile_steps] == [
-        "rust_install_uv_tool",
+        "rust_dev_install",
         "rust_health_check",
-        "rust_lsp_install",
     ]
     assert plan.reconcile_steps[0].available is False
     assert plan.reconcile_steps[0].reason == "host checkout source root unavailable"
-    assert plan.reconcile_steps[2].available is False
-    assert plan.reconcile_steps[2].reason == "host checkout source root unavailable"
 
 
 @pytest.mark.parametrize(

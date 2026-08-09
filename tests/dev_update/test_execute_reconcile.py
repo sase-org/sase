@@ -32,9 +32,9 @@ def test_execute_dev_update_missing_reconcile_step_fails_after_merge() -> None:
 
 def test_execute_dev_update_repairs_failed_core_health_check() -> None:
     rust_step = DevReconcileStep(
-        kind="rust_install_uv_tool",
-        label="Rebuild sase-core-rs into the uv-tool venv",
-        command=("just", "rust-install-uv-tool"),
+        kind="rust_dev_install",
+        label="Rebuild Rust dev artifacts into the uv-tool venv",
+        command=("just", "rust-dev-install-uv-tool"),
         cwd="/repo",
     )
     health_command = (
@@ -61,7 +61,7 @@ def test_execute_dev_update_repairs_failed_core_health_check() -> None:
     )
     runner = SequenceRunner(
         {
-            ("just", "rust-install-uv-tool"): [
+            ("just", "rust-dev-install-uv-tool"): [
                 DevCommandResult(1, stderr="maturin failed")
             ],
             health_command: [
@@ -85,18 +85,20 @@ def test_execute_dev_update_repairs_failed_core_health_check() -> None:
         if not command.label.startswith("git ")
     ]
     assert reconcile_commands == [
-        ("Rebuild sase-core-rs into the uv-tool venv", 1),
+        ("Rebuild Rust dev artifacts into the uv-tool venv", 1),
         ("Verify sase-core-rs imports in the uv-tool venv", 1),
         ("Restore published sase-core-rs wheel", 0),
         ("Verify sase-core-rs imports in the uv-tool venv after repair", 0),
     ]
 
 
-def test_execute_dev_update_runs_lsp_install_after_core_health_check() -> None:
+def test_execute_dev_update_runs_unified_rust_install_before_core_health_check() -> (
+    None
+):
     rust_step = DevReconcileStep(
-        kind="rust_install_uv_tool",
-        label="Rebuild sase-core-rs into the uv-tool venv",
-        command=("just", "rust-install-uv-tool"),
+        kind="rust_dev_install",
+        label="Rebuild Rust dev artifacts into the uv-tool venv",
+        command=("just", "rust-dev-install-uv-tool"),
         cwd="/host",
     )
     health_step = DevReconcileStep(
@@ -104,40 +106,23 @@ def test_execute_dev_update_runs_lsp_install_after_core_health_check() -> None:
         label="Verify sase-core-rs imports in the uv-tool venv",
         command=("/tool/bin/python", "-c", "import sase_core_rs"),
     )
-    lsp_step = DevReconcileStep(
-        kind="rust_lsp_install",
-        label="Rebuild xprompt LSP into the uv-tool venv",
-        command=("just", "rust-lsp-install-uv-tool"),
-        cwd="/host",
-    )
-    runner = FakeRunner(
-        {
-            ("just", "rust-lsp-install-uv-tool"): DevCommandResult(
-                1, stderr="cargo failed"
-            )
-        }
-    )
+    runner = FakeRunner()
 
     result = execute_dev_update(
-        plan(reconcile=(rust_step, health_step, lsp_step)),
+        plan(reconcile=(rust_step, health_step)),
         run=runner,
     )
 
     assert result.changed is True
-    assert result.outcomes[0].status == "failed"
-    assert "Rebuild xprompt LSP into the uv-tool venv failed" in (
-        result.outcomes[0].reason
-    )
-    assert "cargo failed" in result.outcomes[0].reason
+    assert result.outcomes[0].status == "updated"
     reconcile_commands = [
         (command.label, command.cwd, command.returncode)
         for command in result.commands
         if not command.label.startswith("git ")
     ]
     assert reconcile_commands == [
-        ("Rebuild sase-core-rs into the uv-tool venv", "/host", 0),
+        ("Rebuild Rust dev artifacts into the uv-tool venv", "/host", 0),
         ("Verify sase-core-rs imports in the uv-tool venv", None, 0),
-        ("Rebuild xprompt LSP into the uv-tool venv", "/host", 1),
     ]
 
 
@@ -156,9 +141,9 @@ def test_execute_dev_update_no_actionable_roots_returns_skips() -> None:
 
 def test_execute_dev_update_runs_core_restore_without_actionable_roots() -> None:
     step = DevReconcileStep(
-        kind="rust_install_uv_tool",
-        label="Rebuild sase-core-rs into the uv-tool venv",
-        command=("just", "rust-install-uv-tool"),
+        kind="rust_dev_install",
+        label="Rebuild Rust dev artifacts into the uv-tool venv",
+        command=("just", "rust-dev-install-uv-tool"),
         cwd="/host",
     )
     update_plan = DevUpdatePlan(
@@ -170,7 +155,7 @@ def test_execute_dev_update_runs_core_restore_without_actionable_roots() -> None
 
     result = execute_dev_update(update_plan, run=runner)
 
-    assert runner.calls == [(("just", "rust-install-uv-tool"), Path("/host"))]
+    assert runner.calls == [(("just", "rust-dev-install-uv-tool"), Path("/host"))]
     assert result.changed is True
     statuses = {outcome.record.name: outcome.status for outcome in result.outcomes}
     assert statuses == {"sase-core-rs": "updated", "sase": "skipped"}
@@ -183,9 +168,9 @@ def test_execute_dev_update_runs_core_restore_without_actionable_roots() -> None
 
 def test_execute_dev_update_core_restore_failure_reports_failed_core() -> None:
     step = DevReconcileStep(
-        kind="rust_install_uv_tool",
-        label="Rebuild sase-core-rs into the uv-tool venv",
-        command=("just", "rust-install-uv-tool"),
+        kind="rust_dev_install",
+        label="Rebuild Rust dev artifacts into the uv-tool venv",
+        command=("just", "rust-dev-install-uv-tool"),
         cwd="/host",
     )
     update_plan = DevUpdatePlan(
@@ -195,7 +180,7 @@ def test_execute_dev_update_core_restore_failure_reports_failed_core() -> None:
     )
     runner = FakeRunner(
         responses={
-            ("just", "rust-install-uv-tool"): DevCommandResult(
+            ("just", "rust-dev-install-uv-tool"): DevCommandResult(
                 1, stderr="cargo build failed"
             )
         }

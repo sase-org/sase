@@ -255,7 +255,7 @@ def test_dev_update_failure_exits_one_and_does_not_restart(tmp_path: Path) -> No
         outcome = DevUpdateOutcome(
             record=plan.packages[0].record,
             status="failed",
-            reason="Rebuild sase-core-rs into the uv-tool venv failed",
+            reason="Rebuild Rust dev artifacts into the uv-tool venv failed",
             old_version=plan.packages[0].current_version,
             new_version=plan.packages[0].latest_version,
             git_root=plan.packages[0].git_root,
@@ -434,9 +434,9 @@ def test_skipped_editable_states_do_not_block_stale_core_restore(
         latest_version="0.6.1",
     )
     rust_step = DevReconcileStep(
-        kind="rust_install_uv_tool",
-        label="Rebuild sase-core-rs into the uv-tool venv",
-        command=("just", "rust-install-uv-tool"),
+        kind="rust_dev_install",
+        label="Rebuild Rust dev artifacts into the uv-tool venv",
+        command=("just", "rust-dev-install-uv-tool"),
         cwd="/home/u/sase",
     )
     plan = replace(
@@ -470,7 +470,7 @@ def test_skipped_editable_states_do_not_block_stale_core_restore(
     )
 
     assert code == 0
-    assert reconcile_commands == [("just", "rust-install-uv-tool")]
+    assert reconcile_commands == [("just", "rust-dev-install-uv-tool")]
 
 
 def test_managed_core_failure_is_not_success_and_does_not_restart(
