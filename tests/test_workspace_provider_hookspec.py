@@ -85,8 +85,9 @@ class TestHookspecSignatures:
 # from the spec. Renaming or removing a name here therefore crashes every
 # out-of-tree plugin built against the old name (sase-github, sase-telegram,
 # ...) as soon as it registers -- which is how a Patch-terminology sweep once
-# broke `sase ace` at startup by renaming ws_submit's `changespec_file` and
-# ws_prepare_mail's `changespec_parent`.
+# broke `sase ace` at startup by renaming ws_submit's legacy compatibility
+# argument name `changespec_file` and ws_prepare_mail's legacy compatibility
+# argument name `changespec_parent`.
 #
 # Adding an argument is safe and needs no update here; renaming or removing one
 # is a breaking plugin-API change that must be coordinated with every plugin
@@ -123,7 +124,7 @@ _FROZEN_HOOK_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "ws_preflight_sdd_sidecar": ("primary_workspace_dir", "workspace_dir", "options"),
     "ws_prepare_mail": (
         "changespec_name",
-        "changespec_parent",
+        "changespec_parent",  # legacy hook argument name
         "project_basename",
         "project_file",
         "target_dir",
@@ -132,7 +133,7 @@ _FROZEN_HOOK_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "ws_resolve_ref": ("ref", "workflow_type"),
     "ws_setup_workflow": ("ref", "workflow_type", "n", "release"),
     "ws_submit": (
-        "changespec_file",
+        "changespec_file",  # legacy hook argument name
         "changespec_name",
         "project_basename",
         "console",
@@ -237,24 +238,24 @@ def test_out_of_tree_plugin_with_legacy_argument_names_registers() -> None:
         @hookimpl
         def ws_submit(
             self,
-            changespec_file: str,
+            changespec_file: str,  # legacy hook argument name
             changespec_name: str,
             project_basename: str,
             console: object | None = None,
         ) -> tuple[bool, str | None] | None:
-            return (True, changespec_file)
+            return (True, changespec_file)  # legacy hook argument name
 
         @hookimpl
         def ws_prepare_mail(
             self,
             changespec_name: str,
-            changespec_parent: str | None,
+            changespec_parent: str | None,  # legacy hook argument name
             project_basename: str,
             project_file: str,
             target_dir: str,
             console: object | None,
         ) -> object | None:
-            return changespec_parent
+            return changespec_parent  # legacy hook argument name
 
     pm = pluggy.PluginManager("sase_workspace")
     pm.add_hookspecs(WorkspaceHookSpec)
