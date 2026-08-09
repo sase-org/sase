@@ -37,6 +37,11 @@ _GLOSSARY_STYLE = "glossary.term"
 class PromptGlossaryMixin(_MixinBase):
     """Memory-only glossary overlay and actions for ``PromptTextArea``.
 
+    The render path uses the last resolved prompt context and scans the current
+    buffer text against that already-warm catalog. Context computation and
+    catalog warming stay outside highlight rebuilds so typing never performs
+    project resolution or schedules work.
+
     The glossary term style is the definable-term link affordance: bold,
     theme-accent text with an additive underline. Later structural overlays
     keep winning on overlap, and clear that underline when their surface must
@@ -45,7 +50,9 @@ class PromptGlossaryMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _prompt_glossary_context_cache: PromptGlossaryContext | None
-        _prompt_glossary_context_text: str | None
+        _prompt_glossary_scan_catalog: object | None
+        _prompt_glossary_scan_text: str | None
+        _prompt_glossary_cached_spans: tuple[GlossarySpan, ...] | None
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _append_highlight_span(
@@ -60,7 +67,9 @@ class PromptGlossaryMixin(_MixinBase):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._prompt_glossary_context_cache: PromptGlossaryContext | None = None
-        self._prompt_glossary_context_text: str | None = None
+        self._prompt_glossary_scan_catalog: object | None = None
+        self._prompt_glossary_scan_text: str | None = None
+        self._prompt_glossary_cached_spans: tuple[GlossarySpan, ...] | None = None
         super().__init__(*args, **kwargs)
 
     def on_mount(self) -> None:
@@ -103,7 +112,7 @@ class PromptGlossaryMixin(_MixinBase):
         if catalog is None:
             return
         try:
-            spans = scan_glossary_spans(catalog.compiled, text)
+            spans = self._prompt_glossary_spans_for_render(catalog, text)
         except Exception:
             return
         for span in spans:
@@ -176,18 +185,40 @@ class PromptGlossaryMixin(_MixinBase):
     def _warm_prompt_glossary_catalog_for_render(
         self,
     ) -> EditorGlossaryCatalog | None:
-        """Return the already-warm catalog without scheduling work."""
+        """Return the catalog for the last resolved context without scheduling work."""
         context = self._prompt_glossary_context_cache
-        if context is None or self._prompt_glossary_context_text != self.text:
+        if context is None:
             return None
         return self._get_prompt_glossary_catalog(context, schedule=False)
 
     def _refresh_prompt_glossary_context(self, *, schedule: bool) -> None:
+        previous = self._prompt_glossary_context_cache
         context = self._compute_prompt_glossary_context()
         self._prompt_glossary_context_cache = context
-        self._prompt_glossary_context_text = self.text
         if schedule:
             self._schedule_prompt_glossary_warm(context)
+        if context != previous and self._active_app() is not None:
+            self._build_highlight_map()
+            self.refresh()
+
+    def _prompt_glossary_spans_for_render(
+        self,
+        catalog: EditorGlossaryCatalog,
+        text: str,
+    ) -> tuple[GlossarySpan, ...]:
+        compiled = catalog.compiled
+        if (
+            self._prompt_glossary_scan_catalog is compiled
+            and self._prompt_glossary_scan_text == text
+            and self._prompt_glossary_cached_spans is not None
+        ):
+            return self._prompt_glossary_cached_spans
+
+        spans = scan_glossary_spans(compiled, text)
+        self._prompt_glossary_scan_catalog = compiled
+        self._prompt_glossary_scan_text = text
+        self._prompt_glossary_cached_spans = spans
+        return spans
 
     def _compute_prompt_glossary_context(self) -> PromptGlossaryContext:
         project_ref: str | None = None

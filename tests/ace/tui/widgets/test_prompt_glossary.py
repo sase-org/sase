@@ -255,11 +255,172 @@ async def test_glossary_overlay_cold_render_defers_without_warming(
 
         ta.load_text("Agent Clan")
         ta._refresh_prompt_glossary_context(schedule=False)
+        getter_schedules.clear()
         ta._build_highlight_map()
 
         assert getter_schedules == [False]
         assert warmed == []
         assert "glossary.term" not in _highlight_names(ta)
+
+
+async def test_glossary_overlay_survives_real_insert_before_changed_handler(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        text = "Ask Agent Clan to inspect the workspace"
+        catalog = _dynamic_catalog_for_term(tmp_path, "Agent Clan")
+        _install_warm_glossary(monkeypatch, app, catalog)
+
+        ta.load_text(text)
+        await pilot.pause()
+        ta._build_highlight_map()
+        assert (0, 4, 14, "glossary.term") in _glossary_highlights(ta)
+
+        ta.cursor_location = (0, 0)
+        ta.insert("Now ")
+
+        assert ta.text == "Now " + text
+        assert (0, 8, 18, "glossary.term") in _glossary_highlights(ta)
+
+
+async def test_glossary_overlay_survives_repeated_real_inserts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        text = "Agent Clan should coordinate"
+        catalog = _dynamic_catalog_for_term(tmp_path, "Agent Clan")
+        _install_warm_glossary(monkeypatch, app, catalog)
+
+        ta.load_text(text)
+        await pilot.pause()
+        ta._build_highlight_map()
+
+        ta.cursor_location = (0, 0)
+        prefix = ""
+        for character in "abc":
+            ta.insert(character)
+            prefix += character
+            assert (0, len(prefix), len(prefix) + 10, "glossary.term") in (
+                _glossary_highlights(ta)
+            )
+
+
+async def test_glossary_context_change_repaints_highlights(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    old_context = PromptGlossaryContext(project_ref="old", launch_workspace=None)
+    new_context = PromptGlossaryContext(project_ref="new", launch_workspace=None)
+    old_catalog = _dynamic_catalog_for_term(
+        tmp_path,
+        "Agent Clan",
+        project_key="old",
+        project_name="old",
+    )
+    new_catalog = _dynamic_catalog_for_term(
+        tmp_path,
+        "Workspace",
+        project_key="new",
+        project_name="new",
+    )
+    context_state = {"value": old_context}
+    catalogs = {
+        old_context: old_catalog,
+        new_context: new_catalog,
+    }
+
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Agent Clan Workspace")
+        monkeypatch.setattr(
+            ta,
+            "_compute_prompt_glossary_context",
+            lambda: context_state["value"],
+        )
+        monkeypatch.setattr(
+            app,
+            "get_prompt_glossary_catalog",
+            lambda context, *, schedule=True: catalogs[context],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            app,
+            "is_prompt_glossary_catalog_warm",
+            lambda _context: True,
+            raising=False,
+        )
+        monkeypatch.setattr(
+            app,
+            "warm_prompt_glossary_catalog",
+            lambda _context: None,
+            raising=False,
+        )
+
+        ta._refresh_prompt_glossary_context(schedule=False)
+        assert _glossary_highlights(ta) == [(0, 0, 10, "glossary.term")]
+
+        context_state["value"] = new_context
+        ta._refresh_prompt_glossary_context(schedule=False)
+
+        assert _glossary_highlights(ta) == [(0, 11, 20, "glossary.term")]
+
+
+async def test_glossary_scan_is_cached_by_text_and_compiled_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    first_catalog = _dynamic_catalog_for_term(tmp_path, "Agent Clan")
+    second_catalog = _dynamic_catalog_for_term(tmp_path, "Agent Clan")
+    current_catalog = {"value": first_catalog}
+
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Agent Clan")
+        monkeypatch.setattr(
+            app,
+            "get_prompt_glossary_catalog",
+            lambda _context, *, schedule=True: current_catalog["value"],
+            raising=False,
+        )
+        monkeypatch.setattr(
+            app,
+            "is_prompt_glossary_catalog_warm",
+            lambda _context: True,
+            raising=False,
+        )
+        monkeypatch.setattr(
+            app,
+            "warm_prompt_glossary_catalog",
+            lambda _context: None,
+            raising=False,
+        )
+        ta._prompt_glossary_context_cache = PromptGlossaryContext(
+            project_ref=None,
+            launch_workspace=None,
+        )
+
+        ta._build_highlight_map()
+        ta._build_highlight_map()
+        assert first_catalog.compiled.scan_calls == 1
+
+        ta.cursor_location = (0, 0)
+        ta.insert("Ask ")
+        ta._build_highlight_map()
+        assert first_catalog.compiled.scan_calls == 2
+
+        current_catalog["value"] = second_catalog
+        ta._build_highlight_map()
+
+        assert first_catalog.compiled.scan_calls == 2
+        assert second_catalog.compiled.scan_calls == 1
 
 
 async def test_glossary_overlay_skips_large_buffers(
@@ -501,6 +662,40 @@ class _FakeCompiledGlossary:
         return None
 
 
+class _DynamicCompiledGlossary:
+    def __init__(self, term: str) -> None:
+        self.term = term
+        self.scan_calls = 0
+
+    def scan(self, text: str) -> list[dict[str, Any]]:
+        self.scan_calls += 1
+        return list(self._spans_for_text(text))
+
+    def lookup(
+        self,
+        text: str,
+        line: int,
+        character: int,
+    ) -> dict[str, Any] | None:
+        for span in self._spans_for_text(text):
+            editor_range = span["range"]
+            start = editor_range["start"]
+            end = editor_range["end"]
+            if (
+                start["line"] <= line <= end["line"]
+                and (line > start["line"] or character >= start["character"])
+                and (line < end["line"] or character < end["character"])
+            ):
+                return span
+        return None
+
+    def _spans_for_text(self, text: str) -> tuple[dict[str, Any], ...]:
+        return tuple(
+            _span_wire(text, self.term, start, start + len(self.term))
+            for start in _all_occurrence_offsets(text, self.term)
+        )
+
+
 def _catalog_for_text(
     text: str,
     tmp_path: Path,
@@ -548,6 +743,48 @@ def _catalog_for_text(
     )
 
 
+def _dynamic_catalog_for_term(
+    tmp_path: Path,
+    term: str,
+    *,
+    project_key: str = "sase",
+    project_name: str = "sase",
+) -> EditorGlossaryCatalog:
+    config_path = tmp_path / f"{project_key}.yml"
+    entry = GlossaryEntry(
+        index=0,
+        term=term,
+        normalized_term=term.casefold(),
+        definition="A named, rootless container for coordinated agents.",
+        configured_aliases=("clan", "agent clans"),
+        effective_aliases=(term.casefold(), "clan", "agent clans"),
+        source={
+            "config_path": str(config_path),
+            "definition_range": {
+                "start": {"line": 7, "character": 4},
+                "end": {"line": 7, "character": 58},
+            },
+        },
+    )
+    return EditorGlossaryCatalog(
+        schema_version=1,
+        project=_EditorGlossaryProject(
+            key=project_key,
+            name=project_name,
+            aliases=(),
+            workspace_dir=tmp_path,
+        ),
+        config_path=config_path,
+        config_signature=_GlossaryConfigSignature(
+            path=str(config_path),
+            mtime_ns=1,
+            size=256,
+        ),
+        catalog=GlossaryCatalog(schema_version=1, entries=(entry,)),
+        compiled=_DynamicCompiledGlossary(term),
+    )
+
+
 def _occurrence_offsets(text: str, term: str, count: int) -> tuple[int, ...]:
     offsets: list[int] = []
     start = 0
@@ -557,6 +794,17 @@ def _occurrence_offsets(text: str, term: str, count: int) -> tuple[int, ...]:
         offsets.append(found)
         start = found + len(term)
     return tuple(offsets)
+
+
+def _all_occurrence_offsets(text: str, term: str) -> tuple[int, ...]:
+    offsets: list[int] = []
+    start = 0
+    while True:
+        found = text.find(term, start)
+        if found == -1:
+            return tuple(offsets)
+        offsets.append(found)
+        start = found + len(term)
 
 
 def _span_wire(
