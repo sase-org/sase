@@ -8,8 +8,8 @@ from typing import Any
 
 from sase.agent.names._common import NamedAgent
 from sase.agent.names._lookup_artifacts import (
-    SUCCESS_OUTCOME,
     done_outcome,
+    is_success_outcome,
     iter_ace_run_artifact_dirs,
     meta_parent_timestamp,
     read_json_dict,
@@ -95,7 +95,7 @@ class AgentClan:
     @property
     def is_complete(self) -> bool:
         return bool(self.members) and all(
-            member.outcome == SUCCESS_OUTCOME for member in self.members
+            is_success_outcome(member.outcome) for member in self.members
         )
 
 
@@ -372,7 +372,7 @@ def is_agent_family_complete(base_name: str) -> bool | None:
         return None
     if not family.members:
         return False
-    return all(member.outcome == SUCCESS_OUTCOME for member in family.members)
+    return all(is_success_outcome(member.outcome) for member in family.members)
 
 
 def most_recent_completed_family_member(base_name: str) -> NamedAgent | None:
@@ -382,7 +382,7 @@ def most_recent_completed_family_member(base_name: str) -> NamedAgent | None:
         return None
 
     completed = [
-        member for member in family.members if member.outcome == SUCCESS_OUTCOME
+        member for member in family.members if is_success_outcome(member.outcome)
     ]
     if not completed:
         return None

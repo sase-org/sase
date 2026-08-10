@@ -23,7 +23,7 @@ from sase.agent.names import (
     resolve_agent_name_template_reference,
     resolve_resume_agent_name,
 )
-from sase.agent.names._lookup_artifacts import SUCCESS_OUTCOME
+from sase.agent.names._lookup_artifacts import SUCCESS_OUTCOME, is_success_outcome
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_tribe import parse_tribe_reference
 from sase.core.dismissed_agent_completion import (
@@ -287,7 +287,7 @@ def _resolve_fork_source(name: str) -> _ForkSource:
     if clan is not None:
         if not clan.is_complete:
             done_count = sum(
-                member.outcome == SUCCESS_OUTCOME for member in clan.members
+                is_success_outcome(member.outcome) for member in clan.members
             )
             raise RuntimeError(
                 f"Clan '{name}' is not complete: "
@@ -548,7 +548,7 @@ def _resolve_family_member_transcript(
             return None, "unreadable transcript"
         return meta_path, SUCCESS_OUTCOME
 
-    if member.outcome != SUCCESS_OUTCOME:
+    if not is_success_outcome(member.outcome):
         return None, member.outcome or "running"
 
     done_path = _read_json_string_field(

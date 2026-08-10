@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sase.agent.names._common import NamedAgent
 from sase.agent.names._lookup_artifacts import (
-    SUCCESS_OUTCOME,
+    is_success_outcome,
     meta_parent_timestamp,
     read_json_dict,
 )
@@ -86,7 +86,7 @@ def resolve_resume_agent_name(name: str) -> NamedAgent | None:
         if (
             self_root is not None
             and self_root.is_done
-            and self_root.outcome == SUCCESS_OUTCOME
+            and is_success_outcome(self_root.outcome)
         ):
             return self_root
         return None
@@ -118,11 +118,11 @@ def resolve_wait_dependency(name: str) -> bool:
         return bool(
             self_root is not None
             and self_root.is_done
-            and self_root.outcome == SUCCESS_OUTCOME
+            and is_success_outcome(self_root.outcome)
         )
     complete = is_agent_family_complete(name)
     if complete is not None:
         return complete
 
     agent = find_named_agent(name, only_done=True)
-    return agent is not None and agent.outcome == SUCCESS_OUTCOME
+    return agent is not None and is_success_outcome(agent.outcome)

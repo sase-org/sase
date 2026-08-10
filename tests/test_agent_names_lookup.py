@@ -12,10 +12,16 @@ from sase.core.agent_identity_facade import (
 )
 
 from sase.agent.names import (
+    find_agent_clan,
     find_agent_family,
     find_named_agent,
     get_most_recent_agent_name,
+    is_agent_clan_complete,
+    is_agent_family_complete,
+    most_recent_completed_clan_member,
+    most_recent_completed_family_member,
     resolve_resume_agent_name,
+    resolve_wait_dependency,
 )
 
 from tests._agent_names_fixtures import DEAD_PID as _DEAD_PID
@@ -350,3 +356,130 @@ def test_resume_family_name_uses_newest_completed_renamed_member(
     assert resolved is not None
     assert resolved.name == "foo--code"
     assert resolved.artifacts_dir == str(newest)
+
+
+def _add_meta_fields(artifact_dir: Path, extra: dict[str, object]) -> None:
+    meta_path = artifact_dir / "agent_meta.json"
+    data = json.loads(meta_path.read_text())
+    data.update(extra)
+    meta_path.write_text(json.dumps(data))
+
+
+@pytest.mark.parametrize("outcome", ["noop", "epic_approved", "plan_committed"])
+class TestWaitSuccessOutcomeClassification:
+    """noop/epic_approved/plan_committed count as success, like "completed"."""
+
+    def test_family_is_complete_and_resolves_newest_success_member(
+        self, tmp_path: Path, outcome: str
+    ) -> None:
+        _make_agent(
+            tmp_path,
+            "proj",
+            "20260718010101",
+            "foo--plan",
+            workflow_name="foo",
+            agent_family="foo",
+            role_suffix="--plan",
+            done=True,
+            outcome="completed",
+        )
+        newest = _make_agent(
+            tmp_path,
+            "proj",
+            "20260718010202",
+            "foo--code",
+            workflow_name="foo",
+            agent_family="foo",
+            role_suffix="--code",
+            parent_timestamp="20260718010101",
+            done=True,
+            outcome=outcome,
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_agent_family_complete("foo") is True
+            member = most_recent_completed_family_member("foo")
+            assert resolve_wait_dependency("foo") is True
+            resolved = resolve_resume_agent_name("foo")
+
+        assert member is not None
+        assert member.artifacts_dir == str(newest)
+        assert resolved is not None
+        assert resolved.artifacts_dir == str(newest)
+
+    def test_clan_is_complete_and_resolves_newest_success_member(
+        self, tmp_path: Path, outcome: str
+    ) -> None:
+        older = _make_agent(
+            tmp_path,
+            "proj",
+            "20260718010101",
+            "review.alpha",
+            done=True,
+            outcome="completed",
+        )
+        _add_meta_fields(
+            older,
+            {"agent_clan": "review", "agent_clan_generation": "20260718010000"},
+        )
+        newest = _make_agent(
+            tmp_path,
+            "proj",
+            "20260718010202",
+            "review.beta",
+            done=True,
+            outcome=outcome,
+        )
+        _add_meta_fields(
+            newest,
+            {"agent_clan": "review", "agent_clan_generation": "20260718010000"},
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            clan = find_agent_clan("review")
+            assert clan is not None
+            assert clan.is_complete is True
+            assert is_agent_clan_complete("review") is True
+            assert resolve_wait_dependency("review") is True
+            member = most_recent_completed_clan_member("review")
+
+        assert member is not None
+        assert member.artifacts_dir == str(newest)
+
+    def test_bare_named_agent_resolves_as_wait_success(
+        self, tmp_path: Path, outcome: str
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo", done=True, outcome=outcome)
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert resolve_wait_dependency("foo") is True
+
+
+def test_family_incomplete_when_member_outcome_is_plan_rejected(
+    tmp_path: Path,
+) -> None:
+    """plan_rejected stays excluded from wait/family success classification."""
+    _make_agent(
+        tmp_path,
+        "proj",
+        "20260718010101",
+        "foo--plan",
+        workflow_name="foo",
+        agent_family="foo",
+        role_suffix="--plan",
+        done=True,
+        outcome="plan_rejected",
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        assert is_agent_family_complete("foo") is False
+        assert resolve_wait_dependency("foo") is False
+
+
+def test_bare_named_agent_with_plan_rejected_outcome_is_not_wait_success(
+    tmp_path: Path,
+) -> None:
+    _make_agent(tmp_path, "proj", "run1", "foo", done=True, outcome="plan_rejected")
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        assert resolve_wait_dependency("foo") is False

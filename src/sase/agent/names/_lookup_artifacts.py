@@ -7,9 +7,22 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+from sase.core.dismissed_agent_completion import WAIT_SUCCESS_OUTCOMES
 from sase.core.paths import sase_projects_dir
 
 SUCCESS_OUTCOME = "completed"
+
+
+def is_success_outcome(outcome: str | None) -> bool:
+    """Return whether *outcome* is a wait-resolution success outcome.
+
+    Uses the same classification as wait resolution's dismissed-bundle
+    fallback (:data:`sase.core.dismissed_agent_completion.WAIT_SUCCESS_OUTCOMES`)
+    so agent-name lookup treats "noop", "epic_approved", and "plan_committed"
+    terminal outcomes as successful alongside "completed", instead of only
+    recognizing "completed". "plan_rejected" is intentionally excluded here.
+    """
+    return outcome in WAIT_SUCCESS_OUTCOMES
 
 
 def ace_run_scan_options() -> Any:
