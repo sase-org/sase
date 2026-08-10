@@ -120,6 +120,15 @@ def repo(tmp_path: Path) -> str:
     return cwd
 
 
+@pytest.fixture()
+def remote_repo(repo: str) -> Path:
+    # `tmp_path.parent` is the pytest basetemp shared by every test in the
+    # worker, so a literal sibling name here would collide with another
+    # test's remote. `tmp_path` itself is unique per test, so deriving the
+    # name from it keeps this path unique without a global counter.
+    return Path(repo).parent / f"{Path(repo).name}-origin.git"
+
+
 def _commit(
     cwd: str,
     filename: str,
@@ -500,9 +509,11 @@ def test_vcs_show_revision_merge_commit_returns_first_parent_patch(repo: str) ->
     assert "feature.txt" in output
 
 
-def test_vcs_partition_commits_honors_merge_visibility_modes(repo: str) -> None:
+def test_vcs_partition_commits_honors_merge_visibility_modes(
+    repo: str, remote_repo: Path
+) -> None:
     provider = _make_git_provider()
-    origin = Path(repo).parent / "origin.git"
+    origin = remote_repo
 
     _commit(repo, "base.txt", "base")
     _git(["init", "--bare", "-q", str(origin)], repo)
@@ -535,10 +546,12 @@ def test_vcs_partition_commits_honors_merge_visibility_modes(repo: str) -> None:
     assert only_behind == set()
 
 
-def test_remote_log_ops_fetch_partition_and_union_log(repo: str) -> None:
+def test_remote_log_ops_fetch_partition_and_union_log(
+    repo: str, remote_repo: Path
+) -> None:
     provider = _make_git_provider()
-    origin = Path(repo).parent / "origin.git"
-    remote_work = Path(repo).parent / "remote-work"
+    origin = remote_repo
+    remote_work = Path(repo).parent / f"{Path(repo).name}-remote-work"
 
     _commit(repo, "base.txt", "base")
     _git(["init", "--bare", "-q", str(origin)], repo)
