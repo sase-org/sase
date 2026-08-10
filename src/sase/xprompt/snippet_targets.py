@@ -162,8 +162,12 @@ def resolve_snippet_save_target(configured: str | None) -> SnippetSaveTarget:
 
 
 @dataclass(frozen=True)
-class SnippetTriggerMatch:
-    """One config file that already defines a trigger."""
+class _SnippetTriggerMatch:
+    """One config file that already defines a trigger.
+
+    Private because no caller names the type: consumers reach these records
+    only through :attr:`SnippetCollision.matches`.
+    """
 
     trigger: str
     location_path: str
@@ -175,7 +179,7 @@ class SnippetTriggerMatch:
 class SnippetCollision:
     """Where a trigger collides today and who wins after a save."""
 
-    matches: tuple[SnippetTriggerMatch, ...]
+    matches: tuple[_SnippetTriggerMatch, ...]
     derived_from: str | None
     winner_path: str | None
     shadowed_by: str | None
@@ -203,7 +207,7 @@ def snippet_collision(
         for location in locations
     }
     matches = tuple(
-        SnippetTriggerMatch(
+        _SnippetTriggerMatch(
             trigger=trigger,
             location_path=location.path,
             display_path=location.display_path,
@@ -247,7 +251,6 @@ __all__ = [
     "SnippetCollision",
     "SnippetConfigLocation",
     "SnippetSaveTarget",
-    "SnippetTriggerMatch",
     "load_snippet_template",
     "load_snippet_config_locations",
     "resolve_snippet_save_target",
