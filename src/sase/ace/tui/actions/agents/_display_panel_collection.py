@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from ._display_helpers import panel_widget_id
 from ._display_panel_state import PanelRefreshStateMixin
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
+from ._folding_panel_sweep import retire_panel_fold_sweep_records
 from ._navigation_order import rendered_panel_slice
 from ._panel_fold_intent import effective_panel_collapses, retire_panel_fold_intents
 
@@ -48,6 +49,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 if agent_is_rendered_in_agents_panel(agent):
                     live_keys.add(normalize_panel_key(agent.tribe))
             retire_panel_fold_intents(self, live_keys)
+            retire_panel_fold_sweep_records(self, live_keys)
             collapsed_keys = effective_panel_collapses(self, panel_keys)
             self._panel_group = AgentPanelGroup.from_panel_keys(
                 panel_keys,

@@ -127,6 +127,25 @@ class AgentFooterDisplayMixin:
                 and not getattr(self, "_agent_panels_grouped", False)
                 and len(panel_group.panel_keys) >= 2
             )
+            panel_fold_sweep_available = False
+            panel_fold_restore_armed = False
+            if panel_group is not None and not panel_collapsed:
+                sweep_panel_key = (
+                    panel_focus.panel_key
+                    if panel_focus is not None
+                    else panel_group.focused_key
+                )
+                has_collapsible = getattr(self, "_panel_has_collapsible_folds", None)
+                if callable(has_collapsible):
+                    panel_fold_sweep_available = bool(has_collapsible(sweep_panel_key))
+                if not panel_fold_sweep_available:
+                    restore_available = getattr(
+                        self, "_panel_fold_sweep_restore_available", None
+                    )
+                    if callable(restore_available):
+                        panel_fold_restore_armed = bool(
+                            restore_available(sweep_panel_key)
+                        )
             tools_visible = agent_detail.is_tools_visible()
             left_navigation_kind: str | None = None
             resolve_left_navigation = getattr(
@@ -219,6 +238,8 @@ class AgentFooterDisplayMixin:
                 panel_collapse_jump_available=panel_collapse_jump_available,
                 panel_restore_armed=panel_restore_armed,
                 panel_isolation_available=panel_isolation_available,
+                panel_fold_sweep_available=panel_fold_sweep_available,
+                panel_fold_restore_armed=panel_fold_restore_armed,
                 left_navigation_kind=left_navigation_kind,
                 lane_collapse_available=lane_collapse_available,
                 clan_collapse_available=clan_collapse_available,

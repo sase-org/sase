@@ -456,6 +456,7 @@ ace:
       start_fold_mode: "z"
       zoom_panel: "Z"
       isolate_panels: "="
+      collapse_panel_folds: "-"
       start_leader_mode: "comma"
       start_bang_mode: "exclamation_mark"
       copy_tab_content: "percent_sign"

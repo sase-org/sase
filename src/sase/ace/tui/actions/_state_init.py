@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from ..models.agent import AgentType
     from ..models.agent_loader import AgentLoadState
     from ..models.agent_fold_persistence import AgentsFoldStateSnapshot
-    from ..models.agent_panels import PanelIsolationRevert
+    from ..models.agent_panels import PanelFoldSweepRecord, PanelIsolationRevert
     from ..tools.report import SlowToolCallReportSpec
     from ..widgets.prompt_panel._agent_display_state import (
         AgentHintRender,
@@ -565,6 +565,9 @@ class StateInitMixin:
         # record is intentionally session-local and never enters fold-state
         # persistence.
         self._panel_isolation_revert: PanelIsolationRevert | None = None
+        # ``-`` remembers at most one sweep record per panel, so a second
+        # press can reverse exactly what the first one closed.
+        self._panel_fold_sweep_records: dict[PanelKey, PanelFoldSweepRecord] = {}
         # Expanded panels use an explicit whole-panel focus bit; collapsed
         # panels imply whole-panel focus from their persisted fold state.
         self._expanded_panel_focus = False

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from dataclasses import dataclass, field
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from sase.core.agent_tribe import RESERVED_DEFAULT_TRIBE
 
@@ -33,6 +33,10 @@ from ._agent_tree import (
     presentation_anchor_lookup,
     tree_parent_lookup,
 )
+
+if TYPE_CHECKING:
+    from .agent_group_fold import GroupKey
+    from .fold_state import FoldLevel
 
 #: Canonical display identity for the reserved fallback tribe.
 DEFAULT_AGENT_TRIBE = RESERVED_DEFAULT_TRIBE
@@ -66,10 +70,19 @@ def is_reserved_default_panel(panel_key: PanelKey) -> bool:
 
 @dataclass(frozen=True)
 class PanelIsolationRevert:
-    """Session-local panel layout remembered by the ``H`` solo toggle."""
+    """Session-local panel layout remembered by the ``=`` isolation toggle."""
 
     target_key: PanelKey
     collapsed_before: frozenset[PanelKey]
+
+
+@dataclass(frozen=True, slots=True)
+class PanelFoldSweepRecord:
+    """Folds one ``-`` sweep closed in a panel, remembered for its reverse."""
+
+    panel_key: PanelKey
+    agent_levels: tuple[tuple[str, FoldLevel], ...]
+    group_keys: tuple[GroupKey, ...]
 
 
 def _build_parent_lookup(agents: list[Agent]) -> dict[str, Agent]:

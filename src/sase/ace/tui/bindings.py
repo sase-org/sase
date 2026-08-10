@@ -39,6 +39,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("z", "start_fold_mode", "Fold", show=False),
     Binding("Z", "zoom_panel", "Zoom Detail", show=False),
     Binding("=", "isolate_panels", "Only/Restore Panels", show=False),
+    Binding("-", "collapse_panel_folds", "Collapse/Restore Panel Folds", show=False),
     Binding("A", "plans_approve", "Approve Plan", show=False),
     Binding("A", "accept_proposal", "Accept", show=False),
     Binding("b", "rebase", "Rebase", show=False),

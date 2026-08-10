@@ -60,6 +60,9 @@ _KEY_ALIASES: dict[str, str] = {
     # the raw glyph and the Unicode name as friendly config spellings for it.
     "+": "plus",
     "plus_sign": "plus",
+    # Textual normalizes the printable ``-`` key to the name ``minus``; accept
+    # the raw glyph as a friendly config spelling for it.
+    "-": "minus",
 }
 
 

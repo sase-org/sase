@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from ._folding_agent_groups import AgentGroupFoldingMixin
+from ._folding_panel_sweep import AgentPanelFoldSweepMixin
 
 
-class AgentTreeFoldingMixin(AgentGroupFoldingMixin):
+class AgentTreeFoldingMixin(AgentPanelFoldSweepMixin):
     """Manage agent-tree and grouping-banner fold state."""
 
 

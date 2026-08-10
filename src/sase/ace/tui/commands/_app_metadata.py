@@ -467,6 +467,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("only panel", "restore panels", "isolate"),
     ),
     (
+        "collapse_panel_folds",
+        "Collapse or restore tribe panel folds",
+        "Display",
+        AGENTS_ONLY,
+        ("collapse folds", "restore folds", "fold panel"),
+    ),
+    (
         "edit_panel",
         "Edit panel file / chop output",
         "Display",

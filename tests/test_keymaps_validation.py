@@ -49,6 +49,18 @@ def test_plus_aliases_canonicalize_to_plus() -> None:
     assert canonicalize_key_binding("plus") == "plus"
 
 
+def test_minus_key_spellings_accepted() -> None:
+    """The ``-`` panel-fold-sweep key is valid by name and raw glyph."""
+    assert is_valid_key("minus")
+    assert is_valid_key("-")
+
+
+def test_minus_alias_canonicalizes_to_minus() -> None:
+    """The friendly ``-`` spelling normalizes to Textual's ``minus`` key name."""
+    assert canonicalize_key_binding("-") == "minus"
+    assert canonicalize_key_binding("minus") == "minus"
+
+
 def test_compound_key_alternatives_accepted() -> None:
     """Comma-separated Textual binding alternatives are valid."""
     assert is_valid_key("colon,semicolon")

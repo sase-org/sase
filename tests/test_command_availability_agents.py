@@ -128,6 +128,25 @@ def test_isolate_panels_available_only_with_two_or_more_split_panels() -> None:
     )
 
 
+def test_collapse_panel_folds_available_for_agent_or_whole_panel_focus_only() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.collapse_panel_folds"]
+
+    assert is_command_available(spec, CommandContext(tab="agents", agent=_make_agent()))
+    assert is_command_available(spec, CommandContext(tab="agents", panel_focused=True))
+    assert is_command_available(
+        spec, CommandContext(tab="agents", collapsed_panel_focused=True)
+    )
+    assert not is_command_available(spec, CommandContext(tab="agents"))
+    assert not is_command_available(
+        spec, CommandContext(tab="agents", group_focused=True)
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="changespecs", agent=_make_agent()),  # legacy tab id
+    )
+
+
 def test_kill_agent_hidden_when_no_agent_no_group_no_marks() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.kill_agent"]

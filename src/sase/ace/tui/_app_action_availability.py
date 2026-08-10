@@ -181,7 +181,10 @@ def check_app_action(
     if action == "save_marked_agents":
         if app.current_tab != "agents":
             return False
-    if action in {"zoom_panel", "isolate_panels"} and app.current_tab != "agents":
+    if (
+        action in {"zoom_panel", "isolate_panels", "collapse_panel_folds"}
+        and app.current_tab != "agents"
+    ):
         return False
     if action == "start_fold_mode" and (
         app.current_tab == "axe"

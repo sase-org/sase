@@ -65,6 +65,7 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
     assert reg.app.start_fold_mode == "z"
     assert reg.app.zoom_panel == "Z"
     assert reg.app.isolate_panels == "="
+    assert reg.app.collapse_panel_folds == "minus"
     assert agent_fold == {
         "cycle_level": "z",
         "toggle_all": "Z",

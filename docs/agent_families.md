@@ -223,13 +223,15 @@ appear when known, and known-empty sections remain omitted. The compact roster a
 numeric jumps remain available at every level.
 
 The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to
-zoom an agent row's detail panel or the selected tribe panel's metadata document, and
-`=` to isolate or restore a tribe panel from whole-panel focus or a row selection inside
-a panel; lowercase `z` starts fold mode. Fold state is panel-wide and applies when a
-clan or an agent lane is selected. Using a fold chord on a regular agent lane folds its
-`NEIGHBORS` and `SLOW TOOL CALLS` sections across that agent's own three-level scale,
-leaves its other sections unchanged, and updates the session state for the next
-container selection.
+zoom an agent row's detail panel or the selected tribe panel's metadata document, `=` to
+isolate or restore a tribe panel from whole-panel focus or a row selection inside a
+panel, and `-` to sweep every open lane, clan, and expanded top-level banner in the
+focused tribe panel closed in one press (or restore the last sweep) from whole-panel
+focus, a row selection, or merged layout; lowercase `z` starts fold mode. Fold state is
+panel-wide and applies when a clan or an agent lane is selected. Using a fold chord on a
+regular agent lane folds its `NEIGHBORS` and `SLOW TOOL CALLS` sections across that
+agent's own three-level scale, leaves its other sections unchanged, and updates the
+session state for the next container selection.
 
 ### Epic bead-work example
 
@@ -512,6 +514,18 @@ changing the selected row. When isolation changes the layout, ACE remembers the 
 collapsed-panel set for the session: `↺` title markers and the `= restore panels` footer
 hint show that the next `=` will restore it. A separate sibling-panel or layout mutation
 invalidates that one-step restore.
+
+Press `-` to sweep every open lane, clan, and expanded top-level grouping banner in the
+focused panel closed in one press. It resolves scope the same way `=` does — from
+whole-panel focus, from a row or banner selection inside a panel, and in merged layout,
+where it treats the merged roster as one scope — and it never collapses the panel
+itself. When the focused panel has nothing left to collapse, `-` reverses itself and
+re-expands exactly the folds its own last sweep in that panel closed, restoring each
+structural fold to the level it held before. The restore is filtered at press time to
+folds still live in that panel and still collapsed, so it tolerates folds re-expanded by
+hand and never resurrects a fold that no longer exists. Each panel remembers at most one
+sweep; a fresh sweep replaces that panel's record. The footer shows `- collapse folds`
+or `- restore folds` depending on which direction the next press would take.
 
 Uppercase `H` on a selected expanded panel walks a panel-wide collapse ladder without
 changing the remembered row: it first fully collapses every open canonical lane in that

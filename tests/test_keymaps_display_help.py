@@ -72,6 +72,28 @@ def test_agents_help_uses_configured_direct_visible_fold_selector_key() -> None:
     )
 
 
+def test_agents_help_lists_panel_fold_sweep_binding() -> None:
+    reg = load_keymap_registry({})
+    pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+
+    assert ("-", "Collapse panel folds ⇄ restore") in pairs
+
+
+def test_agents_help_uses_configured_panel_fold_sweep_key() -> None:
+    reg = load_keymap_registry({"keymaps": {"app": {"collapse_panel_folds": "f4"}}})
+    pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+
+    assert ("f4", "Collapse panel folds ⇄ restore") in pairs
+
+
 def test_help_panel_tab_switch_display_is_present() -> None:
     reg = load_keymap_registry({})
     cls_pairs = {

@@ -402,6 +402,9 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.isolate_panels":
         return ctx.split_panel_count >= 2
 
+    if spec.id == "app.collapse_panel_folds":
+        return panel_focused or agent is not None
+
     # add_tag on Agents starts a new prompt with a wait dependency. Marks
     # take precedence over every focused row/scope, matching the action.
     if spec.id == "app.add_tag":

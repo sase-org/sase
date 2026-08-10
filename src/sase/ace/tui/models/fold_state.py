@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -224,6 +225,21 @@ class FoldStateManager:
             if self.get(key) == FoldLevel.COLLAPSED:
                 continue
             self._states[key] = FoldLevel.COLLAPSED
+            changed = True
+        return changed
+
+    def restore_levels(self, levels: Mapping[str, FoldLevel]) -> bool:
+        """Write each exact remembered level, returning whether any changed.
+
+        Unlike :meth:`expand`, which steps one level at a time and cannot
+        reach ``EXHAUSTIVE``, a restore must land on the remembered level
+        exactly.
+        """
+        changed = False
+        for key, level in levels.items():
+            if self._states.get(key) == level:
+                continue
+            self._states[key] = level
             changed = True
         return changed
 

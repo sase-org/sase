@@ -164,6 +164,53 @@ def test_footer_armed_panel_isolation_advertises_restore_action() -> None:
     assert ("H", "restore panels") not in bindings
 
 
+def test_footer_panel_fold_sweep_chip_follows_availability() -> None:
+    footer = KeybindingFooter()
+
+    sweep_available = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_fold_sweep_available=True,
+        )
+    )
+    restore_armed = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_fold_restore_armed=True,
+        )
+    )
+    neither = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+        )
+    )
+
+    assert ("-", "collapse folds") in sweep_available
+    assert ("-", "restore folds") not in sweep_available
+    assert ("-", "restore folds") in restore_armed
+    assert ("-", "collapse folds") not in restore_armed
+    assert not any(key == "-" for key, _label in neither)
+
+
+def test_footer_panel_fold_sweep_prefers_collapse_over_restore_chip() -> None:
+    footer = KeybindingFooter()
+
+    bindings = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_fold_sweep_available=True,
+            panel_fold_restore_armed=True,
+        )
+    )
+
+    assert ("-", "collapse folds") in bindings
+    assert ("-", "restore folds") not in bindings
+
+
 def test_footer_row_focus_advertises_isolation_when_two_or_more_panels() -> None:
     footer = KeybindingFooter()
 

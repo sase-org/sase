@@ -107,7 +107,7 @@ def _open_canonical_clan_keys(
     return tuple(open_keys), owner_global_index
 
 
-def _resolve_panel_clan_collapse_target(
+def resolve_panel_clan_collapse_target(
     owner: Any,
     panel_key: PanelKey,
 ) -> _AgentPanelClanCollapseTarget | None:
@@ -180,7 +180,7 @@ def _resolve_group_clan_collapse_target(
     )
 
 
-def _selected_enclosing_clan_fold_key(
+def selected_enclosing_clan_fold_key(
     agents: list[Agent],
     selected_index: int,
 ) -> str | None:
@@ -224,7 +224,7 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
         panel_focus = resolve_panel() if callable(resolve_panel) else None
         if panel_focus is None or panel_focus.collapsed:
             return None
-        return _resolve_panel_clan_collapse_target(self, panel_focus.panel_key)
+        return resolve_panel_clan_collapse_target(self, panel_focus.panel_key)
 
     def _resolve_agent_clan_collapse_target(
         self,
@@ -248,7 +248,7 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
 
         agents = getattr(self, "_agents", [])
         selected_index = getattr(self, "current_idx", -1)
-        selected_key = _selected_enclosing_clan_fold_key(agents, selected_index)
+        selected_key = selected_enclosing_clan_fold_key(agents, selected_index)
         if selected_key is None or selected_key not in target.fold_keys:
             return None
 
@@ -312,4 +312,8 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
         return True
 
 
-__all__ = ["AgentPanelClanFoldingMixin"]
+__all__ = [
+    "AgentPanelClanFoldingMixin",
+    "resolve_panel_clan_collapse_target",
+    "selected_enclosing_clan_fold_key",
+]

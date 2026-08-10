@@ -917,6 +917,7 @@ rather than landing somewhere stale.
 | `z`                 | Start metadata fold mode for clan, lane (family or single agent), or selected whole-tribe detail panels    |
 | `Z`                 | Zoom the active agent or tribe detail panel                                                                |
 | `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                            |
+| `-`                 | Collapse every open fold in the focused tribe panel, or restore the last sweep's folds                     |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                              |
 
 ### Forking Agents and Groups
@@ -1401,6 +1402,22 @@ row, it isolates the panel that holds the cursor without changing the selected r
 action preserves the selected panel's remembered row and is available only in the split
 layout.
 
+Press `-` to sweep every open fold — lanes, clans, and expanded top-level grouping
+banners — closed in the tribe panel that holds focus, in one press. It resolves scope
+the same way `=` does: from whole-panel focus, from a row or banner selection inside a
+panel, and in the merged layout, where it treats the merged roster as one scope. `-`
+never collapses the panel itself; that stays lowercase `h`'s job. When the focused panel
+has nothing left to collapse, `-` reverses itself: it re-expands exactly the folds its
+own last sweep in that panel closed, restoring each structural fold to the level it held
+before (a fully expanded lane comes back fully expanded, not merely expanded). The
+restore is filtered at press time to folds that are still live in that panel and still
+collapsed, so it is forgiving of folds the user re-expanded by hand or owners that
+disappeared, and it never resurrects a fold that no longer exists. Each panel remembers
+at most one sweep; a fresh sweep replaces that panel's record, and a panel that stops
+being live drops it. The footer shows `- collapse folds` when the focused panel has an
+open fold to sweep, or `- restore folds` when nothing is left to collapse but a prior
+sweep's reverse is still armed.
+
 Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel currently
 holds focus. Press `X` to open the cleanup panel: `d` dismisses completed agents in the
 focused panel, `D` dismisses completed agents across loaded panels, `k` cleans the
@@ -1465,19 +1482,20 @@ setting. Every emitted grouping banner has its own binary expanded/collapsed sta
 separately for each tribe panel and grouping mode. Three independent folding layers can
 therefore be visible at once:
 
-| Layer             | What it controls                                         | Default keys                                                   |
-| ----------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
-| Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped lanes/clans; `l` expands   |
-| Structural row    | Clan members, family members, and workflow descendants   | `H` fully collapses group lanes, then group clans; `l` expands |
-| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands          |
+| Layer             | What it controls                                         | Default keys                                                                                                             |
+| ----------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped lanes/clans; `l` expands; `-` sweeps every expanded banner in the panel at once      |
+| Structural row    | Clan members, family members, and workflow descendants   | `H` fully collapses group lanes, then group clans; `l` expands; `-` sweeps every open lane and clan in the panel at once |
+| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands                                                                    |
 
-| Key | Action                                                                                                                 |
-| --- | ---------------------------------------------------------------------------------------------------------------------- |
-| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel       |
-| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists |
-| `L` | Expand a collapsed focused panel and enter its first selectable row                                                    |
-| `H` | Collapse group lanes/clans/group, or selected-panel lanes/clans/top-level groups/panel; compact expanded Tools detail  |
-| `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection  |
+| Key | Action                                                                                                                                                    |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                          |
+| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                    |
+| `L` | Expand a collapsed focused panel and enter its first selectable row                                                                                       |
+| `H` | Collapse group lanes/clans/group, or selected-panel lanes/clans/top-level groups/panel; compact expanded Tools detail                                     |
+| `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                     |
+| `-` | Sweep every open lane, clan, and expanded top-level banner in the focused panel closed in one press, or restore the last sweep; never collapses the panel |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain
 visible headings but are skipped by row navigation. When a collapsed banner is focused,
