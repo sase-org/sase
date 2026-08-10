@@ -61,9 +61,15 @@ def test_plan_lane_follows_optional_sections_inside_sase_context() -> None:
     assert plain.index("OUTPUT VARIABLES") < plain.index("SASE CONTEXT")
     assert plain.index("SASE CONTEXT") < plain.index("▸ PLAN · plan")
     assert plain.index("▸ PLAN · plan") < plain.index("  Title:")
-    assert plain.index("  Title:") < plain.index("   Goal:") < plain.index("   Path:")
+    assert (
+        plain.index("  Title:")
+        < plain.index("   Goal:")
+        < plain.index("   Size:")
+        < plain.index("   Path:")
+    )
     assert plain.count("Title:") == 1
     assert plain.count("Goal:") == 1
+    assert plain.count("Size:") == 1
     assert "Tier:" not in plain
     assert "SASE PLAN" not in plain
     assert plain.splitlines()[1].startswith("Patch:")
@@ -88,11 +94,41 @@ def test_plan_field_labels_align_colons_in_the_shared_column() -> None:
         labels = [
             line[:PLAN_FIELD_LABEL_WIDTH]
             for line in lines
-            if line[:PLAN_FIELD_LABEL_WIDTH].strip() in {"Title:", "Goal:", "Path:"}
+            if line[:PLAN_FIELD_LABEL_WIDTH].strip()
+            in {"Title:", "Goal:", "Size:", "Path:"}
         ]
-        assert labels == ["  Title: ", "   Goal: ", "   Path: "]
+        assert labels == ["  Title: ", "   Goal: ", "   Size: ", "   Path: "]
         assert {cell_len(label) for label in labels} == {PLAN_FIELD_LABEL_WIDTH}
         assert {label.index(":") for label in labels} == {7}
+
+
+def test_tale_plan_lane_renders_size_row_in_canonical_order_and_style() -> None:
+    summary = _plan_summary(tier="tale", size="small")
+    header, _ = build_header_text(
+        make_agent(agent_name="planner"),
+        summary=DetailHeaderSummary(associated_plan=summary),
+    )
+
+    plain = header.plain
+    assert (
+        plain.index("  Title:")
+        < plain.index("   Goal:")
+        < plain.index("   Size:")
+        < plain.index(" small ")
+        < plain.index("   Path:")
+    )
+    assert_span_covers(header, "small", PHASE_SIZE_STYLES["small"])
+
+
+def test_epic_plan_lane_keeps_size_out_of_plan_level_fields() -> None:
+    header, _ = build_header_text(
+        make_agent(agent_name="planner"),
+        summary=DetailHeaderSummary(associated_plan=_epic_summary()),
+    )
+
+    path_index = header.plain.index("   Path:")
+
+    assert "   Size:" not in header.plain[:path_index]
 
 
 def test_title_and_goal_values_have_no_competing_decoration() -> None:
@@ -401,6 +437,7 @@ def test_tale_plan_keeps_compact_layout_without_phase_block() -> None:
     )
 
     assert "▸ PLAN · tale\n" in header.plain
+    assert "   Size:  medium " in header.plain
     assert "Tier:" not in header.plain
     assert "Phases:" not in header.plain
     assert "◆" not in header.plain

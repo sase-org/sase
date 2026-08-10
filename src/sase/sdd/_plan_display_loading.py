@@ -90,6 +90,8 @@ def load_plan_display(
         validation_ok=metadata.validation_ok,
         validation_diagnostics=metadata.validation_diagnostics,
         provenance=metadata.provenance,
+        size=metadata.size,
+        size_defaulted=metadata.size_defaulted,
     )
 
 
@@ -150,12 +152,17 @@ def plan_file_metadata_from_content(
 
     title = _normalized_optional_text(frontmatter.get("title"))
     goal = _normalized_optional_text(frontmatter.get("goal"))
+    frontmatter_declared_size = "size" in frontmatter
+    size = normalize_phase_size(frontmatter.get("size"))
+    size_defaulted = False
     normalized_tier = normalize_plan_tier(frontmatter.get("tier"))
     authored_tier: AuthoredPlanTier | None = None
     if normalized_tier == "tale":
         authored_tier = "tale"
     elif normalized_tier == "epic":
         authored_tier = "epic"
+    if authored_tier != "tale":
+        size = None
 
     phase_availability: PlanPhaseAvailability = "not-applicable"
     phases: tuple[PlanDisplayPhase, ...] = ()
@@ -191,6 +198,13 @@ def plan_file_metadata_from_content(
                         phases = ()
                     else:
                         phase_availability = "available"
+                elif authored_tier == "tale":
+                    size = normalize_phase_size(validation.plan.size)
+                    size_defaulted = not frontmatter_declared_size
+
+    if authored_tier != "tale":
+        size = None
+        size_defaulted = False
 
     return PlanFileMetadata(
         title=title,
@@ -204,6 +218,8 @@ def plan_file_metadata_from_content(
         validation_ok=validation_ok,
         validation_diagnostics=diagnostics,
         provenance=_plan_provenance_sections(content),
+        size=size,
+        size_defaulted=size_defaulted,
     )
 
 
@@ -257,6 +273,8 @@ def unavailable_plan_metadata(
         phase_availability="unavailable",
         phases=(),
         validation_diagnostics=diagnostics,
+        size=None,
+        size_defaulted=False,
     )
 
 

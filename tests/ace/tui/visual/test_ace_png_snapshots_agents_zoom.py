@@ -117,6 +117,7 @@ def _zoom_agent(
             "tier: tale\n"
             "title: Unified agent context\n"
             "goal: Present the plan and audited context in one ranked list.\n"
+            "size: medium\n"
             "---\n"
             "# Plan\n",
             encoding="utf-8",

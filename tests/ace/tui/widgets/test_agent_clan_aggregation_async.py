@@ -272,6 +272,7 @@ def test_clan_worker_indexes_markup_logical_plan_reference(
             phase_availability="not-applicable",
             phases=(),
             validation_ok=True,
+            size="small",
         ),
     )
     in_memory = aggregate_clan_in_memory(container)

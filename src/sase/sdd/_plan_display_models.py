@@ -59,6 +59,9 @@ class PlanFileMetadata:
     validation_ok: bool = False
     validation_diagnostics: tuple[str, ...] = ()
     provenance: tuple[PlanProvenanceSection, ...] = ()
+    size: PhaseSizeValue | None = None
+    # True when launch-mode compatibility supplied a legacy tale's missing size.
+    size_defaulted: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +83,9 @@ class PlanDisplay:
     validation_ok: bool = False
     validation_diagnostics: tuple[str, ...] = ()
     provenance: tuple[PlanProvenanceSection, ...] = ()
+    size: PhaseSizeValue | None = None
+    # True when launch-mode compatibility supplied a legacy tale's missing size.
+    size_defaulted: bool = False
 
 
 __all__ = [

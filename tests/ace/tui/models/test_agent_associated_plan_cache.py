@@ -160,6 +160,7 @@ def test_title_is_normalized_cached_and_invalidated_with_file_signature(
         "  Full\n"
         "  plan   title\n"
         "goal: Keep cached metadata responsive\n"
+        "size: small\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",

@@ -339,6 +339,7 @@ async def test_tale_plan_gate_frontmatter_png_snapshot(
         "title: Frontmatter syntax highlighting in gate review documents\n"
         "goal: >\n"
         "  Make plan metadata clear and readable without changing document layout.\n"
+        "size: small\n"
         "---\n\n"
         "# Frontmatter highlighting\n\n"
         "Render YAML metadata before the Markdown plan body.\n",

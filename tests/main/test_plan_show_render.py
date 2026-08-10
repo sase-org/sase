@@ -13,6 +13,7 @@ from sase.main.plan_show_render import (
     render_compact,
     render_full,
 )
+from sase.phase_size_presentation import PHASE_SIZE_DEFAULT_MARKER
 from sase.plan_search.model import Plan, PlanSearchMatch
 from sase.plan_show.model import (
     PlanShowAmbiguity,
@@ -55,7 +56,7 @@ def _plan(**overrides: object) -> PlanShowPlan:
         "title": "A flexible plan",
         "goal": "Deliver the feature end to end.",
         "created_at": "2026-08-06 15:48:40",
-        "frontmatter": {},
+        "frontmatter": {"size": "small"},
         "body": "# Heading\n\nSome body text.\n",
         "validation": PlanShowValidation(ok=True, diagnostics=()),
         "provenance": (),
@@ -97,6 +98,8 @@ def test_full_render_covers_a_tale_in_documented_section_order() -> None:
     assert rendered.index("A flexible plan") < rendered.index("PROPERTIES")
     assert "reference" in rendered
     assert "plans:202608/a.md" in rendered
+    assert "size" in rendered
+    assert "small" in rendered
     assert "tale" in rendered
     assert "wip" in rendered
     assert "PROPOSAL" not in rendered
@@ -106,6 +109,31 @@ def test_full_render_covers_a_tale_in_documented_section_order() -> None:
     assert "BODY" in rendered
     assert "Some body text." in rendered
     assert "sase plan validate" in rendered
+
+
+def test_full_render_marks_legacy_tale_size_as_defaulted() -> None:
+    record = _record(plan=_plan(frontmatter={}))
+
+    rendered = _render(record)
+
+    assert "size" in rendered
+    assert "medium" in rendered
+    assert PHASE_SIZE_DEFAULT_MARKER in rendered
+
+
+def test_full_render_does_not_fabricate_size_for_invalid_sizeless_tale() -> None:
+    record = _record(
+        plan=_plan(
+            frontmatter={},
+            validation=PlanShowValidation(ok=False, diagnostics=("bad tale",)),
+        )
+    )
+
+    rendered = _render(record)
+
+    assert "size" in rendered
+    assert "unavailable" in rendered
+    assert PHASE_SIZE_DEFAULT_MARKER not in rendered
 
 
 def test_full_render_covers_an_epic_with_phases_and_waves() -> None:

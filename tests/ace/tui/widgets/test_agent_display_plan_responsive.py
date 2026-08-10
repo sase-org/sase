@@ -229,6 +229,7 @@ def test_missing_or_damaged_plan_keeps_section_with_quiet_fallbacks() -> None:
                 actual_path="/tmp/missing plan.md",
                 display_path="~/missing plan.md",
                 exists=False,
+                size=None,
             )
         ),
     )

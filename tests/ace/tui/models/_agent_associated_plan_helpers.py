@@ -18,12 +18,14 @@ def write_plan(
     *,
     title: str | None = "Associated plan metadata",
     tier: str | None = "tale",
+    size: str | None = "small",
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     tier_line = f"tier: {tier}\n" if tier is not None else ""
     title_line = f"title: {title!r}\n" if title is not None else ""
+    size_line = f"size: {size}\n" if tier == "tale" and size is not None else ""
     path.write_text(
-        f"---\n{tier_line}{title_line}goal: {goal!r}\n---\n# Plan\n",
+        f"---\n{tier_line}{title_line}goal: {goal!r}\n{size_line}---\n# Plan\n",
         encoding="utf-8",
     )
     return path

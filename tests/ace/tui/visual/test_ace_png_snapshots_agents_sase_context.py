@@ -47,6 +47,7 @@ async def test_agents_sase_plan_metadata_png_snapshot(
         "goal: >\n"
         "  Make the selected agent's intended outcome legible while preserving fast\n"
         "  navigation and the approved destination.\n"
+        "size: medium\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",
@@ -389,6 +390,7 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
         "tier: tale\n"
         "title: Phase plan\n"
         "goal: Approved handoff beside the parent.\n"
+        "size: small\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",

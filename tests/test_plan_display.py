@@ -11,6 +11,7 @@ from rich.text import Text
 from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     ResponsivePlanSection,
 )
+from sase.phase_size_presentation import PHASE_SIZE_DEFAULT_MARKER, PHASE_SIZE_STYLES
 from sase.sdd.plan_display import (
     BEAD_PAGE_ROW_LABEL,
     COLOR_PLAN_EMPTY,
@@ -19,6 +20,7 @@ from sase.sdd.plan_display import (
     COLOR_PLAN_PRIMARY,
     PLAN_FIELD_LABEL_WIDTH,
     PLAN_PROVENANCE_ENTRY_LIMIT,
+    PLAN_SIZE_ROW_LABEL,
     PlanDisplay,
     PlanDisplayPhase,
     bead_page_url_text,
@@ -69,6 +71,8 @@ def test_shared_loader_normalizes_valid_tale_and_reports_missing(
     assert loaded.title == "Approved implementation"
     assert loaded.goal == "Deliver the approved implementation"
     assert loaded.authored_tier == "tale"
+    assert loaded.size == "small"
+    assert not loaded.size_defaulted
     assert loaded.phase_availability == "not-applicable"
     assert loaded.display_path == "plans/tale.md"
     assert not missing.validation_ok
@@ -127,7 +131,8 @@ def test_provenance_rows_follow_fields_and_match_tui_section(
             "1a67048fbac199943e9798dd65f8af8901b2986b",
         ),
     ]
-    assert rows[3:] == [
+    path_row_index = rows.index("   Path: plans:202607/tale.md")
+    assert rows[path_row_index + 1 :] == [
         " Prompt: 202607/prompts/tale.md",
         " Parent: 202607/epic.md",
         "   Bead: sase-ai.8",
@@ -408,6 +413,10 @@ def _counts_value(rows: tuple[tuple[str, Text], ...]) -> Text:
     return next(value for label, value in rows if label == " Counts: ")
 
 
+def _size_value(rows: tuple[tuple[str, Text], ...]) -> Text:
+    return next(value for label, value in rows if label == PLAN_SIZE_ROW_LABEL)
+
+
 def test_plan_field_rows_omit_counts_by_default(tmp_path: Path) -> None:
     epic = tmp_path / "epic.md"
     epic.write_text(VALID_EPIC_PLAN, encoding="utf-8")
@@ -475,7 +484,89 @@ def test_plan_field_rows_omit_counts_for_a_tale_even_when_opted_in(
 
     rows = plan_field_rows(loaded, include_counts=True)
 
-    assert [label for label, _value in rows] == ["  Title: ", "   Goal: ", "   Path: "]
+    assert [label for label, _value in rows] == [
+        "  Title: ",
+        "   Goal: ",
+        PLAN_SIZE_ROW_LABEL,
+        "   Path: ",
+    ]
+
+
+def test_plan_field_rows_render_authored_tale_size_chip(tmp_path: Path) -> None:
+    tale = tmp_path / "tale.md"
+    tale.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    loaded = load_plan_display(tale, display_path="plans/tale.md")
+
+    rows = plan_field_rows(loaded)
+    size_value = _size_value(rows)
+
+    assert loaded.size == "small"
+    assert not loaded.size_defaulted
+    assert [label for label, _value in rows] == [
+        "  Title: ",
+        "   Goal: ",
+        PLAN_SIZE_ROW_LABEL,
+        "   Path: ",
+    ]
+    assert cell_len(PLAN_SIZE_ROW_LABEL) == PLAN_FIELD_LABEL_WIDTH
+    assert size_value.plain == " small "
+    assert str(size_value.style) == PHASE_SIZE_STYLES["small"]
+
+
+def test_plan_field_rows_render_legacy_tale_size_as_defaulted(
+    tmp_path: Path,
+) -> None:
+    tale = tmp_path / "legacy.md"
+    tale.write_text(VALID_TALE_PLAN.replace("size: small\n", ""), encoding="utf-8")
+    loaded = load_plan_display(tale, display_path="plans/legacy.md")
+
+    size_value = _size_value(plan_field_rows(loaded))
+
+    assert loaded.validation_ok
+    assert loaded.size == "medium"
+    assert loaded.size_defaulted
+    assert size_value.plain == f" medium  {PHASE_SIZE_DEFAULT_MARKER}"
+    assert str(size_value.style) == PHASE_SIZE_STYLES["medium"]
+    marker_span = size_value.spans[-1]
+    assert size_value.plain[marker_span.start : marker_span.end] == (
+        f" {PHASE_SIZE_DEFAULT_MARKER}"
+    )
+    assert str(marker_span.style) == COLOR_PLAN_EMPTY
+
+
+def test_plan_field_rows_omit_plan_level_size_for_epics(tmp_path: Path) -> None:
+    epic = tmp_path / "epic.md"
+    epic.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    loaded = load_plan_display(epic, display_path="plans/epic.md")
+
+    rows = plan_field_rows(loaded)
+
+    assert loaded.size is None
+    assert not loaded.size_defaulted
+    assert PLAN_SIZE_ROW_LABEL not in [label for label, _value in rows]
+
+
+def test_plan_field_rows_render_invalid_tale_size_as_unavailable(
+    tmp_path: Path,
+) -> None:
+    tale = tmp_path / "invalid.md"
+    tale.write_text(VALID_TALE_PLAN.replace("size: small", "size: nonsense"), "utf-8")
+    loaded = load_plan_display(tale, display_path="plans/invalid.md")
+
+    size_value = _size_value(plan_field_rows(loaded))
+
+    assert not loaded.validation_ok
+    assert loaded.size is None
+    assert not loaded.size_defaulted
+    assert size_value.plain == "unavailable"
+    assert str(size_value.style) == COLOR_PLAN_EMPTY
+
+
+def test_unavailable_plan_metadata_has_no_plan_level_size(tmp_path: Path) -> None:
+    metadata = load_plan_display(tmp_path / "missing.md")
+
+    assert metadata.size is None
+    assert not metadata.size_defaulted
 
 
 def test_plan_field_rows_report_unavailable_counts_when_phase_data_is_unavailable(

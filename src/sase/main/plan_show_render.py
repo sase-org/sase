@@ -22,7 +22,12 @@ from rich.text import Text
 from sase import plan_style
 from sase.cli_show_palette import SECTION_COLOR
 from sase.markdown_wrap import wrap_markdown
-from sase.phase_size_presentation import PHASE_SIZE_CHIP_WIDTH, phase_size_chip
+from sase.phase_size_presentation import (
+    PHASE_SIZE_CHIP_WIDTH,
+    PhaseSizeValue,
+    normalize_phase_size,
+    phase_size_chip,
+)
 from sase.plan_show.model import (
     PlanShowAmbiguity,
     PlanShowMiss,
@@ -36,12 +41,14 @@ from sase.sdd.plan_display import (
     COLOR_PLAN_PRIMARY,
     COLOR_PLAN_REASON,
     COLOR_PLAN_SUMMARY,
+    PLAN_SIZE_ROW_LABEL,
     PlanDisplay,
     PlanDisplayPhase,
     plan_field_rows,
     plan_phase_metadata,
     plan_provenance_rows,
 )
+from sase.sdd.plan_validate import LEGACY_TALE_LAUNCH_SIZE
 
 _LABEL_WIDTH = 12
 _TITLE_STYLE = "bold"
@@ -53,6 +60,7 @@ _TITLE_STYLE = "bold"
 def _plan_display(record: PlanShowRecord) -> PlanDisplay:
     """Bridge a show record into the value the TUI PLAN-lane renderers take."""
     plan = record.plan
+    size, size_defaulted = _plan_size(plan)
     phases = tuple(
         PlanDisplayPhase(
             id=phase.id,
@@ -98,7 +106,20 @@ def _plan_display(record: PlanShowRecord) -> PlanDisplay:
         validation_ok=plan.validation.ok,
         validation_diagnostics=plan.validation.diagnostics,
         provenance=provenance,
+        size=size,
+        size_defaulted=size_defaulted,
     )
+
+
+def _plan_size(plan: PlanShowPlan) -> tuple[PhaseSizeValue | None, bool]:
+    if plan.tier != "tale":
+        return None, False
+    size = normalize_phase_size(plan.frontmatter.get("size"))
+    if size is not None or "size" in plan.frontmatter:
+        return size, False
+    if plan.validation.ok:
+        return normalize_phase_size(LEGACY_TALE_LAUNCH_SIZE), True
+    return None, False
 
 
 class _ProvenanceRow:
@@ -186,12 +207,16 @@ def _proposal_table(proposal: PlanShowProposal) -> Table:
 def _properties(record: PlanShowRecord) -> Table:
     plan = record.plan
     field_rows = plan_field_rows(_plan_display(record))
+    field_values = dict(field_rows)
     table = _detail_table()
     _add_row(
         table, "reference", Text(plan.reference or "(none)", style=COLOR_PLAN_PATH)
     )
-    table.add_row("", "title", field_rows[0][1])
-    table.add_row("", "goal", field_rows[1][1])
+    table.add_row("", "title", field_values["  Title: "])
+    table.add_row("", "goal", field_values["   Goal: "])
+    size_value = field_values.get(PLAN_SIZE_ROW_LABEL)
+    if size_value is not None:
+        table.add_row("", "size", size_value)
     _add_row(table, "tier", plan.tier or "unavailable")
     _add_row(table, "status", plan.status or "-")
     _add_row(table, "created", plan.created_at or "-")

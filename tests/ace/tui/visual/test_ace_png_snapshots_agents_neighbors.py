@@ -145,6 +145,7 @@ def _lane_neighbor_agents_with_plan(tmp_path: Path) -> list[Agent]:
         "goal: >\n"
         "  Keep a lane's numbered neighbors reachable without scrolling past the\n"
         "  context, slow-call, and error sections.\n"
+        "size: medium\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",

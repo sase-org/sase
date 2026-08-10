@@ -15,7 +15,8 @@ from typing import Any
 from sase.core.rust import require_rust_binding
 
 PLAN_WIRE_SCHEMA_VERSION = 3
-_LEGACY_TALE_LAUNCH_SIZE = "medium"
+LEGACY_TALE_LAUNCH_SIZE = "medium"
+_LEGACY_TALE_LAUNCH_SIZE = LEGACY_TALE_LAUNCH_SIZE
 
 
 class PlanDiagnosticSeverity(StrEnum):
@@ -313,6 +314,7 @@ def _file_error(
 
 
 __all__ = [
+    "LEGACY_TALE_LAUNCH_SIZE",
     "PLAN_WIRE_SCHEMA_VERSION",
     "PlanDiagnostic",
     "PlanDiagnosticSeverity",

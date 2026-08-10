@@ -134,6 +134,7 @@ def _plan_section() -> ResponsivePlanSection:
             frontmatter_readable=True,
             phase_availability="not-applicable",
             phases=(),
+            size="medium",
         )
     )
 
@@ -215,6 +216,7 @@ def test_plan_only_context_renders_plan_lane_and_returns_its_range() -> None:
     assert "SASE CONTEXT\n" in text.plain
     assert "▸ PLAN · tale\n" in text.plain
     assert "  Title: Plan lane\n" in text.plain
+    assert "   Size:  medium " in text.plain
     assert "▸ MEMORY" not in text.plain
     assert "▸ SKILLS" not in text.plain
     assert "▸ WORKSPACES" not in text.plain
@@ -276,6 +278,7 @@ def test_task_authored_plan_context_renders_bead_then_plan_lane() -> None:
     assert "▸ BEAD · ◆ task sase-task\n" in plain
     assert "  Task Title: Task authored a plan\n" in plain
     assert "▸ PLAN · tale\n" in plain
+    assert "   Size:  medium " in plain
     assert plain.index("▸ BEAD") < plain.index("▸ PLAN")
 
 

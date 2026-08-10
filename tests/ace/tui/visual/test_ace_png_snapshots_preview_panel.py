@@ -306,6 +306,7 @@ new file mode 100644
                 "---\n"
                 "title: View associated plans from the commit panel\n"
                 "tier: tale\n"
+                "size: small\n"
                 "---\n\n"
                 "# Plan\n\n"
                 "## Modal behavior\n\n"

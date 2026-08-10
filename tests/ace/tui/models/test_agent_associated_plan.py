@@ -47,6 +47,8 @@ def test_pending_tale_maps_to_tale_and_uses_home_shortened_archive(
     assert summary.goal == "Deliver the pending plan"
     assert summary.authored_tier == "tale"
     assert summary.effective_tier == "tale"
+    assert summary.size == "small"
+    assert not summary.size_defaulted
     assert summary.display_path == "~/.sase/plans/202607/pending.md"
     assert summary.actual_path == str(plan.resolve())
     assert summary.committed is None

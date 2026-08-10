@@ -22,6 +22,8 @@ def plan_summary(
     title: str | None = "Required plan titles",
     goal: str | None = "Make agent intent immediately legible.",
     tier: str | None = "plan",
+    size: str | None = "medium",
+    size_defaulted: bool = False,
     actual_path: str = "/tmp/workspace/sase/repos/plans/202607/plan.md",
     display_path: str = "sase/repos/plans/202607/plan.md",
     exists: bool = True,
@@ -41,6 +43,8 @@ def plan_summary(
         frontmatter_readable=exists,
         phase_availability=phase_availability,  # type: ignore[arg-type]
         phases=phases,
+        size=None if tier == "epic" else size,  # type: ignore[arg-type]
+        size_defaulted=tier != "epic" and size_defaulted,
     )
 
 

@@ -59,6 +59,8 @@ def build_associated_plan_summary(
         phases=(metadata.phases if availability == "available" else ()),
         validation_ok=metadata.validation_ok,
         validation_diagnostics=metadata.validation_diagnostics,
+        size=metadata.size,
+        size_defaulted=metadata.size_defaulted,
     )
 
 

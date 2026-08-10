@@ -118,6 +118,7 @@ _EPIC_CLAN_SUMMARY_WITH_PROMPT_HINTS = _render_plan_summary(
         phase_availability="not-applicable",
         phases=(),
         validation_ok=True,
+        size="small",
         provenance=(
             PlanProvenanceSection(
                 kind=PlanHeaderSectionKind.PROMPT,

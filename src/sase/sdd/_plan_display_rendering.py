@@ -11,6 +11,7 @@ from rich.text import Text
 
 from sase.phase_size_presentation import (
     PHASE_SIZE_CHIP_WIDTH,
+    PHASE_SIZE_DEFAULT_MARKER,
     phase_size_chip,
 )
 from sase.sdd.plan_header_block import PlanHeaderSectionKind
@@ -25,6 +26,7 @@ from ._plan_display_models import (
 PLAN_SECTION_LABEL = "PLAN"
 PLAN_SECTION_MAX_WIDTH = 80
 PLAN_FIELD_LABEL_WIDTH = cell_len("  Title: ")
+PLAN_SIZE_ROW_LABEL = "   Size: "
 BEAD_PAGE_ROW_LABEL = "   Page: "
 
 COLOR_PLAN_SUBHEADER = "bold #AF87FF"
@@ -110,7 +112,7 @@ def plan_field_rows(
     hint_number: int | None = None,
     include_counts: bool = False,
 ) -> tuple[tuple[str, Text], ...]:
-    """Build the canonical Title/Goal/[Counts/]Path rows in display order.
+    """Build the canonical Title/Goal/[Size/][Counts/]Path rows in order.
 
     ``include_counts`` is opt-in: it exists for callers that replace the PLAN
     lane header (and its "N phases" detail) with their own header, so the
@@ -121,7 +123,13 @@ def plan_field_rows(
         ("  Title: ", _title_value(summary)),
         ("   Goal: ", _goal_value(summary)),
     ]
-    if include_counts and summary.phase_availability != "not-applicable":
+    if summary.authored_tier == "tale":
+        rows.append((PLAN_SIZE_ROW_LABEL, _size_value(summary)))
+    if (
+        include_counts
+        and summary.authored_tier != "tale"
+        and summary.phase_availability != "not-applicable"
+    ):
         rows.append((" Counts: ", _counts_value(summary)))
     rows.append(("   Path: ", _path_value(summary, hint_number=hint_number)))
     return tuple(rows)
@@ -314,6 +322,13 @@ def _goal_value(summary: PlanDisplay) -> Text:
     if summary.goal:
         return Text(summary.goal, style=COLOR_PLAN_REASON)
     return Text("unavailable", style=COLOR_PLAN_EMPTY)
+
+
+def _size_value(summary: PlanDisplay) -> Text:
+    text = phase_size_chip(summary.size, unavailable_style=COLOR_PLAN_EMPTY)
+    if summary.size_defaulted:
+        text.append(f" {PHASE_SIZE_DEFAULT_MARKER}", style=COLOR_PLAN_EMPTY)
+    return text
 
 
 def _path_value(summary: PlanDisplay, *, hint_number: int | None) -> Text:
@@ -511,6 +526,7 @@ __all__ = [
     "PLAN_PROVENANCE_ENTRY_LIMIT",
     "PLAN_SECTION_LABEL",
     "PLAN_SECTION_MAX_WIDTH",
+    "PLAN_SIZE_ROW_LABEL",
     "bead_page_url_text",
     "plan_field_rows",
     "plan_lane_details",
