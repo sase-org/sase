@@ -43,6 +43,7 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
             "model_aliases": {
                 "builtin": {
                     "coder": "@worker",
+                    "claude_coder": "@default",
                     "phase_worker": "@nope",
                     "epic_creator": "@default",
                     "epic_lander": "claude/opus",
@@ -57,6 +58,11 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
     assert "model_aliases.builtin.coder" in by_key
     assert "retired" in by_key["model_aliases.builtin.coder"]
+    assert "model_aliases.builtin.claude_coder" in by_key
+    assert (
+        "planner-provider coder aliases no longer exist"
+        in by_key["model_aliases.builtin.claude_coder"]
+    )
     assert "model_aliases.builtin.phase_worker" in by_key
     assert "medium_phase_worker" in by_key["model_aliases.builtin.phase_worker"]
     assert "remove it" in by_key["model_aliases.builtin.phase_worker"]
@@ -79,9 +85,14 @@ def test_model_aliases_accepts_reference_effort_and_parses_problem_aliases(
             "model_aliases": {
                 "builtin": {
                     "medium_phase_worker": "@default@high",
-                    "coder": "@nope@high",
                     "epic_lander": "@phase_worker@high",
-                }
+                },
+                "custom": {
+                    "blogger": {
+                        "model": "@nope@high",
+                        "description": "Blogging alias.",
+                    }
+                },
             }
         },
     )
@@ -91,7 +102,10 @@ def test_model_aliases_accepts_reference_effort_and_parses_problem_aliases(
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
     assert "model_aliases.builtin.medium_phase_worker" not in by_key
-    assert "references unknown alias '@nope'" in by_key["model_aliases.builtin.coder"]
+    assert (
+        "references unknown alias '@nope'"
+        in by_key["model_aliases.custom.blogger.model"]
+    )
     assert (
         "references the retired '@phase_worker' alias"
         in by_key["model_aliases.builtin.epic_lander"]
@@ -110,7 +124,7 @@ def test_model_aliases_warns_on_nested_schema_misuse(
                     "shadow": "claude/haiku",
                 },
                 "custom": {
-                    "coder": {
+                    "small_phase_worker": {
                         "model": "claude/opus",
                         "description": "Wrong location.",
                     },
@@ -137,8 +151,8 @@ def test_model_aliases_warns_on_nested_schema_misuse(
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
     assert "model_aliases.builtin.blogger" in by_key
     assert "model_aliases.custom" in by_key["model_aliases.builtin.blogger"]
-    assert "model_aliases.custom.coder" in by_key
-    assert "builtin alias" in by_key["model_aliases.custom.coder"]
+    assert "model_aliases.custom.small_phase_worker" in by_key
+    assert "builtin alias" in by_key["model_aliases.custom.small_phase_worker"]
     assert "model_aliases.builtin.shadow" in by_key
     assert (
         "both model_aliases.builtin and model_aliases.custom"
@@ -172,7 +186,7 @@ def test_model_aliases_warns_on_legacy_flat_and_top_level_custom(
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
     assert "model_aliases.coder" in by_key
-    assert "model_aliases.builtin.coder" in by_key["model_aliases.coder"]
+    assert "model_aliases.custom.coder" in by_key["model_aliases.coder"]
     assert "model_aliases.blogger" in by_key
     assert "model_aliases.custom.blogger" in by_key["model_aliases.blogger"]
     assert "custom_model_aliases" in by_key
@@ -186,7 +200,7 @@ def test_model_aliases_ok_when_config_is_clean(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
             "model_aliases": {
-                "builtin": {"coder": "@default"},
+                "builtin": {"default": "claude/opus"},
                 "custom": {
                     "big": {
                         "model": "claude/opus",
@@ -291,7 +305,7 @@ def test_model_aliases_warns_on_dangling_bucket_metadata(
 
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
-    assert "model_aliases.buckets.coders" not in by_key
+    assert "model_aliases.buckets.coders" in by_key
     assert "model_aliases.buckets.phase_worker" not in by_key
     assert "model_aliases.buckets.research" not in by_key
     assert "model_aliases.buckets.unused" in by_key

@@ -831,8 +831,6 @@ llm_provider:
   model_aliases:
     builtin:
       default: opus # model used when a prompt has no %model directive
-      claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
-      codex_coder: claude/opus # coder follow-ups from Codex-authored plans
       big_epic_lander: codex/gpt-5.6-sol # threshold-selected epic landers
       cheap: claude/haiku | codex/gpt-4.1-mini # custom small-phase pool
       cheaper: claude/haiku@minimal | codex/gpt-4.1-mini@low # custom xsmall pool
@@ -848,23 +846,21 @@ llm_provider:
         model: claude/opus
         description: Agents that draft and edit blog posts.
     buckets:
-      coders:
-        description: Coder defaults and provider-specific follow-ups.
       phase_worker:
         description: Size-specific phase-agent roles.
 ```
 
 ### Config Fields
 
-| Field                                | Type   | Default     | Description                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------ | ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback. `muse` declares no priority and is never auto-detected; select it explicitly.                                                                                                                                  |
-| `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                                                                                                               |
-| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                                                                                                                                    |
-| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                                                                                                                                    |
-| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only (`default`, `coder`, `<provider>_coder`, `epic_lander`, `big_epic_lander`, `<size>_phase_worker`, `smartest`, `smart`, `cheap`, `cheaper`, `cheapest`). Values use the single-target grammar below, a `\|` round-robin pool, or a `\|\|` ordered fallback. The retired `epic_creator` and `phase_worker` names are no longer builtin overrides; `sase doctor` reports them. |
-| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` accepts the same single-target and selector grammar. Descriptions are shown in completions and the Models panel.                                                                                                                                             |
-| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                                                                                                                                                                                                              |
+| Field                                | Type   | Default     | Description                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------ | ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback. `muse` declares no priority and is never auto-detected; select it explicitly.                                                                                                                               |
+| `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                                                                                                            |
+| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                                                                                                                                 |
+| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                                                                                                                                 |
+| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only (`default`, `epic_lander`, `big_epic_lander`, `<size>_phase_worker`, `smartest`, `smart`, `cheap`, `cheaper`, `cheapest`). Values use the single-target grammar below, a `\|` round-robin pool, or a `\|\|` ordered fallback. Retired `coder`, `<provider>_coder`, `epic_creator`, and `phase_worker` names are no longer builtin overrides; `sase doctor` reports them. |
+| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` accepts the same single-target and selector grammar. Descriptions are shown in completions and the Models panel.                                                                                                                                          |
+| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                                                                                                                                                                                                           |
 
 ## Per-Prompt Provider Switching
 
@@ -894,7 +890,7 @@ llm_provider:
   model_aliases:
     builtin:
       default: opus
-      coder: "@default"
+      medium_phase_worker: "@default"
 ```
 
 Then prompts can use the alias with a leading `@`:
@@ -904,16 +900,16 @@ Then prompts can use the alias with a leading `@`:
 %{%m:@default | %m:gpt-5.6-sol}
 ```
 
-Alias values may point at another alias (for example `@default` or `@coder`), a bare
-known model such as `opus`, an explicit provider/model string such as `claude/opus`, or
-a nested provider-local path such as `opencode/anthropic/claude-sonnet-4-5`. An alias
-reference may carry a trailing effort such as `@default@high`, which overrides the
-referenced alias's effort; an effort on the outer reference still wins. Alias-to-alias
-chains are followed with cycle and depth protection; a cyclic or unresolved reference
-falls back to the raw input rather than crashing a launch. The `@` marker is only
-directive surface syntax: alias keys and xprompt values stay bare. A bare
-configured/implicit alias raises with a migration hint, and `@` in front of a non-alias
-raises.
+Alias values may point at another alias (for example `@default` or
+`@medium_phase_worker`), a bare known model such as `opus`, an explicit provider/model
+string such as `claude/opus`, or a nested provider-local path such as
+`opencode/anthropic/claude-sonnet-4-5`. An alias reference may carry a trailing effort
+such as `@default@high`, which overrides the referenced alias's effort; an effort on the
+outer reference still wins. Alias-to-alias chains are followed with cycle and depth
+protection; a cyclic or unresolved reference falls back to the raw input rather than
+crashing a launch. The `@` marker is only directive surface syntax: alias keys and
+xprompt values stay bare. A bare configured/implicit alias raises with a migration hint,
+and `@` in front of a non-alias raises.
 
 An alias value can instead use one of two selector operators. `A | B` is an
 availability-filtered round-robin pool: real launches advance machine-global state in
@@ -956,14 +952,13 @@ after the colon narrows the menu to aliases only. See
 is read-only; the ACE Models panel (`,m`) remains the authoritative place to edit alias
 targets and to set or clear temporary overrides.
 
-The ACE Models panel supplies two built-in buckets without changing resolution,
-completion, launch routing, or config paths. `coders` folds together `@coder` and all
-registered `@<provider>_coder` aliases; `phase_worker` folds together the five
+The ACE Models panel supplies one built-in bucket without changing resolution,
+completion, launch routing, or config paths. `phase_worker` folds together the five
 `@<size>_phase_worker` aliases. A collapsed bucket summarizes its effective-model mix
 and active overrides; opening it exposes independently editable aliases. Optional
-`model_aliases.buckets.<bucket>.description` metadata replaces either built-in
-description, and a custom alias tagged with `bucket: coders` or `bucket: phase_worker`
-coalesces into that display bucket.
+`model_aliases.buckets.phase_worker.description` metadata replaces the built-in
+description, and a custom alias tagged with `bucket: phase_worker` coalesces into that
+display bucket.
 
 A bare `%model` token that is _not_ a configured alias, an explicit `provider/model`
 target, or a known provider model silently falls back to the default provider rather
@@ -977,18 +972,15 @@ The check is provider-neutral and read-only.
 
 On top of any aliases you configure, SASE always exposes a fixed set of **implicit role
 aliases** that resolve even when you have not defined them. Most fall back through other
-aliases to `@default`; every provider-coder alias inherits `@coder`, and `@coder` ships
-with its own concrete target. `@medium_phase_worker` and `@smartest` also own concrete
-targets, while `@cheap`, `@cheaper`, and `@cheapest` own independent built-in pools. The
-current shipped defaults are generated from
-`src/sase/llm_provider/model_alias_defaults.yml`:
+aliases to `@default`. `@medium_phase_worker` and `@smartest` also own concrete targets,
+while `@cheap`, `@cheaper`, and `@cheapest` own independent built-in pools. The current
+shipped defaults are generated from `src/sase/llm_provider/model_alias_defaults.yml`:
 
 <!-- BEGIN GENERATED: model-alias-defaults -->
 
 | Alias                  | Description                                                                                      | Shipped default                                                                         |
 | ---------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | `@default`             | Model used when a prompt has no %model directive; every other alias ultimately falls back to it. | Configured `model_aliases.builtin.default`, else the provider's requested-tier default. |
-| `@coder`               | Common coder follow-up default inherited by unconfigured &lt;provider&gt;\_coder aliases.        | `codex/gpt-5.5`                                                                         |
 | `@epic_lander`         | Epic land agents that finalize and submit an epic.                                               | `@default`                                                                              |
 | `@big_epic_lander`     | Epic land agents selected for plans at or above the configured phase-count threshold.            | `@smartest`                                                                             |
 | `@xsmall_phase_worker` | Extra-small bead phase agents that implement the simplest tasks directly.                        | `@cheaper`                                                                              |
@@ -1004,30 +996,25 @@ current shipped defaults are generated from
 
 <!-- END GENERATED: model-alias-defaults -->
 
-Override any role by configuring an alias of the same name. For provider-coder aliases,
-precedence is launch-scoped specific/generic coder value, provider-specific
-temporary/configured value, then the generic temporary/configured or implicit `@coder`
-value. An outer effort suffix and an approval-time concrete model remain authoritative.
-Out of the box, coder follow-ups are independent of `@default`; configure
-`coder: "@default"` if you want them to track the normal launch lane. A common setup
-routes coder follow-ups to a second provider while normal epic landers track `@default`.
-Threshold-selected epic landers deliberately diverge through `@big_epic_lander` →
-`@smartest`, so an `epic_lander` override affects only below-threshold epics; configure
-`big_epic_lander` directly to replace the large-epic policy. Phase sizes likewise
-diverge: xsmall uses `@cheaper`, small uses `@cheap`, medium uses
-`@medium_phase_worker`, large uses `@smart`, and xlarge uses `@smartest`. The implicit
-`@medium_phase_worker` and `@smartest` values own concrete targets and efforts that
-their dependent roles inherit. A configured alias value or temporary override still
-takes precedence over those targets and efforts. The standalone `@cheapest` pool has no
-automatic consumer and is available for explicit launches with its own rotation:
+Override any role by configuring an alias of the same name. An outer effort suffix and
+an approval-time concrete model remain authoritative. Accepted tale follow-ups without
+an explicit model use the validated tale size to choose one of the phase-worker aliases;
+legacy sizeless tales normalize to `@medium_phase_worker`. Threshold-selected epic
+landers deliberately diverge through `@big_epic_lander` → `@smartest`, so an
+`epic_lander` override affects only below-threshold epics; configure `big_epic_lander`
+directly to replace the large-epic policy. Phase sizes likewise diverge: xsmall uses
+`@cheaper`, small uses `@cheap`, medium uses `@medium_phase_worker`, large uses
+`@smart`, and xlarge uses `@smartest`. The implicit `@medium_phase_worker` and
+`@smartest` values own concrete targets and efforts that their dependent roles inherit.
+A configured alias value or temporary override still takes precedence over those targets
+and efforts. The standalone `@cheapest` pool has no automatic consumer and is available
+for explicit launches with its own rotation:
 
 ```yaml
 llm_provider:
   model_aliases:
     builtin:
       default: opus
-      claude_coder: codex/gpt-5.6-sol # Claude-authored plans hand coding to Codex
-      codex_coder: claude/opus # Codex-authored plans hand coding to Claude
       big_epic_lander: codex/gpt-5.6-sol # large epic land agents only
       cheap: claude/haiku | codex/gpt-4.1-mini
       cheaper: claude/haiku@minimal | codex/gpt-4.1-mini@low
@@ -1049,7 +1036,7 @@ A prompt can override these aliases for its SASE-created launch lineage with key
 arguments on `%model(...)`:
 
 ```text
-%model(opus, coder=codex/gpt-5.6-sol)
+%model(opus, medium_phase_worker=codex/gpt-5.6-sol)
 %model(medium_phase_worker=claude/sonnet)
 ```
 
@@ -1072,13 +1059,15 @@ resolved through this launch map. See
 for syntax and validation rules.
 
 > **Migration note:** the previously reserved `@worker` and `@other` aliases were
-> removed (epic sase-5d). Route delegated work through `@coder`, a size-specific phase
-> alias, or an explicit model instead of `@worker`, and use `@default` instead of
-> `@other`. `@phase_worker` is no longer builtin; move a stale builtin override to
+> removed (epic sase-5d). Route delegated work through a size-specific phase alias, or
+> an explicit model instead of `@worker`, and use `@default` instead of `@other`.
+> `@phase_worker` is no longer builtin; move a stale builtin override to
 > `medium_phase_worker` or define it deliberately under `model_aliases.custom`.
 > `@epic_creator` is retired outright — SASE no longer launches an epic-creator role, so
-> delete the entry rather than repointing it. `sase doctor` flags stale config and names
-> the replacement for each retired alias.
+> delete the entry rather than repointing it. `@coder` and registered
+> `@<provider>_coder` builtin aliases are retired as well; accepted tales now route by
+> validated tale size. `sase doctor` flags stale config and names the replacement for
+> each retired alias.
 
 ### Explicit Provider/Model Syntax
 
@@ -1308,10 +1297,10 @@ requests.
 Delegated launches do not use a separate "worker lane". Instead, each delegated role
 resolves through an [implicit role alias](#implicit-role-aliases):
 
-- **Coder follow-ups** from an accepted plan use `@<provider>_coder` for the planner's
-  provider. `@claude_coder` and `@codex_coder` are distinct aliases, but like every
-  registered provider-coder alias they default to `@coder`. Missing planner-provider
-  metadata selects generic `@coder` directly.
+- **Coder follow-ups** from an accepted tale use the validated tale size to select
+  `@xsmall_phase_worker`, `@small_phase_worker`, `@medium_phase_worker`,
+  `@large_phase_worker`, or `@xlarge_phase_worker`. Legacy tale plans without size
+  metadata use `@medium_phase_worker`.
 - **`sase bead work` phase agents** without an explicit per-bead model use the alias
   matching their normalized size: `@xsmall_phase_worker`, `@small_phase_worker`,
   `@medium_phase_worker`, `@large_phase_worker`, or `@xlarge_phase_worker`. See
@@ -1344,8 +1333,6 @@ llm_provider:
   model_aliases:
     builtin:
       default: opus
-      claude_coder: codex/gpt-5.6-sol # Claude-authored plans hand coding to Codex
-      codex_coder: claude/opus # Codex-authored plans hand coding to Claude
       cheap: claude/haiku | codex/gpt-4.1-mini
       cheaper: claude/haiku@minimal | codex/gpt-4.1-mini@low
       cheapest: claude/haiku@minimal | codex/gpt-4o-mini
@@ -1377,9 +1364,9 @@ clearing these overrides — for the `default` alias or any role/user alias.
 The panel also shows a two-line description for the highlighted alias or bucket. Builtin
 aliases have fixed descriptions, custom aliases read
 `llm_provider.model_aliases.custom.<name>.description`, selector aliases list each
-member, its current availability, and the current selection, and the built-in `coders`
-and `phase_worker` buckets report their aggregate effective-model-and-effort mix and
-active override count. The title shows the launch-effective default effort and current
+member, its current availability, and the current selection, and the built-in
+`phase_worker` bucket reports its aggregate effective-model-and-effort mix and active
+override count. The title shows the launch-effective default effort and current
 effective `max_running_agents` cap; active temporary values include their remaining time
 and configured provenance. Non-pool aliases that explicitly carry an effort explain its
 provenance on the second description line.
@@ -1401,10 +1388,11 @@ do not change:
 - An explicit `provider_name=` argument to `invoke_agent()` — it still wins.
 
 An override may carry a canonical reasoning-effort suffix, such as
-`codex/gpt-5.6-sol@medium` or `@coder@medium`. The write resolves and snapshots the
-clean provider/model plus `medium`, while preserving the original `raw_model`. That
-effort survives state reloads and shapes the next matching launch. An explicit outer
-reference such as `@coder@xhigh` still wins over the stored override effort.
+`codex/gpt-5.6-sol@medium` or `@medium_phase_worker@medium`. The write resolves and
+snapshots the clean provider/model plus `medium`, while preserving the original
+`raw_model`. That effort survives state reloads and shapes the next matching launch. An
+explicit outer reference such as `@medium_phase_worker@xhigh` still wins over the stored
+override effort.
 
 `SASE_MODEL_TIER_OVERRIDE` / `SASE_MODEL_SIZE_OVERRIDE` still force the tier for
 tier-based launches. A concrete temporary override supplies a provider and model
@@ -1424,11 +1412,7 @@ default is resolved as:
 For every alias, including `default`, `resolve_model_alias()` consults the launch-scoped
 map first, then that alias's active machine-wide override, then its configured/implicit
 value. The implicit `default` value is the configured or autodetected provider's
-requested-tier model. This order applies at every nested alias hop. At a
-provider-specific `<provider>_coder` hop, a launch-scoped specific value beats a
-launch-scoped generic `coder` value; both beat provider-specific temporary/configured
-values. The alias then falls through to the generic temporary/configured or implicit
-`@coder` value.
+requested-tier model. This order applies at every nested alias hop.
 
 A concrete temporary override sets both the default provider and a concrete
 `model_override` for the next launch — so the agent metadata (running marker, plan

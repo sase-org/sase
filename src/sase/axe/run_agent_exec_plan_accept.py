@@ -31,16 +31,14 @@ from sase.axe.run_agent_helpers import (
     update_meta_field,
 )
 from sase.llm_provider.config import (
-    CODER_MODEL_ALIAS_NAME,
-    coder_model_alias_for_provider,
     format_model_directive_value,
-    role_model_directive_value,
 )
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     plan_chain_agent_name,
 )
+from sase.tale_followup_routing import validated_tale_followup_model_directive
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -123,8 +121,9 @@ class _FollowupModel:
     """The follow-up agent's model directive prefix and the meta to record.
 
     ``model_prefix`` is prepended to the generated follow-up prompt (e.g.
-    ``"%model:codex/gpt-5.6-sol\n"`` or ``"%model:@claude_coder\n"``).  ``meta`` is
-    the ``(provider_or_none, model)`` to write into the follow-up's
+    ``"%model:codex/gpt-5.6-sol\n"`` or
+    ``"%model:@medium_phase_worker\n"``). ``meta`` is the
+    ``(provider_or_none, model)`` to write into the follow-up's
     ``agent_meta.json`` so the recorded model matches the directive; it is
     ``None`` when the inherited planner metadata is already correct and the
     rewrite should be skipped.
@@ -143,23 +142,9 @@ def _resolve_model_meta(model_directive: str) -> tuple[str | None, str]:
     return resolve_model_provider(clean_model)
 
 
-def _resolve_coder_alias_followup(ctx: AgentExecContext) -> _FollowupModel:
-    """Route a coder follow-up through the planner provider's coder alias.
-
-    Emits ``%model:@<planner_provider>_coder`` when the planner recorded its
-    provider (e.g. ``%model:@claude_coder`` for a Claude-authored plan, or
-    ``%model:@codex_coder`` for a Codex one), and the generic ``%model:@coder``
-    when planner provider metadata is missing. The recorded meta resolves the
-    alias chain to the concrete ``(provider, model)`` the launch will actually
-    use so display and behavior stay in sync.
-    """
-    planner_provider = (ctx.agent_llm_provider or "").strip()
-    alias = (
-        coder_model_alias_for_provider(planner_provider)
-        if planner_provider
-        else CODER_MODEL_ALIAS_NAME
-    )
-    directive = role_model_directive_value(alias)
+def _resolve_tale_size_followup(plan_file: str | Path) -> _FollowupModel:
+    """Route a coder follow-up through the tale's size-specific worker alias."""
+    directive = validated_tale_followup_model_directive(plan_file)
     return _FollowupModel(
         model_prefix=f"%model:{directive}\n",
         meta=_resolve_model_meta(directive),
@@ -169,6 +154,8 @@ def _resolve_coder_alias_followup(ctx: AgentExecContext) -> _FollowupModel:
 def _resolve_followup_model(
     plan_result: Any,
     ctx: AgentExecContext,
+    *,
+    followup_plan_file: str | Path,
 ) -> _FollowupModel:
     """Decide the follow-up agent's ``%model`` prefix and recorded metadata.
 
@@ -177,9 +164,9 @@ def _resolve_followup_model(
     1. An explicit approval picker model (``plan_result.coder_model``) other
        than the legacy ``"worker"`` sentinel wins; its meta is recorded unless
        it equals the planner's model (the inherited meta is already correct).
-    2. Otherwise coder follow-ups (``approve`` / ``tale``) route through the
-       planner provider's coder alias (``%model:@<planner_provider>_coder``, or
-       ``%model:@coder`` when planner provider metadata is missing).
+    2. Otherwise coder follow-ups (``approve`` / ``tale``) validate the plan
+       being handed off as a launch-mode tale and route through that tale's
+       size-specific phase-worker alias.
 
     A ``%model`` directive embedded in a custom coder prompt is handled by the
     caller and supersedes this result.
@@ -193,7 +180,22 @@ def _resolve_followup_model(
             model_prefix=prefix, meta=_resolve_model_meta(coder_model)
         )
 
-    return _resolve_coder_alias_followup(ctx)
+    return _resolve_tale_size_followup(followup_plan_file)
+
+
+def _custom_coder_prompt_model(coder_prompt: str | None) -> str | None:
+    """Return an explicit custom-prompt model directive, if one is present."""
+    if not coder_prompt:
+        return None
+    from sase.xprompt._exceptions import DirectiveError
+    from sase.xprompt.directives import extract_prompt_directives, has_model_directive
+
+    if not has_model_directive(coder_prompt):
+        return None
+    coder_prompt_model = extract_prompt_directives(coder_prompt)[1].model
+    if not coder_prompt_model:
+        raise DirectiveError("Custom coder prompt model directive requires a model")
+    return coder_prompt_model
 
 
 def _write_followup_model_meta(state: LoopState, followup: _FollowupModel) -> None:
@@ -584,9 +586,25 @@ def handle_accepted_plan(
     # run after the follow-up agent.
     embedded_refs = get_embedded_workflow_refs(state.current_artifacts_dir, ctx.vcs_tag)
 
-    # Decide the coder follow-up model: an explicit picker model wins; otherwise
-    # route through the planner provider's coder alias (``@<provider>_coder``).
-    followup_model = _resolve_followup_model(plan_result, ctx)
+    followup_plan_file = (
+        sdd_plan_path
+        if plan_committed and sdd_plan_path
+        else Path(plan_result.plan_file)
+    )
+    custom_prompt_model = _custom_coder_prompt_model(plan_result.coder_prompt)
+    if custom_prompt_model is not None:
+        followup_model = _FollowupModel(
+            model_prefix="",
+            meta=_resolve_model_meta(custom_prompt_model),
+        )
+    else:
+        # Decide the coder follow-up model: an explicit picker model wins; otherwise
+        # route through the handoff tale's size-derived phase-worker alias.
+        followup_model = _resolve_followup_model(
+            plan_result,
+            ctx,
+            followup_plan_file=followup_plan_file,
+        )
     model_prefix = followup_model.model_prefix
     followup_base_meta = _plan_followup_base_meta(ctx.agent_meta)
 
@@ -632,30 +650,6 @@ def handle_accepted_plan(
     coder_extra = ""
     if plan_result.coder_prompt:
         coder_extra = f"\n\nAdditional instructions:\n{plan_result.coder_prompt}"
-        # If the custom prompt contains its own %model/%m directive, skip the
-        # inherited model prefix to avoid a duplicate error and record that
-        # directive's model in the follow-up meta below: it is what the coder
-        # actually runs with.
-        if model_prefix:
-            from sase.xprompt._exceptions import DirectiveError
-            from sase.xprompt.directives import (
-                extract_prompt_directives,
-                has_model_directive,
-            )
-
-            if has_model_directive(plan_result.coder_prompt):
-                coder_prompt_model = extract_prompt_directives(
-                    plan_result.coder_prompt
-                )[1].model
-                if not coder_prompt_model:
-                    raise DirectiveError(
-                        "Custom coder prompt model directive requires a model"
-                    )
-                model_prefix = ""
-                followup_model = _FollowupModel(
-                    model_prefix="",
-                    meta=_resolve_model_meta(coder_prompt_model),
-                )
     _write_followup_model_meta(state, followup_model)
     # By default the coder starts with a fresh context window; the plan file
     # itself is the hand-off artifact. Set SASE_CODER_INHERIT_PLANNER_CHAT=1 to

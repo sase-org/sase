@@ -57,7 +57,7 @@ def test_on_duration_picked_cancel_is_noop(monkeypatch) -> None:
 
 async def test_action_override_opens_alias_enabled_picker(monkeypatch) -> None:
     views = [
-        make_alias_view("coder", "role"),
+        make_alias_view("medium_phase_worker", "role"),
         make_alias_view(
             "bucketed",
             "user",
@@ -84,7 +84,7 @@ async def test_action_override_opens_alias_enabled_picker(monkeypatch) -> None:
 
 
 async def test_on_duration_picked_invalid_notifies_error(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("coder", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium_phase_worker", "role")])
     monkeypatch.setattr(
         models_panel,
         "set_alias_override",
@@ -96,7 +96,7 @@ async def test_on_duration_picked_invalid_notifies_error(monkeypatch) -> None:
         panel.notify = MagicMock()  # type: ignore[method-assign]
         pilot.app.push_screen(panel)
         await pilot.pause()
-        panel._pending_alias = "coder"
+        panel._pending_alias = "medium_phase_worker"
         panel._pending_raw_model = "bad"
         panel._on_duration_picked(RelativeOverrideDuration(60.0))
         await pilot.pause()
@@ -107,7 +107,7 @@ async def test_on_duration_picked_invalid_notifies_error(monkeypatch) -> None:
 
 
 async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("coder", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium_phase_worker", "role")])
     fake = TemporaryLLMOverride(
         provider="codex",
         model="o3",
@@ -125,7 +125,7 @@ async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:
         panel.notify = MagicMock()  # type: ignore[method-assign]
         pilot.app.push_screen(panel)
         await pilot.pause()
-        panel._pending_alias = "coder"
+        panel._pending_alias = "medium_phase_worker"
         panel._on_model_picked("o3")
         await pilot.pause()
         assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
@@ -135,7 +135,9 @@ async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:
         panel._on_duration_picked(RelativeOverrideDuration(3600.0))
         await pilot.pause()
 
-    set_mock.assert_called_once_with("coder", "o3@medium", 3600.0, source="ace")
+    set_mock.assert_called_once_with(
+        "medium_phase_worker", "o3@medium", 3600.0, source="ace"
+    )
     assert "CODEX(o3)@medium" in panel.notify.call_args.args[0]
     assert panel._changed is True
 
@@ -143,13 +145,15 @@ async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:
 async def test_alias_override_flows_raw_token_through_write_time_resolution(
     monkeypatch,
 ) -> None:
-    target = make_alias_view("medium_phase_worker", "role")
-    coder = make_alias_view("coder", "role", provider="codex", model="o3")
-    patch_alias_views(monkeypatch, [target, coder])
+    target = make_alias_view("large_phase_worker", "role")
+    medium_phase_worker = make_alias_view(
+        "medium_phase_worker", "role", provider="codex", model="o3"
+    )
+    patch_alias_views(monkeypatch, [target, medium_phase_worker])
     fake = TemporaryLLMOverride(
         provider="codex",
         model="o3",
-        raw_model="@coder@medium",
+        raw_model="@medium_phase_worker@medium",
         created_at=0.0,
         expires_at=3600.0,
         source="ace",
@@ -164,26 +168,26 @@ async def test_alias_override_flows_raw_token_through_write_time_resolution(
         await pilot.pause()
         panel._pending_alias = target.name
         panel._pending_alias_selection = AliasSelectionContext(
-            (target, coder), target.name, "temporary"
+            (target, medium_phase_worker), target.name, "temporary"
         )
-        panel._on_model_picked("@coder")
+        panel._on_model_picked("@medium_phase_worker")
         await pilot.pause()
         assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
         panel._on_override_model_effort_picked(DefaultEffortLevelChoice("medium"))
         await pilot.pause()
         assert isinstance(pilot.app.screen, _DurationPickerModal)
-        assert panel._pending_raw_model == "@coder@medium"
+        assert panel._pending_raw_model == "@medium_phase_worker@medium"
         panel._on_duration_picked(RelativeOverrideDuration(3600.0))
         await pilot.pause()
 
     set_mock.assert_called_once_with(
-        "medium_phase_worker", "@coder@medium", 3600.0, source="ace"
+        "large_phase_worker", "@medium_phase_worker@medium", 3600.0, source="ace"
     )
-    assert fake.raw_model == "@coder@medium"
+    assert fake.raw_model == "@medium_phase_worker@medium"
 
 
 async def test_custom_override_rejects_self_alias(monkeypatch) -> None:
-    target = make_alias_view("coder", "role")
+    target = make_alias_view("medium_phase_worker", "role")
     patch_alias_views(monkeypatch, [target])
 
     async with ModelsPanelTestApp().run_test() as pilot:
@@ -195,7 +199,7 @@ async def test_custom_override_rejects_self_alias(monkeypatch) -> None:
         panel._pending_alias_selection = AliasSelectionContext(
             (target,), target.name, "temporary"
         )
-        panel._on_custom_picked("@coder")
+        panel._on_custom_picked("@medium_phase_worker")
         await pilot.pause()
 
         assert isinstance(pilot.app.screen, ModelsPanel)
@@ -204,13 +208,13 @@ async def test_custom_override_rejects_self_alias(monkeypatch) -> None:
 
 
 async def test_t_opens_until_modal_and_back_reopens_duration(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("coder", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium_phase_worker", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        panel._pending_alias = "coder"
+        panel._pending_alias = "medium_phase_worker"
         panel._pending_raw_model = "o3"
         panel._on_duration_picked(OPEN_OVERRIDE_UNTIL)
         await pilot.pause()
@@ -221,7 +225,7 @@ async def test_t_opens_until_modal_and_back_reopens_duration(monkeypatch) -> Non
 
 
 async def test_exact_time_flow_dispatches_exact_api(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("coder", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium_phase_worker", "role")])
     fake = TemporaryLLMOverride(
         provider="codex",
         model="o3",
@@ -247,25 +251,25 @@ async def test_exact_time_flow_dispatches_exact_api(monkeypatch) -> None:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        panel._pending_alias = "coder"
+        panel._pending_alias = "medium_phase_worker"
         panel._pending_raw_model = "o3"
         panel._on_override_until_picked(resolved)
         await pilot.pause()
         await pilot.pause()
 
-    exact_set.assert_called_once_with("coder", "o3", 2000.0, source="ace")
+    exact_set.assert_called_once_with("medium_phase_worker", "o3", 2000.0, source="ace")
     relative_set.assert_not_called()
     assert panel._changed is True
 
 
 async def test_custom_model_path_opens_input_then_duration(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("coder", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium_phase_worker", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        panel._pending_alias = "coder"
+        panel._pending_alias = "medium_phase_worker"
         panel._on_model_picked(CUSTOM_SENTINEL)
         await pilot.pause()
         assert isinstance(pilot.app.screen, CustomModelInputModal)
@@ -281,13 +285,13 @@ async def test_custom_model_path_opens_input_then_duration(monkeypatch) -> None:
 async def test_custom_override_explicit_effort_skips_effort_picker(
     monkeypatch,
 ) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("coder", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium_phase_worker", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        panel._pending_alias = "coder"
+        panel._pending_alias = "medium_phase_worker"
         panel._on_custom_picked("codex/o3@medium")
         await pilot.pause()
 
@@ -298,7 +302,7 @@ async def test_custom_override_explicit_effort_skips_effort_picker(
 async def test_custom_alias_override_explicit_effort_skips_effort_picker(
     monkeypatch,
 ) -> None:
-    target = make_alias_view("coder", "role")
+    target = make_alias_view("medium_phase_worker", "role")
     default = make_alias_view("default", "default")
     patch_alias_views(monkeypatch, [target, default])
 
@@ -306,7 +310,7 @@ async def test_custom_alias_override_explicit_effort_skips_effort_picker(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        panel._pending_alias = "coder"
+        panel._pending_alias = "medium_phase_worker"
         panel._pending_alias_selection = AliasSelectionContext(
             (target, default), target.name, "temporary"
         )
@@ -318,13 +322,13 @@ async def test_custom_alias_override_explicit_effort_skips_effort_picker(
 
 
 async def test_override_effort_cancel_does_not_open_duration(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("coder", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium_phase_worker", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        panel._pending_alias = "coder"
+        panel._pending_alias = "medium_phase_worker"
         panel._on_model_picked("o3")
         await pilot.pause()
         assert isinstance(pilot.app.screen, DefaultEffortLevelModal)

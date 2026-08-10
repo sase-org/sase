@@ -120,7 +120,7 @@ def test_custom_model_aliases_merge_over_legacy(mock_config: MagicMock) -> None:
     """The described custom map is authoritative on name collisions."""
     mock_config.return_value = {
         "model_aliases": {
-            "builtin": {"blogger": "claude/haiku", "coder": "@default"},
+            "builtin": {"blogger": "claude/haiku", "reviewer": "@default"},
             "custom": {
                 "blogger": {
                     "model": "claude/opus",
@@ -132,14 +132,12 @@ def test_custom_model_aliases_merge_over_legacy(mock_config: MagicMock) -> None:
 
     assert _get_model_aliases()["blogger"] == "claude/opus"
     assert model_alias_config_source("blogger") == "custom"
-    assert model_alias_config_source("coder") == "builtin"
+    assert model_alias_config_source("reviewer") == "builtin"
 
 
-@patch("sase.llm_provider.config._registered_provider_names")
 @patch("sase.llm_provider.config.get_llm_provider_config")
 def test_model_alias_description_builtin_and_custom(
     mock_config: MagicMock,
-    mock_providers: MagicMock,
 ) -> None:
     mock_config.return_value = {
         "model_aliases": {
@@ -152,8 +150,6 @@ def test_model_alias_description_builtin_and_custom(
             }
         }
     }
-    mock_providers.return_value = ["claude"]
-
     assert (
         model_alias_description("default")
         == FROZEN_DESCRIPTIONS[DEFAULT_MODEL_ALIAS_NAME]
@@ -185,18 +181,14 @@ def test_model_alias_description_builtin_and_custom(
         model_alias_description("cheapest")
         == FROZEN_DESCRIPTIONS[CHEAPEST_MODEL_ALIAS_NAME]
     )
-    assert model_alias_description("claude_coder") == (
-        "Coder follow-up agents for plans authored by claude."
-    )
+    assert model_alias_description("claude_coder") is None
     assert model_alias_description("blogger") == "Draft blog posts."
     assert model_alias_description("legacy_gap") is None
 
 
-@patch("sase.llm_provider.config._registered_provider_names")
 @patch("sase.llm_provider.config.get_llm_provider_config")
 def test_model_alias_names_include_configured_and_special(
     mock_config: MagicMock,
-    mock_providers: MagicMock,
 ) -> None:
     """``model_alias_names`` unions configured and special role aliases.
 
@@ -204,14 +196,12 @@ def test_model_alias_names_include_configured_and_special(
     worker lane (epic sase-5d phase 4), so they are no longer implicit.
     """
     mock_config.return_value = {"model_aliases": {"builtin": {"fast": "codex/o4-mini"}}}
-    mock_providers.return_value = ["claude", "codex"]
 
     assert model_alias_names() == {
         # user-configured
         "fast",
         # fixed implicit role aliases
         "default",
-        "coder",
         "epic_lander",
         "big_epic_lander",
         "xsmall_phase_worker",
@@ -224,9 +214,6 @@ def test_model_alias_names_include_configured_and_special(
         "cheap",
         "cheaper",
         "cheapest",
-        # per-provider coder aliases
-        "claude_coder",
-        "codex_coder",
     }
 
 

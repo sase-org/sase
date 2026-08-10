@@ -17,7 +17,6 @@ from .load_balancing import (
     select_model_alias_pool_member,
 )
 from .model_alias_policy import (
-    CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     implicit_alias_targets,
     role_alias_fallbacks,
@@ -165,17 +164,13 @@ def _resolve_model_alias_result(
             if not bare:
                 return fail()
 
-            is_provider_coder = config._is_provider_coder_alias(bare)
             known_alias = (
                 bare in aliases
                 or bare == DEFAULT_MODEL_ALIAS_NAME
                 or bare in role_fallbacks
                 or bare in role_targets
-                or is_provider_coder
             )
             launch_target = launch_overrides.get(bare) if known_alias else None
-            if launch_target is None and is_provider_coder:
-                launch_target = launch_overrides.get(CODER_MODEL_ALIAS_NAME)
             if launch_target is not None:
                 if bare in seen:
                     return fail()

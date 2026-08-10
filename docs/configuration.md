@@ -1102,12 +1102,11 @@ bounded project-scoped catalogs; commit and bug candidates are projected only fr
 already-loaded Artifacts-pane snapshots.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists
-inline-typable model names, implicit role aliases (`@default`, `@coder`,
-`@<provider>_coder`, `@epic_lander`, `@big_epic_lander`, `@xsmall_phase_worker`,
-`@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`,
-`@xlarge_phase_worker`, `@smartest`, `@smart`, `@cheap`, `@cheaper`, `@cheapest`), and
-configured model aliases; provider short aliases are shown as filter/display hints but
-are not inserted.
+inline-typable model names, implicit role aliases (`@default`, `@epic_lander`,
+`@big_epic_lander`, `@xsmall_phase_worker`, `@small_phase_worker`,
+`@medium_phase_worker`, `@large_phase_worker`, `@xlarge_phase_worker`, `@smartest`,
+`@smart`, `@cheap`, `@cheaper`, `@cheapest`), and configured model aliases; provider
+short aliases are shown as filter/display hints but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered
 workspace-provider refs and known-project refs such as `#git:<project>` or
@@ -1278,8 +1277,6 @@ llm_provider:
   model_aliases:
     builtin:
       default: opus # model used when a prompt has no %model directive
-      claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
-      codex_coder: claude/opus # coder follow-ups from Codex-authored plans
       big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
       cheap: claude/haiku | codex/gpt-4.1-mini # custom small-phase pool
       cheaper: claude/haiku@minimal | codex/gpt-4.1-mini@low # custom xsmall pool
@@ -1292,8 +1289,6 @@ llm_provider:
         model: claude/opus
         description: Agents that draft and edit blog posts.
     buckets:
-      coders:
-        description: Coder defaults and provider-specific follow-ups.
       phase_worker:
         description: Size-specific phase-agent roles.
 ```
@@ -1327,30 +1322,27 @@ launch-scoped/temporary overrides. In the ACE Models panel, the pool row reports
 available/total count, selector member lists mark the current selection with `→`, and
 active temporary overrides label selection suspended.
 
-ACE automatically supplies two display-only built-in buckets while alias resolution and
-configuration remain flat: `coders` groups `@coder` with every registered
-`@<provider>_coder`, and `phase_worker` groups `@xsmall_phase_worker`,
+ACE automatically supplies one display-only built-in bucket while alias resolution and
+configuration remain flat: `phase_worker` groups `@xsmall_phase_worker`,
 `@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, and
-`@xlarge_phase_worker`. `model_aliases.buckets.<bucket>.description` overrides either
-built-in description. A custom alias tagged with either built-in bucket name joins that
-row while remaining independently addressable and editable.
+`@xlarge_phase_worker`. `model_aliases.buckets.phase_worker.description` overrides the
+built-in description. A custom alias tagged with `bucket: phase_worker` joins that row
+while remaining independently addressable and editable.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases**
-that resolve even when unset: `@default` (no-`%model` launches), `@coder` and the
-per-provider `@<provider>_coder` (plan coder follow-ups), `@epic_lander`,
+that resolve even when unset: `@default` (no-`%model` launches), `@epic_lander`,
 `@big_epic_lander`, the five `<size>_phase_worker` aliases, `@smartest`, `@smart`,
-`@cheap`, and `@cheaper`, plus explicit-use `@cheapest`. Every registered
-`@<provider>_coder` alias inherits `@coder` unless explicitly overridden. `@epic_lander`
-falls back to `@default`, while `@big_epic_lander` falls back independently to
-`@smartest`; xsmall phases and tasks fall back to `@cheaper`, small ones to `@cheap`,
-medium ones use `@medium_phase_worker`, large ones to `@smart` (which itself falls back
-to `@default`), and xlarge ones to `@smartest`. The implicit `@medium_phase_worker` and
-`@smartest` values are concrete targets, so they do not track `@default`; xlarge workers
-and threshold-sized epic landers inherit through `@smartest` unless they or `@smartest`
-are overridden. `@cheaper` owns the automatic xsmall phase/task pool and `@cheap` the
-small phase/task pool, while `@cheapest` owns an independent explicit-use pool. Override
-only threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override
-only large phases and sized tasks with `model_aliases.builtin.large_phase_worker`.
+`@cheap`, and `@cheaper`, plus explicit-use `@cheapest`. `@epic_lander` falls back to
+`@default`, while `@big_epic_lander` falls back independently to `@smartest`; xsmall
+phases and tasks fall back to `@cheaper`, small ones to `@cheap`, medium ones use
+`@medium_phase_worker`, large ones to `@smart` (which itself falls back to `@default`),
+and xlarge ones to `@smartest`. The implicit `@medium_phase_worker` and `@smartest`
+values are concrete targets, so they do not track `@default`; xlarge workers and
+threshold-sized epic landers inherit through `@smartest` unless they or `@smartest` are
+overridden. `@cheaper` owns the automatic xsmall phase/task pool and `@cheap` the small
+phase/task pool, while `@cheapest` owns an independent explicit-use pool. Override only
+threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override only
+large phases and sized tasks with `model_aliases.builtin.large_phase_worker`.
 `@smartest` is selected automatically through the threshold-sized epic and xlarge
 phase/task fallback chains. See [Implicit role aliases](llms.md#implicit-role-aliases)
 for the full table and
@@ -1360,12 +1352,10 @@ delegated launches pick a role. New tasks require an explicit size after
 epic. Legacy tasks without size metadata remain launchable through the small phase/task
 route.
 
-`@claude_coder`, `@codex_coder`, and every other registered `@<provider>_coder` alias
-inherit `@coder` by default. A launch-scoped specific or generic coder value wins first,
-followed by a provider-specific temporary/configured value, then the generic
-temporary/configured or implicit `@coder` value. If the planner has no provider
-metadata, the approval follow-up selects generic `@coder` directly. An approval-time
-model or outer effort suffix remains authoritative.
+Accepted tale follow-ups without an approval-time model validate the actual handoff plan
+and choose the matching size-specific alias. Legacy tale plans without size metadata use
+`@medium_phase_worker`. An approval-time model, a `%model` directive in a custom coder
+prompt, or an outer effort suffix remains authoritative.
 
 `model_aliases.builtin.epic_creator` is retired. SASE no longer launches an epic-creator
 agent, resolves that alias implicitly, or treats it as a builtin override, so a stale
@@ -1373,11 +1363,12 @@ entry should be deleted rather than repointed. `sase doctor` reports a leftover 
 under the `model_aliases.builtin.epic_creator` key.
 
 > The `llm_provider.worker_models` map and the reserved `@worker` / `@other` aliases
-> were removed in epic sase-5d. Use `@coder`, a size-specific phase alias, or an
-> explicit model instead of `@worker`, and `@default` instead of `@other`.
-> `@phase_worker` is also no longer builtin; move a stale builtin override to
-> `medium_phase_worker` or define a custom alias deliberately. `sase doctor` reports
-> configs that still reference removed keys or aliases.
+> were removed in epic sase-5d. Use a size-specific phase alias or an explicit model
+> instead of `@worker`, and `@default` instead of `@other`. `@phase_worker` is also no
+> longer builtin; move a stale builtin override to `medium_phase_worker` or define a
+> custom alias deliberately. `sase doctor` reports configs that still reference removed
+> keys or aliases, including retired `@coder` and registered `@<provider>_coder` builtin
+> entries.
 
 The TUI also supports **temporary**, per-alias session-level provider/model overrides
 (set from the [Models panel](ace.md#models-panel), `,m`) that do **not** edit this

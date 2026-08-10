@@ -13,7 +13,7 @@ from tests._axe_run_agent_exec_plan_helpers import (
     make_state,
     patched_plan_deps,
 )
-from tests.plan_validation_helpers import VALID_EPIC_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
 @pytest.fixture
@@ -22,9 +22,16 @@ def patch_plan_deps():
         yield mocks
 
 
-def write_plan_file(tmp_path, name: str = "plan.md") -> str:
+def write_plan_file(
+    tmp_path, name: str = "plan.md", *, size: str | None = "small"
+) -> str:
     plan_file = tmp_path / name
-    plan_file.write_text("# Plan")
+    content = VALID_TALE_PLAN
+    if size is None:
+        content = content.replace("size: small\n", "")
+    else:
+        content = content.replace("size: small", f"size: {size}")
+    plan_file.write_text(content, encoding="utf-8")
     return str(plan_file)
 
 

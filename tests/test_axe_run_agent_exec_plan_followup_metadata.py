@@ -14,7 +14,7 @@ from tests._axe_run_agent_exec_plan_helpers import (
     make_state,
     patched_plan_deps,
 )
-from tests.plan_validation_helpers import VALID_EPIC_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ class TestPlanFollowupMetadata:
         ctx.agent_meta["run_started_at"] = run_started_at
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
         submitted_at = datetime(2026, 6, 17, 18, 0, 0, tzinfo=UTC)
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
 
@@ -69,7 +69,7 @@ class TestPlanFollowupMetadata:
         ctx = make_ctx(tmp_path, agent_model="gemini-3.1-pro-preview")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         meta_updates: dict[str, str] = {}
 
@@ -159,7 +159,7 @@ class TestPlanFollowupMetadata:
         ctx = make_ctx(tmp_path, agent_model="opus")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         meta_updates: dict[str, str] = {}
 
@@ -188,19 +188,19 @@ class TestPlanFollowupMetadata:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert "model" not in meta_updates
 
-    def test_coder_meta_records_resolved_coder_alias_when_no_picker_model(
+    def test_coder_meta_records_resolved_size_alias_when_no_picker_model(
         self, tmp_path
     ) -> None:
-        """Without a picker model, agent_meta.json records the resolved coder alias.
+        """Without a picker model, agent_meta.json records the resolved size alias.
 
-        The coder follow-up emits ``%model:@<planner_provider>_coder`` and the
+        The coder follow-up emits ``%model:@small_phase_worker`` and the
         recorded meta resolves that alias to the concrete provider/model the
         launch will actually use, so display and behavior stay in sync.
         """
         ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         meta_updates: dict[str, str] = {}
 
@@ -231,10 +231,10 @@ class TestPlanFollowupMetadata:
             ) as resolve_mock,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        resolve_mock.assert_any_call("@claude_coder")
+        resolve_mock.assert_any_call("@small_phase_worker")
         assert meta_updates.get("model") == "gpt-5.6-sol"
         assert meta_updates.get("llm_provider") == "codex"
-        assert state.current_prompt.startswith("%model:@claude_coder\n")
+        assert state.current_prompt.startswith("%model:@small_phase_worker\n")
 
     def test_epic_meta_is_left_to_host_without_creator_model(self, tmp_path) -> None:
         """The agent leaves launch metadata to the detached host task."""
@@ -276,7 +276,7 @@ class TestPlanFollowupMetadata:
         ctx = make_ctx(tmp_path, agent_model="opus")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         meta_updates: dict[str, str] = {}
 
@@ -290,8 +290,8 @@ class TestPlanFollowupMetadata:
         )
 
         def fake_resolve(directive):
-            # The custom prompt's %model directive supersedes the coder-alias
-            # default, so its model — not @claude_coder's — is what gets recorded.
+            # The custom prompt's %model directive supersedes the size-alias
+            # default, so its model is what gets recorded.
             if directive == "sonnet":
                 return ("anthropic", "claude-sonnet-4-5")
             return ("codex", "gpt-5.6-sol")
@@ -327,7 +327,7 @@ class TestPlanFollowupMetadata:
         ctx = make_ctx(tmp_path, agent_model="opus")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         meta_updates: dict[str, str] = {}
 
@@ -360,7 +360,6 @@ class TestPlanFollowupMetadata:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        # The broken directive's model must never be resolved or recorded; the
-        # only resolution is the coder-alias meta, which the error discards.
+        # The broken directive's model must never be resolved or recorded.
         assert call("sonnet") not in resolve_mock.call_args_list
         assert "model" not in meta_updates

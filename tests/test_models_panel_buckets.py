@@ -34,17 +34,17 @@ def test_render_bucket_row_contains_count_and_override_state() -> None:
 
 def test_render_bucket_row_and_description_surface_custom_builtin_warnings() -> None:
     bucket = BucketView(
-        name="coders",
-        description="Coder roles.",
+        name="phase_worker",
+        description="Phase roles.",
         members=(
             make_alias_view(
-                "coder",
+                "small_phase_worker",
                 "role",
                 configured=True,
                 configured_source="custom",
                 override=make_override(),
             ),
-            make_alias_view("codex_coder", "provider_coder"),
+            make_alias_view("medium_phase_worker", "role"),
         ),
     )
 
@@ -55,7 +55,7 @@ def test_render_bucket_row_and_description_surface_custom_builtin_warnings() -> 
     assert "! 1 misplaced" in line
     assert "1 override" in line
     assert description.splitlines() == [
-        "! Misplaced builtin alias: @coder",
+        "! Misplaced builtin alias: @small_phase_worker",
         "Move its model value from llm_provider.model_aliases.custom to "
         "llm_provider.model_aliases.builtin.",
     ]
@@ -63,17 +63,17 @@ def test_render_bucket_row_and_description_surface_custom_builtin_warnings() -> 
 
 def test_render_builtin_bucket_appends_custom_after_warning_and_override() -> None:
     bucket = BucketView(
-        name="coders",
-        description="Coder roles.",
+        name="phase_worker",
+        description="Phase roles.",
         members=(
             make_alias_view(
-                "coder",
+                "small_phase_worker",
                 "role",
                 configured=True,
                 configured_source="custom",
                 override=make_override(),
             ),
-            make_alias_view("pair_programmer", "user", bucket="coders"),
+            make_alias_view("phase_reviewer", "user", bucket="phase_worker"),
         ),
     )
 

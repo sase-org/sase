@@ -124,11 +124,13 @@ def test_launch_alias_overrides_persist_to_meta_and_process_env(
         patch("sase.agent.names.claim_agent_name"),
     ):
         extract_directives_and_write_meta(
-            prompt="%m(opus, coder=sonnet)\nDo work",
+            prompt="%m(opus, medium_phase_worker=sonnet)\nDo work",
             workspace_dir=str(workspace_dir),
             artifacts_dir=str(artifacts_dir),
         )
 
     meta = json.loads((artifacts_dir / "agent_meta.json").read_text())
-    assert meta["model_alias_overrides"] == {"coder": "sonnet"}
-    assert json.loads(os.environ[SASE_MODEL_ALIAS_OVERRIDES_ENV]) == {"coder": "sonnet"}
+    assert meta["model_alias_overrides"] == {"medium_phase_worker": "sonnet"}
+    assert json.loads(os.environ[SASE_MODEL_ALIAS_OVERRIDES_ENV]) == {
+        "medium_phase_worker": "sonnet"
+    }

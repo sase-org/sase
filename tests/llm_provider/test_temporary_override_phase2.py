@@ -137,13 +137,13 @@ def test_invoke_agent_applies_nondefault_alias_override_effort(
 ) -> None:
     mock_preprocess.return_value = PreprocessResult(
         prompt="preprocessed prompt",
-        directives=PromptDirectives(model="@coder"),
+        directives=PromptDirectives(model="@medium_phase_worker"),
     )
     mock_provider = MagicMock()
     mock_provider.invoke.return_value = InvokeResult(content="response")
     mock_get_provider.return_value = mock_provider
 
-    set_alias_override("coder", "codex/o3@medium", 3600.0, source="test")
+    set_alias_override("medium_phase_worker", "codex/o3@medium", 3600.0, source="test")
     invoke_agent("prompt", agent_type="test", suppress_output=True)
 
     mock_get_provider.assert_called_once_with("codex")

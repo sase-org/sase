@@ -13,7 +13,7 @@ from tests._axe_run_agent_exec_plan_helpers import (
     make_state,
     patched_plan_deps,
 )
-from tests.plan_validation_helpers import VALID_EPIC_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
 @pytest.fixture
@@ -31,10 +31,10 @@ class TestPlanFollowupApprovalPlanRefs:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "scratch_plan.md")
-        (tmp_path / "scratch_plan.md").write_text("# Plan")
+        (tmp_path / "scratch_plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
         sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
         sdd_plan.parent.mkdir(parents=True)
-        sdd_plan.write_text("# Saved Plan")
+        sdd_plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
         with (
@@ -68,10 +68,10 @@ class TestPlanFollowupApprovalPlanRefs:
         state = make_state(tmp_path)
         archived_plan = tmp_path / "archive" / "scratch_plan.md"
         archived_plan.parent.mkdir()
-        archived_plan.write_text(VALID_EPIC_PLAN)
+        archived_plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
         sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
         sdd_plan.parent.mkdir(parents=True)
-        sdd_plan.write_text("# Saved Plan")
+        sdd_plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         approval = PlanApprovalResult(
             action="approve",
@@ -99,7 +99,7 @@ class TestPlanFollowupApprovalPlanRefs:
         ):
             handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
 
-        assert state.current_prompt.startswith("%model:@claude_coder\n#gh:sase ")
+        assert state.current_prompt.startswith("%model:@small_phase_worker\n#gh:sase ")
         assert f"@{archived_plan}" in state.current_prompt
         assert "@sdd/plans/202605/scratch_plan.md" not in state.current_prompt
         assert os.environ["SASE_PLAN"] == str(archived_plan)
@@ -113,10 +113,10 @@ class TestPlanFollowupApprovalPlanRefs:
         state = make_state(tmp_path)
         archived_plan = tmp_path / "archive" / "scratch_plan.md"
         archived_plan.parent.mkdir()
-        archived_plan.write_text(VALID_EPIC_PLAN)
+        archived_plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
         sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
         sdd_plan.parent.mkdir(parents=True)
-        sdd_plan.write_text("# Saved Plan")
+        sdd_plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         approval = PlanApprovalResult(
             action="approve",

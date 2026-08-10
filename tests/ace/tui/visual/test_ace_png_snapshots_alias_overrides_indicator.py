@@ -66,7 +66,7 @@ async def test_alias_overrides_indicator_single_png_snapshot(
     monkeypatch.setattr(
         alias_overrides_indicator,
         "get_active_alias_overrides",
-        lambda *a, **k: {"coder": _override("codex", "o3", effort="max")},
+        lambda *a, **k: {"medium_phase_worker": _override("codex", "o3", effort="max")},
     )
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -79,7 +79,7 @@ async def test_alias_overrides_indicator_single_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "alias_overrides_indicator_single_120x40",
-            title="ACE @coder@max ∞ override pill",
+            title="ACE @medium_phase_worker@max ∞ override pill",
         )
 
 
@@ -96,7 +96,7 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
         "get_active_alias_overrides",
         lambda *a, **k: {
             "default": _override("codex", "o3"),
-            "coder": _override("claude", "opus"),
+            "small_phase_worker": _override("claude", "opus"),
             "medium_phase_worker": _override("codex", "o3"),
             "fast": _override("claude", "haiku"),
         },
@@ -117,5 +117,5 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "alias_overrides_indicator_multi_120x40",
-            title="ACE @coder +2 and default ∞ override pills",
+            title="ACE @medium_phase_worker +2 and default ∞ override pills",
         )

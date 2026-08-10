@@ -2406,60 +2406,50 @@ xprompt definitions, while the Statistics sub-tab measures how launch prompts us
 ## Models Panel
 
 Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for
-viewing and managing every model alias: the implicit role aliases (`default`, `coder`,
-`<provider>_coder`, `epic_lander`, `big_epic_lander`, `xsmall_phase_worker`,
-`small_phase_worker`, `medium_phase_worker`, `large_phase_worker`,
-`xlarge_phase_worker`, `smartest`, `smart`, `cheap`, `cheaper`, `cheapest`) and any
-user-defined `llm_provider.model_aliases.custom` entry.
+viewing and managing every model alias: the implicit role aliases (`default`,
+`epic_lander`, `big_epic_lander`, `xsmall_phase_worker`, `small_phase_worker`,
+`medium_phase_worker`, `large_phase_worker`, `xlarge_phase_worker`, `smartest`, `smart`,
+`cheap`, `cheaper`, `cheapest`) and any user-defined `llm_provider.model_aliases.custom`
+entry.
 
-Each row shows the alias name with a small kind badge (`default` / `role` /
-`<provider> coder` / `user`), its effective provider/model as a provider-themed badge,
-and a state tag — `configured`, `implicit` / `implicit → @<fallback>` /
-`implicit → @<fallback> @ <effort>`, or an `override · <time> left` /
-`override · until cleared` chip when a temporary override is active. Configured
-references use the same `configured → @<target> @ <effort>` form. A model-specific
-effort carried by an override appears beside the effective provider/model badge. The
-title's second line shows the launch-effective default effort. With no temporary
-override it says `default effort: @ <level>` or `provider default`; with an active
-override it shows that `@<level>`, its remaining time, and the configured value beside
-it. The third line shows the effective `max running agents` global cap; an active
+Each row shows the alias name with a small kind badge (`default` / `role` / `user`), its
+effective provider/model as a provider-themed badge, and a state tag — `configured`,
+`implicit` / `implicit → @<fallback>` / `implicit → @<fallback> @ <effort>`, or an
+`override · <time> left` / `override · until cleared` chip when a temporary override is
+active. Configured references use the same `configured → @<target> @ <effort>` form. A
+model-specific effort carried by an override appears beside the effective provider/model
+badge. The title's second line shows the launch-effective default effort. With no
+temporary override it says `default effort: @ <level>` or `provider default`; with an
+active override it shows that `@<level>`, its remaining time, and the configured value
+beside it. The third line shows the effective `max running agents` global cap; an active
 temporary cap shows its remaining time and configured value on the same line. An
 explicit effort suffix inherited from an alias target appears beside that row's model
 badge; rows that simply inherit the header default omit the redundant suffix.
 
-With no explicit coder routing, every registered provider-coder row displays
-`implicit → @coder` and resolves through the shared `@coder` target. A configured or
-temporary generic `coder` value intentionally becomes a fleet-wide route for otherwise
-unconfigured provider-coder rows, so those rows show its effective target and `→ @coder`
-provenance. Provider-specific values remain more specific, and launch-scoped coder
-choices precede both.
-
 The top level is split into **Built-in** and **Custom** sections. Each header reports
 the aliases represented by its rows (including members of collapsed buckets) and its
 bucket count. This sectioning groups the existing deterministic order without changing
-it: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the
-built-in `phase_worker` bucket, `smartest`, `smart`, `cheap`, `cheaper`, `cheapest`,
-then custom buckets and ungrouped user aliases in alphabetical order. Every user-defined
-alias and bucket has a tan `▌` ownership gutter, and the **Custom** header carries the
-same glyph. If there are no custom aliases or buckets, the **Custom** section remains
-visible with a non-selectable hint naming `llm_provider.model_aliases.custom`.
+it: `default`, `epic_lander`, `big_epic_lander`, the built-in `phase_worker` bucket,
+`smartest`, `smart`, `cheap`, `cheaper`, `cheapest`, then custom buckets and ungrouped
+user aliases in alphabetical order. Every user-defined alias and bucket has a tan `▌`
+ownership gutter, and the **Custom** header carries the same glyph. If there are no
+custom aliases or buckets, the **Custom** section remains visible with a non-selectable
+hint naming `llm_provider.model_aliases.custom`.
 
-Two built-in buckets are always present. `coders` groups `coder` first and every
-registered `<provider>_coder` alias alphabetically. `phase_worker` groups
-`xsmall_phase_worker`, `small_phase_worker`, `medium_phase_worker`,
-`large_phase_worker`, and `xlarge_phase_worker`, followed by any custom members assigned
-to that display bucket. Each collapsed row reports the member count and active
-overrides, while the description strip summarizes distinct effective models. Open any
-bucket with `l`, Right, or Enter; return with `h` or Left. Inside either bucket, each
-alias keeps its own configured/implicit state and can be edited, reset, overridden, or
-cleared independently. Configured descriptions under `model_aliases.buckets.coders` and
-`model_aliases.buckets.phase_worker` replace the defaults; custom aliases tagged with
-either bucket name coalesce into the matching row. A built-in bucket containing custom
-members appends a tan `· <n> custom` chip after its warning and override chips. A custom
-bucket renders its bucket state in the ownership accent. The drilled-in title ends with
-`· built-in bucket` or `· custom bucket`, plus the ownership glyph for custom buckets. A
-mixed built-in bucket shows **Built-in** and **Custom** headers around its members;
-homogeneous buckets omit those redundant headers.
+One built-in bucket is always present. `phase_worker` groups `xsmall_phase_worker`,
+`small_phase_worker`, `medium_phase_worker`, `large_phase_worker`, and
+`xlarge_phase_worker`, followed by any custom members assigned to that display bucket.
+Each collapsed row reports the member count and active overrides, while the description
+strip summarizes distinct effective models. Open any bucket with `l`, Right, or Enter;
+return with `h` or Left. Inside the bucket, each alias keeps its own configured/implicit
+state and can be edited, reset, overridden, or cleared independently. A configured
+description under `model_aliases.buckets.phase_worker` replaces the default; custom
+aliases tagged with that bucket name coalesce into the matching row. A built-in bucket
+containing custom members appends a tan `· <n> custom` chip after its warning and
+override chips. A custom bucket renders its bucket state in the ownership accent. The
+drilled-in title ends with `· built-in bucket` or `· custom bucket`, plus the ownership
+glyph for custom buckets. A mixed built-in bucket shows **Built-in** and **Custom**
+headers around its members; homogeneous buckets omit those redundant headers.
 
 The two-line strip below the list explains the highlighted alias. Builtin aliases use
 fixed descriptions. User aliases use
@@ -2567,11 +2557,12 @@ question continuations reacquire against the current effective global cap.
 
 `Edit` and `Override` open the shared model picker with an `ALIASES` group before the
 provider-grouped concrete models. Alias rows show the exact `@name` token and its
-current effective provider/model; filter by either `@coder` or `coder`, an alias kind or
-description, or the displayed target. For persistent edits, the current alias and any
-alias that would introduce a direct or transitive cycle remain visible but unavailable
-with a concise reason. `Custom...` remains available for concrete model strings and
-applies the same safety check to free-form `@alias` values.
+current effective provider/model; filter by either `@medium_phase_worker` or
+`medium_phase_worker`, an alias kind or description, or the displayed target. For
+persistent edits, the current alias and any alias that would introduce a direct or
+transitive cycle remain visible but unavailable with a concise reason. `Custom...`
+remains available for concrete model strings and applies the same safety check to
+free-form `@alias` values.
 
 `Override` continues from the picker to the duration picker (`15m`, `30m`, `1h`, `2h`,
 `4h`, `Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`). Press `t` in
@@ -2635,11 +2626,11 @@ visually "wins" the effective-target column even after a persistent edit; the st
 distinguishes the _configured_ value from the _currently effective (overridden)_ one.
 
 Selecting an alias during `Edit` stores the raw reference (for example,
-`@big_epic_lander` → `@coder`), so it remains a dynamic link and follows future changes
-to `@coder`. Selecting an alias during `Override` instead resolves it when the override
-is written and stores that concrete provider/model snapshot together with the raw token;
-later changes to the referenced alias do not change the active override. A canonical
-trailing effort is snapshotted with the target and shown in the row, success
+`@big_epic_lander` → `@smartest`), so it remains a dynamic link and follows future
+changes to `@smartest`. Selecting an alias during `Override` instead resolves it when
+the override is written and stores that concrete provider/model snapshot together with
+the raw token; later changes to the referenced alias do not change the active override.
+A canonical trailing effort is snapshotted with the target and shown in the row, success
 notification, and single-override top-bar pill. A known suffix on an alias reference is
 ignored for dependency/cycle checks but retained for the written value; unknown trailing
 `@token` text is not treated as effort.
@@ -2655,9 +2646,9 @@ the write preview.
 
 - Highlight `default`, `o`, pick `codex/o3`, duration `1h` — default launches use Codex
   `o3` for the next hour, then revert to the configured default.
-- Highlight `coder`, `o`, pick a model, then `t`, enter `5pm` — the preview resolves the
-  next 5:00 PM in the configured timezone and the override expires at that exact
-  instant.
+- Highlight `medium_phase_worker`, `o`, pick a model, then `t`, enter `5pm` — the
+  preview resolves the next 5:00 PM in the configured timezone and the override expires
+  at that exact instant.
 - Open `phase_worker`, highlight `medium_phase_worker`, then press `o`, pick
   `claude/opus`, and choose `Until cleared` — medium phases without an explicit model
   use CLAUDE(opus) until you clear it; the violet non-default pill appears in the top
@@ -2684,14 +2675,11 @@ the write preview.
 - Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected
   epic landers use that persistent target; leaving it implicit inherits through
   `@smartest`, independently of `@epic_lander`.
-- Highlight `big_epic_lander`, `e`, filter for `@coder`, select it, and confirm — the
-  persistent value is the dynamic `@coder` reference, not a copied concrete model.
-- Open `phase_worker`, highlight `medium_phase_worker`, press `o`, select `@coder`, then
-  choose `1h` — the override records the concrete provider/model to which `@coder`
-  resolves at write time while retaining `@coder` as its raw input.
-- Highlight `coder`, `e`, pick a model, confirm the preview, then `y` — the configured
-  `llm_provider.model_aliases.builtin.coder` value is updated and committed (and pushed
-  / `chezmoi apply`-ed when `use_chezmoi` is set).
+- Highlight `big_epic_lander`, `e`, filter for `@smartest`, select it, and confirm — the
+  persistent value is the dynamic `@smartest` reference, not a copied concrete model.
+- Open `phase_worker`, highlight `medium_phase_worker`, press `o`, select `@smartest`,
+  then choose `1h` — the override records the concrete provider/model to which
+  `@smartest` resolves at write time while retaining `@smartest` as its raw input.
 - Highlight an alias, `x` — clear its temporary override; `r` — unset its configured
   value back to its implicit fallback.
 
@@ -3576,12 +3564,11 @@ launches bead work directly, so those controls are hidden for Epic:
   provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter`
   to select, `Esc` to clear the filter or cancel, and `'` for jump hints over the
   visible selectable rows. The displayed default resolves to the model the handoff will
-  actually use: the planner provider's coder alias (`@<planner_provider>_coder`, e.g.
-  `@claude_coder`, falling back to `@coder` when planner provider metadata is missing).
-  Out of the box, every provider-coder alias inherits `@coder`. Selecting a specific
-  model and then re-opening the picker and choosing "Follow-up default" resets the
-  follow-up back to that role default (distinct from pressing `Esc`, which keeps the
-  current selection).
+  actually use: for Approve and Tale, the validated tale size maps to the corresponding
+  `@<size>_phase_worker` alias, with legacy sizeless tales using `@medium_phase_worker`.
+  Selecting a specific model and then re-opening the picker and choosing "Follow-up
+  default" resets the follow-up back to that role default (distinct from pressing `Esc`,
+  which keeps the current selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the
 selected outcome determines the commit location and follow-up behavior. Additional

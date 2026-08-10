@@ -20,26 +20,23 @@ from .plan_approval_results import (
 )
 
 
-def _contextual_coder_lane(planner_llm_provider: str | None) -> tuple[str | None, str]:
-    """Resolve the coder follow-up default through the planner's coder alias.
-
-    Mirrors the runtime handoff: ``@<planner_provider>_coder`` when the planner
-    recorded its provider, else the generic ``@coder``. Resolving the directive
-    here keeps the modal's displayed default equal to the model the coder will
-    actually launch with.
-    """
+def _tale_followup_lane(plan_file: str | None) -> tuple[str | None, str]:
+    """Resolve the default follow-up model for the plan under review."""
     from sase.llm_provider.config import (
-        CODER_MODEL_ALIAS_NAME,
-        coder_model_alias_for_provider,
+        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
         role_model_directive_value,
     )
     from sase.llm_provider.registry import resolve_model_provider
 
-    provider = (planner_llm_provider or "").strip()
-    alias = (
-        coder_model_alias_for_provider(provider) if provider else CODER_MODEL_ALIAS_NAME
-    )
-    directive = role_model_directive_value(alias)
+    if plan_file:
+        from sase.tale_followup_routing import validated_tale_followup_model_directive
+
+        try:
+            directive = validated_tale_followup_model_directive(plan_file)
+        except Exception:
+            return None, "invalid tale plan"
+    else:
+        directive = role_model_directive_value(MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME)
     try:
         return resolve_model_provider(directive)
     except Exception:
@@ -50,7 +47,7 @@ def _model_display_label(
     coder_model: str | None,
     choice: PlanApprovalChoice,
     *,
-    planner_llm_provider: str | None = None,
+    plan_file: str | None = None,
 ) -> str:
     """Format the follow-up model for display in the modal.
 
@@ -66,7 +63,7 @@ def _model_display_label(
     if coder_model is None:
         if choice == "epic":
             return "Configured by epic plan frontmatter"
-        coder_provider, coder_lane_model = _contextual_coder_lane(planner_llm_provider)
+        coder_provider, coder_lane_model = _tale_followup_lane(plan_file)
         label = format_provider_model_label(coder_provider, coder_lane_model)
         return f"Follow-up — {label}"
 
@@ -135,12 +132,14 @@ class ApproveOptionsModal(
         coder_model: str | None = None,
         choice: PlanApprovalChoice | None = None,
         *,
+        plan_file: str | None = None,
         planner_llm_provider: str | None = None,
     ) -> None:
         super().__init__()
         self._choice = choice or _choice_from_legacy_flags(commit_plan, run_coder)
         self._coder_prompt = coder_prompt
         self._coder_model = coder_model
+        self._plan_file = plan_file
         self._planner_llm_provider = planner_llm_provider
 
     def compose(self) -> ComposeResult:
@@ -206,8 +205,8 @@ class ApproveOptionsModal(
     def _select_choice(self, choice: PlanApprovalChoice) -> None:
         self._choice = choice
         self._refresh_choice_rows()
-        # The unset default differs by role (coder alias vs epic role
-        # alias), so the displayed default must track the selected action.
+        # The unset default differs by role, so the displayed default must
+        # track the selected action.
         self._update_model_display()
 
     def on_key(self, event: events.Key) -> None:
@@ -313,7 +312,7 @@ class ApproveOptionsModal(
         return _model_display_label(
             self._coder_model,
             self._choice,
-            planner_llm_provider=self._planner_llm_provider,
+            plan_file=self._plan_file,
         )
 
     def _update_model_display(self) -> None:

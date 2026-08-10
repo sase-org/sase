@@ -275,11 +275,11 @@ def test_directive_arg_completion_filters_leading_at_to_model_aliases() -> None:
 def test_model_alias_candidate_carries_resolution_and_provenance() -> None:
     catalog = [
         _ModelCompletionEntry(
-            value="@coder",
-            display="@coder",
-            description="Coder model.",
+            value="@medium_phase_worker",
+            display="@medium_phase_worker",
+            description="Medium phase worker model.",
             kind="implicit_alias",
-            aliases=("coder",),
+            aliases=("medium_phase_worker",),
             alias_kind="role",
             target_provider="codex",
             target_model="gpt-5.6-sol",
@@ -298,7 +298,7 @@ def test_model_alias_candidate_carries_resolution_and_provenance() -> None:
 
     metadata = model_metadata(candidates[0])
     assert metadata == ModelCompletionMetadata(
-        value="@coder",
+        value="@medium_phase_worker",
         kind="implicit_alias",
         alias_kind="role",
         target_provider="codex",
@@ -309,7 +309,7 @@ def test_model_alias_candidate_carries_resolution_and_provenance() -> None:
         reference_effort="medium",
         pool_available=2,
         pool_total=3,
-        description="Coder model.",
+        description="Medium phase worker model.",
         config_source="builtin",
     )
 

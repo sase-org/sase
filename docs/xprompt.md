@@ -1536,8 +1536,8 @@ Directives use the same argument syntax as xprompt references:
 %m:agy/gemini-3.6-flash-high # Provider/model value with a stable Antigravity slug
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %model:muse/muse-spark-1.2   # Meta Muse Code — explicit-only, never auto-detected
-%model(opus, coder=codex/gpt-5.6-sol) # This agent uses opus; its coder follow-up uses Codex
-%model(coder=@medium_phase_worker) # Leave this agent on the default; route @coder through another alias
+%model(opus, medium_phase_worker=codex/gpt-5.6-sol) # This agent uses opus; medium follow-ups use Codex
+%model(medium_phase_worker=@default) # Leave this agent on the default; route medium follow-ups through @default
 %effort:xhigh                # Set the reasoning-effort level for this prompt
 %e:xhigh                     # Same, using alias
 %effort:%{medium | high | xhigh} # Fan out directive values
@@ -1647,11 +1647,11 @@ canonical model name or configured alias; provider short aliases are only filter
 hints.
 
 Model aliases are listed beneath the concrete model names. Each alias row shows its kind
-(`default`, `role`, `coder`, or `custom`), the `PROVIDER(model)` target it currently
-resolves to — with an ` @ <effort>` suffix when the alias carries one — and its
-provenance (`configured`, `implicit → @fallback`, `override`, plus a `· pool 2/3` chip
-for round-robin selectors). Typing `@` right after the colon (`%m:@`) narrows the menu
-to aliases only; a bare partial such as `de` still matches `@default` through its bare
+(`default`, `role`, or `custom`), the `PROVIDER(model)` target it currently resolves to
+— with an ` @ <effort>` suffix when the alias carries one — and its provenance
+(`configured`, `implicit → @fallback`, `override`, plus a `· pool 2/3` chip for
+round-robin selectors). Typing `@` right after the colon (`%m:@`) narrows the menu to
+aliases only; a bare partial such as `de` still matches `@default` through its bare
 name, but always after the model rows. The ACE menu reflects active temporary alias
 overrides, while the LSP's catalog is a launch-time snapshot that does not — restart the
 LSP to pick up config changes, and use the ACE [Models panel](ace.md#models-panel)
@@ -1663,10 +1663,10 @@ The parenthesized `%model` form accepts keyword arguments that temporarily repla
 aliases for one launch lineage:
 
 ```text
-%model(opus, coder=codex/gpt-5.6-sol, small_phase_worker=@cheap)
+%model(opus, medium_phase_worker=codex/gpt-5.6-sol, small_phase_worker=@cheap)
 %model(xsmall_phase_worker=@cheaper, medium_phase_worker=@default@high)
 %model(large_phase_worker=@smart, xlarge_phase_worker=@smartest)
-%model(coder=@medium_phase_worker)
+%model(default=@medium_phase_worker)
 ```
 
 The optional positional value selects the current agent's model. Each `alias=value`
@@ -1700,10 +1700,8 @@ Ordinary nested launches do not inherit the map. This lineage often overlaps an
 [Agent Family](agent_families.md), but the terms are not interchangeable.
 
 At each alias hop a launch-scoped value wins over a machine-wide temporary override and
-the configured or implicit alias value. A generic `coder` entry also controls a
-provider-specific alias such as `claude_coder` unless the map contains that
-provider-specific key. The `default` key wins over the machine-wide default override for
-this lineage.
+the configured or implicit alias value. The `default` key wins over the machine-wide
+default override for this lineage.
 
 The launch preview shows the resulting map before approval. Invalid alias names, missing
 values, duplicate keys, self-references, and ambiguous bare alias values fail with a
@@ -2111,18 +2109,13 @@ planner's chat transcript — the plan file is the hand-off artifact. Set
 `#fork:<planner_name>` reference is prepended to the coder prompt so it resumes the
 planner's session. The coder prompt also carries a `%model:` directive. A model chosen
 at approval time (or a `%model:`/`%m` directive inside a custom coder prompt) wins. When
-no model is chosen, the follow-up routes through the planner provider's **coder alias**:
-a Claude-authored plan emits `%model:@claude_coder`, a Codex plan `%model:@codex_coder`,
-and so on for every registered provider. When the planner is missing provider metadata
-the follow-up falls back to the generic `%model:@coder`. `@claude_coder` and
-`@codex_coder` remain distinct planner-provider aliases, but like every registered
-`@<provider>_coder` alias they inherit `@coder`. Explicit launch-scoped coder values and
-provider-specific temporary/configured values take precedence before the generic
-temporary/configured or implicit `@coder` value. Configure
-`llm_provider.model_aliases.builtin.<provider>_coder` to route one provider's coder
-follow-ups elsewhere (see [Configured Model Aliases](llms.md#configured-model-aliases)).
-The recorded follow-up metadata resolves the alias to the concrete model the coder
-actually launches with.
+no model is chosen, the follow-up validates the tale plan it will actually hand off and
+routes by that plan's size: `%model:@xsmall_phase_worker`, `%model:@small_phase_worker`,
+`%model:@medium_phase_worker`, `%model:@large_phase_worker`, or
+`%model:@xlarge_phase_worker`. Tale approvals validate the committed SDD tale path when
+the commit succeeds, otherwise the original archived plan path. Legacy tale plans
+without size metadata normalize to `@medium_phase_worker`. The recorded follow-up
+metadata resolves the alias to the concrete model the coder actually launches with.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus
 recent approved and inferred rejected archived plans. Use the `id_prefix` from a

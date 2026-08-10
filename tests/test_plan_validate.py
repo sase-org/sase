@@ -197,7 +197,7 @@ def test_facade_accepts_explicit_models_for_every_phase_size() -> None:
         "    size: small\n    model: claude/sonnet\n",
     ).replace(
         "    size: large\n",
-        '    size: medium\n    model: "@coder"\n'
+        '    size: medium\n    model: "@medium_phase_worker"\n'
         "  - id: verify\n"
         "    title: Verify rollout\n"
         "    depends_on: [cli]\n"
@@ -216,7 +216,7 @@ def test_facade_accepts_explicit_models_for_every_phase_size() -> None:
     ]
     assert [phase.model for phase in result.plan.phases] == [
         "claude/sonnet",
-        "@coder",
+        "@medium_phase_worker",
         "codex/gpt-5.6-sol",
     ]
 

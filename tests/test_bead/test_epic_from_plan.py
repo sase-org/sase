@@ -39,7 +39,7 @@ phases:
     title: Add the CLI
     depends_on: [core]
     size: medium
-    model: "@coder"
+    model: "@medium_phase_worker"
   - id: smoke
     title: Exercise the rollout
     depends_on: [core, cli]
@@ -139,7 +139,7 @@ def test_create_and_launch_maps_frontmatter_in_order(
         )
         assert [phase.model for phase in result.phases] == [
             "claude/sonnet",
-            "@coder",
+            "@medium_phase_worker",
             "codex/gpt-5.6-sol",
         ]
         assert [phase.size for phase in result.phases] == [

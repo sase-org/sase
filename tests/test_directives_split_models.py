@@ -49,20 +49,23 @@ def test_split_prompt_for_models_single_model_returns_none() -> None:
 
 
 def test_split_prompt_for_models_scalar_alias_kwargs_are_not_a_fanout_axis() -> None:
-    assert split_prompt_for_models("%m(opus, coder=sonnet)\nDo work") is None
+    assert (
+        split_prompt_for_models("%m(opus, medium_phase_worker=sonnet)\nDo work") is None
+    )
 
 
 def test_split_prompt_for_models_preserves_alias_kwargs_per_alt_branch() -> None:
     variants = split_prompt_for_models(
-        "%{%m(opus, coder=sonnet) | %m(haiku, coder=opus)}\nDo work"
+        "%{%m(opus, medium_phase_worker=sonnet) | "
+        "%m(haiku, medium_phase_worker=opus)}\nDo work"
     )
     assert variants is not None
 
     directives = [extract_prompt_directives(variant)[1] for variant in variants]
     assert [item.model for item in directives] == ["opus", "haiku"]
     assert [dict(item.model_alias_overrides) for item in directives] == [
-        {"coder": "sonnet"},
-        {"coder": "opus"},
+        {"medium_phase_worker": "sonnet"},
+        {"medium_phase_worker": "opus"},
     ]
 
 

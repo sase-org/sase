@@ -13,6 +13,7 @@ from tests._axe_run_agent_exec_plan_helpers import (
     make_state,
     patched_plan_deps,
 )
+from tests.plan_validation_helpers import VALID_TALE_PLAN
 
 
 @pytest.fixture
@@ -39,7 +40,7 @@ class TestFeedbackRoundChatPath:
         state = make_state(tmp_path)
         state.current_role_suffix = role_suffix
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN)
 
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
         captured: dict = {}

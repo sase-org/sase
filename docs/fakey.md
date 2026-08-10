@@ -29,10 +29,10 @@ Fakey models are not offered in the ACE model picker or the `%model` completion 
 it exists only for testing, so it is hidden from user-facing model selection surfaces.
 It remains fully registered and routable: the explicit spellings above
 (`%model:fakey-large`, `sase run -m fakey-large`) and `%model:fakey/fakey-large` all
-still work, and the picker's `Custom...` entry accepts them by hand. The implicit
-`@fakey_coder` role alias is likewise hidden from the ACE Models panel (`,m`) unless you
-explicitly configure `model_aliases.custom.fakey_coder` — once configured, it appears
-and is editable like any other alias.
+still work, and the picker's `Custom...` entry accepts them by hand. There is no
+implicit `@fakey_coder` role alias; if you deliberately configure
+`model_aliases.custom.fakey_coder`, it appears in the ACE Models panel (`,m`) as an
+ordinary user alias.
 
 Fakey is also intentionally absent from `sase agent-cli` inventories and the SASE Admin
 Center's **Updates → Agent CLIs** list. It is bundled for internal testing rather than

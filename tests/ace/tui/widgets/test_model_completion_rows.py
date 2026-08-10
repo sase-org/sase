@@ -107,7 +107,11 @@ def test_model_completion_row_uses_model_columns_and_styles() -> None:
             "implicit → @default @ high",
         ),
         (
-            _candidate("@coder", provenance="configured", reference="default"),
+            _candidate(
+                "@medium_phase_worker",
+                provenance="configured",
+                reference="default",
+            ),
             "role",
             "configured → @default",
         ),

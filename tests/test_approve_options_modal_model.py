@@ -9,8 +9,18 @@ from sase.ace.tui.modals.approve_options_modal import (
     ApproveOptionsModal,
     ApproveOptionsResult,
 )
+from tests.plan_validation_helpers import VALID_TALE_PLAN
 
 from ._approve_options_modal_helpers import ApproveOptionsApp
+
+
+def _write_tale_plan(tmp_path, *, size: str = "small") -> str:
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text(
+        VALID_TALE_PLAN.replace("size: small", f"size: {size}"),
+        encoding="utf-8",
+    )
+    return str(plan_file)
 
 
 async def test_m_key_opens_model_picker() -> None:
@@ -87,8 +97,47 @@ async def test_initial_model_restoration() -> None:
         assert "CLAUDE(opus)" in display_text
 
 
-async def test_default_model_shows_coder_alias_label() -> None:
-    """No coder_model on a coder action should display the resolved coder alias."""
+async def test_default_model_shows_tale_size_alias_label(tmp_path) -> None:
+    """No coder_model should display the resolved tale-size alias."""
+    plan_file = _write_tale_plan(tmp_path, size="small")
+    with patch(
+        "sase.llm_provider.registry.resolve_model_provider",
+        return_value=("claude", "opus"),
+    ) as resolve_mock:
+        async with ApproveOptionsApp().run_test() as pilot:
+            modal = ApproveOptionsModal(plan_file=plan_file)
+            pilot.app.push_screen(modal)
+            await pilot.pause()
+
+            model_display = modal.query_one("#coder-model-display", Static)
+            display_text = str(model_display.render())
+            assert "Follow-up — CLAUDE(opus)" in display_text
+    resolve_mock.assert_any_call("@small_phase_worker")
+
+
+async def test_default_model_uses_validated_tale_size(tmp_path) -> None:
+    """The default resolves the approved tale's phase-worker size alias."""
+    plan_file = _write_tale_plan(tmp_path, size="medium")
+    with patch(
+        "sase.llm_provider.registry.resolve_model_provider",
+        return_value=("codex", "gpt-5.6-sol"),
+    ) as resolve_mock:
+        async with ApproveOptionsApp().run_test() as pilot:
+            modal = ApproveOptionsModal(
+                planner_llm_provider="claude",
+                plan_file=plan_file,
+            )
+            pilot.app.push_screen(modal)
+            await pilot.pause()
+
+            model_display = modal.query_one("#coder-model-display", Static)
+            display_text = str(model_display.render())
+            assert "Follow-up — CODEX(gpt-5.6-sol)" in display_text
+    resolve_mock.assert_any_call("@medium_phase_worker")
+
+
+async def test_default_model_without_plan_file_uses_medium_fallback() -> None:
+    """The modal has a medium fallback before a plan path is available."""
     with patch(
         "sase.llm_provider.registry.resolve_model_provider",
         return_value=("claude", "opus"),
@@ -99,29 +148,8 @@ async def test_default_model_shows_coder_alias_label() -> None:
             await pilot.pause()
 
             model_display = modal.query_one("#coder-model-display", Static)
-            display_text = str(model_display.render())
-            assert "Follow-up — CLAUDE(opus)" in display_text
-    # No planner provider -> the generic @coder alias is resolved.
-    resolve_mock.assert_any_call("@coder")
-
-
-async def test_default_model_uses_planner_coder_alias() -> None:
-    """With planner context, the default resolves that planner's coder alias."""
-    with patch(
-        "sase.llm_provider.registry.resolve_model_provider",
-        return_value=("codex", "gpt-5.6-sol"),
-    ) as resolve_mock:
-        async with ApproveOptionsApp().run_test() as pilot:
-            modal = ApproveOptionsModal(
-                planner_llm_provider="claude",
-            )
-            pilot.app.push_screen(modal)
-            await pilot.pause()
-
-            model_display = modal.query_one("#coder-model-display", Static)
-            display_text = str(model_display.render())
-            assert "Follow-up — CODEX(gpt-5.6-sol)" in display_text
-    resolve_mock.assert_any_call("@claude_coder")
+            assert "Follow-up — CLAUDE(opus)" in str(model_display.render())
+    resolve_mock.assert_any_call("@medium_phase_worker")
 
 
 async def test_epic_model_is_configured_by_plan_frontmatter() -> None:

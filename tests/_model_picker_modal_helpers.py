@@ -41,13 +41,6 @@ def make_alias_context(
                 model="opus",
                 description="Default launch model.",
             ),
-            make_alias_view(
-                "coder",
-                "role",
-                provider="codex",
-                model="gpt-5.5",
-                description="Implementation follow-up agents.",
-            ),
             make_alias_view("epic_lander", "role", provider="claude", model="opus"),
             make_alias_view("big_epic_lander", "role", provider="claude", model="opus"),
             make_alias_view(

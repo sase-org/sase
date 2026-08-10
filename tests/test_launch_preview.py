@@ -141,7 +141,10 @@ def test_launch_preview_renders_model_alias_overrides(tmp_path: Path) -> None:
     request = build_launch_preview_request(
         plan=plan_fake_fanout(
             "agent",
-            ["%m(opus, coder=sonnet, medium_phase_worker=@coder)\nImplement"],
+            [
+                "%m(opus, medium_phase_worker=sonnet, "
+                "large_phase_worker=@small_phase_worker)\nImplement"
+            ],
         ),
         context=_context(tmp_path),
         source_surface="ace",
@@ -150,12 +153,13 @@ def test_launch_preview_renders_model_alias_overrides(tmp_path: Path) -> None:
     )
 
     assert request["slots"][0]["model_alias_overrides"] == {
-        "coder": "sonnet",
-        "medium_phase_worker": "@coder",
+        "medium_phase_worker": "sonnet",
+        "large_phase_worker": "@small_phase_worker",
     }
     preview = render_launch_preview_markdown(request)
     assert (
-        "model `opus` · alias overrides: coder → sonnet, medium_phase_worker → @coder"
+        "model `opus` · alias overrides: large_phase_worker → @small_phase_worker, "
+        "medium_phase_worker → sonnet"
     ) in preview
 
 

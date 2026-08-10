@@ -170,7 +170,7 @@ def test_directive_arg_extraction_keeps_leading_at_model_alias_context() -> None
     for line, expected_start, expected_partial in (
         ("%m:@", len("%m:"), "@"),
         ("%m:@def", len("%m:"), "@def"),
-        ("%model:@claude_coder", len("%model:"), "@claude_coder"),
+        ("%model:@medium_phase_worker", len("%model:"), "@medium_phase_worker"),
     ):
         assert extract_directive_arg_token_around_cursor(line, len(line)) == (
             expected_start,

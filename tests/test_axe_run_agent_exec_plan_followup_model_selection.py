@@ -18,46 +18,46 @@ pytestmark = pytest.mark.usefixtures(
 class TestPlanFollowupModelSelection:
     """Verify plan approval follow-up model prefixes."""
 
-    @pytest.mark.parametrize("provider", ["claude", "codex", "agy"])
-    def test_coder_followup_uses_provider_coder_alias(
-        self, tmp_path, provider: str
+    @pytest.mark.parametrize(
+        "size",
+        ["xsmall", "small", "medium", "large", "xlarge"],
+    )
+    def test_coder_followup_uses_tale_size_phase_worker_alias(
+        self, tmp_path, size: str
     ) -> None:
-        """An approved plan routes its coder through ``@<planner_provider>_coder``.
-
-        A Claude-authored plan launches its coder with ``%model:@claude_coder``,
-        a Codex plan with ``%model:@codex_coder``, and so on for every registered
-        provider — never the retired ``%model:@worker`` lane.
-        """
-        state = run_followup_plan(
+        """An approved tale routes its follow-up through ``@<size>_phase_worker``."""
+        plan_file = write_plan_file(tmp_path, size=size)
+        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+        _, state, _ = run_plan_approval(
             tmp_path,
-            action="approve",
+            approval=approval,
             agent_model="opus",
-            agent_llm_provider=provider,
+            agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith(f"%model:@{provider}_coder\n")
+        assert state.current_prompt.startswith(f"%model:@{size}_phase_worker\n")
         assert "%model:@worker" not in state.current_prompt
 
-    def test_coder_followup_falls_back_to_coder_alias_without_provider(
+    def test_sizeless_legacy_tale_defaults_to_medium_phase_worker(
         self, tmp_path
     ) -> None:
-        """Missing planner provider metadata falls back to the generic ``@coder``."""
-        state = run_followup_plan(
+        plan_file = write_plan_file(tmp_path, size=None)
+        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+        _, state, _ = run_plan_approval(
             tmp_path,
-            action="approve",
+            approval=approval,
             agent_model="opus",
             agent_llm_provider=None,
         )
-        assert state.current_prompt.startswith("%model:@coder\n")
+        assert state.current_prompt.startswith("%model:@medium_phase_worker\n")
 
-    def test_coder_alias_depends_only_on_planner_provider(self, tmp_path) -> None:
-        """The coder alias is chosen from the provider, ignoring a missing model."""
+    def test_tale_size_alias_ignores_planner_provider(self, tmp_path) -> None:
         state = run_followup_plan(
             tmp_path,
             action="approve",
             agent_model=None,
             agent_llm_provider="codex",
         )
-        assert state.current_prompt.startswith("%model:@codex_coder\n")
+        assert state.current_prompt.startswith("%model:@small_phase_worker\n")
 
     def test_epic_approval_has_no_creator_model_followup(self, tmp_path) -> None:
         """Epic approval launches bead work directly without a model-prefixed child."""
@@ -85,7 +85,7 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
             agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith("%model:@claude_coder\n")
+        assert state.current_prompt.startswith("%model:@small_phase_worker\n")
         assert "%model:@worker" not in state.current_prompt
 
     def test_coder_prompt_picker_model_wins_over_default(self, tmp_path) -> None:
@@ -102,5 +102,5 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
         )
         assert state.current_prompt.startswith("%model:sonnet\n")
-        assert "%model:@claude_coder" not in state.current_prompt
+        assert "%model:@small_phase_worker" not in state.current_prompt
         assert "%model:@worker" not in state.current_prompt

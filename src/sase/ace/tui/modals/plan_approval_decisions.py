@@ -35,6 +35,7 @@ class PlanApprovalDecisionsMixin:
     _gate: GateBranchData
     _default_choice: PlanApprovalChoice
     _llm_provider: str | None
+    _plan_file: str
 
     # -- branch submission -------------------------------------------------
 
@@ -199,6 +200,7 @@ class PlanApprovalDecisionsMixin:
                 coder_prompt=coder_prompt,
                 coder_model=coder_model,
                 choice=choice,
+                plan_file=self._plan_file,
                 planner_llm_provider=self._llm_provider,
             ),
             on_options_dismiss,

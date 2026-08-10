@@ -43,9 +43,9 @@ _DIFF = (
     " llm_provider:\n"
     "   model_aliases:\n"
     "     builtin:\n"
-    '-      coder: "@default"\n'
-    "+      coder: claude/opus\n"
-    "       medium_phase_worker: codex/o3\n"
+    '-      medium_phase_worker: "@default"\n'
+    "+      medium_phase_worker: claude/opus\n"
+    "       small_phase_worker: codex/o3\n"
 )
 
 _EFFORT_TARGET = "/home/user/.local/share/chezmoi/home/dot_config/sase/sase.yml"
@@ -77,14 +77,19 @@ def _edit_plan() -> EditPlanResult:
         write_plan=ConfigWritePlan(
             file=_TARGET,
             layer="user",
-            key_path=("llm_provider", "model_aliases", "builtin", "coder"),
+            key_path=(
+                "llm_provider",
+                "model_aliases",
+                "builtin",
+                "medium_phase_worker",
+            ),
             op="set",
             has_value=True,
             new_value="claude/opus",
         ),
         candidate_config={},
         effective_preview=ConfigEffectivePreview(
-            path="llm_provider.model_aliases.builtin.coder",
+            path="llm_provider.model_aliases.builtin.medium_phase_worker",
             has_before=True,
             before="@default",
             has_after=True,
@@ -175,7 +180,9 @@ async def test_models_panel_edit_preview_png_snapshot(
         await page.press("4")
         await page.expect_state("artifacts_subtab", "prs")
 
-        modal = AliasEditPreviewModal("coder", ConfigEditOp.set_value("claude/opus"))
+        modal = AliasEditPreviewModal(
+            "medium_phase_worker", ConfigEditOp.set_value("claude/opus")
+        )
         page.app.push_screen(modal)
         await page.expect_modal("AliasEditPreviewModal")
         await page.wait_for(lambda _s: modal._plan is not None)

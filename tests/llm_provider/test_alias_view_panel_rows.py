@@ -7,7 +7,6 @@ import pytest
 from sase.llm_provider import (
     AliasView,
     BucketView,
-    CODERS_BUCKET_DESCRIPTION,
     PHASE_WORKER_BUCKET_DESCRIPTION,
     TemporaryLLMOverride,
     build_models_panel_rows,
@@ -111,7 +110,6 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
     rows = build_models_panel_rows()
     assert [row.name for row in rows] == [
         "default",
-        "coders",
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
@@ -126,7 +124,7 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
     ]
     assert all(row.name not in {"coder", "claude_coder", "codex_coder"} for row in rows)
 
-    user_rows = rows[10:]
+    user_rows = rows[9:]
     assert [row.name for row in user_rows] == ["coding", "research", "alpha"]
     coding, research, alpha = user_rows
     assert isinstance(coding, BucketView)
@@ -139,7 +137,7 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
     assert all(row.name != "unused" for row in user_rows)
 
 
-def test_models_panel_rows_coalesce_custom_coders_members(
+def test_models_panel_rows_treat_retired_coder_aliases_as_user_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -154,8 +152,8 @@ def test_models_panel_rows_coalesce_custom_coders_members(
                 "custom": {
                     "helper": {
                         "model": "claude/sonnet",
-                        "description": "Extra coder helper.",
-                        "bucket": "coders",
+                        "description": "Extra coding helper.",
+                        "bucket": "coding",
                     },
                     "zeta": {
                         "model": "codex/o3",
@@ -168,7 +166,7 @@ def test_models_panel_rows_coalesce_custom_coders_members(
                     },
                 },
                 "buckets": {
-                    "coders": {"description": "Configured coder roles."},
+                    "coding": {"description": "Configured coding roles."},
                     "research": {"description": "Research roles."},
                 },
             },
@@ -176,15 +174,14 @@ def test_models_panel_rows_coalesce_custom_coders_members(
     )
     patch_available_providers(monkeypatch)
 
-    set_alias_override("codex_coder", "codex/gpt-5.6-sol", 3600.0, source="test")
+    set_alias_override("helper", "codex/gpt-5.6-sol", 3600.0, source="test")
     try:
         rows = build_models_panel_rows()
     finally:
-        clear_alias_override("codex_coder")
+        clear_alias_override("helper")
 
     assert [row.name for row in rows] == [
         "default",
-        "coders",
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
@@ -193,49 +190,33 @@ def test_models_panel_rows_coalesce_custom_coders_members(
         "cheap",
         "cheaper",
         "cheapest",
+        "coding",
         "research",
         "alpha",
-    ]
-    coder_buckets = [
-        row for row in rows if isinstance(row, BucketView) and row.name == "coders"
-    ]
-    assert len(coder_buckets) == 1
-    bucket = coder_buckets[0]
-    assert bucket.description == "Configured coder roles."
-    assert [member.name for member in bucket.members] == [
-        "coder",
         "claude_coder",
-        "codex_coder",
-        "helper",
+        "coder",
     ]
-    assert [member.kind for member in bucket.members] == [
-        "role",
-        "provider_coder",
-        "provider_coder",
-        "user",
+    coding_buckets = [
+        row for row in rows if isinstance(row, BucketView) and row.name == "coding"
     ]
-    assert [member.configured for member in bucket.members] == [True, True, False, True]
-    assert bucket.alias_count == 4
+    assert len(coding_buckets) == 1
+    bucket = coding_buckets[0]
+    assert bucket.description == "Configured coding roles."
+    assert [member.name for member in bucket.members] == ["helper"]
+    assert [member.kind for member in bucket.members] == ["user"]
+    assert [member.configured for member in bucket.members] == [True]
+    assert bucket.alias_count == 1
     assert bucket.override_count == 1
-    assert bucket.model_summary == "claude/sonnet +2"
-    assert bucket.model_counts == (
-        ("claude/sonnet", 2),
-        ("codex/gpt-5.6-sol", 1),
-        ("codex/o3", 1),
-    )
+    assert bucket.model_summary == "codex/gpt-5.6-sol"
+    assert bucket.model_counts == (("codex/gpt-5.6-sol", 1),)
 
-
-def test_models_panel_coders_bucket_uses_builtin_fallback_description(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    mock_provider_config(monkeypatch, {"provider": "claude", "model_aliases": {}})
-    patch_available_providers(monkeypatch)
-
-    rows = build_models_panel_rows()
-    coders = next(row for row in rows if row.name == "coders")
-
-    assert isinstance(coders, BucketView)
-    assert coders.description == CODERS_BUCKET_DESCRIPTION
+    user_by_name = {
+        row.name: row
+        for row in rows
+        if isinstance(row, AliasView) and row.kind == "user"
+    }
+    assert user_by_name["coder"].configured_source == "builtin"
+    assert user_by_name["claude_coder"].configured_source == "builtin"
 
 
 def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
@@ -275,7 +256,6 @@ def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
 
     assert [row.name for row in rows] == [
         "default",
-        "coders",
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
@@ -285,7 +265,7 @@ def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
         "cheaper",
         "cheapest",
     ]
-    phase_workers = rows[4]
+    phase_workers = rows[3]
     assert isinstance(phase_workers, BucketView)
     assert phase_workers.description == "Configured phase roles."
     assert [member.name for member in phase_workers.members] == [

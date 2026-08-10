@@ -13,7 +13,6 @@ from sase.llm_provider.load_balancing import parse_model_alias_selector
 from sase.llm_provider.model_alias_policy import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
-    CODER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     implicit_alias_targets,
@@ -21,7 +20,6 @@ from sase.llm_provider.model_alias_policy import (
 from tests._model_alias_defaults_fixture import (
     FROZEN_SELECTOR_MEMBER_DETAILS,
     FROZEN_TARGETS,
-    frozen_provider_model,
     frozen_provider_model_effort,
 )
 from tests.llm_provider._provider_config_helpers import (
@@ -30,7 +28,7 @@ from tests.llm_provider._provider_config_helpers import (
 )
 
 
-def test_includes_default_role_provider_coder_and_user_aliases(
+def test_includes_default_role_and_user_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -55,7 +53,6 @@ def test_includes_default_role_provider_coder_and_user_aliases(
 
     assert by_name["default"].kind == "default"
     assert by_name["default"].configured is False
-    assert by_name["coder"].kind == "role"
     assert by_name["big_epic_lander"].kind == "role"
     assert by_name["big_epic_lander"].configured is False
     assert by_name["big_epic_lander"].implicit_fallback == "smartest"
@@ -133,19 +130,9 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert [member.value for member in by_name["cheapest"].selector_members] == list(
         cheapest_selector.members
     )
-    assert by_name["claude_coder"].kind == "provider_coder"
-    assert by_name["codex_coder"].kind == "provider_coder"
-    assert by_name["coder"].implicit_value == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
-    assert by_name["claude_coder"].implicit_value is None
-    assert by_name["codex_coder"].implicit_value is None
-    assert by_name["claude_coder"].implicit_fallback == "coder"
-    assert by_name["codex_coder"].implicit_fallback == "coder"
-    assert (by_name["claude_coder"].provider, by_name["claude_coder"].model) == (
-        frozen_provider_model(CODER_MODEL_ALIAS_NAME)
-    )
-    assert (by_name["codex_coder"].provider, by_name["codex_coder"].model) == (
-        frozen_provider_model(CODER_MODEL_ALIAS_NAME)
-    )
+    assert "coder" not in by_name
+    assert "claude_coder" not in by_name
+    assert "codex_coder" not in by_name
 
     myalias = by_name["myalias"]
     assert myalias.kind == "user"
@@ -153,22 +140,16 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert myalias.configured_value == "claude/opus"
 
 
-def test_fakey_coder_alias_hidden_by_default(
+def test_retired_provider_coder_aliases_hidden_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The bundled fakey provider's implicit coder alias is hidden by default.
-
-    Uses the real registered-provider list (not :func:`patch_available_providers`)
-    so the bundled ``fakey`` provider participates, matching production.
-    """
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
     by_name = {v.name: v for v in build_alias_views()}
 
     assert "fakey_coder" not in by_name
-    # Other provider-coder aliases remain visible and unaffected.
-    assert "claude_coder" in by_name
-    assert "codex_coder" in by_name
+    assert "claude_coder" not in by_name
+    assert "codex_coder" not in by_name
 
 
 def test_configured_fakey_coder_alias_still_surfaces(
@@ -192,6 +173,7 @@ def test_configured_fakey_coder_alias_still_surfaces(
 
     by_name = {v.name: v for v in build_alias_views()}
 
+    assert by_name["fakey_coder"].kind == "user"
     assert by_name["fakey_coder"].configured is True
     assert by_name["fakey_coder"].configured_value == "fakey/fakey-large"
 
@@ -217,9 +199,8 @@ def test_default_is_first_and_groups_are_ordered(
 
     assert names[0] == "default"
     # role aliases follow default, in canonical order
-    role_slice = names[1:14]
+    role_slice = names[1:13]
     assert role_slice == [
-        "coder",
         "epic_lander",
         "big_epic_lander",
         "xsmall_phase_worker",
@@ -233,9 +214,6 @@ def test_default_is_first_and_groups_are_ordered(
         "cheaper",
         "cheapest",
     ]
-    # provider_coder aliases come next, alphabetically
-    assert names.index("claude_coder") < names.index("codex_coder")
-    assert names.index("codex_coder") < names.index("alpha")
     # user aliases come last, alphabetically
     assert names.index("alpha") < names.index("zeta")
 
@@ -259,7 +237,7 @@ def test_smartest_view_is_a_direct_target_even_when_claude_is_unavailable(
     assert smartest.selector_members == ()
 
 
-def test_configured_value_shadows_role_alias(
+def test_configured_retired_coder_alias_is_user_owned(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -269,29 +247,25 @@ def test_configured_value_shadows_role_alias(
     patch_available_providers(monkeypatch)
 
     coder = {v.name: v for v in build_alias_views()}["coder"]
-    assert coder.kind == "role"
+    assert coder.kind == "user"
     assert coder.configured is True
     assert coder.configured_value == "codex/o3"
 
 
-def test_unconfigured_provider_coder_follows_configured_coder(
+def test_configured_provider_coder_alias_is_user_owned(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An implicit ``<provider>_coder`` row resolves through a configured ``coder``.
-
-    This is what the Models panel displays for an unconfigured provider-coder
-    alias: its effective provider/model must match the generic ``coder`` alias,
-    not the ``@default`` target.
-    """
     mock_provider_config(
         monkeypatch,
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "default": "codex/gpt-5.6-sol",
-                    "coder": "claude/sonnet",
-                }
+                "custom": {
+                    "codex_coder": {
+                        "model": "codex/o3",
+                        "description": "Explicit legacy alias.",
+                    }
+                },
             },
         },
     )
@@ -300,12 +274,12 @@ def test_unconfigured_provider_coder_follows_configured_coder(
     by_name = {v.name: v for v in build_alias_views()}
     codex_coder = by_name["codex_coder"]
 
-    assert codex_coder.kind == "provider_coder"
-    assert codex_coder.configured is False
-    assert codex_coder.provider == "claude"
-    assert codex_coder.model == "sonnet"
+    assert codex_coder.kind == "user"
+    assert codex_coder.configured is True
+    assert codex_coder.provider == "codex"
+    assert codex_coder.model == "o3"
     assert codex_coder.implicit_value is None
-    assert codex_coder.implicit_fallback == "coder"
+    assert codex_coder.implicit_fallback is None
 
 
 def test_custom_alias_view_carries_source_and_description(

@@ -43,17 +43,21 @@ def test_model_directive_paren_arg() -> None:
 @pytest.mark.parametrize(
     ("source", "model", "overrides"),
     [
-        ("%m(opus, coder=sonnet)", "opus", {"coder": "sonnet"}),
-        ("%m(coder=sonnet)", None, {"coder": "sonnet"}),
         (
-            "%m(opus@high, coder=@medium_phase_worker)",
+            "%m(opus, medium_phase_worker=sonnet)",
             "opus",
-            {"coder": "@medium_phase_worker"},
+            {"medium_phase_worker": "sonnet"},
+        ),
+        ("%m(medium_phase_worker=sonnet)", None, {"medium_phase_worker": "sonnet"}),
+        (
+            "%m(opus@high, medium_phase_worker=@small_phase_worker)",
+            "opus",
+            {"medium_phase_worker": "@small_phase_worker"},
         ),
         (
-            '%model(claude/models/opus, coder="provider/model with spaces")',
+            '%model(claude/models/opus, medium_phase_worker="provider/model with spaces")',
             "claude/models/opus",
-            {"coder": "provider/model with spaces"},
+            {"medium_phase_worker": "provider/model with spaces"},
         ),
     ],
 )
@@ -76,17 +80,23 @@ def test_model_directive_alias_overrides_are_parsed(
     ("source", "message"),
     [
         ("%m(opus, foo=sonnet)", "Unknown model alias 'foo'"),
-        ("%m(opus, @coder=sonnet)", "keys are bare"),
+        ("%m(opus, @medium_phase_worker=sonnet)", "keys are bare"),
         (
-            "%m(opus, coder=medium_phase_worker)",
-            "did you mean @medium_phase_worker",
+            "%m(opus, medium_phase_worker=small_phase_worker)",
+            "did you mean @small_phase_worker",
         ),
-        ("%m(opus, coder=@missing)", "is not a known model alias"),
-        ("%m(opus, coder=sonnet@high)", "cannot set reasoning effort"),
-        ("%m(opus, coder=)", "requires a model value"),
-        ("%m(opus, coder=a, coder=b)", "Duplicate keyword argument 'coder'"),
-        ("%m:coder=sonnet", "require the parenthesized form"),
-        ("%m(opus, coder=@coder)", "cannot reference itself"),
+        ("%m(opus, medium_phase_worker=@missing)", "is not a known model alias"),
+        ("%m(opus, medium_phase_worker=sonnet@high)", "cannot set reasoning effort"),
+        ("%m(opus, medium_phase_worker=)", "requires a model value"),
+        (
+            "%m(opus, medium_phase_worker=a, medium_phase_worker=b)",
+            "Duplicate keyword argument 'medium_phase_worker'",
+        ),
+        ("%m:medium_phase_worker=sonnet", "require the parenthesized form"),
+        (
+            "%m(opus, medium_phase_worker=@medium_phase_worker)",
+            "cannot reference itself",
+        ),
     ],
 )
 def test_model_directive_alias_override_validation(
@@ -98,8 +108,11 @@ def test_model_directive_alias_override_validation(
 
 
 def test_model_directive_alias_kwargs_do_not_count_as_positional_models() -> None:
-    with pytest.raises(DirectiveError, match=r"%m\(opus, sonnet, coder=haiku\)"):
-        extract_prompt_directives("%m(opus, sonnet, coder=haiku)\nReview")
+    with pytest.raises(
+        DirectiveError,
+        match=r"%m\(opus, sonnet, medium_phase_worker=haiku\)",
+    ):
+        extract_prompt_directives("%m(opus, sonnet, medium_phase_worker=haiku)\nReview")
 
 
 def test_model_directive_alias_override_expands_xprompt_reference() -> None:
@@ -107,9 +120,11 @@ def test_model_directive_alias_override_expands_xprompt_reference() -> None:
         "sase.xprompt.directives.process_xprompt_references",
         return_value="sonnet",
     ) as process:
-        _, directives = extract_prompt_directives("%m(opus, coder=#fast)\nReview")
+        _, directives = extract_prompt_directives(
+            "%m(opus, medium_phase_worker=#fast)\nReview"
+        )
 
-    assert dict(directives.model_alias_overrides) == {"coder": "sonnet"}
+    assert dict(directives.model_alias_overrides) == {"medium_phase_worker": "sonnet"}
     process.assert_called_once_with("#fast")
 
 

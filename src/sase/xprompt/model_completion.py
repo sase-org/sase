@@ -21,7 +21,6 @@ from sase.llm_provider.config import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
-    CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
@@ -31,7 +30,6 @@ from sase.llm_provider.config import (
     SMARTEST_MODEL_ALIAS_NAME,
     XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
-    coder_model_alias_for_provider,
     get_model_aliases,
 )
 from sase.llm_provider.registry import (
@@ -49,15 +47,10 @@ MODEL_COMPLETION_CATALOG_SCHEMA_VERSION = 1
 _INLINE_MODEL_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-=./@]+$")
 
 # Implicit role aliases surfaced as ``%model`` completions, in display order.
-# The ``<provider>_coder`` aliases are generated per registered provider and slot
-# in between ``@coder`` and the epic/phase roles (see the catalog builder). These
-# are the migration replacements for the retired reserved ``@worker``/``@other``
-# aliases (epic sase-5d phase 2).
-_LEADING_IMPLICIT_ALIASES: tuple[str, ...] = (
+# These are the migration replacements for the retired reserved
+# ``@worker``/``@other`` aliases (epic sase-5d phase 2).
+_IMPLICIT_ALIASES: tuple[str, ...] = (
     DEFAULT_MODEL_ALIAS_NAME,
-    CODER_MODEL_ALIAS_NAME,
-)
-_TRAILING_IMPLICIT_ALIASES: tuple[str, ...] = (
     EPIC_LANDER_MODEL_ALIAS_NAME,
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
@@ -112,13 +105,11 @@ def build_model_completion_catalog(
 
     Canonical model names come from the cached LLM metadata payload. Short
     aliases are kept as match/display hints only; they are not inserted as
-    completion values. The implicit role aliases (``@default``, ``@coder``, each
-    registered ``@<provider>_coder``, ``@epic_lander``,
-    ``@big_epic_lander``, the five size-specific phase
+    completion values. The implicit role aliases (``@default``,
+    ``@epic_lander``, ``@big_epic_lander``, the five size-specific phase
     aliases, ``@smartest``, ``@smart``, ``@cheap``, ``@cheaper``, and
-    ``@cheapest``) and
-    user-configured aliases are inserted with their ``@`` form because those
-    values resolve through the
+    ``@cheapest``) and user-configured aliases are inserted with their ``@``
+    form because those values resolve through the
     normal ``%model`` path.
     """
     global _CATALOG_CACHE  # noqa: PLW0603
@@ -216,7 +207,6 @@ def _apply_alias_overrides(
         if entry.kind in {"implicit_alias", "user_alias"}
     }
     overlaid = list(entries)
-    specifically_overridden = {alias.lstrip("@") for alias in overrides}
     for raw_alias, override in overrides.items():
         index = positions.get(raw_alias.lstrip("@"))
         if index is None:
@@ -234,27 +224,6 @@ def _apply_alias_overrides(
             pool_total=0,
         )
 
-    generic_coder_override = overrides.get("coder") or overrides.get("@coder")
-    if generic_coder_override is not None:
-        for index, entry in enumerate(overlaid):
-            alias = entry.value.lstrip("@")
-            if (
-                entry.alias_kind != "provider_coder"
-                or entry.provenance != "implicit"
-                or alias in specifically_overridden
-            ):
-                continue
-            overlaid[index] = replace(
-                entry,
-                target_provider=generic_coder_override.provider,
-                target_model=generic_coder_override.model,
-                target_effort=generic_coder_override.effort or "",
-                reference="coder",
-                reference_effort="",
-                selector_mode="",
-                pool_available=0,
-                pool_total=0,
-            )
     return overlaid
 
 
@@ -315,8 +284,6 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
     _append_implicit_alias_entries(
         entries,
         seen,
-        provider_order=provider_order,
-        providers=providers,
         user_aliases=user_aliases,
         alias_views=alias_views,
     )
@@ -339,41 +306,24 @@ def _append_implicit_alias_entries(
     entries: list[_ModelCompletionEntry],
     seen: set[str],
     *,
-    provider_order: list[str],
-    providers: dict[str, object],
     user_aliases: dict[str, str],
     alias_views: dict[str, AliasView],
 ) -> None:
-    """Append the implicit role aliases (``@default``, ``@coder``, etc.).
+    """Append the implicit role aliases (``@default``, ``@epic_lander``, etc.).
 
-    Provider-specific ``@<provider>_coder`` aliases are generated for every
-    registered provider, slotted between ``@coder`` and the epic/phase roles.
     An implicit alias the user has shadowed via ``model_aliases`` is skipped here
     so the user-configured target is surfaced once, with its real
     description, by the caller's user-alias loop.
     """
-    implicit: list[str] = [*_LEADING_IMPLICIT_ALIASES]
-    for provider in provider_order:
-        implicit.append(coder_model_alias_for_provider(provider))
-    implicit.extend(_TRAILING_IMPLICIT_ALIASES)
-
-    for value in implicit:
+    for value in _IMPLICIT_ALIASES:
         if value in user_aliases:
             continue
         view = alias_views.get(value)
-        description = ""
-        if view is not None and view.kind == "provider_coder":
-            provider = value.removesuffix("_coder")
-            provider_display = _provider_display(
-                provider, _dict(providers.get(provider))
-            )
-            description = f"{provider_display} coder follow-up model."
         _append_alias_entry(
             entries,
             seen,
             value=value,
             view=view,
-            description=description,
             kind="implicit_alias",
         )
 

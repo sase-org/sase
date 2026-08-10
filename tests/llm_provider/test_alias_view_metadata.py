@@ -29,22 +29,18 @@ def test_custom_builtin_shadows_and_bucket_aggregate(
             "model_aliases": {
                 "builtin": {"smartest": "claude/opus"},
                 "custom": {
-                    "coder": {
+                    "small_phase_worker": {
                         "model": "claude/sonnet",
                         "description": "Wrong location.",
-                    },
-                    "codex_coder": {
-                        "model": "codex/o3",
-                        "description": "Also misplaced.",
                     },
                     "blogger": {
                         "model": "claude/opus",
                         "description": "Legitimate custom alias.",
                     },
-                    "pair_programmer": {
+                    "phase_reviewer": {
                         "model": "claude/opus",
-                        "description": "Custom coder-bucket member.",
-                        "bucket": "coders",
+                        "description": "Custom phase bucket member.",
+                        "bucket": "phase_worker",
                     },
                 },
             },
@@ -55,28 +51,26 @@ def test_custom_builtin_shadows_and_bucket_aggregate(
     views = build_alias_views()
     by_name = {view.name: view for view in views}
 
-    assert by_name["coder"].kind == "role"
-    assert by_name["coder"].configured_source == "custom"
-    assert by_name["coder"].is_custom_builtin_shadow is True
-    assert by_name["codex_coder"].kind == "provider_coder"
-    assert by_name["codex_coder"].is_custom_builtin_shadow is True
+    assert by_name["small_phase_worker"].kind == "role"
+    assert by_name["small_phase_worker"].configured_source == "custom"
+    assert by_name["small_phase_worker"].is_custom_builtin_shadow is True
     assert by_name["blogger"].kind == "user"
     assert by_name["blogger"].is_custom_builtin_shadow is False
-    assert by_name["pair_programmer"].is_user_owned is True
+    assert by_name["phase_reviewer"].is_user_owned is True
     assert by_name["smartest"].configured_source == "builtin"
     assert by_name["smartest"].is_custom_builtin_shadow is False
 
-    coders = next(
+    phase_workers = next(
         row
         for row in build_models_panel_rows(views)
-        if isinstance(row, BucketView) and row.name == "coders"
+        if isinstance(row, BucketView) and row.name == "phase_worker"
     )
-    assert coders.custom_builtin_shadow_names == ("coder", "codex_coder")
-    assert coders.custom_builtin_shadow_count == 2
-    assert coders.user_member_count == 1
+    assert phase_workers.custom_builtin_shadow_names == ("small_phase_worker",)
+    assert phase_workers.custom_builtin_shadow_count == 1
+    assert phase_workers.user_member_count == 1
 
     builtin, user = split_models_panel_rows(build_models_panel_rows(views))
-    assert coders in builtin.rows
+    assert phase_workers in builtin.rows
     assert builtin.alias_count == sum(
         row.alias_count if isinstance(row, BucketView) else 1 for row in builtin.rows
     )
@@ -104,8 +98,8 @@ def test_ownership_partition_preserves_top_and_bucket_order() -> None:
         override=None,
         configured_source="custom",
     )
-    coder = AliasView(
-        name="coder",
+    phase_worker = AliasView(
+        name="small_phase_worker",
         kind="role",
         configured=False,
         configured_value=None,
@@ -121,7 +115,7 @@ def test_ownership_partition_preserves_top_and_bucket_order() -> None:
         provider="claude",
         model="opus",
         override=None,
-        bucket="coders",
+        bucket="phase_worker",
     )
     researcher = AliasView(
         name="researcher",
@@ -142,15 +136,15 @@ def test_ownership_partition_preserves_top_and_bucket_order() -> None:
         model="opus",
         override=None,
     )
-    coders = BucketView("coders", None, (coder, pair_programmer))
+    phase_workers = BucketView("phase_worker", None, (phase_worker, pair_programmer))
     research = BucketView("research", None, (researcher,))
-    rows = [default, coders, misplaced, research, plain]
+    rows = [default, phase_workers, misplaced, research, plain]
 
     assert default.is_user_owned is False
     assert misplaced.is_user_owned is False
     assert is_user_owned(misplaced) is False
-    assert coders.is_user_owned is False
-    assert coders.user_member_count == 1
+    assert phase_workers.is_user_owned is False
+    assert phase_workers.user_member_count == 1
     assert research.is_user_owned is True
     assert plain.is_user_owned is True
 
@@ -159,8 +153,8 @@ def test_ownership_partition_preserves_top_and_bucket_order() -> None:
     assert (builtin.alias_count, builtin.bucket_count) == (4, 1)
     assert (user.alias_count, user.bucket_count) == (2, 1)
 
-    bucket_builtin, bucket_user = split_bucket_members(coders)
-    assert [*bucket_builtin.rows, *bucket_user.rows] == list(coders.members)
+    bucket_builtin, bucket_user = split_bucket_members(phase_workers)
+    assert [*bucket_builtin.rows, *bucket_user.rows] == list(phase_workers.members)
     assert (bucket_builtin.alias_count, bucket_builtin.bucket_count) == (1, 0)
     assert (bucket_user.alias_count, bucket_user.bucket_count) == (1, 0)
 
@@ -180,7 +174,7 @@ def test_alias_view_references(
     expected: str | None,
 ) -> None:
     view = AliasView(
-        name="coder",
+        name="medium_phase_worker",
         kind="role",
         configured=configured_value is not None,
         configured_value=configured_value,
@@ -204,7 +198,7 @@ def test_alias_view_reference_effort_is_only_for_alias_edges(
     expected: str | None,
 ) -> None:
     view = AliasView(
-        name="coder",
+        name="medium_phase_worker",
         kind="role",
         configured=True,
         configured_value=configured_value,

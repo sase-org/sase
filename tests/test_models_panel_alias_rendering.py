@@ -25,16 +25,11 @@ from tests._models_panel_helpers import (
 
 
 def test_custom_builtin_warning_message_uses_singular_guidance() -> None:
-    assert custom_builtin_shadow_warning_message(["coder"]) == (
-        "Builtin alias @coder is configured under "
+    assert custom_builtin_shadow_warning_message(["small_phase_worker"]) == (
+        "Builtin alias @small_phase_worker is configured under "
         "llm_provider.model_aliases.custom. Move its model value from "
         "llm_provider.model_aliases.custom to llm_provider.model_aliases.builtin."
     )
-
-
-def test_kind_label_provider_coder_shows_coder() -> None:
-    view = make_alias_view("codex_coder", "provider_coder")
-    assert _kind_label(view) == "coder"
 
 
 def test_state_tag_configured() -> None:
@@ -51,7 +46,7 @@ def test_state_tag_configured() -> None:
 def test_state_tag_configured_reference_uses_shared_reference_accent() -> None:
     configured = _state_tag(
         make_alias_view(
-            "coder",
+            "medium_phase_worker",
             "role",
             configured=True,
             configured_value="@default",
@@ -59,7 +54,7 @@ def test_state_tag_configured_reference_uses_shared_reference_accent() -> None:
         now=0.0,
     )
     implicit = _state_tag(
-        make_alias_view("opencode_coder", "provider_coder"),
+        make_alias_view("big_epic_lander", "role"),
         now=0.0,
     )
 
@@ -72,7 +67,7 @@ def test_state_tag_configured_reference_uses_shared_reference_accent() -> None:
     implicit_target = next(
         span
         for span in implicit.spans
-        if implicit.plain[span.start : span.end] == "@coder"
+        if implicit.plain[span.start : span.end] == "@smartest"
     )
     assert configured_target.style == implicit_target.style
     assert "#87d7ff" in str(configured_target.style).lower()
@@ -98,7 +93,7 @@ def test_state_tag_implicit_default() -> None:
 
 
 def test_state_tag_implicit_role() -> None:
-    text = _state_tag(make_alias_view("coder", "role"), now=0.0)
+    text = _state_tag(make_alias_view("medium_phase_worker", "role"), now=0.0)
     assert text.plain == "implicit"
 
 
@@ -112,32 +107,16 @@ def test_state_tag_implicit_concrete_size_phase_worker() -> None:
     assert text.plain == "implicit"
 
 
-def test_state_tag_implicit_unpinned_provider_coder() -> None:
-    text = _state_tag(
-        make_alias_view("opencode_coder", "provider_coder"),
-        now=0.0,
-    )
-    assert text.plain == "implicit → @coder"
-
-
-def test_state_tag_implicit_provider_coder_uses_coder() -> None:
-    text = _state_tag(
-        make_alias_view("codex_coder", "provider_coder"),
-        now=0.0,
-    )
-    assert text.plain == "implicit → @coder"
-
-
 def test_custom_builtin_warning_survives_active_override() -> None:
     view = make_alias_view(
-        "coder",
+        "small_phase_worker",
         "role",
         configured=True,
         configured_value="@default",
         configured_source="custom",
     )
     overridden = make_alias_view(
-        "coder",
+        "small_phase_worker",
         "role",
         configured=True,
         configured_value="@default",
@@ -156,20 +135,24 @@ def test_custom_builtin_warning_survives_active_override() -> None:
     assert override_line.startswith("  ! role")
     assert "override · 1h left" in override_line
     assert description.splitlines() == [
-        "! Misplaced builtin alias: @coder",
+        "! Misplaced builtin alias: @small_phase_worker",
         "Move its model value from llm_provider.model_aliases.custom to "
         "llm_provider.model_aliases.builtin.",
     ]
 
 
 def test_state_tag_override_with_remaining() -> None:
-    view = make_alias_view("coder", "role", override=make_override(expires_at=3600.0))
+    view = make_alias_view(
+        "medium_phase_worker", "role", override=make_override(expires_at=3600.0)
+    )
     text = _state_tag(view, now=0.0)
     assert text.plain == "override · 1h left"
 
 
 def test_state_tag_override_until_cleared() -> None:
-    view = make_alias_view("coder", "role", override=make_override(expires_at=None))
+    view = make_alias_view(
+        "medium_phase_worker", "role", override=make_override(expires_at=None)
+    )
     text = _state_tag(view, now=0.0)
     assert text.plain == "override · until cleared"
 
@@ -303,8 +286,8 @@ def test_render_alias_row_includes_effort_in_measured_badge() -> None:
 def test_render_alias_rows_align_state_column() -> None:
     """Rows with different badge widths share one state-column start cell."""
     short = make_alias_view(
-        "codex_coder",
-        "provider_coder",
+        "medium_phase_worker",
+        "role",
         provider="codex",
         model="o3",
     )
@@ -357,8 +340,9 @@ def test_render_alias_row_ellipsizes_long_provider_model_label() -> None:
         model="anthropic/claude-sonnet-4-5-extremely-long-model-name",
     )
     short = make_alias_view(
-        "codex_coder",
-        "provider_coder",
+        "quick",
+        "user",
+        configured=True,
         provider="codex",
         model="o3",
     )

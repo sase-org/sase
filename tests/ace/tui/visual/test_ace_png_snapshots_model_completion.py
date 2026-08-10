@@ -13,6 +13,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui import AceApp
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -27,6 +28,15 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+def _patch_prompt_catalog_rebuild(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable startup prompt-catalog work; these tests inject rows directly."""
+    monkeypatch.setattr(
+        AceApp,
+        "_schedule_prompt_catalog_rebuild",
+        lambda *_args, **_kwargs: None,
+    )
 
 
 def _model_row(
@@ -115,23 +125,23 @@ _ALIAS_ROWS = [
         description="Model used when a prompt has no %model directive.",
     ),
     _alias_row(
-        "@coder",
+        "@medium_phase_worker",
         kind="implicit_alias",
         alias_kind="role",
         target_provider="codex",
         target_model="gpt-5.6-sol",
         provenance="configured",
         config_source="builtin",
-        description="Follow-up model used for #commit and review work.",
+        description="Default model used for medium tale follow-ups.",
     ),
     _alias_row(
-        "@claude_coder",
+        "@small_phase_worker",
         kind="implicit_alias",
-        alias_kind="provider_coder",
-        target_provider="codex",
-        target_model="gpt-5.6-sol",
-        reference="coder",
-        description="Claude coder follow-up model.",
+        alias_kind="role",
+        target_provider="claude",
+        target_model="sonnet",
+        target_effort="xhigh",
+        description="Default model used for small tale follow-ups.",
     ),
     _alias_row(
         "@scout",
@@ -177,6 +187,7 @@ async def test_model_completion_mixed_menu_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
+    _patch_prompt_catalog_rebuild(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
@@ -199,7 +210,7 @@ async def test_model_completion_mixed_menu_png_snapshot(
             ),
             description="model completion visibility",
         )
-        await wait_for_svg_contains(page, "@claude_coder")
+        await wait_for_svg_contains(page, "@small_phase_worker")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -214,6 +225,7 @@ async def test_model_completion_alias_only_menu_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
+    _patch_prompt_catalog_rebuild(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)

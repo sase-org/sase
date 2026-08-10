@@ -1684,7 +1684,7 @@
           "properties": {
             "builtin": {
               "type": "object",
-              "description": "Overrides for SASE's builtin model aliases: default, coder, <provider>_coder, epic_lander, big_epic_lander, xsmall_phase_worker, small_phase_worker, medium_phase_worker, large_phase_worker, xlarge_phase_worker, smartest, smart, cheap, cheaper, and cheapest. Every registered <provider>_coder alias inherits coder unless explicitly overridden; see src/sase/llm_provider/model_alias_defaults.yml for the current shipped default of each alias. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references; a reference may carry a trailing '@<effort>' that overrides the referenced alias's effort. Single-pipe values (A | B) form load-balanced round-robin pools; double-pipe values (A || B) form ordered provider-availability fallbacks. Operators cannot be mixed, and every member uses the same grammar and may carry a trailing @<effort>.",
+              "description": "Overrides for SASE's builtin model aliases: default, epic_lander, big_epic_lander, xsmall_phase_worker, small_phase_worker, medium_phase_worker, large_phase_worker, xlarge_phase_worker, smartest, smart, cheap, cheaper, and cheapest. Accepted tale follow-ups route through the tale size's <size>_phase_worker alias. See src/sase/llm_provider/model_alias_defaults.yml for the current shipped default of each alias. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references; a reference may carry a trailing '@<effort>' that overrides the referenced alias's effort. Single-pipe values (A | B) form load-balanced round-robin pools; double-pipe values (A || B) form ordered provider-availability fallbacks. Operators cannot be mixed, and every member uses the same grammar and may carry a trailing @<effort>.",
               "additionalProperties": {
                 "type": "string"
               }
@@ -1711,14 +1711,14 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 40,
-                    "description": "Optional display-only bucket in the ACE Models panel; alias resolution remains flat and unchanged. The built-in coders and phase_worker buckets are supplied by ACE, and custom aliases assigned to either coalesce with its builtin members."
+                    "description": "Optional display-only bucket in the ACE Models panel; alias resolution remains flat and unchanged. The built-in phase_worker bucket is supplied by ACE, and custom aliases assigned to it coalesce with its builtin members."
                   }
                 }
               }
             },
             "buckets": {
               "type": "object",
-              "description": "Optional display-only Models-panel bucket metadata. ACE supplies the built-in coders and phase_worker buckets even without custom members; their descriptions may be overridden here, and custom aliases assigned to either coalesce with it.",
+              "description": "Optional display-only Models-panel bucket metadata. ACE supplies the built-in phase_worker bucket even without custom members; its description may be overridden here, and custom aliases assigned to it coalesce with it.",
               "propertyNames": {
                 "minLength": 1,
                 "maxLength": 40

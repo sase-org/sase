@@ -9,9 +9,7 @@ from sase.config.core import current_config_token
 from sase.xprompt.effort import split_model_effort
 
 from .model_alias_policy import (
-    CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
-    PROVIDER_CODER_ALIAS_SUFFIX,
     implicit_alias_targets,
     role_alias_descriptions,
     role_alias_fallbacks,
@@ -174,34 +172,9 @@ def default_model_alias_name() -> str:
     return DEFAULT_MODEL_ALIAS_NAME
 
 
-def coder_model_alias_for_provider(provider: str) -> str:
-    """Return the ``<provider>_coder`` model alias name for *provider*."""
-    return f"{provider.strip()}{PROVIDER_CODER_ALIAS_SUFFIX}"
-
-
 def role_model_directive_value(role: str) -> str:
     """Return the ``%model`` directive value (``@<role>``) for a role alias."""
     return f"@{role}"
-
-
-def registered_provider_names_for_aliases() -> list[str]:
-    """Return registered LLM provider names, or ``[]`` on discovery failure."""
-    try:
-        from .registry import registered_provider_names
-
-        return registered_provider_names()
-    except Exception:
-        return []
-
-
-def is_provider_coder_alias(name: str) -> bool:
-    """Return ``True`` if *name* is a ``<provider>_coder`` alias for a provider."""
-    from . import config
-
-    if not name.endswith(PROVIDER_CODER_ALIAS_SUFFIX):
-        return False
-    provider = name[: -len(PROVIDER_CODER_ALIAS_SUFFIX)]
-    return bool(provider) and provider in config._registered_provider_names()
 
 
 def role_model_alias_names() -> set[str]:
@@ -213,19 +186,9 @@ def role_model_alias_names() -> set[str]:
     }
 
 
-def provider_coder_model_alias_names() -> set[str]:
-    """Return a ``<provider>_coder`` alias for every registered provider."""
-    from . import config
-
-    return {
-        coder_model_alias_for_provider(provider)
-        for provider in config._registered_provider_names()
-    }
-
-
 def special_model_alias_names() -> set[str]:
     """Return every implicit (non-user-configured) model alias name."""
-    return role_model_alias_names() | provider_coder_model_alias_names()
+    return role_model_alias_names()
 
 
 def model_alias_names() -> set[str]:
@@ -234,13 +197,11 @@ def model_alias_names() -> set[str]:
 
 
 def model_alias_kind(name: str) -> str:
-    """Classify *name* for display as a default, role, provider coder, or user."""
+    """Classify *name* for display as a default, role, or user alias."""
     if name == DEFAULT_MODEL_ALIAS_NAME:
         return "default"
     if name in role_alias_fallbacks() or name in implicit_alias_targets():
         return "role"
-    if is_provider_coder_alias(name):
-        return "provider_coder"
     return "user"
 
 
@@ -252,9 +213,6 @@ def model_alias_description(name: str) -> str | None:
     descriptions = role_alias_descriptions()
     if alias in descriptions:
         return descriptions[alias]
-    if is_provider_coder_alias(alias):
-        provider = alias[: -len(PROVIDER_CODER_ALIAS_SUFFIX)]
-        return f"Coder follow-up agents for plans authored by {provider}."
     return _custom_model_alias_descriptions().get(alias)
 
 
@@ -277,10 +235,7 @@ def implicit_model_alias_fallback(name: str) -> str | None:
 def implicit_model_alias_fallback_reference(name: str) -> str | None:
     """Return the raw immediate implicit fallback reference for *name*."""
     alias = name.strip()
-    fallback = role_alias_fallbacks().get(alias)
-    if fallback is None and is_provider_coder_alias(alias):
-        fallback = f"@{CODER_MODEL_ALIAS_NAME}"
-    return fallback
+    return role_alias_fallbacks().get(alias)
 
 
 def implicit_model_alias_fallback_effort(name: str) -> str | None:

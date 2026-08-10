@@ -5,8 +5,7 @@
 #
 # Each entry carries at most one of `fallback` (an @<alias> reference,
 # optionally with a trailing @<effort>) or `target` (a concrete model,
-# provider/model, `A | B` pool, or `A || B` ordered fallback). Registered
-# `<provider>_coder` aliases inherit `@coder` unless explicitly overridden.
+# provider/model, `A | B` pool, or `A || B` ordered fallback).
 # `default` carries neither: it resolves through the configured/autodetected
 # provider's tier default. Every entry requires a `description`.
 schema_version: 1
@@ -15,11 +14,6 @@ aliases:
     description: >-
       Model used when a prompt has no %model directive; every other alias
       ultimately falls back to it.
-  coder:
-    target: "codex/gpt-5.5"
-    description: >-
-      Common coder follow-up default inherited by unconfigured
-      <provider>_coder aliases.
   epic_lander:
     fallback: "@default"
     description: "Epic land agents that finalize and submit an epic."

@@ -20,7 +20,6 @@ from sase.llm_provider.model_alias_policy import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
-    CODER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
 )
@@ -49,11 +48,11 @@ def test_override_on_role_alias_changes_resolution(
             "model_aliases": {"builtin": {"default": "claude/opus"}},
         },
     )
-    set_alias_override("coder", "codex/o3", None, source="panel")
+    set_alias_override("medium_phase_worker", "codex/o3", None, source="panel")
 
-    assert resolve_model_alias("coder") == "codex/o3"
-    assert resolve_model_alias("@coder") == "codex/o3"
-    assert resolve_model_provider("coder") == ("codex", "o3")
+    assert resolve_model_alias("medium_phase_worker") == "codex/o3"
+    assert resolve_model_alias("@medium_phase_worker") == "codex/o3"
+    assert resolve_model_provider("medium_phase_worker") == ("codex", "o3")
 
 
 def test_override_beats_configured_alias(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -61,15 +60,15 @@ def test_override_beats_configured_alias(monkeypatch: pytest.MonkeyPatch) -> Non
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"coder": "claude/sonnet"}},
+            "model_aliases": {"builtin": {"medium_phase_worker": "claude/sonnet"}},
         },
     )
 
     # Baseline: the configured value resolves before any override.
-    assert resolve_model_alias("coder") == "claude/sonnet"
+    assert resolve_model_alias("medium_phase_worker") == "claude/sonnet"
 
-    set_alias_override("coder", "codex/o3", None, source="panel")
-    assert resolve_model_alias("coder") == "codex/o3"
+    set_alias_override("medium_phase_worker", "codex/o3", None, source="panel")
+    assert resolve_model_alias("medium_phase_worker") == "codex/o3"
 
 
 def test_nondefault_override_effort_and_outer_suffix_precedence(
@@ -79,17 +78,19 @@ def test_nondefault_override_effort_and_outer_suffix_precedence(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"coder": "claude/opus@high"}},
+            "model_aliases": {"builtin": {"medium_phase_worker": "claude/opus@high"}},
         },
     )
-    set_alias_override("coder", "codex/gpt-5.6-sol@medium", None, source="panel")
+    set_alias_override(
+        "medium_phase_worker", "codex/gpt-5.6-sol@medium", None, source="panel"
+    )
 
-    assert resolve_model_provider_with_effort("@coder") == (
+    assert resolve_model_provider_with_effort("@medium_phase_worker") == (
         "codex",
         "gpt-5.6-sol",
         "medium",
     )
-    assert resolve_model_provider_with_effort("@coder@xhigh") == (
+    assert resolve_model_provider_with_effort("@medium_phase_worker@xhigh") == (
         "codex",
         "gpt-5.6-sol",
         "xhigh",
@@ -157,13 +158,30 @@ def test_size_specific_phase_override_is_independent(
     assert resolve_model_provider("large_phase_worker") == ("codex", "o3")
 
 
-def test_provider_coder_alias_override(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unconfigured_provider_coder_alias_override_has_no_effect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude", "model_aliases": {}})
+
+    set_alias_override("codex_coder", "codex/o3", None, source="panel")
+
+    assert resolve_model_alias("@codex_coder") == "codex_coder"
+
+
+def test_configured_provider_coder_alias_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     mock_provider_config(
         monkeypatch,
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {"default": "claude/opus", "coder": "claude/sonnet"}
+                "custom": {
+                    "codex_coder": {
+                        "model": "claude/sonnet",
+                        "description": "Explicit legacy alias.",
+                    }
+                }
             },
         },
     )
@@ -172,7 +190,7 @@ def test_provider_coder_alias_override(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resolve_model_provider("codex_coder") == ("codex", "o3")
 
 
-def test_generic_coder_override_propagates_to_provider_coders(
+def test_retired_coder_override_does_not_propagate_to_provider_coders(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -184,20 +202,12 @@ def test_generic_coder_override_propagates_to_provider_coders(
     )
     set_alias_override("coder", "codex/o3@medium", None, source="panel")
 
-    assert resolve_model_provider_with_effort("@claude_coder") == (
-        "codex",
-        "o3",
-        "medium",
-    )
-    assert resolve_model_provider_with_effort("@codex_coder@xhigh") == (
-        "codex",
-        "o3",
-        "xhigh",
-    )
+    assert resolve_model_alias("@claude_coder") == "claude_coder"
+    assert resolve_model_alias("@codex_coder@xhigh") == "codex_coder"
     assert resolve_model_provider("@smart") == ("claude", "opus")
 
 
-def test_configured_provider_coder_beats_generic_temporary_override(
+def test_configured_provider_coder_ignores_generic_coder_temporary_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -205,9 +215,11 @@ def test_configured_provider_coder_beats_generic_temporary_override(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "coder": "claude/sonnet",
-                    "codex_coder": "codex/gpt-5.6-sol",
+                "custom": {
+                    "codex_coder": {
+                        "model": "codex/gpt-5.6-sol",
+                        "description": "Explicit legacy alias.",
+                    }
                 }
             },
         },
@@ -228,9 +240,9 @@ def test_nondefault_override_leaves_default_lane_unchanged(
         },
     )
 
-    set_alias_override("coder", "codex/o3", None, source="panel")
+    set_alias_override("medium_phase_worker", "codex/o3", None, source="panel")
 
-    # A coder override does not affect @default...
+    # A non-default override does not affect @default...
     assert resolve_model_alias("default") == "claude/opus"
     assert resolve_model_alias("@default") == "claude/opus"
     # ...and the no-%model launch lane is untouched (no default override set).
@@ -253,9 +265,6 @@ def test_default_override_propagates_to_references(
 
     assert resolve_model_alias("default") == "codex/o3"
     assert resolve_model_alias("@default") == "codex/o3"
-    assert resolve_model_provider("@coder") == frozen_provider_model(
-        CODER_MODEL_ALIAS_NAME
-    )
     assert resolve_model_provider("@smart") == ("codex", "o3")
     assert resolve_model_provider("@epic_lander") == ("codex", "o3")
     assert resolve_model_provider_with_effort(
@@ -299,7 +308,7 @@ def test_concrete_model_token_is_not_overridden(
     """A plain model token resolves to itself even with other overrides active."""
     mock_provider_config(monkeypatch, {"provider": "claude", "model_aliases": {}})
 
-    set_alias_override("coder", "codex/o3", None, source="panel")
+    set_alias_override("medium_phase_worker", "codex/o3", None, source="panel")
     assert resolve_model_alias("some-bare-model") == "some-bare-model"
 
 
@@ -312,15 +321,15 @@ def test_override_clears_back_to_configured(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"coder": "claude/sonnet"}},
+            "model_aliases": {"builtin": {"medium_phase_worker": "claude/sonnet"}},
         },
     )
 
-    set_alias_override("coder", "codex/o3", None, source="panel")
-    assert resolve_model_alias("coder") == "codex/o3"
+    set_alias_override("medium_phase_worker", "codex/o3", None, source="panel")
+    assert resolve_model_alias("medium_phase_worker") == "codex/o3"
 
-    clear_alias_override("coder")
-    assert resolve_model_alias("coder") == "claude/sonnet"
+    clear_alias_override("medium_phase_worker")
+    assert resolve_model_alias("medium_phase_worker") == "claude/sonnet"
 
 
 def test_launch_default_override_beats_machine_default_override(

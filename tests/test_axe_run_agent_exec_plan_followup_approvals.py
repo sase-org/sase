@@ -15,7 +15,7 @@ from tests._axe_run_agent_exec_plan_helpers import (
     make_state,
     patched_plan_deps,
 )
-from tests.plan_validation_helpers import VALID_EPIC_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ class TestPlanFollowupApprovals:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
         order: list[str] = []
 
         def ensure_sdd(*_args, **_kwargs):
@@ -109,7 +109,7 @@ class TestPlanFollowupApprovals:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
         store_root = tmp_path / ".sase" / "sdd"
         store_root.mkdir(parents=True)
         sdd_store = SddStore(
@@ -301,7 +301,7 @@ class TestPlanFollowupApprovals:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         approval = PlanApprovalResult(
             action="approve",
@@ -334,7 +334,7 @@ class TestPlanFollowupApprovals:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         approval = PlanApprovalResult(
             action="approve",
@@ -388,9 +388,9 @@ class TestPlanFollowupApprovals:
         plan_artifacts_dir = state.current_artifacts_dir
         plan_file = str(tmp_path / f"{auto_action}.md")
         sdd_plan = tmp_path / "sdd" / "plans" / "202606" / f"{auto_action}.md"
-        (tmp_path / f"{auto_action}.md").write_text("# Plan")
+        (tmp_path / f"{auto_action}.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
         sdd_plan.parent.mkdir(parents=True)
-        sdd_plan.write_text("# Saved Plan")
+        sdd_plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         approval = PlanApprovalResult(
             action=auto_action,
@@ -437,9 +437,9 @@ class TestPlanFollowupApprovals:
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "plan.md"
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
         sdd_plan.parent.mkdir(parents=True)
-        sdd_plan.write_text("# SDD")
+        sdd_plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         approval = PlanApprovalResult(
             action="approve",

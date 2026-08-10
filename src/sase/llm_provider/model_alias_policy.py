@@ -29,29 +29,21 @@ from .load_balancing import ModelAliasSelectorError, parse_model_alias_selector
 # aliases that always resolve, even when the user has not defined them:
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
-#   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
 #   - ``epic_lander`` / ``big_epic_lander`` /
 #     ``<size>_phase_worker`` / ``smart`` / ``smartest`` /
 #     ``cheap`` / ``cheaper`` / ``cheapest``: bead/epic roles.
 #
 # Most roles fall back to another alias (ultimately ``@default``) when they are
 # not explicitly configured. A fallback reference may carry an effort overlay,
-# such as ``@default@high``; an outer effort still wins. Registered
-# ``<provider>_coder`` aliases inherit ``@coder`` unless explicitly
-# overridden. ``coder``, ``medium_phase_worker``, and ``smartest`` own
-# independent concrete targets, while ``cheap``, ``cheaper``, and ``cheapest``
-# own load-balanced pools. ``default`` itself falls back to the configured or
-# autodetected provider's tier default.
+# such as ``@default@high``; an outer effort still wins.
+# ``medium_phase_worker`` and ``smartest`` own independent concrete targets,
+# while ``cheap``, ``cheaper``, and ``cheapest`` own load-balanced pools.
+# ``default`` itself falls back to the configured or autodetected provider's
+# tier default.
 # See ``model_alias_defaults.yml`` for the current value of every default.
 
 #: The implicit "default" alias name (used for no-``%model`` launches).
 DEFAULT_MODEL_ALIAS_NAME = "default"
-
-#: The implicit "coder" alias name (unpinned ``<provider>_coder`` aliases use it).
-CODER_MODEL_ALIAS_NAME = "coder"
-
-#: Suffix that turns a provider name into its ``<provider>_coder`` alias.
-PROVIDER_CODER_ALIAS_SUFFIX = "_coder"
 
 #: The implicit "epic_lander" role alias (epic land follow-up default).
 EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
@@ -92,7 +84,6 @@ CHEAPEST_MODEL_ALIAS_NAME = "cheapest"
 #: Every implicit role-alias name declared by this module, in YAML-entry order.
 _ROLE_ALIAS_NAME_CONSTANTS: tuple[str, ...] = (
     DEFAULT_MODEL_ALIAS_NAME,
-    CODER_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,

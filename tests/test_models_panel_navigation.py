@@ -14,7 +14,6 @@ from tests._models_panel_helpers import (
     StyledModelsPanelTestApp,
     make_alias_view,
     make_bucketed_views,
-    make_coder_bucket_views,
     make_phase_worker_bucket_views,
     make_override,
     patch_alias_views,
@@ -41,7 +40,7 @@ async def test_panel_escape_closes_unchanged(monkeypatch) -> None:
 
 
 async def test_panel_o_opens_model_picker(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, make_coder_bucket_views())
+    patch_alias_views(monkeypatch, make_phase_worker_bucket_views())
 
     async with ModelsPanelTestApp().run_test() as pilot:
         pilot.app.push_screen(ModelsPanel())
@@ -56,7 +55,6 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
         monkeypatch,
         [
             make_alias_view("default", "default"),
-            make_alias_view("coder", "role"),
             make_alias_view("small_phase_worker", "role", override=make_override()),
             make_alias_view("medium_phase_worker", "role"),
             make_alias_view("large_phase_worker", "role"),
@@ -74,7 +72,7 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
 
         pilot.app.push_screen(ModelsPanel(), callback=on_dismiss)
         await pilot.pause()
-        await pilot.press("j", "j", "l", "x")
+        await pilot.press("j", "l", "x")
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
@@ -85,7 +83,7 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
 
 
 async def test_panel_x_without_override_does_not_clear(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, make_coder_bucket_views())
+    patch_alias_views(monkeypatch, make_phase_worker_bucket_views())
     clear_mock = MagicMock()
     monkeypatch.setattr(models_panel, "clear_alias_override", clear_mock)
 
@@ -144,15 +142,7 @@ async def test_panel_warns_once_and_keeps_bucket_warning_through_refresh(
     views = [
         make_alias_view("default", "default"),
         make_alias_view(
-            "codex_coder",
-            "provider_coder",
-            configured=True,
-            configured_source="custom",
-            provider="codex",
-            model="o3",
-        ),
-        make_alias_view(
-            "coder",
+            "small_phase_worker",
             "role",
             configured=True,
             configured_source="custom",
@@ -168,22 +158,22 @@ async def test_panel_warns_once_and_keeps_bucket_warning_through_refresh(
         await pilot.pause()
 
         panel.notify.assert_called_once_with(
-            "Builtin aliases @coder, @codex_coder are configured under "
-            "llm_provider.model_aliases.custom. Move each custom entry's model "
-            "value from llm_provider.model_aliases.custom to "
+            "Builtin alias @small_phase_worker is configured under "
+            "llm_provider.model_aliases.custom. Move its model value from "
+            "llm_provider.model_aliases.custom to "
             "llm_provider.model_aliases.builtin.",
             severity="warning",
         )
 
         await pilot.press("j")
         option_list = panel.query_one("#models-panel-list", OptionList)
-        bucket_index = option_list.get_option_index("bucket:coders")
+        bucket_index = option_list.get_option_index("bucket:phase_worker")
         bucket_row = option_list.get_option_at_index(bucket_index).prompt.plain
         assert "▸ ! bucket" in bucket_row
-        assert "! 2 misplaced" in bucket_row
+        assert "! 1 misplaced" in bucket_row
         assert "1 override" in bucket_row
         description = panel.query_one("#models-panel-description", Static).content.plain
-        assert "@coder, @codex_coder" in description
+        assert "@small_phase_worker" in description
         assert "llm_provider.model_aliases.custom" in description
         assert "llm_provider.model_aliases.builtin" in description
 
@@ -193,14 +183,14 @@ async def test_panel_warns_once_and_keeps_bucket_warning_through_refresh(
         assert coder_row.startswith("  ! role")
         assert "override · 1h left" in coder_row
 
-        panel._refresh_rows(keep="coder")
+        panel._refresh_rows(keep="small_phase_worker")
         await pilot.pause()
         assert option_list.get_option_at_index(0).prompt.plain.startswith("  ! role")
         panel.notify.assert_called_once()
 
         await pilot.press("h")
         await pilot.pause()
-        bucket_index = option_list.get_option_index("bucket:coders")
+        bucket_index = option_list.get_option_index("bucket:phase_worker")
         assert (
             "▸ ! bucket" in option_list.get_option_at_index(bucket_index).prompt.plain
         )
@@ -209,24 +199,16 @@ async def test_panel_warns_once_and_keeps_bucket_warning_through_refresh(
         views[:] = [
             make_alias_view("default", "default"),
             make_alias_view(
-                "coder",
+                "small_phase_worker",
                 "role",
                 configured=True,
                 configured_source="builtin",
                 override=make_override(),
             ),
-            make_alias_view(
-                "codex_coder",
-                "provider_coder",
-                configured=True,
-                configured_source="builtin",
-                provider="codex",
-                model="o3",
-            ),
         ]
-        panel._refresh_rows(keep="bucket:coders")
+        panel._refresh_rows(keep="bucket:phase_worker")
         await pilot.pause()
-        repaired_bucket_index = option_list.get_option_index("bucket:coders")
+        repaired_bucket_index = option_list.get_option_index("bucket:phase_worker")
         repaired_bucket_row = option_list.get_option_at_index(
             repaired_bucket_index
         ).prompt.plain
@@ -290,39 +272,6 @@ async def test_panel_enter_drills_into_bucket(monkeypatch) -> None:
         assert panel._highlighted_row_id() == "research_a"
 
 
-async def test_panel_coders_bucket_navigation_and_refresh_restore(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, make_coder_bucket_views())
-
-    async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-
-        await pilot.press("j")
-        assert panel._highlighted_row_id() == "bucket:coders"
-        description = panel.query_one("#models-panel-description", Static).content.plain
-        assert "Generic coder default" in description
-        assert "claude/opus ×2" in description
-
-        await pilot.press("l")
-        await pilot.pause()
-        assert panel._active_bucket == "coders"
-        assert list(panel._row_by_id) == ["coder", "claude_coder", "codex_coder"]
-        assert panel._highlighted_row_id() == "coder"
-
-        await pilot.press("j")
-        assert panel._highlighted_row_id() == "claude_coder"
-        panel._refresh_rows(keep="claude_coder")
-        await pilot.pause()
-        assert panel._active_bucket == "coders"
-        assert panel._highlighted_row_id() == "claude_coder"
-
-        await pilot.press("h")
-        await pilot.pause()
-        assert panel._active_bucket is None
-        assert panel._highlighted_row_id() == "bucket:coders"
-
-
 async def test_panel_phase_worker_bucket_navigation_and_member_order(
     monkeypatch,
 ) -> None:
@@ -333,7 +282,7 @@ async def test_panel_phase_worker_bucket_navigation_and_member_order(
         pilot.app.push_screen(panel)
         await pilot.pause()
 
-        await pilot.press("j", "j")
+        await pilot.press("j")
         assert panel._highlighted_row_id() == "bucket:phase_worker"
         description = panel.query_one("#models-panel-description", Static).content.plain
         assert "Size-specific phase-agent aliases" in description
@@ -364,10 +313,10 @@ async def test_panel_phase_worker_bucket_navigation_and_member_order(
 
 
 @pytest.mark.parametrize("member_steps", [[], ["j", "j"]])
-async def test_panel_coders_members_open_override_picker(
+async def test_panel_phase_worker_members_open_override_picker(
     monkeypatch, member_steps: list[str]
 ) -> None:
-    patch_alias_views(monkeypatch, make_coder_bucket_views())
+    patch_alias_views(monkeypatch, make_phase_worker_bucket_views())
 
     async with ModelsPanelTestApp().run_test() as pilot:
         pilot.app.push_screen(ModelsPanel())
@@ -505,13 +454,16 @@ async def test_panel_decorative_option_ids_never_resolve_to_actions(
 async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> None:
     views = [
         make_alias_view("default", "default"),
-        make_alias_view("coder", "role"),
         make_alias_view(
-            "pair_programmer",
+            "small_phase_worker",
+            "role",
+        ),
+        make_alias_view(
+            "phase_reviewer",
             "user",
             configured=True,
             configured_source="custom",
-            bucket="coders",
+            bucket="phase_worker",
         ),
     ]
     patch_alias_views(monkeypatch, views)
@@ -524,30 +476,30 @@ async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> Non
         await pilot.pause()
 
         option_list = panel.query_one("#models-panel-list", OptionList)
-        assert panel._active_bucket == "coders"
-        assert panel._highlighted_row_id() == "coder"
+        assert panel._active_bucket == "phase_worker"
+        assert panel._highlighted_row_id() == "small_phase_worker"
         assert option_list.option_count == 4
         assert option_list.get_option_at_index(0).disabled is True
         assert option_list.get_option_at_index(2).disabled is True
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models › coders · built-in bucket"
+            "Models › phase_worker · built-in bucket"
             "\ndefault effort: provider default"
             "\nmax running agents: 10"
         )
 
         await pilot.press("j")
-        assert panel._highlighted_row_id() == "pair_programmer"
-        panel._refresh_rows(keep="pair_programmer")
+        assert panel._highlighted_row_id() == "phase_reviewer"
+        panel._refresh_rows(keep="phase_reviewer")
         await pilot.pause()
-        assert panel._highlighted_row_id() == "pair_programmer"
+        assert panel._highlighted_row_id() == "phase_reviewer"
         await pilot.press("j")
-        assert panel._highlighted_row_id() == "coder"
+        assert panel._highlighted_row_id() == "small_phase_worker"
         await pilot.press("k")
-        assert panel._highlighted_row_id() == "pair_programmer"
+        assert panel._highlighted_row_id() == "phase_reviewer"
 
         await pilot.press("h")
         await pilot.pause()
-        assert panel._highlighted_row_id() == "bucket:coders"
+        assert panel._highlighted_row_id() == "bucket:phase_worker"
 
 
 async def test_panel_title_shows_configured_default_effort(monkeypatch) -> None:

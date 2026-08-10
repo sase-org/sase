@@ -9,7 +9,7 @@ one deterministically-ordered list of :class:`AliasView` rows.
 This is the data layer behind the ace **Models** panel (leader ``,m``): it knows
 nothing about Textual or rendering, so it is cheaply unit-testable and reusable
 by any future (CLI/web) surface. Each row carries the alias name, its kind
-(``default`` / ``role`` / ``provider_coder`` / ``user``), whether it is
+(``default`` / ``role`` / ``user``), whether it is
 explicitly configured (vs. an implicit special), the raw configured value if
 any, the *currently effective* provider/model (an active temporary override
 wins), and the active override itself when present.
@@ -28,7 +28,6 @@ from .config import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
-    CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
@@ -39,7 +38,6 @@ from .config import (
     XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     ModelAliasSelectorMember,
-    coder_model_alias_for_provider,
     get_model_aliases,
     implicit_model_alias_fallback,
     implicit_model_alias_fallback_effort,
@@ -57,11 +55,10 @@ from .load_balancing import ModelAliasSelectorMode
 from .temporary_override import TemporaryLLMOverride, get_active_alias_overrides
 
 #: The kind of an alias, used for badge styling and grouping.
-AliasKind = Literal["default", "role", "provider_coder", "user"]
+AliasKind = Literal["default", "role", "user"]
 
 #: Canonical display order for the implicit role aliases (after ``default``).
 _ROLE_ALIAS_ORDER: tuple[str, ...] = (
-    CODER_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
@@ -76,14 +73,6 @@ _ROLE_ALIAS_ORDER: tuple[str, ...] = (
     CHEAPEST_MODEL_ALIAS_NAME,
 )
 
-#: Built-in Models-panel bucket for the generic and provider-specific coder roles.
-CODERS_BUCKET_NAME = "coders"
-
-#: Description used when config does not provide metadata for :data:`CODERS_BUCKET_NAME`.
-CODERS_BUCKET_DESCRIPTION = (
-    "Generic coder default and planner-provider-specific coder follow-up aliases."
-)
-
 #: Built-in Models-panel bucket for the five size-specific phase roles.
 PHASE_WORKER_BUCKET_NAME = "phase_worker"
 
@@ -91,9 +80,7 @@ PHASE_WORKER_BUCKET_NAME = "phase_worker"
 PHASE_WORKER_BUCKET_DESCRIPTION = "Size-specific phase-agent aliases."
 
 #: Built-in bucket names accepted by doctor even without custom members.
-BUILTIN_MODEL_ALIAS_BUCKET_NAMES = frozenset(
-    {CODERS_BUCKET_NAME, PHASE_WORKER_BUCKET_NAME}
-)
+BUILTIN_MODEL_ALIAS_BUCKET_NAMES = frozenset({PHASE_WORKER_BUCKET_NAME})
 
 
 @dataclass(frozen=True)
@@ -106,11 +93,6 @@ class _BuiltinBucketSpec:
 
 
 _BUILTIN_BUCKET_SPECS: tuple[_BuiltinBucketSpec, ...] = (
-    _BuiltinBucketSpec(
-        name=CODERS_BUCKET_NAME,
-        description=CODERS_BUCKET_DESCRIPTION,
-        fixed_members=(CODER_MODEL_ALIAS_NAME,),
-    ),
     _BuiltinBucketSpec(
         name=PHASE_WORKER_BUCKET_NAME,
         description=PHASE_WORKER_BUCKET_DESCRIPTION,
@@ -131,7 +113,7 @@ class AliasView:
 
     Attributes:
         name: The bare alias name (no ``@`` marker).
-        kind: ``default`` / ``role`` / ``provider_coder`` / ``user``.
+        kind: ``default`` / ``role`` / ``user``.
         configured: ``True`` when ``name`` is an explicit
             ``llm_provider.model_aliases.builtin`` or
             ``llm_provider.model_aliases.custom`` entry (vs. an implicit
@@ -362,7 +344,7 @@ def _alias_kind(name: str) -> AliasKind:
 
 
 def _sort_key(view: AliasView) -> tuple[int, int, str]:
-    """Deterministic ordering: default, role, ``<provider>_coder``, then user.
+    """Deterministic ordering: default, role, then user.
 
     Role aliases follow :data:`_ROLE_ALIAS_ORDER`; the other groups sort
     alphabetically by name.
@@ -375,9 +357,7 @@ def _sort_key(view: AliasView) -> tuple[int, int, str]:
         except ValueError:
             role_index = len(_ROLE_ALIAS_ORDER)
         return (1, role_index, view.name)
-    if view.kind == "provider_coder":
-        return (2, 0, view.name)
-    return (3, 0, view.name)
+    return (2, 0, view.name)
 
 
 def _effective_provider_model(
@@ -423,8 +403,8 @@ def build_alias_views(
     :func:`get_model_aliases`), live resolution (:func:`resolve_model_alias` /
     ``resolve_model_provider``), and active temporary overrides
     (:func:`get_active_alias_overrides`). The result is sorted with ``default``
-    first, then the other role aliases, then ``<provider>_coder`` aliases, then
-    user-defined aliases alphabetically.
+    first, then the other role aliases, then user-defined aliases
+    alphabetically.
 
     Args:
         now: Optional fixed timestamp forwarded to the override loader (lets
@@ -439,19 +419,8 @@ def build_alias_views(
         get_active_alias_overrides(now) if overrides is None else overrides
     )
 
-    # Lazy import to avoid an import cycle: registry imports this package's
-    # config at import time.
-    from .registry import model_picker_hidden_provider_names
-
-    hidden_provider_coder_aliases = {
-        coder_model_alias_for_provider(provider)
-        for provider in model_picker_hidden_provider_names()
-    }
-
     views: list[AliasView] = []
     for name in names:
-        if name in hidden_provider_coder_aliases and name not in configured:
-            continue
         override = active_overrides.get(name)
         selector = model_alias_selector_details(name)
         selected_member = (
@@ -493,8 +462,8 @@ def build_models_panel_rows(
 ) -> list[AliasView | BucketView]:
     """Fold related aliases into top-level Models-panel bucket rows.
 
-    Built-in role families form always-present ``coders`` and ``phase_worker``
-    buckets, with custom aliases that name either bucket coalesced after the
+    The built-in phase-worker family forms an always-present ``phase_worker``
+    bucket, with custom aliases that name that bucket coalesced after the
     built-in members. Other custom bucket rows come first alphabetically in the
     user region, followed by ungrouped aliases alphabetically. Bucket metadata
     without any member aliases intentionally produces no row.
@@ -503,8 +472,6 @@ def build_models_panel_rows(
     specs_by_name = {spec.name: spec for spec in _BUILTIN_BUCKET_SPECS}
 
     def builtin_bucket_for_alias(view: AliasView) -> str | None:
-        if view.name == CODER_MODEL_ALIAS_NAME or view.kind == "provider_coder":
-            return CODERS_BUCKET_NAME
         if view.name in specs_by_name[PHASE_WORKER_BUCKET_NAME].fixed_members:
             return PHASE_WORKER_BUCKET_NAME
         return None
@@ -526,9 +493,7 @@ def build_models_panel_rows(
         try:
             return (0, spec.fixed_members.index(view.name), view.name)
         except ValueError:
-            if bucket_name == CODERS_BUCKET_NAME and view.kind == "provider_coder":
-                return (1, 0, view.name)
-            return (2, 0, view.name)
+            return (1, 0, view.name)
 
     builtin_buckets = {
         spec.name: BucketView(

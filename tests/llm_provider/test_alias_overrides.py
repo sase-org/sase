@@ -75,15 +75,15 @@ def test_alias_token_is_resolved_eagerly_and_retained_raw(
     )
 
     override = set_alias_override(
-        "phase_worker", "@coder@medium", 3600.0, source="panel"
+        "phase_worker", "@medium_phase_worker@medium", 3600.0, source="panel"
     )
 
-    assert calls == ["@coder@medium"]
-    assert override.raw_model == "@coder@medium"
+    assert calls == ["@medium_phase_worker@medium"]
+    assert override.raw_model == "@medium_phase_worker@medium"
     assert (override.provider, override.model) == ("codex", "gpt-5.6-sol")
     assert override.effort == "medium"
     stored = _read_state()["overrides"]["phase_worker"]
-    assert stored["raw_model"] == "@coder@medium"
+    assert stored["raw_model"] == "@medium_phase_worker@medium"
     assert (stored["provider"], stored["model"]) == ("codex", "gpt-5.6-sol")
     assert stored["effort"] == "medium"
 

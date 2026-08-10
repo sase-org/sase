@@ -47,12 +47,17 @@ def test_injected_override_mapping_wins(
         effort="medium",
     )
 
-    coder = {
-        view.name: view for view in build_alias_views(overrides={"coder": override})
-    }["coder"]
+    phase_worker = {
+        view.name: view
+        for view in build_alias_views(overrides={"medium_phase_worker": override})
+    }["medium_phase_worker"]
 
-    assert coder.override is override
-    assert (coder.provider, coder.model, coder.effort) == ("codex", "o3", "medium")
+    assert phase_worker.override is override
+    assert (phase_worker.provider, phase_worker.model, phase_worker.effort) == (
+        "codex",
+        "o3",
+        "medium",
+    )
 
 
 def test_active_override_clears_alias_borne_effort(
@@ -63,19 +68,25 @@ def test_active_override_clears_alias_borne_effort(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {"coder": "claude/opus@medium"},
+                "builtin": {"medium_phase_worker": "claude/opus@medium"},
             },
         },
     )
     patch_available_providers(monkeypatch)
 
-    set_alias_override("coder", "codex/o3", None, source="test")
+    set_alias_override("medium_phase_worker", "codex/o3", None, source="test")
     try:
-        coder = {view.name: view for view in build_alias_views()}["coder"]
+        phase_worker = {view.name: view for view in build_alias_views()}[
+            "medium_phase_worker"
+        ]
     finally:
-        clear_alias_override("coder")
+        clear_alias_override("medium_phase_worker")
 
-    assert (coder.provider, coder.model, coder.effort) == ("codex", "o3", None)
+    assert (phase_worker.provider, phase_worker.model, phase_worker.effort) == (
+        "codex",
+        "o3",
+        None,
+    )
 
 
 def test_active_override_surfaces_its_own_effort(
@@ -86,19 +97,25 @@ def test_active_override_surfaces_its_own_effort(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {"coder": "claude/opus@high"},
+                "builtin": {"medium_phase_worker": "claude/opus@high"},
             },
         },
     )
     patch_available_providers(monkeypatch)
 
-    set_alias_override("coder", "codex/o3@medium", None, source="test")
+    set_alias_override("medium_phase_worker", "codex/o3@medium", None, source="test")
     try:
-        coder = {view.name: view for view in build_alias_views()}["coder"]
+        phase_worker = {view.name: view for view in build_alias_views()}[
+            "medium_phase_worker"
+        ]
     finally:
-        clear_alias_override("coder")
+        clear_alias_override("medium_phase_worker")
 
-    assert (coder.provider, coder.model, coder.effort) == ("codex", "o3", "medium")
+    assert (phase_worker.provider, phase_worker.model, phase_worker.effort) == (
+        "codex",
+        "o3",
+        "medium",
+    )
 
 
 def test_non_default_override_wins_effective_target(
@@ -110,16 +127,16 @@ def test_non_default_override_wins_effective_target(
     )
     patch_available_providers(monkeypatch)
 
-    set_alias_override("coder", "codex/o3", 3600.0, source="test")
+    set_alias_override("medium_phase_worker", "codex/o3", 3600.0, source="test")
     try:
-        coder = {v.name: v for v in build_alias_views()}["coder"]
+        phase_worker = {v.name: v for v in build_alias_views()}["medium_phase_worker"]
     finally:
-        clear_alias_override("coder")
+        clear_alias_override("medium_phase_worker")
 
-    assert coder.is_overridden is True
-    assert coder.override is not None
-    assert coder.provider == "codex"
-    assert coder.model == "o3"
+    assert phase_worker.is_overridden is True
+    assert phase_worker.override is not None
+    assert phase_worker.provider == "codex"
+    assert phase_worker.model == "o3"
 
 
 def test_default_override_is_surfaced_on_default_row(

@@ -99,12 +99,6 @@ def calm_views() -> list[AliasView]:
                 "alias ultimately falls back to it."
             ),
         ),
-        _view(
-            "coder",
-            "role",
-            provider="codex",
-            model="gpt-5.5",
-        ),
         _view("epic_lander", "role", provider="claude", model="opus"),
         _view(
             "big_epic_lander",
@@ -215,18 +209,6 @@ def calm_views() -> list[AliasView]:
             ),
         ),
         _view(
-            "claude_coder",
-            "provider_coder",
-            provider="codex",
-            model="gpt-5.5",
-        ),
-        _view(
-            "codex_coder",
-            "provider_coder",
-            provider="codex",
-            model="gpt-5.5",
-        ),
-        _view(
             "fast",
             "user",
             configured=True,
@@ -257,7 +239,7 @@ def override_views() -> list[AliasView]:
         expires_at=FROZEN_NOW + 3600.0,
         source="ace",
     )
-    coder_override = TemporaryLLMOverride(
+    phase_worker_override = TemporaryLLMOverride(
         provider="codex",
         model="gpt-5.6-sol",
         raw_model="codex/gpt-5.6-sol",
@@ -275,15 +257,15 @@ def override_views() -> list[AliasView]:
         )
         if row.name == "default"
         else _view(
-            "codex_coder",
-            "provider_coder",
+            "medium_phase_worker",
+            "role",
             configured=True,
             configured_value="codex/o3",
             provider="codex",
             model="gpt-5.6-sol",
-            override=coder_override,
+            override=phase_worker_override,
         )
-        if row.name == "codex_coder"
+        if row.name == "medium_phase_worker"
         else row
         for row in calm_views()
     ]
@@ -292,16 +274,16 @@ def override_views() -> list[AliasView]:
 def custom_builtin_warning_views() -> list[AliasView]:
     return [
         _view(
-            "codex_coder",
-            "provider_coder",
+            "small_phase_worker",
+            "role",
             configured=True,
             configured_value="codex/o3",
             provider="codex",
             model="o3",
             configured_source="custom",
-            description="Misplaced builtin coder alias.",
+            description="Misplaced builtin phase-worker alias.",
         )
-        if row.name == "codex_coder"
+        if row.name == "small_phase_worker"
         else row
         for row in calm_views()
     ]
@@ -319,7 +301,11 @@ def bucket_views() -> list[AliasView]:
                 "alias ultimately falls back to it."
             ),
         ),
-        _view("coder", "role", provider="claude", model="opus"),
+        _view("xsmall_phase_worker", "role", provider="claude", model="sonnet"),
+        _view("small_phase_worker", "role", provider="claude", model="sonnet"),
+        _view("medium_phase_worker", "role", provider="claude", model="opus"),
+        _view("large_phase_worker", "role", provider="claude", model="opus"),
+        _view("xlarge_phase_worker", "role", provider="claude", model="opus"),
         _view(
             "research_a",
             "user",
@@ -378,8 +364,8 @@ def ownership_views() -> list[AliasView]:
             provider="claude",
             model="opus",
             configured_source="custom",
-            description="Custom coder-bucket member.",
-            bucket="coders",
+            description="Custom phase-worker bucket member.",
+            bucket="phase_worker",
         ),
     ]
 

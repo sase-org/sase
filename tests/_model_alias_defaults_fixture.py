@@ -23,7 +23,6 @@ from sase.llm_provider.model_alias_policy import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
-    CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
@@ -40,10 +39,6 @@ from sase.xprompt.effort import split_model_effort
 _FROZEN_ALIASES: dict[str, dict[str, str]] = {
     DEFAULT_MODEL_ALIAS_NAME: {
         "description": "Frozen test description for default.",
-    },
-    CODER_MODEL_ALIAS_NAME: {
-        "target": "codex/gpt-4.1",
-        "description": "Frozen test description for coder.",
     },
     EPIC_LANDER_MODEL_ALIAS_NAME: {
         "fallback": "@default",

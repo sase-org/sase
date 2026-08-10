@@ -61,8 +61,6 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
             "model_aliases": {
                 "builtin": {
                     "default": "claude/opus",
-                    "coder": "@default",
-                    "codex_coder": "claude/opus",
                     "xsmall_phase_worker": "@cheaper",
                     "small_phase_worker": "@cheap",
                     "medium_phase_worker": "@default@high",
@@ -122,7 +120,6 @@ def test_config_schema_accepts_model_alias_buckets() -> None:
                     }
                 },
                 "buckets": {
-                    "coders": {"description": "Coder follow-up aliases."},
                     "phase_worker": {"description": "Phase worker aliases."},
                     "research": {"description": "Research-swarm model roles."},
                 },
@@ -138,19 +135,19 @@ def test_config_schema_accepts_model_alias_buckets() -> None:
     assert errors == [], "\n".join(format_schema_error(error) for error in errors)
 
 
-def test_config_schema_accepts_custom_alias_coalesced_into_coders_bucket() -> None:
+def test_config_schema_accepts_custom_alias_coalesced_into_user_bucket() -> None:
     public_schema = schema()
     config = {
         "llm_provider": {
             "model_aliases": {
                 "custom": {
-                    "review_coder": {
+                    "reviewer": {
                         "model": "codex/gpt-5.6-sol",
-                        "description": "Reviews coder follow-ups.",
-                        "bucket": "coders",
+                        "description": "Reviews implementation follow-ups.",
+                        "bucket": "coding",
                     }
                 },
-                "buckets": {"coders": {"description": "All coder roles."}},
+                "buckets": {"coding": {"description": "Implementation roles."}},
             }
         }
     }
@@ -255,7 +252,7 @@ def test_config_schema_rejects_bad_custom_model_aliases(
 
 def test_config_schema_rejects_flat_model_alias_entry() -> None:
     public_schema = schema()
-    config = {"llm_provider": {"model_aliases": {"coder": "@default"}}}
+    config = {"llm_provider": {"model_aliases": {"blogger": "@default"}}}
 
     errors = sorted(
         Draft7Validator(public_schema).iter_errors(config),
@@ -265,7 +262,7 @@ def test_config_schema_rejects_flat_model_alias_entry() -> None:
     assert any(
         list(error.absolute_path) == ["llm_provider", "model_aliases"]
         and "Additional properties are not allowed" in error.message
-        and "coder" in error.message
+        and "blogger" in error.message
         for error in errors
     )
 

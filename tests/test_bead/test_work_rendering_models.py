@@ -57,7 +57,7 @@ class TestModelDirective:
             pytest.param(None, "claude/sonnet", False, id="legacy"),
             pytest.param(PhaseSize.XSMALL, "claude/haiku", False, id="xsmall"),
             pytest.param(PhaseSize.SMALL, "claude/sonnet", False, id="small"),
-            pytest.param(PhaseSize.MEDIUM, "@coder", False, id="medium"),
+            pytest.param(PhaseSize.MEDIUM, "@smart", False, id="medium"),
             pytest.param(
                 PhaseSize.LARGE,
                 "codex/gpt-5.6-sol",

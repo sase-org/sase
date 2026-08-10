@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.llm_provider.config import (
-    coder_model_alias_for_provider,
     default_model_alias_name,
     implicit_model_alias_fallback,
     implicit_model_alias_fallback_effort,
@@ -18,12 +17,10 @@ from sase.llm_provider.config import (
     role_model_directive_value,
 )
 from sase.llm_provider.load_balancing import parse_model_alias_selector
-from sase.llm_provider.model_alias_config import is_provider_coder_alias
 from sase.llm_provider.model_alias_policy import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
-    CODER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     implicit_alias_targets,
@@ -33,7 +30,6 @@ from sase.llm_provider.registry import resolve_model_provider
 from tests._model_alias_defaults_fixture import (
     FROZEN_TARGET_DETAILS,
     FROZEN_TARGETS,
-    frozen_provider_model,
     frozen_selector_member,
 )
 from tests.llm_provider._provider_config_helpers import mock_provider_config
@@ -45,8 +41,6 @@ def test_role_alias_helpers() -> None:
     targets = implicit_alias_targets()
 
     assert default_model_alias_name() == "default"
-    assert coder_model_alias_for_provider("codex") == "codex_coder"
-    assert coder_model_alias_for_provider(" claude ") == "claude_coder"
     assert role_model_directive_value("small_phase_worker") == "@small_phase_worker"
     assert role_model_directive_value("default") == "@default"
     assert implicit_model_alias_fallback("big_epic_lander") == "smartest"
@@ -92,32 +86,15 @@ def test_role_alias_helpers() -> None:
     cheapest_selector = parse_model_alias_selector(targets[CHEAPEST_MODEL_ALIAS_NAME])
     assert cheapest_selector is not None
     assert cheapest_selector.mode == "round_robin"
-    assert implicit_model_alias_value("coder") == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
+    assert implicit_model_alias_value("coder") is None
     assert implicit_model_alias_value("claude_coder") is None
     assert implicit_model_alias_value("codex_coder") is None
-    assert implicit_model_alias_fallback("codex_coder") == "coder"
-    assert implicit_model_alias_fallback_reference("codex_coder") == "@coder"
+    assert implicit_model_alias_fallback("codex_coder") is None
+    assert implicit_model_alias_fallback_reference("codex_coder") is None
     assert implicit_model_alias_fallback_effort("codex_coder") is None
     assert implicit_model_alias_value("fakey_coder") is None
-    assert implicit_model_alias_fallback("fakey_coder") == "coder"
+    assert implicit_model_alias_fallback("fakey_coder") is None
     assert implicit_model_alias_fallback("default") is None
-
-
-def test_fakey_coder_alias_still_resolves_despite_picker_hiding(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Hiding fakey from pickers must not affect ``@fakey_coder`` resolution.
-
-    Uses the real registered-provider list so the bundled ``fakey`` provider
-    participates, matching production.
-    """
-    mock_provider_config(monkeypatch, {"provider": "claude"})
-
-    assert is_provider_coder_alias("fakey_coder") is True
-    assert resolve_model_alias("fakey_coder") == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
-    assert resolve_model_provider("fakey_coder") == frozen_provider_model(
-        CODER_MODEL_ALIAS_NAME
-    )
 
 
 def test_default_alias_resolves_to_configured_target(
@@ -212,8 +189,10 @@ def test_alias_reference_effort_overrides_target_and_chain_effort(
     assert (chained_outer.target, chained_outer.effort) == ("claude/opus", "low")
 
 
-def test_coder_alias_ships_common_target(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``coder`` defaults to its own target, independent of ``@default``."""
+def test_retired_coder_alias_is_not_implicit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``coder`` is just a bare model token unless the user configures it."""
     mock_provider_config(
         monkeypatch,
         {
@@ -222,110 +201,43 @@ def test_coder_alias_ships_common_target(monkeypatch: pytest.MonkeyPatch) -> Non
         },
     )
 
-    assert resolve_model_alias("coder") == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
-    assert resolve_model_provider("coder") == frozen_provider_model(
-        CODER_MODEL_ALIAS_NAME
-    )
+    assert resolve_model_alias("coder") == "coder"
 
 
-@pytest.mark.parametrize("active_provider", ["claude", "codex"])
-def test_provider_coder_aliases_use_common_coder_default(
+def test_retired_provider_coder_alias_is_not_implicit(
     monkeypatch: pytest.MonkeyPatch,
-    active_provider: str,
 ) -> None:
-    """Provider coders do not depend on the active default provider."""
     mock_provider_config(
         monkeypatch,
         {
-            "provider": active_provider,
+            "provider": "claude",
             "model_aliases": {"builtin": {"default": "codex/gpt-5.6-sol@high"}},
         },
     )
 
-    claude = resolve_model_alias_with_effort("claude_coder")
-    codex = resolve_model_alias_with_effort("codex_coder")
-
-    assert (claude.target, claude.effort) == FROZEN_TARGET_DETAILS[
-        CODER_MODEL_ALIAS_NAME
-    ]
-    assert (codex.target, codex.effort) == FROZEN_TARGET_DETAILS[CODER_MODEL_ALIAS_NAME]
-    assert resolve_model_provider("claude_coder") == frozen_provider_model(
-        CODER_MODEL_ALIAS_NAME
-    )
-    assert resolve_model_provider("codex_coder") == frozen_provider_model(
-        CODER_MODEL_ALIAS_NAME
-    )
+    assert resolve_model_alias("claude_coder") == "claude_coder"
+    assert resolve_model_alias("codex_coder") == "codex_coder"
 
 
-def test_unpinned_provider_coder_alias_chains_to_coder(
+def test_configured_provider_coder_alias_is_ordinary_user_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    mock_provider_config(
-        monkeypatch,
-        {
-            "provider": "claude",
-            "model_aliases": {"builtin": {"default": "codex/gpt-5.6-sol"}},
-        },
-    )
-
-    assert resolve_model_alias("fakey_coder") == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
-    assert resolve_model_provider("fakey_coder") == frozen_provider_model(
-        CODER_MODEL_ALIAS_NAME
-    )
-
-
-def test_provider_coder_alias_follows_configured_coder(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A generic coder configuration is a fleet-wide explicit override."""
     mock_provider_config(
         monkeypatch,
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "default": "codex/gpt-5.6-sol",
-                    "coder": "claude/sonnet",
-                }
-            },
-        },
-    )
-
-    assert resolve_model_alias("codex_coder") == "claude/sonnet"
-    assert resolve_model_provider("codex_coder") == ("claude", "sonnet")
-
-
-def test_provider_coder_common_default_accepts_outer_effort(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    mock_provider_config(monkeypatch, {"provider": "claude"})
-
-    resolved = resolve_model_alias_with_effort("@codex_coder@xhigh")
-
-    target, _effort = FROZEN_TARGET_DETAILS[CODER_MODEL_ALIAS_NAME]
-    assert (resolved.target, resolved.effort) == (target, "xhigh")
-
-
-def test_configured_provider_coder_shadows_generic_coder(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """An explicit ``<provider>_coder`` still wins over the generic ``coder``."""
-    mock_provider_config(
-        monkeypatch,
-        {
-            "provider": "claude",
-            "model_aliases": {
-                "builtin": {
-                    "default": "codex/gpt-5.6-sol",
-                    "coder": "claude/sonnet",
-                    "codex_coder": "codex/o3",
+                "custom": {
+                    "codex_coder": {
+                        "model": "codex/o3",
+                        "description": "Explicit legacy alias.",
+                    }
                 }
             },
         },
     )
 
     assert resolve_model_alias("codex_coder") == "codex/o3"
-    assert resolve_model_provider("codex_coder") == ("codex", "o3")
 
 
 def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
@@ -553,4 +465,4 @@ def test_custom_phase_worker_alias_is_available_for_explicit_use_only(
         resolve_model_alias("medium_phase_worker")
         == FROZEN_TARGET_DETAILS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME][0]
     )
-    assert resolve_model_alias("coder") == FROZEN_TARGETS[CODER_MODEL_ALIAS_NAME]
+    assert resolve_model_alias("coder") == "coder"

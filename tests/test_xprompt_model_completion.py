@@ -41,9 +41,9 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     entries = model_completion.build_model_completion_catalog()
     values = [entry.value for entry in entries]
 
-    # Models, then the implicit role aliases (one @<provider>_coder per provider
-    # in provider order), then user-configured aliases. A user-configured
-    # ``worker`` is now an ordinary alias (no retired @worker/@other entries).
+    # Models, then the implicit role aliases, then user-configured aliases.
+    # A user-configured ``worker`` is now an ordinary alias (no retired
+    # @worker/@other entries).
     assert values == [
         "claude-fable-5",
         "opus",
@@ -52,10 +52,6 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "o4-mini",
         "anthropic/claude-sonnet-4-5",
         "@default",
-        "@coder",
-        "@claude_coder",
-        "@codex_coder",
-        "@opencode_coder",
         "@epic_lander",
         "@big_epic_lander",
         "@xsmall_phase_worker",
@@ -83,7 +79,6 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     by_value = {entry.value: entry for entry in entries}
     assert by_value["@default"].kind == "implicit_alias"
     assert by_value["@default"].aliases == ("default",)
-    assert by_value["@codex_coder"].aliases == ("codex_coder",)
     assert by_value["@big_epic_lander"].aliases == ("big_epic_lander",)
     assert by_value["@medium_phase_worker"].aliases == ("medium_phase_worker",)
     assert by_value["@cheap"].aliases == ("cheap",)
@@ -164,13 +159,12 @@ def test_model_completion_catalog_filters_hidden_provider_by_metadata_flag(
     assert "@hiddenprov_coder" not in values
     # Non-hidden providers remain unaffected.
     assert "gpt-5.6-sol" in values
-    assert "@codex_coder" in values
 
 
-def test_model_completion_user_alias_shadows_implicit_role(
+def test_model_completion_configured_retired_coder_alias_is_user_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A configured ``coder`` alias surfaces once, with its real target."""
+    """A configured ``coder`` alias surfaces once as an ordinary user alias."""
     monkeypatch.setattr(model_completion, "get_llm_metadata_payload", _metadata_payload)
     monkeypatch.setattr(
         model_completion, "get_model_aliases", lambda: {"coder": "claude/opus"}
@@ -181,10 +175,10 @@ def test_model_completion_user_alias_shadows_implicit_role(
         lambda **_kwargs: [
             _alias_view(
                 "coder",
-                kind="role",
+                kind="user",
                 configured=True,
                 configured_value="claude/opus",
-                description="Coder follow-up agents.",
+                description="Legacy coder alias.",
                 config_source="builtin",
             )
         ],
@@ -195,8 +189,8 @@ def test_model_completion_user_alias_shadows_implicit_role(
 
     assert len(coder_entries) == 1
     assert coder_entries[0].kind == "user_alias"
-    assert coder_entries[0].description == "Coder follow-up agents."
-    assert coder_entries[0].alias_kind == "role"
+    assert coder_entries[0].description == "Legacy coder alias."
+    assert coder_entries[0].alias_kind == "user"
     assert coder_entries[0].provenance == "configured"
 
 
@@ -207,7 +201,7 @@ def test_model_completion_alias_enrichment_and_pool_counts(
     monkeypatch.setattr(
         model_completion,
         "get_model_aliases",
-        lambda: {"blogger": "@coder@high"},
+        lambda: {"blogger": "@medium_phase_worker@high"},
     )
     monkeypatch.setattr(
         model_completion,
@@ -249,7 +243,7 @@ def test_model_completion_alias_enrichment_and_pool_counts(
                 "blogger",
                 kind="user",
                 configured=True,
-                configured_value="@coder@high",
+                configured_value="@medium_phase_worker@high",
                 description="Draft and edit blog posts.",
                 config_source="custom",
                 bucket="writing",
@@ -275,7 +269,7 @@ def test_model_completion_alias_enrichment_and_pool_counts(
     assert blogger.description == "Draft and edit blog posts."
     assert blogger.alias_kind == "user"
     assert blogger.provenance == "configured"
-    assert blogger.reference == "coder"
+    assert blogger.reference == "medium_phase_worker"
     assert blogger.reference_effort == "high"
     assert blogger.target_effort == "high"
     assert blogger.config_source == "custom"
@@ -400,33 +394,24 @@ def test_model_completion_override_overlay_rewrites_only_alias_target(
     assert live_default.reference == ""
 
 
-def test_generic_coder_override_updates_implicit_provider_coder_metadata(
+def test_configured_provider_coder_alias_gets_ordinary_override_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(model_completion, "get_llm_metadata_payload", _metadata_payload)
-    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(
+        model_completion, "get_model_aliases", lambda: {"codex_coder": "claude/opus"}
+    )
     monkeypatch.setattr(
         model_completion,
         "build_alias_views",
         lambda **_kwargs: [
             _alias_view(
-                "claude_coder",
-                kind="provider_coder",
-                configured=False,
-                provider="codex",
-                model="gpt-5.5",
-            ),
-            _alias_view(
                 "codex_coder",
-                kind="provider_coder",
-                configured=False,
-                provider="codex",
-                model="gpt-5.5",
-            ),
-            _alias_view(
-                "opencode_coder",
-                kind="provider_coder",
-                configured=False,
+                kind="user",
+                configured=True,
+                configured_value="claude/opus",
+                config_source="custom",
+                description="Explicit legacy alias.",
                 provider="claude",
                 model="opus",
             ),
@@ -455,25 +440,12 @@ def test_generic_coder_override_updates_implicit_provider_coder_metadata(
     )
     by_value = {entry.value: entry for entry in entries}
 
-    claude = by_value["@claude_coder"]
-    assert (claude.target_provider, claude.target_model, claude.target_effort) == (
-        "codex",
-        "gpt-5.6-sol",
-        "medium",
-    )
-    assert (claude.provenance, claude.reference) == ("implicit", "coder")
-
     codex = by_value["@codex_coder"]
     assert (codex.target_provider, codex.target_model) == ("claude", "opus")
     assert codex.provenance == "override"
     assert codex.reference == ""
-
-    opencode = by_value["@opencode_coder"]
-    assert (opencode.target_provider, opencode.target_model) == (
-        "codex",
-        "gpt-5.6-sol",
-    )
-    assert opencode.reference == "coder"
+    assert "@claude_coder" not in by_value
+    assert "@opencode_coder" not in by_value
 
 
 def test_model_completion_catalog_rebuilds_when_config_token_changes(

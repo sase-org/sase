@@ -10,7 +10,7 @@ from sase.doctor.checks_config_common import (
 from sase.xprompt.effort import split_model_effort
 
 
-_RETIRED_BUILTIN_ALIAS_NAMES = {"epic_creator", "phase_worker"}
+_RETIRED_BUILTIN_ALIAS_NAMES = {"coder", "epic_creator", "phase_worker"}
 
 
 def check_config_model_aliases() -> DiagnosticCheck:
@@ -19,8 +19,8 @@ def check_config_model_aliases() -> DiagnosticCheck:
     Stale config is reported as actionable warnings:
 
     - the removed ``llm_provider.worker_models`` and ``llm_provider.default_model``
-      keys (the former is replaced by ``<provider>_coder`` aliases, the latter by
-      ``model_aliases.builtin.default``);
+      keys (the former should move to size-specific phase-worker aliases or
+      explicit launch choices, the latter to ``model_aliases.builtin.default``);
     - legacy flat entries directly under ``llm_provider.model_aliases``;
     - the removed top-level ``llm_provider.custom_model_aliases`` map;
     - user-created aliases that live in ``model_aliases.builtin`` or builtin
@@ -28,7 +28,9 @@ def check_config_model_aliases() -> DiagnosticCheck:
     - names present in both nested maps;
     - custom alias objects missing a usable ``model`` or ``description``;
     - bucket metadata entries that have no member aliases;
-    - stale ``model_aliases.builtin.phase_worker`` and
+    - stale ``model_aliases.builtin.coder``, registered
+      ``model_aliases.builtin.<provider>_coder``,
+      ``model_aliases.builtin.phase_worker``, and
       ``model_aliases.builtin.epic_creator`` entries, plus alias values that
       reference a retired implicit alias;
     - merged alias values that reference an ``@<alias>`` name that resolves to
@@ -62,11 +64,21 @@ def check_config_model_aliases() -> DiagnosticCheck:
     )
     raw_builtin = raw_model_alias_entries.get("builtin", {})
     raw_custom = raw_model_alias_entries.get("custom", {})
+    raw_builtin_entries = raw_builtin if isinstance(raw_builtin, dict) else {}
     raw_custom_entries = raw_custom if isinstance(raw_custom, dict) else {}
     raw_buckets = raw_model_alias_entries.get("buckets", {})
     raw_top_custom = config.get("custom_model_aliases")
     problems: list[dict[str, str]] = []
     notes: list[str] = []
+    registered_provider_coder_aliases = _registered_provider_coder_alias_names()
+    raw_builtin_alias_names = {
+        raw_key.strip()
+        for raw_key in raw_builtin_entries
+        if isinstance(raw_key, str) and raw_key.strip()
+    }
+    stale_provider_coder_builtin_aliases = (
+        raw_builtin_alias_names & registered_provider_coder_aliases
+    )
 
     if config.get("worker_models"):
         problems.append(
@@ -74,8 +86,9 @@ def check_config_model_aliases() -> DiagnosticCheck:
                 "key": "worker_models",
                 "message": (
                     "llm_provider.worker_models is no longer supported; migrate "
-                    "each entry to a `<provider>_coder` alias under "
-                    "llm_provider.model_aliases.builtin"
+                    "entries to size-specific phase-worker aliases such as "
+                    "llm_provider.model_aliases.builtin.medium_phase_worker, "
+                    "or use explicit approval/model overrides"
                 ),
             }
         )
@@ -183,7 +196,36 @@ def check_config_model_aliases() -> DiagnosticCheck:
             }
         )
 
+    if "coder" in raw_builtin_alias_names:
+        problems.append(
+            {
+                "key": "model_aliases.builtin.coder",
+                "message": (
+                    "model_aliases.builtin.coder is retired; accepted tale "
+                    "follow-ups now route through size-specific "
+                    "@<size>_phase_worker aliases. Move this target to "
+                    "llm_provider.model_aliases.builtin.medium_phase_worker or "
+                    "another size-specific phase-worker alias, or remove it"
+                ),
+            }
+        )
+
+    for alias in sorted(stale_provider_coder_builtin_aliases):
+        problems.append(
+            {
+                "key": f"model_aliases.builtin.{alias}",
+                "message": (
+                    f"model_aliases.builtin.{alias} is retired; planner-provider "
+                    "coder aliases no longer exist. Route accepted tales with "
+                    "size-specific aliases such as @medium_phase_worker, or use "
+                    "an explicit approval/model override"
+                ),
+            }
+        )
+
     for alias in sorted(builtin_aliases):
+        if alias == "coder" or alias in stale_provider_coder_builtin_aliases:
+            continue
         if alias == "phase_worker":
             medium_phase_worker_default = implicit_alias_targets()[
                 MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
@@ -285,7 +327,10 @@ def check_config_model_aliases() -> DiagnosticCheck:
             )
 
     for alias, target in sorted(get_model_aliases().items()):
-        if alias in _RETIRED_BUILTIN_ALIAS_NAMES and alias in builtin_aliases:
+        if (
+            alias in _RETIRED_BUILTIN_ALIAS_NAMES
+            or alias in stale_provider_coder_builtin_aliases
+        ) and alias in builtin_aliases:
             # The focused migration warning above is the actionable truth for
             # this stale key; validating its retired target would only add
             # noisy or contradictory follow-on advice.
@@ -359,10 +404,12 @@ def check_config_model_aliases() -> DiagnosticCheck:
         target_reference, _ = split_model_effort(target.strip())
         referenced = strip_model_alias_prefix(target_reference).strip()
         if (
-            referenced not in known_aliases
-            and referenced in REMOVED_IMPLICIT_ALIAS_GUIDANCE
-        ):
-            guidance = REMOVED_IMPLICIT_ALIAS_GUIDANCE[referenced]
+            guidance := _retired_alias_reference_guidance(
+                referenced,
+                custom_aliases=custom_aliases,
+                registered_provider_coder_aliases=registered_provider_coder_aliases,
+            )
+        ) is not None:
             problems.append(
                 {
                     "key": target_key,
@@ -411,3 +458,32 @@ def check_config_model_aliases() -> DiagnosticCheck:
         next_steps=next_steps,
         data={"problems": problems, "notes": notes},
     )
+
+
+def _registered_provider_coder_alias_names() -> set[str]:
+    """Return retired provider-coder aliases for currently registered providers."""
+    try:
+        from sase.llm_provider.registry import registered_provider_names
+
+        return {f"{provider}_coder" for provider in registered_provider_names()}
+    except Exception:
+        return set()
+
+
+def _retired_alias_reference_guidance(
+    alias: str,
+    *,
+    custom_aliases: dict[str, str],
+    registered_provider_coder_aliases: set[str],
+) -> str | None:
+    """Return migration guidance when *alias* is a retired implicit reference."""
+    if not alias or alias in custom_aliases:
+        return None
+    if alias in REMOVED_IMPLICIT_ALIAS_GUIDANCE:
+        return REMOVED_IMPLICIT_ALIAS_GUIDANCE[alias]
+    if alias in registered_provider_coder_aliases:
+        return (
+            "accepted tale follow-ups now route by tale size; use a "
+            "size-specific alias such as @medium_phase_worker or an explicit model"
+        )
+    return None

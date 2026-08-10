@@ -167,7 +167,6 @@ def test_worker_other_and_phase_worker_are_not_special_aliases(
     # The role aliases are the implicit policy now.
     assert {
         "default",
-        "coder",
         "epic_lander",
         "big_epic_lander",
         "xsmall_phase_worker",
@@ -220,20 +219,23 @@ def test_launch_alias_override_wins_and_follows_alias_chains(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {"coder": "claude/opus"},
                 "custom": {
                     "phase_worker": {
                         "model": "codex/o3",
                         "description": "Explicit custom phase role.",
-                    }
+                    },
+                    "reviewer": {
+                        "model": "claude/opus",
+                        "description": "Review alias.",
+                    },
                 },
             },
         },
     )
 
-    overrides = {"coder": "@phase_worker", "phase_worker": "claude/sonnet"}
-    assert resolve_model_alias("@coder", overrides) == "claude/sonnet"
-    assert resolve_model_provider("@coder", overrides) == ("claude", "sonnet")
+    overrides = {"reviewer": "@phase_worker", "phase_worker": "claude/sonnet"}
+    assert resolve_model_alias("@reviewer", overrides) == "claude/sonnet"
+    assert resolve_model_provider("@reviewer", overrides) == ("claude", "sonnet")
 
 
 def test_launch_phase_worker_override_has_no_builtin_effect(
@@ -275,7 +277,7 @@ def test_launch_size_phase_override_is_independent_for_that_size(
     assert resolve_model_alias("@large_phase_worker", overrides) == "codex/o3"
 
 
-def test_launch_coder_override_shadows_configured_provider_coder(
+def test_launch_generic_coder_override_does_not_shadow_configured_provider_coder(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -283,17 +285,18 @@ def test_launch_coder_override_shadows_configured_provider_coder(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "coder": "claude/opus",
-                    "claude_coder": "codex/o3",
+                "custom": {
+                    "claude_coder": {
+                        "model": "codex/o3",
+                        "description": "Explicit legacy alias.",
+                    }
                 }
             },
         },
     )
 
     assert (
-        resolve_model_alias("@claude_coder", {"coder": "claude/sonnet"})
-        == "claude/sonnet"
+        resolve_model_alias("@claude_coder", {"coder": "claude/sonnet"}) == "codex/o3"
     )
     assert (
         resolve_model_alias(
@@ -311,11 +314,14 @@ def test_launch_alias_override_beats_machine_temporary_override(
     temporary = MagicMock(provider="codex", model="o3")
     monkeypatch.setattr(
         "sase.llm_provider.config._active_alias_overrides",
-        lambda: {"coder": temporary},
+        lambda: {"medium_phase_worker": temporary},
     )
 
-    assert resolve_model_alias("@coder", {"coder": "claude/sonnet"}) == (
-        "claude/sonnet"
+    assert (
+        resolve_model_alias(
+            "@medium_phase_worker", {"medium_phase_worker": "claude/sonnet"}
+        )
+        == "claude/sonnet"
     )
 
 
@@ -334,8 +340,11 @@ def test_launch_alias_override_cycle_falls_back_to_original(
 
     assert (
         resolve_model_alias(
-            "@coder",
-            {"coder": "@medium_phase_worker", "medium_phase_worker": "@coder"},
+            "@medium_phase_worker",
+            {
+                "medium_phase_worker": "@large_phase_worker",
+                "large_phase_worker": "@medium_phase_worker",
+            },
         )
-        == "@coder"
+        == "@medium_phase_worker"
     )

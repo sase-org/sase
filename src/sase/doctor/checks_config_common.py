@@ -10,8 +10,12 @@ MAX_DETAIL_ROWS = 10
 #: no longer documented, completed, or shipped, so configs referencing them
 #: should migrate.
 REMOVED_IMPLICIT_ALIAS_GUIDANCE: dict[str, str] = {
-    "worker": "use a role alias such as @coder or an explicit model",
+    "worker": "use a size-specific phase-worker alias or an explicit model",
     "other": "use @default or an explicit provider/model",
+    "coder": (
+        "accepted tale follow-ups now route by tale size; use a size-specific "
+        "alias such as @medium_phase_worker or an explicit model"
+    ),
     "phase_worker": (
         "use @medium_phase_worker for medium phase work, @default for the "
         "former fallback behavior, or define phase_worker as a custom alias"

@@ -12,7 +12,7 @@ from tests._axe_run_agent_exec_plan_helpers import (
     make_state,
     patched_plan_deps,
 )
-from tests.plan_validation_helpers import VALID_EPIC_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
 @pytest.fixture
@@ -25,17 +25,17 @@ def patch_plan_deps():
 class TestPlanFollowupApprovalEffort:
     """Verify effort metadata for approved plan follow-ups."""
 
-    def test_approve_followup_records_default_effort(
+    def test_approve_followup_records_size_alias_effort(
         self, tmp_path, monkeypatch
     ) -> None:
-        """Coder follow-up metadata records llm_provider.default_effort."""
+        """Coder follow-up metadata records the size alias's effective effort."""
         monkeypatch.setattr(
             "sase.llm_provider.config._get_default_effort", lambda: "xhigh"
         )
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
         with (
@@ -50,7 +50,7 @@ class TestPlanFollowupApprovalEffort:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        assert call("/tmp/followup", "reasoning_effort", "xhigh") in (
+        assert call("/tmp/followup", "reasoning_effort", "low") in (
             accept_mod.update_meta_field.call_args_list
         )
 
@@ -100,7 +100,7 @@ class TestPlanFollowupApprovalEffort:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
 
         approval = PlanApprovalResult(
             action="approve",
@@ -134,7 +134,7 @@ class TestPlanFollowupApprovalEffort:
         state.current_artifacts_dir = "/tmp/followup"
 
         accept_mod._write_followup_effort_meta(
-            state, "%model:@claude_coder@xhigh\nImplement the approved plan."
+            state, "%model:@small_phase_worker@xhigh\nImplement the approved plan."
         )
 
         assert call("/tmp/followup", "reasoning_effort", "xhigh") in (
@@ -142,7 +142,7 @@ class TestPlanFollowupApprovalEffort:
         )
 
     def test_approve_followup_omits_unset_effort(self, tmp_path, monkeypatch) -> None:
-        """No explicit/default effort leaves plan-chain follow-up effort absent."""
+        """No explicit/default effort leaves concrete-model follow-up effort absent."""
         monkeypatch.setattr(
             "sase.llm_provider.config._get_default_effort", lambda: None
         )
@@ -150,9 +150,11 @@ class TestPlanFollowupApprovalEffort:
         ctx.agent_meta["reasoning_effort"] = "xhigh"
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
 
-        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+        approval = PlanApprovalResult(
+            action="approve", plan_file=plan_file, coder_model="claude/opus"
+        )
         with (
             patch(
                 "sase.llm_provider._plan_utils.handle_plan_approval",

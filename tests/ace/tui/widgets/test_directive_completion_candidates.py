@@ -267,7 +267,7 @@ def test_directive_token_extraction_accepts_parser_contexts() -> None:
 
 
 def test_model_paren_completion_offers_alias_keys_and_model_values() -> None:
-    line = "%m(co"
+    line = "%m(medium"
     token = extract_directive_arg_token_around_cursor(line, len(line))
     assert token is not None
     _, _, directive_name, partial = token
@@ -277,7 +277,7 @@ def test_model_paren_completion_offers_alias_keys_and_model_values() -> None:
         partial,
     )
 
-    assert "coder=" in {candidate.insertion for candidate in candidates}
+    assert "medium_phase_worker=" in {candidate.insertion for candidate in candidates}
 
 
 def test_wait_paren_completion_uses_keyword_aware_context() -> None:
@@ -291,9 +291,9 @@ def test_wait_paren_completion_uses_keyword_aware_context() -> None:
 
 
 def test_model_paren_completion_replaces_kwarg_value_only() -> None:
-    line = "%m(opus, coder=son"
+    line = "%m(opus, medium_phase_worker=son"
     assert extract_directive_arg_token_around_cursor(line, len(line)) == (
-        len("%m(opus, coder="),
+        len("%m(opus, medium_phase_worker="),
         len(line),
         "model",
         "son",
