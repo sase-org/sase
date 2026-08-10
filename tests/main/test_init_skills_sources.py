@@ -235,6 +235,10 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
                 "sase bead +1 <task-id>",
                 "Do not create a task",
                 "same underlying defect/root cause or desired remediation",
+                "retired umbrella",
+                "forbids `+1`",
+                "Do not `+1` or reopen them",
+                "node-specific task bead named for the failing node ID",
                 "sase bead list --type task --since 1w --status all",
                 "created in the last week",
                 "sase bead list --type plan --tier epic --status in_progress",
@@ -461,6 +465,21 @@ def test_sase_new_task_duplicate_detection_stays_query_scoped() -> None:
     assert re.search(r"sase bead list --type task(?! --since)", flat) is None
     assert re.search(r"sase bead list --type task[^`]*--format full", flat) is None
     assert "sase bead list --type plan --tier epic" in flat
+
+
+def test_sase_new_task_retired_umbrella_routes_to_related_task() -> None:
+    """Retired umbrella tasks should not keep receiving corroborating ``+1`` reports."""
+    src = get_sase_package_skills_dir() / "sase_new_task.md"
+    front_matter, body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
+    flat = _collapse_whitespace(body)
+
+    assert front_matter is not None
+    assert "retired umbrella" in flat
+    assert "closed task whose close reason declares it retired and forbids `+1`" in flat
+    assert "Do not `+1` or reopen them" in flat
+    assert "Route the report to step 7 instead" in flat
+    assert "node-specific task bead named for the failing node ID" in flat
+    assert 'sase bead note <new-task-id> "RELATED: <retired-task-id>' in flat
 
 
 def test_git_commit_skill_invokes_observable_wrapper() -> None:

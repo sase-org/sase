@@ -37,8 +37,12 @@ class TestPlanFollowupModelSelection:
         assert state.current_prompt.startswith(f"%model:@{size}_worker\n")
         assert "%model:@worker" not in state.current_prompt
 
-    def test_legacy_over_sized_tale_defaults_to_medium_worker(self, tmp_path) -> None:
-        plan_file = write_plan_file(tmp_path, size="large")
+    @pytest.mark.parametrize("size", ["large", "xlarge"])
+    def test_legacy_oversized_tale_defaults_to_medium_worker(
+        self, tmp_path, size: str
+    ) -> None:
+        """Launch compatibility treats oversized legacy tales as medium work."""
+        plan_file = write_plan_file(tmp_path, size=size)
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
         _, state, _ = run_plan_approval(
             tmp_path,
@@ -47,7 +51,8 @@ class TestPlanFollowupModelSelection:
             agent_llm_provider=None,
         )
         assert state.current_prompt.startswith("%model:@medium_worker\n")
-        assert "%model:@large_worker" not in state.current_prompt
+        assert f"%model:@{size}_worker" not in state.current_prompt
+        assert "%model:@worker" not in state.current_prompt
 
     def test_sizeless_legacy_tale_defaults_to_medium_worker(self, tmp_path) -> None:
         plan_file = write_plan_file(tmp_path, size=None)

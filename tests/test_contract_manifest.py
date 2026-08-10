@@ -35,23 +35,20 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # plans/202608/test_suite_tier1.md and update this cap together with the
 # measured-cost comment.
 #
-# Re-curated to 39 on 2026-08-10 for three `tools/` script guards:
-# `test_ratchet_core_window_tool.py`, `test_probe_core_floor_tool.py`, and
-# `test_sase_core_rs_glossary_line_break_smoke_tool.py`. They earn their place
-# on value per second rather than on kind: a `tools/` script is not a node in
-# the import graph, so a change that touches only one contributes no seeds,
-# `RULE_CONTRACT_SET_ONLY` fires, and the contract set is the *only* thing that
-# runs -- exactly the invariant no import edge can express. Their combined
-# serial cost is ~0.3 s, and the whole 39-entry set measured 26.7 s of summed
-# node time (33.4 s wall, on a contended host) under
+# Re-curated to 40 on 2026-08-10 for four `tools/` script guards:
+# `test_ratchet_core_window_tool.py`, `test_probe_core_floor_tool.py`,
+# `test_sase_core_rs_glossary_line_break_smoke_tool.py`, and the
+# `tools/sase_bead` wrapper guard in `test_sase_bead_tool.py`. They earn their
+# place on value per second rather than on kind: a `tools/` script is not a
+# node in the import graph, so a change that touches only one contributes no
+# seeds, `RULE_CONTRACT_SET_ONLY` fires, and the contract set is the *only*
+# thing that runs -- exactly the invariant no import edge can express. The
+# wrapper guard covers the checked-in `sase` wrapper smoke contract and measured
+# at <1 s inside the refreshed set. The whole 40-entry set measured 24.7 s on
+# 2026-08-10 under
 # `pytest -m contract $(cat tests/contract_manifest.txt) -p no:randomly
 # --durations=0`, which is the same `--durations` aggregate the retired oracle
 # read. The set is still inside the 30 s serial budget the plan sets.
-#
-# Re-curated to 40 on 2026-08-10 after `tests/test_sase_bead_tool.py`
-# received the contract marker; it guards the checked-in `sase` wrapper
-# smoke contract and measured at <1 s inside the refreshed set. The command
-# above passed in 24.69 s wall time on a contended host.
 _MANIFEST_ENTRY_BUDGET = 40
 _MEASURED_SERIAL_COST = "24.7 serial seconds across 40 entries"
 
