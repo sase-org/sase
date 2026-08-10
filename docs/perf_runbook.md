@@ -5,6 +5,41 @@ This runbook explains how to capture and compare performance data for ACE, the
 performance overhaul (bead `sase-w.1`, `sdd/epics/202604/tui_perf_overhaul_1.md`), and
 later performance phases still rely on the tracing and benchmark harness described here.
 
+## Suite test-cost gate
+
+The repository-wide pytest cost harness is separate from ACE trace spans. Use it when a
+change may affect the whole test suite's cost model rather than one TUI interaction:
+
+```bash
+just test-cost
+```
+
+The lane runs the default fast suite, records per-file wall/CPU time, collection time,
+peak worker RSS, and attributed hot causes, then prints `tools/test_cost_report`.
+Recordings live under `${SASE_HOME:-~/.sase}/test-selection/<project>/timings/cost/`;
+set `SASE_TEST_COST_DIR` to redirect them. `tools/check_test_cost_budgets` compares the
+newest recording with `tests/perf/baselines/test_cost_budgets.json`, and
+`just check-full` plus the Python 3.13 CI test leg enforce that comparison.
+
+Read failures by bucket:
+
+- `total_file_wall_seconds` and `idle_seconds` point to broad suite cost or waiting.
+- `collection_seconds` and `peak_worker_rss_kib` point to import-time or retained worker
+  state.
+- Cause entries such as `textual_app_run_test_enter`, `ace_page_enter`, `parser_create`,
+  `yaml_load`, and `subprocess_run` point to the hot pattern to audit.
+
+For focused diagnosis, rerun the cost lane on a path or node and print more rows:
+
+```bash
+just test-cost -- tests/ace/tui/widgets/test_vim_normal_key_containment.py
+tools/test_cost_report --top 20
+```
+
+The committed budgets intentionally have tolerance for host noise. Raise them only with
+a fresh full-suite recording and an explanation of why the new steady-state cost is
+acceptable; do not raise them to hide a one-off regression.
+
 ## Trace recorder
 
 `SASE_TUI_TRACE=1` enables `tui_trace(...)` context managers spread across the Patch,

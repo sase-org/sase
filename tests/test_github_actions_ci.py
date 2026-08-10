@@ -199,12 +199,19 @@ def test_test_job_only_collects_coverage_on_3_12_leg() -> None:
     assert coverage_step["if"] == "matrix.python-version == '3.12'"
     assert coverage_step["run"] == "just test-cov"
 
+    cost_step = next(
+        step
+        for step in steps
+        if step.get("name") == "Run tests" and step.get("run") == "just test-cost"
+    )
+    assert cost_step["if"] == "matrix.python-version == '3.13'"
+
     plain_step = next(
         step
         for step in steps
         if step.get("name") == "Run tests" and step.get("run") == "just test"
     )
-    assert plain_step["if"] == "matrix.python-version != '3.12'"
+    assert plain_step["if"] == "matrix.python-version == '3.14'"
 
 
 def test_contexts_job_publishes_the_per_test_database_on_master_only() -> None:

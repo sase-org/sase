@@ -36,6 +36,7 @@ just install       # Install with dev deps
 just fmt           # Auto-format code and Markdown
 just lint          # Run ruff, mypy, pyscripts, symvision, toobig, and keep-sorted
 just test          # Fast parallel test run, excluding slow and PNG visual snapshot tests
+just test-cost     # Fast suite with cost attribution and committed budget checks
 just test-slow     # Slow pytest subset only
 just test-visual   # ACE PNG visual regression snapshots only; the sole visual execution
 just test-terminal-smoke  # Optional real-terminal ACE smoke test
@@ -90,8 +91,8 @@ scoped manifest records both halves of the comparison (`max_serial_seconds` and 
 fired —
 `serial budget: estimated 180s against a 232s budget (within; 96% of the selection covered by the timing table)`.
 
-Run `just check-full` — every lint gate plus the full test suite, `just test` unchanged
-— before landing an epic's combined tree, whenever a change touches the broadening set
+Run `just check-full` — every lint gate plus the full suite through `just test-cost` —
+before landing an epic's combined tree, whenever a change touches the broadening set
 above, and any time a scoped run escalated or reported a selection that looks wrong. CI
 always runs the full suite, so a scoped false negative surfaces there within roughly the
 CI test leg's runtime; it is a backstop, not a silent gap.
@@ -126,6 +127,38 @@ unavailable — a fresh host, a mostly-new selection, or
 `SASE_TEST_SELECTION_TIMINGS_DISABLED=1` — nothing changes: the file-count ratio
 decides, as it did before the table existed. `SASE_TEST_SELECTION_TIMINGS_DIR` relocates
 the table.
+
+#### Suite-cost budgets
+
+`just test-cost` runs the same marker selection as `just test`, but it loads
+`tests/_test_cost_plugin.py`, writes a cost recording under the timing store's `cost/`
+subdirectory, prints `tools/test_cost_report`, and then enforces
+`tests/perf/baselines/test_cost_budgets.json` with `tools/check_test_cost_budgets`.
+`just check-full` uses this lane so the landing path catches cost regressions; ordinary
+`just test`, `just test-cov`, and `just check` keep the lower-overhead timing recorder.
+CI enforces the same budget on the Python 3.13 full-suite leg.
+
+The report has three parts: summary totals, cause attribution, and top files. The
+summary budgets guard total per-test wall seconds, idle seconds, collection seconds, and
+peak worker RSS. Cause budgets guard the hot buckets this suite has historically
+regressed: ACE app/page startup, full parser builds, YAML reparses, and avoidable
+subprocess round-trips. Local runs use a narrower tolerance than CI so host noise does
+not make shared runners brittle.
+
+When a budget fails, first run `just test-cost -- <path-or-node>` around the suspected
+area and compare it with the committed baseline:
+
+```bash
+just test-cost -- tests/main/test_parser.py
+tools/test_cost_report --top 20
+```
+
+New tests should treat bare `pilot.pause()`, positive fixed sleeps without an inline
+`# sase-test-wait: <reason>` pragma, one-app-per-assertion ACE boots, full
+`create_parser()` builds when a narrower command tree is enough, and CLI subprocesses
+used only to inspect stdout as defects. Use observable wait helpers, shared or cached
+test helpers with explicit reset semantics, and in-process entry points unless the
+process boundary is the behavior under test.
 
 #### The middle gear
 

@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Fail when a test-cost recording exceeds committed suite-cost budgets."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests._test_cost import (  # noqa: E402
+    TEST_COST_DIR_ENV,
+    check_cost_budgets,
+    cost_directory,
+    latest_cost_record,
+    load_cost_budgets,
+    load_cost_record,
+)
+from tests._test_selection_health_store import store_directory  # noqa: E402
+
+
+DEFAULT_BUDGET_PATH = (
+    REPO_ROOT / "tests" / "perf" / "baselines" / "test_cost_budgets.json"
+)
+
+
+def _default_recording_path() -> Path:
+    directory = cost_directory(store_directory(REPO_ROOT))
+    path = latest_cost_record(directory)
+    if path is None:
+        raise SystemExit(
+            "no test-cost recordings found; run `just test-cost` first or pass "
+            f"--recording (override directory with {TEST_COST_DIR_ENV})"
+        )
+    return path
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--recording",
+        type=Path,
+        help="cost recording to check; defaults to the newest host-local one",
+    )
+    parser.add_argument(
+        "--budgets",
+        type=Path,
+        default=DEFAULT_BUDGET_PATH,
+        help="committed budget JSON to enforce",
+    )
+    parser.add_argument(
+        "--ci",
+        action="store_true",
+        default=os.environ.get("CI") == "true",
+        help="use the CI tolerance from the budget file",
+    )
+    args = parser.parse_args(argv)
+
+    budget_path = args.budgets
+    budgets = load_cost_budgets(budget_path)
+    record_path = args.recording or _default_recording_path()
+    record = load_cost_record(record_path)
+    failures = check_cost_budgets(record, budgets, ci=args.ci)
+    if not failures:
+        print(f"test cost budgets passed: {record_path}")
+        return 0
+
+    print(f"test cost budget regression: {record_path}", file=sys.stderr)
+    print(f"budgets: {budget_path}", file=sys.stderr)
+    for failure in failures:
+        print(f"- {failure.format()}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

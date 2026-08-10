@@ -1,0 +1,44 @@
+{
+  "causes": {
+    "ace_page_enter": {
+      "limit": 230.0
+    },
+    "parser_create": {
+      "limit": 50.0
+    },
+    "subprocess_run": {
+      "limit": 300.0
+    },
+    "textual_app_run_test_enter": {
+      "limit": 250.0
+    },
+    "yaml_load": {
+      "limit": 20.0
+    }
+  },
+  "notes": [
+    "Budgets are checked against recordings from `just test-cost`.",
+    "Local tolerance absorbs host noise; CI receives a wider tolerance for shared runners.",
+    "Collection/RSS limits come from sase-ib.5's measured 12.399s collection and 500632 KiB peak RSS, rounded up.",
+    "Cause limits preserve the sase-ib reductions while avoiding brittle single-run exactness."
+  ],
+  "schema": 1,
+  "summary": {
+    "collection_seconds": {
+      "limit": 15.0
+    },
+    "idle_seconds": {
+      "limit": 900.0
+    },
+    "peak_worker_rss_kib": {
+      "limit": 716800.0
+    },
+    "total_file_wall_seconds": {
+      "limit": 2300.0
+    }
+  },
+  "tolerance": {
+    "ci": 0.2,
+    "local": 0.15
+  }
+}

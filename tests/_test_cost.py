@@ -16,7 +16,7 @@ import statistics
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from tests._test_selection_timings import (
     RECORDING_SUFFIX,
@@ -58,6 +58,26 @@ _SUMMARY_FIELDS: tuple[tuple[str, str], ...] = (
     ("worker_cpu_seconds", "worker CPU"),
     ("peak_worker_rss_kib", "peak worker RSS KiB"),
 )
+
+
+class CostBudgetFailure(NamedTuple):
+    """One suite-cost metric that exceeded its committed budget."""
+
+    metric: str
+    actual: float
+    limit: float
+    tolerance: float
+
+    @property
+    def allowed(self) -> float:
+        return self.limit * (1.0 + self.tolerance)
+
+    def format(self) -> str:
+        return (
+            f"{self.metric}: actual {self.actual:.3f} exceeds budget "
+            f"{self.limit:.3f} + {self.tolerance:.0%} tolerance "
+            f"({self.allowed:.3f})"
+        )
 
 
 def cost_directory(store: Path, environ: Mapping[str, str] | None = None) -> Path:
@@ -354,6 +374,19 @@ def load_cost_record(path: Path) -> dict[str, Any]:
     return payload
 
 
+def load_cost_budgets(path: Path) -> dict[str, Any]:
+    """Load and validate a committed suite-cost budget file."""
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or payload.get("schema") != TEST_COST_SCHEMA:
+        raise ValueError(f"{path} is not a schema-{TEST_COST_SCHEMA} cost budget")
+    if not isinstance(payload.get("summary"), Mapping):
+        raise ValueError(f"{path} has no summary budget object")
+    if not isinstance(payload.get("causes", {}), Mapping):
+        raise ValueError(f"{path} has an invalid causes budget object")
+    return payload
+
+
 def latest_cost_record(directory: Path) -> Path | None:
     """Return the newest recognised cost recording."""
 
@@ -388,6 +421,62 @@ def _cause_seconds(record: Mapping[str, Any], cause: str) -> float | None:
         return float(payload["seconds"])
     except (TypeError, ValueError):
         return None
+
+
+def _budget_tolerance(budgets: Mapping[str, Any], *, ci: bool) -> float:
+    raw_tolerance = budgets.get("tolerance", 0.15)
+    if isinstance(raw_tolerance, Mapping):
+        key = "ci" if ci else "local"
+        raw_tolerance = raw_tolerance.get(key, raw_tolerance.get("default", 0.15))
+    try:
+        tolerance = float(raw_tolerance)
+    except (TypeError, ValueError):
+        tolerance = 0.15
+    return max(tolerance, 0.0)
+
+
+def _budget_limit(raw_budget: object) -> float | None:
+    raw_limit = (
+        raw_budget.get("limit") if isinstance(raw_budget, Mapping) else raw_budget
+    )
+    try:
+        return float(raw_limit)
+    except (TypeError, ValueError):
+        return None
+
+
+def check_cost_budgets(
+    record: Mapping[str, Any],
+    budgets: Mapping[str, Any],
+    *,
+    ci: bool = False,
+) -> list[CostBudgetFailure]:
+    """Return every committed suite-cost budget exceeded by ``record``."""
+
+    tolerance = _budget_tolerance(budgets, ci=ci)
+    failures: list[CostBudgetFailure] = []
+    summary_budgets = budgets.get("summary")
+    if isinstance(summary_budgets, Mapping):
+        for metric, raw_budget in sorted(summary_budgets.items()):
+            limit = _budget_limit(raw_budget)
+            actual = _summary_value(record, str(metric))
+            if limit is None or actual is None:
+                continue
+            failure = CostBudgetFailure(str(metric), actual, limit, tolerance)
+            if actual > failure.allowed:
+                failures.append(failure)
+
+    cause_budgets = budgets.get("causes")
+    if isinstance(cause_budgets, Mapping):
+        for cause, raw_budget in sorted(cause_budgets.items()):
+            limit = _budget_limit(raw_budget)
+            if limit is None:
+                continue
+            actual = _cause_seconds(record, str(cause)) or 0.0
+            failure = CostBudgetFailure(f"causes.{cause}", actual, limit, tolerance)
+            if actual > failure.allowed:
+                failures.append(failure)
+    return failures
 
 
 def _format_seconds(value: float | None) -> str:

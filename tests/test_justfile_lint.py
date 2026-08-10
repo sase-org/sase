@@ -217,7 +217,7 @@ def test_check_ends_in_the_scoped_test_lane() -> None:
 def test_check_full_ends_in_the_full_test_lane() -> None:
     output = _dry_run("check-full")
 
-    assert 'tools/run_silent "test"               just test' in output
+    assert 'tools/run_silent "test cost"          just test-cost' in output
     assert "just test-scoped" not in output
 
 
@@ -248,7 +248,7 @@ def test_check_full_does_not_print_a_scoped_summary() -> None:
 def test_check_full_runs_the_flake_baseline_gate_after_the_full_lane() -> None:
     output = _dry_run("check-full")
 
-    test_line = 'tools/run_silent "test"               just test'
+    test_line = 'tools/run_silent "test cost"          just test-cost'
     gate_line = (
         'tools/run_silent "flake baseline"     just selection-health '
         "--fail-on-new-flake"

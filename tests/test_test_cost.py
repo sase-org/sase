@@ -9,8 +9,10 @@ from pathlib import Path
 from tests import _test_cost_plugin
 from tests._test_cost import (
     build_cost_record,
+    check_cost_budgets,
     cost_directory,
     format_cost_report,
+    load_cost_budgets,
     load_cost_record,
     write_cost_record,
 )
@@ -217,6 +219,82 @@ def test_format_cost_report_includes_diff_and_top_files() -> None:
     assert "sase.main.parser.create_parser: 0.500s (1x)" in report
     assert "by wall:" in report
     assert "tests/test_a.py" in report
+
+
+def test_cost_budget_check_reports_regressions() -> None:
+    record = build_cost_record(
+        [
+            {
+                "worker_id": "gw0",
+                "wall_seconds": 1.0,
+                "cpu_seconds": 0.25,
+                "collection_seconds": 2.0,
+                "peak_rss_kib": 100,
+                "causes": {"parser_create": {"count": 1, "seconds": 1.25}},
+                "files": {
+                    "tests/test_a.py": {
+                        "node_count": 1,
+                        "wall_seconds": 3.0,
+                        "cpu_seconds": 1.0,
+                        "causes": {"parser_create": {"count": 1, "seconds": 1.25}},
+                    }
+                },
+            }
+        ],
+        mode="cost",
+        worker_count=1,
+        host="host",
+        now=datetime(2026, 8, 9, tzinfo=UTC),
+    )
+    budgets = {
+        "schema": 1,
+        "tolerance": {"local": 0.10},
+        "summary": {"total_file_wall_seconds": {"limit": 2.0}},
+        "causes": {"parser_create": {"limit": 1.0}},
+    }
+
+    failures = check_cost_budgets(record, budgets)
+
+    assert [failure.metric for failure in failures] == [
+        "total_file_wall_seconds",
+        "causes.parser_create",
+    ]
+    assert failures[0].allowed == 2.2
+
+
+def test_cost_budget_check_uses_wider_ci_tolerance() -> None:
+    record = build_cost_record(
+        [
+            {
+                "worker_id": "gw0",
+                "wall_seconds": 1.0,
+                "cpu_seconds": 1.0,
+                "collection_seconds": 11.5,
+                "peak_rss_kib": 100,
+                "causes": {},
+                "files": {},
+            }
+        ],
+        mode="cost",
+        worker_count=1,
+        host="host",
+        now=datetime(2026, 8, 9, tzinfo=UTC),
+    )
+    budgets = {
+        "schema": 1,
+        "tolerance": {"local": 0.10, "ci": 0.20},
+        "summary": {"collection_seconds": {"limit": 10.0}},
+        "causes": {},
+    }
+
+    assert check_cost_budgets(record, budgets)
+    assert check_cost_budgets(record, budgets, ci=True) == []
+
+
+def test_committed_cost_budgets_are_valid() -> None:
+    budgets = load_cost_budgets(Path("tests/perf/baselines/test_cost_budgets.json"))
+
+    assert budgets["summary"]["collection_seconds"]["limit"] == 15.0
 
 
 def test_cost_recorder_attributes_causes_to_current_file(tmp_path: Path) -> None:

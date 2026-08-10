@@ -182,7 +182,10 @@ jobs:
         if: matrix.python-version == '3.12'
         run: just test-cov
       - name: Run tests
-        if: matrix.python-version != '3.12'
+        if: matrix.python-version == '3.13'
+        run: just test-cost
+      - name: Run tests
+        if: matrix.python-version == '3.14'
         run: just test
       - name: Upload coverage
         if: matrix.python-version == '3.12'
