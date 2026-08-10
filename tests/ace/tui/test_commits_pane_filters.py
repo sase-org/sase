@@ -297,6 +297,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
+        status = bar.query_one("#commit-filter-status", Static)
         await page.press("slash")
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
         query = "-repo:sase-core-foundation"
@@ -309,11 +310,12 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
                 and [repo.name for repo in pane.result.repos]
                 == ["alpha-platform-repository"]
                 and calls[-1].get("exclude_repo_filters") == ("sase-core-foundation",)
+                and "exact" in status.content.plain
             )
         )
         assert calls[-1]["limit"] == 0
         assert [entry.commit.short_id for entry in pane.result.commits] == ["aaaaaaa"]
-        assert "exact" in bar.query_one("#commit-filter-status", Static).content.plain
+        assert "exact" in status.content.plain
 
         await page.press("enter")
         await page.wait_for(

@@ -12,7 +12,7 @@ import pytest
 from textual.widgets import Static
 
 from sase.ace import dismissed_agents
-from sase.ace.testing import AcePage, make_patch, wait_for
+from sase.ace.testing import AcePage, make_patch
 from sase.ace.tui import AceApp
 from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
 from sase.ace.tui.modals.save_agent_group_modal import SaveAgentGroupModal
@@ -83,8 +83,8 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
         await page.press("enter")
         await page.expect_no_modal()
         await page.expect_state("agent_count", 0)
-        await wait_for(
-            page, lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
+        await page.wait_for(
+            lambda _state: bool(dismissed_agents.list_dismissed_agent_groups().groups)
         )
 
         group = dismissed_agents.list_dismissed_agent_groups().groups[0]
@@ -102,7 +102,7 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
 
         await page.press("enter")
         await page.expect_no_modal()
-        await wait_for(page, lambda: bool(restored))
+        await page.wait_for(lambda _state: bool(restored))
 
     assert restored == [("20260527120000", None)]
     revived_group = dismissed_agents.load_dismissed_agent_group(group.group_id)
@@ -141,8 +141,8 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tribe_real_load
         await page.press("enter")
         await page.expect_no_modal()
         await page.expect_state("agent_count", 0)
-        await wait_for(
-            page, lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
+        await page.wait_for(
+            lambda _state: bool(dismissed_agents.list_dismissed_agent_groups().groups)
         )
 
         group = dismissed_agents.list_dismissed_agent_groups().groups[0]
@@ -160,9 +160,8 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tribe_real_load
         await page.expect_modal("SavedAgentGroupRevivalModal")
         await page.press("enter")
         await page.expect_no_modal()
-        await wait_for(
-            page,
-            lambda: any(
+        await page.wait_for(
+            lambda _state: any(
                 agent.raw_suffix == "20260527123000" and agent.tribe == "backend"
                 for agent in page.app._agents
             ),
