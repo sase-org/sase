@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""Smoke glossary line-break matching from the exact published Rust-core minimum."""
+
+from __future__ import annotations
+
+import importlib
+import importlib.metadata
+import sys
+from types import ModuleType
+from typing import Any
+
+
+REQUIRED_BINDINGS = ("compile_glossary_catalog",)
+
+
+def _require_bindings(module: ModuleType) -> None:
+    missing = [
+        name for name in REQUIRED_BINDINGS if not callable(getattr(module, name, None))
+    ]
+    if missing:
+        raise RuntimeError(
+            "missing glossary line-break binding(s): " + ", ".join(missing)
+        )
+
+
+def validate_line_break_matching(module: ModuleType) -> dict[str, Any]:
+    """Exercise wrapped glossary matching and its per-line segment wire."""
+
+    _require_bindings(module)
+    catalog = module.compile_glossary_catalog(
+        [{"term": "Xprompt Memory", "definition": "A memory-backed xprompt."}]
+    )
+
+    wrapped = "ask xprompt\n  memory now"
+    spans = list(catalog.scan(wrapped))
+    if len(spans) != 1:
+        raise RuntimeError(f"expected one wrapped glossary span, got {spans!r}")
+    span = spans[0]
+    if span.get("term") != "Xprompt Memory":
+        raise RuntimeError(f"expected full term match, got {span!r}")
+    if span.get("matched_text") != "xprompt\n  memory":
+        raise RuntimeError(f"wrapped match did not preserve raw text: {span!r}")
+    if span.get("range") != {
+        "start": {"line": 0, "character": 4},
+        "end": {"line": 1, "character": 8},
+    }:
+        raise RuntimeError(f"wrapped match has unexpected range: {span!r}")
+
+    segments = span.get("segments")
+    expected_segments = [
+        {
+            "byte_start": 4,
+            "byte_end": 11,
+            "range": {
+                "start": {"line": 0, "character": 4},
+                "end": {"line": 0, "character": 11},
+            },
+        },
+        {
+            "byte_start": 14,
+            "byte_end": 20,
+            "range": {
+                "start": {"line": 1, "character": 2},
+                "end": {"line": 1, "character": 8},
+            },
+        },
+    ]
+    if segments != expected_segments:
+        raise RuntimeError(f"unexpected wrapped glossary segments: {segments!r}")
+    for segment in segments:
+        segment_range = segment["range"]
+        if segment_range["start"]["line"] != segment_range["end"]["line"]:
+            raise RuntimeError(f"segment is not single-line: {segment!r}")
+
+    blank_line_spans = list(catalog.scan("ask xprompt\n\nmemory now"))
+    if blank_line_spans:
+        raise RuntimeError(
+            f"blank-line-separated phrase should not match: {blank_line_spans!r}"
+        )
+
+    return {
+        "term": span["term"],
+        "matched_text": span["matched_text"],
+        "segment_count": len(segments),
+        "segment_ranges": [segment["range"] for segment in segments],
+        "blank_line_rejected": True,
+    }
+
+
+def main() -> int:
+    try:
+        module = importlib.import_module("sase_core_rs")
+        version = importlib.metadata.version("sase-core-rs")
+        result = validate_line_break_matching(module)
+    except Exception as error:
+        print(f"[glossary-line-break-smoke] {error}", file=sys.stderr)
+        return 1
+    print(f"[glossary-line-break-smoke] sase-core-rs {version}: {result}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

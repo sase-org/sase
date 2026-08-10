@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +102,11 @@ ARTIFACT_REF_HIGHLIGHT = (
 GLOSSARY_HIGHLIGHT_PROMPT = (
     "Ask the Agent Clan to review the Patch glossary wiring\n"
     "Keep xprompt references, `Agent Clan`, and @plans:notes.md distinct."
+)
+GLOSSARY_WRAPPED_HIGHLIGHT_PROMPT = (
+    "Ask the Agent\n"
+    "  Clan to review the Patch glossary wiring\n"
+    "Keep xprompt references and @plans:notes.md distinct."
 )
 
 CODEBLOCK_HIGHLIGHT_SOLO = (
@@ -295,13 +301,11 @@ class _VisualCompiledGlossary:
         )
         spans: list[dict[str, Any]] = []
         for entry in self._entries:
-            start = 0
+            pattern = _visual_glossary_pattern(entry.term)
             literal_index = 0
-            while True:
-                found = text.find(entry.term, start)
-                if found == -1:
-                    break
-                end = found + len(entry.term)
+            for match in pattern.finditer(text):
+                found = match.start()
+                end = match.end()
                 while (
                     literal_index < len(literal_ranges)
                     and literal_ranges[literal_index][1] <= found
@@ -311,7 +315,6 @@ class _VisualCompiledGlossary:
                     literal_index < len(literal_ranges)
                     and literal_ranges[literal_index][0] < end
                 ):
-                    start = end
                     continue
                 spans.append(
                     _visual_glossary_span_wire(
@@ -321,7 +324,6 @@ class _VisualCompiledGlossary:
                         end,
                     )
                 )
-                start = end
         return spans
 
     def lookup(
@@ -431,7 +433,50 @@ def _visual_glossary_span_wire(
             "start": _visual_editor_position(text, start),
             "end": _visual_editor_position(text, end),
         },
+        "segments": _visual_glossary_segments(text, start, end),
     }
+
+
+def _visual_glossary_pattern(term: str) -> re.Pattern[str]:
+    gap = r"(?:[\t ]*\r?\n[\t ]*|[\t ]+)"
+    words = [word for word in term.split() if word]
+    return re.compile(
+        r"\b" + gap.join(re.escape(word) for word in words) + r"\b",
+        re.IGNORECASE,
+    )
+
+
+def _visual_glossary_segments(
+    text: str,
+    start: int,
+    end: int,
+) -> list[dict[str, Any]]:
+    segments: list[dict[str, Any]] = []
+    cursor = start
+    while cursor < end:
+        newline = text.find("\n", cursor, end)
+        piece_end = end if newline == -1 else newline
+        segment_start = cursor
+        segment_end = piece_end
+        while segment_start < segment_end and text[segment_start] in " \t\r":
+            segment_start += 1
+        while segment_end > segment_start and text[segment_end - 1] in " \t\r":
+            segment_end -= 1
+        if segment_start < segment_end:
+            segments.append(
+                {
+                    "byte_start": len(text[:segment_start].encode("utf-8")),
+                    "byte_end": len(text[:segment_end].encode("utf-8")),
+                    "range": {
+                        "start": _visual_editor_position(text, segment_start),
+                        "end": _visual_editor_position(text, segment_end),
+                    },
+                }
+            )
+        if newline == -1:
+            break
+        cursor = newline + 1
+    return segments
 
 
 def _visual_editor_position(text: str, offset: int) -> dict[str, int]:

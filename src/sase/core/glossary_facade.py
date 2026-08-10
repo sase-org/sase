@@ -131,6 +131,7 @@ class GlossarySpan:
     byte_start: int
     byte_end: int
     range: Mapping[str, Any]
+    segments: tuple[Mapping[str, Any], ...]
 
     @classmethod
     def from_wire(cls, payload: Mapping[str, Any]) -> GlossarySpan:
@@ -143,6 +144,7 @@ class GlossarySpan:
             byte_start=int(payload["byte_start"]),
             byte_end=int(payload["byte_end"]),
             range=payload["range"],
+            segments=tuple(payload["segments"]),
         )
 
 

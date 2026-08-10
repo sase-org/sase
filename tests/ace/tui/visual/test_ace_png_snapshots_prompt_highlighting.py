@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui import AceApp
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -19,6 +20,7 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
     CODEBLOCK_HIGHLIGHT_SOLO,
     CODEBLOCK_HIGHLIGHT_STACK,
     GLOSSARY_HIGHLIGHT_PROMPT,
+    GLOSSARY_WRAPPED_HIGHLIGHT_PROMPT,
     MISSPELLING_HIGHLIGHT_PROMPT,
     ORDERED_HIGHLIGHT_SOLO,
     SEARCH_PROMPT,
@@ -341,6 +343,46 @@ async def test_prompt_glossary_highlight_png_snapshot(
             for *_range, name in row
         )
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+async def test_prompt_glossary_wrapped_highlight_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        AceApp,
+        "warm_prompt_catalog_project",
+        lambda _app, _project: None,
+    )
+    patch_visual_glossary_catalog(monkeypatch)
+    patch_visual_artifact_ref_kinds(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = "textual-dark"
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, GLOSSARY_WRAPPED_HIGHLIGHT_PROMPT)
+        text_area = bar.active_text_area()
+        text_area._refresh_prompt_glossary_context(schedule=False)
+        text_area._build_highlight_map()
+        await wait_for_visual_idle(page)
+
+        highlights = [
+            (row, start, end, name)
+            for row, spans in text_area._highlights.items()
+            for start, end, name in spans
+            if name == "glossary.term"
+        ]
+        assert (0, 8, 13, "glossary.term") in highlights
+        assert (1, 2, 6, "glossary.term") in highlights
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_glossary_wrapped_highlight_dark_120x40",
+            title="ACE prompt input — wrapped glossary highlighting, dark theme",
+        )
 
 
 @pytest.mark.parametrize(

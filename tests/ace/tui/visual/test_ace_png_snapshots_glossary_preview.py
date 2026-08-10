@@ -217,4 +217,14 @@ def _span(
             "start": {"line": 0, "character": start},
             "end": {"line": 0, "character": end},
         },
+        "segments": [
+            {
+                "byte_start": start,
+                "byte_end": end,
+                "range": {
+                    "start": {"line": 0, "character": start},
+                    "end": {"line": 0, "character": end},
+                },
+            }
+        ],
     }

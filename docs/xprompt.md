@@ -234,15 +234,16 @@ The LSP also consumes the project glossary configured in `sase/sase.yml`; see
 [glossary configuration](configuration.md#memoryglossary). A leading VCS workflow
 reference selects the glossary project for the document, otherwise the active workspace
 project is used. Glossary phrases are emitted as standard `type` semantic tokens, with
-the same case-insensitive, line-local, code-literal-skipping, longest-match scanner ACE
-uses. Derived plurals of terms and aliases are matched like configured aliases.
-`sase-nvim` underlines those tokens by default through an overridable `SaseGlossaryTerm`
-highlight group. Hover returns Markdown for the canonical term, aliases, project, and
-source context, and go-to-definition targets the glossary entry's `definition` range in
-the project-local config. Explicit xprompt and artifact references keep precedence over
-glossary matches. When the selected project is disabled, unknown, home, unreadable, or
-has an invalid glossary, the server suppresses glossary semantics for that context
-instead of falling back to another project's terms.
+the same case-insensitive, code-literal-skipping, longest-match scanner ACE uses. A
+phrase wrapped across one line break is emitted as one semantic token per line. Derived
+plurals of terms and aliases are matched like configured aliases. `sase-nvim` underlines
+those tokens by default through an overridable `SaseGlossaryTerm` highlight group. Hover
+returns Markdown for the canonical term, aliases, project, and source context, and
+go-to-definition targets the glossary entry's `definition` range in the project-local
+config. Explicit xprompt and artifact references keep precedence over glossary matches.
+When the selected project is disabled, unknown, home, unreadable, or has an invalid
+glossary, the server suppresses glossary semantics for that context instead of falling
+back to another project's terms.
 
 See the [editor integration guide](editor.md) for setup, feature coverage, helper bridge
 usage, and troubleshooting.

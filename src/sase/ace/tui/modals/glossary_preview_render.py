@@ -55,9 +55,10 @@ def build_glossary_title(
         lines = [identity]
 
     if _should_show_matched_text(entry, matched_text):
+        display_matched_text = _normalize_matched_text(matched_text)
         match = Text()
         match.append('matched "', style=_COLOR_MUTED)
-        match.append(str(matched_text), style=f"bold underline {accent}")
+        match.append(display_matched_text, style=f"bold underline {accent}")
         match.append('"', style=_COLOR_MUTED)
         lines.append(match)
     return Group(*lines)
@@ -214,7 +215,7 @@ def glossary_definition_markdown(
         if start is None or end is None or start < cursor or end <= start:
             continue
         pieces.append(definition[cursor:start])
-        matched = definition[start:end]
+        matched = _normalize_matched_text(definition[start:end])
         target = entries_by_index[span.entry_index]
         pieces.append(
             f"[{_escape_markdown_link_text(matched)}]"
@@ -261,7 +262,13 @@ def _should_show_matched_text(
 ) -> bool:
     if not matched_text:
         return False
-    return matched_text.casefold() != entry.term.casefold()
+    return _normalize_matched_text(matched_text).casefold() != (
+        _normalize_matched_text(entry.term).casefold()
+    )
+
+
+def _normalize_matched_text(value: str | None) -> str:
+    return " ".join(str(value or "").split())
 
 
 def _char_offset_from_byte(text: str, byte_offset: int) -> int | None:

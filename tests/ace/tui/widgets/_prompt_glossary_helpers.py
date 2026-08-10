@@ -149,6 +149,65 @@ def catalog_for_text(
     )
 
 
+def catalog_for_wrapped_text(
+    text: str,
+    tmp_path: Path,
+    term: str,
+    *,
+    entry_term: str | None = None,
+) -> EditorGlossaryCatalog:
+    parts = term.split()
+    assert len(parts) == 2
+    first, second = parts
+    start = text.find(first)
+    assert start != -1
+    second_start = text.find(second, start + len(first))
+    assert second_start != -1
+    end = second_start + len(second)
+    entry_term = entry_term or term
+    span = _span_wire(
+        text,
+        term,
+        start,
+        end,
+        segments=((start, start + len(first)), (second_start, end)),
+    )
+    config_path = tmp_path / "sase.yml"
+    entry = GlossaryEntry(
+        index=0,
+        term=entry_term,
+        normalized_term=entry_term.casefold(),
+        definition="A named, rootless container for coordinated agents.",
+        configured_aliases=("clan", "agent clans"),
+        display_aliases=("clan",),
+        effective_aliases=("agent clan", "clan", "agent clans"),
+        source={
+            "config_path": str(config_path),
+            "definition_range": {
+                "start": {"line": 7, "character": 4},
+                "end": {"line": 7, "character": 58},
+            },
+        },
+    )
+    return EditorGlossaryCatalog(
+        schema_version=1,
+        project=_EditorGlossaryProject(
+            key="sase",
+            name="sase",
+            aliases=("sase-org",),
+            workspace_dir=tmp_path,
+        ),
+        config_path=config_path,
+        config_signature=_GlossaryConfigSignature(
+            path=str(config_path),
+            mtime_ns=1,
+            size=256,
+        ),
+        catalog=GlossaryCatalog(schema_version=1, entries=(entry,)),
+        compiled=_FakeCompiledGlossary((span,)),
+    )
+
+
 def dynamic_catalog_for_term(
     tmp_path: Path,
     term: str,
@@ -219,7 +278,10 @@ def _span_wire(
     term: str,
     start: int,
     end: int,
+    *,
+    segments: tuple[tuple[int, int], ...] | None = None,
 ) -> dict[str, Any]:
+    segment_offsets = segments or ((start, end),)
     return {
         "term": term,
         "entry_index": 0,
@@ -229,6 +291,14 @@ def _span_wire(
         "byte_start": len(text[:start].encode("utf-8")),
         "byte_end": len(text[:end].encode("utf-8")),
         "range": _editor_range(text, start, end),
+        "segments": [
+            {
+                "byte_start": len(text[:segment_start].encode("utf-8")),
+                "byte_end": len(text[:segment_end].encode("utf-8")),
+                "range": _editor_range(text, segment_start, segment_end),
+            }
+            for segment_start, segment_end in segment_offsets
+        ],
     }
 
 

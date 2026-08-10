@@ -401,6 +401,8 @@ jobs:
         run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_bead_resolution
       - name: Smoke plan-header binding round trip
         run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_plan_header
+      - name: Smoke glossary line-break matching
+        run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_glossary_line_break
 
   # The release-please branch carries the package metadata that will be
   # published. Test it against the declared PyPI floor, not the source-built
@@ -450,6 +452,7 @@ jobs:
           /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_at_reference_file_gate
           /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_bead_resolution
           /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_plan_header
+          /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_glossary_line_break
       - name: Run contract set
         run: |
           set -euo pipefail

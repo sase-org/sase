@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import dataclasses
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -120,10 +121,13 @@ class PromptGlossaryMixin(_MixinBase):
         except Exception:
             return
         for span in spans:
-            offsets = _editor_range_to_offsets(text, span.range)
-            if offsets is None:
-                continue
-            self._append_highlight_span(*offsets, _GLOSSARY_STYLE)
+            for segment in span.segments:
+                if not isinstance(segment, Mapping):
+                    continue
+                offsets = _editor_range_to_offsets(text, segment.get("range"))
+                if offsets is None:
+                    continue
+                self._append_highlight_span(*offsets, _GLOSSARY_STYLE)
 
     def _preview_glossary_under_cursor(self) -> bool:
         """Preview the glossary term under the cursor, if one is selected."""

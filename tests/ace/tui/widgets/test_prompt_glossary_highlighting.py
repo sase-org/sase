@@ -17,6 +17,7 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from ._completion_helpers import CompletionTestApp
 from ._prompt_glossary_helpers import (
     catalog_for_text,
+    catalog_for_wrapped_text,
     dynamic_catalog_for_term,
     install_warm_glossary,
 )
@@ -71,6 +72,27 @@ async def test_glossary_overlay_marks_spans_and_registers_styles(
             Color.parse(app.current_theme.warning),
             Color.parse(app.current_theme.error),
         }
+
+
+async def test_glossary_overlay_uses_trimmed_segments_for_wrapped_terms(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        text = "Ask Agent\n  Clan to coordinate"
+        catalog = catalog_for_wrapped_text(text, tmp_path, "Agent Clan")
+        install_warm_glossary(monkeypatch, app, catalog)
+
+        ta.load_text(text)
+        ta._refresh_prompt_glossary_context(schedule=False)
+        ta._build_highlight_map()
+
+        assert _glossary_highlights(ta) == [
+            (0, 4, 9, "glossary.term"),
+            (1, 2, 6, "glossary.term"),
+        ]
 
 
 async def test_glossary_overlay_order_keeps_search_and_code_in_front(

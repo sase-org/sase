@@ -66,6 +66,62 @@ def test_glossary_facade_compiled_catalog_matches_derived_plural() -> None:
     assert spans[0].matched_text == "Widget Boxes"
 
 
+def test_glossary_facade_exposes_line_break_segments_from_core() -> None:
+    handle = glossary.compile_glossary_catalog(
+        [
+            {"term": "Xprompt", "definition": "A prompt shortcut."},
+            {"term": "Xprompt Memory", "definition": "A memory xprompt."},
+        ]
+    )
+
+    spans = glossary.scan_glossary_spans(handle, "ask xprompt\n  memory now")
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.term == "Xprompt Memory"
+    assert span.matched_text == "xprompt\n  memory"
+    assert span.range == {
+        "start": {"line": 0, "character": 4},
+        "end": {"line": 1, "character": 8},
+    }
+    assert [
+        (segment["byte_start"], segment["byte_end"], segment["range"])
+        for segment in span.segments
+    ] == [
+        (
+            4,
+            11,
+            {
+                "start": {"line": 0, "character": 4},
+                "end": {"line": 0, "character": 11},
+            },
+        ),
+        (
+            14,
+            20,
+            {
+                "start": {"line": 1, "character": 2},
+                "end": {"line": 1, "character": 8},
+            },
+        ),
+    ]
+
+    phrase_only = glossary.compile_glossary_catalog(
+        [{"term": "Xprompt Memory", "definition": "A memory xprompt."}]
+    )
+    assert glossary.scan_glossary_spans(phrase_only, "ask xprompt\n\nmemory now") == ()
+
+    single_line = glossary.scan_glossary_spans(phrase_only, "ask xprompt memory now")
+    assert len(single_line) == 1
+    assert single_line[0].segments == (
+        {
+            "byte_start": single_line[0].byte_start,
+            "byte_end": single_line[0].byte_end,
+            "range": single_line[0].range,
+        },
+    )
+
+
 def test_glossary_facade_scans_and_looks_up_with_compiled_handle(monkeypatch) -> None:
     span = {
         "term": "Agent Clan",
@@ -79,6 +135,16 @@ def test_glossary_facade_scans_and_looks_up_with_compiled_handle(monkeypatch) ->
             "start": {"line": 0, "character": 4},
             "end": {"line": 0, "character": 14},
         },
+        "segments": [
+            {
+                "byte_start": 4,
+                "byte_end": 14,
+                "range": {
+                    "start": {"line": 0, "character": 4},
+                    "end": {"line": 0, "character": 14},
+                },
+            }
+        ],
     }
 
     class FakeHandle:

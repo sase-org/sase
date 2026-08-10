@@ -93,6 +93,38 @@ def test_title_omits_matched_line_when_match_equals_term_case_insensitive() -> N
     assert "matched" not in text
 
 
+def test_title_omits_wrapped_match_after_whitespace_normalization() -> None:
+    entry = _entry(0, "Agent Clan")
+
+    text = _render_text(
+        build_glossary_title(
+            entry,
+            matched_text="agent\n  clan",
+            project_name="sase",
+            accent="#87D7FF",
+        )
+    )
+
+    assert "Agent Clan" in text
+    assert "matched" not in text
+
+
+def test_title_renders_wrapped_alias_match_on_one_line() -> None:
+    entry = _entry(0, "Agent Clan")
+
+    text = _render_text(
+        build_glossary_title(
+            entry,
+            matched_text="agent\n  family",
+            project_name="sase",
+            accent="#87D7FF",
+        )
+    )
+
+    assert 'matched "agent family"' in text
+    assert "agent\n  family" not in text
+
+
 def test_cross_references_drop_self_dedupe_and_preserve_order() -> None:
     entries = (
         _entry(0, "Agent Hood", definition="Agent Clan, Agent Lane, Agent Clan."),
@@ -124,6 +156,19 @@ def test_definition_markdown_links_non_self_references() -> None:
 
     assert glossary_definition_markdown(catalog, entry) == (
         "See [Agent Lane](glossary:1)."
+    )
+
+
+def test_definition_markdown_normalizes_wrapped_link_text() -> None:
+    entry = _entry(0, "Agent Hood", definition="See agent\n  lane.")
+    reference = _entry(1, "Agent Lane")
+    catalog = SimpleNamespace(
+        entries=(entry, reference),
+        compiled=_CompiledGlossary((_span_at(1, "agent\n  lane", start=4),)),
+    )
+
+    assert glossary_definition_markdown(catalog, entry) == (
+        "See [agent lane](glossary:1)."
     )
 
 
@@ -167,4 +212,14 @@ def _span_at(entry_index: int, matched_text: str, *, start: int) -> dict[str, An
             "start": {"line": 0, "character": start},
             "end": {"line": 0, "character": end},
         },
+        "segments": [
+            {
+                "byte_start": start,
+                "byte_end": end,
+                "range": {
+                    "start": {"line": 0, "character": start},
+                    "end": {"line": 0, "character": end},
+                },
+            }
+        ],
     }

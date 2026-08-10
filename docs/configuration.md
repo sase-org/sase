@@ -535,18 +535,21 @@ command.
 
 The canonical term is always the first effective alias, followed by configured aliases
 and accepted derived plurals. Matching is case-insensitive, Unicode-aware, bounded by
-word-like edges, allows horizontal whitespace runs inside multiword phrases, and does
-not cross a line. Inline and fenced code are skipped. Overlapping phrases are allowed;
-the longest match wins, with authored order breaking ties. Blank terms, blank
-definitions, multiline aliases, duplicate normalized terms, and one alias claimed by
-more than one term fail validation consistently for config loading, memory generation,
-ACE, and the xprompt LSP.
+word-like edges, and separates words in multiword phrases with horizontal whitespace
+runs or one line break plus its surrounding indentation. A blank line or any
+non-whitespace continuation prefix, such as a list marker, blockquote marker, heading,
+or separator, ends the phrase. Inline and fenced code are skipped. Overlapping phrases
+are allowed; the longest match wins, with authored order breaking ties. Blank terms,
+blank definitions, multiline aliases, duplicate normalized terms, and one alias claimed
+by more than one term fail validation consistently for config loading, memory
+generation, ACE, and the xprompt LSP.
 
 ACE highlights warm glossary matches in prompt text as bold, theme-accent, underlined
-terms you can preview with `K` or jump to with `Ctrl+]`. In NORMAL mode, `K` previews
-the matching project's definition after xprompt, skill, and file targets; `Ctrl+]` jumps
-to the entry's `definition` range in that project's `sase/sase.yml`. The xprompt LSP
-uses the same project selection and matcher for semantic tokens, hover Markdown, and
+terms you can preview with `K` or jump to with `Ctrl+]`; wrapped matches are underlined
+per line with continuation indentation excluded. In NORMAL mode, `K` previews the
+matching project's definition after xprompt, skill, and file targets; `Ctrl+]` jumps to
+the entry's `definition` range in that project's `sase/sase.yml`. The xprompt LSP uses
+the same project selection and matcher for semantic tokens, hover Markdown, and
 go-to-definition. A leading VCS workflow reference selects the glossary project;
 otherwise the active workspace project is used. Unknown, disabled, home, or unreadable
 project contexts produce no glossary semantics.
