@@ -1,4 +1,4 @@
-"""Undo semantics for the Agents-tab zoom-action panel isolation."""
+"""Undo semantics for the Agents-tab panel isolation action."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def test_isolate_then_restore_round_trips_an_arbitrary_layout() -> None:
     )
     assert app._panel_isolation_marked_keys() == {"alpha", "beta"}
 
-    # The armed restore belongs to the zoom action, not the original target panel.
+    # The armed restore belongs to the isolation action, not the original target panel.
     BasicNavigationMixin._navigate_agents_panel(app, 1)
     BasicNavigationMixin._navigate_agents_panel(app, 1)
     assert app._panel_group.focused_key == "beta"

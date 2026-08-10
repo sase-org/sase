@@ -151,7 +151,7 @@ def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
     assert ("e", "Edit chat in editor") not in agent_pairs
 
 
-def test_agents_help_describes_zoom_isolation_and_capital_h_collapsing() -> None:
+def test_agents_help_describes_zoom_and_isolation_and_capital_h_collapsing() -> None:
     reg = load_keymap_registry({})
     agent_pairs = {
         (key, label)

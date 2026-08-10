@@ -72,7 +72,7 @@ class AgentPanelFoldingMixin:
         return None
 
     def _panel_isolation_marked_keys(self) -> set[PanelKey]:
-        """Return panels marked as changing on the next whole-panel zoom action."""
+        """Return panels marked as changing on the next isolation action."""
         revert = self._panel_isolation_revert_record()
         if revert is None:
             return set()

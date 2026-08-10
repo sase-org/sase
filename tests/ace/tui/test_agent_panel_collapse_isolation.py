@@ -17,7 +17,7 @@ from ._agent_panel_collapse_helpers import (
 )
 
 
-def test_capital_z_expands_selected_panel_and_collapses_every_other_panel() -> None:
+def test_equals_expands_selected_panel_and_collapses_every_other_panel() -> None:
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
     remembered = ("agent", 2)
@@ -52,7 +52,7 @@ def test_capital_z_expands_selected_panel_and_collapses_every_other_panel() -> N
     ]
 
 
-def test_capital_z_only_changes_expanded_siblings_then_restores() -> None:
+def test_equals_only_changes_expanded_siblings_then_restores() -> None:
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
     app._panel_selection_memory["alpha"] = ("agent", 2)
@@ -77,7 +77,7 @@ def test_capital_z_only_changes_expanded_siblings_then_restores() -> None:
     assert app.notifications == ["Restored 1 panel"]
 
 
-def test_capital_z_can_leave_no_tribe_panel_as_selected_survivor() -> None:
+def test_equals_can_leave_no_tribe_panel_as_selected_survivor() -> None:
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key=None)
     app._collapsed_panel_keys.add(None)
     app._sync_panel_group()
