@@ -74,7 +74,7 @@ class TestCommitCLI:
         payload, _ = _run_handler(["-M", msg_file])
         assert payload["files"] == []
 
-    @pytest.mark.parametrize("flag", ["-b", "--bead-id"])
+    @pytest.mark.parametrize("flag", ["--bead-id"])
     def test_bead_id_flag_rejected(self, tmp_path: Path, flag: str) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit) as exc_info:
@@ -136,15 +136,33 @@ class TestCommitCLI:
         _, method = _run_handler(["-M", msg_file], env={})
         assert method == "create_commit"
 
-    def test_bug_id_flag(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize("flag", ["-b", "--bug-id"])
+    def test_bug_id_flag(self, tmp_path: Path, flag: str) -> None:
         msg_file = _write_msg(tmp_path, "msg")
-        payload, _ = _run_handler(["-M", msg_file, "-B", "12345"])
+        payload, _ = _run_handler(["-M", msg_file, flag, "12345"])
         assert payload["bug_id"] == "12345"
 
     def test_bug_id_default_omitted(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         payload, _ = _run_handler(["-M", msg_file])
         assert "bug_id" not in payload
+        assert "do_not_close_bead" not in payload
+
+    def test_do_not_close_bead_flag(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-M", msg_file, "-B"])
+        assert payload["do_not_close_bead"] is True
+
+    def test_do_not_close_bead_long_flag(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-M", msg_file, "--do-not-close-bead"])
+        assert payload["do_not_close_bead"] is True
+
+    def test_stale_uppercase_bug_id_flag_is_rejected(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        with pytest.raises(SystemExit) as exc_info:
+            _parse_commit_args(["-M", msg_file, "-B", "12345"])
+        assert exc_info.value.code == 2
 
     def test_message_file_not_found(self) -> None:
         args = _parse_commit_args(["-M", "/nonexistent/message.md"])

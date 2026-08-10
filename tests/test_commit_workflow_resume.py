@@ -149,6 +149,75 @@ def test_resume_replays_tracking_after_conflict_resolution(
 
 
 @patch(_PROVIDER_TARGET)
+def test_resume_reaches_close_bead_step(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    provider = _make_provider(head_subject="fix: bug")
+    mock_get.return_value = provider
+
+    _save_checkpoint(
+        cwd=str(tmp_path),
+        payload={"message": "fix: bug", "bead_id": "B-123"},
+    )
+
+    snapshots: list[list[str]] = []
+    with (
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value="42",
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch(
+            "sase.workflows.commit.workflow.close_task_bead_after_commit",
+            return_value=True,
+        ) as close_bead,
+        patch(
+            "sase.workflows.commit.workflow.checkpoint_save",
+            side_effect=lambda cp: snapshots.append(list(cp.completed_steps)) or None,
+        ),
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    close_bead.assert_called_once()
+    assert close_bead.call_args.kwargs == {"method": "create_commit"}
+    assert "close_bead" in snapshots[-1]
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_resume_skips_completed_close_bead_step(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    provider = _make_provider(head_subject="fix: bug")
+    mock_get.return_value = provider
+
+    _save_checkpoint(
+        cwd=str(tmp_path),
+        payload={"message": "fix: bug", "bead_id": "B-123"},
+        completed_steps=[
+            "dispatch",
+            "after_hook",
+            "write_result_marker",
+            "append_commits_entry",
+            "final_result_marker",
+            "close_bead",
+        ],
+        entry_id="42",
+    )
+
+    with (
+        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch(
+            "sase.workflows.commit.workflow.close_task_bead_after_commit"
+        ) as close_bead,
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    close_bead.assert_not_called()
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
 def test_resume_reuses_checkpointed_bead_tag_without_reapplying_it(
     mock_get: MagicMock,
     artifacts_dir: Path,

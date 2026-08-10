@@ -48,6 +48,7 @@ def test_wrapper_writes_invocation_marker_before_delegating(tmp_path: Path) -> N
             "-f",
             "src/foo.py",
             "--file=tests/test_foo.py",
+            "-B",
             "--type",
             "propose",
         ],
@@ -77,6 +78,7 @@ def test_wrapper_writes_invocation_marker_before_delegating(tmp_path: Path) -> N
         "-f",
         "src/foo.py",
         "--file=tests/test_foo.py",
+        "-B",
         "--type",
         "propose",
     ]

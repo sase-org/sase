@@ -26,6 +26,7 @@ from sase.workflows.commit.commit_tracking import (
 )
 from sase.workflows.commit.commit_hooks import (
     apply_bead_commit_tag,
+    close_task_bead_after_commit,
     handle_beads,
     handle_sase_plan,
     run_after_commit_hook,
@@ -130,7 +131,7 @@ class CommitWorkflow(BaseWorkflow):
         # Bead lifecycle and SASE_PLAN: skip for proposals.
         # Must run before the before-hook so plan files are in place for formatting.
         if self._method != "create_proposal":
-            handle_beads(self._payload, cwd)
+            handle_beads(self._payload, cwd, method=self._method)
             handle_sase_plan(self._payload, cwd)
 
         # Run commit_hooks.before (e.g. `just fix`) after all files are staged.
@@ -408,6 +409,14 @@ class CommitWorkflow(BaseWorkflow):
             cl_name = self._cl_name or cp.cl_name
             if project_file and cl_name:
                 refresh_deltas_after_commits_change(project_file, cl_name, cp.cwd)
+
+        if (
+            self._method in ("create_commit", "create_pull_request")
+            and "close_bead" not in cp.completed_steps
+            and close_task_bead_after_commit(cp.payload, cp.cwd, method=self._method)
+        ):
+            cp.completed_steps.append("close_bead")
+            checkpoint_save(cp)
 
         return RunResult.OK
 

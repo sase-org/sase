@@ -48,6 +48,93 @@ class TestCommitWorkflowDispatch:
         mock_provider.create_commit.assert_called_once_with(payload, ANY)
 
     @patch(_PROVIDER_TARGET)
+    def test_closes_bead_after_successful_commit_tracking(
+        self, mock_get: MagicMock, mock_provider: MagicMock
+    ) -> None:
+        events: list[str] = []
+        snapshots: list[list[str]] = []
+        mock_get.return_value = mock_provider
+        mock_provider.create_commit.side_effect = lambda *_args: (
+            events.append("dispatch") or (True, "abc123")
+        )
+        payload = {"message": "fix: bug", "bead_id": "B-123"}
+        wf = CommitWorkflow(payload, "create_commit")
+
+        with (
+            patch(
+                "sase.workflows.commit.workflow.write_result_marker",
+                side_effect=lambda *_args, **_kwargs: events.append("marker"),
+            ),
+            patch(
+                "sase.workflows.commit.workflow.run_agent_publication_step",
+                side_effect=lambda *_args, **_kwargs: (
+                    events.append("publication") or True
+                ),
+            ),
+            patch(
+                "sase.workflows.commit.workflow.append_commits_entry",
+                side_effect=lambda *_args, **_kwargs: events.append("append") or "7",
+            ),
+            patch(
+                "sase.workflows.commit.workflow.close_task_bead_after_commit",
+                side_effect=lambda *_args, **_kwargs: events.append("close") or True,
+            ) as close_bead,
+            patch(
+                "sase.workflows.commit.workflow.checkpoint_save",
+                side_effect=lambda cp: (
+                    snapshots.append(list(cp.completed_steps)) or None
+                ),
+            ),
+        ):
+            assert wf.run() == RunResult.OK
+
+        assert events == [
+            "dispatch",
+            "marker",
+            "publication",
+            "append",
+            "marker",
+            "close",
+        ]
+        close_bead.assert_called_once()
+        assert close_bead.call_args.args[0] is payload
+        assert close_bead.call_args.kwargs == {"method": "create_commit"}
+        assert "close_bead" in snapshots[-1]
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    def test_closes_bead_after_successful_pull_request_tracking(
+        self,
+        mock_get: MagicMock,
+        _mock_proj_name: MagicMock,
+        mock_provider: MagicMock,
+    ) -> None:
+        mock_get.return_value = mock_provider
+        payload = {
+            "name": "feat-branch",
+            "message": "feat: add feature",
+            "bead_id": "B-123",
+        }
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        with (
+            patch(
+                "sase.workflows.commit.workflow.create_patch",
+                return_value="proj_feat_1",
+            ),
+            patch("sase.workflows.commit.workflow.write_result_marker"),
+            patch(
+                "sase.workflows.commit.workflow.close_task_bead_after_commit",
+                return_value=True,
+            ) as close_bead,
+        ):
+            assert wf.run() == RunResult.OK
+
+        close_bead.assert_called_once()
+        assert close_bead.call_args.args[0] is payload
+        assert close_bead.call_args.kwargs == {"method": "create_pull_request"}
+
+    @patch(_PROVIDER_TARGET)
     def test_create_commit_dispatch_message_contains_bead_tag(
         self, mock_get: MagicMock, mock_provider: MagicMock
     ) -> None:
@@ -135,7 +222,31 @@ class TestCommitWorkflowDispatch:
         mock_get.return_value = mock_provider
         wf = CommitWorkflow({"message": "test: provider failure"}, "create_commit")
 
-        assert wf.run() == RunResult.FAILED
+        with patch(
+            "sase.workflows.commit.workflow.close_task_bead_after_commit"
+        ) as close_bead:
+            assert wf.run() == RunResult.FAILED
+
+        close_bead.assert_not_called()
+
+    @patch(_PROVIDER_TARGET)
+    def test_close_bead_does_not_run_on_conflict(
+        self, mock_get: MagicMock, mock_provider: MagicMock
+    ) -> None:
+        mock_provider.create_commit.return_value = (False, "conflict")
+        mock_provider.is_sync_in_progress.return_value = True
+        mock_provider.get_conflicted_files.return_value = ["a.py"]
+        mock_get.return_value = mock_provider
+        wf = CommitWorkflow(
+            {"message": "fix: bug", "bead_id": "B-123"}, "create_commit"
+        )
+
+        with patch(
+            "sase.workflows.commit.workflow.close_task_bead_after_commit"
+        ) as close_bead:
+            assert wf.run() == RunResult.CONFLICT
+
+        close_bead.assert_not_called()
 
 
 class TestCommitWorkflowValidation:
@@ -187,10 +298,14 @@ class TestProposalSkipsBeadsAndPlan:
             patch(
                 "sase.workflows.commit.workflow.append_commits_entry", return_value=None
             ),
+            patch(
+                "sase.workflows.commit.workflow.close_task_bead_after_commit"
+            ) as close_bead,
         ):
             assert wf.run() == RunResult.OK
             mock_beads.assert_not_called()
             mock_plan.assert_not_called()
+            close_bead.assert_not_called()
             mock_provider.create_proposal.assert_called_once_with(payload, ANY)
             assert payload["message"] == "chore: propose change\n\nSASE_BEAD=b123"
 

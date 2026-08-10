@@ -99,18 +99,19 @@ directory is available, a `commit_finalizer_result.json` artifact.
 
 ### CLI Arguments
 
-| Short | Long                | Description                                                                                                                                                                                                                                                           |
-| ----- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-m`  | `--message`         | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                  |
-| `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                            |
-| `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                                                                                                                                                                                                                         |
-| `-n`  | `--name`            | Branch/PR name (required for `create_pull_request`)                                                                                                                                                                                                                   |
-| `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                        |
-| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                               |
-| `-p`  | `--parent`          | Parent Patch **name** (overrides auto-detection from current branch). Must be an existing Patch in the current ProjectSpec or its archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
-| `-r`  | `--resume`          | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-f` and other commit args are ignored (the payload is loaded from the checkpoint). See [Resume after Conflict](#resume-after-conflict) below.                      |
-| `-s`  | `--status`          | Patch status for PRs (`wip`, `draft`, `ready`). Overrides `$SASE_PR_STATUS`; default is `draft`.                                                                                                                                                                      |
-| `-t`  | `--type`            | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                 |
+| Short | Long                  | Description                                                                                                                                                                                                                                                           |
+| ----- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-m`  | `--message`           | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                  |
+| `-M`  | `--message-file`      | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                            |
+| `-f`  | `--file`              | File to stage (repeatable; omit to stage all)                                                                                                                                                                                                                         |
+| `-n`  | `--name`              | Branch/PR name (required for `create_pull_request`)                                                                                                                                                                                                                   |
+| `-b`  | `--bug-id`            | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                        |
+| `-B`  | `--do-not-close-bead` | Do not auto-close the assigned in-progress task bead after commit                                                                                                                                                                                                     |
+| `-c`  | `--checkout-target`   | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                               |
+| `-p`  | `--parent`            | Parent Patch **name** (overrides auto-detection from current branch). Must be an existing Patch in the current ProjectSpec or its archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
+| `-r`  | `--resume`            | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-f` and other commit args are ignored (the payload is loaded from the checkpoint). See [Resume after Conflict](#resume-after-conflict) below.                      |
+| `-s`  | `--status`            | Patch status for PRs (`wip`, `draft`, `ready`). Overrides `$SASE_PR_STATUS`; default is `draft`.                                                                                                                                                                      |
+| `-t`  | `--type`              | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                 |
 
 #### Type Aliases
 
@@ -219,7 +220,7 @@ sase commit -M .sase/commit_message.md -f src/auth.py -f src/login.py -t commit
 Typical PR:
 
 ```bash
-sase commit -M .sase/pr_description.md -n feature_branch -B 12345 -s ready -t pr
+sase commit -M .sase/pr_description.md -n feature_branch -b 12345 -s ready -t pr
 ```
 
 The internal payload has this shape:
@@ -233,8 +234,9 @@ The internal payload has this shape:
 ```
 
 The CLI maps `-m` / `-M` to `message`, repeated `-f` flags to `files`, `-n` to `name`,
-`-B` to `bug_id`, `-c` to `checkout_target`, `-p` to `parent`, and `-s` to `status`.
-Omitted `-f` means "stage all changes" and is represented as an empty `files` list.
+`-b` to `bug_id`, `-B` to `do_not_close_bead`, `-c` to `checkout_target`, `-p` to
+`parent`, and `-s` to `status`. Omitted `-f` means "stage all changes" and is
+represented as an empty `files` list.
 
 Bead association is not a user-supplied CLI flag. For new commit attempts, `sase commit`
 reads `SASE_BEAD_ID`; when it is set, the CLI adds that bead to the workflow payload,

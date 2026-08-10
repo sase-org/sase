@@ -94,6 +94,8 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
         payload["bead_id"] = bead_id
     if args.bug_id:
         payload["bug_id"] = str(args.bug_id)
+    if args.do_not_close_bead:
+        payload["do_not_close_bead"] = True
     if args.checkout_target != "HEAD~1":
         payload["checkout_target"] = args.checkout_target
     if args.parent:

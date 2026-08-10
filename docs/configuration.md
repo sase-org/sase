@@ -3199,18 +3199,19 @@ Dispatches a commit, proposal, or PR via the VCS provider layer. See
 [commit_workflows.md](commit_workflows.md) for the full flow, payload, checkpoint, and
 resume semantics.
 
-| Flag                    | Values                        | Default                 | Description                                                                                 |
-| ----------------------- | ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
-| `-m, --message`         | string                        | -                       | Commit message (mutually exclusive with `-M`).                                              |
-| `-M, --message-file`    | path                          | -                       | File containing the commit message / PR description (mutually exclusive with `-m`).         |
-| `-f, --file`            | path (repeatable)             | stage all               | Specific file to stage. Repeat for multiple; omit to stage everything.                      |
-| `-n, --name`            | string                        | -                       | Branch/PR name (required for `create_pull_request`).                                        |
-| `-B, --bug-id`          | int                           | `$SASE_BUG_ID`          | Bug ID to associate with the commit.                                                        |
-| `-c, --checkout-target` | string                        | `HEAD~1`                | Branch point for PR creation.                                                               |
-| `-p, --parent`          | Patch name                    | auto                    | Parent Patch name (overrides branch-based auto-detection). Unresolvable values are dropped. |
-| `-r, --resume`          | flag                          | -                       | Resume a previously-checkpointed commit after manual conflict resolution.                   |
-| `-s, --status`          | `wip` / `draft` / `ready`     | `$SASE_PR_STATUS`/draft | Patch status override for PRs.                                                              |
-| `-t, --type`            | `commit` / `propose` / `pr` … | `$SASE_COMMIT_METHOD`   | Commit method — full names (`create_commit`, etc.) and short aliases are both accepted.     |
+| Flag                      | Values                        | Default                 | Description                                                                                 |
+| ------------------------- | ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
+| `-m, --message`           | string                        | -                       | Commit message (mutually exclusive with `-M`).                                              |
+| `-M, --message-file`      | path                          | -                       | File containing the commit message / PR description (mutually exclusive with `-m`).         |
+| `-f, --file`              | path (repeatable)             | stage all               | Specific file to stage. Repeat for multiple; omit to stage everything.                      |
+| `-n, --name`              | string                        | -                       | Branch/PR name (required for `create_pull_request`).                                        |
+| `-b, --bug-id`            | int                           | `$SASE_BUG_ID`          | Bug ID to associate with the commit.                                                        |
+| `-B, --do-not-close-bead` | flag                          | -                       | Do not auto-close the assigned in-progress task bead after commit.                          |
+| `-c, --checkout-target`   | string                        | `HEAD~1`                | Branch point for PR creation.                                                               |
+| `-p, --parent`            | Patch name                    | auto                    | Parent Patch name (overrides branch-based auto-detection). Unresolvable values are dropped. |
+| `-r, --resume`            | flag                          | -                       | Resume a previously-checkpointed commit after manual conflict resolution.                   |
+| `-s, --status`            | `wip` / `draft` / `ready`     | `$SASE_PR_STATUS`/draft | Patch status override for PRs.                                                              |
+| `-t, --type`              | `commit` / `propose` / `pr` … | `$SASE_COMMIT_METHOD`   | Commit method — full names (`create_commit`, etc.) and short aliases are both accepted.     |
 
 ### `sase vcs`
 

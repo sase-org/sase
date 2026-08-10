@@ -34,11 +34,18 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Branch/Patch name (required for create_pull_request)",
     )
     commit_parser.add_argument(
-        "-B",
+        "-b",
         "--bug-id",
         type=int,
         default=0,
         help="Bug ID to associate with the commit (overrides $SASE_BUG_ID)",
+    )
+    commit_parser.add_argument(
+        "-B",
+        "--do-not-close-bead",
+        action="store_true",
+        dest="do_not_close_bead",
+        help="Do not auto-close the assigned in-progress task bead after commit",
     )
     commit_parser.add_argument(
         "-c",
