@@ -648,10 +648,10 @@ artifact label, kind, and path before opening it.
 
 The selected agent's prompt/detail header also includes non-chat artifacts in the
 plan-adjacent `SASE CONTEXT` `ARTIFACTS` lane. The complete lane order is `PLAN`,
-`ARTIFACTS`, `MEMORY`, `SKILLS`, then `WORKSPACES`; within `ARTIFACTS`, `Commits`,
-`Deltas`, and `Artifacts` remain in that order when present. Paths are shown relative to
-the agent workspace when possible, home-relative when appropriate, and with hint numbers
-when hint mode is active.
+`BEAD`, `ARTIFACTS`, `MEMORY`, `SKILLS`, then `WORKSPACES`; within `ARTIFACTS`,
+`Commits`, `Deltas`, and `Artifacts` remain in that order when present. Paths are shown
+relative to the agent workspace when possible, home-relative when appropriate, and with
+hint numbers when hint mode is active.
 
 The panel supports one-key selectors, `j`/`k` navigation, `m` to mark rows, `Enter` to
 open the marked set or highlighted row, `y` to copy highlighted Markdown contents, `Y`

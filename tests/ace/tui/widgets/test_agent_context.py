@@ -49,8 +49,8 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 _EXPECTED_CONTEXT_LANE_ORDER = (
-    "BEAD",
     "PLAN",
+    "BEAD",
     "ARTIFACTS",
     "MEMORY",
     "SKILLS",
@@ -243,7 +243,7 @@ def test_bead_only_context_creates_context_and_has_no_plan_range() -> None:
     assert_rendered_section_is_compact(text, "SASE CONTEXT", "▸ BEAD")
 
 
-def test_bead_precedes_plan_without_changing_plan_range_bookkeeping() -> None:
+def test_plan_precedes_bead_without_changing_plan_range_bookkeeping() -> None:
     text = Text()
     bead_section = _bead_section()
     plan_section = _plan_section()
@@ -261,10 +261,10 @@ def test_bead_precedes_plan_without_changing_plan_range_bookkeeping() -> None:
     plan_start, plan_end = responsive_ranges["PLAN"]
     assert text[bead_start:bead_end].plain == bead_section.logical_text.plain
     assert text[plan_start:plan_end].plain == plan_section.logical_text.plain
-    assert bead_end < plan_start
+    assert plan_end < bead_start
 
 
-def test_task_authored_plan_context_renders_bead_then_plan_lane() -> None:
+def test_task_authored_plan_context_renders_plan_then_bead_lane() -> None:
     text = Text()
 
     append_agent_context_section(
@@ -279,7 +279,7 @@ def test_task_authored_plan_context_renders_bead_then_plan_lane() -> None:
     assert "  Task Title: Task authored a plan\n" in plain
     assert "▸ PLAN · tale\n" in plain
     assert "   Size:  medium " in plain
-    assert plain.index("▸ BEAD") < plain.index("▸ PLAN")
+    assert plain.index("▸ PLAN") < plain.index("▸ BEAD")
 
 
 def test_memory_only_context_omits_empty_skills_lane() -> None:
@@ -415,10 +415,10 @@ def test_context_lane_order_contract_holds_for_every_presence_combination() -> N
             label for label in _EXPECTED_CONTEXT_LANE_ORDER if enabled[label]
         ]
         assert rendered_labels == expected_labels
-        if enabled["BEAD"]:
-            assert rendered_labels[0] == "BEAD"
         if enabled["PLAN"]:
-            assert rendered_labels.index("PLAN") == (1 if enabled["BEAD"] else 0)
+            assert rendered_labels[0] == "PLAN"
+        if enabled["BEAD"]:
+            assert rendered_labels.index("BEAD") == (1 if enabled["PLAN"] else 0)
         if enabled["ARTIFACTS"]:
             expected_index = int(enabled["BEAD"]) + int(enabled["PLAN"])
             assert rendered_labels.index("ARTIFACTS") == expected_index
@@ -437,9 +437,9 @@ def test_context_lanes_render_in_parent_context_order() -> None:
     )
 
     plain = text.plain
-    assert plain.index("SASE CONTEXT\n") < plain.index("▸ BEAD")
-    assert plain.index("▸ BEAD") < plain.index("▸ PLAN")
-    assert plain.index("▸ PLAN") < plain.index("▸ ARTIFACTS")
+    assert plain.index("SASE CONTEXT\n") < plain.index("▸ PLAN")
+    assert plain.index("▸ PLAN") < plain.index("▸ BEAD")
+    assert plain.index("▸ BEAD") < plain.index("▸ ARTIFACTS")
     assert plain.index("▸ ARTIFACTS") < plain.index("▸ MEMORY")
     assert plain.index("▸ MEMORY") < plain.index("▸ SKILLS")
     assert plain.index("▸ SKILLS") < plain.index("▸ WORKSPACES")
@@ -482,15 +482,25 @@ def test_context_hint_numbers_follow_display_order() -> None:
     )
 
     plain = text.plain
-    assert plain.index("Size:  medium") < plain.index("Epic Plan: [1]")
-    assert plain.index("Epic Plan: [1]") < plain.index("Path: [2]")
-    assert plain.index("Path: [2]") < plain.index("[3] abcdef123456")
+    expected_sequence = (
+        "Path: [1]",
+        "Epic Plan: [2]",
+        "[3] abcdef123456",
+        "[4] src/output.py",
+        "[5] reports/result.md",
+        "[6] generated_skills.md",
+    )
+    positions = [plain.index(item) for item in expected_sequence]
+    assert positions == sorted(positions)
+    assert plain.index("▸ PLAN") < plain.index("Path: [1]")
+    assert plain.index("Path: [1]") < plain.index("▸ BEAD")
+    assert plain.index("▸ BEAD") < plain.index("Epic Plan: [2]")
     assert plain.index("[3] abcdef123456") < plain.index("[4] src/output.py")
     assert plain.index("[4] src/output.py") < plain.index("[5] reports/result.md")
     assert plain.index("[5] reports/result.md") < plain.index("[6] generated_skills.md")
     assert hint_state.hint_mappings == {
-        1: "/tmp/workspace/sase/repos/plans/epic.md",
-        2: "/tmp/workspace/sase/repos/plans/plan.md",
+        1: "/tmp/workspace/sase/repos/plans/plan.md",
+        2: "/tmp/workspace/sase/repos/plans/epic.md",
         4: "/tmp/workspace/src/output.py",
         5: "/tmp/reports/result.md",
         6: "/tmp/test/memory/generated_skills.md",

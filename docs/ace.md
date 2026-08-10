@@ -1037,7 +1037,7 @@ whole tribe panel adds level 4 for exhaustive detail. These keys are configurabl
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel
 adds a `PLAN` lane in `SASE CONTEXT`. A task worker that authored a plan in the same run
-also shows a `PLAN` lane beside its task `BEAD` lane. The lane order is `BEAD`, `PLAN`,
+also shows a `PLAN` lane beside its task `BEAD` lane. The lane order is `PLAN`, `BEAD`,
 `ARTIFACTS`, the audited `MEMORY`, `SKILLS`, and `WORKSPACES`, with absent lanes
 omitted. A plan or any recorded output is enough to show the context section. An epic
 phase worker never shows its parent epic as a `PLAN` lane. Instead, its launch metadata
@@ -3297,7 +3297,7 @@ pinned attempt view resets the cursor.
   search and copy. Only the path participates in file hint mode. Invalid known epics
   show `phases unavailable` in the lane header without leaking partial entries; tales do
   not show a phase roadmap. A plan alone renders `SASE CONTEXT`; across every
-  combination of present lanes, the full order is `BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`,
+  combination of present lanes, the full order is `PLAN`, `BEAD`, `ARTIFACTS`, `MEMORY`,
   `SKILLS`, then `WORKSPACES`, with absent lanes omitted.
 - **SASE CONTEXT / ARTIFACTS**: The plan-adjacent output lane groups `Commits`,
   `Deltas`, and `Artifacts` as compact fields, preserves that internal order, and

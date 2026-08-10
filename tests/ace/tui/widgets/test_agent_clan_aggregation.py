@@ -232,8 +232,8 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
     lanes = _aggregate_clan_context_lanes(in_memory, members)
 
     assert [lane.label for lane in lanes] == [
-        "BEAD",
         "PLAN",
+        "BEAD",
         "ARTIFACTS",
         "MEMORY",
         "SKILLS",

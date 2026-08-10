@@ -25,9 +25,11 @@ from ._agent_display_state import HeaderHintState
 from ._helpers import append_major_section_divider, append_section_heading
 
 _COLOR_HEADER = "bold #D7AF5F underline"
+# The authored plan is the agent's stated intent; keep the bead context directly
+# beneath it when both lanes are present.
 CONTEXT_LANE_ORDER = (
-    "BEAD",
     "PLAN",
+    "BEAD",
     "ARTIFACTS",
     "MEMORY",
     "SKILLS",

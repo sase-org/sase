@@ -479,13 +479,13 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
         await wait_for_visual_idle(page)
 
         metadata = renderable_to_text(panel.content) or ""
-        assert metadata.index("▸ BEAD") < metadata.index("▸ PLAN")
+        assert metadata.index("▸ PLAN") < metadata.index("▸ BEAD")
         svg = page.export_svg(title="ACE phase family dual context assertion")
         svg_plain = svg.replace("&#160;", " ")
         assert "SASE CONTEXT" in svg_plain
         assert "BEAD" in svg_plain
         assert "PLAN" in svg_plain
-        assert svg_plain.index("BEAD") < svg_plain.index("PLAN")
+        assert svg_plain.index("PLAN") < svg_plain.index("BEAD")
         assert "sase-83.1" in svg_plain
         assert "Parent epic" in svg_plain
         assert "Provider update snapshot" in svg_plain

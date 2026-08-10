@@ -39,8 +39,8 @@ CLAN_DISK_SECTIONS: frozenset[ClanDiskSection] = frozenset(
     {"replies", "context", "slow-tool-calls", "prompts"}
 )
 CLAN_CONTEXT_LANE_ORDER = (
-    "BEAD",
     "PLAN",
+    "BEAD",
     "COMMITS",
     "ARTIFACTS",
     "MEMORY",
