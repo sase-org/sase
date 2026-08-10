@@ -65,6 +65,53 @@ async def test_settle_pilot_drains_widget_work_and_refresh_without_cpu_idle(
         assert refreshed.is_set()
 
 
+class _WedgedApp:
+    """An app whose frame barrier never resolves, as a closed pump's would not."""
+
+    def __init__(self, *, is_running: bool) -> None:
+        self.is_running = is_running
+        self.wait_calls = 0
+
+    async def wait_for_refresh(self) -> bool:
+        self.wait_calls += 1
+        await asyncio.Event().wait()
+        return True
+
+
+class _WedgedPilot:
+    def __init__(self, app: _WedgedApp) -> None:
+        self.app = app
+
+
+async def _skip_pause(_pilot: object, _delay: float | None) -> None:
+    return None
+
+
+async def test_settle_pilot_skips_frame_barrier_for_a_stopped_app() -> None:
+    app = _WedgedApp(is_running=False)
+
+    await asyncio.wait_for(
+        settle_pilot(_WedgedPilot(app), _pilot_pause=_skip_pause), timeout=5
+    )
+
+    assert app.wait_calls == 0
+
+
+async def test_settle_pilot_bounds_a_frame_barrier_that_never_resolves(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.testing.settle._REFRESH_TIMEOUT_SECONDS", 0.01, raising=True
+    )
+    app = _WedgedApp(is_running=True)
+
+    await asyncio.wait_for(
+        settle_pilot(_WedgedPilot(app), _pilot_pause=_skip_pause), timeout=5
+    )
+
+    assert app.wait_calls == 1
+
+
 async def test_pause_until_cpu_idle_uses_textual_cpu_idle_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

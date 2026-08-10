@@ -139,6 +139,14 @@ CONTENTION_ARTIFACT_DIRECTORY = Path(".pytest_cache") / "sase-contention"
 #: Modes that run the whole fast suite, and whose failures are therefore
 #: evidence about what a scoped run should not have skipped.
 FULL_LANE_MODES = frozenset({"fast", "cov", CONTEXTS_MODE})
+#: Modes whose failures land in the selection-health store. The cost lane runs
+#: the same node set as `fast` and is what `just check-full` runs, so its
+#: failures are exactly the false-negative evidence the health report grades;
+#: leaving it out would mean the landing gate stopped feeding the metric that
+#: decides whether the scoped lane is trustworthy. It stays out of
+#: `TIMINGS_RECORDING_MODES` all the same, because the probe taxes the very
+#: durations that table is for.
+HEALTH_RECORDING_MODES = frozenset({*FULL_LANE_MODES, TEST_COST_MODE})
 HEALTH_PLUGIN_MODULE = "tests._test_selection_health_plugin"
 HEALTH_DISABLED_ENV = "SASE_TEST_SELECTION_HEALTH_DISABLED"
 TIMINGS_PLUGIN_MODULE = "tests._test_selection_timings_plugin"
@@ -722,7 +730,7 @@ def _full_lane_recording_args(mode: str) -> list[str]:
     where ``SASE_HOME`` is the real one rather than a per-test redirect, and
     where the working tree is still the one being tested.
     """
-    if mode not in FULL_LANE_MODES or not _health_recording_enabled():
+    if mode not in HEALTH_RECORDING_MODES or not _health_recording_enabled():
         return []
     change_set = _full_lane_change_set()
     head = change_set.head if change_set is not None else _head_sha()

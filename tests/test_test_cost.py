@@ -19,6 +19,8 @@ from tests._test_cost import (
 
 
 class _FakePilotApp:
+    is_running = True
+
     async def wait_for_refresh(self) -> bool:
         return True
 

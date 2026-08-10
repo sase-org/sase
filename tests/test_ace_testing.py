@@ -381,6 +381,40 @@ async def test_ace_page_fast_stylesheet_cache_invalidates_changed_css_path(
     assert stats.stores == 2
 
 
+def _css_dimensions(page: AcePage) -> dict[str, tuple[str, str]]:
+    """Read stylesheet-driven width/height for a few always-present widgets."""
+    return {
+        selector: (
+            str(page.app.query_one(selector).styles.width),
+            str(page.app.query_one(selector).styles.height),
+        )
+        for selector in ("#artifacts-view", "#detail-scroll")
+    }
+
+
+async def test_ace_page_fast_stylesheet_cache_still_applies_rules() -> None:
+    """A cache hit must apply the same CSS a freshly parsed stylesheet does."""
+    clear_fast_stylesheet_cache()
+    async with AcePage() as page:
+        parsed_dimensions = _css_dimensions(page)
+    assert all("None" not in dimensions for dimensions in parsed_dimensions.values()), (
+        parsed_dimensions
+    )
+
+    async with AcePage() as page:
+        assert fast_stylesheet_cache_stats().hits == 1
+        assert _css_dimensions(page) == parsed_dimensions
+        # ``RuleSet`` hashes by identity and ``Stylesheet.apply`` filters
+        # ``rules`` by membership in a set built from ``rules_map``, so a
+        # hydrated stylesheet whose two halves are distinct copies applies no
+        # rules at all while still looking well populated.
+        stylesheet = page.app.stylesheet
+        indexed = {
+            id(rule) for entry in stylesheet.rules_map.values() for rule in entry
+        }
+        assert indexed and indexed <= {id(rule) for rule in stylesheet.rules}
+
+
 async def test_ace_page_fast_stylesheet_cache_hydrates_mutable_data_per_app() -> None:
     clear_fast_stylesheet_cache()
     async with AcePage():

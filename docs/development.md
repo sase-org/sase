@@ -136,7 +136,10 @@ subdirectory, prints `tools/test_cost_report`, and then enforces
 `tests/perf/baselines/test_cost_budgets.json` with `tools/check_test_cost_budgets`.
 `just check-full` uses this lane so the landing path catches cost regressions; ordinary
 `just test`, `just test-cov`, and `just check` keep the lower-overhead timing recorder.
-CI enforces the same budget on the Python 3.13 full-suite leg.
+CI enforces the same budget on the Python 3.13 full-suite leg. Because `just check-full`
+runs this lane instead of `just test`, the cost lane also records full-run failures for
+selection health; it deliberately does not record per-test-file durations, because the
+probe taxes exactly the numbers that table is for.
 
 The report has three parts: summary totals, cause attribution, and top files. The
 summary budgets guard total per-test wall seconds, idle seconds, collection seconds, and
@@ -633,13 +636,13 @@ of the import graph. That selection is a heuristic, so its cost and its mistakes
 both measured rather than assumed.
 
 Every scoped run copies its selection manifest, and every full-lane run (`just test`,
-`just test-cov`) copies the node IDs it saw fail, into a durable host-local store at
-`${SASE_HOME:-~/.sase}/test-selection/<project-key>/`. The store is shared by every
-numbered workspace of the project, so the report reads one project-wide sample rather
-than one workspace's, and records older than 30 days are pruned on write. Sharing the
-store is not the same as correlating across it: records carry the workspace and change
-set that the false-negative rule below needs precisely so that one workspace's flake is
-never charged to another workspace's selection.
+`just test-cov`, `just test-cost`) copies the node IDs it saw fail, into a durable
+host-local store at `${SASE_HOME:-~/.sase}/test-selection/<project-key>/`. The store is
+shared by every numbered workspace of the project, so the report reads one project-wide
+sample rather than one workspace's, and records older than 30 days are pruned on write.
+Sharing the store is not the same as correlating across it: records carry the workspace
+and change set that the false-negative rule below needs precisely so that one
+workspace's flake is never charged to another workspace's selection.
 
 ```bash
 just selection-health          # readable report

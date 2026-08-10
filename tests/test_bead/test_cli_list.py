@@ -15,11 +15,12 @@ from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
 from sase.bead_time_presentation import BEAD_CREATED_GLYPH, BEAD_TIME_CLI_STYLE
 from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
-from sase.main.parser import create_parser
+
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
 def test_list_parser_sets_filters_and_limit() -> None:
-    args = create_parser().parse_args(
+    args = parse_sase_args(
         [
             "bead",
             "list",
@@ -47,40 +48,38 @@ def test_list_parser_sets_filters_and_limit() -> None:
 
 
 def test_list_parser_accepts_color_choices() -> None:
-    args = create_parser().parse_args(["bead", "list", "--color", "never"])
+    args = parse_sase_args(["bead", "list", "--color", "never"])
 
     assert args.color == "never"
 
 
 @pytest.mark.parametrize("flag", ["--format", "-f"])
 def test_list_parser_accepts_format_aliases(flag: str) -> None:
-    args = create_parser().parse_args(["bead", "list", flag, "json"])
+    args = parse_sase_args(["bead", "list", flag, "json"])
 
     assert args.format == "json"
 
 
 def test_list_parser_defaults_to_compact_for_explicit_and_bare_list() -> None:
-    parser = create_parser()
-
-    assert parser.parse_args(["bead", "list"]).format == "compact"
-    assert parser.parse_args(["bead"]).format == "compact"
+    assert parse_sase_args(["bead", "list"]).format == "compact"
+    assert parse_sase_args(["bead"]).format == "compact"
 
 
 def test_list_parser_rejects_unknown_format() -> None:
     with pytest.raises(SystemExit) as excinfo:
-        create_parser().parse_args(["bead", "list", "-f", "bogus"])
+        parse_sase_args(["bead", "list", "-f", "bogus"])
 
     assert excinfo.value.code == 2
 
 
 def test_list_parser_accepts_short_limit_and_zero() -> None:
-    args = create_parser().parse_args(["bead", "list", "-n", "0"])
+    args = parse_sase_args(["bead", "list", "-n", "0"])
 
     assert args.limit == 0
 
 
 def test_list_parser_accepts_created_date_filters_and_status_all() -> None:
-    args = create_parser().parse_args(
+    args = parse_sase_args(
         [
             "bead",
             "list",
@@ -92,7 +91,7 @@ def test_list_parser_accepts_created_date_filters_and_status_all() -> None:
             "all",
         ]
     )
-    short_args = create_parser().parse_args(["bead", "list", "-S", "1w", "-u", "today"])
+    short_args = parse_sase_args(["bead", "list", "-S", "1w", "-u", "today"])
 
     assert args.since == "1w"
     assert args.until == "today"
@@ -105,7 +104,7 @@ def test_list_parser_rejects_malformed_created_date(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit) as excinfo:
-        create_parser().parse_args(["bead", "list", "--since", "lastweek"])
+        parse_sase_args(["bead", "list", "--since", "lastweek"])
 
     assert excinfo.value.code == 2
     assert "Invalid DATE 'lastweek'" in capsys.readouterr().err
@@ -115,7 +114,7 @@ def test_list_parser_rejects_negative_limit(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit) as excinfo:
-        create_parser().parse_args(["bead", "list", "--limit", "-1"])
+        parse_sase_args(["bead", "list", "--limit", "-1"])
 
     assert excinfo.value.code == 2
     assert "must be a non-negative integer" in capsys.readouterr().err
@@ -128,7 +127,7 @@ def test_handle_bead_list_since_keeps_current_beads(
     with BeadProject(project_dir) as proj:
         issue = proj.create("Recent Epic", IssueType.PLAN)
 
-    args = create_parser().parse_args(["bead", "list", "-f", "json", "--since", "1d"])
+    args = parse_sase_args(["bead", "list", "-f", "json", "--since", "1d"])
     bead_cli.handle_bead_list(args)
 
     payload = json.loads(capsys.readouterr().out)
@@ -143,7 +142,7 @@ def test_handle_bead_list_until_excludes_current_beads(
     with BeadProject(project_dir) as proj:
         proj.create("Recent Epic", IssueType.PLAN)
 
-    args = create_parser().parse_args(["bead", "list", "-f", "json", "--until", "1d"])
+    args = parse_sase_args(["bead", "list", "-f", "json", "--until", "1d"])
     bead_cli.handle_bead_list(args)
 
     payload = json.loads(capsys.readouterr().out)
@@ -160,13 +159,11 @@ def test_handle_bead_list_status_all_includes_closed_beads(
         closed_issue = proj.create("Closed Epic", IssueType.PLAN)
         proj.close([closed_issue.id], reason="done")
 
-    bead_cli.handle_bead_list(
-        create_parser().parse_args(["bead", "list", "-f", "json"])
-    )
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "-f", "json"]))
     default_payload = json.loads(capsys.readouterr().out)
     assert [row["id"] for row in default_payload["results"]] == [open_issue.id]
 
-    args = create_parser().parse_args(["bead", "list", "-f", "json", "--status", "all"])
+    args = parse_sase_args(["bead", "list", "-f", "json", "--status", "all"])
     bead_cli.handle_bead_list(args)
 
     payload = json.loads(capsys.readouterr().out)
@@ -192,7 +189,7 @@ def test_handle_bead_list_json_total_counts_only_created_window(
     with BeadProject(project_dir) as proj:
         issue = proj.create("Recent Epic", IssueType.PLAN)
 
-    args = create_parser().parse_args(["bead", "list", "-f", "json", "--since", "1d"])
+    args = parse_sase_args(["bead", "list", "-f", "json", "--since", "1d"])
     bead_cli.handle_bead_list(args)
 
     payload = json.loads(capsys.readouterr().out)
@@ -213,13 +210,11 @@ def test_handle_bead_list_created_bound_lifts_newest_closed_default(
         proj.close([first.id], reason="done")
         proj.close([second.id], reason="done")
 
-    args = create_parser().parse_args(
-        ["bead", "list", "-f", "json", "--status", "closed"]
-    )
+    args = parse_sase_args(["bead", "list", "-f", "json", "--status", "closed"])
     bead_cli.handle_bead_list(args)
     limited_payload = json.loads(capsys.readouterr().out)
 
-    args = create_parser().parse_args(
+    args = parse_sase_args(
         ["bead", "list", "-f", "json", "--status", "closed", "--since", "1d"]
     )
     bead_cli.handle_bead_list(args)
@@ -234,9 +229,7 @@ def test_handle_bead_list_created_bound_lifts_newest_closed_default(
 def test_handle_bead_list_rejects_since_later_than_until(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    args = create_parser().parse_args(
-        ["bead", "list", "--since", "1w", "--until", "2w"]
-    )
+    args = parse_sase_args(["bead", "list", "--since", "1w", "--until", "2w"])
 
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_list(args)
@@ -252,7 +245,7 @@ def test_handle_bead_list_json_outputs_envelope(
     with BeadProject(project_dir) as proj:
         issue = proj.create("Open Epic", IssueType.PLAN)
 
-    args = create_parser().parse_args(["bead", "list", "-f", "json"])
+    args = parse_sase_args(["bead", "list", "-f", "json"])
     bead_cli.handle_bead_list(args)
 
     payload = json.loads(capsys.readouterr().out)
@@ -273,7 +266,7 @@ def test_handle_bead_list_includes_snoozed_by_default(
         proj.update(task.id, status=Status.READY.value)
         proj.snooze(task.id, until="2099-01-01T00:00:00Z", actor="tester@example.com")
 
-    args = create_parser().parse_args(["bead", "list", "-f", "json"])
+    args = parse_sase_args(["bead", "list", "-f", "json"])
     bead_cli.handle_bead_list(args)
 
     payload = json.loads(capsys.readouterr().out)
@@ -286,7 +279,7 @@ def test_handle_bead_list_json_empty_store_is_valid_envelope(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    args = create_parser().parse_args(["bead", "list", "--format", "json"])
+    args = parse_sase_args(["bead", "list", "--format", "json"])
     bead_cli.handle_bead_list(args)
 
     output = capsys.readouterr().out
@@ -306,7 +299,7 @@ def test_handle_bead_list_json_reports_implicit_closed_without_notice(
         issue = proj.create("Closed Epic", IssueType.PLAN)
         proj.close([issue.id], reason="done")
 
-    args = create_parser().parse_args(["bead", "list", "-f", "json"])
+    args = parse_sase_args(["bead", "list", "-f", "json"])
     bead_cli.handle_bead_list(args)
 
     output = capsys.readouterr().out
@@ -326,7 +319,7 @@ def test_handle_bead_list_json_limit_preserves_total(
         proj.create("First Epic", IssueType.PLAN)
         proj.create("Second Epic", IssueType.PLAN)
 
-    args = create_parser().parse_args(["bead", "list", "-f", "json", "--limit", "1"])
+    args = parse_sase_args(["bead", "list", "-f", "json", "--limit", "1"])
     bead_cli.handle_bead_list(args)
 
     payload = json.loads(capsys.readouterr().out)
@@ -345,11 +338,11 @@ def test_handle_bead_list_full_reuses_show_rendering(
             description="Full body",
         )
 
-    args = create_parser().parse_args(["bead", "list", "-f", "full"])
+    args = parse_sase_args(["bead", "list", "-f", "full"])
     bead_cli.handle_bead_list(args)
     list_out = capsys.readouterr().out
 
-    bead_cli.handle_bead_show(create_parser().parse_args(["bead", "show", issue.id]))
+    bead_cli.handle_bead_show(parse_sase_args(["bead", "show", issue.id]))
     show_out = capsys.readouterr().out
 
     assert list_out == show_out
@@ -362,12 +355,10 @@ def test_handle_bead_list_explicit_compact_matches_default(
     with BeadProject(project_dir) as proj:
         proj.create("Compact Epic", IssueType.PLAN)
 
-    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list"]))
     default_out = capsys.readouterr().out
 
-    bead_cli.handle_bead_list(
-        create_parser().parse_args(["bead", "list", "--format", "compact"])
-    )
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--format", "compact"]))
     explicit_out = capsys.readouterr().out
 
     assert explicit_out == default_out
@@ -387,7 +378,7 @@ def test_list_compact_renders_type_glyph_only_per_type(
 ) -> None:
     ids = _seed_one_of_each_type(project_dir)
 
-    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list"]))
     lines = capsys.readouterr().out.splitlines()
 
     expected = {
@@ -411,7 +402,7 @@ def test_list_compact_type_cells_share_equal_cell_width(
 ) -> None:
     _seed_one_of_each_type(project_dir)
 
-    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list"]))
     lines = capsys.readouterr().out.splitlines()
 
     # Everything up to the status glyph is the type column plus separator; its
@@ -430,14 +421,10 @@ def test_list_compact_color_modes_override_non_tty(
 ) -> None:
     _seed_one_of_each_type(project_dir)
 
-    bead_cli.handle_bead_list(
-        create_parser().parse_args(["bead", "list", "--color", "never"])
-    )
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
     assert "\x1b[" not in capsys.readouterr().out
 
-    bead_cli.handle_bead_list(
-        create_parser().parse_args(["bead", "list", "--color", "always"])
-    )
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "always"]))
     colored = capsys.readouterr().out
     assert "\x1b[" in colored
     for value in BEAD_TYPE_VALUES:
@@ -454,7 +441,7 @@ def test_list_compact_no_color_env_suppresses_escapes(
     monkeypatch.setenv("NO_COLOR", "1")
 
     # NO_COLOR only governs the "auto" mode; leaving --color unset exercises it.
-    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list"]))
 
     assert "\x1b[" not in capsys.readouterr().out
 
@@ -465,7 +452,7 @@ def test_list_compact_default_auto_is_colorless_under_pytest_capture(
 ) -> None:
     _seed_one_of_each_type(project_dir)
 
-    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list"]))
 
     assert "\x1b[" not in capsys.readouterr().out
 
@@ -476,7 +463,7 @@ def test_list_compact_preserves_parent_suffix_and_separator(
 ) -> None:
     ids = _seed_one_of_each_type(project_dir)
 
-    bead_cli.handle_bead_list(create_parser().parse_args(["bead", "list"]))
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list"]))
     lines = capsys.readouterr().out.splitlines()
 
     phase_line = next(line for line in lines if ids["phase"] in line)
@@ -494,9 +481,7 @@ def test_list_compact_created_cell_carries_the_shared_glyph_and_accent(
 ) -> None:
     _seed_one_of_each_type(project_dir)
 
-    bead_cli.handle_bead_list(
-        create_parser().parse_args(["bead", "list", "--color", "always"])
-    )
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "always"]))
     lines = capsys.readouterr().out.splitlines()
 
     assert lines

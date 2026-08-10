@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable
+from collections.abc import Hashable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
@@ -39,7 +39,7 @@ class _StylesheetSnapshot:
     variables: dict[str, str]
     source: dict[CSSLocation, CssSource]
     rules: tuple[RuleSet, ...]
-    rules_map: dict[str, tuple[RuleSet, ...]] | None
+    rules_map: dict[str, tuple[RuleSet, ...]]
 
 
 @dataclass(frozen=True)
@@ -153,29 +153,39 @@ def _css_path_snapshots(paths: list[Path]) -> tuple[_CssPathSnapshot, ...] | Non
     return tuple(snapshots)
 
 
+def _copy_rules(
+    rules: Sequence[RuleSet],
+    rules_map: Mapping[str, Sequence[RuleSet]],
+) -> tuple[list[RuleSet], dict[str, list[RuleSet]]]:
+    """Copy rules and their index together, preserving shared rule identity.
+
+    ``RuleSet`` hashes by ``id``, and ``Stylesheet.apply`` narrows ``rules`` by
+    membership in a set built from ``rules_map``. Copying the two separately
+    yields equal-but-distinct rule objects, so that membership test matches
+    nothing and the app silently renders with no CSS applied at all. One
+    ``deepcopy`` of both keeps the map pointing at the very rule objects the
+    copied ``rules`` list holds.
+    """
+    copied_rules, copied_map = deepcopy((list(rules), rules_map))
+    return copied_rules, {name: list(entry) for name, entry in copied_map.items()}
+
+
 def _snapshot(stylesheet: Stylesheet) -> _StylesheetSnapshot:
-    rules = tuple(deepcopy(stylesheet.rules))
-    rules_map = deepcopy(stylesheet.rules_map)
+    rules, rules_map = _copy_rules(stylesheet.rules, stylesheet.rules_map)
     return _StylesheetSnapshot(
         variables=dict(stylesheet._variables),
         source=dict(stylesheet.source),
-        rules=rules,
-        rules_map={name: tuple(rule_list) for name, rule_list in rules_map.items()},
+        rules=tuple(rules),
+        rules_map={name: tuple(entry) for name, entry in rules_map.items()},
     )
 
 
 def _hydrate(snapshot: _StylesheetSnapshot) -> Stylesheet:
+    rules, rules_map = _copy_rules(snapshot.rules, snapshot.rules_map)
     stylesheet = Stylesheet(variables=dict(snapshot.variables))
     stylesheet.source = dict(snapshot.source)
-    stylesheet._rules = list(deepcopy(snapshot.rules))
-    stylesheet._rules_map = (
-        None
-        if snapshot.rules_map is None
-        else {
-            name: list(deepcopy(rule_list))
-            for name, rule_list in snapshot.rules_map.items()
-        }
-    )
+    stylesheet._rules = rules
+    stylesheet._rules_map = rules_map
     stylesheet._require_parse = False
     return stylesheet
 

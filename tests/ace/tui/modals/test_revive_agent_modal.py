@@ -246,7 +246,9 @@ async def test_ctrl_k_loads_more_without_clearing_filter_or_marks() -> None:
     app = _ModalHost(modal)
 
     async with app.run_test(size=(100, 30)) as pilot:
-        await pilot.pause()
+        # Both page loads run in a worker over `asyncio.to_thread`, so they
+        # race the message pump and have to be waited on by their end state.
+        await wait_for(pilot, lambda: modal.agents == [first])
         filter_input = modal.query_one("#dismissed-filter", Input)
         option_list = modal.query_one("#dismissed-agent-list", OptionList)
         filter_input.value = "a"
@@ -254,7 +256,7 @@ async def test_ctrl_k_loads_more_without_clearing_filter_or_marks() -> None:
         option_list.highlighted = 0
 
         await pilot.press("ctrl+k")
-        await pilot.pause()
+        await wait_for(pilot, lambda: modal.agents == [first, second])
 
         assert option_list.highlighted == 0
 
@@ -282,8 +284,9 @@ async def test_initial_page_renders_loaded_rows_without_typing() -> None:
     app = _ModalHost(modal)
 
     async with app.run_test(size=(100, 30)) as pilot:
-        await pilot.pause()
-        await pilot.pause()
+        # Same off-pump page load as above: two bare pauses only happened to
+        # outlast the worker's thread hop.
+        await wait_for(pilot, lambda: modal.agents == [loaded])
 
         option_list = modal.query_one("#dismissed-agent-list", OptionList)
 

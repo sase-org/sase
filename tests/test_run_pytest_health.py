@@ -122,6 +122,42 @@ def test_full_lane_arms_the_failure_recorder(
     )
 
 
+def test_cost_lane_records_failures_but_not_probe_taxed_durations(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`just check-full` runs the cost lane, so it must still feed the store."""
+    runner = load_run_pytest()
+    monkeypatch.setenv(STORE_ENV, str(health_store(tmp_path)))
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(tmp_path / "scratch"))
+    monkeypatch.delenv(runner.HEALTH_DISABLED_ENV, raising=False)
+    monkeypatch.setattr(runner, "_parallel_worker_grant", lambda: (2, None))
+    observed: dict[str, object] = {}
+
+    class ExecCalled(Exception):
+        pass
+
+    def _execv(_executable: str, command: list[str]) -> None:
+        observed["command"] = command
+        observed["request"] = runner.os.environ.get(runner.RECORD_ENV)
+        raise ExecCalled
+
+    monkeypatch.setattr(runner.os, "execv", _execv)
+
+    with pytest.raises(ExecCalled):
+        runner.main([runner.TEST_COST_MODE])
+
+    command = observed["command"]
+    assert isinstance(command, list)
+    assert runner.HEALTH_PLUGIN_MODULE in command
+    assert runner.TEST_COST_PLUGIN_MODULE in command
+    # The probe inflates per-file durations, so the duration table this lane
+    # would otherwise poison stays fed by `fast`, `cov`, and scoped runs only.
+    assert runner.TIMINGS_PLUGIN_MODULE not in command
+    request = json.loads(str(observed["request"]))
+    assert request["mode"] == runner.TEST_COST_MODE
+    assert Path(request["path"]).name.endswith("-full-run.json")
+
+
 def test_health_recording_can_be_switched_off(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
