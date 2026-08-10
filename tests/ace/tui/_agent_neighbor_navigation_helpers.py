@@ -170,7 +170,7 @@ class NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMixi
             return False
         self._collapsed_panel_keys.remove(panel_key)
         self._invalidate_agent_panel_cache()
-        self._persist_panel_fold_change(panel_key, collapsed=False)
+        self._note_panel_fold_change(panel_key, collapsed=False)
         return True
 
     def _persist_group_fold_change(
@@ -183,7 +183,7 @@ class NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMixi
         del panel_key
         self.group_fold_changes.append((group_key, collapsed))
 
-    def _persist_panel_fold_change(
+    def _note_panel_fold_change(
         self,
         panel_key: str | None,
         *,

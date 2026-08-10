@@ -555,10 +555,10 @@ class StateInitMixin:
 
         self._agent_panels_grouped: bool = False
         self._panel_group: AgentPanelGroup = AgentPanelGroup()
-        # Whole-panel collapse state is independent of the group/workflow fold
-        # registries so expanding a panel restores its in-panel folds exactly
-        # as they were. The fields below drive a one-shot post-first-paint load,
-        # pre-load mutation journal, and latest-generation off-thread writer.
+        # Whole-panel collapse state is session-scoped in-memory state whose
+        # lifetime is each panel's. Group/workflow fold registries are still
+        # persisted by a one-shot post-first-paint load, pre-load mutation
+        # journal, and latest-generation off-thread writer.
         self._collapsed_panel_keys: set[PanelKey] = set()
         self._expanded_panel_keys: set[PanelKey] = set()
         # ``H`` remembers one pre-isolation split-panel layout in memory. The

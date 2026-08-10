@@ -31,7 +31,7 @@ class AgentPanelFoldingMixin:
     _expanded_panel_keys: set[PanelKey]
     _panel_isolation_revert: PanelIsolationRevert | None
 
-    def _persist_panel_fold_change(
+    def _note_panel_fold_change(
         self,
         panel_key: PanelKey,
         *,
@@ -40,9 +40,6 @@ class AgentPanelFoldingMixin:
         revert = getattr(self, "_panel_isolation_revert", None)
         if revert is not None and panel_key != revert.target_key:
             self._disarm_panel_isolation_revert(additional_keys={panel_key})
-        record = getattr(self, "_record_agents_panel_fold_change", None)
-        if callable(record):
-            record(panel_key, collapsed=collapsed)
 
     def _live_panel_keys(self) -> set[PanelKey]:
         """Return the current split-layout keys available for isolation."""
@@ -128,7 +125,7 @@ class AgentPanelFoldingMixin:
                 panel_key,
                 collapsed=panel_key in desired_collapsed,
             )
-            self._persist_panel_fold_change(
+            self._note_panel_fold_change(
                 panel_key,
                 collapsed=panel_key in desired_collapsed,
             )
@@ -244,7 +241,7 @@ class AgentPanelFoldingMixin:
             self.current_idx = global_indices[0]
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-        self._persist_panel_fold_change(focused_key, collapsed=True)
+        self._note_panel_fold_change(focused_key, collapsed=True)
 
     def _expand_agent_panel(self, panel_key: PanelKey) -> bool:
         """Expand one whole panel without selecting or refreshing it."""
@@ -259,7 +256,7 @@ class AgentPanelFoldingMixin:
 
         set_panel_fold_intent(self, panel_key, collapsed=False)
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
-        self._persist_panel_fold_change(panel_key, collapsed=False)
+        self._note_panel_fold_change(panel_key, collapsed=False)
         return True
 
     def _expand_focused_panel(self) -> None:

@@ -45,6 +45,7 @@ class AgentPanelCollapseApp(
         self.current_idx = 0
         self.current_attempt_number: int | None = 7
         self._agents = agents
+        self._agents_with_children = list(agents)
         self._fold_manager = FoldStateManager()
         self._fold_counts: dict[str, tuple[int, int]] = {}
         self._group_fold_registry = AgentGroupFoldRegistry()
@@ -139,12 +140,13 @@ class AgentPanelCollapseApp(
         if agent is not None:
             self.armed_departures.append(agent)
 
-    def _record_agents_panel_fold_change(
+    def _note_panel_fold_change(
         self,
         panel_key: str | None,
         *,
         collapsed: bool,
     ) -> None:
+        super()._note_panel_fold_change(panel_key, collapsed=collapsed)
         self.panel_fold_changes.append((panel_key, collapsed))
 
     def _record_agents_group_fold_change(

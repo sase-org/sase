@@ -52,7 +52,6 @@ class _Harness(AgentFoldingMixin, AgentFoldPersistenceMixin):
 
 def _baseline() -> AgentsFoldStateSnapshot:
     return AgentsFoldStateSnapshot(
-        collapsed_panels=frozenset({"persisted"}),
         group_folds=(
             AgentGroupingFoldSnapshot(
                 GroupingMode.BY_STATUS,
@@ -74,7 +73,6 @@ def _baseline() -> AgentsFoldStateSnapshot:
 def test_load_race_installs_baseline_then_replays_newer_user_intent() -> None:
     app = _Harness()
     app._record_agents_group_fold_change(("sase",), collapsed=True)
-    app._record_agents_panel_fold_change("chop", collapsed=True)
 
     app._resolve_agents_fold_state_load(_baseline())
 
@@ -91,25 +89,22 @@ def test_load_race_installs_baseline_then_replays_newer_user_intent() -> None:
         .is_collapsed(("Done",))
     )
     assert app._group_fold_registry.for_panel(None).is_collapsed(("sase",))
-    assert app._collapsed_panel_keys == {"persisted", "chop"}
+    assert app._collapsed_panel_keys == set()
     assert app._expanded_panel_keys == set()
     assert app._agents_fold_state_intents == []
 
 
-def test_collapse_then_expand_journal_persists_expanded_result() -> None:
+def test_collapse_then_expand_journal_persists_group_result() -> None:
     app = _Harness()
     app._record_agents_group_fold_change(("Done",), collapsed=True)
     app._record_agents_group_fold_change(("Done",), collapsed=False)
-    app._record_agents_panel_fold_change("chop", collapsed=True)
-    app._record_agents_panel_fold_change("chop", collapsed=False)
 
     app._resolve_agents_fold_state_load(_baseline())
     app._maybe_install_agents_fold_state_before_finalize()
 
     assert not app._group_fold_registry.for_panel(None).is_collapsed(("Done",))
-    assert "chop" not in app._collapsed_panel_keys
-    assert "chop" in app._expanded_panel_keys
-    assert "persisted" in app._collapsed_panel_keys
+    assert app._collapsed_panel_keys == set()
+    assert app._expanded_panel_keys == set()
 
 
 def test_panel_expansion_helper_wins_when_persisted_load_is_still_in_flight() -> None:
@@ -121,23 +116,21 @@ def test_panel_expansion_helper_wins_when_persisted_load_is_still_in_flight() ->
     assert app._collapsed_panel_keys == set()
     assert app._expanded_panel_keys == {"chop"}
 
-    app._resolve_agents_fold_state_load(
-        AgentsFoldStateSnapshot(collapsed_panels=frozenset({"chop"}))
-    )
+    app._resolve_agents_fold_state_load(AgentsFoldStateSnapshot())
     app._maybe_install_agents_fold_state_before_finalize()
 
     assert app._collapsed_panel_keys == set()
     assert app._expanded_panel_keys == {"chop"}
 
 
-def test_merged_layout_clear_removes_unseen_persisted_panel_folds() -> None:
+def test_panel_intent_recorded_before_late_load_survives_install() -> None:
     app = _Harness()
-    app._record_agents_panel_folds_cleared()
+    app._collapsed_panel_keys.add("chop")
 
     app._resolve_agents_fold_state_load(_baseline())
     app._maybe_install_agents_fold_state_before_finalize()
 
-    assert app._collapsed_panel_keys == set()
+    assert app._collapsed_panel_keys == {"chop"}
     assert app._expanded_panel_keys == set()
     assert (
         app._group_fold_registries[GroupingMode.BY_STATUS]
@@ -165,40 +158,41 @@ def test_partial_projection_preserves_panel_intent_and_prunes_stale_groups() -> 
     assert pending is not None
     generation, snapshot = pending
     assert generation == 1
-    assert snapshot.collapsed_panels == frozenset({"vanished"})
-    assert snapshot.expanded_panels == frozenset({"also-vanished"})
+    assert not hasattr(snapshot, "collapsed_panels")
+    assert not hasattr(snapshot, "expanded_panels")
     assert snapshot.group_folds == ()
 
 
-def test_panel_intents_survive_restart_disappearance_and_reappearance(
+def test_legacy_panel_state_is_ignored_at_startup_and_config_applies(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    first = _Harness()
-    first._collapsed_panel_keys.add("chop")
-    first._expanded_panel_keys.add("research")
     path = tmp_path / "folds.json"
-    save_agents_fold_state(first._capture_agents_fold_state(), path)
+    path.write_text(
+        """
+        {
+          "schema_version": 3,
+          "expanded_panels": [{"kind": "tribe", "tribe": "chop"}],
+          "group_folds": [
+            {
+              "mode": "by_status",
+              "scopes": [
+                {
+                  "panel": {"kind": "no_tribe"},
+                  "merged": false,
+                  "collapsed": [["Done"]]
+                }
+              ]
+            }
+          ]
+        }
+        """,
+        encoding="utf-8",
+    )
 
     fresh = _Harness()
     fresh._resolve_agents_fold_state_load(load_agents_fold_state(path))
     fresh._maybe_install_agents_fold_state_before_finalize()
-
-    reconcile_panel_fold_registries(
-        fresh,
-        {AgentPanelFoldScope(None): []},
-    )
-    assert fresh._collapsed_panel_keys == {"chop"}
-    assert fresh._expanded_panel_keys == {"research"}
-
-    reconcile_panel_fold_registries(
-        fresh,
-        {
-            AgentPanelFoldScope(None): [],
-            AgentPanelFoldScope("chop"): [],
-            AgentPanelFoldScope("research"): [],
-        },
-    )
 
     from sase.ace.tui.actions.agents._panel_fold_intent import (
         effective_panel_collapses,
@@ -208,9 +202,16 @@ def test_panel_intents_survive_restart_disappearance_and_reappearance(
     monkeypatch.setattr(
         tribe_display,
         "tribe_display_for",
-        lambda key: SimpleNamespace(initially_expanded=key != "research"),
+        lambda key: SimpleNamespace(initially_expanded=key != "chop"),
     )
-    assert effective_panel_collapses(fresh, {"chop", "research"}) == {"chop"}
+    assert fresh._collapsed_panel_keys == set()
+    assert fresh._expanded_panel_keys == set()
+    assert effective_panel_collapses(fresh, {"chop"}) == {"chop"}
+    assert (
+        fresh._group_fold_registries[GroupingMode.BY_STATUS]
+        .for_panel(None)
+        .is_collapsed(("Done",))
+    )
 
 
 def test_late_load_uses_in_memory_full_rebuild_refresh() -> None:
@@ -235,7 +236,9 @@ def test_fold_state_install_disarms_panel_isolation_restore() -> None:
     assert app._panel_isolation_revert is None
 
 
-def test_done_and_chop_survive_a_fresh_session(tmp_path: Path) -> None:
+def test_group_folds_survive_a_fresh_session_but_panel_intent_does_not(
+    tmp_path: Path,
+) -> None:
     first = _Harness()
     first._grouping_mode = GroupingMode.BY_STATUS
     first._group_fold_registries = {GroupingMode.BY_STATUS: AgentGroupFoldRegistry()}
@@ -252,21 +255,8 @@ def test_done_and_chop_survive_a_fresh_session(tmp_path: Path) -> None:
     fresh._maybe_install_agents_fold_state_before_finalize()
 
     assert fresh._group_fold_registry.for_panel(None).is_collapsed(("Done",))
-    assert fresh._collapsed_panel_keys == {"chop"}
-
-
-def test_explicit_panel_expansion_survives_a_fresh_session(tmp_path: Path) -> None:
-    first = _Harness()
-    first._expanded_panel_keys.add("chop")
-    path = tmp_path / "folds.json"
-    save_agents_fold_state(first._capture_agents_fold_state(), path)
-
-    fresh = _Harness()
-    fresh._resolve_agents_fold_state_load(load_agents_fold_state(path))
-    fresh._maybe_install_agents_fold_state_before_finalize()
-
     assert fresh._collapsed_panel_keys == set()
-    assert fresh._expanded_panel_keys == {"chop"}
+    assert fresh._expanded_panel_keys == set()
 
 
 @pytest.mark.asyncio

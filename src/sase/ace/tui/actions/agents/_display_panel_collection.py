@@ -8,7 +8,7 @@ from ._display_helpers import panel_widget_id
 from ._display_panel_state import PanelRefreshStateMixin
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._navigation_order import rendered_panel_slice
-from ._panel_fold_intent import effective_panel_collapses
+from ._panel_fold_intent import effective_panel_collapses, retire_panel_fold_intents
 
 if TYPE_CHECKING:
     from rich.text import Text
@@ -25,17 +25,35 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
 
     def _sync_panel_group(self) -> None:
         """Recompute :attr:`_panel_group` from the current :attr:`_agents`."""
-        from ...models.agent_panels import AgentPanelGroup
+        from ...models.agent_panels import (
+            AgentPanelGroup,
+            agent_is_rendered_in_agents_panel,
+            normalize_panel_key,
+            panel_keys_for,
+        )
 
         prev_focused = self._panel_group.focused_key
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
-        collapsed_keys = effective_panel_collapses(self)
-        self._panel_group = AgentPanelGroup.from_agents(
-            self._agents,
-            prev_focused,
-            merge_tribe_panels=merge_tribe_panels,
-            collapsed_panel_keys=collapsed_keys,
-        )
+        if merge_tribe_panels:
+            self._panel_group = AgentPanelGroup.from_agents(
+                self._agents,
+                prev_focused,
+                merge_tribe_panels=True,
+            )
+        else:
+            panel_keys = panel_keys_for(self._agents)
+            live_keys = set(panel_keys)
+            agents_with_children = getattr(self, "_agents_with_children", self._agents)
+            for agent in agents_with_children:
+                if agent_is_rendered_in_agents_panel(agent):
+                    live_keys.add(normalize_panel_key(agent.tribe))
+            retire_panel_fold_intents(self, live_keys)
+            collapsed_keys = effective_panel_collapses(self, panel_keys)
+            self._panel_group = AgentPanelGroup.from_panel_keys(
+                panel_keys,
+                prev_focused,
+                collapsed_panel_keys=collapsed_keys,
+            )
         known_keys = set(self._panel_group.panel_keys)
         if (
             merge_tribe_panels
@@ -47,8 +65,8 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         if selection_memory is not None:
             for stale_key in set(selection_memory) - known_keys:
                 selection_memory.pop(stale_key, None)
-        # Whole-panel fold intent deliberately outlives this projection.
-        # User toggles and split-to-merged transitions clear it explicitly.
+        # Whole-panel fold intent outlives churn within a live panel. It is
+        # retired only when the panel key stops being live.
 
         keys_per_agent = self._panel_keys_per_agent()
         focused_key = self._panel_group.focused_key

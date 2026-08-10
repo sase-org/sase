@@ -127,10 +127,10 @@ ace:
   # The special "default" entry styles the reserved untagged identity.
   # Empty icon strings disable an inherited default icon, while empty color
   # strings restore the gold ACE fallback. Colors apply only to structured
-  # tribe identities, not semantic chrome. Explicit user panel folds always
-  # take precedence over the panel-only initially_expanded setting. Every
-  # configured tribe requires a description, shown in the Agents-tab
-  # metadata panel when that tribe's panel is selected.
+  # tribe identities, not semantic chrome. Manual panel folds last only for
+  # the panel's current lifetime; initially_expanded applies whenever the
+  # panel appears. Every configured tribe requires a description, shown in
+  # the Agents-tab metadata panel when that tribe's panel is selected.
   tribes:
     default:
       icon: "⌂"

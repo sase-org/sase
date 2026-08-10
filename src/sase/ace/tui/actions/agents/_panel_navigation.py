@@ -356,9 +356,5 @@ class AgentPanelNavigationMixin:
         self.current_attempt_number = None  # type: ignore[attr-defined]
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-        if self._agent_panels_grouped:
-            record_clear = getattr(self, "_record_agents_panel_folds_cleared", None)
-            if callable(record_clear):
-                record_clear()
         label = "grouped" if self._agent_panels_grouped else "split"
         self.notify(f"Agent panels: {label}", timeout=1.5)  # type: ignore[attr-defined]

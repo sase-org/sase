@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
+
 from sase.ace.tui.actions.navigation._entry_jump_mode import EntryJumpModeMixin
 
 from ._agent_panel_collapse_helpers import (
     AgentPanelCollapseApp,
+    make_agent,
     make_multi_panel_agents,
 )
 
@@ -53,11 +58,13 @@ def test_collapsed_panel_rows_are_opt_in_without_bypassing_group_folds() -> None
     assert jumpable[2] == app._panel_group.panel_keys.index("alpha")
 
 
-def test_panel_fold_intent_survives_projection_churn_and_clears_on_merge() -> None:
+def test_panel_fold_intent_survives_query_projection_churn_and_clears_on_merge() -> (
+    None
+):
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app._collapsed_panel_keys.add("alpha")
     app._expanded_panel_keys = {"beta"}
-    app._agents = [agent for agent in app._agents if agent.tribe is None]
+    app._agents = [agent for agent in app._agents_with_children if agent.tribe is None]
     app._invalidate_agent_panel_cache()
 
     app._sync_panel_group()
@@ -65,7 +72,7 @@ def test_panel_fold_intent_survives_projection_churn_and_clears_on_merge() -> No
     assert app._collapsed_panel_keys == {"alpha"}
     assert app._expanded_panel_keys == {"beta"}
 
-    app._agents = make_multi_panel_agents()
+    app._agents = list(app._agents_with_children)
     app._invalidate_agent_panel_cache()
     app._sync_panel_group()
 
@@ -76,6 +83,74 @@ def test_panel_fold_intent_survives_projection_churn_and_clears_on_merge() -> No
     assert app._agent_panels_grouped is True
     assert app._resolve_focused_panel() is None
     assert app.refresh_calls == [True]
+
+
+def test_panel_fold_intent_survives_agent_churn_inside_live_panel() -> None:
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
+    app._collapsed_panel_keys.add("alpha")
+    app._sync_panel_group()
+
+    raw_first = next(agent for agent in app._agents if agent.agent_name == "raw-first")
+    replacement = make_agent(name="new-alpha", project="alpha", tribe="alpha")
+    app._agents = [
+        *(agent for agent in app._agents if agent is not raw_first),
+        replacement,
+    ]
+    app._agents_with_children = list(app._agents)
+    app._invalidate_agent_panel_cache()
+    app._sync_panel_group()
+
+    assert app._collapsed_panel_keys == {"alpha"}
+    assert app._panel_group.panel_keys == [None, "beta", "alpha"]
+
+
+def test_dead_panel_retires_intent_and_next_birth_uses_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.agents._panel_fold_intent import (
+        effective_panel_collapses,
+    )
+    from sase.ace.tui.models import tribe_display
+
+    monkeypatch.setattr(
+        tribe_display,
+        "tribe_display_for",
+        lambda key: SimpleNamespace(initially_expanded=key != "chop"),
+    )
+    chop = make_agent(name="chop", project="ops", tribe="chop")
+    alpha = make_agent(name="alpha", project="alpha", tribe="alpha")
+    app = AgentPanelCollapseApp([chop, alpha], focused_key="chop")
+    app._expanded_panel_keys.add("chop")
+    app._collapsed_panel_keys.add("alpha")
+
+    app._agents = []
+    app._agents_with_children = []
+    app._invalidate_agent_panel_cache()
+    app._sync_panel_group()
+
+    assert app._expanded_panel_keys == set()
+    assert app._collapsed_panel_keys == set()
+
+    app._agents = [chop, alpha]
+    app._agents_with_children = list(app._agents)
+    app._invalidate_agent_panel_cache()
+    app._sync_panel_group()
+
+    assert effective_panel_collapses(app, {"chop", "alpha"}) == {"chop"}
+    assert app._panel_group.panel_keys == ["alpha", "chop"]
+
+
+def test_merged_panel_sync_does_not_retire_panel_intent() -> None:
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
+    app._agent_panels_grouped = True
+    app._collapsed_panel_keys.add("alpha")
+    app._agents = []
+    app._agents_with_children = []
+
+    app._sync_panel_group()
+
+    assert app._collapsed_panel_keys == {"alpha"}
+    assert app._panel_group.panel_keys == [None]
 
 
 def test_expanded_panel_focus_reconciles_when_refresh_membership_churns() -> None:

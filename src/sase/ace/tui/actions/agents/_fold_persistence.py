@@ -1,4 +1,4 @@
-"""Non-blocking lifecycle for persisted Agents-tab fold state."""
+"""Non-blocking lifecycle for persisted Agents-tab group fold state."""
 
 from __future__ import annotations
 
@@ -34,26 +34,11 @@ class _AgentGroupFoldIntent:
     collapsed: bool
 
 
-@dataclass(frozen=True)
-class _AgentPanelFoldIntent:
-    """One pre-load whole-panel mutation."""
-
-    panel_key: PanelKey
-    collapsed: bool
-
-
-@dataclass(frozen=True)
-class _AgentPanelFoldsClearIntent:
-    """A split-to-merged transition clearing every whole-panel fold."""
-
-
-type AgentFoldIntent = (
-    _AgentGroupFoldIntent | _AgentPanelFoldIntent | _AgentPanelFoldsClearIntent
-)
+AgentFoldIntent = _AgentGroupFoldIntent
 
 
 class AgentFoldPersistenceMixin:
-    """Load, merge, journal, save, and flush Agents-tab collapse intent."""
+    """Load, merge, journal, save, and flush Agents-tab group collapse intent."""
 
     _grouping_mode: GroupingMode
     _group_fold_registries: dict[GroupingMode, AgentGroupFoldRegistry]
@@ -137,21 +122,6 @@ class AgentFoldPersistenceMixin:
             )
         )
 
-    def _record_agents_panel_fold_change(
-        self,
-        panel_key: PanelKey,
-        *,
-        collapsed: bool,
-    ) -> None:
-        """Journal and schedule persistence for a whole-panel mutation."""
-        self._agents_fold_state_changed(
-            _AgentPanelFoldIntent(panel_key=panel_key, collapsed=collapsed)
-        )
-
-    def _record_agents_panel_folds_cleared(self) -> None:
-        """Journal a layout transition that semantically clears all panels."""
-        self._agents_fold_state_changed(_AgentPanelFoldsClearIntent())
-
     def _agents_fold_state_changed(
         self,
         intent: AgentFoldIntent | None = None,
@@ -170,7 +140,7 @@ class AgentFoldPersistenceMixin:
         self._schedule_agents_fold_state_save()
 
     def _capture_agents_fold_state(self) -> AgentsFoldStateSnapshot:
-        """Capture all modes/scopes and whole-panel folds immutably."""
+        """Capture all persisted group-fold modes/scopes immutably."""
         from ...models.agent_fold_persistence import (
             AgentGroupingFoldSnapshot,
             AgentsFoldStateSnapshot,
@@ -184,11 +154,7 @@ class AgentFoldPersistenceMixin:
             scopes = registry.snapshot()
             if scopes:
                 group_folds.append(AgentGroupingFoldSnapshot(mode, scopes))
-        return AgentsFoldStateSnapshot(
-            collapsed_panels=frozenset(getattr(self, "_collapsed_panel_keys", set())),
-            expanded_panels=frozenset(getattr(self, "_expanded_panel_keys", set())),
-            group_folds=tuple(group_folds),
-        )
+        return AgentsFoldStateSnapshot(group_folds=tuple(group_folds))
 
     def _replay_agents_fold_intent(self, intent: AgentFoldIntent) -> None:
         """Apply one journal entry after the disk baseline is installed."""
@@ -196,21 +162,6 @@ class AgentFoldPersistenceMixin:
             AgentGroupFoldRegistry,
             AgentPanelFoldScope,
         )
-
-        if isinstance(intent, _AgentPanelFoldsClearIntent):
-            from ._panel_fold_intent import clear_panel_fold_intents
-
-            clear_panel_fold_intents(self)
-            return
-        if isinstance(intent, _AgentPanelFoldIntent):
-            from ._panel_fold_intent import set_panel_fold_intent
-
-            set_panel_fold_intent(
-                self,
-                intent.panel_key,
-                collapsed=intent.collapsed,
-            )
-            return
 
         registries = self._group_fold_registries  # type: ignore[attr-defined]
         owner = registries.get(intent.mode)
@@ -255,9 +206,6 @@ class AgentFoldPersistenceMixin:
             # Both startup installation and the late-load path are followed by
             # an established full Agents repaint.
             disarm_isolation(refresh=False)
-        self._collapsed_panel_keys = set(snapshot.collapsed_panels)  # type: ignore[attr-defined]
-        self._expanded_panel_keys = set(snapshot.expanded_panels)  # type: ignore[attr-defined]
-
         journal: list[AgentFoldIntent] = list(
             self._agents_fold_state_intents  # type: ignore[attr-defined]
         )

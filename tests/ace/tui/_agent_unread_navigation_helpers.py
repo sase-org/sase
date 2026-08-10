@@ -33,6 +33,7 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
         collapsed_panels: set[str | None] | None = None,
     ) -> None:
         self._agents = agents
+        self._agents_with_children = list(agents)
         self.current_tab = "agents"
         self.current_idx = current_idx
         self.current_attempt_number: int | None = 3
@@ -118,6 +119,7 @@ class LeaderUnreadJumpApp(
         collapsed_panels: set[str | None] | None = None,
     ) -> None:
         self._agents = agents
+        self._agents_with_children = list(agents)
         self.current_idx = current_idx
         self.current_attempt_number: int | None = 3
         self.current_tab = "agents"
@@ -180,7 +182,7 @@ class LeaderUnreadJumpApp(
     def _invalidate_agent_panel_cache(self) -> None:
         self._nav_stops_cache = None
 
-    def _record_agents_panel_fold_change(
+    def _note_panel_fold_change(
         self,
         panel_key: str | None,
         *,

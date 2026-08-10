@@ -8,7 +8,7 @@ from datetime import datetime
 import pytest
 
 import sase.vcs_log._render_console as console_mod
-from sase.core.vcs_log_facade import MergeSummary
+from sase.core.vcs_log_facade import _MergeSummary
 from sase.vcs_log._style import make_console
 from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
 from sase.vcs_log.render import build_timeline_commit
@@ -132,7 +132,7 @@ def test_pretty_marks_merges_and_condenses_pull_request_headline(
     monkeypatch.setattr(
         console_mod,
         "merge_summary",
-        lambda _subject, _body: MergeSummary(
+        lambda _subject, _body: _MergeSummary(
             kind="pull_request",
             reference="123",
             source="org/feature",
@@ -201,7 +201,7 @@ def test_pretty_keeps_raw_pull_request_subject_without_headline(
     monkeypatch.setattr(
         console_mod,
         "merge_summary",
-        lambda _subject, _body: MergeSummary(
+        lambda _subject, _body: _MergeSummary(
             kind="pull_request",
             reference="123",
             source="org/feature",
@@ -344,7 +344,7 @@ def test_timeline_row_marks_merge_when_visible(
     monkeypatch.setattr(
         console_mod,
         "merge_summary",
-        lambda _subject, _body: MergeSummary(
+        lambda _subject, _body: _MergeSummary(
             kind="pull_request",
             reference="123",
             source="org/feature",

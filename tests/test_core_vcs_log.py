@@ -29,7 +29,7 @@ from sase.core.vcs_log_facade import (
     VCS_LOG_GIT_FORMAT,
     VCS_LOG_RECORD_SEP,
     VCS_LOG_UNIT_SEP,
-    MergeSummary,
+    _MergeSummary,
     _aggregate_commit_log_python,
     _classify_commit_presence_python,
     _parse_git_log_python,
@@ -505,7 +505,7 @@ def test_merge_summary_recognizes_pull_request() -> None:
         "Merge pull request #123 from org/feature-branch",
         "\nFeature title\n\nDetails",
     )
-    assert summary == MergeSummary(
+    assert summary == _MergeSummary(
         kind="pull_request",
         reference="123",
         source="org/feature-branch",
@@ -516,7 +516,7 @@ def test_merge_summary_recognizes_pull_request() -> None:
 
 def test_merge_summary_recognizes_branch_into_target() -> None:
     summary = merge_summary("Merge branch 'feature' into master", "")
-    assert summary == MergeSummary(
+    assert summary == _MergeSummary(
         kind="branch",
         reference="feature",
         source="feature",
@@ -527,7 +527,7 @@ def test_merge_summary_recognizes_branch_into_target() -> None:
 
 def test_merge_summary_recognizes_remote_tracking_branch() -> None:
     summary = merge_summary("Merge remote-tracking branch 'origin/feature'", "")
-    assert summary == MergeSummary(
+    assert summary == _MergeSummary(
         kind="remote_branch",
         reference="origin/feature",
         source="origin/feature",
@@ -568,7 +568,7 @@ def test_merge_summary_routes_through_registered_binding(
     result = merge_summary("Merge branch 'feature'", "")
 
     assert captured == {"subject": "Merge branch 'feature'", "body": ""}
-    assert result == MergeSummary(
+    assert result == _MergeSummary(
         kind="branch",
         reference="feature",
         source="feature",

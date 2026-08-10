@@ -185,7 +185,7 @@ class JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
         if panel_key not in self._collapsed_panel_keys:
             return False
         self._collapsed_panel_keys.discard(panel_key)
-        self._persist_panel_fold_change(panel_key, collapsed=False)
+        self._note_panel_fold_change(panel_key, collapsed=False)
         return True
 
     def _invalidate_agent_panel_cache(self) -> None:
@@ -215,7 +215,7 @@ class JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
     ) -> None:
         self.group_fold_changes.append((panel_key, group_key, collapsed))
 
-    def _persist_panel_fold_change(
+    def _note_panel_fold_change(
         self,
         panel_key: str | None,
         *,

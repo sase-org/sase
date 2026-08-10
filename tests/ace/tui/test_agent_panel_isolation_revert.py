@@ -95,7 +95,7 @@ def test_numeric_panel_fold_funnel_disarms_non_target_change() -> None:
 
     # Numeric fold selection mutates first, then records through this funnel.
     app._collapsed_panel_keys.discard("beta")
-    app._persist_panel_fold_change("beta", collapsed=False)
+    app._note_panel_fold_change("beta", collapsed=False)
 
     assert app._panel_isolation_revert is None
     assert "beta" in app.affected_refreshes[-1]

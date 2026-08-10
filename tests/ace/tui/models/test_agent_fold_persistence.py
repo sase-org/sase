@@ -36,8 +36,6 @@ def _scope(
 
 def _full_snapshot() -> AgentsFoldStateSnapshot:
     return AgentsFoldStateSnapshot(
-        collapsed_panels=frozenset({None, "chop"}),
-        expanded_panels=frozenset({"research", "review"}),
         group_folds=(
             AgentGroupingFoldSnapshot(
                 GroupingMode.STANDARD,
@@ -59,7 +57,7 @@ def _full_snapshot() -> AgentsFoldStateSnapshot:
     )
 
 
-def test_deterministic_round_trip_covers_modes_panels_and_layouts(
+def test_deterministic_round_trip_covers_modes_and_panel_scopes(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "folds.json"
@@ -73,7 +71,8 @@ def test_deterministic_round_trip_covers_modes_panels_and_layouts(
     assert path.read_text() == first
     assert '"kind":"no_tribe"' in first
     assert '"kind":"tribe","tribe":"chop"' in first
-    assert '"expanded_panels"' in first
+    assert '"collapsed_panels"' not in first
+    assert '"expanded_panels"' not in first
     assert '"tag"' not in first
     assert '"merged":true' in first
 
@@ -109,7 +108,7 @@ def test_empty_state_omits_empty_collections() -> None:
         json.dumps(
             {
                 "schema_version": 2,
-                "collapsed_panels": [{"kind": "tribe", "tribe": 7}],
+                "unknown": [],
             }
         ),
     ],
@@ -129,7 +128,7 @@ def test_missing_and_oversized_state_fail_open(tmp_path: Path) -> None:
     assert load_agents_fold_state(path) == EMPTY_AGENTS_FOLD_STATE
 
 
-def test_legacy_v1_tag_panel_discriminators_load_and_rewrite_as_tribes(
+def test_legacy_v1_tag_panel_discriminators_load_group_scopes_and_drop_panel_fields(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "folds.json"
@@ -159,27 +158,42 @@ def test_legacy_v1_tag_panel_discriminators_load_and_rewrite_as_tribes(
     )
 
     loaded = load_agents_fold_state(path)
-    assert loaded.collapsed_panels == frozenset({None, "chop"})
-    assert loaded.expanded_panels == frozenset()
     assert loaded.group_folds[0].scopes[0].scope.panel_key == "chop"
 
     save_agents_fold_state(loaded, path)
 
     rewritten = path.read_text(encoding="utf-8")
     assert '"schema_version":3' in rewritten
-    assert '"kind":"no_tribe"' in rewritten
+    assert '"collapsed_panels"' not in rewritten
+    assert '"expanded_panels"' not in rewritten
     assert '"kind":"tribe","tribe":"chop"' in rewritten
     assert '"tag"' not in rewritten
 
 
-def test_v2_loads_with_empty_expanded_panel_intent(tmp_path: Path) -> None:
+@pytest.mark.parametrize("schema_version", [1, 2, 3])
+def test_legacy_panel_fields_are_accepted_and_ignored_for_every_schema_version(
+    tmp_path: Path,
+    schema_version: int,
+) -> None:
     path = tmp_path / "folds.json"
+    panel_key = {"kind": "untagged"} if schema_version == 1 else {"kind": "no_tribe"}
     path.write_text(
         json.dumps(
             {
-                "schema_version": 2,
-                "collapsed_panels": [
-                    {"kind": "tribe", "tribe": "chop"},
+                "schema_version": schema_version,
+                "collapsed_panels": "ignored even though malformed",
+                "expanded_panels": [{"also": "ignored"}],
+                "group_folds": [
+                    {
+                        "mode": "by_status",
+                        "scopes": [
+                            {
+                                "panel": panel_key,
+                                "merged": False,
+                                "collapsed": [["Done"]],
+                            }
+                        ],
+                    }
                 ],
             }
         ),
@@ -188,34 +202,7 @@ def test_v2_loads_with_empty_expanded_panel_intent(tmp_path: Path) -> None:
 
     loaded = load_agents_fold_state(path)
 
-    assert loaded.collapsed_panels == frozenset({"chop"})
-    assert loaded.expanded_panels == frozenset()
-
-
-@pytest.mark.parametrize(
-    "expanded_panels",
-    [
-        [{"kind": "tribe", "tribe": "chop"}],
-        [{"kind": "tribe", "tribe": "x"}] * (persistence.MAX_COLLAPSED_PANELS + 1),
-    ],
-)
-def test_conflicting_or_oversized_expanded_intent_fails_open(
-    tmp_path: Path,
-    expanded_panels: list[dict[str, str]],
-) -> None:
-    path = tmp_path / "folds.json"
-    path.write_text(
-        json.dumps(
-            {
-                "schema_version": 3,
-                "collapsed_panels": [{"kind": "tribe", "tribe": "chop"}],
-                "expanded_panels": expanded_panels,
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    assert load_agents_fold_state(path) == EMPTY_AGENTS_FOLD_STATE
+    assert loaded.group_folds[0].scopes[0].collapsed == frozenset({("Done",)})
 
 
 def test_atomic_save_failure_removes_temporary_file(

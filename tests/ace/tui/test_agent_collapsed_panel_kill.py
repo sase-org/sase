@@ -340,7 +340,7 @@ async def test_confirming_last_panel_member_preserves_neighbors_and_valid_focus(
             home.identity,
             keep.identity,
         }
-        assert "alpha" in page.app._collapsed_panel_keys
+        assert "alpha" not in page.app._collapsed_panel_keys
         assert page.app._panel_group.focused_key in {None, "keep"}
         selected = page.app._get_selected_agent()
         assert selected is not None

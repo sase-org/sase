@@ -7,7 +7,7 @@ import json
 import pytest
 
 import sase.vcs_log._render_plain as plain_mod
-from sase.core.vcs_log_facade import MergeSummary
+from sase.core.vcs_log_facade import _MergeSummary
 from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
 
 from ._vcs_log_render_helpers import (
@@ -213,7 +213,7 @@ def test_json_includes_merge_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         plain_mod,
         "merge_summary",
-        lambda _subject, _body: MergeSummary(
+        lambda _subject, _body: _MergeSummary(
             kind="pull_request",
             reference="123",
             source="org/feature",

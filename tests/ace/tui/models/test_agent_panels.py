@@ -124,6 +124,18 @@ def test_multiple_collapsed_panels_keep_canonical_order() -> None:
     assert group.panel_keys == [None, "beta", "alpha", "gamma"]
 
 
+def test_from_panel_keys_applies_same_collapsed_partition_and_focus_rules() -> None:
+    group = AgentPanelGroup.from_panel_keys(
+        [None, "alpha", "beta", "gamma"],
+        focused_key="alpha",
+        collapsed_panel_keys={"gamma", "alpha"},
+    )
+
+    assert group.panel_keys == [None, "beta", "alpha", "gamma"]
+    assert group.focused_key == "alpha"
+    assert group.focused_idx == 2
+
+
 def test_collapsed_no_tribe_panel_moves_after_expanded_tribe_panels() -> None:
     agents = [
         _agent(suffix="u"),

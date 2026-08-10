@@ -9,8 +9,8 @@ The helpers shared by the ``vcs_log`` provider hook and the
   pairs into a single newest-first ``list[AggregatedCommitWire]``,
   truncated to a limit.
 - :func:`merge_summary` — strictly summarize a recognized merge-commit
-  subject into a :class:`MergeSummary`, or ``None`` for anything not
-  fully recognized.
+  subject into a structured result, or ``None`` for anything not fully
+  recognized.
 
 Both parser/aggregator helpers are *pure functions* over data the host
 already collected (a ``git log`` stdout string, or per-repo commit
@@ -222,11 +222,11 @@ def classify_commit_presence(
 
 #: Recognized merge-subject family, mirroring the Rust
 #: ``MergeSummaryKindWire`` enum's ``snake_case`` serialization.
-MergeSummaryKind = Literal["pull_request", "branch", "remote_branch"]
+_MergeSummaryKind = Literal["pull_request", "branch", "remote_branch"]
 
 
 @dataclass(frozen=True)
-class MergeSummary:
+class _MergeSummary:
     """Structured summary for a recognized merge-commit subject.
 
     Attributes:
@@ -240,14 +240,14 @@ class MergeSummary:
             ``None`` when the body has none.
     """
 
-    kind: MergeSummaryKind
+    kind: _MergeSummaryKind
     reference: str | None
     source: str | None
     target: str | None
     headline: str | None
 
 
-def merge_summary(subject: str, body: str) -> MergeSummary | None:
+def merge_summary(subject: str, body: str) -> _MergeSummary | None:
     """Strictly summarize a recognized merge-commit subject.
 
     Calls ``sase_core_rs.parse_merge_summary`` directly. Returns ``None``
@@ -258,7 +258,7 @@ def merge_summary(subject: str, body: str) -> MergeSummary | None:
     raw: dict[str, object] | None = binding(subject, body)
     if raw is None:
         return None
-    return MergeSummary(
+    return _MergeSummary(
         kind=str(raw["kind"]),  # type: ignore[arg-type]
         reference=_optional_str(raw.get("reference")),
         source=_optional_str(raw.get("source")),
@@ -275,8 +275,6 @@ __all__ = [
     "VCS_LOG_GIT_FORMAT",
     "VCS_LOG_RECORD_SEP",
     "VCS_LOG_UNIT_SEP",
-    "MergeSummary",
-    "MergeSummaryKind",
     "aggregate_commit_log",
     "classify_commit_presence",
     "merge_summary",

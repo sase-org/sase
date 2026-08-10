@@ -124,9 +124,6 @@ def test_unread_jump_expands_collapsed_panel_and_selects_exact_row(
     assert app.patch_calls == []
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
     assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
-    intent = app._agents_fold_state_intents[-1]
-    assert intent.panel_key == "alpha"
-    assert intent.collapsed is False
     notification_dismiss.assert_called_once_with(
         [{"cl_name": target.cl_name, "raw_suffix": target.raw_suffix}]
     )

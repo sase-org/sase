@@ -95,7 +95,7 @@ def agent_is_rendered_in_agents_panel(agent: Agent) -> bool:
     return not _agent_is_starting(agent)
 
 
-def _panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
+def panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
     """Return the ordered panel keys for *agents*.
 
     The empty Agents tab still gets ``[None]`` as a deterministic
@@ -209,8 +209,29 @@ class AgentPanelGroup:
         if merge_tribe_panels:
             return cls(panel_keys=[None], focused_idx=0)
 
+        return cls.from_panel_keys(
+            panel_keys_for(agents),
+            focused_key,
+            collapsed_panel_keys=collapsed_panel_keys,
+        )
+
+    @classmethod
+    def from_panel_keys(
+        cls,
+        panel_keys: Collection[PanelKey],
+        focused_key: PanelKey = None,
+        *,
+        collapsed_panel_keys: Collection[PanelKey] = (),
+    ) -> AgentPanelGroup:
+        """Build a split-mode panel group from canonical panel keys.
+
+        If ``focused_key`` is no longer present in the new panel set
+        (e.g. its tribe's last agent was dismissed), focus falls back to
+        the first available panel.  Keys retain their canonical order within
+        expanded and collapsed partitions, with collapsed panels rendered last.
+        """
         focused_key = normalize_panel_key(focused_key)
-        keys = _panel_keys_for(agents)
+        keys = [normalize_panel_key(key) for key in panel_keys]
         if collapsed_panel_keys:
             collapsed = {normalize_panel_key(key) for key in collapsed_panel_keys}
             keys = [key for key in keys if key not in collapsed] + [

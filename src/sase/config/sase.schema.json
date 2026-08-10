@@ -600,7 +600,7 @@
               },
               "initially_expanded": {
                 "type": "boolean",
-                "description": "Whether the Agents-tab tribe panel starts expanded until the user explicitly folds it",
+                "description": "Whether the Agents-tab tribe panel starts expanded each time the panel comes into existence",
                 "default": true
               },
               "description": {

@@ -1,8 +1,13 @@
-"""Versioned persistence for Agents-tab group and whole-panel folds.
+"""Versioned persistence for Agents-tab group folds.
 
 The TUI owns lifecycle scheduling; this module is deliberately synchronous and
 side-effect free except for its explicit load/save functions so callers can run
 all file and JSON work through ``asyncio.to_thread``.
+
+Schema version 3 remains current even though writers now omit whole-panel fold
+intent. Older v3 readers can still read the group-fold fields this module
+writes, and this decoder still accepts legacy panel fields so existing files do
+not fail open while their group folds remain useful.
 """
 
 from __future__ import annotations
@@ -29,7 +34,6 @@ _PREVIOUS_SCHEMA_VERSION = 2
 _LEGACY_SCHEMA_VERSION = 1
 FILENAME = "ace_agents_fold_state.json"
 MAX_FILE_BYTES = 256 * 1024
-MAX_COLLAPSED_PANELS = 256
 MAX_GROUPING_ENTRIES = len(GroupingMode)
 MAX_SCOPES = 512
 MAX_COLLAPSED_GROUP_KEYS = 4096
@@ -63,10 +67,8 @@ class AgentGroupingFoldSnapshot:
 
 @dataclass(frozen=True)
 class AgentsFoldStateSnapshot:
-    """Complete persisted Agents-tab collapse intent."""
+    """Complete persisted Agents-tab group collapse intent."""
 
-    collapsed_panels: frozenset[PanelKey] = frozenset()
-    expanded_panels: frozenset[PanelKey] = frozenset()
     group_folds: tuple[AgentGroupingFoldSnapshot, ...] = ()
 
     def __post_init__(self) -> None:
@@ -146,36 +148,14 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
         SCHEMA_VERSION,
     }:
         raise _AgentsFoldStateDecodeError("unknown schema version")
-    allowed_fields = {"schema_version", "collapsed_panels", "group_folds"}
-    if schema_version == SCHEMA_VERSION:
-        allowed_fields.add("expanded_panels")
+    allowed_fields = {
+        "schema_version",
+        "collapsed_panels",
+        "expanded_panels",
+        "group_folds",
+    }
     if not set(raw).issubset(allowed_fields):
         raise _AgentsFoldStateDecodeError("unknown root field")
-
-    raw_panels = raw.get("collapsed_panels", [])
-    if not isinstance(raw_panels, list) or len(raw_panels) > MAX_COLLAPSED_PANELS:
-        raise _AgentsFoldStateDecodeError("invalid collapsed-panels collection")
-    collapsed_panels: set[PanelKey] = set()
-    for raw_panel in raw_panels:
-        panel_key = _decode_panel_key(raw_panel, schema_version=schema_version)
-        if panel_key in collapsed_panels:
-            raise _AgentsFoldStateDecodeError("duplicate collapsed panel")
-        collapsed_panels.add(panel_key)
-
-    raw_expanded_panels = raw.get("expanded_panels", [])
-    if (
-        not isinstance(raw_expanded_panels, list)
-        or len(raw_expanded_panels) > MAX_COLLAPSED_PANELS
-    ):
-        raise _AgentsFoldStateDecodeError("invalid expanded-panels collection")
-    expanded_panels: set[PanelKey] = set()
-    for raw_panel in raw_expanded_panels:
-        panel_key = _decode_panel_key(raw_panel, schema_version=schema_version)
-        if panel_key in expanded_panels:
-            raise _AgentsFoldStateDecodeError("duplicate expanded panel")
-        expanded_panels.add(panel_key)
-    if collapsed_panels & expanded_panels:
-        raise _AgentsFoldStateDecodeError("panel has conflicting fold intent")
 
     raw_group_folds = raw.get("group_folds", [])
     if (
@@ -246,8 +226,6 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
             group_folds.append(AgentGroupingFoldSnapshot(mode, tuple(scopes)))
 
     return AgentsFoldStateSnapshot(
-        collapsed_panels=frozenset(collapsed_panels),
-        expanded_panels=frozenset(expanded_panels),
         group_folds=tuple(group_folds),
     )
 
@@ -259,16 +237,6 @@ def _panel_sort_key(panel_key: PanelKey) -> tuple[int, str]:
 def _encode_agents_fold_state(snapshot: AgentsFoldStateSnapshot) -> dict[str, Any]:
     """Return the deterministic JSON object for *snapshot*."""
     payload: dict[str, Any] = {"schema_version": SCHEMA_VERSION}
-    if snapshot.collapsed_panels:
-        payload["collapsed_panels"] = [
-            _encode_panel_key(key)
-            for key in sorted(snapshot.collapsed_panels, key=_panel_sort_key)
-        ]
-    if snapshot.expanded_panels:
-        payload["expanded_panels"] = [
-            _encode_panel_key(key)
-            for key in sorted(snapshot.expanded_panels, key=_panel_sort_key)
-        ]
 
     group_folds: list[dict[str, Any]] = []
     for mode_snapshot in sorted(snapshot.group_folds, key=lambda item: item.mode.value):

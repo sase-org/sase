@@ -21,6 +21,7 @@ from textual.strip import Strip
 from textual.style import Style
 from textual.visual import RenderOptions, Visual
 
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models._agent_clan_sections import (
     ClanSectionSnapshot,
@@ -591,9 +592,11 @@ async def test_zero_sections_noop_and_reflow_preserves_active_identity() -> None
 
         old_second_row = panel._section_anchors[-1].row  # noqa: SLF001
         await pilot.resize_terminal(34, 18)
-        await pilot.pause()
+        await wait_for(
+            pilot,
+            lambda: panel._section_anchors[-1].row > old_second_row,  # noqa: SLF001
+        )
         assert panel.active_section_identity == "first"
-        assert panel._section_anchors[-1].row > old_second_row  # noqa: SLF001
         await pilot.press("ctrl+j")
         await pilot.pause()
         assert panel.active_section_identity == "second"

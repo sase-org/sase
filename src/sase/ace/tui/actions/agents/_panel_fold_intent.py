@@ -53,6 +53,22 @@ def set_panel_fold_intent(
         expanded_keys.add(panel_key)
 
 
+def retire_panel_fold_intents(owner: Any, live_keys: Collection[PanelKey]) -> None:
+    """Drop explicit whole-panel fold intents for panels that are no longer live."""
+    collapsed = getattr(owner, "_collapsed_panel_keys", None)
+    expanded = getattr(owner, "_expanded_panel_keys", None)
+    if not collapsed and not expanded:
+        return
+
+    from ...models.agent_panels import normalize_panel_key
+
+    live = {normalize_panel_key(key) for key in live_keys}
+    if collapsed is not None:
+        collapsed.intersection_update(live)
+    if expanded is not None:
+        expanded.intersection_update(live)
+
+
 def clear_panel_fold_intents(owner: Any) -> None:
     """Clear every explicit whole-panel fold intent."""
     collapsed = getattr(owner, "_collapsed_panel_keys", None)
@@ -67,5 +83,6 @@ __all__ = [
     "clear_panel_fold_intents",
     "effective_panel_collapses",
     "panel_is_collapsed",
+    "retire_panel_fold_intents",
     "set_panel_fold_intent",
 ]

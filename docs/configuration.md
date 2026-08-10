@@ -806,7 +806,7 @@ to carry a `description`; the other fields are optional:
 | -------------------- | ---- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `icon`               | str  | `""`       | Short glyph on structured identity surfaces that already include an icon. Set `""` to remove an icon inherited from defaults.                                                                             |
 | `color`              | str  | `""`       | `#RRGGBB` foreground for structured tribe icons and names throughout the TUI. Set `""` to restore ACE's gold fallback.                                                                                    |
-| `initially_expanded` | bool | `true`     | Initial state the first time the Agents-tab panel appears.                                                                                                                                                |
+| `initially_expanded` | bool | `true`     | State applied every time the Agents-tab panel comes into existence.                                                                                                                                       |
 | `description`        | str  | _required_ | One-line explanation of the tribe, 1-160 characters. Shown as an unlabeled row beneath the header fields (`Name`/`Status`/`Composition`/`Runtime`/`Fold`) when that tribe's Agents-tab panel is selected. |
 
 The bundled defaults use ⌂ in sky blue for `default`, ▲ in lavender-purple for `epic`,
@@ -814,9 +814,9 @@ and † in amber-orange for `chop`. They also use ◆ for `pinned` and ◉ for `
 identities retain ACE's gold fallback; `chop` starts collapsed. Because config entries
 merge deeply, setting `color: ""` explicitly clears an inherited color without replacing
 that tribe's other defaults — overriding only `icon` or `color` on a bundled tribe still
-inherits its bundled `description`. Once a user explicitly expands or collapses a panel,
-that durable choice takes precedence over `initially_expanded`, including after ACE
-restarts. Changing the config still affects panels the user has not folded explicitly.
+inherits its bundled `description`. A manual panel expand/collapse lasts only while that
+panel remains live in the current ACE session. On restart, or when a tribe panel
+disappears and later returns, `initially_expanded` is applied again.
 
 SASE bundles display config only for the tribes its own source assigns (`default`,
 `epic`, `chop`, `pinned`, `review`); a tribe your own xprompts assign with `%tribe:` has

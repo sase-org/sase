@@ -369,9 +369,9 @@ async def test_landing_compact_class_tracks_viewport_size() -> None:
         assert key.render().plain == " 1 "
 
         await page._pilot.resize_terminal(100, 24)  # noqa: SLF001
-        await wait_for(page, lambda: landing.has_class("-compact"))
+        await page.wait_for(lambda _state: landing.has_class("-compact"))
         assert key.render().plain == "1"
 
         await page._pilot.resize_terminal(120, 40)  # noqa: SLF001
-        await wait_for(page, lambda: not landing.has_class("-compact"))
+        await page.wait_for(lambda _state: not landing.has_class("-compact"))
         assert key.render().plain == " 1 "
