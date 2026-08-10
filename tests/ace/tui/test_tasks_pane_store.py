@@ -7,6 +7,7 @@ from typing import cast
 import pytest
 from textual.widgets import OptionList
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals import tasks_pane as tp
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
@@ -290,8 +291,7 @@ async def test_following_a_live_store_row_bypasses_the_mtime_cache(
         await pilot.pause()
 
         pane._request_store_reload()
-        await pilot.pause()
-        await pilot.pause()
+        await wait_for(pilot, lambda: not pane._store_load_pending)
 
     assert calls[-1]["detail_task_id"] == "fff666"
     assert (calls[-1]["known_mtime"] is not None) is expects_cache
