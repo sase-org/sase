@@ -83,8 +83,8 @@ def test_artifacts_quickstart_advertises_every_subtab() -> None:
     agents_card = _section_plain(agents, "#agent-quickstart-card")
     artifacts_card = _section_plain(patches, "#patch-quickstart-card")
 
-    assert "Jump: Commits · Beads · Bugs · PRs · Files" in artifacts_card
-    assert "Cycle Artifacts: Commits · Beads · Bugs · PRs · Files" in artifacts_card
+    assert "Jump: Stitches · Beads · Bugs · PRs · Files" in artifacts_card
+    assert "Cycle Artifacts: Stitches · Beads · Bugs · PRs · Files" in artifacts_card
     assert "Inside Files: Plans · Chats · Other" in artifacts_card
     assert "Cycle Artifacts" not in agents_card
     assert _section_plain(agents, "#agent-quickstart-hero") != _section_plain(

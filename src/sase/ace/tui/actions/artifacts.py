@@ -103,7 +103,7 @@ class _ArtifactsProjectChoices:
 
     @property
     def completion_display_names(self) -> tuple[str, ...]:
-        """Return stable, deduplicated configured names for Commits."""
+        """Return stable, deduplicated configured names for Stitches."""
         labels = (
             (choice.display_name for choice in self.choices)
             if self.choices
@@ -113,7 +113,7 @@ class _ArtifactsProjectChoices:
 
     @property
     def commits_project_files(self) -> dict[str, str]:
-        """Return fetch metadata keyed by the visible Commits project ref."""
+        """Return fetch metadata keyed by the visible Stitches project ref."""
         files: dict[str, str] = {}
         for project_key, project_file in self.project_files.items():
             label = self.display_names.get(project_key, project_key)

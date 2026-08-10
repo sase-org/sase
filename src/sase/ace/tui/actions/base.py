@@ -442,7 +442,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
     def action_edit_query(self) -> None:
         """Edit the search query.
 
-        On Agents and Artifacts → Commits/Plans, delegates to inline filters.
+        On Agents and Artifacts → Stitches/Plans, delegates to inline filters.
 
         Supports saving queries with # prefix:
         - #<N> <query> - Save query to slot N (0-9)

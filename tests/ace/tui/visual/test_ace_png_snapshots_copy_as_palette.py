@@ -65,7 +65,7 @@ async def _open_commits_palette(
     return pane
 
 
-async def test_copy_as_commits_selected_dark_png_snapshot(
+async def test_copy_as_stitches_selected_dark_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -77,12 +77,12 @@ async def test_copy_as_commits_selected_dark_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "copy_as_commits_selected_dark_120x40",
+            "copy_as_stitches_selected_dark_120x40",
             title="ACE Copy as palette — selected commit, dark theme",
         )
 
 
-async def test_copy_as_commits_marked_light_narrow_png_snapshot(
+async def test_copy_as_stitches_marked_light_narrow_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -113,8 +113,8 @@ async def test_copy_as_commits_marked_light_narrow_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "copy_as_commits_marked_light_80x30",
-            title="ACE Copy as palette — marked commits, light narrow layout",
+            "copy_as_stitches_marked_light_80x30",
+            title="ACE Copy as palette — marked stitches, light narrow layout",
         )
 
 

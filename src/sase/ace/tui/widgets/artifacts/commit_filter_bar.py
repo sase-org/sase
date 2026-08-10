@@ -124,7 +124,7 @@ class CommitFilterBar(FilterBar):
         coverage_label: str | None = None,
         lower_bound: bool = False,
     ) -> None:
-        """Render coverage only; the Commits legend owns the displayed count."""
+        """Render coverage only; the Stitches legend owns the displayed count."""
         del match_count, lower_bound
         super().set_status(
             None,

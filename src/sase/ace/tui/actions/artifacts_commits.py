@@ -1,4 +1,4 @@
-"""App-level actions for the Artifacts Commits pane."""
+"""App-level actions for the Artifacts Stitches pane."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ COMMITS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
 
 
 class ArtifactsCommitsActionsMixin:
-    """Registry-driven actions scoped to the Commits sub-tab."""
+    """Registry-driven actions scoped to the Stitches sub-tab."""
 
     current_tab: Any
     current_artifacts_subtab: str

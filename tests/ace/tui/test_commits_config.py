@@ -1,4 +1,4 @@
-"""Configuration coverage for the Artifacts Commits default query."""
+"""Configuration coverage for the Artifacts Stitches default query."""
 
 from __future__ import annotations
 

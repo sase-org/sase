@@ -45,7 +45,7 @@ class StartupMountMixin:
             tab_bar.update_tab(self.current_tab)
             artifacts_view = self.query_one("#artifacts-view", ArtifactsView)
             artifacts_view.set_keymap_registry(self._keymap_registry)
-            # The Commits pane was composed with its fully merged startup
+            # The Stitches pane was composed with its fully merged startup
             # query. Shared scope setup must not overwrite that visible token.
             artifacts_view.set_project_scope(
                 self.artifacts_project_scope,

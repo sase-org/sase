@@ -737,11 +737,11 @@ ace:
 
 `ace.artifacts.commits` is a deprecated alias for this block; it still loads and warns.
 
-| Field           | Type | Default                               | Description                                                                                                                                                                                                                                                                                                            |
-| --------------- | ---- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default_query` | str  | `sidecar:false merges:hide since:24h` | Initial persistent Commits query. Supports one configured project name, directory key, or alias in `project:`; startup may add the current registered project. Accepts `merges:hide`, `merges:show`, or `merges:only` for merge-commit visibility. Relative windows re-anchor on refresh; changes apply on next start. |
+| Field           | Type | Default                               | Description                                                                                                                                                                                                                                                                                                             |
+| --------------- | ---- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `default_query` | str  | `sidecar:false merges:hide since:24h` | Initial persistent Stitches query. Supports one configured project name, directory key, or alias in `project:`; startup may add the current registered project. Accepts `merges:hide`, `merges:show`, or `merges:only` for merge-commit visibility. Relative windows re-anchor on refresh; changes apply on next start. |
 
-The Commits pane validates this value with its live query parser. Invalid runtime
+The Stitches pane validates this value with its live query parser. Invalid runtime
 configuration produces a warning and falls back to the bundled query. An empty
 configured query is valid and includes sidecars; the visible canonical row renders that
 state as `sidecar:true merges:hide`. At startup, an explicit project from the ACE query
@@ -751,10 +751,10 @@ query before the pane is composed. `project:` is singular and cannot be negated 
 contain an unquoted comma list. It accepts a configured project name, ProjectSpec
 directory key, or alias, and known committed values are rewritten to the configured
 name. Once startup merging is complete, no `project:` token always means a true
-all-project collection. The Commits project picker replaces only that token, and **All
+all-project collection. The Stitches project picker replaces only that token, and **All
 projects** removes it while preserving the rest of the query.
 
-Commits queries are uncapped unless they contain an explicit positive `limit:N`, so the
+Stitches queries are uncapped unless they contain an explicit positive `limit:N`, so the
 bundled 24-hour query has no row cap. When an explicit cap clips the result, ACE keeps
 the token visible and shows a lower-bound total such as `[1/40+]` in the repository
 legend while the filter row says `capped`. The legend's `[P/N]` form means selected
@@ -973,7 +973,7 @@ tribe panel. The configured prefix and subkeys are used by dispatch, the command
 palette, footers, and help.
 
 Query editing has two contextual scopes. `ace.keymaps.app.edit_query` controls PRs,
-Commits, Plans, and Axe and defaults to bare `/`.
+Stitches, Plans, and Axe and defaults to bare `/`.
 `ace.keymaps.modes.leader_mode.keys.edit_query` independently controls the Agents
 structured-query chord and defaults to `,/`; bare `/` on Agents starts inline metadata
 search. Help remains a leader action controlled by `leader_mode.keys.show_help` and

@@ -1,4 +1,4 @@
-"""Shared test data for the Artifacts Commits pane."""
+"""Shared test data for the Artifacts Stitches pane."""
 
 from __future__ import annotations
 

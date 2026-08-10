@@ -47,7 +47,7 @@ def _isolate_commits_current_project(monkeypatch: pytest.MonkeyPatch) -> None:
 def _isolate_commits_project_display_inventory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Keep Commits startup labels independent of the host project inventory."""
+    """Keep Stitches startup labels independent of the host project inventory."""
     monkeypatch.setattr(
         "sase.project_display_names.load_project_ref_display_snapshot",
         ProjectRefDisplaySnapshot,

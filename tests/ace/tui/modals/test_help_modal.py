@@ -22,7 +22,7 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     right = modal._build_right_column().plain
     combined = left + right
     assert "Artifact Views" in left
-    assert "Commits Pane" in left
+    assert "Stitches Pane" in left
     assert "Beads Pane" in left
     assert "Bugs Pane" in combined
     assert "Plans Pane" in combined

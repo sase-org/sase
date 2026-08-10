@@ -110,7 +110,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
         )
         for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1)
     ],
-    # Commits sub-tab actions.
+    # Stitches sub-tab actions.
     Binding("j", "stitches_next", "Next Commit", show=False),
     Binding("k", "stitches_prev", "Previous Commit", show=False),
     Binding("enter", "stitches_view_selected", "View Commit", show=False),
@@ -124,8 +124,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
         "Toggle All Projects",
         show=False,
     ),
-    Binding("F", "stitches_fetch", "Fetch Commits", show=False),
-    Binding("R", "stitches_refresh", "Refresh Commits", show=False),
+    Binding("F", "stitches_fetch", "Fetch Stitches", show=False),
+    Binding("R", "stitches_refresh", "Refresh Stitches", show=False),
     # Plans sub-tab actions.
     Binding("j", "plans_next", "Next Plan", show=False),
     Binding("k", "plans_prev", "Previous Plan", show=False),

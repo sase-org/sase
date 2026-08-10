@@ -93,18 +93,18 @@ Center when no third-party plugins are installed. Onboarding cards carry "learn 
 links into the published docs. An empty Beads pane points agents to `/sase_new_task`,
 calls out sized draft tasks, and explains how ready tasks enter TaskTriage.
 
-Within Artifacts, the top-level strip is numbered **1 Commits · 2 Beads · 3 Bugs · 4 PRs
-· 5 Files**. Press `1`–`5` to jump directly to a view, or use `[` / `]` to cycle. Files
-contains a second strip — **Plans · Chats · Other** — cycled with `(` / `)`. The nested
-selection is remembered when you leave Files. These keys act only while Artifacts is
-visible. Press `p` in Commits, Beads, Bugs, Plans, Chats, or Other to change the shared
-project scope, or use the command palette to jump directly to a top-level view. PRs
-remains query-scoped and retains the existing Patch workflow.
+Within Artifacts, the top-level strip is numbered **1 Stitches · 2 Beads · 3 Bugs · 4
+PRs · 5 Files**. Press `1`–`5` to jump directly to a view, or use `[` / `]` to cycle.
+Files contains a second strip — **Plans · Chats · Other** — cycled with `(` / `)`. The
+nested selection is remembered when you leave Files. These keys act only while Artifacts
+is visible. Press `p` in Stitches, Beads, Bugs, Plans, Chats, or Other to change the
+shared project scope, or use the command palette to jump directly to a top-level view.
+PRs remains query-scoped and retains the existing Patch workflow.
 
-### Navigation in Commits, Beads, Plans, Chats, Other, and Bugs
+### Navigation in Stitches, Beads, Plans, Chats, Other, and Bugs
 
 The six non-PR panes share fast navigation over their selectable left-panel entries.
-Commits, Chats, and Other skip day headings; Beads and Plans skip section and
+Stitches, Chats, and Other skip day headings; Beads and Plans skip section and
 empty-state rows; Bugs always targets the issue list rather than its separately
 focusable Linked work list. Movement clamps at the first or last entry and silently does
 nothing when a list is empty.
@@ -143,7 +143,7 @@ not. Changes that shift which row is where — refiltering the model picker, pag
 deleting in the revival modal — discard the stored origins instead of leaving them
 pointing at whatever row inherited the index.
 
-### Copy Mode in Commits, Beads, Plans, Chats, Other, and Bugs
+### Copy Mode in Stitches, Beads, Plans, Chats, Other, and Bugs
 
 Press `%` on any non-PR Artifacts pane to open the context-aware **Copy as…** palette
 for the visible entry. Rows are grouped by representation, show their configured
@@ -152,14 +152,14 @@ accelerator and a warm preview, and can be selected with the mouse, arrow keys o
 is configured as `j`, `k`, or `q`, the configured copy target wins over navigation or
 cancellation.
 
-| Pane    | Keys                                                                                                                                                              |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Commits | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan               |
-| Beads   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` id · `%t` title · `%b` description and notes · `%d` design          |
-| Plans   | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body |
-| Chats   | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                                 |
-| Other   | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt         |
-| Bugs    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt                    |
+| Pane     | Keys                                                                                                                                                              |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stitches | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan               |
+| Beads    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` id · `%t` title · `%b` description and notes · `%d` design          |
+| Plans    | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body |
+| Chats    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                                 |
+| Other    | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt         |
+| Bugs     | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt                    |
 
 `%s` captures the current `sase ace` tmux pane on every view.
 
@@ -179,7 +179,7 @@ including the preview panel. Dismissing the palette returns to the underlying mo
 Snapshot choices dismiss the palette before capture, so the palette itself is not
 included in the copied pane.
 
-### Marks in Commits, Beads, Plans, Chats, Other, and Bugs
+### Marks in Stitches, Beads, Plans, Chats, Other, and Bugs
 
 Press `m` to mark or unmark the selected entry and `u` to clear the active pane's marks.
 Each non-PR pane keeps an independent stable-target mark set, so marks survive refreshes
@@ -193,10 +193,10 @@ are capped at 512,000 bytes per item and per assembled payload, with an explicit
 truncation banner and toast. The footer shows the active pane's mark count only while
 that count is nonzero.
 
-### Filtering Commits, Beads, and Plans
+### Filtering Stitches, Beads, and Plans
 
-Commits keeps its effective canonical query visible above the timeline. Press `/` or the
-local `f` shortcut to focus that row for live editing; `Enter` commits the query and
+Stitches keeps its effective canonical query visible above the timeline. Press `/` or
+the local `f` shortcut to focus that row for live editing; `Enter` commits the query and
 returns focus to the timeline, while `Escape` restores the last committed query and
 result. The row remains visible in either case. Beads and Plans use the same live editor
 interaction, but show the input row only during an edit session. The Beads info line
@@ -205,7 +205,7 @@ default. Tokens from different facets combine with AND semantics; comma-separate
 repeated values within one facet combine with OR semantics. Free-text terms must all
 match. Press `Tab` to accept the highlighted key or value completion.
 
-Commits accepts singular `project:` plus `repo:`, `author:`, `since:`, `until:`,
+Stitches accepts singular `project:` plus `repo:`, `author:`, `since:`, `until:`,
 `sidecar:`, and `limit:` and free text matched against the commit subject. `project:` is
 not repeatable, comma-listable, or negatable because it selects the repository
 constellation before commits are collected. With no `project:` token, collection truly
@@ -238,7 +238,7 @@ not count as entries. A `+` on the denominator, as in `[1/40+]`, means the displ
 total is only a lower bound. The persistent filter row reports the corresponding
 coverage state (`exact`, `preview`, or `capped`) without repeating the match count.
 
-Commits queries are uncapped unless they include an explicit positive `limit:N`, so the
+Stitches queries are uncapped unless they include an explicit positive `limit:N`, so the
 bundled 24-hour query shows all matching commits. When an explicit limit may have
 omitted rows, the legend uses a lower-bound total such as `[1/40+]`, the filter row says
 `capped`, and `limit:40` remains visible in the persistent filter row and pane header.
@@ -258,7 +258,7 @@ stored states plus the derived `blocked`, `launched`, and `triage` states. `has:
 accepts `plan`, `bug`, `deps`, `notes`, and `triage`; free text matches the bead id,
 title, description, notes, design, references, and ownership metadata.
 
-A leading unquoted `-` excludes a match. Commits can exclude repositories, authors, and
+A leading unquoted `-` excludes a match. Stitches can exclude repositories, authors, and
 subject text; Beads and Plans can exclude their filter facets and free text. Exclusion
 wins when positive and negative constraints overlap: `repo:sase,plans -repo:plans`,
 `author:Ada -author:bot`, and `status:open -status:blocked` are all valid. A comma list
@@ -345,7 +345,7 @@ filter before landing on the row.
 
 ### Commit Detail and Linked Plans
 
-Press `Enter` on a Commits entry to open its full message and syntax-highlighted diff.
+Press `Enter` on a Stitches entry to open its full message and syntax-highlighted diff.
 The modal uses `j` / `k` for line scrolling, `Ctrl+D` / `Ctrl+U` for half pages, `g` /
 `G` for the ends, `y` to copy the full SHA, and `Esc` or `q` to close. When the current
 result contains multiple commits, `Ctrl+N` / `Ctrl+P` move through them with wraparound.
@@ -445,7 +445,7 @@ These are the default keymap values; the nine Chats actions are remappable under
 `chats_view_selected`, `chats_filters`, `chats_cycle_provenance`, `chats_open_agent`,
 `chats_open_external`, `chats_copy_path`, and `chats_refresh`. The pane also shares the
 navigation and jump keys described in
-[Navigation in Commits, Beads, Plans, Chats, Other, and Bugs](#navigation-in-commits-beads-plans-chats-other-and-bugs).
+[Navigation in Stitches, Beads, Plans, Chats, Other, and Bugs](#navigation-in-stitches-beads-plans-chats-other-and-bugs).
 
 `a` matches a transcript to an agent by artifact directory, then by raw name suffix,
 then by recorded local agent name, always within the transcript's own project. When
@@ -454,7 +454,7 @@ machine reports that it has no local agent artifact.
 
 #### Filtering Chats
 
-`f` opens the same live filter row Commits and Plans use, and like Plans it is visible
+`f` opens the same live filter row Stitches and Plans use, and like Plans it is visible
 only during an edit session. Results update as you type: `Enter` commits the query and
 returns focus to the list, `Escape` restores the last committed query and selection, and
 `Tab` accepts the highlighted key or value completion. An invalid query is reported
@@ -465,7 +465,7 @@ AND semantics, while comma-separated or repeated values within `provenance:`,
 `machine:`, `project:`, `agent:`, and `workflow:` combine with OR semantics.
 `provenance:` accepts only `local`, `shared`, `remote`, and `unknown`.
 
-Unlike Commits and Plans, **Chats filters do not support negation**; a leading `-` is
+Unlike Stitches and Plans, **Chats filters do not support negation**; a leading `-` is
 rejected with an explicit error rather than excluding a match.
 
 `s` and the `provenance:` token drive the same filter state, so the two controls stay
@@ -533,7 +533,7 @@ These are the default keymap values; the eleven Other-pane actions retain their
 `files_view_selected`, `files_open_viewer`, `files_open_external`, `files_open_agent`,
 `files_filters`, `files_cycle_kind`, `files_copy_reference`, `files_copy_path`, and
 `files_refresh`. The pane also shares the navigation and jump keys described in
-[Navigation in Commits, Beads, Plans, Chats, Other, and Bugs](#navigation-in-commits-beads-plans-chats-other-and-bugs).
+[Navigation in Stitches, Beads, Plans, Chats, Other, and Bugs](#navigation-in-stitches-beads-plans-chats-other-and-bugs).
 
 `Y` copies the anchored stored path, except that PDF rows deliberately yield the live
 Markdown source they were rendered from when the index recorded one. Relative index
@@ -2166,15 +2166,15 @@ cancels, with configured target keys taking precedence.
 ### Editing Queries
 
 Press `/` on PRs or Axe to open the current query editor; the canonical query is
-pre-filled. The same app-level key opens the inline filter bar on Commits, Plans, Chats,
-and Files and remains inert on Bugs. Agents reserves bare `/` for forward inline
+pre-filled. The same app-level key opens the inline filter bar on Stitches, Plans,
+Chats, and Files and remains inert on Bugs. Agents reserves bare `/` for forward inline
 metadata search, so its structured query editor uses the independent `,/` leader chord.
 Help remains `,?` on every tab.
 
 | Context                 | Default query key  |
 | ----------------------- | ------------------ |
 | PRs                     | `/`                |
-| Commits                 | `/` (or local `f`) |
+| Stitches                | `/` (or local `f`) |
 | Plans                   | `/` (or local `f`) |
 | Chats                   | `/` (or local `f`) |
 | Files                   | `/` (or local `f`) |
@@ -2201,7 +2201,7 @@ Press `*` on the PRs sub-tab to open the saved-query chooser instead. Press a po
 slot (`1`–`9`, then `0`), move with `j`/`k` or the arrow keys and press `Enter`, or
 click a row. `q`/`Esc` closes the chooser without changing the query. The chooser shows
 the saved query text and marks the active query; an empty chooser also repeats the save
-syntax. The chooser itself is unavailable from Agents, Axe, Commits, Plans, and Bugs.
+syntax. The chooser itself is unavailable from Agents, Axe, Stitches, Plans, and Bugs.
 
 ### Query History
 
@@ -2263,7 +2263,7 @@ effective binding and destination.
 Inside every working section, `'` is an Admin Center-wide entry-jump key: it paints
 adaptive hints over that section's selectable rows using the same hint alphabet
 described under
-[Navigation in Commits, Beads, Plans, Chats, Other, and Bugs](#navigation-in-commits-beads-plans-chats-other-and-bugs),
+[Navigation in Stitches, Beads, Plans, Chats, Other, and Bugs](#navigation-in-stitches-beads-plans-chats-other-and-bugs),
 a hint character moves the selection there, `'` again returns to the previous position
 (or the first hint with an empty back stack), and `Esc` cancels. Each working section's
 own keybindings table names its jump targets; two are deliberate exceptions. The
@@ -3680,7 +3680,7 @@ ace:
     app:
       next_patch: "n" # Remap j -> n
       prev_patch: "p" # Remap k -> p
-      edit_query: "f5" # PRs, Commits, Plans, and Axe
+      edit_query: "f5" # PRs, Stitches, Plans, and Axe
       show_notifications: "N" # Remap i → N
 ```
 

@@ -1,4 +1,4 @@
-"""Configuration resolution for the Artifacts commits pane."""
+"""Configuration resolution for the Artifacts Stitches pane."""
 
 from __future__ import annotations
 

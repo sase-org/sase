@@ -1,4 +1,4 @@
-"""Collection and snapshot coverage for the Artifacts Commits pane."""
+"""Collection and snapshot coverage for the Artifacts Stitches pane."""
 
 from __future__ import annotations
 

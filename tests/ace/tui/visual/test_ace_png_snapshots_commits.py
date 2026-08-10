@@ -1,4 +1,4 @@
-"""PNG visual coverage for the Artifacts Commits timeline and detail."""
+"""PNG visual coverage for the Artifacts Stitches timeline and detail."""
 
 from __future__ import annotations
 
@@ -130,8 +130,8 @@ async def test_commits_timeline_and_detail_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_commits_timeline_detail_120x40",
-            title="ACE Artifacts Commits timeline",
+            "artifacts_stitches_timeline_detail_120x40",
+            title="ACE Artifacts Stitches timeline",
         )
 
 
@@ -179,8 +179,8 @@ async def test_commits_merge_row_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_commits_merge_row_120x40",
-            title="ACE Artifacts Commits merge row",
+            "artifacts_stitches_merge_row_120x40",
+            title="ACE Artifacts Stitches merge row",
         )
 
 
@@ -216,8 +216,8 @@ async def test_commits_empty_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_commits_empty_120x40",
-            title="ACE Artifacts Commits empty",
+            "artifacts_stitches_empty_120x40",
+            title="ACE Artifacts Stitches empty",
         )
 
 
@@ -271,8 +271,8 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_commits_persistent_filter_80x24",
-            title="ACE Artifacts Commits persistent filter at 80x24",
+            "artifacts_stitches_persistent_filter_80x24",
+            title="ACE Artifacts Stitches persistent filter at 80x24",
         )
 
 
@@ -316,8 +316,8 @@ async def test_commits_jump_hints_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_commits_jump_hints_120x40",
-            title="ACE Artifacts Commits jump hints",
+            "artifacts_stitches_jump_hints_120x40",
+            title="ACE Artifacts Stitches jump hints",
         )
 
 
@@ -357,8 +357,8 @@ async def test_commits_filter_bar_prefilled_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_commits_filter_bar_prefilled_120x40",
-            title="ACE Artifacts Commits prefilled filter bar",
+            "artifacts_stitches_filter_bar_prefilled_120x40",
+            title="ACE Artifacts Stitches prefilled filter bar",
         )
 
 
@@ -390,8 +390,8 @@ async def test_commits_filter_completion_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_commits_filter_completion_120x40",
-            title="ACE Artifacts Commits project completion",
+            "artifacts_stitches_filter_completion_120x40",
+            title="ACE Artifacts Stitches project completion",
         )
 
 
@@ -436,8 +436,8 @@ async def test_commits_sidecar_filter_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_commits_sidecar_filter_120x40",
-            title="ACE Artifacts Commits sidecar filter",
+            "artifacts_stitches_sidecar_filter_120x40",
+            title="ACE Artifacts Stitches sidecar filter",
         )
 
 
@@ -478,8 +478,8 @@ async def test_commits_narrowed_filter_chips_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_commits_narrowed_filter_chips_120x40",
-            title="ACE Artifacts Commits narrowed filter chips",
+            "artifacts_stitches_narrowed_filter_chips_120x40",
+            title="ACE Artifacts Stitches narrowed filter chips",
         )
 
 
@@ -516,6 +516,6 @@ async def test_commits_filter_parse_error_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_commits_filter_parse_error_120x40",
-            title="ACE Artifacts Commits filter parse error",
+            "artifacts_stitches_filter_parse_error_120x40",
+            title="ACE Artifacts Stitches filter parse error",
         )

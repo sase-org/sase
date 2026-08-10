@@ -1,4 +1,4 @@
-"""Interaction and keymap coverage for the Artifacts Commits pane."""
+"""Interaction and keymap coverage for the Artifacts Stitches pane."""
 
 from __future__ import annotations
 

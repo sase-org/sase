@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 _ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
     "prs": "PRs",
-    "stitches": "Commits",
+    "stitches": "Stitches",
     "bugs": "Bugs",
     "beads": "Beads",
     "files": "Files",

@@ -3,7 +3,7 @@
 Run with ``pytest -s -m slow tests/ace/tui/bench_artifacts_jk.py``. The
 fixtures keep collection out of the measurement so the benchmark isolates
 highlight movement and the first paint, matching the interactive p95 budget.
-Commits uses a full 200-row uncapped result rather than the former 40-row
+Stitches uses a full 200-row uncapped result rather than the former 40-row
 default-cap subset.
 """
 

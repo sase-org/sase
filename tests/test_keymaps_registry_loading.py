@@ -298,11 +298,11 @@ def test_stitches_action_override_wins_over_legacy_commits_alias(
         reg = load_keymap_registry(
             {
                 "keymaps": {
-                    "app": {"commits_next": "B", "stitches_next": "minus"},
+                    "app": {"commits_next": "B", "stitches_next": "f24"},
                 }
             }
         )
-    assert reg.app.stitches_next == "minus"
+    assert reg.app.stitches_next == "f24"
     assert "deprecated" in caplog.text
     assert "ignored" in caplog.text
 

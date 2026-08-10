@@ -1,4 +1,4 @@
-"""Renderable builders for the Artifacts commits pane."""
+"""Renderable builders for the Artifacts Stitches pane."""
 
 from __future__ import annotations
 
@@ -58,10 +58,10 @@ def build_commits_info_header(
     refreshing: bool,
     active_limit: int | None = None,
 ) -> Text:
-    """Build the comparatively static first row of the Commits information area."""
+    """Build the comparatively static first row of the Stitches information area."""
     accent = ARTIFACTS_ACCENTS["stitches"]
     text = Text()
-    text.append(" Commits ", style=f"bold #1a1a1a on {accent}")
+    text.append(" Stitches ", style=f"bold #1a1a1a on {accent}")
     if active_limit is not None:
         text.append("  ", style="dim")
         text.append(f"limit:{active_limit}", style=f"bold {accent}")
@@ -130,7 +130,7 @@ def build_commits_legend(result: VcsLogResult | None) -> Text:
 
 
 def build_commits_hints(registry: KeymapRegistry) -> Text:
-    """Build the commits action hint bar from configured keymaps."""
+    """Build the Stitches action hint bar from configured keymaps."""
     actions = registry.app
     view_key = key_display_name(actions.stitches_view_selected)
     if view_key == "Enter":

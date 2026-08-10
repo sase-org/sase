@@ -54,7 +54,7 @@ class PatchQueryMixin:
         """
         # Saved queries are shown on the Artifacts tab's PRs sub-tab, so land
         # there even when called from another tab (e.g. an Agents keymap) or
-        # from the Artifacts tab on a non-PR sub-tab (e.g. Commits).
+        # from the Artifacts tab on a non-PR sub-tab (e.g. Stitches).
         on_prs_pane = (
             self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_subtab", "prs") == "prs"

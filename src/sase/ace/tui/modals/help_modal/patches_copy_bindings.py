@@ -28,7 +28,7 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
 
     return [
         (
-            f"Copy Mode · Commits ({d(cm.prefix)})",
+            f"Copy Mode · Stitches ({d(cm.prefix)})",
             [
                 (d(cm.prefix), "Open Copy as… palette"),
                 (

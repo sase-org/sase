@@ -1,4 +1,4 @@
-"""Composition and lifecycle for the Artifacts commits pane."""
+"""Composition and lifecycle for the Artifacts Stitches pane."""
 
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ class CommitsPane(
         self._cancel_worker(self._diff_worker)
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
-        """Use configured Commits actions in the pane's hint bar."""
+        """Use configured Stitches actions in the pane's hint bar."""
         self._registry = registry
         if self.is_mounted:
             self.query_one("#stitches-footer", Static).update(self._hints_text())
@@ -184,7 +184,7 @@ class CommitsPane(
             self._refresh_position_badge()
 
     def _refresh_position_badge(self) -> None:
-        """Refresh only the selection-dependent Commits chrome."""
+        """Refresh only the selection-dependent Stitches chrome."""
         if self.is_mounted:
             self.query_one("#stitches-position", Static).update(
                 self._build_position_badge()

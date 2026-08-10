@@ -197,7 +197,7 @@ configured/default sidecars and any materialized legacy separate SDD repository.
 Global discovery does not materialize missing workspaces. Sibling checkouts still appear
 as linked repositories of their owning projects; `--all --sdd` also includes every
 available sidecar from the registered projects. This CLI default is independent of the
-ACE Artifacts Commits pane's configurable persistent query.
+ACE Artifacts Stitches pane's configurable persistent query.
 
 Global discovery canonicalizes checkout paths, so a repository registered independently
 and linked from one or more projects is read and fetched only once. Registered project

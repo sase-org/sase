@@ -1,4 +1,4 @@
-"""Rendering and timeline contracts for the Artifacts Commits pane."""
+"""Rendering and timeline contracts for the Artifacts Stitches pane."""
 
 from __future__ import annotations
 

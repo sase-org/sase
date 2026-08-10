@@ -141,7 +141,7 @@ def init_late_startup_state(
         )
     except Exception:
         current_project = None
-        log.debug("Commits current-project inference failed", exc_info=True)
+        log.debug("Stitches current-project inference failed", exc_info=True)
     commits_startup_filter = merge_commits_startup_project(
         commits_default.values,
         explicit_project=self.artifacts_project_scope,

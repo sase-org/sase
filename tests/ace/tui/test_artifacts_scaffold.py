@@ -211,7 +211,7 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
         commits = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         assert (
             strip._build_content().plain
-            == " 1 COMMITS  │  2 Beads  │  3 Bugs  │  4 PRs  │  5 Files "
+            == " 1 STITCHES  │  2 Beads  │  3 Bugs  │  4 PRs  │  5 Files "
         )
 
         commits.set_class(True, "test-selection-state")
@@ -220,13 +220,13 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
         await page.expect_state("artifacts_subtab", "bugs")
         assert (
             strip._build_content().plain
-            == " 1 Commits  │  2 Beads  │  3 BUGS  │  4 PRs  │  5 Files "
+            == " 1 Stitches  │  2 Beads  │  3 BUGS  │  4 PRs  │  5 Files "
         )
         strip.post_message(PanelTabStrip.TabClicked("stitches"))
         await page.expect_state("artifacts_subtab", "stitches")
         assert (
             strip._build_content().plain
-            == " 1 COMMITS  │  2 Beads  │  3 Bugs  │  4 PRs  │  5 Files "
+            == " 1 STITCHES  │  2 Beads  │  3 Bugs  │  4 PRs  │  5 Files "
         )
 
         assert commits.first_activation_count == 1
@@ -262,7 +262,7 @@ async def test_first_artifacts_entry_activates_default_without_hidden_collection
         assert page.app.current_artifacts_subtab == "stitches"
         assert view.current_subtab == "stitches"
         assert switcher.current == ARTIFACTS_PANE_IDS["stitches"]
-        assert "1 COMMITS" in strip._build_content().plain
+        assert "1 STITCHES" in strip._build_content().plain
         assert commits.first_activation_count == 0
         assert commits.artifacts_active is False
         assert calls == []

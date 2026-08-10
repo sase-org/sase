@@ -51,9 +51,9 @@ class ArtifactsPrsPane(ArtifactsPaneLifecycle, Horizontal):
 
 _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {
     "stitches": (
-        "Commits",
+        "Stitches",
         "A cross-repository timeline with messages, tags, and diffs will live here.",
-        "The Commits pane is scaffolded and will load only when you open it.",
+        "The Stitches pane is scaffolded and will load only when you open it.",
     ),
     "bugs": (
         "Bugs",

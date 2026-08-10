@@ -1,4 +1,4 @@
-"""Filter behavior for the Artifacts Commits pane."""
+"""Filter behavior for the Artifacts Stitches pane."""
 
 from __future__ import annotations
 

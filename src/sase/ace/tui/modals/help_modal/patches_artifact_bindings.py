@@ -46,7 +46,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.pick_artifacts_project),
-                    "Pick; Commits rewrites project:",
+                    "Pick; Stitches rewrites project:",
                 ),
                 (
                     d(a.open_command_palette),
@@ -55,7 +55,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Commits Pane",
+            "Stitches Pane",
             [
                 (
                     f"{d(a.stitches_next)} / {d(a.stitches_prev)}",

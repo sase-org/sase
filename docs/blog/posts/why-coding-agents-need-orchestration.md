@@ -394,7 +394,7 @@ three top-level tabs:
 - **Agents**: live and recent agents, groups, tags, hidden rows, child workflow steps,
   prompt panels, transcript panels, artifact viewers, tool metadata, file panels,
   retry/fork/wait/kill actions, and model/provider badges.
-- **Artifacts**: Commits, Beads, Bugs, PRs, and Files top-level views, with Plans,
+- **Artifacts**: Stitches, Beads, Bugs, PRs, and Files top-level views, with Plans,
   Chats, and Other nested under Files. The PRs view owns Patch status, hooks, comments,
   mentor output, diffs, file deltas, mail/submit flows, rewind, revert, restore, and
   archive operations; Chats browses transcripts with local/shared/remote sync
