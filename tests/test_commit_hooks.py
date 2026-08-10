@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.workflows.commit.commit_hooks import (
+from sase.workflows.commit.command_hooks import (
     run_after_commit_hook,
     run_before_commit_hook,
 )
@@ -25,14 +25,14 @@ def test_run_commit_hook_uses_nested_phase_config(phase: str, tmp_path: Path) ->
     )
     with (
         patch(
-            "sase.workflows.commit.commit_hooks.load_merged_config",
+            "sase.workflows.commit.command_hooks.load_merged_config",
             return_value={"commit_hooks": {phase: "hook command"}},
         ),
         patch(
-            "sase.workflows.commit.commit_hooks._get_repo_root",
+            "sase.workflows.commit.command_hooks.get_repo_root",
             return_value=str(tmp_path),
         ) as get_repo_root,
-        patch("sase.workflows.commit.commit_hooks.subprocess.run", run),
+        patch("sase.workflows.commit.command_hooks.subprocess.run", run),
     ):
         hook = run_before_commit_hook if phase == "before" else run_after_commit_hook
         assert hook(str(nested)) is True
@@ -55,10 +55,10 @@ def test_run_commit_hook_uses_nested_phase_config(phase: str, tmp_path: Path) ->
 def test_run_commit_hook_skips_empty_commands(config: dict, tmp_path: Path) -> None:
     with (
         patch(
-            "sase.workflows.commit.commit_hooks.load_merged_config",
+            "sase.workflows.commit.command_hooks.load_merged_config",
             return_value=config,
         ),
-        patch("sase.workflows.commit.commit_hooks.subprocess.run") as run,
+        patch("sase.workflows.commit.command_hooks.subprocess.run") as run,
     ):
         assert run_before_commit_hook(str(tmp_path)) is True
 
@@ -76,14 +76,16 @@ def test_run_commit_hook_prints_phase_specific_output_tail(
     )
     with (
         patch(
-            "sase.workflows.commit.commit_hooks.load_merged_config",
+            "sase.workflows.commit.command_hooks.load_merged_config",
             return_value={"commit_hooks": {"after": "just fix"}},
         ),
         patch(
-            "sase.workflows.commit.commit_hooks._get_repo_root",
+            "sase.workflows.commit.command_hooks.get_repo_root",
             return_value=str(tmp_path),
         ),
-        patch("sase.workflows.commit.commit_hooks.subprocess.run", return_value=result),
+        patch(
+            "sase.workflows.commit.command_hooks.subprocess.run", return_value=result
+        ),
     ):
         assert run_after_commit_hook(str(tmp_path)) is False
 

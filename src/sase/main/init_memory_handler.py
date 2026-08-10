@@ -11,7 +11,7 @@ import sys
 from typing import TextIO
 
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
-from sase.workflows.commit.commit_hooks import run_before_commit_hook
+from sase.workflows.commit.command_hooks import run_before_commit_hook
 
 from ._init_chezmoi_deploy import (
     ChezmoiDeployBehavior,

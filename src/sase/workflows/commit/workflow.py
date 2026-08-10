@@ -24,11 +24,12 @@ from sase.workflows.commit.commit_tracking import (
     resolve_project_file,
     write_result_marker,
 )
-from sase.workflows.commit.commit_hooks import (
+from sase.workflows.commit.bead_hooks import (
     apply_bead_commit_tag,
     close_task_bead_after_commit,
     handle_beads,
-    handle_sase_plan,
+)
+from sase.workflows.commit.command_hooks import (
     run_after_commit_hook,
     run_before_commit_hook,
 )
@@ -36,6 +37,7 @@ from sase.workflows.commit.message_validation import (
     check_commit_message,
     load_commit_message_policy,
 )
+from sase.workflows.commit.plan_hooks import handle_sase_plan
 from sase.workflows.commit.pr_operations import (
     append_pr_tags,
     apply_project_pr_prefix,

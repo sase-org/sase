@@ -9,15 +9,16 @@ import pytest
 
 from sase.sdd.committed_plan_validation import _CommittedPlanValidationError
 from sase.sdd.store import write_sdd_store_record
-from sase.workflows.commit.commit_hooks import (
+from sase.workflows.commit.bead_hooks import (
     close_task_bead_after_commit,
     handle_beads,
-    handle_sase_plan,
 )
+from sase.workflows.commit.plan_hooks import handle_sase_plan
 from tests.sdd_policy_helpers import patched_sdd_policy
 
-_CONFIG_TARGET = "sase.workflows.commit.commit_hooks.load_merged_config"
-_GET_REPO_ROOT_TARGET = "sase.workflows.commit.commit_hooks._get_repo_root"
+_CONFIG_TARGET = "sase.workflows.commit.command_hooks.load_merged_config"
+_BEAD_REPO_ROOT_TARGET = "sase.workflows.commit.bead_hooks.get_repo_root"
+_PLAN_REPO_ROOT_TARGET = "sase.workflows.commit.plan_hooks.get_repo_root"
 
 
 def _init_git_repo(path: Path) -> None:
@@ -59,7 +60,7 @@ class TestHandleSasePlan:
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patched_sdd_policy("in_tree"),
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch(_PLAN_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
         ):
             handle_sase_plan(payload, str(repo_dir))
@@ -83,7 +84,7 @@ class TestHandleSasePlan:
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patched_sdd_policy("in_tree"),
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch(_PLAN_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("sase.sdd.files.get_yyyymm", return_value="202608"),
             patch(
                 "sase.file_references.format_with_prettier",
@@ -110,7 +111,7 @@ class TestHandleSasePlan:
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patched_sdd_policy("in_tree"),
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch(_PLAN_REPO_ROOT_TARGET, return_value=str(repo_dir)),
         ):
             handle_sase_plan(payload, str(repo_dir))
 
@@ -137,7 +138,7 @@ class TestHandleSasePlan:
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patched_sdd_policy("local"),
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch(_PLAN_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
             patch(
                 "sase.sdd.files.commit_sdd_store_files",
@@ -191,7 +192,7 @@ class TestHandleSasePlan:
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch(_PLAN_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch(
                 "sase.sdd.files.commit_sdd_store_files",
                 side_effect=capture_committed_plan,
@@ -432,7 +433,7 @@ class TestHandleSasePlan:
                 {"SASE_PLAN": "/nonexistent/my_plan.md"},
             ),
             patched_sdd_policy("in_tree"),
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch(_PLAN_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("os.path.expanduser", return_value=str(tmp_path)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
         ):
@@ -459,7 +460,7 @@ class TestHandleSasePlan:
                 {"SASE_PLAN": "/nonexistent/my_plan.md"},
             ),
             patched_sdd_policy("local"),
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch(_PLAN_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("os.path.expanduser", return_value=str(tmp_path)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
             patch("sase.sdd.files.commit_sdd_store_files") as mock_commit,
@@ -486,7 +487,7 @@ class TestHandleSasePlan:
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patched_sdd_policy("in_tree"),
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch(_PLAN_REPO_ROOT_TARGET, return_value=str(repo_dir)),
         ):
             handle_sase_plan(payload, str(repo_dir))
 
@@ -509,7 +510,7 @@ class TestHandleSasePlan:
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patched_sdd_policy("in_tree"),
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch(_PLAN_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
         ):
             handle_sase_plan(payload, str(repo_dir))
@@ -552,7 +553,7 @@ class TestHandleBeads:
     ) -> None:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
         with patch(
-            "sase.workflows.commit.commit_hooks.subprocess.run",
+            "sase.workflows.commit.bead_hooks.subprocess.run",
             side_effect=FileNotFoundError,
         ):
             handle_beads(payload, str(tmp_path))
@@ -565,11 +566,11 @@ class TestHandleBeads:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
         with (
             patch(
-                "sase.workflows.commit.commit_hooks.subprocess.run",
+                "sase.workflows.commit.bead_hooks.subprocess.run",
                 side_effect=[_show_result("in_progress"), _SYNC_RESULT],
             ) as run,
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(tmp_path)),
-            patch("sase.workflows.commit.commit_hooks.print_status") as print_status,
+            patch(_BEAD_REPO_ROOT_TARGET, return_value=str(tmp_path)),
+            patch("sase.workflows.commit.bead_hooks.print_status") as print_status,
         ):
             handle_beads(payload, str(tmp_path))
 
@@ -585,15 +586,15 @@ class TestHandleBeads:
         payload = {"message": "fix: bug\n\nBody", "bead_id": "B-123"}
         with (
             patch(
-                "sase.workflows.commit.commit_hooks.subprocess.run",
+                "sase.workflows.commit.bead_hooks.subprocess.run",
                 side_effect=[_show_result("in_progress"), _CLOSE_RESULT],
             ) as run,
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(tmp_path)),
+            patch(_BEAD_REPO_ROOT_TARGET, return_value=str(tmp_path)),
             patch(
-                "sase.workflows.commit.commit_hooks._resolve_short_head",
+                "sase.workflows.commit.bead_hooks._resolve_short_head",
                 return_value="abc123",
             ),
-            patch("sase.workflows.commit.commit_hooks.print_status") as print_status,
+            patch("sase.workflows.commit.bead_hooks.print_status") as print_status,
         ):
             assert close_task_bead_after_commit(
                 payload, str(tmp_path), method="create_commit"
@@ -626,7 +627,7 @@ class TestHandleBeads:
     ) -> None:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
         with patch(
-            "sase.workflows.commit.commit_hooks.subprocess.run",
+            "sase.workflows.commit.bead_hooks.subprocess.run",
             side_effect=[_show_result("in_progress", issue_type)],
         ) as run:
             assert not close_task_bead_after_commit(
@@ -643,7 +644,7 @@ class TestHandleBeads:
     ) -> None:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
         with patch(
-            "sase.workflows.commit.commit_hooks.subprocess.run",
+            "sase.workflows.commit.bead_hooks.subprocess.run",
             side_effect=[_show_result(status)],
         ) as run:
             assert not close_task_bead_after_commit(
@@ -659,7 +660,7 @@ class TestHandleBeads:
             "do_not_close_bead": True,
         }
         with patch(
-            "sase.workflows.commit.commit_hooks.subprocess.run",
+            "sase.workflows.commit.bead_hooks.subprocess.run",
             side_effect=[_show_result("in_progress")],
         ) as run:
             assert not close_task_bead_after_commit(
@@ -677,12 +678,12 @@ class TestHandleBeads:
         payload = {"message": "docs: mark plan done", "bead_id": "B-123"}
         with (
             patch(
-                "sase.workflows.commit.commit_hooks.subprocess.run",
+                "sase.workflows.commit.bead_hooks.subprocess.run",
                 side_effect=[_show_result("in_progress"), _SYNC_RESULT],
             ) as run,
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(sidecar)),
+            patch(_BEAD_REPO_ROOT_TARGET, return_value=str(sidecar)),
             patch.dict("os.environ", {"SASE_SDD_PLANS_DIR": str(sidecar)}),
-            patch("sase.workflows.commit.commit_hooks.print_status") as print_status,
+            patch("sase.workflows.commit.bead_hooks.print_status") as print_status,
         ):
             handle_beads(payload, str(sidecar))
 
@@ -703,10 +704,10 @@ class TestHandleBeads:
 
         with (
             patch(
-                "sase.workflows.commit.commit_hooks.subprocess.run",
+                "sase.workflows.commit.bead_hooks.subprocess.run",
                 side_effect=[_show_result("in_progress")],
             ) as run,
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(linked)),
+            patch(_BEAD_REPO_ROOT_TARGET, return_value=str(linked)),
             patch.dict("os.environ", {"SASE_LINKED_REPOS_JSON": linked_json}),
         ):
             assert not close_task_bead_after_commit(
@@ -722,10 +723,10 @@ class TestHandleBeads:
 
         with (
             patch(
-                "sase.workflows.commit.commit_hooks.subprocess.run",
+                "sase.workflows.commit.bead_hooks.subprocess.run",
                 side_effect=[_show_result("in_progress")],
             ) as run,
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(sidecar)),
+            patch(_BEAD_REPO_ROOT_TARGET, return_value=str(sidecar)),
             patch.dict("os.environ", {"SASE_SDD_PLANS_DIR": str(sidecar)}),
         ):
             assert not close_task_bead_after_commit(
@@ -741,15 +742,15 @@ class TestHandleBeads:
         )
         with (
             patch(
-                "sase.workflows.commit.commit_hooks.subprocess.run",
+                "sase.workflows.commit.bead_hooks.subprocess.run",
                 side_effect=[_show_result("in_progress"), close_failed],
             ),
-            patch(_GET_REPO_ROOT_TARGET, return_value=str(tmp_path)),
+            patch(_BEAD_REPO_ROOT_TARGET, return_value=str(tmp_path)),
             patch(
-                "sase.workflows.commit.commit_hooks._resolve_short_head",
+                "sase.workflows.commit.bead_hooks._resolve_short_head",
                 return_value="abc123",
             ),
-            patch("sase.workflows.commit.commit_hooks.print_status") as print_status,
+            patch("sase.workflows.commit.bead_hooks.print_status") as print_status,
         ):
             assert not close_task_bead_after_commit(
                 payload, str(tmp_path), method="create_commit"
@@ -766,10 +767,10 @@ class TestHandleBeads:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
         with (
             patch(
-                "sase.workflows.commit.commit_hooks.subprocess.run",
+                "sase.workflows.commit.bead_hooks.subprocess.run",
                 side_effect=[_show_result("closed"), _SYNC_RESULT],
             ),
-            patch("sase.workflows.commit.commit_hooks.print_status") as print_status,
+            patch("sase.workflows.commit.bead_hooks.print_status") as print_status,
         ):
             handle_beads(payload, str(tmp_path))
 
@@ -790,10 +791,10 @@ class TestHandleBeads:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
         with (
             patch(
-                "sase.workflows.commit.commit_hooks.subprocess.run",
+                "sase.workflows.commit.bead_hooks.subprocess.run",
                 side_effect=[show, _SYNC_RESULT],
             ) as run,
-            patch("sase.workflows.commit.commit_hooks.print_status") as print_status,
+            patch("sase.workflows.commit.bead_hooks.print_status") as print_status,
         ):
             handle_beads(payload, str(tmp_path))
 
@@ -806,7 +807,7 @@ class TestHandleBeads:
         (tmp_path / "sdd/beads").mkdir(parents=True)
         payload = {"message": "Fix bug"}
         with patch(
-            "sase.workflows.commit.commit_hooks.subprocess.run",
+            "sase.workflows.commit.bead_hooks.subprocess.run",
         ) as mock_run:
             handle_beads(payload, str(tmp_path))
 
@@ -821,7 +822,7 @@ class TestHandleBeads:
         (tmp_path / "sase/repos/beads").mkdir(parents=True)
         payload = {"message": "Fix bug"}
         with patch(
-            "sase.workflows.commit.commit_hooks.subprocess.run",
+            "sase.workflows.commit.bead_hooks.subprocess.run",
         ) as mock_run:
             handle_beads(payload, str(tmp_path))
 

@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 from sase.git_lock_retry import run_with_git_lock_retry
-from sase.workflows.commit.commit_hooks import run_before_commit_hook
+from sase.workflows.commit.command_hooks import run_before_commit_hook
 
 from .init_plan import InitAction, InitPlan
 from .init_project_scope import is_project_directory
