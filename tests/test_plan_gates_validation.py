@@ -77,6 +77,28 @@ def test_require_plan_approval_validation_rejects_malformed_header_block(
     assert "trailing text in PARENT plan header section" in str(error)
 
 
+def test_require_plan_approval_validation_launch_normalizes_legacy_tale_size(
+    gate_home: Path,
+) -> None:
+    plan = write_plan(
+        gate_home,
+        "legacy-tale.md",
+        VALID_TALE_PLAN.replace("size: small\n", ""),
+    )
+
+    validation = require_plan_approval_validation(plan, "tale")
+
+    assert validation.ok
+    assert [diagnostic.severity.value for diagnostic in validation.diagnostics] == [
+        "warning"
+    ]
+    assert [diagnostic.code for diagnostic in validation.diagnostics] == [
+        "tale-size-missing"
+    ]
+    assert validation.plan is not None
+    assert validation.plan.size == "medium"
+
+
 def test_plan_toctou_and_unregistered_command_contract_are_rejected(
     gate_home: Path,
 ) -> None:

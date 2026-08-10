@@ -262,11 +262,14 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
         (
             "sase_plan",
             (
+                "sase memory read sase_sizes.md",
                 "Use `tale`",
                 "Use `epic`",
                 "unique slug ID",
+                "Authoring a tale plan is `large` work",
                 "`tier: <tier>`",
                 "`<tier>` is either `tale` or `epic`",
+                "Tale frontmatter must declare `size: xsmall | small | medium`",
                 "sase plan validate sase_plan_<name>.md --explain",
                 "sase plan validate sase_plan_<name>.md",
                 "expected schema and all diagnostics",

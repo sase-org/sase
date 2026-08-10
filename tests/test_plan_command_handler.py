@@ -197,6 +197,37 @@ def test_plan_command_accepts_valid_epic(
     assert (artifacts_dir / ".sase_plan_pending").is_file()
 
 
+def test_plan_command_rejects_legacy_sizeless_tale_in_authoring_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``sase plan propose`` keeps authoring strict for new tale plans."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    content = VALID_TALE.replace("size: small\n", "")
+    plan_file = tmp_path / "legacy-tale.md"
+    plan_file.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    with (
+        patch("sase.main.plan_propose_handler.kill_agent_runner_group") as kill_mock,
+        patch("sase.file_references.format_with_prettier") as format_mock,
+    ):
+        assert _invoke_plan(plan_file) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "error [tale-size-missing]" in captured.err.lower()
+    assert "Expected tale frontmatter schema" in captured.err
+    assert plan_file.read_text(encoding="utf-8") == content
+    assert not (artifacts_dir / ".sase_plan_pending").exists()
+    format_mock.assert_not_called()
+    kill_mock.assert_not_called()
+
+
 @pytest.mark.parametrize(
     ("content", "auto_action", "expected_tier", "expected_code"),
     [

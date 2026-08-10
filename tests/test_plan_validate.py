@@ -107,6 +107,36 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
     ]
 
 
+@pytest.mark.parametrize("size", ["xsmall", "small", "medium"])
+def test_facade_accepts_canonical_direct_tale_sizes(size: str) -> None:
+    result = validate_plan(VALID_TALE.replace("size: small", f"size: {size}"), "tale")
+
+    assert result.ok
+    assert result.plan is not None
+    assert result.plan.size == size
+
+
+def test_tale_size_is_required_for_authoring_and_legacy_safe_for_launch() -> None:
+    legacy = VALID_TALE.replace("size: small\n", "")
+
+    authoring = validate_plan(legacy, "tale")
+    launch = validate_plan(legacy, "tale", mode="launch")
+
+    assert not authoring.ok
+    assert [diagnostic.code for diagnostic in authoring.diagnostics] == [
+        "tale-size-missing"
+    ]
+    assert launch.ok
+    assert [diagnostic.severity for diagnostic in launch.diagnostics] == [
+        PlanDiagnosticSeverity.WARNING
+    ]
+    assert [diagnostic.code for diagnostic in launch.diagnostics] == [
+        "tale-size-missing"
+    ]
+    assert launch.plan is not None
+    assert launch.plan.size == "medium"
+
+
 def test_legacy_parent_is_accepted_with_migration_warning() -> None:
     content = VALID_TALE.replace(
         "goal: Ship strict plan validation\n",
@@ -332,7 +362,7 @@ def test_valid_human_output_and_quiet_mode(
     assert _invoke([str(plan)]) == 0
     captured = capsys.readouterr()
     assert "Validation passed" in captured.out
-    assert "valid tale plan" in captured.out
+    assert " ".join(captured.out.split()).endswith("is a valid tale plan (0 warnings).")
     assert captured.err == ""
 
     assert _invoke([str(plan), "--quiet"]) == 0
@@ -344,6 +374,21 @@ def test_valid_human_output_and_quiet_mode(
     captured = capsys.readouterr()
     assert captured.out == f"{TALE_PLAN_EXPLANATION}\n"
     assert captured.err == ""
+
+
+def test_plan_validate_rejects_legacy_sizeless_tale_in_authoring_mode(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plan = tmp_path / "legacy-tale.md"
+    plan.write_text(VALID_TALE.replace("size: small\n", ""), encoding="utf-8")
+
+    assert _invoke([str(plan)]) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert f"{plan}:1: error [tale-size-missing]" in captured.err
+    assert "Expected tale frontmatter schema" in captured.err
 
 
 def test_valid_epic_and_json_quiet_mode(

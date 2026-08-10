@@ -142,12 +142,12 @@ def _validate_plan_for_approval(
 
     authored_tier = read_plan_tier(plan_path)
     if authored_tier is None or authored_tier == tier:
-        return validate_plan_file(plan_path, tier)
+        return validate_plan_file(plan_path, tier, mode="launch")
 
     try:
         content = plan_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
-        return validate_plan_file(plan_path, tier)
+        return validate_plan_file(plan_path, tier, mode="launch")
     target_content, replacements = re.subn(
         r"(?m)^tier[ \t]*:.*$",
         f"tier: {tier}",
@@ -155,17 +155,8 @@ def _validate_plan_for_approval(
         count=1,
     )
     if replacements != 1:
-        return validate_plan_file(plan_path, tier)
-    if tier == "tale":
-        from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
-
-        frontmatter, _body, had_frontmatter = parse_frontmatter(target_content)
-        if had_frontmatter and "size" not in frontmatter:
-            target_content = set_frontmatter_fields(
-                target_content,
-                {"size": "medium"},
-            )
-    return validate_plan(target_content, tier)
+        return validate_plan_file(plan_path, tier, mode="launch")
+    return validate_plan(target_content, tier, mode="launch")
 
 
 def _approval_diagnostic_text(plan_path: Path, diagnostic: Any) -> str:
