@@ -1,11 +1,13 @@
 """Tests for approved plan follow-up metadata."""
 
+import json
 from datetime import UTC, datetime
 from unittest.mock import call, patch
 
 import pytest
 
 from sase.axe.run_agent_exec_plan import handle_plan_marker
+from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec_plan_accept import _accepted_plan_action_for_meta
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.xprompt._exceptions import DirectiveError
@@ -235,6 +237,83 @@ class TestPlanFollowupMetadata:
         assert meta_updates.get("model") == "gpt-5.6-sol"
         assert meta_updates.get("llm_provider") == "codex"
         assert state.current_prompt.startswith("%model:@small_worker\n")
+
+    def test_followup_model_meta_records_size_alias(self, tmp_path) -> None:
+        """The metadata rewrite records the alias that produced the model."""
+        state = make_state(tmp_path)
+        followup_dir = tmp_path / "followup"
+        followup_dir.mkdir()
+        (followup_dir / "agent_meta.json").write_text(
+            json.dumps({"model_alias": "planner_alias"}),
+            encoding="utf-8",
+        )
+        state.current_artifacts_dir = str(followup_dir)
+
+        def update_meta(artifacts_dir: str, key: str, value: object) -> None:
+            meta_path = tmp_path / "followup" / "agent_meta.json"
+            assert artifacts_dir == str(followup_dir)
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            meta[key] = value
+            meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+        with (
+            patch.object(
+                accept_mod,
+                "update_agent_artifact_index_for_marker_mutation",
+                lambda _path: None,
+            ),
+            patch.object(accept_mod, "update_meta_field", update_meta),
+        ):
+            accept_mod._write_followup_model_meta(
+                state,
+                accept_mod._FollowupModel(
+                    model_prefix="%model:@small_worker\n",
+                    meta=("codex", "gpt-5.6-sol"),
+                    model_alias="small_worker",
+                ),
+            )
+
+        meta = json.loads((followup_dir / "agent_meta.json").read_text())
+        assert meta["model_alias"] == "small_worker"
+
+    def test_followup_model_meta_clears_alias_for_concrete_model(
+        self, tmp_path
+    ) -> None:
+        """A concrete coder model must not inherit the planner's alias chip."""
+        state = make_state(tmp_path)
+        followup_dir = tmp_path / "followup"
+        followup_dir.mkdir()
+        (followup_dir / "agent_meta.json").write_text(
+            json.dumps({"model_alias": "planner_alias"}),
+            encoding="utf-8",
+        )
+        state.current_artifacts_dir = str(followup_dir)
+
+        def update_meta(artifacts_dir: str, key: str, value: object) -> None:
+            meta_path = tmp_path / "followup" / "agent_meta.json"
+            assert artifacts_dir == str(followup_dir)
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            meta[key] = value
+            meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+        with (
+            patch.object(
+                accept_mod,
+                "update_agent_artifact_index_for_marker_mutation",
+                lambda _path: None,
+            ),
+            patch.object(accept_mod, "update_meta_field", update_meta),
+        ):
+            accept_mod._write_followup_model_meta(
+                state,
+                accept_mod._FollowupModel(
+                    model_prefix="%model:claude/opus\n",
+                    meta=("claude", "opus"),
+                ),
+            )
+
+        meta = json.loads((followup_dir / "agent_meta.json").read_text())
+        assert "model_alias" not in meta
 
     def test_epic_meta_is_left_to_host_without_creator_model(self, tmp_path) -> None:
         """The agent leaves launch metadata to the detached host task."""

@@ -167,6 +167,10 @@ class AgentState:
     # uniform suffix on the Model field across every provider.
     reasoning_effort: str | None = None
 
+    # Bare launch-time alias recorded when %model:@<alias> was used. Rendered
+    # as a provenance chip and never re-resolved at display time.
+    model_alias: str | None = None
+
     # VCS provider display name (e.g., "GitHub", "Mercurial")
     vcs_provider: str | None = None
 

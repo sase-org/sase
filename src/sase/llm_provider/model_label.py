@@ -1,34 +1,54 @@
-"""Uniform ``Model: PROVIDER(model) @ <effort>`` Rich rendering.
+"""Uniform ``Model: PROVIDER(model) @ <effort> ← @<alias>`` Rich rendering.
 
 Shared by the ACE TUI agent panels and the ``sase agent show`` CLI so the
 effective model / provider / reasoning-effort reads identically regardless of
-which surface renders it. This module is intentionally free of Textual imports
-so lightweight CLI paths can render the same label without paying the TUI
-import cost.
+which surface renders it. Alias provenance is a launch-time fact recorded in
+metadata and never re-resolved here. This module is intentionally free of
+Textual imports so lightweight CLI paths can render the same label without
+paying the TUI import cost.
 """
 
 from __future__ import annotations
 
 from rich.text import Text
 
+MODEL_ALIAS_REFERENCE_STYLE = "bold #87D7FF"
+MODEL_ALIAS_CONNECTIVE_STYLE = "dim #9E9E9E"
+
+
+def _append_model_alias_provenance(value: Text, model_alias: str | None) -> None:
+    """Append the launch-time alias provenance chip, when present."""
+    if not model_alias:
+        return
+    value.append(" ← ", style=MODEL_ALIAS_CONNECTIVE_STYLE)
+    value.append(
+        f"@{model_alias.lstrip('@')}",
+        style=MODEL_ALIAS_REFERENCE_STYLE,
+    )
+
 
 def model_value_text(
     model: str | None,
     llm_provider: str | None,
     reasoning_effort: str | None = None,
+    model_alias: str | None = None,
 ) -> Text | None:
-    """Return the styled ``PROVIDER(model) @ <effort>`` value, or None.
+    """Return the styled ``PROVIDER(model) @ <effort> ← @<alias>`` value.
 
     Format: ``PROVIDER(model)`` with provider-specific colors, plus a uniform
     ``@ <effort>`` suffix (identical across every provider) when an effective
-    reasoning effort is set. Falls back to plain model display when the
-    provider is unknown.
+    reasoning effort is set, plus ``← @<alias>`` when metadata recorded that
+    the launch used a model alias. Alias provenance is rendered verbatim and
+    never re-resolved. Falls back to plain model display when the provider is
+    unknown.
 
     Args:
         model: Model name string (e.g., "opus", "gemini-3.6-flash-high").
         llm_provider: Provider name (e.g., "claude", "agy"), or None.
         reasoning_effort: Effective reasoning-effort level (e.g. "xhigh"), or
             None to omit the suffix.
+        model_alias: Bare launch-time alias name, or None to omit the
+            provenance chip.
 
     Returns:
         The styled value, or None when ``model`` is falsy.
@@ -106,6 +126,7 @@ def model_value_text(
     if reasoning_effort:
         value.append(" @ ", style="#878787")
         value.append(reasoning_effort, style="bold #AF87FF")
+    _append_model_alias_provenance(value, model_alias)
 
     return value
 
@@ -115,6 +136,7 @@ def append_model_field(
     model: str | None,
     llm_provider: str | None,
     reasoning_effort: str | None = None,
+    model_alias: str | None = None,
 ) -> None:
     """Append the Model field with provider-themed styling.
 
@@ -124,8 +146,10 @@ def append_model_field(
         llm_provider: Provider name (e.g., "claude", "agy"), or None.
         reasoning_effort: Effective reasoning-effort level (e.g. "xhigh"), or
             None to omit the suffix.
+        model_alias: Bare launch-time alias name, or None to omit the
+            provenance chip.
     """
-    value = model_value_text(model, llm_provider, reasoning_effort)
+    value = model_value_text(model, llm_provider, reasoning_effort, model_alias)
     if value is None:
         return
     header_text.append("Model: ", style="bold #87D7FF")

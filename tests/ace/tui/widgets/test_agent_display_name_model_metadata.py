@@ -129,6 +129,18 @@ class TestAgentModelMetadata:
 
         assert "Model: CLAUDE(opus)\n" in header.plain
 
+    def test_top_level_agent_renders_model_alias_chip(self) -> None:
+        agent = make_agent(
+            model="opus",
+            llm_provider="claude",
+            reasoning_effort="xhigh",
+            model_alias="medium_worker",
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Model: CLAUDE(opus) @ xhigh ← @medium_worker\n" in header.plain
+
 
 class TestFamilyModelMetadata:
     def test_family_container_header_shows_one_lane_per_member_in_order(self) -> None:
@@ -150,6 +162,38 @@ class TestFamilyModelMetadata:
         code_index = header.plain.index("--code")
         reviewer_index = header.plain.index("--reviewer")
         assert model_index < code_index < reviewer_index
+
+    def test_family_container_header_shows_alias_chips_per_lane(self) -> None:
+        agent = _family(
+            _family_root(
+                model="opus",
+                llm_provider="claude",
+                reasoning_effort="xhigh",
+                model_alias="large_worker",
+            ),
+            _family_member(
+                "--code",
+                "code",
+                model="sonnet",
+                llm_provider="claude",
+                reasoning_effort="high",
+                model_alias="medium_worker",
+            ),
+            _family_member(
+                "--reviewer", "reviewer", model="gpt-5.2", llm_provider="codex"
+            ),
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert (
+            "Model: --plan     · CLAUDE(opus) @ xhigh ← @large_worker\n" in header.plain
+        )
+        assert (
+            "       --code     · CLAUDE(sonnet) @ high ← @medium_worker\n"
+            in header.plain
+        )
+        assert "       --reviewer · CODEX(gpt-5.2)\n" in header.plain
 
     def test_model_still_sits_between_auto_and_xprompts_for_family_row(self) -> None:
         agent = _family(

@@ -78,6 +78,8 @@ def enrich_agent_from_meta(
         agent.llm_provider = data["llm_provider"]
     if data.get("reasoning_effort"):
         agent.reasoning_effort = data["reasoning_effort"]
+    if data.get("model_alias"):
+        agent.model_alias = data["model_alias"]
     if data.get("vcs_provider"):
         agent.vcs_provider = data["vcs_provider"]
     if data.get("workspace_dir"):

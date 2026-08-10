@@ -403,7 +403,11 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append(f"{agent.status}\n", style=status_style)
 
         append_model_field(
-            text, agent.model, agent.llm_provider, agent.reasoning_effort
+            text,
+            agent.model,
+            agent.llm_provider,
+            agent.reasoning_effort,
+            agent.model_alias,
         )
 
         if agent.vcs_provider:

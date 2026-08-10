@@ -69,6 +69,11 @@ class ScriptStepMixin:
         hidden: bool = False,
         output_types: dict[str, str] | None = None,
         embedded_workflow_name: str | None = None,
+        response_path: str | None = None,
+        model: str | None = None,
+        llm_provider: str | None = None,
+        reasoning_effort: str | None = None,
+        model_alias: str | None = None,
     ) -> None:
         """Save a marker file for prompt steps to track them in the TUI."""
         raise NotImplementedError

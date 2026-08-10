@@ -376,17 +376,20 @@ field in the family root's detail-panel header expands into one lane per member 
 of a single value:
 
 ```text
-Model:  --plan    · CLAUDE(opus) @ high
-        --code    · CODEX(gpt-5.1-codex)
+Model:  --plan    · CLAUDE(opus) @ high ← @large_worker
+        --code    · CODEX(gpt-5.1-codex) ← @medium_worker
         --review  · default
 ```
 
-Each lane's value uses the same `PROVIDER(model) @ <effort>` rendering as every other
-SASE surface — the single-agent panel and `sase agent show` included — so one reading
-habit covers all of them. Member labels are the `--<suffix>` labels from the
-`FAMILY MEMBERS` roster, padded to one aligned value column, and a member with no
-recorded model renders a dim `default`. Long values wrap beneath that column rather than
-pushing the layout wide. At most 12 lanes are shown; a larger family adds a dim
+Each lane's value uses the same `PROVIDER(model) @ <effort> ← @<alias>` rendering as
+every other SASE surface — the single-agent panel and `sase agent show` included — so
+one reading habit covers all of them. The `← @<alias>` chip appears only when the member
+was launched with an `@` model alias, and it is launch-time provenance: completed runs
+keep showing the alias that launched them even if that alias is later retargeted or
+deleted. Member labels are the `--<suffix>` labels from the `FAMILY MEMBERS` roster,
+padded to one aligned value column, and a member with no recorded model renders a dim
+`default`. Long values wrap beneath that column rather than pushing the layout wide. At
+most 12 lanes are shown; a larger family adds a dim
 `… +N more members (see FAMILY MEMBERS)` tail. The lanes are not part of the two-level
 fold scale — they read the same at level 1 and level 2. A family that projects to fewer
 than two concrete members, and every ordinary single agent, keeps the original one-line

@@ -285,7 +285,11 @@ def _append_model_fields(
     lanes = build_family_model_lanes(agent)
     if not lanes:
         append_model_field(
-            text, agent.model, agent.llm_provider, agent.reasoning_effort
+            text,
+            agent.model,
+            agent.llm_provider,
+            agent.reasoning_effort,
+            agent.model_alias,
         )
         return None
     section = ResponsiveModelSection(

@@ -119,3 +119,36 @@ class TestPlanFollowupModelSelection:
         assert state.current_prompt.startswith("%model:sonnet\n")
         assert "%model:@small_worker" not in state.current_prompt
         assert "%model:@worker" not in state.current_prompt
+
+    def test_coder_prompt_picker_alias_keeps_at_spelling(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A picker alias is serialized as the same alias directive users type."""
+        config = {
+            "model_aliases": {
+                "custom": {
+                    "fast": {
+                        "model": "claude/sonnet",
+                        "description": "Fast handoff.",
+                    }
+                }
+            }
+        }
+        monkeypatch.setattr(
+            "sase.llm_provider.config.get_llm_provider_config", lambda: config
+        )
+        plan_file = write_plan_file(tmp_path)
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_model="fast",
+        )
+
+        _, state, _ = run_plan_approval(
+            tmp_path,
+            approval=approval,
+            agent_model="opus",
+        )
+
+        assert state.current_prompt.startswith("%model:@fast\n")
+        assert "%model:@small_worker" not in state.current_prompt

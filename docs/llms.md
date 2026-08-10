@@ -902,6 +902,12 @@ Then prompts can use the alias with a leading `@`:
 %{%m:@default | %m:gpt-5.6-sol}
 ```
 
+Agents launched through the `@<alias>` spelling show that launch-time provenance in
+their `Model:` field, for example `Model: CLAUDE(sonnet) ← @fast` or
+`Model: CLAUDE(sonnet) @ high ← @fast`. The chip records the alias named at launch and
+is never re-resolved, so completed agents keep telling the truth after an alias is
+retargeted, overridden, or deleted.
+
 Alias values may point at another alias (for example `@default` or `@medium_worker`), a
 bare known model such as `opus`, an explicit provider/model string such as
 `claude/opus`, or a nested provider-local path such as

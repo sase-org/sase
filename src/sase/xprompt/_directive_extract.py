@@ -174,6 +174,9 @@ def extract_prompt_directives(
         auto_argument=auto_argument,
         hide="hide" in expanded_args,
         model=expanded_args.get("model") or None,
+        model_alias=(
+            (expanded_args.get("model") or None) if model_had_alias_prefix else None
+        ),
         model_alias_overrides=model_alias_overrides,
         reasoning_effort=reasoning_effort,
         name=expanded_args.get("id") or None,

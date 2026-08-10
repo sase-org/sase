@@ -66,6 +66,34 @@ def test_split_prompt_for_models_preserves_alias_kwargs_per_alt_branch() -> None
     ]
 
 
+def test_split_prompt_for_models_preserves_alias_prefix_per_branch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = {
+        "model_aliases": {
+            "custom": {
+                "fast": {"model": "codex/gpt-5", "description": "Fast worker."},
+                "deep": {"model": "claude/opus", "description": "Deep worker."},
+            }
+        }
+    }
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config", lambda: config
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config", lambda: config
+    )
+
+    variants = split_prompt_for_models("%{%m:@fast | %m:@deep}\nDo work")
+    assert variants is not None
+
+    directives = [extract_prompt_directives(variant)[1] for variant in variants]
+    assert [(item.model, item.model_alias) for item in directives] == [
+        ("fast", "fast"),
+        ("deep", "deep"),
+    ]
+
+
 def test_split_prompt_for_models_no_directive_returns_none() -> None:
     """No model directive returns None."""
     assert split_prompt_for_models("Just a prompt") is None

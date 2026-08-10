@@ -44,7 +44,10 @@ def build_family_model_lanes(agent: Agent) -> tuple[ModelLane, ...]:
     for member in members:
         label = family_member_label(member, family_name)
         value = model_value_text(
-            member.model, member.llm_provider, member.reasoning_effort
+            member.model,
+            member.llm_provider,
+            member.reasoning_effort,
+            member.model_alias,
         )
         if value is None:
             value = Text("default", style=_MODEL_LANE_DEFAULT_STYLE)

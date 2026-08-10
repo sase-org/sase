@@ -100,6 +100,43 @@ def test_mixed_model_family_renders_one_lane_per_member_aligned() -> None:
     assert len(dot_positions) == 1
 
 
+def test_mixed_alias_family_keeps_separator_column_aligned() -> None:
+    agent = _family(
+        _family_root(
+            model="opus",
+            llm_provider="claude",
+            reasoning_effort="xhigh",
+            model_alias="large_worker",
+        ),
+        _family_member(
+            "--code",
+            "code",
+            model="sonnet",
+            llm_provider="claude",
+            reasoning_effort="high",
+            model_alias="medium_worker",
+        ),
+        _family_member(
+            "--reviewer",
+            "reviewer",
+            model="gpt-5.2",
+            llm_provider="codex",
+            reasoning_effort="medium",
+        ),
+    )
+
+    lanes = build_family_model_lanes(agent)
+    lines = ResponsiveModelSection(lanes).logical_text.plain.splitlines()
+
+    assert lines == [
+        "Model: --plan     · CLAUDE(opus) @ xhigh ← @large_worker",
+        "       --code     · CLAUDE(sonnet) @ high ← @medium_worker",
+        "       --reviewer · CODEX(gpt-5.2) @ medium",
+    ]
+    dot_positions = {line.index("·") for line in lines}
+    assert len(dot_positions) == 1
+
+
 def test_uniform_model_family_still_renders_one_lane_per_member() -> None:
     agent = _family(
         _family_root(model="opus", llm_provider="claude"),
@@ -196,6 +233,27 @@ def test_responsive_narrow_width_folds_value_column() -> None:
     value_column = section.logical_text.plain.index("CLAUDE(opus)")
     wrapped_lines = lines[len(lanes) :]
     assert all(line.startswith(" " * value_column) for line in wrapped_lines)
+
+
+def test_responsive_long_alias_chip_folds_under_value_column() -> None:
+    agent = _family(
+        _family_root(
+            model="opus",
+            llm_provider="claude",
+            reasoning_effort="xhigh",
+            model_alias="very_long_launch_alias_name",
+        ),
+        _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+    )
+    lanes = build_family_model_lanes(agent)
+    section = ResponsiveModelSection(lanes)
+
+    lines = _render(section, width=48).splitlines()
+
+    assert len(lines) > len(lanes)
+    value_column = section.logical_text.plain.index("CLAUDE(opus)")
+    alias_wrap = next(line for line in lines if "@very_long_launch_alias_name" in line)
+    assert alias_wrap.startswith(" " * value_column)
 
 
 def test_responsive_wide_width_matches_logical_text() -> None:

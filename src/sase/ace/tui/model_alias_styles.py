@@ -5,6 +5,10 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.tui.provider_styles import provider_model_badge_markup
+from sase.llm_provider.model_label import (
+    MODEL_ALIAS_CONNECTIVE_STYLE,
+    MODEL_ALIAS_REFERENCE_STYLE,
+)
 
 OWNERSHIP_ACCENT = "#D7AF87"
 
@@ -23,7 +27,8 @@ MODEL_ALIAS_KIND_STYLES: dict[str, str] = {
 _OVERRIDE_TAG_STYLE = "bold #AF87FF"
 _CONFIGURED_TAG_STYLE = "#87D787"
 _IMPLICIT_TAG_STYLE = "dim #9E9E9E"
-_REFERENCE_TAG_STYLE = "bold #87D7FF"
+_REFERENCE_TAG_STYLE = MODEL_ALIAS_REFERENCE_STYLE
+_PROVENANCE_CONNECTIVE_STYLE = MODEL_ALIAS_CONNECTIVE_STYLE
 _EFFORT_CONNECTIVE_STYLE = "#878787"
 _EFFORT_LEVEL_STYLE = "bold #AF87FF"
 _POOL_AVAILABLE_STYLE = "#87D787"
@@ -48,7 +53,7 @@ def append_alias_reference(text: Text, reference: str, effort: str = "") -> None
     """Append a consistently styled alias-reference suffix to *text*."""
     if not reference:
         return
-    text.append(" → ", style=_IMPLICIT_TAG_STYLE)
+    text.append(" → ", style=_PROVENANCE_CONNECTIVE_STYLE)
     text.append(f"@{reference.lstrip('@')}", style=_REFERENCE_TAG_STYLE)
     append_effort_suffix(text, effort)
 

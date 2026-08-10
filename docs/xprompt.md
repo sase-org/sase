@@ -1536,6 +1536,7 @@ Directives use the same argument syntax as xprompt references:
 %m:agy/gemini-3.6-flash-high # Provider/model value with a stable Antigravity slug
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %model:muse/muse-spark-1.2   # Meta Muse Code — explicit-only, never auto-detected
+%model:@fast                 # Configured/implicit model alias; Model shows ← @fast
 %model(opus, medium_worker=codex/gpt-5.6-sol) # This agent uses opus; medium follow-ups use Codex
 %model(medium_worker=@default) # Leave this agent on the default; route medium follow-ups through @default
 %effort:xhigh                # Set the reasoning-effort level for this prompt
@@ -1656,6 +1657,12 @@ name, but always after the model rows. The ACE menu reflects active temporary al
 overrides, while the LSP's catalog is a launch-time snapshot that does not — restart the
 LSP to pick up config changes, and use the ACE [Models panel](ace.md#models-panel)
 (`,m`) to inspect live override state.
+
+When the final `%model` value was written as `@<alias>` — including an xprompt-expanded
+reference such as `%model:@#agy_flash` — SASE records the expanded bare alias name in
+`agent_meta.json` and renders it after the resolved model as `← @<alias>`. Concrete
+values such as `%model:claude/opus` and literal values such as ``%model:`@text``` do not
+get this chip. The chip is the alias named at launch, not the alias's current target.
 
 ### Launch-Scoped Model Alias Overrides
 
@@ -2115,7 +2122,8 @@ routes by that plan's size: `%model:@xsmall_worker`, `%model:@small_worker`,
 approvals validate the committed SDD tale path when the commit succeeds, otherwise the
 original archived plan path. Legacy tale plans without size metadata normalize to
 `@medium_worker`. The recorded follow-up metadata resolves the alias to the concrete
-model the coder actually launches with.
+model the coder actually launches with and keeps the size alias as `← @<size>_worker`
+launch provenance in the coder's `Model:` field.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus
 recent approved and inferred rejected archived plans. Use the `id_prefix` from a

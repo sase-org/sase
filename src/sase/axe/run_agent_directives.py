@@ -293,12 +293,17 @@ def extract_directives_and_write_meta(
     from sase.llm_provider.config import resolve_effective_effort
 
     preserved_effort = preserved_metadata.get("reasoning_effort")
+    preserved_model_alias = preserved_metadata.get("model_alias")
     if reused_selection:
         agent_reasoning_effort = (
             preserved_effort if isinstance(preserved_effort, str) else None
         )
+        agent_model_alias = (
+            preserved_model_alias if isinstance(preserved_model_alias, str) else None
+        )
     else:
         agent_reasoning_effort, _ = resolve_effective_effort(directives, alias_effort)
+        agent_model_alias = directives.model_alias if directives.model else None
 
     vcs_name = detect_vcs(workspace_dir)
     if vcs_name:
@@ -318,6 +323,7 @@ def extract_directives_and_write_meta(
         model=agent_model,
         llm_provider=agent_llm_provider,
         reasoning_effort=agent_reasoning_effort,
+        model_alias=agent_model_alias,
         model_alias_overrides=model_alias_overrides,
         vcs_provider=agent_vcs_provider,
         auto_dismiss=auto_dismiss,

@@ -14,6 +14,7 @@ from sase.axe.run_agent_directive_metadata import (
     consume_epic_clan_summary_script_from_env,
     epic_work_environment_from_metadata,
     epic_work_metadata_from_env,
+    preserved_agent_metadata,
 )
 from sase.bead.work import SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV
 
@@ -119,6 +120,7 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
         model=None,
         llm_provider=None,
         reasoning_effort=None,
+        model_alias=None,
         model_alias_overrides={},
         vcs_provider=None,
         auto_dismiss=None,
@@ -140,3 +142,18 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
     assert identity.name == "foo"
     assert identity.meta["name"] == "foo"
     assert os.environ["SASE_AGENT_NAME"] == "foo"
+
+
+def test_preserved_agent_metadata_keeps_model_alias(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        '{"model":"opus","llm_provider":"claude","model_alias":"medium_worker"}',
+        encoding="utf-8",
+    )
+
+    preserved = preserved_agent_metadata(str(artifacts_dir))
+
+    assert preserved["model"] == "opus"
+    assert preserved["llm_provider"] == "claude"
+    assert preserved["model_alias"] == "medium_worker"

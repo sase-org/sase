@@ -60,6 +60,7 @@ def handle_agents_show(args: argparse.Namespace) -> None:
         _optional_str(meta.get("model")),
         _optional_str(meta.get("llm_provider")),
         _optional_str(meta.get("reasoning_effort")),
+        _optional_str(meta.get("model_alias")),
     )
     if meta.get("pid"):
         body.append("PID: ", style="bold")

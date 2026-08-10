@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import json
 import shlex
 import subprocess
 from dataclasses import dataclass
@@ -30,8 +31,13 @@ from sase.axe.run_agent_helpers import (
     promote_to_workflow,
     update_meta_field,
 )
+from sase.axe.agent_meta import write_agent_meta_atomic
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.llm_provider.config import (
     format_model_directive_value,
+    normalize_model_alias_reference,
 )
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
@@ -131,6 +137,7 @@ class _FollowupModel:
 
     model_prefix: str
     meta: tuple[str | None, str] | None = None
+    model_alias: str | None = None
 
 
 def _resolve_model_meta(model_directive: str) -> tuple[str | None, str]:
@@ -145,9 +152,11 @@ def _resolve_model_meta(model_directive: str) -> tuple[str | None, str]:
 def _resolve_tale_size_followup(plan_file: str | Path) -> _FollowupModel:
     """Route a coder follow-up through the tale's size-specific worker alias."""
     directive = validated_tale_followup_model_directive(plan_file)
+    model_alias, _ = normalize_model_alias_reference(directive)
     return _FollowupModel(
         model_prefix=f"%model:{directive}\n",
         meta=_resolve_model_meta(directive),
+        model_alias=model_alias,
     )
 
 
@@ -173,17 +182,23 @@ def _resolve_followup_model(
     """
     coder_model = plan_result.coder_model
     if coder_model and coder_model.strip() != "worker":
-        prefix = f"%model:{format_model_directive_value(coder_model)}\n"
+        directive_value = format_model_directive_value(coder_model)
+        prefix = f"%model:{directive_value}\n"
+        model_alias, _ = normalize_model_alias_reference(directive_value)
         if coder_model == ctx.agent_model:
-            return _FollowupModel(model_prefix=prefix)
+            return _FollowupModel(model_prefix=prefix, model_alias=model_alias)
         return _FollowupModel(
-            model_prefix=prefix, meta=_resolve_model_meta(coder_model)
+            model_prefix=prefix,
+            meta=_resolve_model_meta(coder_model),
+            model_alias=model_alias,
         )
 
     return _resolve_tale_size_followup(followup_plan_file)
 
 
-def _custom_coder_prompt_model(coder_prompt: str | None) -> str | None:
+def _custom_coder_prompt_model(
+    coder_prompt: str | None,
+) -> tuple[str, str | None] | None:
     """Return an explicit custom-prompt model directive, if one is present."""
     if not coder_prompt:
         return None
@@ -192,10 +207,34 @@ def _custom_coder_prompt_model(coder_prompt: str | None) -> str | None:
 
     if not has_model_directive(coder_prompt):
         return None
-    coder_prompt_model = extract_prompt_directives(coder_prompt)[1].model
-    if not coder_prompt_model:
+    directives = extract_prompt_directives(coder_prompt)[1]
+    if not directives.model:
         raise DirectiveError("Custom coder prompt model directive requires a model")
-    return coder_prompt_model
+    return directives.model, directives.model_alias
+
+
+def _write_followup_model_alias_meta(
+    artifacts_dir: str,
+    model_alias: str | None,
+) -> None:
+    """Set or clear the follow-up agent's launch-time model alias."""
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    try:
+        with meta_path.open(encoding="utf-8") as f:
+            meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return
+    if not isinstance(meta, dict):
+        return
+    if model_alias:
+        meta["model_alias"] = model_alias
+    else:
+        meta.pop("model_alias", None)
+    write_agent_meta_atomic(
+        artifacts_dir,
+        meta,
+        index_updater=update_agent_artifact_index_for_marker_mutation,
+    )
 
 
 def _write_followup_model_meta(state: LoopState, followup: _FollowupModel) -> None:
@@ -208,6 +247,10 @@ def _write_followup_model_meta(state: LoopState, followup: _FollowupModel) -> No
         update_meta_field(
             state.current_artifacts_dir, "llm_provider", resolved_provider
         )
+    _write_followup_model_alias_meta(
+        state.current_artifacts_dir,
+        followup.model_alias,
+    )
 
 
 def _write_followup_effort_meta(state: LoopState, followup_prompt: str) -> None:
@@ -593,9 +636,11 @@ def handle_accepted_plan(
     )
     custom_prompt_model = _custom_coder_prompt_model(plan_result.coder_prompt)
     if custom_prompt_model is not None:
+        custom_model, custom_model_alias = custom_prompt_model
         followup_model = _FollowupModel(
             model_prefix="",
-            meta=_resolve_model_meta(custom_prompt_model),
+            meta=_resolve_model_meta(custom_model),
+            model_alias=custom_model_alias,
         )
     else:
         # Decide the coder follow-up model: an explicit picker model wins; otherwise

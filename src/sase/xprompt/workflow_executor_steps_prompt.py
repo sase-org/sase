@@ -303,6 +303,9 @@ class PromptStepMixin:
             model=step_model,
             llm_provider=step_llm_provider,
             reasoning_effort=step_reasoning_effort,
+            model_alias=(
+                effective_directives.model_alias if effective_directives.model else None
+            ),
         )
 
         # Check if any embedded workflow has finally-marked post-steps.

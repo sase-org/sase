@@ -45,6 +45,7 @@ class AgentMetadataInputs:
     model: str | None
     llm_provider: str | None
     reasoning_effort: str | None
+    model_alias: str | None
     model_alias_overrides: dict[str, str]
     vcs_provider: str | None
     auto_dismiss: str | None
@@ -76,6 +77,7 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
         "model",
         "llm_provider",
         "reasoning_effort",
+        "model_alias",
     ):
         value = existing_meta.get(key)
         if isinstance(value, str) and value:
@@ -184,6 +186,8 @@ def build_agent_meta(
         agent_meta["llm_provider"] = inputs.llm_provider
     if inputs.reasoning_effort:
         agent_meta["reasoning_effort"] = inputs.reasoning_effort
+    if inputs.model_alias:
+        agent_meta["model_alias"] = inputs.model_alias
     if inputs.model_alias_overrides:
         agent_meta["model_alias_overrides"] = inputs.model_alias_overrides
     if inputs.vcs_provider:

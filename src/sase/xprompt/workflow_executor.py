@@ -504,6 +504,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         model: str | None = None,
         llm_provider: str | None = None,
         reasoning_effort: str | None = None,
+        model_alias: str | None = None,
     ) -> None:
         """Save a marker file for prompt steps to track them in the TUI.
 
@@ -557,14 +558,16 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         if response_path is None and existing_marker:
             response_path = existing_marker.get("response_path")
 
-        # Preserve model/llm_provider/reasoning_effort from existing marker when
-        # not provided (later marker rewrites don't re-resolve them)
+        # Preserve model/llm_provider/reasoning_effort/model_alias from existing
+        # marker when not provided (later marker rewrites don't re-resolve them).
         if model is None and existing_marker:
             model = existing_marker.get("model")
         if llm_provider is None and existing_marker:
             llm_provider = existing_marker.get("llm_provider")
         if reasoning_effort is None and existing_marker:
             reasoning_effort = existing_marker.get("reasoning_effort")
+        if model_alias is None and existing_marker:
+            model_alias = existing_marker.get("model_alias")
 
         marker_data = {
             "workflow_name": self.workflow.name,
@@ -589,6 +592,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             "model": model,
             "llm_provider": llm_provider,
             "reasoning_effort": reasoning_effort,
+            "model_alias": model_alias,
         }
         try:
             with open(marker_path, "w", encoding="utf-8") as f:

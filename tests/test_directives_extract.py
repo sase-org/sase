@@ -30,6 +30,7 @@ def test_model_directive_backtick_arg() -> None:
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Review this code"
     assert directives.model == "claude-sonnet-4-20250514"
+    assert directives.model_alias is None
 
 
 def test_model_directive_paren_arg() -> None:
@@ -285,6 +286,7 @@ def test_model_custom_phase_worker_alias_is_allowed(
 
     _, directives = extract_prompt_directives("%m:@phase_worker\nReview")
     assert directives.model == "phase_worker"
+    assert directives.model_alias == "phase_worker"
 
 
 @pytest.mark.parametrize("model", ["opus", "claude/opus"])
@@ -316,6 +318,7 @@ def test_model_alias_prefix_composes_with_effort(
     _, directives = extract_prompt_directives("%m:@other@xhigh\nReview")
 
     assert directives.model == "other"
+    assert directives.model_alias == "other"
     assert directives.reasoning_effort == "xhigh"
 
 
@@ -339,6 +342,7 @@ def test_model_literal_bypasses_alias_prefix_rule(
     _, directives = extract_prompt_directives("%model:`@other`\nReview")
 
     assert directives.model == "@other"
+    assert directives.model_alias is None
 
 
 def test_model_alias_prefix_strips_before_xprompt_expansion(
@@ -363,6 +367,7 @@ def test_model_alias_prefix_strips_before_xprompt_expansion(
         _, directives = extract_prompt_directives("%m:@#agy\nReview")
 
     assert directives.model == "agy_flash"
+    assert directives.model_alias == "agy_flash"
     mock_process.assert_called_once_with("#agy")
 
 
@@ -432,6 +437,7 @@ def test_model_directive_colon_provider_syntax() -> None:
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Review this code"
     assert directives.model == "codex/o3"
+    assert directives.model_alias is None
 
 
 def test_model_directive_colon_provider_syntax_aliases() -> None:
@@ -440,6 +446,7 @@ def test_model_directive_colon_provider_syntax_aliases() -> None:
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Review this code"
     assert directives.model == "claude/opus"
+    assert directives.model_alias is None
 
 
 # --- Fenced code block protection tests ---

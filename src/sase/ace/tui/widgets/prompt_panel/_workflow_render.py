@@ -79,7 +79,11 @@ def build_workflow_detail_renderable(
 
     # Model (with provider-themed styling)
     append_model_field(
-        header_text, agent.model, agent.llm_provider, agent.reasoning_effort
+        header_text,
+        agent.model,
+        agent.llm_provider,
+        agent.reasoning_effort,
+        agent.model_alias,
     )
 
     # VCS provider

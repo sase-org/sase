@@ -19,12 +19,17 @@ from pathlib import Path
 import pytest
 from rich.text import Text
 
+from sase.ace.tui.model_alias_styles import append_alias_reference
 from sase.ace.tui.models._loaders._meta_enrichment import (
     enrich_agent_from_meta,
     enrich_agent_from_meta_wire,
 )
 from sase.ace.tui.widgets.prompt_panel._helpers import append_model_field
 from sase.core.agent_scan_wire import AgentMetaWire
+from sase.llm_provider.model_label import (
+    MODEL_ALIAS_REFERENCE_STYLE,
+    model_value_text,
+)
 from tests._enrich_agent_helpers import make_agent
 
 
@@ -77,6 +82,7 @@ def test_agent_meta_omits_effort_when_unset(
         (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
     )
     assert "reasoning_effort" not in meta
+    assert "model_alias" not in meta
 
 
 def test_agent_meta_uses_config_default_effort(
@@ -102,6 +108,64 @@ def test_agent_meta_uses_config_default_effort(
         (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
     )
     assert meta["reasoning_effort"] == "high"
+
+
+def test_agent_meta_records_model_alias_and_launch_override_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Alias launches store the typed alias while model follows overrides."""
+    from sase.axe.run_agent_phases import extract_directives_and_write_meta
+    from sase.llm_provider import config as llm_config
+
+    config = {
+        "provider": "claude",
+        "model_aliases": {"builtin": {"medium_worker": "claude/sonnet"}},
+    }
+    monkeypatch.setattr(llm_config, "get_llm_provider_config", lambda: config)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config", lambda: config
+    )
+    llm_config._get_model_aliases_for_token.cache_clear()
+
+    workspace_dir = str(tmp_path / "workspace")
+    artifacts_dir = str(tmp_path / "artifacts")
+    os.makedirs(workspace_dir, exist_ok=True)
+    os.makedirs(artifacts_dir, exist_ok=True)
+
+    extract_directives_and_write_meta(
+        prompt="%m(@medium_worker, medium_worker=codex/gpt-5)\ndo the work",
+        workspace_dir=workspace_dir,
+        artifacts_dir=artifacts_dir,
+    )
+
+    meta = json.loads(
+        (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert meta["model_alias"] == "medium_worker"
+    assert (meta["llm_provider"], meta["model"]) == ("codex", "gpt-5")
+
+
+def test_agent_meta_omits_model_alias_for_concrete_model(
+    tmp_path: Path,
+) -> None:
+    from sase.axe.run_agent_phases import extract_directives_and_write_meta
+
+    workspace_dir = str(tmp_path / "workspace")
+    artifacts_dir = str(tmp_path / "artifacts")
+    os.makedirs(workspace_dir, exist_ok=True)
+    os.makedirs(artifacts_dir, exist_ok=True)
+
+    extract_directives_and_write_meta(
+        prompt="%model:claude/opus\ndo the work",
+        workspace_dir=workspace_dir,
+        artifacts_dir=artifacts_dir,
+    )
+
+    meta = json.loads(
+        (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert "model_alias" not in meta
 
 
 def test_agent_meta_consumes_alias_pool_once_and_resume_reuses_selection(
@@ -157,6 +221,7 @@ def test_agent_meta_consumes_alias_pool_once_and_resume_reuses_selection(
         "opus",
         "medium",
     )
+    assert first["model_alias"] == "pool"
 
     extract_directives_and_write_meta(
         prompt=prompt,
@@ -167,6 +232,7 @@ def test_agent_meta_consumes_alias_pool_once_and_resume_reuses_selection(
         (Path(second_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
     )
     assert (second["llm_provider"], second["model"]) == ("codex", "gpt-5.5")
+    assert second["model_alias"] == "pool"
     assert "reasoning_effort" not in second
 
 
@@ -194,11 +260,13 @@ def test_step_marker_persists_and_preserves_effort(tmp_path: Path) -> None:
         model="opus",
         llm_provider="claude",
         reasoning_effort="xhigh",
+        model_alias="medium_worker",
     )
 
     marker_path = tmp_path / "prompt_step_s1.json"
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
     assert marker["reasoning_effort"] == "xhigh"
+    assert marker["model_alias"] == "medium_worker"
 
     # A later rewrite that does not re-pass the effort keeps the stored value
     # (mirrors model/llm_provider preservation).
@@ -206,6 +274,7 @@ def test_step_marker_persists_and_preserves_effort(tmp_path: Path) -> None:
     executor._save_prompt_step_marker("s1", state)
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
     assert marker["reasoning_effort"] == "xhigh"
+    assert marker["model_alias"] == "medium_worker"
 
 
 # --- Agent read-back (filesystem + scan wire) ------------------------------
@@ -214,7 +283,12 @@ def test_step_marker_persists_and_preserves_effort(tmp_path: Path) -> None:
 def test_enrich_filesystem_reads_effort(tmp_path: Path) -> None:
     (tmp_path / "agent_meta.json").write_text(
         json.dumps(
-            {"model": "opus", "llm_provider": "claude", "reasoning_effort": "xhigh"}
+            {
+                "model": "opus",
+                "llm_provider": "claude",
+                "reasoning_effort": "xhigh",
+                "model_alias": "medium_worker",
+            }
         ),
         encoding="utf-8",
     )
@@ -223,15 +297,22 @@ def test_enrich_filesystem_reads_effort(tmp_path: Path) -> None:
     enrich_agent_from_meta(agent, str(tmp_path))
 
     assert agent.reasoning_effort == "xhigh"
+    assert agent.model_alias == "medium_worker"
 
 
 def test_enrich_wire_reads_effort() -> None:
     agent = make_agent(status="RUNNING")
-    meta = AgentMetaWire(model="opus", llm_provider="claude", reasoning_effort="xhigh")
+    meta = AgentMetaWire(
+        model="opus",
+        llm_provider="claude",
+        reasoning_effort="xhigh",
+        model_alias="medium_worker",
+    )
 
     enrich_agent_from_meta_wire(agent, meta, None)
 
     assert agent.reasoning_effort == "xhigh"
+    assert agent.model_alias == "medium_worker"
 
 
 def test_enrich_filesystem_without_effort_leaves_none(tmp_path: Path) -> None:
@@ -261,6 +342,72 @@ def test_append_model_field_suffix_is_uniform_across_providers() -> None:
         assert text.plain.endswith(" @ xhigh\n"), (provider, text.plain)
         # The model/provider portion is still rendered ahead of the suffix.
         assert text.plain.startswith("Model: ")
+
+
+def test_append_model_field_alias_chip_is_uniform_across_providers() -> None:
+    for model, provider in (
+        ("opus", "claude"),
+        ("gpt-5.6-sol", "codex"),
+        ("some-model", "agy"),
+    ):
+        text = Text()
+        append_model_field(text, model, provider, "xhigh", "medium_worker")
+
+        assert text.plain.endswith(" @ xhigh ← @medium_worker\n"), (
+            provider,
+            text.plain,
+        )
+
+
+def test_append_model_field_no_alias_chip_without_alias() -> None:
+    text = Text()
+    append_model_field(text, "opus", "claude", "xhigh")
+
+    assert "← @" not in text.plain
+
+
+def test_model_alias_chip_follows_advisory_and_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.model_advisory_for",
+        lambda _model: {"severity": "warning"},
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.model_advisory_marker",
+        lambda _severity: "!",
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.model_advisory_color",
+        lambda _severity: "#FFD75F",
+    )
+
+    value = model_value_text("opus", "claude", "xhigh", "medium_worker")
+    assert value is not None
+
+    assert value.plain.endswith("! @ xhigh ← @medium_worker")
+
+
+def test_model_alias_reference_style_is_shared() -> None:
+    model_text = model_value_text("opus", "claude", None, "medium_worker")
+    alias_text = Text("CLAUDE(opus)")
+    append_alias_reference(alias_text, "medium_worker")
+    assert model_text is not None
+
+    model_alias_spans = [
+        span
+        for span in model_text.spans
+        if model_text.plain[span.start : span.end] == "@medium_worker"
+    ]
+    alias_reference_spans = [
+        span
+        for span in alias_text.spans
+        if alias_text.plain[span.start : span.end] == "@medium_worker"
+    ]
+    assert model_alias_spans
+    assert alias_reference_spans
+    assert str(model_alias_spans[0].style) == MODEL_ALIAS_REFERENCE_STYLE
+    assert str(alias_reference_spans[0].style) == MODEL_ALIAS_REFERENCE_STYLE
 
 
 def test_append_model_field_no_suffix_without_effort() -> None:
@@ -343,7 +490,12 @@ def test_rust_scan_projects_reasoning_effort(tmp_path: Path) -> None:
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "agent_meta.json").write_text(
         json.dumps(
-            {"model": "opus", "llm_provider": "claude", "reasoning_effort": "xhigh"}
+            {
+                "model": "opus",
+                "llm_provider": "claude",
+                "reasoning_effort": "xhigh",
+                "model_alias": "medium_worker",
+            }
         ),
         encoding="utf-8",
     )
@@ -367,6 +519,7 @@ def test_rust_scan_projects_reasoning_effort(tmp_path: Path) -> None:
                 "model": "opus",
                 "llm_provider": "claude",
                 "reasoning_effort": "high",
+                "model_alias": "workflow_plan",
             }
         ),
         encoding="utf-8",
@@ -377,7 +530,9 @@ def test_rust_scan_projects_reasoning_effort(tmp_path: Path) -> None:
     record = snapshot.records[0]
     assert record.agent_meta is not None
     assert record.agent_meta.reasoning_effort == "xhigh"
+    assert record.agent_meta.model_alias == "medium_worker"
     assert record.prompt_steps[0].reasoning_effort == "high"
+    assert record.prompt_steps[0].model_alias == "workflow_plan"
 
 
 # --- `sase agent show` CLI detail panel ------------------------------------
@@ -437,6 +592,27 @@ def test_agent_show_cli_renders_effort_suffix(
 
     assert "CLAUDE" in out
     assert "@ xhigh" in out
+
+
+def test_agent_show_cli_renders_model_alias_chip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    out = _show_agent_with_meta(
+        tmp_path,
+        monkeypatch,
+        capsys,
+        {
+            "model": "opus",
+            "llm_provider": "claude",
+            "reasoning_effort": "xhigh",
+            "model_alias": "medium_worker",
+        },
+    )
+
+    assert "CLAUDE" in out
+    assert "← @medium_worker" in out
 
 
 def test_agent_show_cli_omits_suffix_without_effort(

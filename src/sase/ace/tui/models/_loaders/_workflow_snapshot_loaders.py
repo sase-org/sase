@@ -365,6 +365,7 @@ def _build_workflow_agent_steps_for_record(
                 model=step.model,
                 llm_provider=step.llm_provider,
                 reasoning_effort=step.reasoning_effort,
+                model_alias=step.model_alias,
             )
 
             if (

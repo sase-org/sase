@@ -186,6 +186,7 @@ def _load_workflow_agent_steps_for_dir(
                 model=data.get("model"),
                 llm_provider=data.get("llm_provider"),
                 reasoning_effort=data.get("reasoning_effort"),
+                model_alias=data.get("model_alias"),
             )
             # If step is still RUNNING but parent workflow failed,
             # mark step as FAILED and propagate the workflow error
