@@ -861,12 +861,19 @@ restarts. The bundled defaults are amber-orange `hitl`, red `errors`, lavender-p
 Icons resolve through the same shape, with one deliberate difference at the last rung:
 this setting, then an icon the sending gate declared through `presentation.panel_icon`,
 then the built-in default for a tab ACE ships knowing about, then a default keyed by the
-tab's own kind (so an unrecognized panel or tag tab still gets a glyph that means
-something about what kind of tab it is), and finally `•` for a tab with no kind at all.
-Unlike color, an icon never falls back to a hashed auto-palette entry — an arbitrary
-glyph would teach the reader something false, so the chain always bottoms out at a
-meaningful or honestly generic mark instead. The bundled defaults are `⚑` `hitl`, `✖`
-`errors`, `◈` `beads`, `✉` `general`, `☾` `snoozed`, and `⊘` `muted`.
+tab's own kind (`panel` or `tag`, so an unrecognized panel or tag tab still gets a glyph
+that means something about what kind of tab it is), and finally `•` for a tab with no
+kind at all. Unlike color, an icon never falls back to a hashed auto-palette entry — an
+arbitrary glyph would teach the reader something false, so the chain always bottoms out
+at a meaningful or honestly generic mark instead. The bundled defaults are `⚑` `hitl`,
+`✖` `errors`, `◈` `beads`, `✉` `general`, `☾` `snoozed`, and `⊘` `muted`.
+
+Configured icons are explicit choices and are never overridden. ACE guarantees
+distinctness only for SASE-chosen generic icons from the kind and last-resort rungs: on
+collision it derives an unused ASCII letter or digit from the tab key, and if the key is
+exhausted it keeps the generic mark rather than inventing one. Run
+`sase doctor -C config.notification_tabs` to report two configured tabs that use the
+same glyph.
 
 #### `ace.notification_indicator_max_counts`
 

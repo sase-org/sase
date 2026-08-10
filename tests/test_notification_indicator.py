@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.notification_indicator import NotificationIndicator
 from sase.ace.tui.widgets.notification_tab_style import (
     resolve_notification_tab_color,
     resolve_notification_tab_icon,
+    resolve_notification_tab_icons,
 )
 from sase.core.time import get_timezone
 from sase.notifications import Notification
@@ -53,11 +54,13 @@ def _tab(
     oldest_activity_at: str | None = None,
     next_wake_at: str | None = None,
     icon: str | None = None,
+    kind: str = "",
 ) -> NotificationTagTab:
     return NotificationTagTab(
         tag=tag,
         label=label or ("General" if tag is None else tag.title()),
         count=count,
+        kind=kind,
         oldest_activity_at=oldest_activity_at,
         next_wake_at=next_wake_at,
         icon=icon,
@@ -162,7 +165,17 @@ def test_overflow_beyond_the_configured_maximum_collapses_into_plus_k(
 
 def test_default_maximum_admits_four_chips() -> None:
     tabs = tuple(_tab(f"tag{index}", index + 1) for index in range(5))
-    assert NotificationIndicator._build_content(tabs).plain == " •1 •2 •3 •4 +1 "
+    assert NotificationIndicator._build_content(tabs).plain == " •1 t2 a3 g4 +1 "
+
+
+def test_two_tag_tabs_render_distinct_chips() -> None:
+    tabs = (_tab("axe", 2, kind="tag"), _tab("done", 3, kind="tag"))
+
+    text = NotificationIndicator._build_content(tabs).plain
+
+    assert text.startswith(" ")
+    chips = text.strip().split()
+    assert chips == ["#2", "d3"]
 
 
 def test_overflow_tooltip_still_describes_every_tab(
@@ -267,8 +280,9 @@ def test_indicator_chips_correspond_one_to_one_with_the_panel_tabs() -> None:
     tabs, _ = classify_notification_modal_tabs(notifications)
     chips = NotificationIndicator._build_content(tabs).plain
     expected = [tab for tab in tabs if tab.count and tab.tag != SNOOZED_TAB_KEY]
+    icons = resolve_notification_tab_icons(tabs)
     assert chips == " {} ".format(
-        " ".join(f"{resolve_notification_tab_icon(tab)}{tab.count}" for tab in expected)
+        " ".join(f"{icons[tab.tag]}{tab.count}" for tab in expected)
     )
     assert sum(tab.count for tab in tabs) == len(notifications)
 

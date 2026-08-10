@@ -46,10 +46,10 @@ class NotificationIndicator(Static):
 
         Args:
             tabs: The notification-panel tabs in panel order, exactly as the
-                snapshot carries them. Empty tabs are dropped, so a tab that
-                drains away stops rendering a chip.
+                snapshot carries them. Empty tabs are omitted at render time,
+                so a tab that drains away stops rendering a chip.
         """
-        resolved = tuple(tab for tab in tabs if tab.count > 0)
+        resolved = tuple(tabs)
         if resolved == self._tabs:
             return
         self._tabs = resolved
@@ -67,9 +67,10 @@ class NotificationIndicator(Static):
         from .notification_tab_style import (
             notification_indicator_max_counts,
             resolve_notification_tab_color,
-            resolve_notification_tab_icon,
+            resolve_notification_tab_icons,
         )
 
+        icons = resolve_notification_tab_icons(tabs)
         visible = [tab for tab in tabs if tab.count > 0]
         if not visible:
             return Text(" ✉ 0 ", style="dim")
@@ -83,7 +84,7 @@ class NotificationIndicator(Static):
             # badge — the moon glyph keeps it from reading as actionable.
             total = sum(tab.count for tab in snoozed)
             color = resolve_notification_tab_color(snoozed[0])
-            icon = resolve_notification_tab_icon(snoozed[0])
+            icon = icons[snoozed[0].tag]
             text.append(f"{icon}{total}", style=f"dim {color}")
             text.append(" ", style="dim")
             return text
@@ -92,7 +93,7 @@ class NotificationIndicator(Static):
         for index, tab in enumerate(shown):
             if index:
                 text.append(" ", style="dim")
-            icon = resolve_notification_tab_icon(tab)
+            icon = icons[tab.tag]
             text.append(
                 f"{icon}{tab.count}",
                 style=f"bold {resolve_notification_tab_color(tab)}",
@@ -109,9 +110,10 @@ class NotificationIndicator(Static):
         from .notification_tab_style import (
             notification_tab_label,
             resolve_notification_tab_color,
-            resolve_notification_tab_icon,
+            resolve_notification_tab_icons,
         )
 
+        icons = resolve_notification_tab_icons(tabs)
         visible = [tab for tab in tabs if tab.count > 0]
         if not visible:
             return Text("No unread notifications", style="dim")
@@ -129,7 +131,6 @@ class NotificationIndicator(Static):
             text.append("No unread notifications\n")
 
         labels = {tab.tag: notification_tab_label(tab) for tab in visible}
-        icons = {tab.tag: resolve_notification_tab_icon(tab) for tab in visible}
         # Both columns are measured in terminal cells, not characters: a
         # two-cell icon or a non-ASCII tag label would otherwise skew every
         # line below it.

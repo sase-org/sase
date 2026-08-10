@@ -10,6 +10,7 @@ covered by a bundled font and must rasterize to actual ink.
 
 from __future__ import annotations
 
+import string
 from importlib.resources import files
 
 import pytest
@@ -52,6 +53,8 @@ _AUDITED_ICONS = tuple(
             *_BUILTIN_TAB_ICONS.values(),
             *_KIND_TAB_ICONS.values(),
             _LAST_RESORT_TAB_ICON,
+            *string.ascii_lowercase,
+            *string.digits,
         )
     )
 )

@@ -16,6 +16,8 @@ honestly generic.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+from enum import Enum
 from functools import lru_cache
 from typing import Any, NamedTuple
 
@@ -62,14 +64,9 @@ _BUILTIN_TAB_ICONS = {
     "muted": "⊘",
 }
 
-# Icons keyed by the core's own tab kind, so a tab ACE has never heard of still
-# gets a glyph that says something true about what kind of tab it is.
+# Icons keyed by the core's own tab kind for tabs ACE has never heard of.
+# Known ACE tabs use the built-in key rung above instead.
 _KIND_TAB_ICONS = {
-    "hitl": "⚑",
-    "errors": "✖",
-    "general": "✉",
-    "snoozed": "☾",
-    "muted": "⊘",
     "panel": "◆",
     "tag": "#",
 }
@@ -100,6 +97,17 @@ class _ConfiguredTabStyle(NamedTuple):
 
 
 _EMPTY_TAB_STYLE = _ConfiguredTabStyle(color="", icon="")
+
+
+class _IconRung(Enum):
+    CONFIGURED = "configured"
+    DECLARED = "declared"
+    BUILTIN = "builtin"
+    KIND = "kind"
+    LAST_RESORT = "last_resort"
+
+
+_RERESOLVABLE_ICON_RUNGS = frozenset({_IconRung.KIND, _IconRung.LAST_RESORT})
 
 
 def _notification_tab_key(tab: NotificationTagTab) -> str:
@@ -145,17 +153,60 @@ def resolve_notification_tab_icon(tab: NotificationTagTab) -> str:
     icon the core donates from the newest member row, then a built-in default
     for a key ACE knows, then a default for the tab's kind, then a generic mark.
     """
+    icon, _rung = _resolve_tab_icon(tab)
+    return icon
+
+
+def resolve_notification_tab_icons(
+    tabs: Sequence[NotificationTagTab],
+) -> dict[str | None, str]:
+    """Return collision-aware effective icons for a whole tab render.
+
+    Icons explicitly configured by a human, declared by a sender, or built in
+    for a known ACE tab are never moved. Generic kind and last-resort icons are
+    re-derived from the tab key when they collide with an already claimed glyph.
+    """
+    resolved = [(tab, *_resolve_tab_icon(tab)) for tab in tabs]
+    claimed = {
+        icon for _tab, icon, rung in resolved if rung not in _RERESOLVABLE_ICON_RUNGS
+    }
+    icons: dict[str | None, str] = {}
+    for tab, icon, rung in resolved:
+        final = icon
+        if rung in _RERESOLVABLE_ICON_RUNGS:
+            if final in claimed:
+                derived = _derive_icon_from_tab_key(_notification_tab_key(tab), claimed)
+                if derived:
+                    final = derived
+            claimed.add(final)
+        icons[tab.tag] = final
+    return icons
+
+
+def _resolve_tab_icon(tab: NotificationTagTab) -> tuple[str, _IconRung]:
     config_key = _notification_tab_config_key(tab)
     configured = _configured_tab_style(config_key).icon
     if configured:
-        return configured
+        return configured, _IconRung.CONFIGURED
     declared = _sanitize_icon(tab.icon)
     if declared:
-        return declared
+        return declared, _IconRung.DECLARED
     builtin = _BUILTIN_TAB_ICONS.get(config_key)
     if builtin is not None:
-        return builtin
-    return _KIND_TAB_ICONS.get(tab.kind, _LAST_RESORT_TAB_ICON)
+        return builtin, _IconRung.BUILTIN
+    kind = _KIND_TAB_ICONS.get(tab.kind)
+    if kind is not None:
+        return kind, _IconRung.KIND
+    return _LAST_RESORT_TAB_ICON, _IconRung.LAST_RESORT
+
+
+def _derive_icon_from_tab_key(tab_key: str, claimed: set[str]) -> str:
+    for character in tab_key:
+        if character.isascii() and character.isalnum():
+            candidate = character.lower()
+            if candidate not in claimed:
+                return candidate
+    return ""
 
 
 def _default_notification_tab_color(config_key: str) -> str:
@@ -263,4 +314,5 @@ __all__ = [
     "notification_tab_label",
     "resolve_notification_tab_color",
     "resolve_notification_tab_icon",
+    "resolve_notification_tab_icons",
 ]

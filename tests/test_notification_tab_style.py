@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from rich.cells import cell_len
 
 from sase.ace.tui.modals.notification_modal_tags import (
     MUTED_TAB_KEY,
@@ -27,6 +28,7 @@ from sase.ace.tui.widgets.notification_tab_style import (
     notification_tab_label,
     resolve_notification_tab_color,
     resolve_notification_tab_icon,
+    resolve_notification_tab_icons,
 )
 
 
@@ -230,6 +232,74 @@ def test_a_tab_with_no_kind_at_all_falls_to_the_last_resort() -> None:
     assert resolve_notification_tab_icon(_tab("deployments")) == _LAST_RESORT_TAB_ICON
 
 
+def test_two_tag_tabs_resolve_to_distinct_icons() -> None:
+    tabs = [_tab("axe", kind="tag"), _tab("done", kind="tag")]
+
+    icons = resolve_notification_tab_icons(tabs)
+
+    assert icons["axe"] != icons["done"]
+    assert {cell_len(icon) for icon in icons.values()} == {1}
+
+
+def test_shared_initial_tag_tabs_still_resolve_to_distinct_icons() -> None:
+    tabs = [_tab("axe", kind="tag"), _tab("agents", kind="tag")]
+
+    icons = resolve_notification_tab_icons(tabs)
+
+    assert icons["axe"] != icons["agents"]
+
+
+def test_explicit_icon_duplicates_are_never_rederived(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"human": {"icon": "★"}}})
+
+    icons = resolve_notification_tab_icons(
+        [_tab("human", kind="tag"), _tab("sender", icon="★", kind="tag")]
+    )
+
+    assert icons["human"] == "★"
+    assert icons["sender"] == "★"
+
+
+def test_a_builtin_icon_is_not_rederived_when_an_explicit_icon_matches_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_icon = _BUILTIN_TAB_ICONS["beads"]
+    _use_config(monkeypatch, {"notification_tabs": {"custom": {"icon": beads_icon}}})
+
+    icons = resolve_notification_tab_icons([_tab("beads"), _tab("custom", kind="tag")])
+
+    assert icons["beads"] == beads_icon
+    assert icons["custom"] == beads_icon
+
+
+def test_key_exhaustion_keeps_the_generic_mark(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"taken": {"icon": "a"}}})
+
+    icons = resolve_notification_tab_icons(
+        [_tab("taken"), _tab("first", kind="tag"), _tab("a", kind="tag")]
+    )
+
+    assert icons["taken"] == "a"
+    assert icons["first"] == _KIND_TAB_ICONS["tag"]
+    assert icons["a"] == _KIND_TAB_ICONS["tag"]
+
+
+def test_icon_disambiguation_is_order_stable() -> None:
+    tabs = [_tab("axe", kind="tag"), _tab("done", kind="tag")]
+
+    first = resolve_notification_tab_icons(tabs)
+    second = resolve_notification_tab_icons(tabs)
+    extended = resolve_notification_tab_icons([*tabs, _tab("later", kind="tag")])
+
+    assert first == second
+    assert extended["axe"] == first["axe"]
+    assert extended["done"] == first["done"]
+
+
 def test_an_empty_configured_icon_falls_through_to_the_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -276,9 +346,17 @@ def test_a_configured_snoozed_icon_reaches_the_synthetic_tab(
 
 def test_every_bundled_glyph_is_single_cell() -> None:
     """A two-cell glyph would make every chip in the top bar wider."""
-    from rich.cells import cell_len
-
     glyphs = set(_BUILTIN_TAB_ICONS.values()) | set(_KIND_TAB_ICONS.values())
 
     assert {glyph for glyph in glyphs if cell_len(glyph) != 1} == set()
     assert cell_len(_LAST_RESORT_TAB_ICON) == 1
+
+
+def test_sase_owned_default_icons_are_pairwise_distinct() -> None:
+    glyphs = [
+        *_BUILTIN_TAB_ICONS.values(),
+        *_KIND_TAB_ICONS.values(),
+        _LAST_RESORT_TAB_ICON,
+    ]
+
+    assert len(glyphs) == len(set(glyphs))

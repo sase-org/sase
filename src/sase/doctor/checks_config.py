@@ -8,6 +8,9 @@ from sase.diagnostics import CheckSpec
 from sase.doctor.checks_config_init import check_config_init
 from sase.doctor.checks_config_layers import check_config_layers
 from sase.doctor.checks_config_model_aliases import check_config_model_aliases
+from sase.doctor.checks_config_notification_tabs import (
+    check_config_notification_tabs,
+)
 from sase.doctor.checks_config_repos import check_config_repos
 from sase.doctor.checks_config_skills import check_config_skills_applied
 from sase.doctor.checks_config_sdd import check_config_sdd
@@ -61,6 +64,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=check_config_tribes,
         ),
         CheckSpec(
+            id="config.notification_tabs",
+            group="config",
+            title="Notification tab icons",
+            runner=check_config_notification_tabs,
+        ),
+        CheckSpec(
             id="config.model_xprompts",
             group="config",
             title="Model xprompt routing",
@@ -86,6 +95,7 @@ _check_config_layers = check_config_layers
 _check_config_init = check_config_init
 _check_config_sdd = check_config_sdd
 _check_config_model_aliases = check_config_model_aliases
+_check_config_notification_tabs = check_config_notification_tabs
 _check_config_repos = check_config_repos
 _check_config_tribes = check_config_tribes
 _check_config_model_xprompts = check_config_model_xprompts

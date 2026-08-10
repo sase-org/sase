@@ -622,9 +622,8 @@ precedence, highest first:
 2. the icon a sender declared on a notification in that tab
 3. the built-in default for a tab ACE ships knowing about (`hitl`, `errors`, `beads`,
    `general`, `snoozed`, `muted`)
-4. a default keyed by the tab's own kind (`hitl`, `panel`, `errors`, `general`, `tag`,
-   `snoozed`, `muted`), so a tab ACE has never heard of still gets a glyph that means
-   something about what it is
+4. a default keyed by the tab's own kind (`panel`, `tag`), so a tab ACE has never heard
+   of still gets a glyph that means something about what it is
 5. `•`, reachable only when a tab arrives with no kind at all
 
 Unlike color, an icon never falls back to a hashed auto-palette entry: an arbitrary
@@ -634,11 +633,23 @@ mark instead. The bundled defaults are `⚑` `hitl`, `✖` `errors`, `◈` `bead
 `general`, `☾` `snoozed`, and `⊘` `muted`; a gate-declared panel with no closer match
 falls to the kind default `◆`, and a tag tab falls to `#`.
 
+ACE resolves icons over the whole ordered tab list before rendering. Configured icons,
+sender-declared icons, and the bundled defaults are never rewritten. If two SASE-chosen
+generic icons from rung 4 or 5 would collide, ACE walks the tab key and uses the first
+unused ASCII letter or digit from that key: `axe` can become `a`, then `x`, then `e`;
+`file-hooks` can become `f`; `123-deploy` can become `1`. If every alphanumeric
+character in the key is already claimed, the tab keeps the generic mark rather than
+inventing a false glyph. Explicit duplicates remain explicit: if two configured tabs or
+two gates choose the same glyph, ACE renders that glyph for both. Run
+`sase doctor -C config.notification_tabs` to report configured duplicates.
+
 A sender declares an icon with `presentation.panel_icon` on a gate (see
 [Command-backed interaction gates](#command-backed-interaction-gates) below); there is
 no raw-notification equivalent, since a raw row's own `icon` field styles the row, not
 its tab. When several rows in a tab declare a `panel_icon`, the tab wears the one from
-the row the panel lists first — the most recent activity — exactly as color does.
+the row the panel lists first — the most recent activity — exactly as color does. A
+`panel_icon` is donated only to the tab named by the same gate's `presentation.panel`,
+so a muted or snoozed row does not carry its panel glyph into `Snoozed` or `Muted`.
 
 ## CLI
 

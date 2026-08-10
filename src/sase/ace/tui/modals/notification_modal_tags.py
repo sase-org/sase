@@ -267,12 +267,13 @@ class NotificationTagStrip(Static):
         # package's own import, so a module-scope import would cycle.
         from sase.ace.tui.widgets.notification_tab_style import (
             resolve_notification_tab_color,
-            resolve_notification_tab_icon,
+            resolve_notification_tab_icons,
         )
 
         text = Text()
         self._tab_ranges.clear()
         column = 0
+        icons = resolve_notification_tab_icons(self._tabs)
 
         def append(fragment: str, style: str) -> None:
             nonlocal column
@@ -290,7 +291,7 @@ class NotificationTagStrip(Static):
             icon_style = icon_color if is_active else f"dim {icon_color}"
             start = column
             append(" ", style)
-            append(resolve_notification_tab_icon(tab), icon_style)
+            append(icons[tab.tag], icon_style)
             append(" ", style)
             if is_active or not compact:
                 append(shorten_notification_tag(tab.label), style)
