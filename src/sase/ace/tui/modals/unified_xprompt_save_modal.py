@@ -43,6 +43,7 @@ from .unified_xprompt_save_support import (
     UnifiedSaveInput,
     UnifiedSaveLocation,
     UnifiedXPromptSaveResult,
+    ensure_unified_snippet_target_location,
     load_unified_save_locations,
     load_unified_snippet_locations,
 )
@@ -90,6 +91,7 @@ class UnifiedXPromptSaveModal(
         initial_name: str = "",
         last_used: dict[SaveMode, str] | None = None,
         preferred_snippet_path: str | None = None,
+        preferred_snippet_fallback_reason: str | None = None,
     ) -> None:
         super().__init__()
         self._locations_by_mode = {
@@ -102,6 +104,7 @@ class UnifiedXPromptSaveModal(
         self._pane_count = pane_count
         self._last_used = last_used or {}
         self._preferred_snippet_path = preferred_snippet_path
+        self._preferred_snippet_fallback_reason = preferred_snippet_fallback_reason
         self._mode: SaveMode = "xprompt"
         self._mode_names: dict[SaveMode, str] = {
             "xprompt": initial_name,
@@ -431,6 +434,7 @@ __all__ = [
     "UnifiedSaveLocation",
     "UnifiedXPromptSaveModal",
     "UnifiedXPromptSaveResult",
+    "ensure_unified_snippet_target_location",
     "load_unified_save_locations",
     "load_unified_snippet_locations",
 ]

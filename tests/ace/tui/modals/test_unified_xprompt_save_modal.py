@@ -289,6 +289,37 @@ async def test_non_selectable_preferred_snippet_path_falls_back_to_last_used(
         assert modal._selected_location_path() == str(last_used_path)
 
 
+async def test_snippet_mode_renders_configured_path_fallback_reason(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "xprompts"
+    directory.mkdir()
+    default = tmp_path / "sase.yml"
+    default.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    app = _ModalApp()
+
+    async with app.run_test(size=(105, 36)) as pilot:
+        app.push_screen(
+            UnifiedXPromptSaveModal(
+                [_row(directory)],
+                snippet_locations=[_row(default, location_type="config")],
+                preferred_snippet_path=str(default),
+                preferred_snippet_fallback_reason="must be a .yml or .yaml file",
+            )
+        )
+        await pilot.pause()
+        await pilot.press("ctrl+x")
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, UnifiedXPromptSaveModal)
+        locations = modal.query_one("#unified-save-locations", OptionList)
+        rendered = "\n".join(
+            getattr(option.prompt, "plain", str(option.prompt))
+            for option in locations.options
+        )
+        assert "configured path unusable: must be a .yml or .yaml file" in rendered
+
+
 async def test_ctrl_x_wins_over_input_cut_and_works_from_every_field(
     tmp_path: Path,
 ) -> None:

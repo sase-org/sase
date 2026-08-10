@@ -97,6 +97,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         from ...modals import UnifiedXPromptSaveModal
         from ...modals.unified_xprompt_save_modal import (
             UnifiedXPromptSaveResult,
+            ensure_unified_snippet_target_location,
             load_unified_save_locations,
             load_unified_snippet_locations,
         )
@@ -117,6 +118,10 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             asyncio.to_thread(load_unified_snippet_locations, project),
             asyncio.to_thread(load_last_used_locations),
             asyncio.to_thread(resolve_snippet_save_target, self._snippet_config_path),
+        )
+        snippet_locations = ensure_unified_snippet_target_location(
+            snippet_locations,
+            snippet_target,
         )
 
         non_empty_count = sum(1 for pane in panes if pane.text.strip())
@@ -164,6 +169,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
                 ),
                 last_used=last_used,
                 preferred_snippet_path=str(snippet_target.write_path),
+                preferred_snippet_fallback_reason=snippet_target.fallback_reason,
             ),
             _on_target,
         )

@@ -26,6 +26,7 @@ class UnifiedXPromptSaveDestinationsMixin(_MixinBase):
     if TYPE_CHECKING:
         _last_used: dict[SaveMode, str]
         _mode: SaveMode
+        _preferred_snippet_fallback_reason: str | None
         _preferred_snippet_path: str | None
         _preview_tab: str
         _updating_options: bool
@@ -129,6 +130,16 @@ class UnifiedXPromptSaveDestinationsMixin(_MixinBase):
         text.append(f"\n     {row.display_path}", style="dim")
         if row.disabled_reason:
             text.append(f"  ({row.disabled_reason})", style="italic dim")
+        if (
+            self._mode == "snippet"
+            and self._preferred_snippet_fallback_reason
+            and row.location.path == self._preferred_snippet_path
+        ):
+            text.append(
+                "  (configured path unusable: "
+                f"{self._preferred_snippet_fallback_reason})",
+                style="italic dim",
+            )
         return text
 
     def _row_for_option_id(self, option_id: str) -> UnifiedSaveLocation | None:

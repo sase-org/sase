@@ -16,6 +16,7 @@ from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.xprompt.models import InputArg, InputType
+from sase.xprompt.snippet_targets import SnippetSaveTarget
 
 from ._prompt_save_xprompt_helpers import (
     _SaveFlowApp,
@@ -63,6 +64,70 @@ async def test_request_opens_one_screen_with_active_pane_snippet_source() -> Non
     assert modal._body == "alpha\n---\nbeta"
     assert modal._snippet_body == "beta"
     assert modal._pane_count == 2
+
+
+async def test_request_adds_configured_snippet_target_to_unified_picker(
+    tmp_path: Path,
+) -> None:
+    xprompt_directory = tmp_path / "xprompts"
+    xprompt_directory.mkdir()
+    discovered = tmp_path / "sase.yml"
+    discovered.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    configured = tmp_path / "custom_snippets.yml"
+    configured.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    xprompt_location = UnifiedSaveLocation(
+        location=XPromptLocation("Xprompts", str(xprompt_directory), "directory"),
+        group="CWD directories",
+        display_path=str(xprompt_directory),
+        names=frozenset(),
+    )
+    snippet_location = UnifiedSaveLocation(
+        location=XPromptLocation("User sase.yml", str(discovered), "config"),
+        group="Config files",
+        display_path=str(discovered),
+        names=frozenset(),
+    )
+    snippet_target = SnippetSaveTarget(
+        read_path=configured,
+        write_path=configured,
+        apply_target=None,
+        via_chezmoi=False,
+        display_path=str(configured),
+        source="configured",
+        fallback_reason=None,
+    )
+    harness = _SaveHarness()
+
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_save_locations",
+            return_value=[xprompt_location],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
+            return_value=[snippet_location],
+        ),
+        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+        patch(
+            "sase.xprompt.snippet_targets.resolve_snippet_save_target",
+            return_value=snippet_target,
+        ),
+    ):
+        await harness.on_prompt_input_bar_save_as_xprompt_requested(
+            PromptInputBar.SaveAsXpromptRequested(
+                [StashedPromptPane(text="snippet body")],
+                snippet_body="snippet body",
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, UnifiedXPromptSaveModal)
+    assert [row.location.path for row in modal._locations_by_mode["snippet"]] == [
+        str(configured),
+        str(discovered),
+    ]
+    assert modal._preferred_snippet_path == str(configured)
 
 
 async def test_request_converts_placeholders_for_xprompt_preview_only() -> None:

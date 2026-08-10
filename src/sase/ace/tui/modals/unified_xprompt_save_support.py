@@ -24,7 +24,10 @@ from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat
 from sase.xprompt.save_index import IndexKind, names_for_location
 from sase.xprompt.skill_locations import SkillDestination, skill_destinations
-from sase.xprompt.snippet_targets import load_snippet_config_locations
+from sase.xprompt.snippet_targets import (
+    SnippetSaveTarget,
+    load_snippet_config_locations,
+)
 
 from .xprompt_location_modal import (
     XPromptLocation,
@@ -185,6 +188,32 @@ def load_unified_snippet_locations(
     return rows
 
 
+def ensure_unified_snippet_target_location(
+    rows: list[UnifiedSaveLocation],
+    target: SnippetSaveTarget,
+) -> list[UnifiedSaveLocation]:
+    """Return rows with the resolved snippet target selectable.
+
+    ``ace.snippet_config_path`` may point at a valid YAML file that is not one
+    of the standard discovered config files. The snippet pane can still write
+    there directly, so the unified save panel's snippet mode must offer the
+    same destination instead of falling back to the first discovered row.
+    """
+    path = str(target.write_path)
+    if any(row.location.path == path for row in rows):
+        return rows
+    configured = UnifiedSaveLocation(
+        location=XPromptLocation("Configured snippet config", path, "config"),
+        group="Config files",
+        display_path=target.display_path,
+        names=names_for_location("snippet_config", path),
+        disabled_reason=None,
+        will_create=not Path(path).exists(),
+        precedence=-1,
+    )
+    return [configured, *rows]
+
+
 def _with_missing_standard_directories(
     locations: list[tuple[str, XPromptLocation]],
 ) -> list[tuple[str, XPromptLocation]]:
@@ -321,6 +350,7 @@ __all__ = [
     "UnifiedSaveInput",
     "UnifiedSaveLocation",
     "UnifiedXPromptSaveResult",
+    "ensure_unified_snippet_target_location",
     "load_unified_save_locations",
     "load_unified_snippet_locations",
 ]
