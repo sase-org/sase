@@ -52,7 +52,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
                 frontmatter=self._stack.frontmatter,
                 pane_index=index,
             )
-            for index, item in enumerate(self._stack.items)
+            for index, item in enumerate(self._stack.agent_items)
             if (stripped := item.text.strip())
         ]
         if panes or not include_frontmatter_only or not self._stack.frontmatter.strip():
@@ -80,6 +80,8 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
+        if self._stack.selected_item.is_snippet_pane:
+            return
         text = self._stack.selected_item.text.strip()
         if not text:
             # Nothing to stash: surface the stash panel so an empty Ctrl+S can
@@ -173,8 +175,12 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         # ``snippet_body`` (the active pane only) as its source — so a multi-pane
         # ``---`` stack still saves just the current pane as a snippet, while
         # ``panes`` remains the full xprompt-save source.
-        single_pane = len(self._stack) == 1
-        snippet_body = self._stack.selected_item.text.strip()
+        single_pane = self._stack.agent_count == 1
+        snippet_body = (
+            ""
+            if self._stack.selected_item.is_snippet_pane
+            else self._stack.selected_item.text.strip()
+        )
         panes = self.capture_stashable_panes()
         if panes:
             self._clear_active_completion_state()
@@ -223,8 +229,11 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             return
         self._sync_state_from_widgets()
         self._clear_active_completion_state()
-        drop_empty_lead = (
-            len(self._stack) == 1 and not self._stack.selected_item.text.strip()
+        empty_agent_id = (
+            self._stack.agent_items[0].item_id
+            if self._stack.agent_count == 1
+            and not self._stack.agent_items[0].text.strip()
+            else None
         )
         adopted_frontmatter = False
         for text, frontmatter in entries:
@@ -232,9 +241,22 @@ class PromptInputBarStashActionsMixin(_MixinBase):
                 self._stack.frontmatter = frontmatter
                 adopted_frontmatter = True
             self._stack.append_bottom(text)
-        if drop_empty_lead:
-            del self._stack.items[0]
-            self._stack.selected_index = len(self._stack.items) - 1
+        if empty_agent_id is not None:
+            for index, item in enumerate(self._stack.items):
+                if item.item_id != empty_agent_id:
+                    continue
+                del self._stack.items[index]
+                if self._stack.selected_index > index:
+                    self._stack.selected_index -= 1
+                else:
+                    self._stack.selected_index = max(
+                        0,
+                        min(
+                            self._stack.selected_index,
+                            len(self._stack.items) - 1,
+                        ),
+                    )
+                break
         self._rebuild_stack(enter_mode="insert")
         if adopted_frontmatter:
             self.refresh_frontmatter_panel_from_stack()

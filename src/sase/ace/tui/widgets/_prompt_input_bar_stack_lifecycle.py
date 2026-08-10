@@ -58,13 +58,16 @@ class PromptInputBarStackLifecycleMixin(_MixinBase):
         return self._stack.selected_index
 
     def _sync_state_from_widgets(self) -> None:
-        """Copy each mounted pane's live text back into the stack model."""
+        """Copy each mounted pane's live editor state back into the stack model."""
         for item in self._stack.items:
             try:
                 text_area = self.query_one(f"#{self._pane_id(item)}", PromptTextArea)
             except Exception:
                 continue
             item.text = text_area.text
+            row, column = text_area.cursor_location
+            item.cursor = (row, column)
+            item.mode = text_area._vim_mode
 
     def on_descendant_focus(self, event: object) -> None:
         """Track the active pane when focus moves between panes."""

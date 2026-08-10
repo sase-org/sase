@@ -185,7 +185,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         if bar is None:
             return
         target = bar.xprompt_target()
-        if not bar.is_multi_pane() and target is None:
+        if not bar.is_stacked() and target is None:
             return
 
         prompt_texts = bar.all_prompt_texts()

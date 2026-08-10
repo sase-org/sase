@@ -152,6 +152,22 @@ class XPromptReadonlyTarget:
     path: str | None = None
 
 
+@dataclass(frozen=True)
+class SnippetPaneTarget:
+    """The snippet definition a pane-scoped snippet draft writes back to."""
+
+    trigger: str
+    read_path: str
+    write_path: str
+    display_path: str
+    apply_target: str | None
+    via_chezmoi: bool
+    exists: bool
+    loaded_body: str | None
+    loaded_fingerprint: SourceFingerprint | None
+    derived_from: str | None = None
+
+
 def split_prompt_text(text: str) -> list[str]:
     """Split *text* into prompt segments using canonical multi-prompt parsing.
 
@@ -204,6 +220,12 @@ class PromptStackItem:
     cursor: tuple[int, int] = (0, 0)
     mode: str = "insert"
     last_height: int | None = None
+    snippet_target: SnippetPaneTarget | None = None
+
+    @property
+    def is_snippet_pane(self) -> bool:
+        """Return whether this item is the pane-scoped snippet draft."""
+        return self.snippet_target is not None
 
 
 @dataclass
@@ -306,13 +328,55 @@ class PromptStackState:
 
     @property
     def texts(self) -> list[str]:
-        """All item texts, top-to-bottom."""
-        return [item.text for item in self.items]
+        """Agent prompt texts, top-to-bottom."""
+        return self.agent_texts
+
+    @property
+    def snippet_index(self) -> int | None:
+        """The mounted index of the snippet pane, if present."""
+        for index, item in enumerate(self.items):
+            if item.is_snippet_pane:
+                return index
+        return None
+
+    @property
+    def snippet_item(self) -> PromptStackItem | None:
+        """The pinned bottom snippet item, if present."""
+        index = self.snippet_index
+        return self.items[index] if index is not None else None
+
+    @property
+    def has_snippet_pane(self) -> bool:
+        """Return whether the stack currently includes a snippet pane."""
+        return self.snippet_item is not None
+
+    @property
+    def agent_items(self) -> list[PromptStackItem]:
+        """Prompt items that participate in launch, stash, and save-as payloads."""
+        return [item for item in self.items if not item.is_snippet_pane]
+
+    @property
+    def agent_texts(self) -> list[str]:
+        """Agent prompt texts, top-to-bottom."""
+        return [item.text for item in self.agent_items]
+
+    @property
+    def agent_count(self) -> int:
+        """Number of agent prompt panes, excluding the snippet pane."""
+        return len(self.agent_items)
+
+    @property
+    def snippet_is_dirty(self) -> bool:
+        """Return whether the snippet draft differs from its loaded body."""
+        item = self.snippet_item
+        if item is None or item.snippet_target is None:
+            return False
+        return item.text.strip() != (item.snippet_target.loaded_body or "")
 
     @property
     def is_effectively_empty(self) -> bool:
-        """True when no item has non-whitespace text."""
-        return not any(item.text.strip() for item in self.items)
+        """True when no agent item has non-whitespace text."""
+        return not any(item.text.strip() for item in self.agent_items)
 
     def join(self, *, include_frontmatter: bool = True) -> str:
         """Join non-empty items into a multi-prompt string.
@@ -323,7 +387,7 @@ class PromptStackState:
         """
         body = "\n---\n".join(
             stripped
-            for stripped in (item.text.strip() for item in self.items)
+            for stripped in (item.text.strip() for item in self.agent_items)
             if stripped
         )
         if include_frontmatter and self.frontmatter:
@@ -436,7 +500,7 @@ class PromptStackState:
         """
         body = "\n\n---\n\n".join(
             stripped
-            for stripped in (item.text.strip() for item in self.items)
+            for stripped in (item.text.strip() for item in self.agent_items)
             if stripped
         )
         if self.frontmatter:
@@ -508,10 +572,15 @@ class PromptStackState:
     def insert_below(self, text: str = "", *, select: bool = True) -> PromptStackItem:
         """Insert a new item directly below the active item."""
         item = self._new_item(text)
+        snippet_index = self.snippet_index
         position = self.selected_index + 1
+        if snippet_index is not None:
+            position = min(position, snippet_index)
         self.items.insert(position, item)
         if select:
             self.selected_index = position
+        elif position <= self.selected_index:
+            self.selected_index += 1
         else:
             self.selected_index = self._clamp(self.selected_index)
         return item
@@ -519,10 +588,48 @@ class PromptStackState:
     def append_bottom(self, text: str = "", *, select: bool = True) -> PromptStackItem:
         """Append a new item at the bottom of the stack (the ``g-`` keymap)."""
         item = self._new_item(text)
-        self.items.append(item)
+        snippet_index = self.snippet_index
+        if snippet_index is None:
+            self.items.append(item)
+            position = len(self.items) - 1
+        else:
+            position = snippet_index
+            self.items.insert(position, item)
         if select:
-            self.selected_index = len(self.items) - 1
+            self.selected_index = position
+        elif position <= self.selected_index:
+            self.selected_index += 1
         return item
+
+    def append_snippet_pane(
+        self, text: str, target: SnippetPaneTarget
+    ) -> PromptStackItem:
+        """Append the single pinned bottom snippet pane and focus it."""
+        if self.snippet_item is not None:
+            raise ValueError("prompt stack already has a snippet pane")
+        item = self._new_item(text, snippet_target=target)
+        self.items.append(item)
+        self.selected_index = len(self.items) - 1
+        return item
+
+    def remove_snippet_pane(self) -> PromptStackItem | None:
+        """Remove and return the snippet pane, leaving agent panes intact."""
+        index = self.snippet_index
+        if index is None:
+            return None
+        item = self.items.pop(index)
+        if self.selected_index > index:
+            self.selected_index -= 1
+        else:
+            self.selected_index = self._clamp(self.selected_index)
+        return item
+
+    def retarget_snippet_pane(self, target: SnippetPaneTarget) -> None:
+        """Replace the snippet target without touching the draft body."""
+        item = self.snippet_item
+        if item is None:
+            raise ValueError("prompt stack has no snippet pane")
+        item.snippet_target = target
 
     def remove_selected(self) -> bool:
         """Remove the active item when others remain.
@@ -532,7 +639,7 @@ class PromptStackState:
         unmount behavior.  Otherwise removes the item and clamps the selection
         onto the nearest remaining item.
         """
-        if len(self.items) <= 1:
+        if not self.selected_item.is_snippet_pane and self.agent_count <= 1:
             return False
         del self.items[self.selected_index]
         self.selected_index = self._clamp(self.selected_index)
@@ -547,9 +654,11 @@ class PromptStackState:
         selected.  A single-item stack cannot move, so it stays put.  Returns
         ``True`` when the item moved.
         """
-        if len(self.items) <= 1:
+        if len(self.items) <= 1 or self.selected_item.is_snippet_pane:
             return False
         target = (self.selected_index + delta) % len(self.items)
+        if self.items[target].is_snippet_pane:
+            return False
         if target == self.selected_index:
             return False
         item = self.items.pop(self.selected_index)
@@ -564,6 +673,8 @@ class PromptStackState:
         is replaced by one item per segment (preserving order) and the bottom
         new item becomes active.  Returns ``True`` when a split occurred.
         """
+        if self.selected_item.is_snippet_pane:
+            return False
         segments = split_prompt_text(self.selected_item.text)
         if len(segments) <= 1:
             return False
@@ -590,6 +701,8 @@ class PromptStackState:
         if not segments:
             segments = [""]
         index = self._clamp(index)
+        if self.items[index].is_snippet_pane:
+            return
         self.items[index].text = segments[0]
         additions = [self._new_item(segment) for segment in segments[1:]]
         self.items[index + 1 : index + 1] = additions
@@ -597,8 +710,17 @@ class PromptStackState:
 
     # -- internal -------------------------------------------------------------
 
-    def _new_item(self, text: str) -> PromptStackItem:
-        item = PromptStackItem(text=text, item_id=f"p{self._next_id}")
+    def _new_item(
+        self,
+        text: str,
+        *,
+        snippet_target: SnippetPaneTarget | None = None,
+    ) -> PromptStackItem:
+        item = PromptStackItem(
+            text=text,
+            item_id=f"p{self._next_id}",
+            snippet_target=snippet_target,
+        )
         self._next_id += 1
         return item
 
@@ -606,6 +728,7 @@ class PromptStackState:
 __all__ = [
     "PromptStackItem",
     "PromptStackState",
+    "SnippetPaneTarget",
     "SourceFingerprint",
     "XPromptBinding",
     "XPromptReadonlyTarget",

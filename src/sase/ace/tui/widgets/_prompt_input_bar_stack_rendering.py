@@ -35,11 +35,9 @@ _STACK_SEPARATOR_ACTIVE_MARKER = "▍"
 class _PromptStackSeparator(Static):
     """Width-aware separator row for one prompt-stack pane."""
 
-    def __init__(
-        self, agent_number: int, *, active: bool = False, **kwargs: Any
-    ) -> None:
+    def __init__(self, label: str, *, active: bool = False, **kwargs: Any) -> None:
         super().__init__("", **kwargs)
-        self.agent_number = agent_number
+        self.label = label
         self.active = active
         self.position: tuple[int, int] | None = None
         self.vim_mode: str = "insert"
@@ -64,7 +62,7 @@ class _PromptStackSeparator(Static):
     def render(self) -> Text:
         """Render a centered agent label connected by full-width hairline rules."""
         width = max(0, int(self.size.width))
-        label = f"agent {self.agent_number}"
+        label = self.label
         if self.active:
             label = f"{_STACK_SEPARATOR_ACTIVE_MARKER} {label}"
         padded_label = f" {label} "
@@ -159,13 +157,19 @@ class PromptInputBarStackRenderingMixin(
         """Build the separator + text-area widgets for the current stack."""
         widgets: list[Widget] = []
         multi = len(self._stack) > 1
+        agent_number = 0
         for index, item in enumerate(self._stack.items):
+            if item.is_snippet_pane:
+                label = "snippet"
+            else:
+                agent_number += 1
+                label = f"agent {agent_number}"
             if multi:
                 active = index == self._stack.selected_index
                 state = "active" if active else "inactive"
                 widgets.append(
                     _PromptStackSeparator(
-                        index + 1,
+                        label,
                         active=active,
                         id=self._sep_id(item),
                         classes=f"prompt-stack-separator {state}",
@@ -326,9 +330,9 @@ class PromptInputBarStackRenderingMixin(
         return len(self._stack) > 1
 
     def all_prompt_texts(self) -> list[str]:
-        """Return every pane's live text, top-to-bottom launch order."""
+        """Return every agent pane's live text, top-to-bottom launch order."""
         self._sync_state_from_widgets()
-        return list(self._stack.texts)
+        return list(self._stack.agent_texts)
 
     def current_prompt_text(self) -> str:
         """Return the whole stack joined into one canonical multi-prompt string.
@@ -342,8 +346,8 @@ class PromptInputBarStackRenderingMixin(
         return self._stack.join()
 
     def is_stacked(self) -> bool:
-        """True when the bar currently holds more than one prompt pane."""
-        return len(self._stack) > 1
+        """True when the bar currently holds more than one agent prompt pane."""
+        return self._stack.agent_count > 1
 
     def xprompt_markdown_for_editor(self) -> str:
         """Return the whole stack as spaced xprompt markdown for the all-pane editor.

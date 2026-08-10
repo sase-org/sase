@@ -10,9 +10,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
+    SnippetPaneTarget,
     SourceFingerprint,
     XPromptBinding,
     split_frontmatter,
@@ -20,6 +23,24 @@ from sase.ace.tui.widgets.prompt_stack import (
 )
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+
+
+def _snippet_target(
+    trigger: str = "todo",
+    *,
+    loaded_body: str | None = None,
+) -> SnippetPaneTarget:
+    return SnippetPaneTarget(
+        trigger=trigger,
+        read_path="/tmp/sase.yml",
+        write_path="/tmp/sase.yml",
+        display_path="~/sase.yml",
+        apply_target=None,
+        via_chezmoi=False,
+        exists=loaded_body is not None,
+        loaded_body=loaded_body,
+        loaded_fingerprint=None,
+    )
 
 
 # --- split_prompt_text: canonical parsing ---------------------------------
@@ -207,6 +228,12 @@ def test_is_effectively_empty() -> None:
     assert PromptStackState.single("hi").is_effectively_empty is False
 
 
+def test_snippet_body_does_not_make_stack_effectively_nonempty() -> None:
+    state = PromptStackState.single("   ")
+    state.append_snippet_pane("snippet body", _snippet_target())
+    assert state.is_effectively_empty is True
+
+
 # --- editor_markdown: spaced editor serialization -------------------------
 
 
@@ -237,6 +264,17 @@ def test_editor_markdown_round_trips_through_from_text() -> None:
     reloaded = PromptStackState.from_text(state.editor_markdown())
     assert reloaded.texts == ["first", "second"]
     assert reloaded.frontmatter == "---\nmodel: opus\n---"
+
+
+def test_snippet_body_is_excluded_from_launch_and_editor_payloads() -> None:
+    state = PromptStackState.from_panes(["first", "second"])
+    state.append_snippet_pane("snippet body", _snippet_target())
+
+    assert len(state) == 3
+    assert state.agent_texts == ["first", "second"]
+    assert state.texts == ["first", "second"]
+    assert state.join() == "first\n---\nsecond"
+    assert state.editor_markdown() == "first\n\n---\n\nsecond"
 
 
 # --- single() construction ------------------------------------------------
@@ -327,6 +365,37 @@ def test_append_bottom_focuses_new_bottom() -> None:
     assert state.selected_index == 2
 
 
+def test_append_bottom_inserts_above_snippet_pane() -> None:
+    state = PromptStackState.single("agent")
+    snippet = state.append_snippet_pane("snippet", _snippet_target())
+
+    item = state.append_bottom("new agent")
+
+    assert state.items == [state.agent_items[0], item, snippet]
+    assert state.agent_texts == ["agent", "new agent"]
+    assert state.snippet_index == 2
+    assert state.selected_item is item
+
+
+def test_insert_below_snippet_inserts_above_snippet_pane() -> None:
+    state = PromptStackState.single("agent")
+    snippet = state.append_snippet_pane("snippet", _snippet_target())
+
+    item = state.insert_below("new agent")
+
+    assert state.items == [state.agent_items[0], item, snippet]
+    assert state.snippet_index == 2
+    assert state.selected_item is item
+
+
+def test_append_snippet_pane_allows_only_one_snippet() -> None:
+    state = PromptStackState.single("agent")
+    state.append_snippet_pane("snippet", _snippet_target())
+
+    with pytest.raises(ValueError):
+        state.append_snippet_pane("second", _snippet_target("other"))
+
+
 def test_inserted_items_get_unique_ids() -> None:
     state = PromptStackState.from_text("a\n---\nb")
     existing = {item.item_id for item in state.items}
@@ -359,6 +428,25 @@ def test_remove_selected_last_item_is_noop() -> None:
     assert state.remove_selected() is False
     assert state.texts == ["only"]
     assert state.selected_index == 0
+
+
+def test_remove_selected_refuses_to_remove_only_agent_with_snippet() -> None:
+    state = PromptStackState.single("only agent")
+    state.append_snippet_pane("snippet", _snippet_target())
+    state.focus(0)
+
+    assert state.remove_selected() is False
+    assert state.agent_texts == ["only agent"]
+    assert state.has_snippet_pane is True
+
+
+def test_remove_snippet_pane_leaves_agent_items() -> None:
+    state = PromptStackState.from_panes(["first", "second"])
+    snippet = state.append_snippet_pane("snippet", _snippet_target())
+
+    assert state.remove_snippet_pane() is snippet
+    assert state.agent_texts == ["first", "second"]
+    assert state.snippet_item is None
 
 
 # --- reorder --------------------------------------------------------------
@@ -410,6 +498,26 @@ def test_move_selected_single_pane_is_noop() -> None:
     assert state.selected_index == 0
 
 
+def test_move_selected_refuses_snippet_item() -> None:
+    state = PromptStackState.single("agent")
+    state.append_snippet_pane("snippet", _snippet_target())
+
+    assert state.selected_item.is_snippet_pane
+    assert state.move_selected(-1) is False
+    assert state.agent_texts == ["agent"]
+    assert state.snippet_index == 1
+
+
+def test_move_selected_refuses_to_move_agent_past_snippet() -> None:
+    state = PromptStackState.from_panes(["first", "second"])
+    state.append_snippet_pane("snippet", _snippet_target())
+    state.focus(1)
+
+    assert state.move_selected(1) is False
+    assert state.agent_texts == ["first", "second"]
+    assert state.snippet_index == 2
+
+
 def test_move_selected_preserves_item_identity() -> None:
     state = PromptStackState.from_text("a\n---\nb\n---\nc")
     state.focus(0)
@@ -443,6 +551,16 @@ def test_split_selected_keeps_other_items() -> None:
     assert state.split_selected() is True
     assert state.texts == ["x", "y", "second"]
     assert state.selected_index == 1
+
+
+def test_split_selected_is_noop_on_snippet_pane() -> None:
+    state = PromptStackState.single("agent")
+    state.append_snippet_pane("x\n---\ny", _snippet_target())
+
+    assert state.split_selected() is False
+    assert state.agent_texts == ["agent"]
+    assert state.snippet_item is not None
+    assert state.snippet_item.text == "x\n---\ny"
 
 
 # --- load_segments_at: in-place load preserving neighbors -----------------
@@ -489,6 +607,18 @@ def test_load_segments_at_clamps_out_of_range_index() -> None:
     state.load_segments_at(9, ["z"])
     assert state.texts == ["a", "z"]
     assert state.selected_index == 1
+
+
+def test_load_segments_at_is_noop_on_snippet_pane() -> None:
+    state = PromptStackState.single("agent")
+    state.append_snippet_pane("snippet", _snippet_target())
+
+    state.load_segments_at(1, ["x", "y"])
+
+    assert state.agent_texts == ["agent"]
+    assert state.snippet_item is not None
+    assert state.snippet_item.text == "snippet"
+    assert state.selected_item.is_snippet_pane
 
 
 # --- split_frontmatter: public lift of leading frontmatter -----------------
@@ -584,6 +714,33 @@ def test_prompt_stack_item_is_constructible() -> None:
     item = PromptStackItem(text="t", item_id="p0")
     assert item.text == "t"
     assert item.item_id == "p0"
+
+
+def test_snippet_target_accessors_and_dirty_state() -> None:
+    state = PromptStackState.single("agent")
+    target = _snippet_target(loaded_body="original")
+    snippet = state.append_snippet_pane("original", target)
+
+    assert state.snippet_item is snippet
+    assert state.snippet_index == 1
+    assert state.has_snippet_pane is True
+    assert state.agent_count == 1
+    assert state.snippet_is_dirty is False
+
+    snippet.text = "changed"
+    assert state.snippet_is_dirty is True
+
+
+def test_retarget_snippet_pane_keeps_body() -> None:
+    state = PromptStackState.single("agent")
+    state.append_snippet_pane("draft body", _snippet_target("old"))
+
+    new_target = _snippet_target("new")
+    state.retarget_snippet_pane(new_target)
+
+    assert state.snippet_item is not None
+    assert state.snippet_item.text == "draft body"
+    assert state.snippet_item.snippet_target is new_target
 
 
 def test_binding_dirty_and_external_change_detection(tmp_path: Path) -> None:

@@ -227,13 +227,13 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def submit_active_pane(self) -> None:
         """Submit the active pane through the existing ``g<enter>`` path."""
-        if self._mode != "prompt":
+        if self._mode != "prompt" or self._stack.selected_item.is_snippet_pane:
             return
         self.active_text_area().action_submit_prompt()
 
     def edit_definition_under_cursor(self) -> None:
         """Open the xprompt definition at the cursor in the bound stack."""
-        if self._mode != "prompt":
+        if self._mode != "prompt" or self._stack.selected_item.is_snippet_pane:
             return
         action = getattr(self.active_text_area(), "_edit_definition_under_cursor", None)
         if callable(action):
@@ -241,6 +241,8 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def format_active_prompt(self) -> None:
         """Format the pane that is active when this action is invoked."""
+        if self._stack.selected_item.is_snippet_pane:
+            return
         text_area = self.active_text_area()
         if not text_area.text:
             return
@@ -270,10 +272,10 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_available_submit_active(self) -> bool:
         """Whether ``g<enter>`` can submit the active prompt pane."""
-        return self._mode == "prompt"
+        return self._mode == "prompt" and not self._stack.selected_item.is_snippet_pane
 
     def _g_prefix_available_definition(self) -> bool:
-        if self._mode != "prompt":
+        if self._mode != "prompt" or self._stack.selected_item.is_snippet_pane:
             return False
         try:
             from sase.ace.tui.widgets._prompt_jump_target import (
@@ -298,6 +300,8 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_available_format_prompt(self) -> bool:
         """Whether the active prompt-style pane contains text to format."""
+        if self._stack.selected_item.is_snippet_pane:
+            return False
         try:
             return bool(self.active_text_area().text.strip())
         except Exception:
@@ -317,10 +321,10 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_available_stash_all(self) -> bool:
         """Whether ``gs`` would capture at least one pane in a real stack."""
-        if self._mode != "prompt" or len(self._stack) <= 1:
+        if self._mode != "prompt" or self._stack.agent_count <= 1:
             return False
         self._sync_state_from_widgets()
-        return any(item.text.strip() for item in self._stack.items)
+        return any(item.text.strip() for item in self._stack.agent_items)
 
     def _g_prefix_available_stash_restore(self) -> bool:
         """Whether ``Ctrl+G p`` has a restorable prompt stash in this app."""
@@ -344,14 +348,14 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         if not has_pin:
             return False
         self._sync_state_from_widgets()
-        return any(item.text.strip() for item in self._stack.items)
+        return any(item.text.strip() for item in self._stack.agent_items)
 
     def _g_prefix_available_save_xprompt(self) -> bool:
         """Whether ``gx`` can save the current prompt draft as an xprompt."""
         if self._mode != "prompt":
             return False
         self._sync_state_from_widgets()
-        return any(item.text.strip() for item in self._stack.items) or bool(
+        return any(item.text.strip() for item in self._stack.agent_items) or bool(
             self._stack.frontmatter.strip()
         )
 
@@ -370,6 +374,8 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return False
         self._sync_state_from_widgets()
+        if self._stack.selected_item.is_snippet_pane:
+            return False
         return bool(self._stack.selected_item.text.strip())
 
     def _g_prefix_label_focus_next(self) -> str:
@@ -390,7 +396,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_label_submit_active(self) -> str:
         """Return the context-sensitive ``g<enter>`` label."""
-        if len(self._stack) > 1:
+        if self._stack.agent_count > 1:
             return "launch this pane"
         return "submit this draft"
 

@@ -113,7 +113,10 @@ class PromptInputBarActionsMixin(_MixinBase):
             except Exception:
                 return None
 
-        if self._mode != "prompt" or len(self._stack) <= 1:
+        if self._mode == "prompt" and self._stack.selected_item.is_snippet_pane:
+            return None
+
+        if self._mode != "prompt" or self._stack.agent_count <= 1:
             return self._snapshot_submission(
                 shape="whole_bar",
                 value=self._stack.join(),
@@ -170,7 +173,7 @@ class PromptInputBarActionsMixin(_MixinBase):
             whole_stack=True,
             todo_count=sum(
                 todo_annotation_count(item.text)
-                for item in self._stack.items
+                for item in self._stack.agent_items
                 if item.text.strip()
             ),
             origin_text_area=origin_text_area,
@@ -359,8 +362,17 @@ class PromptInputBarActionsMixin(_MixinBase):
 
         if self._mode == "prompt" and len(self._stack) > 1:
             self._sync_state_from_widgets()
+            if self._stack.selected_item.is_snippet_pane:
+                return
             cancelled_text = self._stack.selected_item.text.strip()
-            self._stack.remove_selected()
+            removed = self._stack.remove_selected()
+            if not removed:
+                self.post_message(
+                    self.Cancelled(
+                        cancelled_text=self.current_prompt_text(), mode=self._mode
+                    )
+                )
+                return
             self._clear_active_completion_state()
             self.post_message(
                 self.Cancelled(

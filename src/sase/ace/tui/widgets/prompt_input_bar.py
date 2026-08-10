@@ -199,8 +199,8 @@ class PromptInputBar(
         """Refresh the border title, including stack count in prompt stacks."""
         self._title_mode_suffix = mode_suffix
         title = self._base_title
-        if self._mode == "prompt" and len(self._stack) > 1:
-            title = f"{title} · {len(self._stack)} agents"
+        if self._mode == "prompt" and self._stack.agent_count > 1:
+            title = f"{title} · {self._stack.agent_count} agents"
         if self._mode == "prompt" and (
             self._stack.binding is not None or self._readonly_xprompt_target is not None
         ):
@@ -462,13 +462,14 @@ class PromptInputBar(
     def _sync_todo_counts_from_stack(self) -> None:
         """Refresh count state from the in-memory stack during construction/rebuild."""
         self._todo_counts_by_item_id = {
-            item.item_id: todo_annotation_count(item.text) for item in self._stack.items
+            item.item_id: todo_annotation_count(item.text)
+            for item in self._stack.agent_items
         }
 
     def _sync_todo_counts_from_mounted_panes(self) -> None:
         """Aggregate each mounted pane's cached annotation count."""
         counts: dict[str, int] = {}
-        for item in self._stack.items:
+        for item in self._stack.agent_items:
             try:
                 text_area = self.query_one(f"#{self._pane_id(item)}", PromptTextArea)
             except Exception:
@@ -482,7 +483,11 @@ class PromptInputBar(
         if not isinstance(text_area, PromptTextArea):
             return
         item = next(
-            (item for item in self._stack.items if self._pane_id(item) == text_area.id),
+            (
+                item
+                for item in self._stack.agent_items
+                if self._pane_id(item) == text_area.id
+            ),
             None,
         )
         if item is not None:
@@ -510,7 +515,7 @@ class PromptInputBar(
         ``Ctrl+G`` prefix.
         """
         target_hint = self._target_save_hint()
-        if self._mode == "prompt" and len(self._stack) > 1:
+        if self._mode == "prompt" and self._stack.agent_count > 1:
             return (
                 "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] stash  "
                 f"[^G Enter] this{target_hint}"
@@ -532,7 +537,7 @@ class PromptInputBar(
         frontmatter actions, is discoverable through the hint panel.
         """
         target_hint = self._target_save_hint()
-        if self._mode == "prompt" and len(self._stack) > 1:
+        if self._mode == "prompt" and self._stack.agent_count > 1:
             return (
                 "[g<enter>] launch  [gj/gk] pane  [gJ/gK] move  "
                 f"[^S/gs] stash{target_hint}"

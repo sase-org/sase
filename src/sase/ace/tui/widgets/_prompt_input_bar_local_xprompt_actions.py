@@ -55,6 +55,8 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
+        if self._stack.selected_item.is_snippet_pane:
+            return
         body = self._stack.selected_item.text.strip()
         if not body:
             self.app.notify(

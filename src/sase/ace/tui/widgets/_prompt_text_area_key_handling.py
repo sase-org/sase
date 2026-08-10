@@ -232,7 +232,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             prompt_texts = bar.all_prompt_texts() if bar is not None else []
             should_choose_submit = (
                 bar is not None
-                and (bar.is_multi_pane() or bar.xprompt_target() is not None)
+                and (bar.is_stacked() or bar.xprompt_target() is not None)
                 and any(text.strip() for text in prompt_texts)
             )
             if should_choose_submit:

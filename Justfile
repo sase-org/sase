@@ -308,6 +308,7 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-j3(SnippetTriggerMatch)" \
         --epic-symbol "sase-j3(SnippetCollision)" \
         --epic-symbol "sase-j3(snippet_collision)" \
+        --epic-symbol "sase-j3.2(SnippetPaneTarget)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

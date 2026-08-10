@@ -153,6 +153,8 @@ class PromptInputBarStackXPromptMixin(_MixinBase):
         on a later whole-stack submit), and the pane is re-focused for typing.
         """
         self._sync_state_from_widgets()
+        if self._stack.selected_item.is_snippet_pane:
+            return
         self._stack.selected_item.text = text
         self._rebuild_stack(enter_mode="insert")
 
@@ -192,6 +194,8 @@ class PromptInputBarStackXPromptMixin(_MixinBase):
 
         index = self._pane_index_for(text_area)
         if index is None:
+            return False
+        if self._stack.items[index].is_snippet_pane:
             return False
 
         frontmatter, body = split_frontmatter(text)
