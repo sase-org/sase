@@ -148,27 +148,43 @@ class AgentPanelFoldingMixin:
             if global_indices:
                 self.current_idx = global_indices[0]
 
-    def _isolate_focused_panel(self) -> bool:
+    def action_isolate_panels(self) -> None:
+        """Isolate the focused tribe panel, or restore the remembered layout."""
+        self._toggle_panel_isolation()
+
+    def _toggle_panel_isolation(self) -> None:
         """Toggle between a solo panel and its remembered split layout.
 
-        Returns ``True`` when whole-panel focus owns the action, including an
-        idempotent transition that does not change any panel folds. The first
-        changing isolate arms one session-local restore; the next whole-panel
-        zoom action applies it from whichever panel is currently focused.
+        Works from whole-panel focus and from an in-panel row/banner
+        selection alike. The first changing isolate arms one session-local
+        restore; the next isolate action applies it from whichever panel is
+        currently focused.
         """
         if self.current_tab != "agents":
-            return False
-        resolve_panel = getattr(self, "_resolve_focused_panel", None)
-        panel_focus = resolve_panel() if callable(resolve_panel) else None
-        if panel_focus is None:
-            return False
+            return
 
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None or getattr(self, "_agent_panels_grouped", False):
-            return False
+            self.notify(  # type: ignore[attr-defined]
+                "No tribe panels to isolate", severity="warning"
+            )
+            return
 
         live_keys = list(panel_group.panel_keys)
-        selected_key = panel_focus.panel_key
+        if len(live_keys) < 2:
+            self.notify(  # type: ignore[attr-defined]
+                "No tribe panels to isolate", severity="warning"
+            )
+            return
+
+        panel_focus = self._resolve_focused_panel()  # type: ignore[attr-defined]
+        whole_panel_focus = panel_focus is not None
+        target_key = (
+            panel_focus.panel_key
+            if panel_focus is not None
+            else panel_group.focused_key
+        )
+
         revert = self._panel_isolation_revert_record(repaint_expired=True)
         if revert is not None:
             desired_collapsed = set(revert.collapsed_before) & set(live_keys)
@@ -176,10 +192,15 @@ class AgentPanelFoldingMixin:
             # Disarm before persistence so the restore's own per-key intents
             # cannot invalidate a record that is already being consumed.
             self._panel_isolation_revert = None
-            self._focus_whole_panel_after_layout(
-                selected_key,
-                collapsed=selected_key in desired_collapsed,
-            )
+            if whole_panel_focus:
+                self._focus_whole_panel_after_layout(
+                    target_key,
+                    collapsed=target_key in desired_collapsed,
+                )
+            elif target_key in desired_collapsed:
+                # The restore is about to collapse the panel the cursor
+                # lives in, so land on collapsed whole-panel focus.
+                self._focus_whole_panel_after_layout(target_key, collapsed=True)
             changed_keys = self._apply_panel_fold_layout(
                 live_keys,
                 desired_collapsed,
@@ -191,28 +212,31 @@ class AgentPanelFoldingMixin:
             self.notify(  # type: ignore[attr-defined]
                 f"Restored {count} {noun}", timeout=1.5
             )
-            return True
+            return
 
         collapsed_before = frozenset(effective_panel_collapses(self, live_keys))
         desired_collapsed = set(live_keys)
-        desired_collapsed.discard(selected_key)
+        desired_collapsed.discard(target_key)
 
-        # Whole-panel focus stays on the chosen key.  Do not descend into its
-        # remembered banner/row or replace that saved in-panel selection.
-        self._focus_whole_panel_after_layout(selected_key, collapsed=False)
+        if whole_panel_focus:
+            # Whole-panel focus stays on the chosen key.  Do not descend into
+            # its remembered banner/row or replace that saved in-panel
+            # selection.
+            self._focus_whole_panel_after_layout(target_key, collapsed=False)
+        # Row focus: collapsing siblings cannot invalidate current_idx, which
+        # indexes the flat agent list, so selection state is left untouched.
         changed_keys = self._apply_panel_fold_layout(live_keys, desired_collapsed)
         if not changed_keys:
-            return True
+            return
 
         self._panel_isolation_revert = PanelIsolationRevert(
-            target_key=selected_key,
+            target_key=target_key,
             collapsed_before=collapsed_before,
         )
         # The fold repaint ran before arming so isolation's own persistence
         # calls could not trip invalidation. Repaint only the newly-marked
         # panels and the footer now that the record is visible.
         self._refresh_panel_isolation_ui(set(changed_keys))
-        return True
 
     def _collapse_focused_panel(self) -> None:
         """Collapse the focused tribe panel while retaining its detail context."""

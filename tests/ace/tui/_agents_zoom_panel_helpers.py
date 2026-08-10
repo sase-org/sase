@@ -92,7 +92,6 @@ class _FakeZoomApp(AgentPanelDetailMixin):
         agent: Agent | None = None,
         detail: _FakeDetail | None = None,
         current_attempt_number: int | None = None,
-        isolation_owned: bool = False,
     ) -> None:
         self.current_tab = "agents"
         self.current_idx = 0
@@ -103,14 +102,8 @@ class _FakeZoomApp(AgentPanelDetailMixin):
         self._agents_with_children = list(self._agents)
         self._marked_agents = set()
         self._detail = detail or _FakeDetail()
-        self._isolation_owned = isolation_owned
-        self.isolation_calls = 0
         self.pushed: list[Any] = []
         self.notifications: list[tuple[str, str | None]] = []
-
-    def _isolate_focused_panel(self) -> bool:
-        self.isolation_calls += 1
-        return self._isolation_owned
 
     def _get_selected_agent(self) -> Agent | None:
         return self._agent

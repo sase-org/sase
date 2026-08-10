@@ -211,14 +211,26 @@ def test_zoom_panel_command_is_agents_only_display_command() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.zoom_panel"]
 
-    assert spec.label == "Zoom detail / isolate or restore tribe panel"
+    assert spec.label == "Zoom detail panel"
     assert spec.category == "Display"
     assert spec.tabs == ("agents",)
     assert spec.key_sequence == ("Z",)
     assert spec.key_display == "Z"
     assert "zoom" in spec.aliases
+
+
+def test_isolate_panels_command_is_agents_only_display_command() -> None:
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.isolate_panels"]
+
+    assert spec.label == "Isolate or restore tribe panels"
+    assert spec.category == "Display"
+    assert spec.tabs == ("agents",)
+    assert spec.key_sequence == ("=",)
+    assert spec.key_display == "="
     assert "only panel" in spec.aliases
     assert "restore panels" in spec.aliases
+    assert "isolate" in spec.aliases
 
 
 def test_h_commands_describe_navigation_and_contextual_collapsing() -> None:

@@ -90,6 +90,7 @@ def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
             lane_collapse_available=True,
             clan_collapse_available=True,
             group_collapse_available=True,
+            panel_isolation_available=True,
         )
     )
     clans = _labels(
@@ -121,6 +122,7 @@ def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
             None,
             panel_focused=True,
             panel_collapsed=True,
+            panel_isolation_available=True,
         )
     )
     collapsed_with_jump = _labels(
@@ -138,8 +140,8 @@ def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
     assert ("H", "collapse group") in group
     assert ("h", "collapse panel") in terminal
     assert not any(key == "H" for key, _label in terminal)
-    assert ("Z", "only panel") in lanes
-    assert ("Z", "only panel") in collapsed
+    assert ("=", "only panel") in lanes
+    assert ("=", "only panel") in collapsed
     assert not any(key == "H" for key, _label in collapsed)
     assert ("h", "last expanded panel") not in collapsed
     assert ("h", "last expanded panel") in collapsed_with_jump
@@ -153,22 +155,47 @@ def test_footer_armed_panel_isolation_advertises_restore_action() -> None:
             None,
             panel_focused=True,
             panel_restore_armed=True,
+            panel_isolation_available=True,
         )
     )
 
-    assert ("Z", "restore panels") in bindings
-    assert ("Z", "only panel") not in bindings
+    assert ("=", "restore panels") in bindings
+    assert ("=", "only panel") not in bindings
     assert ("H", "restore panels") not in bindings
 
 
-def test_footer_panel_isolation_uses_custom_zoom_action_key() -> None:
+def test_footer_row_focus_advertises_isolation_when_two_or_more_panels() -> None:
+    footer = KeybindingFooter()
+
+    bindings = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=False,
+            panel_isolation_available=True,
+        )
+    )
+    armed = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=False,
+            panel_isolation_available=True,
+            panel_restore_armed=True,
+        )
+    )
+
+    assert ("=", "only panel") in bindings
+    assert ("=", "restore panels") in armed
+    assert ("=", "only panel") not in armed
+
+
+def test_footer_panel_isolation_uses_custom_isolate_action_key() -> None:
     footer = KeybindingFooter()
     footer.set_keymap_registry(
         load_keymap_registry(
             {
                 "keymaps": {
                     "app": {
-                        "zoom_panel": "f2",
+                        "isolate_panels": "f2",
                         "hooks_or_collapse_all": "f3",
                     }
                 }
@@ -181,6 +208,7 @@ def test_footer_panel_isolation_uses_custom_zoom_action_key() -> None:
             None,
             panel_focused=True,
             lane_collapse_available=True,
+            panel_isolation_available=True,
         )
     )
 
@@ -254,6 +282,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
             left_navigation_kind="family",
             panel_focused=True,
             structural_collapse_kind="family",
+            panel_isolation_available=True,
         )
     )
     workflow_collapse = _labels(
@@ -310,7 +339,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("h", "parent family") in tools
     assert ("H", "compact tools") in tools
     assert not any(label.startswith("parent ") for _key, label in panel)
-    assert ("Z", "only panel") in panel
+    assert ("=", "only panel") in panel
     assert ("H", "only panel") not in panel
     assert ("H", "collapse workflow") in workflow_collapse
     assert ("H", "collapse family") in family_collapse

@@ -111,6 +111,7 @@ class KeybindingBindingsMixin:
         panel_collapsed: bool = False,
         panel_collapse_jump_available: bool = False,
         panel_restore_armed: bool = False,
+        panel_isolation_available: bool = False,
         left_navigation_kind: str | None = None,
         lane_collapse_available: bool = False,
         clan_collapse_available: bool = False,
@@ -205,9 +206,11 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("hooks_or_collapse"), "collapse panel"))
                 bindings.append((self._kd("expand_or_layout"), "enter panel"))
                 bindings.append(("Esc", "enter panel"))
+
+        if panel_isolation_available:
             bindings.append(
                 (
-                    self._kd("zoom_panel"),
+                    self._kd("isolate_panels"),
                     "restore panels" if panel_restore_armed else "only panel",
                 )
             )

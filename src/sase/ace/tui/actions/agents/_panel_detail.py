@@ -169,11 +169,8 @@ class AgentPanelDetailMixin:
         agent_detail.toggle_layout()
 
     def action_zoom_panel(self) -> None:
-        """Zoom agent detail, or isolate/restore a focused tribe panel."""
+        """Zoom the active agent detail panel."""
         if self.current_tab != "agents":
-            return
-
-        if self._isolate_focused_panel():  # type: ignore[attr-defined]
             return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]

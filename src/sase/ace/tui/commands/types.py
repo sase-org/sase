@@ -222,6 +222,7 @@ class CommandContext:
     panel_focused: bool = False
     panel_collapsed: bool = False
     focused_panel_key: str | None = None
+    split_panel_count: int = 0
     # Compatibility for callers that still construct collapsed-only context.
     collapsed_panel_focused: bool = False
     group_focused: bool = False

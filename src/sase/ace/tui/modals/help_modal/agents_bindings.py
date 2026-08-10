@@ -103,9 +103,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Cycle panels: file → tools → metadata",
                 ),
                 (d(a.toggle_layout), "Toggle file/prompt layout"),
+                (d(a.zoom_panel), "Zoom detail panel"),
                 (
-                    d(a.zoom_panel),
-                    "Zoom detail / only panel ⇄ restore panels",
+                    d(a.isolate_panels),
+                    "Only panel ⇄ restore panels",
                 ),
                 (d(a.open_artifact_files), "Artifact files (or marked set)"),
                 (d(a.toggle_attempt_view), "Toggle attempt history view"),

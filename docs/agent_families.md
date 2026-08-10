@@ -223,12 +223,12 @@ appear when known, and known-empty sections remain omitted. The compact roster a
 numeric jumps remain available at every level.
 
 The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to
-zoom the largest detail panel from an agent row, or to isolate/restore a tribe panel
-from whole-panel focus; lowercase `z` starts fold mode. Fold state is panel-wide and
-applies when a clan or an agent lane is selected. Using a fold chord on a regular agent
-lane folds its `NEIGHBORS` and `SLOW TOOL CALLS` sections across that agent's own
-three-level scale, leaves its other sections unchanged, and updates the session state
-for the next container selection.
+zoom the largest detail panel from an agent row, and `=` to isolate or restore a tribe
+panel from whole-panel focus or a row selection inside a panel; lowercase `z` starts
+fold mode. Fold state is panel-wide and applies when a clan or an agent lane is
+selected. Using a fold chord on a regular agent lane folds its `NEIGHBORS` and
+`SLOW TOOL CALLS` sections across that agent's own three-level scale, leaves its other
+sections unchanged, and updates the session state for the next container selection.
 
 ### Epic bead-work example
 
@@ -499,13 +499,14 @@ collapsed ones, without descending, and `l` or `Esc` returns to the remembered r
 / `K` skip collapsed panels and move to the first / last selectable row of the next /
 previous expanded panel; they do nothing when no other panel is expanded. Whole-panel
 focus is unavailable in the merged layout. Apostrophe jump can select any split-panel
-title, including a lone expanded panel, but a lone panel cannot be collapsed. With
-whole-panel focus active, uppercase `Z` isolates the selected panel by keeping it
-expanded and collapsing every sibling without changing its remembered row. When
-isolation changes the layout, ACE remembers the prior collapsed-panel set for the
-session: `↺` title markers and the `Z restore panels` footer hint show that the next
-`Z`, from any whole-panel focus, will restore it. A separate sibling-panel or layout
-mutation invalidates that one-step restore.
+title, including a lone expanded panel, but a lone panel cannot be collapsed. Press `=`
+to isolate the focused panel by keeping it expanded and collapsing every sibling without
+changing its remembered row. `=` works from whole-panel focus and from a row selection
+inside a panel alike; from a row, it isolates the panel that holds the cursor without
+changing the selected row. When isolation changes the layout, ACE remembers the prior
+collapsed-panel set for the session: `↺` title markers and the `= restore panels` footer
+hint show that the next `=` will restore it. A separate sibling-panel or layout mutation
+invalidates that one-step restore.
 
 Uppercase `H` on a selected expanded panel walks a panel-wide collapse ladder without
 changing the remembered row: it first fully collapses every open canonical lane in that

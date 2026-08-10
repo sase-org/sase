@@ -29,7 +29,7 @@ def test_capital_z_expands_selected_panel_and_collapses_every_other_panel() -> N
     app._sync_panel_group()
     app._current_group_key = ("stale",)
 
-    app.action_zoom_panel()
+    app.action_isolate_panels()
 
     focus = app._resolve_focused_panel()
     assert focus is not None
@@ -60,7 +60,7 @@ def test_capital_z_only_changes_expanded_siblings_then_restores() -> None:
     app._sync_panel_group()
     app._expanded_panel_focus = True
 
-    app.action_zoom_panel()
+    app.action_isolate_panels()
 
     assert app._collapsed_panel_keys == {None, "beta"}
     assert app._panel_group.panel_keys == ["alpha", None, "beta"]
@@ -68,7 +68,7 @@ def test_capital_z_only_changes_expanded_siblings_then_restores() -> None:
     assert app.refresh_calls == [True]
     assert app.panel_fold_changes == [(None, True)]
 
-    app.action_zoom_panel()
+    app.action_isolate_panels()
 
     assert app._resolve_focused_panel() is not None
     assert app._collapsed_panel_keys == {"beta"}
@@ -82,7 +82,7 @@ def test_capital_z_can_leave_no_tribe_panel_as_selected_survivor() -> None:
     app._collapsed_panel_keys.add(None)
     app._sync_panel_group()
 
-    app.action_zoom_panel()
+    app.action_isolate_panels()
 
     focus = app._resolve_focused_panel()
     assert focus is not None

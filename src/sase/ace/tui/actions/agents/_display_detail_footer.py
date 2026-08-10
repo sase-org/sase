@@ -119,9 +119,13 @@ class AgentFooterDisplayMixin:
             )
             isolation_revert = getattr(self, "_panel_isolation_revert_record", None)
             panel_restore_armed = bool(
-                panel_focused
-                and callable(isolation_revert)
-                and isolation_revert() is not None
+                callable(isolation_revert) and isolation_revert() is not None
+            )
+            panel_group = getattr(self, "_panel_group", None)
+            panel_isolation_available = bool(
+                panel_group is not None
+                and not getattr(self, "_agent_panels_grouped", False)
+                and len(panel_group.panel_keys) >= 2
             )
             tools_visible = agent_detail.is_tools_visible()
             left_navigation_kind: str | None = None
@@ -214,6 +218,7 @@ class AgentFooterDisplayMixin:
                 panel_collapsed=panel_collapsed,
                 panel_collapse_jump_available=panel_collapse_jump_available,
                 panel_restore_armed=panel_restore_armed,
+                panel_isolation_available=panel_isolation_available,
                 left_navigation_kind=left_navigation_kind,
                 lane_collapse_available=lane_collapse_available,
                 clan_collapse_available=clan_collapse_available,

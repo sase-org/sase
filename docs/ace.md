@@ -914,7 +914,8 @@ rather than landing somewhere stale.
 | `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                  |
 | `p`                 | Toggle file / prompt layout                                                                                |
 | `z`                 | Start metadata fold mode for clan, lane (family or single agent), or selected whole-tribe detail panels    |
-| `Z`                 | Zoom the active detail panel, or isolate/restore a selected tribe panel                                    |
+| `Z`                 | Zoom the active detail panel                                                                               |
+| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                            |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                              |
 
 ### Forking Agents and Groups
@@ -1387,14 +1388,16 @@ collapses the panel through the same path as lowercase `h`. An already collapsed
 is a terminal no-op with the usual already-collapsed notification. The merged layout has
 no whole-panel focus and keeps the row-focused group scope across the merged roster.
 
-With a whole panel selected, uppercase `Z` keeps that panel expanded and collapses every
-sibling panel. If that changes the layout, ACE remembers the prior collapsed-panel set
-for one session-local restore. Panels whose state would change back show `↺` in their
-titles, the footer changes to `Z restore panels`, and the next `Z` from any whole-panel
-focus restores the remembered layout. A separate sibling-panel or layout mutation
-invalidates the pending restore. An already isolated panel is an idempotent no-op and
-does not arm a restore. This action preserves the selected panel's remembered row and is
-available only in the split layout.
+Press `=` to isolate the focused tribe panel: it keeps that panel expanded and collapses
+every sibling panel. If that changes the layout, ACE remembers the prior collapsed-panel
+set for one session-local restore. Panels whose state would change back show `↺` in
+their titles, the footer changes to `= restore panels`, and the next `=` restores the
+remembered layout. A separate sibling-panel or layout mutation invalidates the pending
+restore. An already isolated panel is an idempotent no-op and does not arm a restore.
+`=` works from whole-panel focus and from a row selection inside a panel alike — from a
+row, it isolates the panel that holds the cursor without changing the selected row. This
+action preserves the selected panel's remembered row and is available only in the split
+layout.
 
 Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel currently
 holds focus. Press `X` to open the cleanup panel: `d` dismisses completed agents in the
@@ -1472,7 +1475,7 @@ therefore be visible at once:
 | `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists |
 | `L` | Expand a collapsed focused panel and enter its first selectable row                                                    |
 | `H` | Collapse group lanes/clans/group, or selected-panel lanes/clans/top-level groups/panel; compact expanded Tools detail  |
-| `Z` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise zoom the active detail panel   |
+| `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection  |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain
 visible headings but are skipped by row navigation. When a collapsed banner is focused,
@@ -2953,8 +2956,8 @@ the complete content.
 ## Agents Zoom Panel
 
 Press `Z` on an agent row in the Agents tab to open a near-fullscreen view of the active
-detail panel. With whole-panel focus, the same action instead isolates that tribe panel
-or restores the previously remembered panel layout. In the detail modal, the header
+detail panel. Press `=` to isolate the focused tribe panel or restore the previously
+remembered panel layout (see Whole-Panel Focus above). In the detail modal, the header
 shows the available panel tabs (`METADATA`, `FILE`, `TOOLS`) with the active panel
 highlighted; use `]` / `[` to cycle those panels with wrap-around.
 

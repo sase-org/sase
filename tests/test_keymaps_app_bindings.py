@@ -228,10 +228,13 @@ def test_h_binding_metadata_describes_navigation_and_contextual_collapse() -> No
     upper = (
         "Collapse Scoped Lanes/Selected Clan/Clans/Groups/Panel / Compact Tools / All"
     )
-    zoom = "Zoom Detail / Only/Restore Panels"
+    zoom = "Zoom Detail"
+    isolate = "Only/Restore Panels"
     assert runtime_by_action["hooks_or_collapse"].description == lower
     assert fallback_by_action["hooks_or_collapse"].description == lower
     assert runtime_by_action["hooks_or_collapse_all"].description == upper
     assert fallback_by_action["hooks_or_collapse_all"].description == upper
     assert runtime_by_action["zoom_panel"].description == zoom
     assert fallback_by_action["zoom_panel"].description == zoom
+    assert runtime_by_action["isolate_panels"].description == isolate
+    assert fallback_by_action["isolate_panels"].description == isolate

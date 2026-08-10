@@ -111,6 +111,23 @@ def test_zoom_panel_available_for_agent_or_whole_panel_focus_only() -> None:
     )
 
 
+def test_isolate_panels_available_only_with_two_or_more_split_panels() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.isolate_panels"]
+
+    assert is_command_available(spec, CommandContext(tab="agents", split_panel_count=2))
+    assert not is_command_available(
+        spec, CommandContext(tab="agents", split_panel_count=1)
+    )
+    assert not is_command_available(
+        spec, CommandContext(tab="agents", split_panel_count=0)
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="changespecs", split_panel_count=2),  # legacy tab id
+    )
+
+
 def test_kill_agent_hidden_when_no_agent_no_group_no_marks() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.kill_agent"]

@@ -452,6 +452,7 @@ ace:
       # Mode activation prefixes
       start_fold_mode: "z"
       zoom_panel: "Z"
+      isolate_panels: "="
       start_leader_mode: "comma"
       start_bang_mode: "exclamation_mark"
       copy_tab_content: "percent_sign"

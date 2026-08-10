@@ -92,6 +92,16 @@ def _focused_panel_state(app: AceApp) -> tuple[bool, bool, str | None]:
         return (False, False, None)
 
 
+def _split_panel_count(app: AceApp) -> int:
+    """Return the live split-layout panel count, or ``0`` when merged."""
+    if getattr(app, "_agent_panels_grouped", False):
+        return 0
+    panel_group = getattr(app, "_panel_group", None)
+    if panel_group is None:
+        return 0
+    return len(panel_group.panel_keys)
+
+
 def _selected_axe_item(app: AceApp):  # type: ignore[no-untyped-def]
     items = getattr(app, "_axe_items", [])
     return _safe_index(items, app.current_idx)
@@ -244,6 +254,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     panel_focused, panel_collapsed, focused_panel_key = (
         _focused_panel_state(app) if tab == "agents" else (False, False, None)
     )
+    split_panel_count = _split_panel_count(app) if tab == "agents" else 0
     group_focused = (
         getattr(app, "_current_group_key", None) is not None
         if tab == "agents"
@@ -279,6 +290,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         panel_focused=panel_focused,
         panel_collapsed=panel_collapsed,
         focused_panel_key=focused_panel_key,
+        split_panel_count=split_panel_count,
         collapsed_panel_focused=panel_focused and panel_collapsed,
         group_focused=group_focused,
         file_panel_visible=file_panel,

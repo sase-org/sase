@@ -253,7 +253,7 @@ async def test_tribe_panel_four_level_png_snapshots(
             lambda _screen: page.app._resolve_focused_panel() is not None
         )
 
-        await page.press("Z")
+        await page.press("=")
         await page.wait_for(
             lambda _screen: (
                 None in page.app._collapsed_panel_keys
@@ -266,14 +266,14 @@ async def test_tribe_panel_four_level_png_snapshots(
         assert footer._last_layout_inputs is not None
         bindings, _mode_label = footer._last_layout_inputs
         assert ("H", "collapse group") in bindings
-        assert ("Z", "restore panels") in bindings
+        assert ("=", "restore panels") in bindings
         ace_png_visual.assert_page_png(
             page,
             "agents_tribe_panel_isolation_armed_120x40",
             title="ACE tribe panel isolation restore markers",
         )
 
-        await page.press("Z")
+        await page.press("=")
         await page.wait_for(
             lambda _screen: (
                 None not in page.app._collapsed_panel_keys
