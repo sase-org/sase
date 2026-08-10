@@ -37,7 +37,7 @@ def test_alias_context_builds_styled_rows_after_models() -> None:
     )
     assert provider_index == 0
     assert alias_index > provider_index
-    assert [row.option_id for row in rows[alias_index : alias_index + 14]] == [
+    assert [row.option_id for row in rows[alias_index : alias_index + 15]] == [
         "__header_aliases__",
         "@default",
         "@epic_lander",
@@ -48,6 +48,7 @@ def test_alias_context_builds_styled_rows_after_models() -> None:
         "@large_worker",
         "@xlarge_worker",
         "@smartest",
+        "@smarter",
         "@smart",
         "@cheap",
         "@cheaper",
@@ -56,7 +57,7 @@ def test_alias_context_builds_styled_rows_after_models() -> None:
     assert rows[-1].option_id == CUSTOM_SENTINEL
     alias_options = [
         option
-        for option in rows_to_options(rows[alias_index : alias_index + 15])
+        for option in rows_to_options(rows[alias_index : alias_index + 16])
         if option is not None and str(option.id).startswith("@")
     ]
     assert all(isinstance(option.prompt, Text) for option in alias_options)
@@ -121,6 +122,7 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         make_alias_view("large_worker", "role"),
         make_alias_view("xlarge_worker", "role"),
         make_alias_view("smartest", "role"),
+        make_alias_view("smarter", "role"),
         make_alias_view("smart", "role"),
         make_alias_view("cheap", "role"),
         make_alias_view("cheaper", "role"),
@@ -148,9 +150,7 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
     assert _alias_disabled_reason(medium_context, "cycle_a") == ("would create a cycle")
     assert _alias_disabled_reason(medium_context, "safe") is None
     assert _alias_disabled_reason(default_context, "big_epic_lander") is None
-    assert _alias_disabled_reason(default_context, "large_worker") == (
-        "would create a cycle"
-    )
+    assert _alias_disabled_reason(default_context, "large_worker") is None
     assert _alias_disabled_reason(default_context, "medium_worker") is None
     assert _alias_disabled_reason(smartest_context, "big_epic_lander") == (
         "would create a cycle"

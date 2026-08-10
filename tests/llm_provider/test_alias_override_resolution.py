@@ -20,7 +20,8 @@ from sase.llm_provider.model_alias_policy import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
+    SMART_MODEL_ALIAS_NAME,
+    SMARTER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
 )
 from sase.llm_provider.temporary_override import (
@@ -30,7 +31,6 @@ from sase.llm_provider.temporary_override import (
 )
 from tests._model_alias_defaults_fixture import (
     FROZEN_TARGET_DETAILS,
-    frozen_provider_model,
     frozen_provider_model_effort,
     frozen_selector_member,
     frozen_selector_provider_model_effort,
@@ -126,10 +126,18 @@ def test_stale_override_on_worker_has_no_builtin_effect(
         CHEAP_MODEL_ALIAS_NAME,
         0,
     )
-    assert resolve_model_provider("medium_worker") == frozen_provider_model(
-        MEDIUM_WORKER_MODEL_ALIAS_NAME
+    assert resolve_model_provider_with_effort(
+        "medium_worker"
+    ) == frozen_selector_provider_model_effort(
+        SMART_MODEL_ALIAS_NAME,
+        1,
     )
-    assert resolve_model_provider("large_worker") == ("claude", "opus")
+    assert resolve_model_provider_with_effort(
+        "large_worker"
+    ) == frozen_selector_provider_model_effort(
+        SMARTER_MODEL_ALIAS_NAME,
+        1,
+    )
     assert resolve_model_provider_with_effort(
         "xlarge_worker"
     ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
@@ -200,11 +208,21 @@ def test_retired_coder_override_does_not_propagate_to_provider_coders(
             "model_aliases": {"builtin": {"default": "claude/opus"}},
         },
     )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
     set_alias_override("coder", "codex/o3@medium", None, source="panel")
 
     assert resolve_model_alias("@claude_coder") == "claude_coder"
     assert resolve_model_alias("@codex_coder@xhigh") == "codex_coder"
-    assert resolve_model_provider("@smart") == ("claude", "opus")
+    assert resolve_model_provider_with_effort(
+        "@smart"
+    ) == frozen_selector_provider_model_effort(SMART_MODEL_ALIAS_NAME, 0)
 
 
 def test_configured_provider_coder_ignores_generic_coder_temporary_override(
@@ -260,16 +278,26 @@ def test_default_override_propagates_to_references(
             "model_aliases": {"builtin": {"default": "claude/opus"}},
         },
     )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
 
     set_alias_override("default", "codex/o3", None, source="panel")
 
     assert resolve_model_alias("default") == "codex/o3"
     assert resolve_model_alias("@default") == "codex/o3"
-    assert resolve_model_provider("@smart") == ("codex", "o3")
     assert resolve_model_provider("@epic_lander") == ("codex", "o3")
     assert resolve_model_provider_with_effort(
         "@medium_worker"
-    ) == frozen_provider_model_effort(MEDIUM_WORKER_MODEL_ALIAS_NAME)
+    ) == frozen_selector_provider_model_effort(SMART_MODEL_ALIAS_NAME, 0)
+    assert resolve_model_provider_with_effort(
+        "@smart"
+    ) == frozen_selector_provider_model_effort(SMART_MODEL_ALIAS_NAME, 0)
     assert resolve_effective_default_provider_model() == ("codex", "o3")
 
 
@@ -349,7 +377,7 @@ def test_launch_default_override_beats_machine_override_at_nested_hop(
     mock_provider_config(monkeypatch, {"provider": "claude"})
     set_alias_override("default", "codex/o3", None, source="panel")
 
-    assert resolve_model_provider("@smart", {"default": "claude/sonnet"}) == (
+    assert resolve_model_provider("@epic_lander", {"default": "claude/sonnet"}) == (
         "claude",
         "sonnet",
     )
@@ -372,6 +400,10 @@ def test_default_override_does_not_move_pinned_or_selector_backed_lanes(
     smartest = resolve_model_alias_with_effort("@smartest")
     big_lander = resolve_model_alias_with_effort("@big_epic_lander")
     xlarge = resolve_model_alias_with_effort("@xlarge_worker")
+    smart = resolve_model_alias_with_effort("@smart")
+    medium = resolve_model_alias_with_effort("@medium_worker")
+    smarter = resolve_model_alias_with_effort("@smarter")
+    large = resolve_model_alias_with_effort("@large_worker")
     assert (smartest.target, smartest.effort) == FROZEN_TARGET_DETAILS[
         SMARTEST_MODEL_ALIAS_NAME
     ]
@@ -381,6 +413,18 @@ def test_default_override_does_not_move_pinned_or_selector_backed_lanes(
     assert (xlarge.target, xlarge.effort) == FROZEN_TARGET_DETAILS[
         SMARTEST_MODEL_ALIAS_NAME
     ]
+    assert (smart.target, smart.effort) == frozen_selector_member(
+        SMART_MODEL_ALIAS_NAME, 0
+    )
+    assert (medium.target, medium.effort) == frozen_selector_member(
+        SMART_MODEL_ALIAS_NAME, 0
+    )
+    assert (smarter.target, smarter.effort) == frozen_selector_member(
+        SMARTER_MODEL_ALIAS_NAME, 0
+    )
+    assert (large.target, large.effort) == frozen_selector_member(
+        SMARTER_MODEL_ALIAS_NAME, 0
+    )
     assert (
         resolve_model_alias("@cheapest")
         == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]

@@ -10,6 +10,8 @@ from sase.llm_provider import (
     set_alias_override,
 )
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
+from sase.llm_provider.model_alias_policy import SMART_MODEL_ALIAS_NAME
+from tests._model_alias_defaults_fixture import frozen_selector_provider_model_effort
 from tests.llm_provider._provider_config_helpers import (
     mock_provider_config,
     patch_available_providers,
@@ -143,6 +145,10 @@ def test_default_override_is_surfaced_on_default_row(
         {"provider": "claude", "model_aliases": {}},
     )
     patch_available_providers(monkeypatch)
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
 
     set_alias_override("default", "codex/o3", None, source="test")
     try:
@@ -156,5 +162,7 @@ def test_default_override_is_surfaced_on_default_row(
     assert default.model == "o3"
     smart = views["smart"]
     assert smart.override is None
-    assert smart.provider == "codex"
-    assert smart.model == "o3"
+    provider, model, _effort = frozen_selector_provider_model_effort(
+        SMART_MODEL_ALIAS_NAME, 0
+    )
+    assert (smart.provider, smart.model) == (provider, model)

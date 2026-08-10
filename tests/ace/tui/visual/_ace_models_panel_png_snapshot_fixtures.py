@@ -95,8 +95,8 @@ def calm_views() -> list[AliasView]:
             provider="claude",
             model="claude-fable-4-10",
             description=(
-                "Model used when a prompt has no %model directive; every other "
-                "alias ultimately falls back to it."
+                "Model used when a prompt has no %model directive; delegates "
+                "to @smarter unless configured."
             ),
         ),
         _view("epic_lander", "role", provider="claude", model="opus"),
@@ -159,6 +159,14 @@ def calm_views() -> list[AliasView]:
             model="opus",
             effort="max",
             description="Highest-capability alias for explicit use.",
+        ),
+        _view(
+            "smarter",
+            "role",
+            provider="claude",
+            model="opus",
+            effort="xhigh",
+            description="Higher-capability alias used automatically by large phases.",
         ),
         _view(
             "smart",
@@ -297,8 +305,8 @@ def bucket_views() -> list[AliasView]:
             provider="claude",
             model="opus",
             description=(
-                "Model used when a prompt has no %model directive; every other "
-                "alias ultimately falls back to it."
+                "Model used when a prompt has no %model directive; delegates "
+                "to @smarter unless configured."
             ),
         ),
         _view("xsmall_worker", "role", provider="claude", model="sonnet"),

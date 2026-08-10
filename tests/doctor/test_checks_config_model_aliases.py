@@ -8,6 +8,7 @@ from sase.doctor.checks_config_model_aliases import check_config_model_aliases
 from sase.llm_provider.model_alias_policy import (
     MEDIUM_WORKER_MODEL_ALIAS_NAME,
     implicit_alias_targets,
+    role_alias_fallbacks,
 )
 
 
@@ -66,7 +67,10 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
     assert "model_aliases.builtin.phase_worker" in by_key
     assert "medium_worker" in by_key["model_aliases.builtin.phase_worker"]
     assert "remove it" in by_key["model_aliases.builtin.phase_worker"]
-    medium_worker_default = implicit_alias_targets()[MEDIUM_WORKER_MODEL_ALIAS_NAME]
+    medium_worker_default = (
+        implicit_alias_targets().get(MEDIUM_WORKER_MODEL_ALIAS_NAME)
+        or role_alias_fallbacks()[MEDIUM_WORKER_MODEL_ALIAS_NAME]
+    )
     assert medium_worker_default in by_key["model_aliases.builtin.phase_worker"]
     assert "model_aliases.builtin.epic_creator" in by_key
     assert "retired" in by_key["model_aliases.builtin.epic_creator"]

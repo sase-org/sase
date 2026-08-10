@@ -15,11 +15,11 @@ from sase.llm_provider.config import (
 )
 from sase.llm_provider.model_alias_policy import (
     CHEAP_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
+    SMART_MODEL_ALIAS_NAME,
+    SMARTER_MODEL_ALIAS_NAME,
 )
 from sase.llm_provider.registry import resolve_model_provider
 from tests._model_alias_defaults_fixture import (
-    FROZEN_TARGET_DETAILS,
     frozen_selector_member,
 )
 from tests.llm_provider._provider_config_helpers import mock_provider_config
@@ -175,12 +175,64 @@ def test_worker_other_and_worker_are_not_special_aliases(
         "large_worker",
         "xlarge_worker",
         "smart",
+        "smarter",
         "smartest",
         "cheap",
         "cheaper",
         "cheapest",
     } <= names
     assert "epic_creator" not in names
+
+
+def test_unconfigured_default_uses_shipped_fallback_before_provider_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolve_default_alias_target",
+        lambda: "claude/opus",
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
+
+    expected = frozen_selector_member(SMARTER_MODEL_ALIAS_NAME, 0)[0]
+    assert resolve_model_alias("@default") == expected
+    assert resolve_model_alias("@large_worker") == expected
+
+
+def test_configured_and_temporary_default_override_beat_shipped_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "claude/opus"}},
+        },
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
+
+    assert resolve_model_alias("@default") == "claude/opus"
+
+    temporary = MagicMock(provider="codex", model="o3", effort=None)
+    monkeypatch.setattr(
+        "sase.llm_provider.config._active_alias_overrides",
+        lambda: {"default": temporary},
+    )
+    assert resolve_model_alias("@default") == "codex/o3"
 
 
 def test_unconfigured_retired_aliases_resolve_to_bare_input(
@@ -254,7 +306,7 @@ def test_launch_worker_override_has_no_builtin_effect(
     )
     assert (
         resolve_model_alias("@medium_worker", overrides)
-        == (FROZEN_TARGET_DETAILS[MEDIUM_WORKER_MODEL_ALIAS_NAME][0])
+        == (frozen_selector_member(SMART_MODEL_ALIAS_NAME, 1)[0])
     )
     assert resolve_model_alias("@large_worker", overrides) == "claude/opus"
     assert resolve_model_alias("@worker", overrides) == "worker"

@@ -820,12 +820,13 @@ llm_provider:
   # Allowed: none, minimal, low, medium, high, xhigh, max.
   default_effort: ""
   # Model aliases for no-%model launches, delegated work, and reusable prompts.
-  # Builtin role overrides live under builtin. Normal epic landers and @smart
-  # fall back to @default; accepted tale follow-ups use the tale size's
-  # @<size>_worker alias. Threshold-selected epic landers and extra-large
-  # phases use @smartest, which owns a concrete maximum-effort target. `cheap`,
-  # `cheaper`, and `cheapest` own independent load-balanced pools. Use `A | B`
-  # for round-robin or `A || B` for ordered fallback; do not mix the operators.
+  # Builtin role overrides live under builtin. @default delegates to @smarter
+  # unless configured, normal epic landers fall back to @default, and accepted
+  # tale follow-ups use the tale size's @<size>_worker alias. Medium phases use
+  # @smart, large phases use @smarter, and threshold-selected epic landers plus
+  # extra-large phases use @smartest. `smart`, `smarter`, `cheap`, `cheaper`,
+  # and `cheapest` own independent pools by default. Use `A | B` for
+  # round-robin or `A || B` for ordered fallback; do not mix the operators.
   # Values may be a bare known model (opus), an explicit
   # provider/model (codex/gpt-5.6-sol or muse/muse-spark-1.2), a nested
   # provider-local path (opencode/anthropic/claude-sonnet-4-5), or an
@@ -841,15 +842,16 @@ llm_provider:
   # here are grammar examples only, not the shipped defaults.
   # model_aliases:
   #   builtin:
-  #     default: opus               # model used when a prompt has no %model directive
+  #     default: "@smarter"        # no-%model launch alias
   #     epic_lander: "@default"     # epic land agents
   #     big_epic_lander: "@smartest" # threshold-selected epic land agents
   #     xsmall_worker: "@cheaper" # extra-small bead phase agents
   #     small_worker: "@cheap"    # small bead phase agents
-  #     medium_worker: "@default@high" # alias-reference effort example
-  #     large_worker: "@smart"    # large bead phase agents
+  #     medium_worker: "@smart"   # medium bead phase agents
+  #     large_worker: "@smarter"  # large bead phase agents
   #     xlarge_worker: "@smartest" # extra-large bead phase agents
-  #     smart: "@default"          # high-capability alias
+  #     smart: "claude/sonnet@xhigh | codex/gpt-5.5@xhigh" # pool example
+  #     smarter: "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh" # pool example
   #     smartest: "claude/opus@max"                  # example maximum-effort override
   #     cheap: "claude/haiku | codex/gpt-4.1-mini"   # load-balanced pool example
   #     cheaper: "claude/haiku | codex/gpt-4.1-mini" # load-balanced pool example

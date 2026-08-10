@@ -1111,9 +1111,9 @@ already-loaded Artifacts-pane snapshots.
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists
 inline-typable model names, implicit role aliases (`@default`, `@epic_lander`,
 `@big_epic_lander`, `@xsmall_worker`, `@small_worker`, `@medium_worker`,
-`@large_worker`, `@xlarge_worker`, `@smartest`, `@smart`, `@cheap`, `@cheaper`,
-`@cheapest`), and configured model aliases; provider short aliases are shown as
-filter/display hints but are not inserted.
+`@large_worker`, `@xlarge_worker`, `@smartest`, `@smarter`, `@smart`, `@cheap`,
+`@cheaper`, `@cheapest`), and configured model aliases; provider short aliases are shown
+as filter/display hints but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered
 workspace-provider refs and known-project refs such as `#git:<project>` or
@@ -1283,13 +1283,15 @@ llm_provider:
   # Override examples; shipped implicit targets are generated in docs/llms.md.
   model_aliases:
     builtin:
-      default: opus # model used when a prompt has no %model directive
+      default: "@smarter" # model used when a prompt has no %model directive
       big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
       cheap: claude/haiku | codex/gpt-4.1-mini # custom small-phase pool
       cheaper: claude/haiku@minimal | codex/gpt-4.1-mini@low # custom xsmall pool
       cheapest: claude/haiku@minimal | codex/gpt-4o-mini # custom explicit-use pool
-      medium_worker: codex/o3@high # custom medium target
-      large_worker: "@smart"
+      medium_worker: "@smart"
+      large_worker: "@smarter"
+      smart: claude/sonnet@xhigh | codex/gpt-5.5@xhigh
+      smarter: claude/opus@xhigh | codex/gpt-5.6-sol@xhigh
       smartest: claude/sonnet@max # custom maximum-effort target
     custom:
       blogger:
@@ -1338,22 +1340,22 @@ addressable and editable.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases**
 that resolve even when unset: `@default` (no-`%model` launches), `@epic_lander`,
-`@big_epic_lander`, the five `<size>_worker` aliases, `@smartest`, `@smart`, `@cheap`,
-and `@cheaper`, plus explicit-use `@cheapest`. `@epic_lander` falls back to `@default`,
-while `@big_epic_lander` falls back independently to `@smartest`; xsmall phases and
-tasks fall back to `@cheaper`, small ones to `@cheap`, medium ones use `@medium_worker`,
-large ones to `@smart` (which itself falls back to `@default`), and xlarge ones to
-`@smartest`. The implicit `@medium_worker` and `@smartest` values are concrete targets,
-so they do not track `@default`; xlarge workers and threshold-sized epic landers inherit
-through `@smartest` unless they or `@smartest` are overridden. `@cheaper` owns the
-automatic xsmall phase/task pool and `@cheap` the small phase/task pool, while
-`@cheapest` owns an independent explicit-use pool. Override only threshold-sized epic
-landers with `model_aliases.builtin.big_epic_lander`; override only large phases and
-sized tasks with `model_aliases.builtin.large_worker`. `@smartest` is selected
-automatically through the threshold-sized epic and xlarge phase/task fallback chains.
-See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
-[Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how
-delegated launches pick a role. New tasks require an explicit size after
+`@big_epic_lander`, the five `<size>_worker` aliases, `@smartest`, `@smarter`, `@smart`,
+`@cheap`, and `@cheaper`, plus explicit-use `@cheapest`. `@default` delegates to
+`@smarter` unless configured. `@epic_lander` falls back to `@default`, while
+`@big_epic_lander` falls back independently to `@smartest`; xsmall phases and tasks fall
+back to `@cheaper`, small ones to `@cheap`, medium ones use `@medium_worker` through
+`@smart`, large ones use `@large_worker` through `@smarter`, and xlarge ones use
+`@xlarge_worker` through `@smartest`. The capability aliases (`@smart`, `@smarter`,
+`@smartest`) and cost aliases (`@cheap`, `@cheaper`, `@cheapest`) own the shipped
+targets or pools, so they do not track `@default`; dependent worker and epic aliases
+inherit through them unless the dependent alias or the owner is overridden. Override
+only threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override
+only large phases and sized tasks with `model_aliases.builtin.large_worker`. `@smartest`
+is selected automatically through the threshold-sized epic and xlarge phase/task
+fallback chains. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full
+table and [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for
+how delegated launches pick a role. New tasks require an explicit size after
 `/sase_new_task` has ruled out a semantic duplicate and a causally related in-progress
 epic. Legacy tasks without size metadata remain launchable through the small phase/task
 route.

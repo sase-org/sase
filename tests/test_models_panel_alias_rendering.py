@@ -94,7 +94,7 @@ def test_state_tag_implicit_default() -> None:
 
 def test_state_tag_implicit_role() -> None:
     text = _state_tag(make_alias_view("medium_worker", "role"), now=0.0)
-    assert text.plain == "implicit"
+    assert text.plain == "implicit → @smart"
 
 
 def test_state_tag_implicit_big_epic_lander() -> None:
@@ -104,7 +104,7 @@ def test_state_tag_implicit_big_epic_lander() -> None:
 
 def test_state_tag_implicit_concrete_size_worker() -> None:
     text = _state_tag(make_alias_view("medium_worker", "role"), now=0.0)
-    assert text.plain == "implicit"
+    assert text.plain == "implicit → @smart"
 
 
 def test_custom_builtin_warning_survives_active_override() -> None:

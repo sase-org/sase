@@ -150,7 +150,7 @@ async def test_models_panel_smartest_max_effort_png_snapshot(
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
-        await page.press("j", "j", "j", "j", "j")
+        await page.press("j", "j", "j", "j", "j", "j")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -178,7 +178,7 @@ async def test_models_panel_pool_effort_png_snapshot(
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
-        await page.press("j", "j", "j", "j", "j", "j")
+        await page.press("j", "j", "j", "j", "j", "j", "j")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -205,7 +205,7 @@ async def test_models_panel_effort_provenance_png_snapshot(
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
-        await page.press("j", "j", "j", "j", "j", "j", "j", "j", "j")
+        await page.press("j", "j", "j", "j", "j", "j", "j", "j", "j", "j")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -234,7 +234,7 @@ async def test_models_panel_pool_suspended_png_snapshot(
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
-        await page.press("j", "j", "j", "j", "j", "j")
+        await page.press("j", "j", "j", "j", "j", "j", "j")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

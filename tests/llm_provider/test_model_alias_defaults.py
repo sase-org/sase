@@ -22,6 +22,7 @@ from sase.llm_provider.model_alias_policy import (
     MEDIUM_WORKER_MODEL_ALIAS_NAME,
     SMALL_WORKER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
+    SMARTER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     XLARGE_WORKER_MODEL_ALIAS_NAME,
     XSMALL_WORKER_MODEL_ALIAS_NAME,
@@ -51,6 +52,7 @@ _DECLARED_ROLE_ALIAS_NAMES = frozenset(
         LARGE_WORKER_MODEL_ALIAS_NAME,
         XLARGE_WORKER_MODEL_ALIAS_NAME,
         SMART_MODEL_ALIAS_NAME,
+        SMARTER_MODEL_ALIAS_NAME,
         SMARTEST_MODEL_ALIAS_NAME,
         CHEAP_MODEL_ALIAS_NAME,
         CHEAPER_MODEL_ALIAS_NAME,
@@ -132,10 +134,10 @@ def test_fallback_and_target_are_mutually_exclusive_and_cover_every_role(
     )
 
 
-def test_default_alias_has_neither_fallback_nor_target(
+def test_default_alias_declares_fallback_and_no_target(
     real_model_alias_defaults: None,
 ) -> None:
-    assert DEFAULT_MODEL_ALIAS_NAME not in role_alias_fallbacks()
+    assert role_alias_fallbacks()[DEFAULT_MODEL_ALIAS_NAME] == "@smarter"
     assert DEFAULT_MODEL_ALIAS_NAME not in implicit_alias_targets()
 
 
@@ -202,11 +204,37 @@ def test_parser_rejects_unparseable_target() -> None:
         _parse_fixture_aliases(aliases)
 
 
+def test_parser_rejects_default_target() -> None:
+    aliases = _fixture_aliases()
+    aliases[DEFAULT_MODEL_ALIAS_NAME].pop("fallback")
+    aliases[DEFAULT_MODEL_ALIAS_NAME]["target"] = "claude/opus"
+
+    with pytest.raises(RuntimeError, match="default.*must not set 'target'"):
+        _parse_fixture_aliases(aliases)
+
+
+def test_parser_accepts_default_with_neither_fallback_nor_target() -> None:
+    aliases = _fixture_aliases()
+    aliases[DEFAULT_MODEL_ALIAS_NAME].pop("fallback")
+
+    _parse_fixture_aliases(aliases)
+
+
 def test_parser_rejects_two_alias_fallback_cycle() -> None:
     aliases = _fixture_aliases()
+    aliases[SMART_MODEL_ALIAS_NAME].pop("target")
     aliases[SMART_MODEL_ALIAS_NAME]["fallback"] = "@smartest"
     aliases[SMARTEST_MODEL_ALIAS_NAME].pop("target")
     aliases[SMARTEST_MODEL_ALIAS_NAME]["fallback"] = "@smart"
 
     with pytest.raises(RuntimeError, match="smart.*cycle|cycle.*smart"):
+        _parse_fixture_aliases(aliases)
+
+
+def test_parser_rejects_fallback_cycle_routed_through_default() -> None:
+    aliases = _fixture_aliases()
+    aliases[SMARTER_MODEL_ALIAS_NAME].pop("target")
+    aliases[SMARTER_MODEL_ALIAS_NAME]["fallback"] = "@default"
+
+    with pytest.raises(RuntimeError, match="default.*cycle|cycle.*default"):
         _parse_fixture_aliases(aliases)

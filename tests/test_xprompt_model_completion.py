@@ -60,6 +60,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@large_worker",
         "@xlarge_worker",
         "@smartest",
+        "@smarter",
         "@smart",
         "@cheap",
         "@cheaper",
@@ -83,6 +84,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     assert by_value["@medium_worker"].aliases == ("medium_worker",)
     assert by_value["@cheap"].aliases == ("cheap",)
     assert by_value["@smartest"].aliases == ("smartest",)
+    assert by_value["@smarter"].aliases == ("smarter",)
     assert by_value["@fast"].kind == "user_alias"
     assert by_value["@fast"].aliases == ("fast",)
 

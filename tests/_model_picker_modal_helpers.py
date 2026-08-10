@@ -61,6 +61,7 @@ def make_alias_context(
             make_alias_view(
                 "smartest", "role", provider="claude", model="claude-fable-5"
             ),
+            make_alias_view("smarter", "role", provider="claude", model="opus"),
             make_alias_view("smart", "role", provider="claude", model="opus"),
             make_alias_view("cheap", "role", provider="claude", model="opus"),
             make_alias_view("cheaper", "role", provider="claude", model="sonnet"),

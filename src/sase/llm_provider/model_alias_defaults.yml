@@ -6,14 +6,16 @@
 # Each entry carries at most one of `fallback` (an @<alias> reference,
 # optionally with a trailing @<effort>) or `target` (a concrete model,
 # provider/model, `A | B` pool, or `A || B` ordered fallback).
-# `default` carries neither: it resolves through the configured/autodetected
-# provider's tier default. Every entry requires a `description`.
+# `default` normally delegates through a shipped fallback; when it declares no
+# fallback, it resolves through the configured/autodetected provider's tier
+# default. Every entry requires a `description`.
 schema_version: 1
 aliases:
   default:
+    fallback: "@smarter"
     description: >-
-      Model used when a prompt has no %model directive; every other alias
-      ultimately falls back to it.
+      Model used when a prompt has no %model directive; delegates to @smarter
+      unless configured.
   epic_lander:
     fallback: "@default"
     description: "Epic land agents that finalize and submit an epic."
@@ -31,10 +33,10 @@ aliases:
     fallback: "@cheap"
     description: "Small bead phase agents that implement directly."
   medium_worker:
-    target: "codex/gpt-5.5@xhigh"
+    fallback: "@smart"
     description: "Medium bead phase agents that implement directly."
   large_worker:
-    fallback: "@smart"
+    fallback: "@smarter"
     description: "Large bead phase agents that plan before implementation."
   xlarge_worker:
     fallback: "@smartest"
@@ -42,15 +44,20 @@ aliases:
       Extra-large bead phase agents that author an epic plan before
       implementation.
   smart:
-    fallback: "@default"
-    description: "High-capability model used automatically by large phase agents."
+    target: "codex/gpt-5.5@xhigh | claude/sonnet@xhigh"
+    description: "High-capability pool used automatically by medium phase agents."
+  smarter:
+    target: "codex/gpt-5.6-sol@xhigh | claude/opus@xhigh"
+    description: >-
+      Higher-capability pool used automatically by large phase agents and by
+      `@default`.
   smartest:
     target: "claude/opus@max"
     description: >-
       Highest-capability model used automatically by extra-large phase agents
       and large epic landers.
   cheap:
-    target: "claude/sonnet@xhigh | codex/gpt-5.5@medium"
+    target: "claude/sonnet@high | codex/gpt-5.5@high"
     description: "Load-balanced pool used automatically by small phase agents."
   cheaper:
     target: "claude/sonnet@medium | codex/gpt-5.5@medium"

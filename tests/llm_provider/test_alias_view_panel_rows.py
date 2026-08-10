@@ -114,6 +114,7 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
         "big_epic_lander",
         "worker",
         "smartest",
+        "smarter",
         "smart",
         "cheap",
         "cheaper",
@@ -124,7 +125,7 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
     ]
     assert all(row.name not in {"coder", "claude_coder", "codex_coder"} for row in rows)
 
-    user_rows = rows[9:]
+    user_rows = rows[10:]
     assert [row.name for row in user_rows] == ["coding", "research", "alpha"]
     coding, research, alpha = user_rows
     assert isinstance(coding, BucketView)
@@ -186,6 +187,7 @@ def test_models_panel_rows_treat_retired_coder_aliases_as_user_aliases(
         "big_epic_lander",
         "worker",
         "smartest",
+        "smarter",
         "smart",
         "cheap",
         "cheaper",
@@ -258,6 +260,7 @@ def test_models_panel_worker_bucket_coalesces_builtin_and_custom_members(
         "big_epic_lander",
         "worker",
         "smartest",
+        "smarter",
         "smart",
         "cheap",
         "cheaper",

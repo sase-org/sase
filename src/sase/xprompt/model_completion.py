@@ -27,6 +27,7 @@ from sase.llm_provider.config import (
     MEDIUM_WORKER_MODEL_ALIAS_NAME,
     SMALL_WORKER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
+    SMARTER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     XLARGE_WORKER_MODEL_ALIAS_NAME,
     XSMALL_WORKER_MODEL_ALIAS_NAME,
@@ -59,6 +60,7 @@ _IMPLICIT_ALIASES: tuple[str, ...] = (
     LARGE_WORKER_MODEL_ALIAS_NAME,
     XLARGE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
+    SMARTER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
@@ -107,9 +109,9 @@ def build_model_completion_catalog(
     aliases are kept as match/display hints only; they are not inserted as
     completion values. The implicit role aliases (``@default``,
     ``@epic_lander``, ``@big_epic_lander``, the five size-specific phase
-    aliases, ``@smartest``, ``@smart``, ``@cheap``, ``@cheaper``, and
-    ``@cheapest``) and user-configured aliases are inserted with their ``@``
-    form because those values resolve through the
+    aliases, ``@smartest``, ``@smarter``, ``@smart``, ``@cheap``,
+    ``@cheaper``, and ``@cheapest``) and user-configured aliases are inserted
+    with their ``@`` form because those values resolve through the
     normal ``%model`` path.
     """
     global _CATALOG_CACHE  # noqa: PLW0603

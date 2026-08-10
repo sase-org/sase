@@ -24,9 +24,9 @@ from sase.bead.work import (
     SASE_EPIC_PLAN_SNAPSHOT_ENV,
     SASE_PHASE_BEAD_ID_ENV,
 )
-from sase.llm_provider.model_alias_policy import MEDIUM_WORKER_MODEL_ALIAS_NAME
+from sase.llm_provider.model_alias_policy import SMART_MODEL_ALIAS_NAME
 from sase.llm_provider.temporary_override import set_temporary_override
-from tests._model_alias_defaults_fixture import frozen_provider_model_effort
+from tests._model_alias_defaults_fixture import frozen_selector_provider_model_effort
 
 
 def test_extract_directives_persists_runner_output_path(
@@ -464,12 +464,20 @@ def test_medium_worker_directive_metadata_pins_concrete_lane(
 ) -> None:
     """A medium phase records its pinned model despite a default override."""
     _mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
     set_temporary_override("codex/o3", 3600.0, source="test")
 
     meta = _extract_medium_worker_model_meta(tmp_path)
 
-    provider, model, effort = frozen_provider_model_effort(
-        MEDIUM_WORKER_MODEL_ALIAS_NAME
+    provider, model, effort = frozen_selector_provider_model_effort(
+        SMART_MODEL_ALIAS_NAME, 0
     )
     assert (meta["llm_provider"], meta["model"]) == (provider, model)
     assert meta["reasoning_effort"] == effort

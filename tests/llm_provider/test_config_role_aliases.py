@@ -21,7 +21,8 @@ from sase.llm_provider.model_alias_policy import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
+    SMART_MODEL_ALIAS_NAME,
+    SMARTER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     implicit_alias_targets,
     role_alias_fallbacks,
@@ -47,18 +48,26 @@ def test_role_alias_helpers() -> None:
     assert implicit_model_alias_fallback("epic_lander") == "default"
     assert implicit_model_alias_fallback("xsmall_worker") == "cheaper"
     assert implicit_model_alias_fallback("small_worker") == "cheap"
-    assert "medium_worker" not in fallbacks
-    assert implicit_model_alias_fallback("medium_worker") is None
-    assert implicit_model_alias_fallback_reference("medium_worker") is None
+    assert fallbacks["medium_worker"] == "@smart"
+    assert implicit_model_alias_fallback("medium_worker") == "smart"
+    assert implicit_model_alias_fallback_reference("medium_worker") == "@smart"
     assert implicit_model_alias_fallback_effort("medium_worker") is None
-    assert (
-        implicit_model_alias_value("medium_worker")
-        == FROZEN_TARGETS[MEDIUM_WORKER_MODEL_ALIAS_NAME]
-    )
-    assert parse_model_alias_selector(targets[MEDIUM_WORKER_MODEL_ALIAS_NAME]) is None
-    assert implicit_model_alias_fallback("large_worker") == "smart"
+    assert implicit_model_alias_value("medium_worker") is None
+    assert implicit_model_alias_fallback("large_worker") == "smarter"
     assert implicit_model_alias_fallback("xlarge_worker") == "smartest"
-    assert implicit_model_alias_fallback("smart") == "default"
+    assert implicit_model_alias_fallback("smart") is None
+    assert implicit_model_alias_value("smart") == FROZEN_TARGETS[SMART_MODEL_ALIAS_NAME]
+    smart_selector = parse_model_alias_selector(targets[SMART_MODEL_ALIAS_NAME])
+    assert smart_selector is not None
+    assert smart_selector.mode == "round_robin"
+    assert implicit_model_alias_fallback("smarter") is None
+    assert (
+        implicit_model_alias_value("smarter")
+        == FROZEN_TARGETS[SMARTER_MODEL_ALIAS_NAME]
+    )
+    smarter_selector = parse_model_alias_selector(targets[SMARTER_MODEL_ALIAS_NAME])
+    assert smarter_selector is not None
+    assert smarter_selector.mode == "round_robin"
     assert implicit_model_alias_fallback("smartest") is None
     assert (
         implicit_model_alias_value("smartest")
@@ -91,7 +100,7 @@ def test_role_alias_helpers() -> None:
     assert implicit_model_alias_fallback_effort("codex_coder") is None
     assert implicit_model_alias_value("fakey_coder") is None
     assert implicit_model_alias_fallback("fakey_coder") is None
-    assert implicit_model_alias_fallback("default") is None
+    assert implicit_model_alias_fallback("default") == "smarter"
 
 
 def test_default_alias_resolves_to_configured_target(
@@ -110,29 +119,47 @@ def test_default_alias_resolves_to_configured_target(
     assert resolve_model_provider("default") == ("codex", "gpt-5.6-sol")
 
 
-def test_default_alias_falls_back_to_provider_tier_default(
+def test_default_alias_resolves_through_shipped_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Absent a configured ``default``, ``@default`` is the provider tier default."""
+    """Absent a configured ``default``, ``@default`` follows ``@smarter``."""
     mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
 
-    assert resolve_model_alias("default") == "claude/opus"
-    assert resolve_model_provider("default") == ("claude", "opus")
+    target, _effort = frozen_selector_member(SMARTER_MODEL_ALIAS_NAME, 0)
+    provider, model = target.split("/", 1)
+    assert resolve_model_alias("default") == target
+    assert resolve_model_provider("default") == (provider, model)
 
 
-def test_medium_worker_uses_concrete_target(
+def test_medium_worker_inherits_smart_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
 
     resolved = resolve_model_alias_with_effort("medium_worker")
 
-    assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
-        MEDIUM_WORKER_MODEL_ALIAS_NAME
-    ]
+    assert (resolved.target, resolved.effort) == frozen_selector_member(
+        SMART_MODEL_ALIAS_NAME, 0
+    )
 
 
-def test_medium_worker_ignores_default_with_outer_effort_winning(
+def test_medium_worker_inherits_smart_with_outer_effort_winning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -142,14 +169,22 @@ def test_medium_worker_ignores_default_with_outer_effort_winning(
             "model_aliases": {"builtin": {"default": "codex/gpt-5.6-sol@medium"}},
         },
     )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
 
     resolved = resolve_model_alias_with_effort("@medium_worker")
     outer = resolve_model_alias_with_effort("@medium_worker@low")
 
-    target, _effort = FROZEN_TARGET_DETAILS[MEDIUM_WORKER_MODEL_ALIAS_NAME]
-    assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
-        MEDIUM_WORKER_MODEL_ALIAS_NAME
-    ]
+    target, _effort = frozen_selector_member(SMART_MODEL_ALIAS_NAME, 0)
+    assert (resolved.target, resolved.effort) == frozen_selector_member(
+        SMART_MODEL_ALIAS_NAME, 0
+    )
     assert (outer.target, outer.effort) == (target, "low")
 
 
@@ -248,18 +283,29 @@ def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
             "model_aliases": {"builtin": {"default": "codex/gpt-5.6-sol"}},
         },
     )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
 
     assert resolve_model_alias("epic_lander") == "codex/gpt-5.6-sol"
     assert (
         resolve_model_alias("medium_worker")
-        == FROZEN_TARGET_DETAILS[MEDIUM_WORKER_MODEL_ALIAS_NAME][0]
+        == frozen_selector_member(SMART_MODEL_ALIAS_NAME, 0)[0]
     )
     for alias in ("smartest", "big_epic_lander", "xlarge_worker"):
         resolved = resolve_model_alias_with_effort(alias)
         assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
             SMARTEST_MODEL_ALIAS_NAME
         ]
-    assert resolve_model_alias("large_worker") == "codex/gpt-5.6-sol"
+    assert (
+        resolve_model_alias("large_worker")
+        == frozen_selector_member(SMARTER_MODEL_ALIAS_NAME, 0)[0]
+    )
     small = resolve_model_alias_with_effort("small_worker")
     xsmall = resolve_model_alias_with_effort("xsmall_worker")
     cheap = resolve_model_alias_with_effort("cheap")
@@ -334,6 +380,14 @@ def test_stale_worker_builtin_does_not_control_medium_phase(
             },
         },
     )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
 
     small = resolve_model_alias_with_effort("small_worker")
     assert (small.target, small.effort) == frozen_selector_member(
@@ -341,13 +395,12 @@ def test_stale_worker_builtin_does_not_control_medium_phase(
     )
     assert (
         resolve_model_alias("medium_worker")
-        == FROZEN_TARGET_DETAILS[MEDIUM_WORKER_MODEL_ALIAS_NAME][0]
+        == frozen_selector_member(SMART_MODEL_ALIAS_NAME, 0)[0]
     )
-    monkeypatch.setattr(
-        "sase.llm_provider.config._resolved_target_is_available",
-        lambda target: target.startswith("codex/"),
+    assert (
+        resolve_model_alias("large_worker")
+        == frozen_selector_member(SMARTER_MODEL_ALIAS_NAME, 0)[0]
     )
-    assert resolve_model_alias("large_worker") == "codex/gpt-5.6-sol"
 
 
 def test_configured_phase_size_alias_shadows_default_only_for_that_size(
@@ -456,10 +509,18 @@ def test_custom_worker_alias_is_available_for_explicit_use_only(
             },
         },
     )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
 
     assert resolve_model_alias("worker") == "claude/sonnet"
     assert (
         resolve_model_alias("medium_worker")
-        == FROZEN_TARGET_DETAILS[MEDIUM_WORKER_MODEL_ALIAS_NAME][0]
+        == frozen_selector_member(SMART_MODEL_ALIAS_NAME, 0)[0]
     )
     assert resolve_model_alias("coder") == "coder"

@@ -30,16 +30,16 @@ from .load_balancing import ModelAliasSelectorError, parse_model_alias_selector
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``epic_lander`` / ``big_epic_lander`` /
-#     ``<size>_worker`` / ``smart`` / ``smartest`` /
+#     ``<size>_worker`` / ``smart`` / ``smarter`` / ``smartest`` /
 #     ``cheap`` / ``cheaper`` / ``cheapest``: bead/epic roles.
 #
-# Most roles fall back to another alias (ultimately ``@default``) when they are
+# Most roles fall back to another alias when they are
 # not explicitly configured. A fallback reference may carry an effort overlay,
 # such as ``@default@high``; an outer effort still wins.
-# ``medium_worker`` and ``smartest`` own independent concrete targets,
-# while ``cheap``, ``cheaper``, and ``cheapest`` own load-balanced pools.
-# ``default`` itself falls back to the configured or autodetected provider's
-# tier default.
+# ``smarter``, ``smart``, ``smartest``, ``cheap``, ``cheaper``, and
+# ``cheapest`` own independent concrete targets/pools. ``default`` delegates
+# to ``@smarter`` by default; if it declares no fallback, it falls through to
+# the configured or autodetected provider's tier default.
 # See ``model_alias_defaults.yml`` for the current value of every default.
 
 #: The implicit "default" alias name (used for no-``%model`` launches).
@@ -69,6 +69,9 @@ XLARGE_WORKER_MODEL_ALIAS_NAME = "xlarge_worker"
 #: The implicit "smart" high-capability alias.
 SMART_MODEL_ALIAS_NAME = "smart"
 
+#: The implicit "smarter" high-capability alias.
+SMARTER_MODEL_ALIAS_NAME = "smarter"
+
 #: The implicit "smartest" highest-capability alias.
 SMARTEST_MODEL_ALIAS_NAME = "smartest"
 
@@ -92,6 +95,7 @@ _ROLE_ALIAS_NAME_CONSTANTS: tuple[str, ...] = (
     LARGE_WORKER_MODEL_ALIAS_NAME,
     XLARGE_WORKER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
+    SMARTER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
@@ -184,7 +188,7 @@ def _validate_fallback_graph(
         current = start
         while True:
             referenced = fallback_refs[current]
-            if referenced == DEFAULT_MODEL_ALIAS_NAME or referenced in target_names:
+            if referenced in target_names:
                 break
             if referenced in seen:
                 cycle_start = path.index(referenced)
@@ -195,6 +199,8 @@ def _validate_fallback_graph(
                     f"fallback chain for entry {start!r} creates a cycle: {rendered}",
                 )
             if referenced not in fallback_refs:
+                if referenced == DEFAULT_MODEL_ALIAS_NAME:
+                    break
                 raise _defaults_error(
                     resource,
                     f"fallback chain for entry {start!r} terminates at "
@@ -245,12 +251,10 @@ def _parse_model_alias_defaults(text: str, *, source: object) -> _ModelAliasDefa
             raise _defaults_error(
                 source, f"entry {name!r} sets both 'fallback' and 'target'"
             )
-        if name == DEFAULT_MODEL_ALIAS_NAME and (
-            fallback is not None or target is not None
-        ):
+        if name == DEFAULT_MODEL_ALIAS_NAME and target is not None:
             raise _defaults_error(
                 source,
-                f"entry {name!r} must not set 'fallback' or 'target'",
+                f"entry {name!r} must not set 'target'",
             )
         if name != DEFAULT_MODEL_ALIAS_NAME and fallback is None and target is None:
             raise _defaults_error(

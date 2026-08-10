@@ -24,6 +24,7 @@ from sase.llm_provider.model_alias_policy import (
     DEFAULT_MODEL_ALIAS_NAME,
     MEDIUM_WORKER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
+    SMARTER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
 )
 from tests._model_alias_defaults_fixture import FROZEN_DESCRIPTIONS
@@ -167,6 +168,10 @@ def test_model_alias_description_builtin_and_custom(
         model_alias_description("smart") == FROZEN_DESCRIPTIONS[SMART_MODEL_ALIAS_NAME]
     )
     assert (
+        model_alias_description("smarter")
+        == FROZEN_DESCRIPTIONS[SMARTER_MODEL_ALIAS_NAME]
+    )
+    assert (
         model_alias_description("smartest")
         == FROZEN_DESCRIPTIONS[SMARTEST_MODEL_ALIAS_NAME]
     )
@@ -210,6 +215,7 @@ def test_model_alias_names_include_configured_and_special(
         "large_worker",
         "xlarge_worker",
         "smart",
+        "smarter",
         "smartest",
         "cheap",
         "cheaper",

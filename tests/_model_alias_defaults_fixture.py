@@ -29,6 +29,7 @@ from sase.llm_provider.model_alias_policy import (
     MEDIUM_WORKER_MODEL_ALIAS_NAME,
     SMALL_WORKER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
+    SMARTER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     XLARGE_WORKER_MODEL_ALIAS_NAME,
     XSMALL_WORKER_MODEL_ALIAS_NAME,
@@ -38,6 +39,7 @@ from sase.xprompt.effort import split_model_effort
 
 _FROZEN_ALIASES: dict[str, dict[str, str]] = {
     DEFAULT_MODEL_ALIAS_NAME: {
+        "fallback": "@smarter",
         "description": "Frozen test description for default.",
     },
     EPIC_LANDER_MODEL_ALIAS_NAME: {
@@ -57,11 +59,11 @@ _FROZEN_ALIASES: dict[str, dict[str, str]] = {
         "description": "Frozen test description for small_worker.",
     },
     MEDIUM_WORKER_MODEL_ALIAS_NAME: {
-        "target": "codex/o3@high",
+        "fallback": "@smart",
         "description": "Frozen test description for medium_worker.",
     },
     LARGE_WORKER_MODEL_ALIAS_NAME: {
-        "fallback": "@smart",
+        "fallback": "@smarter",
         "description": "Frozen test description for large_worker.",
     },
     XLARGE_WORKER_MODEL_ALIAS_NAME: {
@@ -69,8 +71,12 @@ _FROZEN_ALIASES: dict[str, dict[str, str]] = {
         "description": "Frozen test description for xlarge_worker.",
     },
     SMART_MODEL_ALIAS_NAME: {
-        "fallback": "@default",
+        "target": "codex/o3@high | claude/sonnet@high",
         "description": "Frozen test description for smart.",
+    },
+    SMARTER_MODEL_ALIAS_NAME: {
+        "target": "codex/gpt-5.6-sol@high | claude/opus@high",
+        "description": "Frozen test description for smarter.",
     },
     SMARTEST_MODEL_ALIAS_NAME: {
         "target": "claude/sonnet@max",

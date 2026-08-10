@@ -53,7 +53,7 @@ def resolve_default_alias_target() -> str:
     """Return the implicit ``@default`` target as a ``provider/model`` string.
 
     Only reached when ``default`` is neither temporarily overridden nor
-    user-configured.
+    user-configured and declares no shipped fallback.
     """
     try:
         # Lazy import to avoid an import cycle: registry imports config.
@@ -244,6 +244,15 @@ def _resolve_model_alias_result(
                 steps += 1
                 continue
 
+            fallback_reference = config.implicit_model_alias_fallback_reference(bare)
+            if fallback_reference is not None:
+                if bare in seen:
+                    return fail()
+                seen.add(bare)
+                current = fallback_reference
+                steps += 1
+                continue
+
             if bare == DEFAULT_MODEL_ALIAS_NAME:
                 default_target = config.__dict__.get(
                     "_resolve_default_alias_target",
@@ -255,15 +264,6 @@ def _resolve_model_alias_result(
                     effort or target_effort,
                     selector_owner,
                 )
-
-            fallback_reference = config.implicit_model_alias_fallback_reference(bare)
-            if fallback_reference is not None:
-                if bare in seen:
-                    return fail()
-                seen.add(bare)
-                current = fallback_reference
-                steps += 1
-                continue
 
             # A concrete model name (or dangling alias reference) is terminal.
             return _ResolvedModelAlias(

@@ -223,6 +223,7 @@ def make_worker_bucket_views() -> list[AliasView]:
             model="claude-fable-5",
         ),
         make_alias_view("smartest", "role", provider="claude", model="claude-fable-5"),
+        make_alias_view("smarter", "role", provider="claude", model="opus"),
         make_alias_view("smart", "role", provider="claude", model="opus"),
         make_alias_view("cheap", "role", provider="claude", model="opus"),
         make_alias_view("cheaper", "role", provider="claude", model="sonnet"),

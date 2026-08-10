@@ -1543,11 +1543,11 @@ Once an epic bead exists, the shared launch path:
    fall through `@epic_lander` to `@default`, while landers selected by the threshold
    fall through `@big_epic_lander` via `@smartest`. `xsmall` phases fall through
    `@xsmall_worker` to the load-balanced `@cheaper` pool, `small` phases through
-   `@small_worker` to the `@cheap` pool, `medium` phases through `@medium_worker`,
-   `large` phases through `@large_worker` to `@smart`, and `xlarge` phases through
-   `@xlarge_worker` to `@smartest`, inheriting that alias's target. The independent
-   `@cheapest` load-balanced pool is available for explicit use but has no automatic
-   consumer. Builtin aliases can be configured under
+   `@small_worker` to the `@cheap` pool, `medium` phases through `@medium_worker`, to
+   `@smart`, `large` phases through `@large_worker` to `@smarter`, and `xlarge` phases
+   through `@xlarge_worker` to `@smartest`, inheriting that alias's target. The
+   independent `@cheapest` load-balanced pool is available for explicit use but has no
+   automatic consumer. Builtin aliases can be configured under
    `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic
    segment carries bare `%auto`, so submitted implementation and landing plans are
    auto-approved. An agent may author a tale or an epic as needed; the plan's authored

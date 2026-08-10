@@ -521,10 +521,10 @@ async def test_panel_title_shows_configured_default_effort(monkeypatch) -> None:
 async def test_panel_preferred_width_fits_production_description(monkeypatch) -> None:
     """The description strip has a non-zero content area with production CSS."""
     description_text = (
-        "Model used when a prompt has no %model directive; every other alias "
-        "ultimately falls back to it."
+        "Model used when a prompt has no %model directive; delegates to @smarter "
+        "unless configured."
     )
-    assert len(description_text) == 96
+    assert len(description_text) == 90
     patch_alias_views(
         monkeypatch,
         [make_alias_view("default", "default", description=description_text)],

@@ -2410,8 +2410,8 @@ xprompt definitions, while the Statistics sub-tab measures how launch prompts us
 Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for
 viewing and managing every model alias: the implicit role aliases (`default`,
 `epic_lander`, `big_epic_lander`, `xsmall_worker`, `small_worker`, `medium_worker`,
-`large_worker`, `xlarge_worker`, `smartest`, `smart`, `cheap`, `cheaper`, `cheapest`)
-and any user-defined `llm_provider.model_aliases.custom` entry.
+`large_worker`, `xlarge_worker`, `smartest`, `smarter`, `smart`, `cheap`, `cheaper`,
+`cheapest`) and any user-defined `llm_provider.model_aliases.custom` entry.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `user`), its
 effective provider/model as a provider-themed badge, and a state tag — `configured`,
@@ -2431,11 +2431,11 @@ The top level is split into **Built-in** and **Custom** sections. Each header re
 the aliases represented by its rows (including members of collapsed buckets) and its
 bucket count. This sectioning groups the existing deterministic order without changing
 it: `default`, `epic_lander`, `big_epic_lander`, the built-in `worker` bucket,
-`smartest`, `smart`, `cheap`, `cheaper`, `cheapest`, then custom buckets and ungrouped
-user aliases in alphabetical order. Every user-defined alias and bucket has a tan `▌`
-ownership gutter, and the **Custom** header carries the same glyph. If there are no
-custom aliases or buckets, the **Custom** section remains visible with a non-selectable
-hint naming `llm_provider.model_aliases.custom`.
+`smartest`, `smarter`, `smart`, `cheap`, `cheaper`, `cheapest`, then custom buckets and
+ungrouped user aliases in alphabetical order. Every user-defined alias and bucket has a
+tan `▌` ownership gutter, and the **Custom** header carries the same glyph. If there are
+no custom aliases or buckets, the **Custom** section remains visible with a
+non-selectable hint naming `llm_provider.model_aliases.custom`.
 
 One built-in bucket is always present. `worker` groups `xsmall_worker`, `small_worker`,
 `medium_worker`, `large_worker`, and `xlarge_worker`, followed by any custom members
@@ -2582,14 +2582,15 @@ Overrides are per-alias and independent:
   `PROVIDER(model)[@<effort>] <time-left>`.
 - An override on **any other alias** takes effect wherever that alias is resolved. A
   size-specific phase override affects only that alias. An override on `@smartest`
-  replaces its concrete maximum-effort target, while overrides on `@cheap`, `@cheaper`,
-  and `@cheapest` suspend their independent load-balanced rotations until the override
-  expires or is cleared. It is surfaced by a distinct, concise violet top-bar pill: a
-  single active override renders as `@<alias>[@<effort>] <time-left>`, and several
-  render as `@<alias> +N`, naming the alphabetically first alias and counting the rest.
-  In both pills, lane color carries the "override" meaning while the effort suffix and
-  time use a recessive tone; `∞` means until cleared. Hover either pill for full target
-  and expiry details, or click it to open the Models panel.
+  replaces its concrete maximum-effort target, while overrides on `@smart`, `@smarter`,
+  `@cheap`, `@cheaper`, and `@cheapest` suspend their independent load-balanced
+  rotations until the override expires or is cleared. It is surfaced by a distinct,
+  concise violet top-bar pill: a single active override renders as
+  `@<alias>[@<effort>] <time-left>`, and several render as `@<alias> +N`, naming the
+  alphabetically first alias and counting the rest. In both pills, lane color carries
+  the "override" meaning while the effort suffix and time use a recessive tone; `∞`
+  means until cleared. Hover either pill for full target and expiry details, or click it
+  to open the Models panel.
 
 Overrides do not displace explicit launch intent: explicit prompt directives
 (`%model:codex/o3`, `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit
@@ -2605,12 +2606,12 @@ is active.
 Delegated launches (plan coder follow-ups and `sase bead work` phase, task, and land
 agents) resolve through [role aliases](llms.md#role-aliases-for-delegated-work)
 configured under `llm_provider.model_aliases.builtin`. The size-specific phase/task
-aliases route through `@cheaper`, `@cheap`, `@medium_worker`, `@smart`, and `@smartest`;
-a task without size metadata uses the small phase/task route. Nested `@default`
-references follow a temporary `default` override. The concrete `@medium_worker` and
-`@smartest` targets and selector-backed `@cheap`, `@cheaper`, and `@cheapest` pools do
-not follow it; override the target/pool-owning or size-specific alias itself to move one
-of those lanes.
+aliases route through `@cheaper`, `@cheap`, `@smart`, `@smarter`, and `@smartest`; a
+task without size metadata uses the small phase/task route. Nested `@default` references
+follow a temporary `default` override. The selector-backed `@smart`, `@smarter`,
+`@cheap`, `@cheaper`, and `@cheapest` pools and the concrete `@smartest` target do not
+follow it; override the target/pool-owning or size-specific alias itself to move one of
+those lanes.
 
 ### Persistent edits
 
