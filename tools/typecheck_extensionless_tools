@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Run mypy over extensionless Python tools."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Sequence
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_TOOLS_DIR = REPO_ROOT / "tools"
+DEFAULT_MYPY = "mypy"
+MYPY_FLAGS = (
+    "--scripts-are-modules",
+    "--follow-imports=skip",
+    "--ignore-missing-imports",
+)
+EXCLUDED_DIR_NAMES = frozenset(
+    {
+        ".eggs",
+        ".git",
+        ".hg",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".svn",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "build",
+        "dist",
+        "node_modules",
+        "venv",
+    }
+)
+PYTHON_SHEBANG_RE = re.compile(rb"(^|[/\s])python(?:\d+(?:\.\d+)*)?(\s|$)")
+
+
+def _is_python_shebang(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            first_line = handle.readline(200)
+    except OSError:
+        return False
+    return first_line.startswith(b"#!") and bool(PYTHON_SHEBANG_RE.search(first_line))
+
+
+def discover_extensionless_python_tools(tools_dir: Path) -> list[Path]:
+    """Return extensionless files under ``tools_dir`` with Python shebangs."""
+
+    if not tools_dir.is_dir():
+        return []
+
+    scripts: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(tools_dir):
+        current_dir = Path(dirpath)
+        dirnames[:] = [
+            dirname
+            for dirname in dirnames
+            if dirname not in EXCLUDED_DIR_NAMES
+            and not (current_dir / dirname / ".git").exists()
+        ]
+        for filename in filenames:
+            path = current_dir / filename
+            if path.suffix or not path.is_file() or not _is_python_shebang(path):
+                continue
+            scripts.append(path)
+    return sorted(scripts)
+
+
+def _path_arg(path: Path, cwd: Path) -> str:
+    try:
+        return str(path.relative_to(cwd))
+    except ValueError:
+        return str(path)
+
+
+def build_mypy_command(
+    mypy: str,
+    scripts: Sequence[Path],
+    *,
+    cwd: Path,
+) -> list[str]:
+    return [
+        mypy,
+        *MYPY_FLAGS,
+        *(_path_arg(script, cwd) for script in scripts),
+    ]
+
+
+def run_mypy(
+    *,
+    mypy: str,
+    scripts: Sequence[Path],
+    cwd: Path,
+) -> int:
+    if not scripts:
+        return 0
+    completed = subprocess.run(build_mypy_command(mypy, scripts, cwd=cwd), cwd=cwd)
+    return completed.returncode
+
+
+def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--tools-dir",
+        type=Path,
+        default=DEFAULT_TOOLS_DIR,
+        help="tools directory to scan",
+    )
+    parser.add_argument(
+        "--mypy",
+        default=DEFAULT_MYPY,
+        help="mypy executable to invoke",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    namespace = _parse_args(argv)
+    tools_dir = namespace.tools_dir.resolve()
+    cwd = tools_dir.parent
+    scripts = discover_extensionless_python_tools(tools_dir)
+    return run_mypy(mypy=namespace.mypy, scripts=scripts, cwd=cwd)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

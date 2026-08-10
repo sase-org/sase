@@ -79,9 +79,11 @@ def _contains_deadline(node: ast.AST) -> bool:
 def _is_deadline_clamped_backoff(node: ast.AST) -> bool:
     if not _is_named_call(node, "min"):
         return False
+    assert isinstance(node, ast.Call)
     for arg in node.args:
         if not _is_named_call(arg, "max"):
             continue
+        assert isinstance(arg, ast.Call)
         has_zero_floor = any(_is_zero_literal(max_arg) for max_arg in arg.args)
         has_deadline_delta = any(
             isinstance(child, ast.BinOp)
@@ -130,9 +132,11 @@ def _has_detached_wait_pragma(lines: list[str], line_number: int) -> bool:
 def _fixed_sleep_findings(tree: ast.AST, path: Path, lines: list[str]) -> list[Finding]:
     findings: list[Finding] = []
     for node in ast.walk(tree):
-        if not _is_sleep_call(node) or not _requires_wait_pragma(node):
+        if not _is_sleep_call(node):
             continue
         assert isinstance(node, ast.Call)
+        if not _requires_wait_pragma(node):
+            continue
         line = lines[node.lineno - 1] if 0 < node.lineno <= len(lines) else ""
         reason = _inline_wait_pragma_reason(line)
         if reason is not None:

@@ -64,7 +64,11 @@ def _render_table() -> str:
         max(len(row[1]) for row in all_rows),
         max(len(row[2]) for row in all_rows),
     )
-    separator = tuple("-" * width for width in widths)
+    separator = (
+        "-" * widths[0],
+        "-" * widths[1],
+        "-" * widths[2],
+    )
 
     lines = [
         _format_row(headers, widths),

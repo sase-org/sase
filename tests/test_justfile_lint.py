@@ -308,6 +308,12 @@ def test_retired_test_wait_lint_recipe_runs_the_tool() -> None:
     assert "tools/check_test_wait_helpers" in output
 
 
+def test_mypy_lint_recipe_runs_extensionless_tool_helper() -> None:
+    output = _dry_run("_lint-mypy")
+
+    assert "tools/typecheck_extensionless_tools --mypy .venv/bin/mypy" in output
+
+
 def test_selection_backtest_recipe_runs_the_backtest_tool() -> None:
     output = _dry_run("selection-backtest")
 

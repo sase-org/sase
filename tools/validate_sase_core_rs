@@ -558,6 +558,9 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
             f"project lifecycle record probe did not preserve aliases: got {aliases!r}"
         )
         return False
+    if first_record is None:
+        _error("project lifecycle record probe returned no project record")
+        return False
     if first_record.get("is_project") is not True:
         _error("project lifecycle record probe did not classify a true project")
         return False

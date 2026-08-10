@@ -280,6 +280,7 @@ _lint-ruff: _setup
 # Run mypy type checker (private, extracted for per-stage wrapping)
 _lint-mypy: _setup
     {{ venv_bin }}/mypy
+    {{ venv_bin }}/python tools/typecheck_extensionless_tools --mypy {{ venv_bin }}/mypy
 
 # Validate scripts/tools directory structure (private, extracted for per-stage wrapping)
 _lint-pyscripts: _setup

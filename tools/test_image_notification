@@ -23,7 +23,7 @@ def main() -> int:
         print(f"error: test image asset was not found: {IMAGE_PATH}", file=sys.stderr)
         return 1
 
-    payload = {
+    payload: dict[str, object] = {
         "sender": "test-image-notification",
         "notes": [
             "Test notification with a checked-in GPT-generated image.",
