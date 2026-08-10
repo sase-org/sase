@@ -249,9 +249,15 @@ def _remediation(kind: str) -> str:
             "constraint only if that older core is intentional."
         )
     if kind == "sase-core checkout is ahead of sase's compatibility window":
+        # Deliberately not "bump the window". A checkout ahead of the published
+        # window is the normal dev state now that the release-branch reconciler
+        # owns the window; telling agents to edit `pyproject.toml` here is the
+        # conscription `plans:202608/core_window_ratchet.md` removed, and the
+        # callers in the Justfile print the opposite advice right after this.
         return (
-            "Bump `sase`'s `sase-core-rs` constraint in `pyproject.toml` if "
-            "the newer core is compatible, or check out a compatible `sase-core`."
+            "No action is needed: editable installs build from the checkout "
+            "regardless, and `tools/ratchet_core_window` moves the published "
+            "window on the release branch at release time."
         )
     return (
         "Make the local `sase-core` checkout and `sase`'s `sase-core-rs` "

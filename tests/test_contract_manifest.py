@@ -34,8 +34,21 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # compatibility boundaries. If the set changes, re-curate it per
 # plans/202608/test_suite_tier1.md and update this cap together with the
 # measured-cost comment.
-_MANIFEST_ENTRY_BUDGET = 36
-_MEASURED_SERIAL_COST = "27.4 serial seconds + Patch/stitch audit"
+#
+# Re-curated to 39 on 2026-08-10 for three `tools/` script guards:
+# `test_ratchet_core_window_tool.py`, `test_probe_core_floor_tool.py`, and
+# `test_sase_core_rs_glossary_line_break_smoke_tool.py`. They earn their place
+# on value per second rather than on kind: a `tools/` script is not a node in
+# the import graph, so a change that touches only one contributes no seeds,
+# `RULE_CONTRACT_SET_ONLY` fires, and the contract set is the *only* thing that
+# runs -- exactly the invariant no import edge can express. Their combined
+# serial cost is ~0.3 s, and the whole 39-entry set measured 26.7 s of summed
+# node time (33.4 s wall, on a contended host) under
+# `pytest -m contract $(cat tests/contract_manifest.txt) -p no:randomly
+# --durations=0`, which is the same `--durations` aggregate the retired oracle
+# read. The set is still inside the 30 s serial budget the plan sets.
+_MANIFEST_ENTRY_BUDGET = 39
+_MEASURED_SERIAL_COST = "26.7 serial seconds across 39 entries"
 
 
 def _load_refresh_tool() -> ModuleType:
@@ -82,7 +95,7 @@ def _budget_failure_message(files: list[str]) -> str:
             "tests/contract_manifest.txt contains "
             f"{count} entries, below the {_MANIFEST_ENTRY_BUDGET}-entry "
             "contract-set budget.\n"
-            f"The retired timed guard measured this set at {_MEASURED_SERIAL_COST}; "
+            f"The current set was measured at {_MEASURED_SERIAL_COST}; "
             "lower this cap and update the measured-cost comment so removed entries "
             "do not become hidden headroom.\n"
             "Use the curation procedure in plans/202608/test_suite_tier1.md."
@@ -92,8 +105,7 @@ def _budget_failure_message(files: list[str]) -> str:
         "tests/contract_manifest.txt contains "
         f"{count} entries, over the {_MANIFEST_ENTRY_BUDGET}-entry "
         "contract-set budget.\n"
-        f"The current 36-entry set was measured at {_MEASURED_SERIAL_COST} before "
-        "the load-sensitive runtime oracle was retired.\n"
+        f"The current set was measured at {_MEASURED_SERIAL_COST}.\n"
         "Re-curate by value per second, then update this cap and measured-cost "
         "comment per plans/202608/test_suite_tier1.md.\n"
         f"entries over budget: {overflow}"
@@ -116,4 +128,4 @@ def test_contract_set_manifest_entry_budget_diagnostic_names_curation() -> None:
 
     assert _MEASURED_SERIAL_COST in message
     assert "plans/202608/test_suite_tier1.md" in message
-    assert "tests/generated_contract_36.py" in message
+    assert f"tests/generated_contract_{_MANIFEST_ENTRY_BUDGET}.py" in message

@@ -124,7 +124,11 @@ def test_sase_core_rs_version_validation_fails_when_source_hits_upper_bound(
     assert result.returncode == 4
     assert "ahead of sase's compatibility window" in result.stderr
     assert "source version 0.3.0" in result.stderr
-    assert "Bump `sase`'s `sase-core-rs` constraint" in result.stderr
+    # The ahead direction is normal dev state; it must not send the reader to
+    # `pyproject.toml`, which is what the release-branch ratchet replaced.
+    assert "No action is needed" in result.stderr
+    assert "tools/ratchet_core_window" in result.stderr
+    assert "Bump" not in result.stderr
 
 
 def test_sase_core_rs_version_validation_reports_missing_cargo_toml(

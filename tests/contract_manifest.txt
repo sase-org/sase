@@ -10,6 +10,7 @@ tests/test_github_actions_ci.py
 tests/test_justfile_lint.py
 tests/test_justfile_sase_core_dir.py
 tests/test_patch_stitch_terminology_audit.py
+tests/test_probe_core_floor_tool.py
 tests/test_project_display_presentation_audit.py
 tests/test_ratchet_core_window_tool.py
 tests/test_ruff_config.py
