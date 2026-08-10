@@ -151,7 +151,24 @@ def resolve_observation_window_start(env: Mapping[str, str] | None = None) -> st
             identity.name,
         )
         return current_instant()
+    if not _is_rfc3339_instant(run_started_at):
+        _logger.debug(
+            "observation window: agent_meta.json for %s has a malformed "
+            "run_started_at %r; falling back to the current time",
+            identity.name,
+            run_started_at,
+        )
+        return current_instant()
     return run_started_at
+
+
+def _is_rfc3339_instant(value: str) -> bool:
+    """Return whether ``value`` is an RFC 3339 instant with an explicit offset."""
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
 
 
 def current_instant() -> str:

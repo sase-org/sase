@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sys
 from unittest.mock import MagicMock
@@ -163,6 +164,41 @@ def test_plus_one_withheld_reopen_reports_and_leaves_bead_closed(
     assert "sase bead open" in output
     assert closed_at is not None
     assert closed_at in output
+
+
+def test_plus_one_malformed_agent_metadata_falls_back_and_reopens(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "malformed.agent", "run_started_at": "not-an-instant"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_AGENT_NAME", "malformed.agent")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setattr(
+        "sase.agent.identity.current_instant",
+        lambda: "2099-01-01T00:00:00.000000Z",
+    )
+
+    with BeadProject(project_dir) as project:
+        task = project.create(
+            "Fixed task",
+            IssueType.TASK,
+            size=PhaseSize.SMALL,
+            created_by="creator.agent",
+        )
+        project.close([task.id], reason="fixed", resolution=Resolution.DONE)
+
+    bead_cli.handle_bead_plus_one(_args(task.id, reporter="malformed.reporter"))
+
+    with BeadProject(project_dir) as project:
+        updated = project.show(task.id)
+    assert updated.status is Status.READY
+    assert updated.assignee == ""
 
 
 def test_plus_one_human_fallback_uses_current_time_and_reopens(
