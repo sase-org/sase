@@ -232,11 +232,23 @@ def snippet_collision(
     )
 
 
+def load_snippet_template(path: str | Path, trigger: str) -> str:
+    """Return the stored template for one ``ace.snippets`` trigger."""
+    source = Path(path)
+    payload = yaml.safe_load(source.read_text(encoding="utf-8"))
+    ace = payload.get("ace", {}) if isinstance(payload, dict) else {}
+    snippets = ace.get("snippets", {}) if isinstance(ace, dict) else {}
+    if not isinstance(snippets, dict) or trigger not in snippets:
+        raise KeyError(trigger)
+    return str(snippets[trigger])
+
+
 __all__ = [
     "SnippetCollision",
     "SnippetConfigLocation",
     "SnippetSaveTarget",
     "SnippetTriggerMatch",
+    "load_snippet_template",
     "load_snippet_config_locations",
     "resolve_snippet_save_target",
     "snippet_collision",

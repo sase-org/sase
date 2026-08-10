@@ -12,6 +12,7 @@ from sase.xprompt import snippet_targets, write_targets
 from sase.xprompt.snippet_targets import (
     SnippetConfigLocation,
     SnippetSaveTarget,
+    load_snippet_template,
     resolve_snippet_save_target,
     snippet_collision,
 )
@@ -367,3 +368,10 @@ def test_snippet_collision_treats_out_of_discovery_destination_as_highest_preced
     assert collision.shadowed_by is None
     assert collision.shadows == str(other)
     assert collision.winner_path == str(custom)
+
+
+def test_load_snippet_template_returns_plain_template(tmp_path: Path) -> None:
+    config = tmp_path / "sase.yml"
+    _write_snippet_config(config, {"todo": "TODO($1): $0"})
+
+    assert load_snippet_template(config, "todo") == "TODO($1): $0"

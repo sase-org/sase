@@ -3914,6 +3914,94 @@ UnifiedXPromptSaveModal #unified-save-hints {
     text-align: center;
 }
 
+SnippetNameModal {
+    align: center middle;
+}
+
+SnippetNameModal > Container {
+    width: 86%;
+    height: 52%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+SnippetNameModal #snippet-name-title {
+    text-style: bold;
+    text-align: center;
+    height: 1;
+    margin-bottom: 1;
+}
+
+SnippetNameModal .snippet-name-field {
+    height: 3;
+}
+
+SnippetNameModal .snippet-name-field-label {
+    width: 13;
+    color: $text-muted;
+    padding-top: 1;
+}
+
+SnippetNameModal .snippet-name-field Input {
+    width: 1fr;
+}
+
+SnippetNameModal #snippet-name-body {
+    height: 1fr;
+}
+
+SnippetNameModal #snippet-name-matches-panel {
+    width: 62%;
+    padding-right: 1;
+}
+
+SnippetNameModal #snippet-name-destination-panel {
+    width: 38%;
+    border-left: solid $secondary;
+    padding-left: 1;
+}
+
+SnippetNameModal .snippet-name-panel-title {
+    height: 2;
+    text-style: bold;
+}
+
+SnippetNameModal #snippet-name-matches {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+SnippetNameModal #snippet-name-destination {
+    height: auto;
+    border: solid $secondary;
+    padding: 1;
+}
+
+SnippetNameModal #snippet-name-verdict {
+    height: 2;
+    margin-top: 1;
+    text-style: bold;
+}
+
+SnippetNameModal .snippet-name-verdict-success {
+    color: $success;
+}
+
+SnippetNameModal .snippet-name-verdict-warning {
+    color: $warning;
+}
+
+SnippetNameModal .snippet-name-verdict-error {
+    color: $error;
+}
+
+SnippetNameModal #snippet-name-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+}
+
 InputItemModal,
 XPromptItemModal {
     align: center middle;

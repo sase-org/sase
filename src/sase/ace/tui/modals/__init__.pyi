@@ -195,6 +195,8 @@ from .schema_object_form import SchemaObjectForm as SchemaObjectForm
 from .schema_object_form import SchemaObjectFormModel as SchemaObjectFormModel
 from .project_selection_types import SelectionItem as SelectionItem
 from .snooze_duration_modal import SnoozeDurationModal as SnoozeDurationModal
+from .snippet_name_modal import SnippetNameModal as SnippetNameModal
+from .snippet_name_modal import SnippetNameResult as SnippetNameResult
 from .stashed_prompts_modal import StashRestoreResult as StashRestoreResult
 from .stashed_prompts_modal import StashedPromptsModal as StashedPromptsModal
 from .statistics_help_modal import StatisticsHelpModal as StatisticsHelpModal

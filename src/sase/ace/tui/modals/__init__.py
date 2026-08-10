@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from .local_xprompt_name_modal import LocalXPromptNameModal as LocalXPromptNameModal
     from .project_select_modal import ProjectSelectModal as ProjectSelectModal
     from .schema_object_form import SchemaFieldDiagnostic as SchemaFieldDiagnostic
+    from .snippet_name_modal import SnippetNameModal as SnippetNameModal
+    from .snippet_name_modal import SnippetNameResult as SnippetNameResult
     from .xprompt_item_modal import XPromptItemModal as XPromptItemModal
 
 _LAZY_EXPORTS = {
@@ -243,6 +245,8 @@ _LAZY_EXPORTS = {
     "SchemaObjectFormModel": (".schema_object_form", "SchemaObjectFormModel"),
     "SelectionItem": (".project_selection_types", "SelectionItem"),
     "SnoozeDurationModal": (".snooze_duration_modal", "SnoozeDurationModal"),
+    "SnippetNameModal": (".snippet_name_modal", "SnippetNameModal"),
+    "SnippetNameResult": (".snippet_name_modal", "SnippetNameResult"),
     "StashRestoreResult": (".stashed_prompts_modal", "StashRestoreResult"),
     "StashedPromptsModal": (".stashed_prompts_modal", "StashedPromptsModal"),
     "StatisticsHelpModal": (".statistics_help_modal", "StatisticsHelpModal"),
@@ -481,6 +485,8 @@ __all__ = [
     "RunnerJumpTarget",
     "RunnersModal",
     "SnoozeDurationModal",
+    "SnippetNameModal",
+    "SnippetNameResult",
     "get_runner_count",
     "SelectionItem",
     "StatusModal",
