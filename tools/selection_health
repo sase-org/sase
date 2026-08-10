@@ -15,11 +15,15 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tests._test_selection_health import (  # noqa: E402
+    CollectibleNodeIdOracle,
     CommitOrderOracle,
+    collectible_nodeid_oracle,
     git_ancestor_oracle,
     git_commit_order_oracle,
     reproducible_flake_nodeids,
+    stale_flake_nodeids,
     summarize,
+    unresolved_commit_order_count,
 )
 from tests._test_selection_health_records import FullRunRecord  # noqa: E402
 from tests._test_selection_health_records import load_records  # noqa: E402
@@ -136,11 +140,39 @@ def _baseline_label(baseline: FlakeBaseline) -> str:
         return str(baseline.path)
 
 
+def _stale_and_unresolved_lines(stale: frozenset[str], unresolved: int) -> list[str]:
+    """Debt the gate excluded or worked around, surfaced instead of dropped.
+
+    A stale node ID (renamed or deleted test) can never pass again, so
+    silently dropping it from the flake count would hide removable baseline
+    debt from the reader. An unresolved commit-order head is not wrong today
+    (`_ordered_flake_candidate_runs` falls back to sequence order), but it is
+    the mechanism by which a cross-workspace record could get mis-ordered, so
+    it stays visible rather than disappearing into that fallback.
+    """
+    lines: list[str] = []
+    if stale:
+        lines.append(
+            f"flake baseline gate: {len(stale)} recorded node ID(s) no longer "
+            "collectable (renamed or deleted test); excluded as stale rather "
+            "than gated as a live flake:"
+        )
+        lines.extend(f"  {nodeid}" for nodeid in sorted(stale))
+    if unresolved:
+        lines.append(
+            f"flake baseline gate: {unresolved} eligible full-run record(s) had "
+            "unresolved commit order and sorted last (a cross-workspace head "
+            "not present in this checkout)."
+        )
+    return lines
+
+
 def _flake_gate_result(
     full_runs: tuple[FullRunRecord, ...],
     baseline: FlakeBaseline,
     *,
     commit_order: CommitOrderOracle | None = None,
+    collectible: CollectibleNodeIdOracle | None = None,
 ) -> tuple[int, list[str]]:
     eligible = _eligible_full_runs(full_runs, baseline)
     window = _format_effective_after(baseline)
@@ -156,13 +188,31 @@ def _flake_gate_result(
         eligible,
         max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN,
         commit_order=commit_order,
+        collectible=collectible,
     )
+    stale = (
+        stale_flake_nodeids(
+            eligible,
+            collectible=collectible,
+            max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN,
+            commit_order=commit_order,
+        )
+        if collectible is not None
+        else frozenset()
+    )
+    unresolved = unresolved_commit_order_count(
+        eligible,
+        max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN,
+        commit_order=commit_order,
+    )
+    diagnostics = _stale_and_unresolved_lines(stale, unresolved)
     new_flakes = sorted(current - baseline.nodeids)
     if not new_flakes:
         return 0, [
             "flake baseline gate: no new reproducible flakes "
             f"({len(current)} current, {len(baseline.nodeids)} allowed; "
-            f"{window}, at most {MAX_GATED_FAILURES_PER_FULL_RUN} failures per run)."
+            f"{window}, at most {MAX_GATED_FAILURES_PER_FULL_RUN} failures per run).",
+            *diagnostics,
         ]
 
     lines = [
@@ -173,6 +223,7 @@ def _flake_gate_result(
     ]
     lines.extend(f"  {nodeid}" for nodeid in new_flakes)
     lines.append("Additions require a filed bead; fix or file the node before landing.")
+    lines.extend(diagnostics)
     return 1, lines
 
 
@@ -249,7 +300,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"flake baseline gate: {error}", file=sys.stderr)
             return 2
         gate_status, gate_lines = _flake_gate_result(
-            records.full_runs, baseline, commit_order=commit_order
+            records.full_runs,
+            baseline,
+            commit_order=commit_order,
+            collectible=collectible_nodeid_oracle(REPO_ROOT),
         )
         _print_gate_lines(gate_lines, json_mode=namespace.json)
         exit_status = max(exit_status, gate_status)

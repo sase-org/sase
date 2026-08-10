@@ -216,7 +216,9 @@ def test_fail_on_new_flake_passes_when_store_has_too_few_records(
 
 
 def test_fail_on_new_flake_reports_nodes_that_exceed_the_baseline(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = tmp_path / "store"
     _write_full_run(
@@ -239,6 +241,12 @@ def test_fail_on_new_flake_reports_nodes_that_exceed_the_baseline(
     )
     baseline = _baseline(tmp_path / "baseline.txt")
     tool = _load_tool()
+    # FLAKE_NODE names no real file on disk; the default oracle checks the
+    # real repo, so a test asking about the baseline gate's own logic must
+    # supply one that treats it as still collectable.
+    monkeypatch.setattr(
+        tool, "collectible_nodeid_oracle", lambda _root: lambda _nodeid: True
+    )
 
     assert (
         tool.main(
@@ -255,6 +263,57 @@ def test_fail_on_new_flake_reports_nodes_that_exceed_the_baseline(
 
     output = capsys.readouterr().out
     assert "1 reproducible flake(s) exceed" in output
+    assert FLAKE_NODE in output
+
+
+def test_fail_on_new_flake_treats_an_uncollectable_node_as_stale_not_a_flake(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A renamed or deleted test's old node ID can never pass again, so
+    # without a staleness check it would be gated as a live flake forever.
+    store = tmp_path / "store"
+    _write_full_run(
+        store,
+        minute=1,
+        changed_files=["src/sase/a.py"],
+        failures=[FLAKE_NODE],
+    )
+    _write_full_run(
+        store,
+        minute=2,
+        changed_files=["src/sase/pass.py"],
+        failures=[],
+    )
+    _write_full_run(
+        store,
+        minute=3,
+        changed_files=["src/sase/b.py"],
+        failures=[FLAKE_NODE],
+    )
+    baseline = _baseline(tmp_path / "baseline.txt")
+    tool = _load_tool()
+    monkeypatch.setattr(
+        tool, "collectible_nodeid_oracle", lambda _root: lambda _nodeid: False
+    )
+
+    assert (
+        tool.main(
+            [
+                "--store",
+                str(store),
+                "--flake-baseline",
+                str(baseline),
+                "--fail-on-new-flake",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "no new reproducible flakes" in output
+    assert "no longer collectable" in output
     assert FLAKE_NODE in output
 
 

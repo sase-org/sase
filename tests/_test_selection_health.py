@@ -46,6 +46,7 @@ JSON; ``tools/selection_health`` is the command that prints it.
 
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,6 +79,7 @@ FULL_LANE_WALL_SECONDS = 232.0
 
 AncestorOracle = Callable[[str, str], bool]
 CommitOrderOracle = Callable[[str], int | None]
+CollectibleNodeIdOracle = Callable[[str], bool]
 
 
 def git_ancestor_oracle(root: Path) -> AncestorOracle:
@@ -138,6 +140,48 @@ def nodeid_test_file(nodeid: str) -> str:
     return nodeid.split("::", 1)[0].replace("\\", "/")
 
 
+def collectible_nodeid_oracle(root: Path) -> CollectibleNodeIdOracle:
+    """A ``nodeid -> still exists to run`` predicate, memoised per test file.
+
+    A renamed or deleted test's old node ID can never pass again, so a
+    baseline gate that judges it as a live flake is judging a test that no
+    longer exists. This approximates "still collectable" by parsing the
+    node's test file and checking whether a function or method with its name
+    is still defined anywhere in it — deliberately not tied to the class it
+    was originally nested under, or to a real pytest collection pass: a node
+    whose class was renamed but whose function name survives elsewhere in the
+    file reads as collectable rather than stale. Understating staleness only
+    leaves an old node gated exactly as it is today; overstating it would
+    hide a live reproducible flake from the gate, which is the worse failure
+    mode.
+    """
+    cache: dict[str, frozenset[str] | None] = {}
+
+    def _defined_test_names(test_file: str) -> frozenset[str] | None:
+        if test_file not in cache:
+            try:
+                source = (root / test_file).read_text(encoding="utf-8")
+                tree = ast.parse(source, filename=test_file)
+            except (OSError, SyntaxError):
+                cache[test_file] = None
+            else:
+                cache[test_file] = frozenset(
+                    node.name
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+                )
+        return cache[test_file]
+
+    def _is_collectible(nodeid: str) -> bool:
+        names = _defined_test_names(nodeid_test_file(nodeid))
+        if names is None:
+            return False
+        symbol = nodeid.rsplit("::", 1)[-1].split("[", 1)[0]
+        return symbol in names
+
+    return _is_collectible
+
+
 @dataclass(frozen=True)
 class FalseNegative:
     nodeid: str
@@ -180,11 +224,11 @@ def count_pre_schema_records(records: HealthRecords) -> PreSchemaRecords:
     )
 
 
-def reproducible_flake_nodeids(
+def _flake_evidence_nodeids(
     full_runs: Sequence[FullRunRecord],
     *,
-    max_failures_per_run: int | None = None,
-    commit_order: CommitOrderOracle | None = None,
+    max_failures_per_run: int | None,
+    commit_order: CommitOrderOracle | None,
 ) -> frozenset[str]:
     """Node IDs with unrelated failures and an interleaved independent pass.
 
@@ -216,6 +260,10 @@ def reproducible_flake_nodeids(
 
     ``commit_order`` keeps parallel workspace records in commit order when the
     caller can resolve the commits. Without it, the sequence order is used.
+
+    This is the shared evidence bar behind :func:`reproducible_flake_nodeids`
+    and :func:`stale_flake_nodeids`, which differ only in which side of
+    "still collectable" they keep — neither reasons about that here.
     """
     eligible_runs = _ordered_flake_candidate_runs(
         full_runs,
@@ -241,6 +289,62 @@ def reproducible_flake_nodeids(
     return frozenset(flakes)
 
 
+def reproducible_flake_nodeids(
+    full_runs: Sequence[FullRunRecord],
+    *,
+    max_failures_per_run: int | None = None,
+    commit_order: CommitOrderOracle | None = None,
+    collectible: CollectibleNodeIdOracle | None = None,
+) -> frozenset[str]:
+    """The :func:`_flake_evidence_nodeids` bar, minus stale node IDs.
+
+    A renamed or deleted test's old node ID can never appear in a passing run
+    again, so without a staleness check it would meet this evidence bar
+    forever and manufacture permanent pressure to bump the baseline cutoff.
+    ``collectible`` answers whether a node ID still names a test in the
+    working tree; a node that fails it is reported by
+    :func:`stale_flake_nodeids` instead. Omitting ``collectible`` trusts
+    every node ID as live, matching every caller from before this parameter
+    existed.
+    """
+    evidence = _flake_evidence_nodeids(
+        full_runs, max_failures_per_run=max_failures_per_run, commit_order=commit_order
+    )
+    if collectible is None:
+        return evidence
+    return frozenset(nodeid for nodeid in evidence if collectible(nodeid))
+
+
+def stale_flake_nodeids(
+    full_runs: Sequence[FullRunRecord],
+    *,
+    collectible: CollectibleNodeIdOracle,
+    max_failures_per_run: int | None = None,
+    commit_order: CommitOrderOracle | None = None,
+) -> frozenset[str]:
+    """The other half of :func:`reproducible_flake_nodeids`'s staleness split.
+
+    Same evidence bar, only the node ID no longer names a collectable test —
+    a renamed or deleted test, reported so it reads as removable baseline
+    debt instead of disappearing silently.
+    """
+    evidence = _flake_evidence_nodeids(
+        full_runs, max_failures_per_run=max_failures_per_run, commit_order=commit_order
+    )
+    return frozenset(nodeid for nodeid in evidence if not collectible(nodeid))
+
+
+def _is_flake_gate_eligible(
+    full_run: FullRunRecord, *, max_failures_per_run: int | None
+) -> bool:
+    if (
+        max_failures_per_run is not None
+        and len(full_run.failures) > max_failures_per_run
+    ):
+        return False
+    return full_run.changed_files is not None
+
+
 def _ordered_flake_candidate_runs(
     full_runs: Sequence[FullRunRecord],
     *,
@@ -249,12 +353,9 @@ def _ordered_flake_candidate_runs(
 ) -> tuple[FullRunRecord, ...]:
     eligible: list[tuple[int, int, int, FullRunRecord]] = []
     for index, full_run in enumerate(full_runs):
-        if (
-            max_failures_per_run is not None
-            and len(full_run.failures) > max_failures_per_run
+        if not _is_flake_gate_eligible(
+            full_run, max_failures_per_run=max_failures_per_run
         ):
-            continue
-        if full_run.changed_files is None:
             continue
         missing_order = 1
         sort_key = index
@@ -269,6 +370,31 @@ def _ordered_flake_candidate_runs(
         for _missing_order, _sort_key, _index, full_run in sorted(
             eligible, key=lambda item: item[:3]
         )
+    )
+
+
+def unresolved_commit_order_count(
+    full_runs: Sequence[FullRunRecord],
+    *,
+    max_failures_per_run: int | None = None,
+    commit_order: CommitOrderOracle | None = None,
+) -> int:
+    """How many flake-eligible runs :func:`_ordered_flake_candidate_runs` could
+    not place by real commit time and instead sorted last by list order.
+
+    ``git_commit_order_oracle`` cannot resolve a commit this workspace has
+    never fetched — a sibling workspace's record can name one — and an
+    unresolved head is the mechanism by which a cross-workspace record could
+    get mis-ordered relative to the run it actually raced. Reported so that
+    drift is visible rather than silently absorbed by the fallback.
+    """
+    if commit_order is None:
+        return 0
+    return sum(
+        1
+        for full_run in full_runs
+        if _is_flake_gate_eligible(full_run, max_failures_per_run=max_failures_per_run)
+        and (not full_run.head or commit_order(full_run.head) is None)
     )
 
 
