@@ -43,6 +43,17 @@ def test_task_triage_presentation_note_includes_reopen_badge() -> None:
     assert note == "sase-task.1 [+1] [↺2] — Flaky retry test in CI"
 
 
+def test_task_triage_presentation_note_includes_post_close_badge() -> None:
+    note = task_triage_presentation_note(
+        "sase-task.1",
+        "Flaky retry test in CI",
+        1,
+        post_close_count=1,
+    )
+
+    assert note == "sase-task.1 [+1] [+1 after close] — Flaky retry test in CI"
+
+
 def test_task_triage_created_rendering_is_absolute_and_clock_independent() -> None:
     """The persisted preview and note must not drift as the gate ages."""
 
@@ -155,3 +166,24 @@ def test_task_triage_preview_blank_notes_with_evidence_keeps_one_blank_line() ->
         "## Description\n\nMake invalidation deterministic.\n\n## +1 Evidence\n"
         in preview
     )
+
+
+def test_task_triage_preview_marks_post_close_evidence() -> None:
+    evidence = TaskPlusOneEvidence(
+        timestamp="2026-08-01T15:00:00Z",
+        reporter="agent.beta",
+        note="Saw this before the close landed.",
+        observed_since="2026-01-01T00:00:00Z",
+    )
+
+    preview = render_task_triage_preview(
+        bead_id="sase-task.1",
+        title="Follow up on the cache",
+        description="Make invalidation deterministic.",
+        notes="",
+        plus_one_evidence=(evidence,),
+        closed_at="2026-08-01T14:00:00Z",
+    )
+
+    assert "**+1 agent.beta · 2026-08-01T15:00:00Z post-close evidence**" in preview
+    assert "> **Observed since:** 2026-01-01T00:00:00Z" in preview

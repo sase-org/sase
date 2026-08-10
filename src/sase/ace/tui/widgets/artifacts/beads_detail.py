@@ -10,6 +10,11 @@ from sase.bead.model import BeadTier, CloseRecord, Issue, IssueType, PhaseSize, 
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
     PLUS_ONE_SECTION_LABEL,
+    POST_CLOSE_RICH_STYLE,
+    POST_CLOSE_EVIDENCE_MARKER,
+    evidence_recorded_after_current_close,
+    post_close_plus_one_badge,
+    post_close_plus_one_count,
     plus_one_badge,
     plus_one_evidence_label,
     plus_one_reports_label,
@@ -64,6 +69,8 @@ def bead_properties_header(
     title.append(f" · {issue.title}", style="bold white")
     if badge := plus_one_badge(issue.plus_one_count):
         title.append(f"  [{badge}]", style=PLUS_ONE_RICH_STYLE)
+    if post_close := post_close_plus_one_badge(post_close_plus_one_count(issue)):
+        title.append(f"  [{post_close}]", style=POST_CLOSE_RICH_STYLE)
     if issue.snooze is not None and (chip := snooze_wake_chip(issue.snooze.until)):
         title.append(f"  [{chip}]", style=SNOOZE_RICH_STYLE)
     properties: list[DetailProperty] = [
@@ -78,6 +85,10 @@ def bead_properties_header(
         properties.append(("Size", phase_size_chip(issue.size or PhaseSize.SMALL)))
     if issue.plus_one_count:
         properties.append(("+1 reports", plus_one_reports_label(issue.plus_one_count)))
+    if post_close_count := post_close_plus_one_count(issue):
+        properties.append(
+            ("Post-close +1", f"{post_close_count} recorded after current close")
+        )
     if issue.snooze is not None:
         properties.append(("Snooze", _snooze_text(issue)))
     if (
@@ -258,7 +269,11 @@ def _plus_one_evidence_markdown(issue: Issue) -> list[str]:
         if index:
             lines.append("")
         label = plus_one_evidence_label(evidence).replace("`", "\\`")
+        if evidence_recorded_after_current_close(issue, evidence):
+            label = f"{label} {POST_CLOSE_EVIDENCE_MARKER}"
         lines.append(f"> [!TIP] **{label}**")
+        if evidence.observed_since:
+            lines.append(f"> **Observed since:** {evidence.observed_since}")
         lines.extend(
             f"> {line}" if line else ">" for line in evidence.note.splitlines()
         )

@@ -194,6 +194,11 @@ def _build_bead_snooze_gate_spec(
                     "reporter": item.reporter,
                     "note": item.note,
                     "refs": list(item.refs),
+                    **(
+                        {"observed_since": item.observed_since}
+                        if item.observed_since
+                        else {}
+                    ),
                 }
                 for item in evidence
             ],

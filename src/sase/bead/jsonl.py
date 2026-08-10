@@ -63,6 +63,11 @@ def _plus_one_evidence_list(value: object) -> list[TaskPlusOneEvidence]:
             reporter=_optional_str(evidence.get("reporter", "")),
             note=_optional_str(evidence.get("note", "")),
             refs=tuple(_optional_str_list(evidence.get("refs"))),
+            observed_since=(
+                None
+                if evidence.get("observed_since") is None
+                else _optional_str(evidence.get("observed_since"))
+            ),
         )
         for evidence in value
         if isinstance(evidence, dict)
@@ -105,6 +110,11 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
                         "reporter": evidence.reporter,
                         "note": evidence.note,
                         **({"refs": list(evidence.refs)} if evidence.refs else {}),
+                        **(
+                            {"observed_since": evidence.observed_since}
+                            if evidence.observed_since
+                            else {}
+                        ),
                     }
                     for evidence in issue.plus_one_evidence
                 ]

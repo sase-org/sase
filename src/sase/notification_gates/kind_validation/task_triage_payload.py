@@ -20,10 +20,12 @@ _TASK_TRIAGE_PAYLOAD_FIELDS = frozenset(
         "size",
         "refs",
         "plus_one_count",
+        "closed_at",
         "plus_one_evidence",
         "close_history",
     }
 )
+_LEGACY_TASK_TRIAGE_PAYLOAD_FIELDS = _TASK_TRIAGE_PAYLOAD_FIELDS - {"closed_at"}
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,7 @@ class TaskTriagePayload:
     size: str | None
     refs: tuple[str, ...]
     plus_one_count: int
+    closed_at: str | None
     plus_one_evidence: tuple[TaskPlusOneEvidence, ...]
     close_history: tuple[CloseRecord, ...]
 
@@ -63,7 +66,10 @@ def parse_task_bead_payload(
     from sase.bead.model import PhaseSize
     from sase.core.paths import is_valid_sase_project_name
 
-    if set(payload) != _TASK_TRIAGE_PAYLOAD_FIELDS | extra_fields:
+    payload_fields = set(payload)
+    expected_fields = _TASK_TRIAGE_PAYLOAD_FIELDS | extra_fields
+    legacy_fields = _LEGACY_TASK_TRIAGE_PAYLOAD_FIELDS | extra_fields
+    if payload_fields not in (expected_fields, legacy_fields):
         raise GateError(
             code,
             "payload",
@@ -116,6 +122,13 @@ def parse_task_bead_payload(
             f"{label} +1 count must equal its evidence entries",
         )
     close_history = _parse_close_history(payload.get("close_history"), code, label)
+    closed_at = payload.get("closed_at")
+    if closed_at is not None and not isinstance(closed_at, str):
+        raise GateError(
+            code,
+            "payload.closed_at",
+            f"{label} payload closed_at must be null or a string",
+        )
     return TaskTriagePayload(
         bead_id=cast(str, payload["bead_id"]),
         project=project,
@@ -124,6 +137,7 @@ def parse_task_bead_payload(
         size=cast(str | None, size),
         refs=tuple(cast(list[str], refs)),
         plus_one_count=count,
+        closed_at=closed_at,
         plus_one_evidence=evidence,
         close_history=close_history,
     )
@@ -143,12 +157,12 @@ def _parse_plus_one_evidence(
     evidence: list[TaskPlusOneEvidence] = []
     reporters: set[str] = set()
     for index, raw_item in enumerate(raw_evidence):
-        if not isinstance(raw_item, Mapping) or set(raw_item) != {
-            "timestamp",
-            "reporter",
-            "note",
-            "refs",
-        }:
+        item_fields = set(raw_item) if isinstance(raw_item, Mapping) else set()
+        allowed_fields = (
+            {"timestamp", "reporter", "note", "refs"},
+            {"timestamp", "reporter", "note", "refs", "observed_since"},
+        )
+        if not isinstance(raw_item, Mapping) or item_fields not in allowed_fields:
             raise GateError(
                 code,
                 f"payload.plus_one_evidence.{index}",
@@ -172,11 +186,19 @@ def _parse_plus_one_evidence(
                 f"payload.plus_one_evidence.{index}",
                 f"{label} +1 evidence text fields must be strings",
             )
+        observed_since = raw_item.get("observed_since")
+        if observed_since is not None and not isinstance(observed_since, str):
+            raise GateError(
+                code,
+                f"payload.plus_one_evidence.{index}.observed_since",
+                f"{label} +1 evidence observed_since must be a string",
+            )
         item = TaskPlusOneEvidence(
             timestamp=cast(str, raw_item["timestamp"]),
             reporter=cast(str, raw_item["reporter"]),
             note=cast(str, raw_item["note"]),
             refs=tuple(item_refs),
+            observed_since=cast(str | None, observed_since),
         )
         try:
             item.validate()

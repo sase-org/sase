@@ -25,6 +25,7 @@ from sase.bead.model import (
     IssueType,
     ReopenCause,
     Resolution,
+    Status,
     TaskPlusOneEvidence,
 )
 from tests.ace.tui._artifacts_beads_helpers import snapshot
@@ -234,6 +235,43 @@ def test_task_rows_and_detail_render_plus_one_badges_and_evidence(
     assert "## +1 Evidence" in body
     assert "+1 agent.beta · 2026-08-01T15:00:00Z" in body
     assert "research:202608/cache.md" in body
+
+
+def test_task_rows_and_detail_render_post_close_plus_one_badges(
+    tmp_path: Path,
+) -> None:
+    value = snapshot(tmp_path)
+    issue = value.tasks[0].issue
+    issue.status = Status.CLOSED
+    issue.closed_at = "2026-08-01T14:00:00Z"
+    issue.resolution = Resolution.DONE
+    issue.plus_one_evidence.append(
+        TaskPlusOneEvidence(
+            timestamp="2026-08-01T15:00:00Z",
+            reporter="agent.beta",
+            note="Saw this before the close landed.",
+            observed_since="2026-01-01T00:00:00Z",
+        )
+    )
+
+    row = task_text(issue, triage=False, plan_link=False).plain
+    console = Console(width=100, color_system=None)
+    with console.capture() as capture:
+        console.print(
+            bead_properties_header(
+                issue,
+                value,
+                project="alpha",
+                project_name="Alpha",
+            )
+        )
+    body = bead_body_markdown(issue)
+
+    assert "[+1 after close]" in row
+    assert "[+1 after close]" in capture.get()
+    assert "Post-close +1" in capture.get()
+    assert "post-close evidence" in body
+    assert "**Observed since:** 2026-01-01T00:00:00Z" in body
 
 
 def test_task_rows_and_detail_render_reopen_badges_and_close_history(

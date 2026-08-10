@@ -151,6 +151,14 @@ def test_project_plus_one_with_stale_observed_since_records_but_withholds_reopen
         assert projection["plus_one_evidence"][0]["observed_since"] == (
             "2026-01-01T00:00:00Z"
         )
+        mirror = bead_db.init_db(tmp_path / "compatibility-mirror.db")
+        import_from_jsonl(project.beads_dir / "issues.jsonl", mirror)
+        mirrored = mirror.execute(
+            "SELECT plus_one_evidence FROM issues WHERE id = ?", (task.id,)
+        ).fetchone()
+        assert mirrored is not None
+        assert json.loads(mirrored[0])[0]["observed_since"] == ("2026-01-01T00:00:00Z")
+        mirror.close()
 
 
 def test_project_plus_one_with_fresh_observed_since_reopens_and_clears_assignee(

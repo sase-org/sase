@@ -444,6 +444,7 @@ def _create_gate(
         "refs": issue.refs,
         "plus_one_evidence": issue.plus_one_evidence,
         "close_history": issue.close_history,
+        "closed_at": issue.closed_at,
         "producer": {"chop": "bead_task_triage", "project": project_name},
     }
     if kind == TASK_TRIAGE_KIND:

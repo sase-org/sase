@@ -115,6 +115,11 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
                     for reference in evidence.get("refs") or []
                     if reference is not None
                 ),
+                observed_since=(
+                    None
+                    if evidence.get("observed_since") is None
+                    else str(evidence.get("observed_since"))
+                ),
             )
             for evidence in data.get("plus_one_evidence") or []
         ],

@@ -20,6 +20,11 @@ def plus_one_evidence_json(evidence: list[TaskPlusOneEvidence]) -> str:
                 "reporter": entry.reporter,
                 "note": entry.note,
                 "refs": list(entry.refs),
+                **(
+                    {"observed_since": entry.observed_since}
+                    if entry.observed_since
+                    else {}
+                ),
             }
             for entry in evidence
         ],
@@ -78,6 +83,11 @@ def plus_one_evidence_from_json(value: object) -> list[TaskPlusOneEvidence]:
             reporter=str(record.get("reporter", "")),
             note=str(record.get("note", "")),
             refs=tuple(str(ref) for ref in record.get("refs", [])),
+            observed_since=(
+                None
+                if record.get("observed_since") is None
+                else str(record.get("observed_since"))
+            ),
         )
         for record in records
         if isinstance(record, dict)

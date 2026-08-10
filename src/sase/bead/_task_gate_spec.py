@@ -20,6 +20,7 @@ from sase.bead._task_gate_preview import (
     task_triage_presentation_note,
 )
 from sase.bead.model import CloseRecord, TaskPlusOneEvidence
+from sase.bead.plus_one_presentation import post_close_plus_one_count
 from sase.bead.snooze_gate_input import (
     resolve_snooze_duration,
     snooze_duration_inputs,
@@ -82,6 +83,7 @@ def build_task_triage_gate_spec(
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
     close_history: Sequence[CloseRecord] = (),
+    closed_at: str | None = None,
     producer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the TaskTriage adapter."""
@@ -89,6 +91,7 @@ def build_task_triage_gate_spec(
     evidence = tuple(plus_one_evidence)
     count = len(evidence)
     history = tuple(close_history)
+    post_close_count = _post_close_count(evidence, closed_at)
     presentation: dict[str, Any] = {
         "sender": "bead",
         "icon": "✦",
@@ -100,6 +103,7 @@ def build_task_triage_gate_spec(
                 count,
                 created_at=created_at,
                 reopen_count=len(history),
+                post_close_count=post_close_count,
             )
         ],
         "tags": ["bead", "task"],
@@ -124,12 +128,18 @@ def build_task_triage_gate_spec(
             "size": size,
             "refs": list(refs),
             "plus_one_count": count,
+            **({"closed_at": closed_at} if closed_at else {}),
             "plus_one_evidence": [
                 {
                     "timestamp": item.timestamp,
                     "reporter": item.reporter,
                     "note": item.note,
                     "refs": list(item.refs),
+                    **(
+                        {"observed_since": item.observed_since}
+                        if item.observed_since
+                        else {}
+                    ),
                 }
                 for item in evidence
             ],
@@ -164,6 +174,7 @@ def build_task_triage_gate_spec(
                     refs=refs,
                     plus_one_evidence=evidence,
                     close_history=history,
+                    closed_at=closed_at,
                 ),
             },
         ],
@@ -189,6 +200,24 @@ def task_triage_option_spec(option_id: TaskTriageAction) -> dict[str, Any]:
     if option_id == TASK_TRIAGE_SNOOZE_OPTION_ID:
         spec["inputs"] = snooze_duration_inputs()
     return spec
+
+
+def _post_close_count(
+    evidence: Sequence[TaskPlusOneEvidence], closed_at: str | None
+) -> int:
+    if not closed_at:
+        return 0
+    from sase.bead.model import Issue, IssueType, Status
+
+    issue = Issue(
+        "preview",
+        "",
+        status=Status.CLOSED,
+        issue_type=IssueType.TASK,
+        closed_at=closed_at,
+        plus_one_evidence=list(evidence),
+    )
+    return post_close_plus_one_count(issue)
 
 
 def close_record_payload(record: CloseRecord) -> dict[str, Any]:

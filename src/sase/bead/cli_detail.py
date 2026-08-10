@@ -32,6 +32,11 @@ from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_CLI_STYLE,
     PLUS_ONE_SECTION_LABEL,
+    POST_CLOSE_CLI_STYLE,
+    POST_CLOSE_EVIDENCE_MARKER,
+    evidence_recorded_after_current_close,
+    post_close_plus_one_badge,
+    post_close_plus_one_count,
     plus_one_badge,
     plus_one_evidence_label,
 )
@@ -89,6 +94,7 @@ def render_issue_detail(
     status = bead_status_presentation(issue.status)
     badge = plus_one_badge(issue.plus_one_count)
     reopened = reopen_badge(len(issue.close_history))
+    post_close = post_close_plus_one_badge(post_close_plus_one_count(issue))
     lines = [
         (
             f"{palette.accent(status_icon(issue.status), status.cli_style)} "
@@ -99,6 +105,11 @@ def render_issue_detail(
             + (
                 f" {palette.accent(f'[{reopened}]', REOPEN_CLI_STYLE)}"
                 if reopened
+                else ""
+            )
+            + (
+                f" {palette.accent(f'[{post_close}]', POST_CLOSE_CLI_STYLE)}"
+                if post_close
                 else ""
             )
         )
@@ -470,7 +481,15 @@ def _render_plus_one_evidence_lines(
         label = palette.accent(plus_one_evidence_label(evidence), PLUS_ONE_CLI_STYLE)
         if evidence_reopened_bead(evidence, issue.close_history):
             label += f"  {palette.accent(REOPEN_EVIDENCE_MARKER, REOPEN_CLI_STYLE)}"
+        if evidence_recorded_after_current_close(issue, evidence):
+            label += (
+                f"  {palette.accent(POST_CLOSE_EVIDENCE_MARKER, POST_CLOSE_CLI_STYLE)}"
+            )
         lines.append(f"  {label}")
+        if evidence.observed_since:
+            lines.append(
+                f"    {palette.label('Observed since:')} {evidence.observed_since}"
+            )
         lines.extend(_prose_lines(evidence.note, style=style, wrap=wrap, indent="    "))
         if not evidence.refs:
             continue

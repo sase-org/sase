@@ -11,9 +11,19 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sase.bead.model import CloseRecord, ReopenCause, TaskPlusOneEvidence
+from sase.bead.model import (
+    CloseRecord,
+    Issue,
+    IssueType,
+    ReopenCause,
+    Status,
+    TaskPlusOneEvidence,
+)
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_SECTION_LABEL,
+    POST_CLOSE_EVIDENCE_MARKER,
+    evidence_recorded_after_current_close,
+    post_close_plus_one_badge,
     plus_one_badge,
     plus_one_evidence_label,
 )
@@ -54,6 +64,7 @@ def render_task_triage_preview(
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
     close_history: Sequence[CloseRecord] = (),
+    closed_at: str | None = None,
 ) -> str:
     """Render the reviewed Markdown detail shown by ACE and mobile clients.
 
@@ -81,7 +92,11 @@ def render_task_triage_preview(
         rendered_refs = ", ".join(f"`{_markdown_code(ref)}`" for ref in refs)
         metadata += f"**References:** {rendered_refs}\n\n"
     close_history_section = _task_triage_close_history_preview(close_history)
-    evidence_section = _task_triage_evidence_preview(plus_one_evidence, close_history)
+    evidence_section = _task_triage_evidence_preview(
+        plus_one_evidence,
+        close_history,
+        closed_at=closed_at,
+    )
     return (
         f"# {bead_id} — {title}\n\n"
         f"{filer}"
@@ -101,6 +116,7 @@ def task_triage_presentation_note(
     *,
     created_at: str = "",
     reopen_count: int = 0,
+    post_close_count: int = 0,
 ) -> str:
     """Return the stable notification summary for one task triage gate.
 
@@ -112,7 +128,13 @@ def task_triage_presentation_note(
     """
 
     badges = [
-        badge for badge in (plus_one_badge(count), reopen_badge(reopen_count)) if badge
+        badge
+        for badge in (
+            plus_one_badge(count),
+            reopen_badge(reopen_count),
+            post_close_plus_one_badge(post_close_count),
+        )
+        if badge
     ]
     suffix = "".join(f" [{badge}]" for badge in badges)
     created = (
@@ -168,6 +190,8 @@ def _close_record_reopened_markdown(record: CloseRecord) -> str:
 def _task_triage_evidence_preview(
     evidence_rows: Sequence[TaskPlusOneEvidence],
     close_history: Sequence[CloseRecord] = (),
+    *,
+    closed_at: str | None = None,
 ) -> str:
     if not evidence_rows:
         return ""
@@ -178,7 +202,15 @@ def _task_triage_evidence_preview(
         label = plus_one_evidence_label(evidence).replace("`", "\\`")
         if evidence_reopened_bead(evidence, close_history):
             label = f"{label} {REOPEN_EVIDENCE_MARKER}"
+        if evidence_recorded_after_current_close(
+            _closed_issue_for_evidence(closed_at), evidence
+        ):
+            label = f"{label} {POST_CLOSE_EVIDENCE_MARKER}"
         lines.append(f"> [!TIP] **{label}**")
+        if evidence.observed_since:
+            lines.append(
+                f"> **Observed since:** {_markdown_code(evidence.observed_since)}"
+            )
         lines.extend(
             f"> {line}" if line else ">" for line in evidence.note.splitlines()
         )
@@ -192,3 +224,15 @@ def _task_triage_evidence_preview(
 
 def _markdown_code(value: str) -> str:
     return value.replace("`", "\\`")
+
+
+def _closed_issue_for_evidence(closed_at: str | None) -> Issue:
+    if not closed_at:
+        return Issue("preview", "", status=Status.OPEN, issue_type=IssueType.TASK)
+    return Issue(
+        "preview",
+        "",
+        status=Status.CLOSED,
+        issue_type=IssueType.TASK,
+        closed_at=closed_at,
+    )

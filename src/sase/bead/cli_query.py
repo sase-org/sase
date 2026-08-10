@@ -36,6 +36,9 @@ from sase.bead.model import (
 from sase.bead.project import BeadProject
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_CLI_STYLE,
+    POST_CLOSE_CLI_STYLE,
+    post_close_plus_one_badge,
+    post_close_plus_one_count,
     plus_one_badge,
     plus_one_evidence_search_text,
 )
@@ -409,6 +412,8 @@ def _row_badges(issue: Issue, *, use_color: bool = False) -> str:
         badges.append(styled(f"[{badge}]", PLUS_ONE_CLI_STYLE, use_color))
     if reopened := reopen_badge(len(issue.close_history)):
         badges.append(styled(f"[{reopened}]", REOPEN_CLI_STYLE, use_color))
+    if post_close := post_close_plus_one_badge(post_close_plus_one_count(issue)):
+        badges.append(styled(f"[{post_close}]", POST_CLOSE_CLI_STYLE, use_color))
     return "".join(f" {badge}" for badge in badges)
 
 

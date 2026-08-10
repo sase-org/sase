@@ -9,6 +9,9 @@ from rich.text import Text
 from sase.bead.model import Issue, IssueType, PhaseSize, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
+    POST_CLOSE_RICH_STYLE,
+    post_close_plus_one_badge,
+    post_close_plus_one_count,
     plus_one_badge,
 )
 from sase.bead.reopen_presentation import REOPEN_RICH_STYLE, reopen_badge
@@ -295,6 +298,8 @@ def _bead_text(
         text.append(f"  [{badge}]", style=PLUS_ONE_RICH_STYLE)
     if reopen := reopen_badge(len(issue.close_history)):
         text.append(f"  [{reopen}]", style=REOPEN_RICH_STYLE)
+    if post_close := post_close_plus_one_badge(post_close_plus_one_count(issue)):
+        text.append(f"  [{post_close}]", style=POST_CLOSE_RICH_STYLE)
     text.append("  ")
     _append_status(text, issue.status)
     if issue.size is not None:

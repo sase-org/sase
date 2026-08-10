@@ -148,6 +148,20 @@ def _validate_task_triage_presentation(
         TASK_TRIAGE_PREVIEW_PATH,
         task_triage_presentation_note,
     )
+    from sase.bead.plus_one_presentation import post_close_plus_one_count
+    from sase.bead.model import Issue, IssueType, Status
+
+    post_close_count = 0
+    if payload.closed_at:
+        issue = Issue(
+            "preview",
+            "",
+            status=Status.CLOSED,
+            issue_type=IssueType.TASK,
+            closed_at=payload.closed_at,
+            plus_one_evidence=list(payload.plus_one_evidence),
+        )
+        post_close_count = post_close_plus_one_count(issue)
 
     expected_note = task_triage_presentation_note(
         payload.bead_id,
@@ -155,6 +169,7 @@ def _validate_task_triage_presentation(
         payload.plus_one_count,
         created_at=payload.created_at,
         reopen_count=len(payload.close_history),
+        post_close_count=post_close_count,
     )
     presentation = spec.presentation
     origin_agent = presentation.get("origin_agent")
@@ -205,6 +220,7 @@ def _validate_task_triage_preview(
             refs=payload.refs,
             plus_one_evidence=payload.plus_one_evidence,
             close_history=payload.close_history,
+            closed_at=payload.closed_at,
         )
 
     matches = preview_matches_renderer(

@@ -79,6 +79,39 @@ def test_task_bead_page_renders_bounded_linked_plus_one_callouts() -> None:
     )
 
 
+def test_task_bead_page_marks_post_close_plus_one_callouts() -> None:
+    task = Issue(
+        "sase-task",
+        "Fix the stale cache",
+        status=Status.CLOSED,
+        issue_type=IssueType.TASK,
+        size=PhaseSize.MEDIUM,
+        closed_at="2026-08-01T14:00:00Z",
+        resolution=Resolution.DONE,
+        plus_one_evidence=[
+            TaskPlusOneEvidence(
+                timestamp="2026-08-01T15:00:00Z",
+                reporter="agent.beta",
+                note="Saw this before the close landed.",
+                observed_since="2026-01-01T00:00:00Z",
+            )
+        ],
+    )
+    view = View((task,))
+
+    rendered = render_bead_page(
+        cast(BeadProject, view),
+        task,
+        BeadAssociationIndex(MappingProxyType({})),
+    )
+
+    assert "**Post-close +1:** +1 after close" in rendered
+    assert (
+        "> **+1** by `agent.beta` · 2026-08-01 11:00:00 EDT · **post-close evidence**"
+    ) in rendered
+    assert "> **Observed since:** 2025-12-31 19:00:00 EST" in rendered
+
+
 def test_task_bead_page_renders_bounded_previously_closed_callouts() -> None:
     task = Issue(
         "sase-task",

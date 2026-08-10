@@ -11,6 +11,10 @@ from sase.bead.cli_detail import IssueDetail
 from sase.bead.model import Issue, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_SECTION_LABEL,
+    POST_CLOSE_EVIDENCE_MARKER,
+    evidence_recorded_after_current_close,
+    post_close_plus_one_badge,
+    post_close_plus_one_count,
     plus_one_badge,
 )
 from sase.bead.reopen_presentation import (
@@ -132,7 +136,16 @@ def render_plus_one_evidence(
         if index:
             lines.append("")
         instant = _render_instant(evidence.timestamp)
-        lines.append(f"> **+1** by `{md_code(evidence.reporter)}` · {instant}")
+        marker = (
+            f" · **{md_escape(POST_CLOSE_EVIDENCE_MARKER)}**"
+            if evidence_recorded_after_current_close(issue, evidence)
+            else ""
+        )
+        lines.append(f"> **+1** by `{md_code(evidence.reporter)}` · {instant}{marker}")
+        if evidence.observed_since:
+            lines.append(
+                f"> **Observed since:** {_render_instant(evidence.observed_since)}"
+            )
         lines.append(">")
         lines.extend(
             f"> {line}" if line else ">"
@@ -218,6 +231,8 @@ def _primary_facts(issue: Issue) -> str:
         values.append(f"**Tier:** {issue.tier.value}")
     if badge := plus_one_badge(issue.plus_one_count):
         values.append(f"**+1 reports:** {badge}")
+    if badge := post_close_plus_one_badge(post_close_plus_one_count(issue)):
+        values.append(f"**Post-close +1:** {md_escape(badge)}")
     if badge := reopen_badge(len(issue.close_history)):
         values.append(f"**{REOPEN_GLYPH} Reopened:** {badge}")
     if issue.status == Status.CLOSED:

@@ -67,6 +67,7 @@ class TaskPlusOneEvidence:
     reporter: str
     note: str
     refs: tuple[str, ...] = ()
+    observed_since: str | None = None
 
     def validate(self) -> None:
         if not self.timestamp.strip():
@@ -75,6 +76,8 @@ class TaskPlusOneEvidence:
             raise ValueError("task +1 reporter cannot be empty or blank")
         if not self.note.strip():
             raise ValueError("task +1 note cannot be empty or blank")
+        if self.observed_since is not None and not self.observed_since.strip():
+            raise ValueError("task +1 evidence observed_since cannot be empty or blank")
         from sase.artifact_ref_lists import normalize_artifact_ref_list
 
         if normalize_artifact_ref_list(self.refs) != self.refs:
