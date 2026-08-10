@@ -72,6 +72,12 @@ def _clear_bead_work_association_env(monkeypatch: pytest.MonkeyPatch) -> None:
             {"bead": "sase-meta.1"},
             id="missing-plan-ref",
         ),
+        pytest.param(
+            VALID_TALE,
+            {"bead_id": "sase-iq"},
+            {"bead": "sase-iq"},
+            id="task-agent-bead",
+        ),
     ],
 )
 def test_plan_command_stamps_associations_from_agent_metadata(

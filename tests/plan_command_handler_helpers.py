@@ -46,6 +46,7 @@ body
 
 def clear_bead_work_association_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep proposal tests independent from the launching agent's bead env."""
+    monkeypatch.delenv("SASE_BEAD_ID", raising=False)
     monkeypatch.delenv("SASE_PHASE_BEAD_ID", raising=False)
     monkeypatch.delenv("SASE_EPIC_BEAD_ID", raising=False)
     monkeypatch.delenv("SASE_EPIC_PLAN_REF", raising=False)

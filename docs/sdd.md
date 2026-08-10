@@ -119,12 +119,14 @@ and a `bead_id` field linking to the bead issue tracker. For an epic,
 Re-running the command sees that link and resumes the existing epic instead of creating
 duplicates.
 
-When an epic is proposed from a bead-work phase agent, SASE also records that phase's ID
-as the managed `parent_bead`; an epic proposed by the land agent records the current
-epic's ID instead. Approving the proposal creates a child epic under that bead, so a
-proposal from `sase-5.2` becomes `sase-5.2.1`, while the next child proposed by the
-`sase-5` land agent becomes `sase-5.4` after phases `.1` through `.3`. Agents outside
-bead work have no association and continue to create top-level epics.
+When an epic is proposed from a bead-work phase agent, SASE records that phase's ID as
+the managed `parent_bead`; an epic proposed by the land agent records the current epic's
+ID instead. An agent working a task bead records that task's ID, so a proposed epic
+becomes a child of the task. Approving the proposal creates a child epic under that
+bead, so a proposal from `sase-5.2` becomes `sase-5.2.1`, while the next child proposed
+by the `sase-5` land agent becomes `sase-5.4` after phases `.1` through `.3`, and a
+task-worker proposal from `sase-iq` becomes `sase-iq.1`. Agents with no bead association
+at all continue to create top-level epics.
 
 When `sase plan propose` submits a plan for approval, it touches
 `~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the agent into the tier-aware
@@ -288,24 +290,26 @@ written destination file behind.
 `BEAD`, `AGENTS`, and `COMMITS` are projections of durable state, never accumulators.
 `BEAD` comes from the plan's managed `bead_id` (or historical `bead`) frontmatter. It
 links when a hosted page URL can be formed and a readable bead store does not show the
-ID to be missing. If the resolved store is readable and confirms that the bead is
-absent, or if no hosted page URL is available, it remains an unlinked label so
-historical IDs do not become dead links. If the store cannot be read, refresh preserves
-a candidate hosted link rather than stripping potentially valid links during a transient
-failure. The association sections are re-derived from `SASE_PLAN=` / `SASE_AGENT=`
-commit footers and agent artifact metadata on every refresh, so a stale or wrong entry
-disappears once its source is corrected. Both sources are normalized to the agent
-**lane**, so each lane is listed exactly once: a plan touched by `pc--code` and
-`pc--plan` shows a single `pc` row linked to the family page, never the member and its
-family as two agents. Solo agents are listed exactly as before. The row's link is taken
-from the concrete member when any source knew one, otherwise from the destination
-recorded in the commit footer, and it degrades to an unlinked label rather than guessing
-a URL. Bead-page agent rows follow the same rule, and their commit counts are the lane's
-commits. An epic plan's sections roll up its own associations with those of every
-descendant plan reachable through `PARENT`. `sase plan links refresh` reconciles the
-whole tree (dry run by default; `--write` to apply, `--plan <ref>` to scope to one
-plan), and each primary commit refreshes the plan it names on a best-effort basis — a
-plans-store failure never blocks the code commit.
+ID to be missing. `sase plan propose` stamps that managed `bead` field when a tale is
+proposed by a phase agent, land agent, or task-bead worker with an active bead
+association. If the resolved store is readable and confirms that the bead is absent, or
+if no hosted page URL is available, it remains an unlinked label so historical IDs do
+not become dead links. If the store cannot be read, refresh preserves a candidate hosted
+link rather than stripping potentially valid links during a transient failure. The
+association sections are re-derived from `SASE_PLAN=` / `SASE_AGENT=` commit footers and
+agent artifact metadata on every refresh, so a stale or wrong entry disappears once its
+source is corrected. Both sources are normalized to the agent **lane**, so each lane is
+listed exactly once: a plan touched by `pc--code` and `pc--plan` shows a single `pc` row
+linked to the family page, never the member and its family as two agents. Solo agents
+are listed exactly as before. The row's link is taken from the concrete member when any
+source knew one, otherwise from the destination recorded in the commit footer, and it
+degrades to an unlinked label rather than guessing a URL. Bead-page agent rows follow
+the same rule, and their commit counts are the lane's commits. An epic plan's sections
+roll up its own associations with those of every descendant plan reachable through
+`PARENT`. `sase plan links refresh` reconciles the whole tree (dry run by default;
+`--write` to apply, `--plan <ref>` to scope to one plan), and each primary commit
+refreshes the plan it names on a best-effort basis — a plans-store failure never blocks
+the code commit.
 
 A plan's parent is recorded in the `PARENT` bullet. The historical `parent:` frontmatter
 property is deprecated: it remains accepted so already-committed plans still validate,

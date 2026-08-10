@@ -13,7 +13,7 @@ from sase.main.utils import kill_agent_runner_group
 
 
 def _read_agent_meta_associations(artifacts_dir: str) -> dict[str, str]:
-    """Read durable epic-work associations for the proposing agent."""
+    """Read durable bead-work associations for the proposing agent."""
     try:
         raw_meta = json.loads(
             (Path(artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
@@ -24,7 +24,7 @@ def _read_agent_meta_associations(artifacts_dir: str) -> dict[str, str]:
         return {}
 
     associations: dict[str, str] = {}
-    for key in ("phase_bead_id", "epic_bead_id", "epic_plan_ref"):
+    for key in ("phase_bead_id", "epic_bead_id", "epic_plan_ref", "bead_id"):
         value = raw_meta.get(key)
         if isinstance(value, str) and (stripped := value.strip()):
             associations[key] = stripped
@@ -109,13 +109,16 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
             )
             sys.exit(1)
 
-    # Plans proposed from epic bead work inherit managed associations from the
-    # proposing agent's durable metadata marker.  The runner intentionally pops
-    # these env vars in ``epic_work_metadata_from_env`` before spawning the CLI,
-    # so env values are only explicit per-field overrides.  Tales record the
-    # active phase (or land-agent epic) bead and parent epic plan; child epics
-    # record the active bead as ``parent_bead`` and the same parent plan.
+    # Plans proposed from bead work inherit managed associations from the
+    # proposing agent's active bead: its phase bead, else its epic bead, else
+    # the bead the agent itself is working.  The runner intentionally pops the
+    # epic-work env vars in ``epic_work_metadata_from_env`` before spawning the
+    # CLI while leaving ``SASE_BEAD_ID`` available for commit attribution, so
+    # every field keeps the same env-then-durable-metadata fallback.  Tales
+    # record the active bead and parent epic plan; child epics record the
+    # active bead as ``parent_bead`` and the same parent plan.
     from sase.bead.work import (
+        SASE_BEAD_ID_ENV,
         SASE_EPIC_BEAD_ID_ENV,
         SASE_EPIC_PLAN_REF_ENV,
         SASE_PHASE_BEAD_ID_ENV,
@@ -131,7 +134,10 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     parent_plan = os.environ.get(
         SASE_EPIC_PLAN_REF_ENV, ""
     ).strip() or meta_associations.get("epic_plan_ref", "")
-    active_bead = phase_bead or epic_bead
+    agent_bead = os.environ.get(SASE_BEAD_ID_ENV, "").strip() or meta_associations.get(
+        "bead_id", ""
+    )
+    active_bead = phase_bead or epic_bead or agent_bead
     stamps: dict[str, str] = {}
     from sase.bead.attribution import acting_agent_name
 

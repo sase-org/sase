@@ -123,12 +123,20 @@ def test_plan_command_without_resolvable_agent_omits_proposer(
 
 
 @pytest.mark.parametrize(
-    ("content", "phase_bead", "epic_bead", "plan_ref", "expected_fields"),
+    (
+        "content",
+        "phase_bead",
+        "epic_bead",
+        "agent_bead",
+        "plan_ref",
+        "expected_fields",
+    ),
     [
         pytest.param(
             VALID_TALE,
             "sase-7z.5",
             "sase-7z",
+            None,
             "sase/repos/plans/202607/parent.md",
             {
                 "bead": "sase-7z.5",
@@ -140,6 +148,7 @@ def test_plan_command_without_resolvable_agent_omits_proposer(
             VALID_TALE,
             None,
             "sase-7z",
+            None,
             "sase/repos/plans/202607/parent.md",
             {
                 "bead": "sase-7z",
@@ -151,6 +160,7 @@ def test_plan_command_without_resolvable_agent_omits_proposer(
             VALID_EPIC,
             "sase-7z.5",
             "sase-7z",
+            None,
             "sase/repos/plans/202607/parent.md",
             {
                 "parent_bead": "sase-7z.5",
@@ -162,6 +172,7 @@ def test_plan_command_without_resolvable_agent_omits_proposer(
             VALID_EPIC,
             None,
             "sase-7z",
+            None,
             "sase/repos/plans/202607/parent.md",
             {
                 "parent_bead": "sase-7z",
@@ -174,11 +185,49 @@ def test_plan_command_without_resolvable_agent_omits_proposer(
             "sase-7z.5",
             "sase-7z",
             None,
+            None,
             {"bead": "sase-7z.5"},
             id="missing-plan-ref",
         ),
         pytest.param(
+            VALID_TALE,
+            None,
+            None,
+            "sase-iq",
+            None,
+            {"bead": "sase-iq"},
+            id="task-worker-tale",
+        ),
+        pytest.param(
             VALID_EPIC,
+            None,
+            None,
+            "sase-iq",
+            None,
+            {"parent_bead": "sase-iq"},
+            id="task-worker-epic",
+        ),
+        pytest.param(
+            VALID_TALE,
+            "sase-7z.5",
+            None,
+            "sase-other",
+            None,
+            {"bead": "sase-7z.5"},
+            id="tale-phase-precedes-agent-bead",
+        ),
+        pytest.param(
+            VALID_EPIC,
+            None,
+            "sase-7z",
+            "sase-other",
+            None,
+            {"parent_bead": "sase-7z"},
+            id="epic-land-precedes-agent-bead",
+        ),
+        pytest.param(
+            VALID_EPIC,
+            None,
             None,
             None,
             None,
@@ -191,6 +240,7 @@ def test_plan_command_stamps_associations_from_bead_work_env(
     content: str,
     phase_bead: str | None,
     epic_bead: str | None,
+    agent_bead: str | None,
     plan_ref: str | None,
     expected_fields: dict[str, str],
     tmp_path: Path,
@@ -208,6 +258,8 @@ def test_plan_command_stamps_associations_from_bead_work_env(
         monkeypatch.setenv("SASE_PHASE_BEAD_ID", phase_bead)
     if epic_bead is not None:
         monkeypatch.setenv("SASE_EPIC_BEAD_ID", epic_bead)
+    if agent_bead is not None:
+        monkeypatch.setenv("SASE_BEAD_ID", agent_bead)
     if plan_ref is not None:
         monkeypatch.setenv("SASE_EPIC_PLAN_REF", plan_ref)
 
