@@ -728,6 +728,7 @@ ace:
 | `prompt_inputs`            | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
 | `prompt_spellcheck`        | dict         | see below | Sticky misspelling highlight settings for the ACE prompt input.                                                                                            |
 | `repro_output_dir`         | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
+| `snippet_config_path`      | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                              |
 | `snippets`                 | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
 | `tribes`                   | dict         | see below | Per-tribe ACE TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                      |
 | `updates`                  | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
@@ -1001,6 +1002,35 @@ duplicate bindings within a scope are warned, and prefix conflicts between custo
 and app bindings are detected.
 
 Source: `src/sase/default_config.yml`, `src/sase/ace/tui/keymaps/`
+
+#### `ace.snippet_config_path`
+
+Names the config file that receives new `ace.snippets` entries written from the prompt
+bar — both the `gt` / `Ctrl+G t` snippet target pane and the `gx` / `Ctrl+G x` save
+panel's snippet mode default to it.
+
+An empty string (the default) resolves to the user's `sase.yml` — the chezmoi source
+file under `dot_config/sase/` when [`use_chezmoi`](#use_chezmoi) is enabled, otherwise
+`~/.config/sase/sase.yml`. A relative configured value resolves against
+`~/.config/sase/`, so `sase_snippets.yml` means `~/.config/sase/sase_snippets.yml`. The
+path's suffix must be `.yml` or `.yaml`; the file itself need not exist yet, but its
+parent directory must be writable.
+
+A configured value that is unusable — wrong suffix, unwritable parent, invalid YAML, or
+a project `sase/sase.yml` that still needs its legacy migration — falls back to the
+default and reports why: the trigger-name panel appends the reason to the destination
+line (e.g. `configured path unusable: read-only`) rather than silently writing somewhere
+else.
+
+```yaml
+ace:
+  snippet_config_path: "sase_snippets.yml"
+```
+
+See
+[docs/ace.md — Authoring a snippet from the prompt bar](ace.md#authoring-a-snippet-from-the-prompt-bar).
+
+Source: `src/sase/xprompt/snippet_targets.py`
 
 #### `ace.snippets`
 

@@ -3808,37 +3808,38 @@ separator cannot fit both the readout and the `agent N` label.
 
 ### INSERT Mode (Default)
 
-| Key                          | Action                                                                                                                  |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `Enter`                      | Submit; in a prompt stack, open the submit chooser                                                                      |
-| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                             |
-| `Ctrl+G Enter`               | Submit only the selected pane                                                                                           |
-| `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                                     |
-| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker |
-| `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                |
-| `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                                          |
-| `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                                            |
-| `Ctrl+G Enter`               | Submit only the selected pane                                                                                           |
-| `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                 |
-| `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                              |
-| `Ctrl+G -`                   | Add an empty bottom pane                                                                                                |
-| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                            |
-| `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                          |
-| `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                |
-| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                    |
-| `Ctrl+G X`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                    |
-| `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                           |
-| `Ctrl+G p`                   | Open the stashed-prompt picker                                                                                          |
-| `Ctrl+Y`                     | Open the workflow YAML editor                                                                                           |
-| `Ctrl+K`                     | Open prompt history from a single-line prompt, pre-filtered by that text                                                |
-| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping                                   |
-| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping                                   |
-| `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion))              |
-| `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                                    |
-| `Tab`                        | Indent a bullet, or nest an ordered item under a preceding marker; otherwise expand a snippet or advance its tabstop    |
-| `Shift+Tab`                  | Dedent a bullet, or unnest an ordered item into its enclosing run; otherwise do nothing                                 |
-| `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                         |
-| `Escape`                     | Switch to vim NORMAL mode                                                                                               |
+| Key                          | Action                                                                                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `Enter`                      | Submit; in a prompt stack, open the submit chooser                                                                                       |
+| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                                              |
+| `Ctrl+G Enter`               | Submit only the selected pane                                                                                                            |
+| `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                                                      |
+| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker                  |
+| `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                                 |
+| `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                                                           |
+| `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                                                             |
+| `Ctrl+G Enter`               | Submit only the selected pane                                                                                                            |
+| `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                                  |
+| `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                                               |
+| `Ctrl+G -`                   | Add an empty bottom pane                                                                                                                 |
+| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                                             |
+| `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                           |
+| `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                 |
+| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                                     |
+| `Ctrl+G t`                   | Open a new/rename-in-place snippet target pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar)) |
+| `Ctrl+G X`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                     |
+| `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                            |
+| `Ctrl+G p`                   | Open the stashed-prompt picker                                                                                                           |
+| `Ctrl+Y`                     | Open the workflow YAML editor                                                                                                            |
+| `Ctrl+K`                     | Open prompt history from a single-line prompt, pre-filtered by that text                                                                 |
+| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping                                                    |
+| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping                                                    |
+| `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion))                               |
+| `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                                                     |
+| `Tab`                        | Indent a bullet, or nest an ordered item under a preceding marker; otherwise expand a snippet or advance its tabstop                     |
+| `Shift+Tab`                  | Dedent a bullet, or unnest an ordered item into its enclosing run; otherwise do nothing                                                  |
+| `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                                          |
+| `Escape`                     | Switch to vim NORMAL mode                                                                                                                |
 
 In prompt INSERT mode, ACE auto-pairs safe openers for `()`, `[]`, `{}`, `<>`, single
 quotes, double quotes, and backticks. Typing the matching closer over an auto-inserted
@@ -4010,23 +4011,24 @@ pending to cancel it and stay in INSERT mode.
 In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local `g`
 prefix actions currently available.
 
-| Key         | Action                                                                                                 |
-| ----------- | ------------------------------------------------------------------------------------------------------ |
-| `Enter`     | Open the submit chooser when stacked or targeted; an untargeted single pane sends normally             |
-| `Ctrl+S`    | Stash the active pane; from an empty prompt, open the stashed-prompt picker                            |
-| `g<enter>`  | Launch the selected pane and remove it from the stack                                                  |
-| `Ctrl+C`    | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally |
-| `Escape`    | Enter NORMAL mode for stack navigation                                                                 |
-| `gj` / `gk` | Focus the next / previous pane in NORMAL mode; inside the panel, jump to the top / bottom prompt pane  |
-| `gJ` / `gK` | Move the active pane down / up in NORMAL mode; reorder cycles at the stack edges                       |
-| `g-`        | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                   |
-| `g=`        | Show/focus the xprompt frontmatter panel; in panel rows mode, return to the originating prompt pane    |
-| `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                              |
-| `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                         |
-| `gw`        | Write a bound xprompt definition; unbound drafts fall through to save-as                               |
-| `gd`        | Edit the xprompt definition under the cursor in the prompt bar                                         |
-| `gx`        | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>` and leaves the bar open           |
-| `gX`        | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                   |
+| Key         | Action                                                                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `Enter`     | Open the submit chooser when stacked or targeted; an untargeted single pane sends normally                                               |
+| `Ctrl+S`    | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                                              |
+| `g<enter>`  | Launch the selected pane and remove it from the stack                                                                                    |
+| `Ctrl+C`    | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally                                   |
+| `Escape`    | Enter NORMAL mode for stack navigation                                                                                                   |
+| `gj` / `gk` | Focus the next / previous pane in NORMAL mode; inside the panel, jump to the top / bottom prompt pane                                    |
+| `gJ` / `gK` | Move the active pane down / up in NORMAL mode; reorder cycles at the stack edges                                                         |
+| `g-`        | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                                                     |
+| `g=`        | Show/focus the xprompt frontmatter panel; in panel rows mode, return to the originating prompt pane                                      |
+| `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                                                                |
+| `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                                                           |
+| `gw`        | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                 |
+| `gd`        | Edit the xprompt definition under the cursor in the prompt bar                                                                           |
+| `gx`        | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>` and leaves the bar open                                             |
+| `gt`        | Open a new/rename-in-place snippet target pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar)) |
+| `gX`        | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                     |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane
 so local xprompts and metadata continue to resolve. Empty selected panes are dropped
@@ -4995,6 +4997,50 @@ server uses the editor helper operation `sase editor helper-bridge snippet-catal
 the authoritative source and falls back to native Rust loading only for simple snippets
 if the helper is unavailable. Clients without snippet support do not receive these
 entries, because raw `$1` / `$0` markers would not behave like ACE tabstops.
+
+### Authoring a snippet from the prompt bar
+
+`gt` (NORMAL) or `Ctrl+G t` (INSERT) opens a dedicated snippet pane at the bottom of the
+prompt input stack, a faster loop than the general save panel above when you already
+know you're authoring a trigger:
+
+1. **Name it.** `gt` opens the trigger-name panel: type a trigger and it validates live,
+   lists up to six existing triggers that share your typed prefix (`Tab` completes to
+   the highlighted one), and shows the destination file the entry will be written to.
+   `↑`/`↓` (or `Ctrl+P`/`Ctrl+N`) cycle the destination among the other discovered
+   config files for this invocation only — it never rewrites `ace.snippet_config_path`.
+   The verdict line reports one of: an invalid trigger; `✓ Create` for a fresh trigger;
+   a warning that the trigger already exists in the destination (`Enter` will load it
+   for editing); a warning that it's defined in a different config file (saving here
+   will shadow or be shadowed by that file, per your project's precedence); or a warning
+   that the trigger is derived from an xprompt and this entry will override it.
+2. **Open the pane.** `Enter` opens the snippet pane — empty for a new trigger, or
+   pre-filled with the current definition (from the destination, the shadowing file, or
+   the derived xprompt template) when the trigger already exists. The pane always opens
+   in INSERT mode and is unmistakably not a prompt pane: its own separator rule names
+   the `⇥ <trigger>` and destination, with a state marker (`✓` clean, `●` dirty, `new`
+   for an unsaved trigger), and its own accent color and subtitle. It is never included
+   in a launch, a stash, or a save-as — `Enter` in it means "save the snippet", not
+   "submit the stack".
+3. **Save it.** `Enter` in the pane opens the save confirmation, showing `[Draft]` for a
+   brand-new trigger or opening straight on `Diff` — a real `difflib` unified diff
+   against the existing entry — for an overwrite (`Ctrl+O` cycles Draft / Existing /
+   Diff, `Ctrl+D`/`Ctrl+U` scroll). An empty body refuses to save; a byte-identical
+   overwrite reports `✓ No changes` and closes without writing; a destination that
+   changed on disk since the pane opened warns and offers `r` to reload the current
+   definition instead of overwriting blindly. `Enter` writes the file, publishes the new
+   template to every open prompt input in the session immediately (no restart needed),
+   and closes the pane only once the write succeeds — a failed write leaves the draft in
+   place to retry.
+4. **Follow-ups.** A successful save runs the same post-write chooser as the general
+   save panel: an optional commit & push, and — for a chezmoi-managed destination — a
+   scoped `chezmoi apply` limited to the deployed snippet file.
+5. **Discard or rename.** `Ctrl+C` discards the pane; if you've typed anything different
+   from the loaded body, a confirmation guards against losing it. `Esc` returns to
+   NORMAL mode without discarding. `gt` again while the pane is open re-opens the
+   trigger-name panel prefilled with the current trigger to rename or re-target it
+   without touching the body you've written. On close (saved or discarded), focus and
+   the cursor return to exactly the pane and position you were at before `gt`.
 
 ### XPrompt Picker (`#@`)
 
