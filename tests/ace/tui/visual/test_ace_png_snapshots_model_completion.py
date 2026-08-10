@@ -13,7 +13,6 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui import AceApp
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -28,15 +27,6 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
-
-
-def _patch_prompt_catalog_rebuild(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Disable startup prompt-catalog work; these tests inject rows directly."""
-    monkeypatch.setattr(
-        AceApp,
-        "_schedule_prompt_catalog_rebuild",
-        lambda *_args, **_kwargs: None,
-    )
 
 
 def _model_row(
@@ -187,7 +177,6 @@ async def test_model_completion_mixed_menu_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_prompt_catalog_rebuild(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
@@ -225,7 +214,6 @@ async def test_model_completion_alias_only_menu_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_prompt_catalog_rebuild(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)

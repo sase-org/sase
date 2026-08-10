@@ -40,6 +40,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 _NOW = datetime(2026, 7, 28, 12, 10, tzinfo=UTC)
+_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT = 60.0
 _ACTIVE_TOOLS_FOOTER_RE = re.compile(r">●</text><text[^>]*>\s*tools</text>")
 
 
@@ -185,7 +186,10 @@ async def _focus_slow_tool_section(page: AcePage) -> AgentPromptPanel:
                 lambda: _active_tools_footer_visible(page),
                 description="loaded tools footer",
             )
-            await wait_for_visual_idle(page)
+            await wait_for_visual_idle(
+                page,
+                timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT,
+            )
             if (
                 panel.active_section_identity == "slow-tool-calls"
                 and _active_tools_footer_visible(page)
@@ -197,7 +201,7 @@ async def _focus_slow_tool_section(page: AcePage) -> AgentPromptPanel:
         # The first navigation request may enable the panel's layout reserve
         # and finish through a call-after-refresh retry. Let that retry and its
         # anchor paint converge before deciding whether another key is needed.
-        await wait_for_visual_idle(page)
+        await wait_for_visual_idle(page, timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT)
     raise AssertionError("Timed out focusing slow-tool calls section")
 
 
@@ -234,7 +238,7 @@ async def _slow_tool_section_top_aligned(
             y_axis=True,
             immediate=True,
         )
-        await wait_for_visual_idle(page)
+        await wait_for_visual_idle(page, timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT)
         if _metadata_viewport_top_section(page, panel) == "slow-tool-calls":
             return True
     return False

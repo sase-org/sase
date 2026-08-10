@@ -8,9 +8,11 @@ from typing import Any, cast
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui import AceApp
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     _pending_visual_work,
     assert_visual_frame_converged,
+    patch_startup_loaders,
     wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
@@ -175,6 +177,31 @@ async def test_visual_idle_waits_for_worker_and_five_converged_frames() -> None:
 async def test_visual_snapshots_disable_animations_on_running_app() -> None:
     async with AcePage() as page:
         assert page.app.animation_level == "none"
+
+
+@pytest.mark.asyncio
+async def test_visual_startup_patch_disables_prompt_catalog_workers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage() as page:
+        page.app._schedule_prompt_catalog_rebuild(reason="assist_cache_miss")
+        await page.pause()
+
+        assert page.app._prompt_catalog_rebuild_in_flight is False
+        assert page.app._prompt_catalog_rebuild_pending is False
+        running_worker_names = [
+            str(getattr(worker, "name", worker))
+            for worker in page.app.workers
+            if bool(getattr(worker, "is_running", False))
+        ]
+        assert not any(
+            name.startswith("prompt-catalog:") for name in running_worker_names
+        )
+        assert AceApp._schedule_prompt_catalog_rebuild.__name__ == (
+            "_fake_prompt_catalog_rebuild"
+        )
 
 
 @pytest.mark.asyncio

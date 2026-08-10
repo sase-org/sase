@@ -331,6 +331,9 @@ async def test_agents_task_bead_notes_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_svg_contains(page, "Notes:")
+        await page.press("z", "z")
+        await wait_for_svg_contains(page, "alice")
+        await wait_for_svg_contains(page, "attribution readable")
         await wait_for_visual_idle(page)
 
         svg_plain = page.export_svg(title="ACE task BEAD notes assertion").replace(

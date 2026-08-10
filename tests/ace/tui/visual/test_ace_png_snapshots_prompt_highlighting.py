@@ -323,7 +323,14 @@ async def test_prompt_glossary_highlight_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     patch_visual_glossary_catalog(monkeypatch)
-    patch_visual_artifact_ref_kinds(monkeypatch)
+    # This pair of goldens pins glossary styling with artifact-like text kept
+    # in the cold, neutral state. The wrapped glossary snapshot below covers
+    # the known-artifact-ref overlay on the same prompt surface.
+    monkeypatch.setattr(
+        PromptTextArea,
+        "_warm_current_artifact_ref_completion_catalog",
+        lambda _self: None,
+    )
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         page.app.theme = theme

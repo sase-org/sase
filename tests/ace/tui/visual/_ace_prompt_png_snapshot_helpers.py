@@ -218,7 +218,18 @@ def patch_visual_skill_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
         del schedule
         return _VISUAL_SKILL_ENTRIES
 
+    def _exact_entries(
+        _app: AceApp,
+        _project: str | None,
+    ) -> list[XPromptAssistEntry]:
+        return _VISUAL_SKILL_ENTRIES
+
     monkeypatch.setattr(AceApp, "get_prompt_catalog_assist_entries", _entries)
+    monkeypatch.setattr(
+        AceApp,
+        "get_warm_prompt_catalog_assist_entries_exact",
+        _exact_entries,
+    )
 
 
 _VISUAL_ARTIFACT_REF_KINDS = frozenset(

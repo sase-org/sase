@@ -88,6 +88,20 @@ def patch_startup_loaders(
         else:
             app._axe_first_load_done = True
 
+    def _fake_prompt_catalog_rebuild(
+        app: AceApp,
+        *,
+        reason: str,
+        force: bool = False,
+        config_dirty: bool = False,
+    ) -> None:
+        """Disable prompt-catalog I/O; visual tests inject prompt rows directly."""
+        del reason, force, config_dirty
+        app._prompt_catalog_rebuild_in_flight = False
+        app._prompt_catalog_rebuild_pending = False
+        app._prompt_catalog_rebuild_pending_force = False
+        app._prompt_catalog_rebuild_pending_config_dirty = False
+
     def _fake_notification_snapshot(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
         return SimpleNamespace(
             notifications=[],
@@ -152,6 +166,11 @@ def patch_startup_loaders(
     )
     monkeypatch.setattr(AceApp, "_run_axe_startup_init", _fake_axe_startup)
     monkeypatch.setattr(AceApp, "_load_axe_status_async", _fake_axe_status_async)
+    monkeypatch.setattr(
+        AceApp,
+        "_schedule_prompt_catalog_rebuild",
+        _fake_prompt_catalog_rebuild,
+    )
     monkeypatch.setattr(
         notifications,
         "read_notification_snapshot",
