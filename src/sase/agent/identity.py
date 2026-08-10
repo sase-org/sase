@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Literal
+
+_logger = logging.getLogger(__name__)
 
 AgentIdentitySource = Literal["SASE_AGENT_NAME", "agent_meta"]
 
@@ -120,6 +124,47 @@ def discover_agent_runtime(
     return None
 
 
+def resolve_observation_window_start(env: Mapping[str, str] | None = None) -> str:
+    """Resolve the caller's observation-window start for a task ``+1``.
+
+    A SASE agent's window opens when its run began, read from its own
+    ``agent_meta.json``; a human filing a ``+1`` is asserting it now, so a
+    human's window is the current time. Missing or malformed agent metadata
+    falls back to the current time rather than failing the command.
+    """
+    identity = discover_agent_identity(env)
+    if identity is None:
+        return current_instant()
+    meta = _agent_meta_from_dir(identity.artifacts_dir)
+    if meta is None:
+        _logger.debug(
+            "observation window: no readable agent_meta.json for %s; "
+            "falling back to the current time",
+            identity.name,
+        )
+        return current_instant()
+    run_started_at = meta.get("run_started_at")
+    if not isinstance(run_started_at, str) or not run_started_at.strip():
+        _logger.debug(
+            "observation window: agent_meta.json for %s has no "
+            "run_started_at; falling back to the current time",
+            identity.name,
+        )
+        return current_instant()
+    return run_started_at
+
+
+def current_instant() -> str:
+    """Return the current UTC instant as an RFC 3339 timestamp.
+
+    Sub-second precision matters here: bead timestamps like ``closed_at``
+    are truncated to whole seconds, so an instant computed in the same
+    wall-clock second as a close must still resolve strictly after it, and
+    only a fractional part guarantees that.
+    """
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
 def _clean_value(value: str | None) -> str | None:
     if value is None:
         return None
@@ -158,8 +203,10 @@ __all__ = [
     "AgentIdentityError",
     "AgentIdentitySource",
     "agent_name_from_meta",
+    "current_instant",
     "discover_agent_identity",
     "discover_agent_runtime",
     "require_agent_identity",
     "resolve_local_agent_name",
+    "resolve_observation_window_start",
 ]

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.model import IssueType, PhaseSize, Status
+from sase.bead.model import IssueType, PhaseSize, Resolution, Status
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
 
@@ -25,12 +25,14 @@ def _args(
     reporter: str = "reporter.agent",
     note: str = "Reproduced with a clean configuration",
     refs: list[str] | None = None,
+    verified_after_close: bool = False,
 ) -> argparse.Namespace:
     return argparse.Namespace(
         id=issue_id,
         author=reporter,
         note=note,
         ref=refs,
+        verified_after_close=verified_after_close,
     )
 
 
@@ -61,6 +63,129 @@ def test_plus_one_parser_requires_evidence_and_accepts_all_public_options() -> N
     with pytest.raises(SystemExit) as exc_info:
         parser.parse_args(["bead", "+1", "sase-42"])
     assert exc_info.value.code == 2
+
+
+def test_plus_one_parser_accepts_verified_after_close_flag() -> None:
+    parser = create_parser()
+    args = parser.parse_args(
+        [
+            "bead",
+            "+1",
+            "sase-42",
+            "-n",
+            "Reproduced after the fix",
+            "--verified-after-close",
+        ]
+    )
+    assert args.verified_after_close is True
+
+    default_args = parser.parse_args(["bead", "+1", "sase-42", "-n", "Reproduced"])
+    assert default_args.verified_after_close is False
+
+
+def test_plus_one_verified_after_close_reopens_and_clears_assignee(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        task = project.create(
+            "Fixed task",
+            IssueType.TASK,
+            size=PhaseSize.SMALL,
+            assignee="finisher.agent",
+            created_by="creator.agent",
+        )
+        project.close([task.id], reason="fixed", resolution=Resolution.DONE)
+
+    bead_cli.handle_bead_plus_one(_args(task.id, verified_after_close=True))
+
+    with BeadProject(project_dir) as project:
+        updated = project.show(task.id)
+    assert updated.status is Status.READY
+    assert updated.assignee == ""
+    output = capsys.readouterr().out
+    assert "+1 recorded" in output
+    assert "withheld" not in output
+
+
+def test_plus_one_verified_after_close_rejects_non_closed_bead(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        task = project.create(
+            "Open task",
+            IssueType.TASK,
+            size=PhaseSize.SMALL,
+            created_by="creator.agent",
+        )
+        before = (project.beads_dir / "issues.jsonl").read_bytes()
+
+    with pytest.raises(SystemExit) as exc_info:
+        bead_cli.handle_bead_plus_one(_args(task.id, verified_after_close=True))
+
+    assert exc_info.value.code == 1
+    assert "requires a closed bead" in capsys.readouterr().err
+    with BeadProject(project_dir) as project:
+        assert (project.beads_dir / "issues.jsonl").read_bytes() == before
+
+
+def test_plus_one_withheld_reopen_reports_and_leaves_bead_closed(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead.cli_crud.resolve_observation_window_start",
+        lambda: "2020-01-01T00:00:00Z",
+    )
+    with BeadProject(project_dir) as project:
+        task = project.create(
+            "Fixed task",
+            IssueType.TASK,
+            size=PhaseSize.SMALL,
+            created_by="creator.agent",
+        )
+        project.close([task.id], reason="fixed", resolution=Resolution.DONE)
+        closed_at = project.show(task.id).closed_at
+
+    bead_cli.handle_bead_plus_one(_args(task.id, reporter="stale.reporter"))
+
+    with BeadProject(project_dir) as project:
+        updated = project.show(task.id)
+    assert updated.status is Status.CLOSED
+    assert "stale.reporter" in updated.notes
+    assert "withheld" in updated.notes
+
+    output = capsys.readouterr().out
+    assert "withheld" in output
+    assert "--verified-after-close" in output
+    assert "sase bead open" in output
+    assert closed_at is not None
+    assert closed_at in output
+
+
+def test_plus_one_human_fallback_uses_current_time_and_reopens(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    with BeadProject(project_dir) as project:
+        task = project.create(
+            "Fixed task",
+            IssueType.TASK,
+            size=PhaseSize.SMALL,
+            created_by="creator.agent",
+        )
+        project.close([task.id], reason="fixed", resolution=Resolution.DONE)
+
+    bead_cli.handle_bead_plus_one(_args(task.id, reporter="human.reporter"))
+
+    with BeadProject(project_dir) as project:
+        updated = project.show(task.id)
+    assert updated.status is Status.READY
 
 
 def test_plus_one_accepts_shorthand_refs_and_promotes_draft_task(

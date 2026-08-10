@@ -144,6 +144,7 @@ def plus_one(
     note: str,
     refs: list[str] | tuple[str, ...] = (),
     now: str | None = None,
+    observed_since: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     """Append one structured, independently attributed task report."""
     _guard_bead_store_write(beads_dir, "plus_one")
@@ -156,6 +157,7 @@ def plus_one(
         note,
         list(refs),
         now,
+        observed_since,
     )
     return _issue_payload(payload), payload
 

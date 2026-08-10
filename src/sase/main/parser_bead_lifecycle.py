@@ -46,6 +46,15 @@ def register_bead_plus_one_parser(
         action="append",
         help="Artifact reference supporting the evidence (repeatable)",
     )
+    parser.add_argument(
+        "--verified-after-close",
+        action="store_true",
+        help=(
+            "Assert this was reproduced on a tree that already contains the "
+            "close, so the observation window is now instead of this "
+            "runtime's start. Requires the bead to already be closed."
+        ),
+    )
 
 
 def register_bead_close_parser(

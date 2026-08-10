@@ -116,6 +116,95 @@ def test_project_plus_one_creator_and_repeat_are_noops(tmp_path: Path) -> None:
         assert issues_path.read_bytes() == before_repeat
 
 
+def test_project_plus_one_with_stale_observed_since_records_but_withholds_reopen(
+    tmp_path: Path,
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        task = project.create(
+            "Corroborated task",
+            IssueType.TASK,
+            size=PhaseSize.SMALL,
+            assignee="finisher-agent",
+            created_by="creator-agent",
+        )
+        project.close([task.id], reason="fixed", resolution=Resolution.DONE)
+        closed = project.show(task.id)
+        assert closed.closed_at is not None
+
+        issue, changed = project.plus_one(
+            task.id,
+            "saw this before the fix landed",
+            reporter="reporter-agent",
+            observed_since="2026-01-01T00:00:00Z",
+        )
+
+        assert changed
+        assert issue.status == Status.CLOSED
+        assert issue.assignee == "finisher-agent"
+        outcome = project.last_mutation_outcome
+        assert outcome["reopen_withheld"] is True
+        assert outcome["reopen_withheld_closed_at"] == closed.closed_at
+
+        projection = json.loads(
+            (project.beads_dir / "issues.jsonl").read_text(encoding="utf-8")
+        )
+        assert projection["plus_one_evidence"][0]["observed_since"] == (
+            "2026-01-01T00:00:00Z"
+        )
+
+
+def test_project_plus_one_with_fresh_observed_since_reopens_and_clears_assignee(
+    tmp_path: Path,
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        task = project.create(
+            "Corroborated task",
+            IssueType.TASK,
+            size=PhaseSize.SMALL,
+            assignee="finisher-agent",
+            created_by="creator-agent",
+        )
+        project.close([task.id], reason="fixed", resolution=Resolution.DONE)
+
+        issue, changed = project.plus_one(
+            task.id,
+            "reproduced after the fix landed",
+            reporter="reporter-agent",
+            observed_since="2099-01-01T00:00:00Z",
+        )
+
+        assert changed
+        assert issue.status == Status.READY
+        assert issue.assignee == ""
+        outcome = project.last_mutation_outcome
+        assert outcome["reopen_withheld"] is False
+        assert outcome.get("reopen_withheld_closed_at") is None
+
+
+def test_project_plus_one_without_observed_since_still_reopens_legacy_style(
+    tmp_path: Path,
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        task = project.create(
+            "Corroborated task",
+            IssueType.TASK,
+            size=PhaseSize.SMALL,
+            created_by="creator-agent",
+        )
+        project.close([task.id], reason="fixed", resolution=Resolution.DONE)
+
+        issue, changed = project.plus_one(
+            task.id,
+            "no observation window provided",
+            reporter="reporter-agent",
+        )
+
+        assert changed
+        assert issue.status == Status.READY
+        outcome = project.last_mutation_outcome
+        assert outcome["reopen_withheld"] is False
+
+
 def test_project_rejects_plus_one_on_non_task_without_writes(tmp_path: Path) -> None:
     with BeadProject.init(tmp_path) as project:
         plan = project.create("Plan", IssueType.PLAN)

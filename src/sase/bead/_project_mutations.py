@@ -181,6 +181,7 @@ class BeadProjectMutationMixin:
         *,
         reporter: str,
         refs: list[str] | tuple[str, ...] = (),
+        observed_since: str | None = None,
     ) -> tuple[Issue, bool]:
         """Record one independently attributed +1 on a task bead."""
         from sase.core import bead_mutation_facade as rust_beads
@@ -192,6 +193,7 @@ class BeadProjectMutationMixin:
             note=note,
             refs=refs,
             now=self._current_time(),
+            observed_since=observed_since,
         )
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
