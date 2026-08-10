@@ -10,10 +10,48 @@ else
   sase_bin="sase"
 fi
 
+run_symvision_status_show() {
+  local attempts=3
+  local retry_delay=0.2
+  local attempt=1
+  local status=0
+  local tmp_dir
+  local stdout_file
+  local stderr_file
+  local first_line
+
+  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/sase-bead-status.XXXXXX")"
+  stdout_file="$tmp_dir/stdout"
+  stderr_file="$tmp_dir/stderr"
+
+  while ((attempt <= attempts)); do
+    : >"$stdout_file"
+    : >"$stderr_file"
+
+    if "$sase_bin" bead "$@" >"$stdout_file" 2>"$stderr_file"; then
+      IFS= read -r first_line <"$stdout_file" || first_line=""
+      printf '%s\n' "$first_line"
+      rm -rf "$tmp_dir"
+      return 0
+    else
+      status=$?
+    fi
+
+    if ((attempt == attempts)); then
+      cat "$stdout_file"
+      cat "$stderr_file" >&2
+      rm -rf "$tmp_dir"
+      return "$status"
+    fi
+
+    sleep "$retry_delay"
+    ((attempt += 1))
+  done
+}
+
 if [[ "${SASE_SYMVISION_BEAD_STATUS_ONLY:-}" == "1" && "${1:-}" == "show" ]]; then
-  output="$("$sase_bin" bead "$@")"
-  printf '%s\n' "${output%%$'\n'*}"
-  exit 0
+  run_symvision_status_show "$@"
+  exit "$?"
 fi
 
 exec "$sase_bin" bead "$@"
