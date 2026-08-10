@@ -96,7 +96,7 @@ _setup: _venv
         fi; \
     fi; \
     if [ $((validation_status & 1)) -ne 0 ]; then \
-        printf "[setup] WARNING: bump the published sase-core-rs window in pyproject.toml; dev installs build from {{ sase_core_dir }} regardless.\n"; \
+        printf "[setup] Note: the sase-core checkout is ahead of the published sase-core-rs window in pyproject.toml; dev installs build from {{ sase_core_dir }} regardless. This is normal — the release-branch reconciler ratchets the published window at release time, so no action is needed here.\n"; \
     fi; \
     if [ $((validation_status & 2)) -ne 0 ]; then \
         printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
@@ -787,7 +787,7 @@ rust-install VENV=venv_dir_abs: _venv
             exit 1; \
         fi; \
     elif [ "$status" -ne 0 ]; then \
-        printf "[rust-install] WARNING: bump the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it.\n"; \
+        printf "[rust-install] Note: the sase-core checkout is ahead of the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it. This is normal — the release-branch reconciler ratchets the published window at release time, so no action is needed here.\n"; \
     fi
     @"{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
     # Harden cargo crate downloads against transient crates.io flakiness.
@@ -847,7 +847,7 @@ rust-dev-install VENV=venv_dir_abs: _venv
             exit 1; \
         fi; \
     elif [ "$status" -ne 0 ]; then \
-        printf "[rust-dev-install] WARNING: bump the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it.\n"; \
+        printf "[rust-dev-install] Note: the sase-core checkout is ahead of the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it. This is normal — the release-branch reconciler ratchets the published window at release time, so no action is needed here.\n"; \
     fi
     @"{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
     # Harden cargo crate downloads against transient crates.io flakiness.

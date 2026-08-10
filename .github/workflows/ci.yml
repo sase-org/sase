@@ -373,37 +373,6 @@ jobs:
           name: bead-perf-smoke
           path: sdd/plans/202605/perf_artifacts/bead_perf_smoke.json
 
-  # This lane installs the exact minimum accepted by SASE from the package
-  # index, with no source checkout or dependency override.
-  published-core-minimum-smoke:
-    # The release-please PR branch only ever carries version/changelog bumps and
-    # its merge triggers a full master-push run, so its CI is pure runner burn.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
-      - name: Set up Python
-        run: uv python install 3.12
-      - name: Install exact published core minimum
-        run: |
-          core_minimum="$(python3 tools/smoke_sase_core_rs_telemetry --print-minimum pyproject.toml)"
-          uv venv --python 3.12 /tmp/published-core-smoke
-          uv pip install --python /tmp/published-core-smoke/bin/python "sase-core-rs==${core_minimum}"
-      - name: Smoke all telemetry bindings
-        run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_telemetry
-      - name: Check every required binding exists in the published minimum
-        run: /tmp/published-core-smoke/bin/python tools/check_sase_core_rs_bindings
-      - name: Smoke the at-reference file-row gate
-        run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_at_reference_file_gate
-      - name: Smoke typed bead resolution round trip
-        run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_bead_resolution
-      - name: Smoke plan-header binding round trip
-        run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_plan_header
-      - name: Smoke glossary line-break matching
-        run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_glossary_line_break
-
   # The release-please branch carries the package metadata that will be
   # published. Test it against the declared PyPI floor, not the source-built
   # core artifact used by feature and master source lanes.

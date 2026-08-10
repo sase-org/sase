@@ -2,7 +2,7 @@
 """Verify the installed ``sase_core_rs`` exposes every binding sase requires.
 
 Run with a Python environment that has the ``sase-core-rs`` distribution to
-check installed (CI's published-core-minimum-smoke venv installs the exact
+check installed (CI's release-core-floor-smoke venv installs the exact
 minimum published version accepted by ``pyproject.toml``). The scan is
 static and imports nothing from sase, so the environment does not need the
 sase package or its dependencies.

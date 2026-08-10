@@ -300,6 +300,31 @@ to a published wheel during dependency resolution, and `sase update` rebuilds th
 editable extension from the checkout whenever it finds a published wheel installed in a
 dev environment.
 
+#### Who owns the published version window
+
+The `sase-core-rs` requirement in `pyproject.toml` is owned by the
+`sync-release-metadata` job in `publish.yml`, not by feature agents. On every master
+push that finds a pending release-please branch, that job re-reads PyPI, selects the
+newest fully published stable `sase-core-rs`, and ratchets the requirement (and
+`uv.lock`) on the release branch in one commit. The window only ever moves at release
+time, in that one place.
+
+If your change calls a `sase-core` binding or depends on core behavior that has not been
+published yet: do nothing. Land the Python change as usual — a source checkout builds
+`sase_core_rs` from `../sase-core` regardless of the declared window, so nothing blocks
+local development or the feature PR. The release lane (`release-core-floor-smoke` in
+`ci.yml`, plus the floor-pinned leg of `publish.yml`'s `install-smoke`) mechanically
+blocks the `sase` release until a `sase-core` release publishes the capability, which is
+the correct place for that invariant to be enforced.
+
+To run the ratchet by hand (for example, to preview what the release branch will do):
+
+```bash
+just ratchet-core-window --report-only   # print the proposed version and diff, write nothing
+just ratchet-core-window --check         # exit non-zero if a ratchet is pending
+just ratchet-core-window                 # apply: rewrite pyproject.toml and uv.lock
+```
+
 Docs-only commands do not need the application package or the Rust extension.
 `just docs-check` and `just docs-pdf-check` install only MkDocs tooling into `.venv`,
 which is why documentation CI can run without checking out `../sase-core`.

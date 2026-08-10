@@ -298,15 +298,6 @@ def test_release_branch_core_floor_lane_uses_published_floor() -> None:
     assert "python -m pytest -m contract" in run_text
 
 
-def test_published_core_minimum_smoke_runs_glossary_line_break_probe() -> None:
-    workflow = _load_ci_workflow()
-    job = workflow["jobs"]["published-core-minimum-smoke"]
-
-    run_text = _job_run_text(job)
-    assert '"sase-core-rs==${core_minimum}"' in run_text
-    assert "tools/smoke_sase_core_rs_glossary_line_break" in run_text
-
-
 def test_ci_never_runs_the_diff_scoped_test_lane() -> None:
     """CI always exercises the exhaustive lane; the scoped lane is a local, agent-only fast path.
 

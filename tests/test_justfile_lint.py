@@ -140,14 +140,15 @@ def test_setup_is_fatal_on_the_core_version_behind_bit() -> None:
     assert 'if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]' in output
 
 
-def test_setup_still_warns_on_the_core_version_ahead_bit() -> None:
+def test_setup_notes_the_core_version_ahead_bit_as_normal() -> None:
     output = _dry_run("_setup")
 
     assert "if [ $((validation_status & 1)) -ne 0 ]" in output
     assert (
-        "[setup] WARNING: bump the published sase-core-rs window in pyproject.toml"
-        in output
+        "[setup] Note: the sase-core checkout is ahead of the published "
+        "sase-core-rs window in pyproject.toml" in output
     )
+    assert "no action is needed here" in output
 
 
 def test_setup_propagates_the_post_rebuild_bindings_check_exit_status() -> None:
@@ -174,14 +175,15 @@ def test_rust_install_is_fatal_on_a_behind_status() -> None:
     assert 'if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]' in output
 
 
-def test_rust_install_still_warns_on_other_nonzero_status() -> None:
+def test_rust_install_notes_other_nonzero_status_as_normal() -> None:
     output = _dry_run("rust-install", "/tmp/fake-venv")
 
     assert 'elif [ "$status" -ne 0 ]' in output
     assert (
-        "[rust-install] WARNING: bump the published sase-core-rs window in pyproject.toml"
-        in output
+        "[rust-install] Note: the sase-core checkout is ahead of the published "
+        "sase-core-rs window in pyproject.toml" in output
     )
+    assert "no action is needed here" in output
 
 
 _CHECK_GATE_LINES = (
