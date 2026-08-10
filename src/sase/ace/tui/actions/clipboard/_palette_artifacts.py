@@ -46,8 +46,12 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
             return None
 
     count = len(marked_targets) if marked else 1
+    # TODO(sase-j8.3): keymaps/mode_keymaps.py still registers this copy-mode
+    # group as "artifacts_commits"; drop this translation once that group is
+    # renamed to "artifacts_stitches".
+    copy_mode_group = f"artifacts_{'commits' if subtab == 'stitches' else subtab}"
     available, previews = artifact_target_state(
-        group=f"artifacts_{subtab}",
+        group=copy_mode_group,
         subtab=subtab,
         pane=pane,
         objects=selected_objects,
@@ -75,7 +79,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
 
     return context_from_registry(
         app,
-        group=f"artifacts_{subtab}",
+        group=copy_mode_group,
         command_context=ctx,
         subtitle=subtitle,
         unknown_context=subtab.title(),
@@ -85,7 +89,12 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
 
 
 def _artifact_pane(app: Any, subtab: str) -> Any | None:
-    resolver_name = "_files_pane" if subtab == "other" else f"_{subtab}_pane"
+    if subtab == "other":
+        resolver_name = "_files_pane"
+    elif subtab == "stitches":
+        resolver_name = "_commits_pane"
+    else:
+        resolver_name = f"_{subtab}_pane"
     resolver = getattr(app, resolver_name, None)
     if not callable(resolver):
         return getattr(app, f"{subtab}_pane", None)
@@ -116,7 +125,7 @@ def _selected_entry_target(pane: Any) -> tuple[str, ...] | None:
 
 
 def _selected_artifact_object(pane: Any, subtab: str) -> Any | None:
-    if subtab == "commits":
+    if subtab == "stitches":
         resolver = getattr(pane, "_selected_entry", None)
         return resolver() if callable(resolver) else None
     if subtab == "plans":
@@ -138,7 +147,7 @@ def _artifact_objects(
     ordered_targets = tuple(targets)
     if not ordered_targets:
         return ()
-    if subtab == "commits":
+    if subtab == "stitches":
         result = getattr(pane, "result", None)
         candidates = () if result is None else getattr(result, "commits", ())
         commit_by_target: dict[tuple[str, ...], Any] = {
@@ -217,7 +226,7 @@ def _artifact_display_name(pane: Any, objects: tuple[Any, ...]) -> str:
 def _artifact_identity(subtab: str, value: Any | None) -> str:
     if value is None:
         return ""
-    if subtab == "commits":
+    if subtab == "stitches":
         commit = getattr(value, "commit", None)
         return f"{getattr(value, 'repo', '')}@{getattr(commit, 'short_id', '')}"
     if subtab == "plans":

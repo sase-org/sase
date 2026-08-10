@@ -46,7 +46,10 @@ class ClipboardArtifactsMixin(
 
     def _handle_artifacts_copy_key(self, key: str) -> bool:
         subtab = self.current_artifacts_pane_key
-        group_name = f"artifacts_{subtab}"
+        # TODO(sase-j8.3): keymaps/mode_keymaps.py still registers this
+        # copy-mode group as "artifacts_commits"; drop this translation once
+        # that group is renamed to "artifacts_stitches".
+        group_name = f"artifacts_{'commits' if subtab == 'stitches' else subtab}"
         subtab_keys = self._keymap_registry.copy_mode.keys.get(group_name, {})
         assert isinstance(subtab_keys, dict)
 
@@ -67,7 +70,7 @@ class ClipboardArtifactsMixin(
             return True
 
         handlers: dict[str, Callable[[], None]]
-        if subtab == "commits":
+        if subtab == "stitches":
             handlers = {
                 str(subtab_keys["sha"]): lambda: self._copy_commit_target("sha"),
                 str(subtab_keys["message"]): lambda: self._copy_commit_target(

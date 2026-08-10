@@ -17,7 +17,7 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
     ) -> ArtifactReferenceSelection | None:
         subtab = self.current_artifacts_pane_key
         resolver_name = {
-            "commits": "_commits_pane",
+            "stitches": "_commits_pane",
             "beads": "_beads_pane",
             "plans": "_plans_pane",
             "chats": "_chats_pane",

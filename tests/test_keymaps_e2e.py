@@ -48,7 +48,7 @@ async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
             edits: list[str] = []
             for subtab, subtab_key, top_level_subtab, expected_edit in (
                 ("prs", None, "prs", True),
-                ("commits", "1", "commits", True),
+                ("stitches", "1", "stitches", True),
                 ("bugs", "3", "bugs", False),
                 ("plans", "5", "files", True),
             ):

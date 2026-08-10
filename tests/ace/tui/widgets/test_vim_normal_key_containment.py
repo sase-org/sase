@@ -221,8 +221,8 @@ async def test_ctrl_space_action_is_gated_only_while_prompt_is_mounted(
 async def test_other_main_screen_vim_hosts_contain_normal_space(page: AcePage) -> None:
     with _patch_config():
         await page.press("1")
-        await page.expect_state("artifacts_subtab", "commits")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         pane.show_filters()
         await page.pause()
         filter_editor = pane.query_one("#commit-filter-input", SingleLineVimTextArea)

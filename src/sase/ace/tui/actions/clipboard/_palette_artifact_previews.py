@@ -44,7 +44,7 @@ def artifact_target_state(
     first = objects[0] if objects else None
     suffix = f" · +{count - 1}" if marked and count > 1 else ""
 
-    if subtab == "commits":
+    if subtab == "stitches":
         commit = getattr(first, "commit", None)
         message = _commit_message(first)
         plan = _commit_plan_reference(message)

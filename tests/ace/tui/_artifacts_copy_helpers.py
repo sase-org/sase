@@ -13,7 +13,7 @@ class CopyHarness(ClipboardMixin):
 
     def __init__(self) -> None:
         self.current_tab = "patches"
-        self.current_artifacts_subtab = "commits"
+        self.current_artifacts_subtab = "stitches"
         self.patches: list[Any] = []
         self._keymap_registry = load_keymap_registry({})
         self._copy_mode_active = False

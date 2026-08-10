@@ -33,7 +33,7 @@ def reference_items_for_targets(
 
     cwd = str(Path.cwd())
     items: list[ArtifactReferenceItem] = []
-    if subtab == "commits":
+    if subtab == "stitches":
         result = getattr(pane, "result", None)
         entries = () if result is None else result.commits
         commits_by_target: dict[tuple[str, ...], Any] = {

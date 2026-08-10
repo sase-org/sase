@@ -29,7 +29,7 @@ _DATE_COMPLETIONS = (
 class CommitFilterBar(FilterBar):
     """Slash-style commit filter editor with warm, context-aware completion."""
 
-    ACCENT = ARTIFACTS_ACCENTS["commits"]
+    ACCENT = ARTIFACTS_ACCENTS["stitches"]
     ROW_ID = "commit-filter-row"
     SIGIL_ID = "commit-filter-sigil"
     INPUT_ID = "commit-filter-input"

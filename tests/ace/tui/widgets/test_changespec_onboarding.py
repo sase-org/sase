@@ -53,7 +53,7 @@ def test_patch_onboarding_uses_active_keymap_registry() -> None:
     positions = {
         label: tabs_text.index(label)
         for label in (
-            "Commits",
+            "Stitches",
             "Beads",
             "Bugs",
             "PRs",
@@ -64,7 +64,7 @@ def test_patch_onboarding_uses_active_keymap_registry() -> None:
         )
     }
     assert (
-        positions["Commits"]
+        positions["Stitches"]
         < positions["Beads"]
         < positions["Bugs"]
         < positions["PRs"]

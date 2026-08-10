@@ -113,8 +113,8 @@ async def test_artifacts_subtabs_jk_p95(
         await _press_fast_navigation_bursts(page)
 
         await page.press("1")
-        await page.expect_state("artifacts_subtab", "commits")
-        commits_pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.expect_state("artifacts_subtab", "stitches")
+        commits_pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(
             lambda _state: (
                 commits_pane.result is not None

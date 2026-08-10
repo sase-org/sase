@@ -14,10 +14,10 @@ from tests.ace.tui._copy_as_palette_helpers import controlled_artifact_pane
 
 @pytest.mark.parametrize(
     "subtab",
-    ["commits", "beads", "bugs", "plans", "chats", "other"],
+    ["stitches", "beads", "bugs", "plans", "chats", "other"],
 )
 async def test_percent_opens_palette_for_each_live_artifacts_subtab(
-    subtab: Literal["commits", "beads", "bugs", "plans", "chats", "other"],
+    subtab: Literal["stitches", "beads", "bugs", "plans", "chats", "other"],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pane = controlled_artifact_pane(subtab)
@@ -30,7 +30,12 @@ async def test_percent_opens_palette_for_each_live_artifacts_subtab(
         else:
             page.app.current_artifacts_subtab = subtab
             await page.expect_state("artifacts_subtab", subtab)
-        pane_resolver = "_files_pane" if subtab == "other" else f"_{subtab}_pane"
+        if subtab == "other":
+            pane_resolver = "_files_pane"
+        elif subtab == "stitches":
+            pane_resolver = "_commits_pane"
+        else:
+            pane_resolver = f"_{subtab}_pane"
         monkeypatch.setattr(page.app, pane_resolver, lambda: pane)
         page.app._artifacts_marked_targets.clear()
 
@@ -39,7 +44,11 @@ async def test_percent_opens_palette_for_each_live_artifacts_subtab(
 
         modal = page.app.screen_stack[-1]
         assert isinstance(modal, CopyAsModal)
-        assert modal.context.group == f"artifacts_{subtab}"
+        # TODO(sase-j8.3): keymaps/mode_keymaps.py still registers the
+        # Stitches copy-mode group as "artifacts_commits"; expect
+        # "artifacts_stitches" once that group is renamed.
+        expected_group_subtab = "commits" if subtab == "stitches" else subtab
+        assert modal.context.group == f"artifacts_{expected_group_subtab}"
 
 
 @pytest.mark.parametrize("tab", ["agents", "axe"])

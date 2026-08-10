@@ -286,7 +286,7 @@ class CommitsCollectionMixin(_MixinBase):
 
     def _show_collection_error(self, error: BaseException | None) -> None:
         message = str(error).strip() if error is not None else "unknown error"
-        self.query_one("#commits-timeline", CommitsTimeline).update_result(
+        self.query_one("#stitches-timeline", CommitsTimeline).update_result(
             VcsLogResult((), (), (f"Unable to load commits: {message}",))
         )
         self.notify(f"Unable to load commits: {message}", severity="error")

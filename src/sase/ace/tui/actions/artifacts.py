@@ -305,7 +305,7 @@ class ArtifactsMixin(
             self._set_artifacts_project_scope(result.project_key, picked=True)
 
         current_project = self.artifacts_project_scope
-        if self.current_artifacts_pane_key == "commits":
+        if self.current_artifacts_pane_key == "stitches":
             pane = self._commits_pane()
             if pane is not None:
                 current_project = choices.project_ref_display.project_key_for_ref(

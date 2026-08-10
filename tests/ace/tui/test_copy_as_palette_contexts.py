@@ -349,12 +349,12 @@ def test_marked_commit_context_uses_visible_order_and_plural_labels() -> None:
         (first, second),
         target_order=visible_order,
     )
-    app._artifacts_marked_targets = {"commits": set(visible_order)}
+    app._artifacts_marked_targets = {"stitches": set(visible_order)}
 
     context = build_copy_as_context(app)
 
     assert context is not None
-    assert context.subtitle == "2 marked commits · SASE"
+    assert context.subtitle == "2 marked stitches · SASE"
     sha = next(row for row in context.rows if row.target == "sha")
     message = next(row for row in context.rows if row.target == "message")
     assert sha.label == "commit SHAs"
@@ -417,7 +417,7 @@ def test_duplicate_and_rebound_accelerators_follow_dispatch_precedence() -> None
 @pytest.mark.parametrize(
     ("tab", "warning"),
     [
-        ("commits", "No commits entry to copy"),
+        ("stitches", "No stitches entry to copy"),
         ("beads", "No beads entry to copy"),
         ("plans", "No plans entry to copy"),
         ("chats", "No chats entry to copy"),

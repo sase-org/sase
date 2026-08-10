@@ -366,7 +366,7 @@ class CommitsFilteringMixin(_MixinBase):
                 None,
             )
             if callable(clear_marks):
-                clear_marks("commits")
+                clear_marks("stitches")
         if values != self._live_filter_values:
             self._generation += 1
         self._live_filter_values = values
@@ -374,7 +374,7 @@ class CommitsFilteringMixin(_MixinBase):
         self.query_one(CommitFilterBar).set_query(to_query_string(values))
         if close_session:
             self._close_filter_session()
-            self.query_one("#commits-timeline", CommitsTimeline).focus()
+            self.query_one("#stitches-timeline", CommitsTimeline).focus()
         self._refresh_info()
 
         cached = self._authoritative_results.get((self._scope_key(), values))
@@ -417,7 +417,7 @@ class CommitsFilteringMixin(_MixinBase):
             self._generation += 1
         self.filters = restore_values
         self._close_filter_session()
-        self.query_one("#commits-timeline", CommitsTimeline).focus()
+        self.query_one("#stitches-timeline", CommitsTimeline).focus()
 
         cached = self._authoritative_results.get((self._scope_key(), restore_values))
         if cached is not None:

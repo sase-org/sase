@@ -145,7 +145,7 @@ async def test_unlimited_commits_status_follows_backend_coverage_without_a_query
 
     async with AcePage(initial_tab="patches") as page:
         await page.press("1")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
         status = bar.query_one("#commit-filter-status", Static)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
@@ -160,7 +160,7 @@ async def test_unlimited_commits_status_follows_backend_coverage_without_a_query
         coverage = "capped" if capped else "exact"
         marker = "+" if capped else ""
         assert status.content.plain == coverage
-        assert pane.query_one("#commits-position", Static).content.plain == (
+        assert pane.query_one("#stitches-position", Static).content.plain == (
             f"[1/{expected_count}{marker}]  ·  "
         )
         assert "limit:" not in editor.text
@@ -192,7 +192,7 @@ async def test_explicit_limit_truncates_and_remains_visible(
 
     async with AcePage(initial_tab="patches") as page:
         await page.press("1")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
         status = bar.query_one("#commit-filter-status", Static)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
@@ -206,7 +206,7 @@ async def test_explicit_limit_truncates_and_remains_visible(
 
         assert calls[0]["limit"] == 40
         assert status.content.plain == "capped"
-        assert pane.query_one("#commits-position", Static).content.plain == (
+        assert pane.query_one("#stitches-position", Static).content.plain == (
             "[1/40+]  ·  "
         )
         assert editor.text == "sidecar:false merges:hide since:24h limit:40"
@@ -276,7 +276,7 @@ async def test_unchanged_relative_query_reuses_cache_and_refreshes_its_clock(
 
     async with AcePage(initial_tab="patches") as page:
         await page.press("1")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(
             lambda _state: (
                 len(calls) == 1
@@ -309,7 +309,8 @@ async def test_unchanged_relative_query_reuses_cache_and_refreshes_its_clock(
         await page.press("slash", "enter")
         await page.wait_for(
             lambda _state: (
-                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+                page.app.focused
+                is pane.query_one("#stitches-timeline", CommitsTimeline)
             )
         )
         assert len(calls) == 1
@@ -356,7 +357,7 @@ async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(
 
     async with AcePage(initial_tab="patches") as page:
         await page.press("1")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is narrow)
         assert calls[-1]["include_sidecars"] is False
         assert all(repo.kind != "sidecar" for repo in pane.result.repos)
@@ -376,7 +377,8 @@ async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(
         await page.press("enter")
         await page.wait_for(
             lambda _state: (
-                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+                page.app.focused
+                is pane.query_one("#stitches-timeline", CommitsTimeline)
             )
         )
         assert bar.display is True

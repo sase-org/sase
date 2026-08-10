@@ -89,7 +89,7 @@ def _entry_list(
     pane: CommitsPane | ArtifactsBugsPane | ArtifactsPlansPane,
 ) -> OptionList:
     if isinstance(pane, CommitsPane):
-        return pane.query_one("#commits-timeline", OptionList)
+        return pane.query_one("#stitches-timeline", OptionList)
     if isinstance(pane, ArtifactsBugsPane):
         return pane.query_one("#bugs-list", OptionList)
     return pane.query_one("#plans-list", OptionList)
@@ -124,7 +124,7 @@ async def _assert_distance_navigation(
     assert len(targets) == expected_count
     assert pane.selected_entry_target() == targets[0]
     if isinstance(pane, CommitsPane):
-        assert pane.query_one("#commits-position", Static).content.plain == (
+        assert pane.query_one("#stitches-position", Static).content.plain == (
             f"[1/{expected_count}]  ·  "
         )
     option_list = _entry_list(pane)
@@ -138,7 +138,7 @@ async def _assert_distance_navigation(
             assert pane.selected_entry_target() == targets[target_index]
             _assert_highlight_visible(option_list)
             if isinstance(pane, CommitsPane):
-                assert pane.query_one("#commits-position", Static).content.plain == (
+                assert pane.query_one("#stitches-position", Static).content.plain == (
                     f"[{target_index + 1}/{expected_count}]  ·  "
                 )
         downward_scroll_y = option_list.scroll_y
@@ -149,7 +149,7 @@ async def _assert_distance_navigation(
             assert pane.selected_entry_target() == targets[target_index]
             _assert_highlight_visible(option_list)
             if isinstance(pane, CommitsPane):
-                assert pane.query_one("#commits-position", Static).content.plain == (
+                assert pane.query_one("#stitches-position", Static).content.plain == (
                     f"[{target_index + 1}/50]  ·  "
                 )
         assert option_list.scroll_y < downward_scroll_y
@@ -172,14 +172,14 @@ async def _assert_distance_navigation(
         assert pane.selected_entry_target() == targets[0]
         _assert_highlight_visible(option_list)
         if isinstance(pane, CommitsPane):
-            assert pane.query_one("#commits-position", Static).content.plain == (
+            assert pane.query_one("#stitches-position", Static).content.plain == (
                 "[1/50]  ·  "
             )
         await page.press("G")
         assert pane.selected_entry_target() == targets[-1]
         _assert_highlight_visible(option_list)
         if isinstance(pane, CommitsPane):
-            assert pane.query_one("#commits-position", Static).content.plain == (
+            assert pane.query_one("#stitches-position", Static).content.plain == (
                 "[50/50]  ·  "
             )
         selected = pane.selected_entry_target()
@@ -205,17 +205,17 @@ async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_openi
 
     async with AcePage(initial_tab="patches") as page:
         await page.press("1")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         assert len(pane.entry_targets()) == 50
-        assert pane.query_one("#commits-timeline", OptionList).option_count == 51
+        assert pane.query_one("#stitches-timeline", OptionList).option_count == 51
         await _assert_distance_navigation(page, pane)
-        assert page.app.focused is pane.query_one("#commits-timeline", OptionList)
+        assert page.app.focused is pane.query_one("#stitches-timeline", OptionList)
 
         await page.press("apostrophe", "apostrophe")
         assert pane.selected_entry_target() == pane.entry_targets()[0]
         await page.press("apostrophe")
-        timeline = pane.query_one("#commits-timeline", OptionList)
+        timeline = pane.query_one("#stitches-timeline", OptionList)
         assert timeline.get_option_at_index(0).disabled is True
         assert "[" not in timeline.get_option_at_index(0).prompt.plain
         assert timeline.get_option_at_index(1).prompt.plain.startswith("[0] ")
@@ -434,10 +434,10 @@ async def test_non_pr_jump_history_is_isolated_and_model_changes_cancel_hints(
     async with AcePage(initial_tab="patches") as page:
         page.app._set_artifacts_project_scope("alpha", picked=True)
         await page.press("1")
-        commits_pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        commits_pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: commits_pane.result is commits)
         await page.press("apostrophe", "1")
-        assert page.app._artifacts_jump_history["commits"] == (
+        assert page.app._artifacts_jump_history["stitches"] == (
             "commit",
             "alpha",
             commits.commits[0].commit.full_id,
@@ -458,7 +458,7 @@ async def test_non_pr_jump_history_is_isolated_and_model_changes_cancel_hints(
         assert "bugs" not in page.app._artifacts_jump_history
         await page.press("escape")
 
-        page.app.current_artifacts_subtab = "commits"
+        page.app.current_artifacts_subtab = "stitches"
         await page.press("apostrophe")
         assert "' back" in footer.content.plain
         await page.press("apostrophe")
@@ -487,7 +487,7 @@ async def test_configured_navigation_actions_route_to_non_pr_list(
 
     async with AcePage(initial_tab="patches") as page:
         await page.press("1")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         await page.press("G")
         assert pane.selected_entry_target() == pane.entry_targets()[-1]

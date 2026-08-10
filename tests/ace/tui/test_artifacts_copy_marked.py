@@ -25,7 +25,7 @@ def test_marked_commits_copy_in_visual_order_with_labeled_sections() -> None:
         for character in ("a", "b")
     )
     targets = tuple(("commit", entry.repo, entry.commit.full_id) for entry in entries)
-    app._artifacts_marked_targets = {"commits": set(targets)}
+    app._artifacts_marked_targets = {"stitches": set(targets)}
     app.commits_pane = SimpleNamespace(
         result=SimpleNamespace(commits=entries),
         entry_targets=lambda: targets,

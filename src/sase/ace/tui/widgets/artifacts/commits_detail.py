@@ -56,7 +56,7 @@ class CommitsDetailMixin(_MixinBase):
         self._syntax_render_cache = LazySyntaxRenderCache()
 
     def move_selection(self, step: int) -> None:
-        timeline = self.query_one("#commits-timeline", CommitsTimeline)
+        timeline = self.query_one("#stitches-timeline", CommitsTimeline)
         timeline.focus()
         if step > 0:
             timeline.action_cursor_down()
@@ -67,16 +67,16 @@ class CommitsDetailMixin(_MixinBase):
         self._sync_timeline_selection(timeline.selected_commit_index)
 
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
-        timeline = self.query_one("#commits-timeline", CommitsTimeline)
+        timeline = self.query_one("#stitches-timeline", CommitsTimeline)
         return timeline.entry_targets
 
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
-        timeline = self.query_one("#commits-timeline", CommitsTimeline)
+        timeline = self.query_one("#stitches-timeline", CommitsTimeline)
         return timeline.selected_entry_target
 
     def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
         """Select a loaded commit by repository + full SHA identity."""
-        timeline = self.query_one("#commits-timeline", CommitsTimeline)
+        timeline = self.query_one("#stitches-timeline", CommitsTimeline)
         index = timeline.select_entry_target(target)
         if index is None:
             return False
@@ -89,21 +89,21 @@ class CommitsDetailMixin(_MixinBase):
     ) -> None:
         if self.result is None:
             return
-        self.query_one("#commits-timeline", CommitsTimeline).apply_jump_hints(
+        self.query_one("#stitches-timeline", CommitsTimeline).apply_jump_hints(
             hints, self.result
         )
 
     def clear_entry_jump_hints(self) -> None:
         if self.result is None:
             return
-        self.query_one("#commits-timeline", CommitsTimeline).clear_jump_hints(
+        self.query_one("#stitches-timeline", CommitsTimeline).clear_jump_hints(
             self.result
         )
 
     def apply_entry_marks(self, marks: set[ArtifactEntryTarget]) -> None:
         if self.result is None:
             return
-        self.query_one("#commits-timeline", CommitsTimeline).apply_marks(
+        self.query_one("#stitches-timeline", CommitsTimeline).apply_marks(
             marks, self.result
         )
 
@@ -117,9 +117,9 @@ class CommitsDetailMixin(_MixinBase):
             self.app, "_cancel_artifacts_jump_mode_for_model_change", None
         )
         if callable(cancel_jump):
-            cancel_jump("commits")
+            cancel_jump("stitches")
         self.result = result
-        timeline = self.query_one("#commits-timeline", CommitsTimeline)
+        timeline = self.query_one("#stitches-timeline", CommitsTimeline)
         self._selected_commit_index = timeline.update_result(result)
         self._refresh_info()
         if self._selected_commit_index is not None:
@@ -254,7 +254,7 @@ class CommitsDetailMixin(_MixinBase):
     ) -> None:
         if not self.is_mounted:
             return
-        self.query_one("#commits-detail", Static).update(
+        self.query_one("#stitches-detail", Static).update(
             self._build_detail(entry, diff_text, loading=loading)
         )
 

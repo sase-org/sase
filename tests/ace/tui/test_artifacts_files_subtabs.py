@@ -13,11 +13,11 @@ from sase.ace.tui.widgets import (
 
 async def test_parenthesis_keys_cycle_only_inside_files_with_wraparound() -> None:
     async with AcePage(initial_tab="patches") as page:
-        assert page.app.current_artifacts_subtab == "commits"
+        assert page.app.current_artifacts_subtab == "stitches"
         assert page.app.current_files_subtab == "plans"
 
         await page.press(")", "(")
-        assert page.app.current_artifacts_subtab == "commits"
+        assert page.app.current_artifacts_subtab == "stitches"
         assert page.app.current_files_subtab == "plans"
 
         await page.press("5", ")")

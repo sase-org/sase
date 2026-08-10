@@ -55,8 +55,8 @@ async def _open_commits_palette(
     result: commits_module.VcsLogResult,
 ) -> CommitsPane:
     await wait_for_startup(page)
-    await page.expect_state("artifacts_subtab", "commits")
-    pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+    await page.expect_state("artifacts_subtab", "stitches")
+    pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
     await page.wait_for(lambda _state: pane.result is result)
     await page.press("%")
     await page.expect_modal("CopyAsModal")
@@ -96,19 +96,19 @@ async def test_copy_as_commits_marked_light_narrow_png_snapshot(
     ) as page:
         page.app.theme = "textual-light"
         await wait_for_startup(page)
-        await page.expect_state("artifacts_subtab", "commits")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
 
         await page.press("m", "j", "m")
         await page.wait_for(
             lambda _state: (
-                len(page.app._artifacts_marked_targets.get("commits", set())) == 2
+                len(page.app._artifacts_marked_targets.get("stitches", set())) == 2
             )
         )
         await page.press("%")
         await page.expect_modal("CopyAsModal")
-        await wait_for_svg_contains(page, "2 marked commits")
+        await wait_for_svg_contains(page, "2 marked stitches")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -140,8 +140,8 @@ async def test_copy_as_over_preview_panel_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.expect_state("artifacts_subtab", "commits")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         page.app.push_screen(PreviewPanelModal(payload))
         await page.expect_modal("PreviewPanelModal")

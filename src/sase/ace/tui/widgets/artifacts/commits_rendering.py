@@ -59,7 +59,7 @@ def build_commits_info_header(
     active_limit: int | None = None,
 ) -> Text:
     """Build the comparatively static first row of the Commits information area."""
-    accent = ARTIFACTS_ACCENTS["commits"]
+    accent = ARTIFACTS_ACCENTS["stitches"]
     text = Text()
     text.append(" Commits ", style=f"bold #1a1a1a on {accent}")
     if active_limit is not None:

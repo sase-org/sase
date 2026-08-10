@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 _ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
     "prs": "PRs",
-    "commits": "Commits",
+    "stitches": "Commits",
     "bugs": "Bugs",
     "beads": "Beads",
     "files": "Files",
@@ -50,7 +50,7 @@ _ARTIFACT_TABS: tuple[PanelTab, ...] = tuple(
     for tab in ARTIFACTS_SUBTAB_ORDER
 )
 _DETAIL_SCROLL_IDS: dict[ArtifactsPaneKey, str] = {
-    "commits": "commits-detail-scroll",
+    "stitches": "stitches-detail-scroll",
     "bugs": "bugs-body-scroll",
     "beads": "beads-detail-scroll",
 }
@@ -89,7 +89,7 @@ class ArtifactsView(Vertical):
             yield ArtifactsPrsPane(id=ARTIFACTS_PANE_IDS["prs"])
             yield CommitsPane(
                 initial_filters=self._commits_default_filter,
-                id=ARTIFACTS_PANE_IDS["commits"],
+                id=ARTIFACTS_PANE_IDS["stitches"],
             )
             yield ArtifactsBugsPane(id=ARTIFACTS_PANE_IDS["bugs"])
             yield ArtifactsBeadsPane(id=ARTIFACTS_PANE_IDS["beads"])

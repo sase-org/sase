@@ -68,28 +68,28 @@ class CommitsPane(
 
     def compose(self) -> ComposeResult:
         yield CommitFilterBar(id="commit-filter-bar")
-        with Vertical(id="commits-info"):
-            yield Static(self._build_info_header(), id="commits-info-header")
-            with Horizontal(id="commits-legend-row"):
+        with Vertical(id="stitches-info"):
+            yield Static(self._build_info_header(), id="stitches-info-header")
+            with Horizontal(id="stitches-legend-row"):
                 yield Static(
                     self._build_position_badge(),
-                    id="commits-position",
+                    id="stitches-position",
                 )
-                yield Static(self._build_legend(), id="commits-legend")
-        with Horizontal(id="commits-main"):
-            with Vertical(id="commits-list-container"):
-                timeline = CommitsTimeline(id="commits-timeline")
+                yield Static(self._build_legend(), id="stitches-legend")
+        with Horizontal(id="stitches-main"):
+            with Vertical(id="stitches-list-container"):
+                timeline = CommitsTimeline(id="stitches-timeline")
                 timeline.set_selection_callback(self._sync_timeline_selection)
                 yield timeline
-                yield Static(self._hints_text(), id="commits-footer")
-            with Vertical(id="commits-detail-container"):
-                with VerticalScroll(id="commits-detail-scroll"):
+                yield Static(self._hints_text(), id="stitches-footer")
+            with Vertical(id="stitches-detail-container"):
+                with VerticalScroll(id="stitches-detail-scroll"):
                     yield Static(
                         Text(
                             "Select a commit to inspect its message and diff.",
                             style="dim italic",
                         ),
-                        id="commits-detail",
+                        id="stitches-detail",
                     )
 
     def on_mount(self) -> None:
@@ -119,7 +119,7 @@ class CommitsPane(
         """Use configured Commits actions in the pane's hint bar."""
         self._registry = registry
         if self.is_mounted:
-            self.query_one("#commits-footer", Static).update(self._hints_text())
+            self.query_one("#stitches-footer", Static).update(self._hints_text())
 
     def set_project_scope(
         self,
@@ -159,7 +159,7 @@ class CommitsPane(
 
     def on_activate(self) -> None:
         if self.is_mounted:
-            self.query_one("#commits-timeline", CommitsTimeline).focus()
+            self.query_one("#stitches-timeline", CommitsTimeline).focus()
         self._schedule_collection()
 
     def on_deactivate(self) -> None:
@@ -177,16 +177,16 @@ class CommitsPane(
 
     def _refresh_info(self) -> None:
         if self.is_mounted:
-            self.query_one("#commits-info-header", Static).update(
+            self.query_one("#stitches-info-header", Static).update(
                 self._build_info_header()
             )
-            self.query_one("#commits-legend", Static).update(self._build_legend())
+            self.query_one("#stitches-legend", Static).update(self._build_legend())
             self._refresh_position_badge()
 
     def _refresh_position_badge(self) -> None:
         """Refresh only the selection-dependent Commits chrome."""
         if self.is_mounted:
-            self.query_one("#commits-position", Static).update(
+            self.query_one("#stitches-position", Static).update(
                 self._build_position_badge()
             )
 

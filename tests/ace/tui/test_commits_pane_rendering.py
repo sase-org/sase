@@ -343,9 +343,9 @@ async def test_commits_timeline_mounted_rows_stay_one_line_with_jump_hints(
 
     async with AcePage(initial_tab="patches", size=(80, 30)) as page:
         await page.press("1")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
-        timeline = pane.query_one("#commits-timeline", CommitsTimeline)
+        timeline = pane.query_one("#stitches-timeline", CommitsTimeline)
 
         def assert_one_line_contract() -> None:
             timeline._line_cache.clear()
@@ -376,7 +376,7 @@ async def test_commits_timeline_mounted_rows_stay_one_line_with_jump_hints(
 
         assert_one_line_contract()
         target = pane.entry_targets()[1]
-        position = pane.query_one("#commits-position", Static)
+        position = pane.query_one("#stitches-position", Static)
         assert position.content.plain == "[1/2]  ·  "
         monkeypatch.setattr(
             commits_pane_module,

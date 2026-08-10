@@ -34,7 +34,7 @@ class _MarkHarness(MarkingMixin, ArtifactsMixin):
         )
         self.marked_indices = {7}
         self._artifacts_marked_targets = {
-            "commits": set(),
+            "stitches": set(),
             "bugs": set(),
             "beads": set(),
             "plans": set(),
@@ -65,7 +65,7 @@ class _MarkHarness(MarkingMixin, ArtifactsMixin):
 @pytest.mark.parametrize(
     ("subtab", "target"),
     [
-        ("commits", ("commit", "alpha", "a" * 40)),
+        ("stitches", ("commit", "alpha", "a" * 40)),
         ("plans", ("plan", "alpha", "epic", "alpha-1")),
         ("chats", ("chat", "/tmp/chat.md")),
         ("bugs", ("bug", "alpha", "42")),
@@ -94,14 +94,14 @@ def test_non_pr_artifact_mark_toggles_stable_target_without_touching_pr_marks(
 
 
 @pytest.mark.parametrize(
-    "subtab", ["commits", "beads", "plans", "chats", "bugs", "other"]
+    "subtab", ["stitches", "beads", "plans", "chats", "bugs", "other"]
 )
 def test_clear_marks_is_scoped_to_the_active_artifacts_subtab(subtab: str) -> None:
     target = ("entry", subtab)
     app = _MarkHarness(subtab, target)
     app._artifacts_marked_targets = {
         name: {("entry", name)}
-        for name in ("commits", "bugs", "beads", "plans", "chats", "other")
+        for name in ("stitches", "bugs", "beads", "plans", "chats", "other")
     }
 
     app.action_clear_marks()
@@ -109,7 +109,7 @@ def test_clear_marks_is_scoped_to_the_active_artifacts_subtab(subtab: str) -> No
     assert app._artifacts_marked_targets[subtab] == set()
     assert all(
         app._artifacts_marked_targets[name] == {("entry", name)}
-        for name in ("commits", "bugs", "beads", "plans", "chats", "other")
+        for name in ("stitches", "bugs", "beads", "plans", "chats", "other")
         if name != subtab
     )
     assert app.navigator.applied_marks[-1] == set()
@@ -120,7 +120,7 @@ def test_project_scope_change_clears_every_non_pr_mark_set() -> None:
     app = _MarkHarness("plans", ("entry", "plans"))
     app._artifacts_marked_targets = {
         name: {("entry", name)}
-        for name in ("commits", "bugs", "beads", "plans", "chats", "other")
+        for name in ("stitches", "bugs", "beads", "plans", "chats", "other")
     }
 
     app._clear_all_artifacts_marks()

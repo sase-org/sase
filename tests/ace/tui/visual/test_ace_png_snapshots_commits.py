@@ -59,8 +59,8 @@ async def _open_commits(
     result: commits_module.VcsLogResult,
 ) -> tuple[CommitsPane, CommitFilterBar]:
     await wait_for_startup(page)
-    await page.expect_state("artifacts_subtab", "commits")
-    pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+    await page.expect_state("artifacts_subtab", "stitches")
+    pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
     await page.wait_for(lambda _state: pane.result is result)
     return pane, pane.query_one(CommitFilterBar)
 
@@ -87,7 +87,7 @@ async def _commit_filter_query(
     await page.press("enter")
     await wait_for_state(
         page,
-        lambda: pane.query_one("#commits-timeline", CommitsTimeline).has_focus,
+        lambda: pane.query_one("#stitches-timeline", CommitsTimeline).has_focus,
         description="commits timeline focus",
     )
     assert bar.display is True
@@ -117,8 +117,8 @@ async def test_commits_timeline_and_detail_png_snapshot(
         initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
-        await page.expect_state("artifacts_subtab", "commits")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         assert (
             pane.query_one("#commit-filter-input", SingleLineVimTextArea).text
@@ -165,8 +165,8 @@ async def test_commits_merge_row_png_snapshot(
         initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
-        await page.expect_state("artifacts_subtab", "commits")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         assert (
             pane.query_one("#commit-filter-input", SingleLineVimTextArea).text
@@ -202,10 +202,10 @@ async def test_commits_empty_png_snapshot(
         initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
-        await page.expect_state("artifacts_subtab", "commits")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
-        timeline = pane.query_one("#commits-timeline", CommitsTimeline)
+        timeline = pane.query_one("#stitches-timeline", CommitsTimeline)
         await page.wait_for(
             lambda _state: (
                 timeline.option_count == 1
@@ -259,14 +259,14 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
             == "project:sase sidecar:false merges:hide since:24h limit:40"
         )
         assert bar.query_one("#commit-filter-status").content.plain == "capped"
-        assert pane.query_one("#commits-position").content.plain == "[1/2+]  ·  "
+        assert pane.query_one("#stitches-position").content.plain == "[1/2+]  ·  "
         await page.wait_for(lambda _state: bool(pane._diff_cache))
         await wait_for_visual_idle(page)
         page.app.query_one(HeaderIcon).display = True
         # The detail content is incidental here, and Textual's proportional
         # thumb can differ by a few raster pixels as its async layout settles.
         # Hide that scrollbar so this snapshot measures the capped filter UI.
-        pane.query_one("#commits-detail-scroll").styles.overflow_y = "hidden"
+        pane.query_one("#stitches-detail-scroll").styles.overflow_y = "hidden"
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -300,13 +300,13 @@ async def test_commits_jump_hints_png_snapshot(
         initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
-        await page.expect_state("artifacts_subtab", "commits")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         await wait_for_svg_contains(page, "feat(artifacts): keep every commit")
         await page.press("apostrophe")
         await wait_for_svg_contains(page, "JUMP")
-        timeline = pane.query_one("#commits-timeline", CommitsTimeline)
+        timeline = pane.query_one("#stitches-timeline", CommitsTimeline)
         await page.wait_for(
             lambda _state: timeline.get_option_at_index(1).prompt.plain.startswith(
                 "[0]"
@@ -467,7 +467,7 @@ async def test_commits_narrowed_filter_chips_png_snapshot(
                 pane.result is not None
                 and [entry.commit.short_id for entry in pane.result.commits]
                 == ["bbbbbbb"]
-                and pane.query_one("#commits-timeline", CommitsTimeline).has_focus
+                and pane.query_one("#stitches-timeline", CommitsTimeline).has_focus
             )
         )
         canonical = bar.query_one("#commit-filter-input", SingleLineVimTextArea).text

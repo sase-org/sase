@@ -172,9 +172,9 @@ def test_build_app_bindings_number_artifacts_and_prefix_saved_queries() -> None:
 
     assert {
         by_action[f"show_artifacts_{subtab}"].key: subtab
-        for subtab in ("commits", "beads", "bugs", "prs", "files")
+        for subtab in ("stitches", "beads", "bugs", "prs", "files")
     } == {
-        "1": "commits",
+        "1": "stitches",
         "2": "beads",
         "3": "bugs",
         "4": "prs",
@@ -198,9 +198,9 @@ def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> 
 
     assert [
         (by_action[f"show_artifacts_{subtab}"].key, subtab)
-        for subtab in ("commits", "beads", "bugs", "prs", "files")
+        for subtab in ("stitches", "beads", "bugs", "prs", "files")
     ] == [
-        ("1", "commits"),
+        ("1", "stitches"),
         ("2", "beads"),
         ("3", "bugs"),
         ("4", "prs"),

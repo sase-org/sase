@@ -106,12 +106,12 @@ def check_app_action(
     if action in COMMITS_ARTIFACT_ACTIONS:
         return (
             app.current_tab == ARTIFACTS_TAB
-            and app.current_artifacts_pane_key == "commits"
+            and app.current_artifacts_pane_key == "stitches"
         )
     if (
         action == "refresh"
         and app.current_tab == ARTIFACTS_TAB
-        and app.current_artifacts_pane_key in {"bugs", "commits", "other", "chats"}
+        and app.current_artifacts_pane_key in {"bugs", "stitches", "other", "chats"}
     ):
         # ``y`` copies the selected pane entry; explicit pane refresh is
         # registry-backed and defaults to ``R``.
@@ -127,7 +127,7 @@ def check_app_action(
             return False
     if action in {
         "show_artifacts_prs",
-        "show_artifacts_commits",
+        "show_artifacts_stitches",
         "show_artifacts_bugs",
         "show_artifacts_beads",
         "show_artifacts_files",

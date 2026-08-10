@@ -171,7 +171,7 @@ async def test_known_startup_project_is_displayed_before_first_collection(
     )
 
     async with AcePage(query=query, initial_tab="patches") as page:
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         editor = pane.query_one("#commit-filter-input", SingleLineVimTextArea)
         assert (
             editor.text

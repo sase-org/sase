@@ -28,7 +28,7 @@ def test_copy_mode_rejects_empty_artifacts_without_using_hidden_pr_state() -> No
 
     assert app._copy_mode_active is False
     assert app.copy_footer_updates == 0
-    assert app.notifications == [("No commits entry to copy", "warning")]
+    assert app.notifications == [("No stitches entry to copy", "warning")]
     assert app.artifacts_footer_restores == 0
     assert app.tab_footer_restores == 0
 
@@ -51,7 +51,7 @@ async def test_percent_rejects_empty_real_artifacts_panes(
         assert footer._last_layout_inputs[1] is None
 
 
-@pytest.mark.parametrize("subtab", ["commits", "plans", "chats", "bugs", "other"])
+@pytest.mark.parametrize("subtab", ["stitches", "plans", "chats", "bugs", "other"])
 def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
     subtab: str,
 ) -> None:
@@ -418,7 +418,7 @@ def test_bugs_copy_targets_include_an_agent_ready_prompt(
     ("subtab", "expected"),
     [
         (
-            "commits",
+            "stitches",
             [
                 ("%", "SHA"),
                 ("@", "@ref"),
@@ -502,7 +502,7 @@ def test_copy_footer_uses_the_active_artifacts_subtab(
     footer._update_display.assert_called_once_with(expected, mode_label="COPY")
 
 
-@pytest.mark.parametrize("subtab", ["commits", "plans", "chats", "bugs"])
+@pytest.mark.parametrize("subtab", ["stitches", "plans", "chats", "bugs"])
 def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
     subtab: str,
 ) -> None:
@@ -522,7 +522,7 @@ def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
 @pytest.mark.parametrize(
     ("subtab", "link_key", "json_key"),
     [
-        ("commits", "l", "J"),
+        ("stitches", "l", "J"),
         ("plans", "l", "J"),
         ("chats", "l", "J"),
         ("bugs", "l", "J"),

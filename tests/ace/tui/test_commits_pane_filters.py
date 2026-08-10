@@ -50,7 +50,7 @@ async def test_custom_default_query_controls_first_collection(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
         assert bar.display is True
@@ -95,7 +95,7 @@ async def test_ace_query_project_overrides_config_and_cwd_before_first_collectio
         query="project:ace-query",
         initial_tab="patches",
     ) as page:
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         editor = pane.query_one(
             "#commit-filter-input",
             SingleLineVimTextArea,
@@ -131,7 +131,7 @@ async def test_inferred_project_is_visible_before_first_collection(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         editor = pane.query_one(
             "#commit-filter-input",
             SingleLineVimTextArea,
@@ -176,7 +176,7 @@ async def test_absent_project_token_collects_all_projects(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         assert pane.filters.project is None
         await page.wait_for(lambda _state: bool(calls))
 
@@ -194,7 +194,7 @@ async def test_commits_filter_bar_rejects_invalid_submit(
 
     async with AcePage(initial_tab="patches", notifications=True) as page:
         await page.press("1")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
 
@@ -245,7 +245,7 @@ async def test_committed_project_key_alias_and_unknown_ref_canonicalization(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
         await page.wait_for(
@@ -268,7 +268,7 @@ async def test_committed_project_key_alias_and_unknown_ref_canonicalization(
                 lambda _state, expected_project=expected_project: (
                     pane.filters.project == expected_project
                     and page.app.focused
-                    is pane.query_one("#commits-timeline", CommitsTimeline)
+                    is pane.query_one("#stitches-timeline", CommitsTimeline)
                 )
             )
 
@@ -294,7 +294,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
 
     async with AcePage(initial_tab="patches") as page:
         await page.press("1")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
         status = bar.query_one("#commit-filter-status", Static)
@@ -320,7 +320,8 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
         await page.press("enter")
         await page.wait_for(
             lambda _state: (
-                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+                page.app.focused
+                is pane.query_one("#stitches-timeline", CommitsTimeline)
             )
         )
         assert bar.display is True
@@ -339,7 +340,8 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
         await page.press("escape")
         await page.wait_for(
             lambda _state: (
-                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+                page.app.focused
+                is pane.query_one("#stitches-timeline", CommitsTimeline)
             )
         )
         assert pane.filters.excluded_repos == ("sase-core-foundation",)

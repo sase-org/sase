@@ -355,7 +355,7 @@ class StateInitMixin:
         self._artifacts_marked_targets: dict[
             ArtifactsPaneKey, set[ArtifactEntryTarget]
         ] = {
-            "commits": set(),
+            "stitches": set(),
             "bugs": set(),
             "beads": set(),
             "plans": set(),

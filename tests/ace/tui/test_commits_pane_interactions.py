@@ -51,12 +51,12 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
 
     async with AcePage(initial_tab="patches") as page:
         await page.press("1")
-        await page.expect_state("artifacts_subtab", "commits")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         await page.wait_for(lambda _state: bool(diff_calls))
-        detail = pane.query_one("#commits-detail", Static)
-        footer = pane.query_one("#commits-footer", Static)
+        detail = pane.query_one("#stitches-detail", Static)
+        footer = pane.query_one("#stitches-footer", Static)
         info = pane._build_info().plain
         assert "Sidecars hidden" not in info
         assert "Sidecars included" not in info
@@ -67,7 +67,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         )
         await page.wait_for(lambda _state: "Changes:" in _rendered_text(detail.content))
         assert "feat(artifacts): keep every commit" in _rendered_text(detail.content)
-        position = pane.query_one("#commits-position", Static)
+        position = pane.query_one("#stitches-position", Static)
         assert position.content.plain == "[1/2]  ·  "
 
         assert calls[0]["no_fetch"] is True
@@ -121,12 +121,13 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.press("enter")
         await page.wait_for(
             lambda _state: (
-                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+                page.app.focused
+                is pane.query_one("#stitches-timeline", CommitsTimeline)
             )
         )
         assert bar.display is True
         assert editor.read_only is True
-        assert page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+        assert page.app.focused is pane.query_one("#stitches-timeline", CommitsTimeline)
         assert pane.filters.text == ("fix",)
         assert editor.text == "sidecar:true merges:hide fix"
         assert [entry.commit.short_id for entry in pane.result.commits] == ["bbbbbbb"]
@@ -151,7 +152,8 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.press("escape")
         await page.wait_for(
             lambda _state: (
-                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+                page.app.focused
+                is pane.query_one("#stitches-timeline", CommitsTimeline)
             )
         )
         assert bar.display is True
@@ -239,11 +241,11 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
 
     async with AcePage(initial_tab="patches") as page:
         await page.press("1")
-        await page.expect_state("artifacts_subtab", "commits")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
 
-        footer = pane.query_one("#commits-footer", Static)
+        footer = pane.query_one("#stitches-footer", Static)
         assert "f2 refresh" in footer.content.plain
         assert "R refresh" not in footer.content.plain
 
@@ -280,7 +282,7 @@ async def test_commit_fetch_task_uses_visible_project_name_and_matching_file(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         pane.set_project_scope(
             "gh_acme__widgets",
@@ -322,7 +324,7 @@ async def test_commits_cycle_merges_updates_query_and_recollects(
 
     async with AcePage(initial_tab="patches") as page:
         await page.press("1")
-        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)

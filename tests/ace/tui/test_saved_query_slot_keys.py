@@ -27,7 +27,7 @@ async def test_zero_then_digit_loads_slot_from_prs_subtab() -> None:
 async def test_zero_then_digit_from_commits_lands_on_prs() -> None:
     """The slot prefix works from a non-PRs Artifacts sub-tab and lands on PRs."""
     async with AcePage() as page:
-        await page.expect_state("artifacts_subtab", "commits")
+        await page.expect_state("artifacts_subtab", "stitches")
         page.app._saved_queries = {"3": '"slot3"'}
 
         await page.press("0")
@@ -71,7 +71,7 @@ async def test_zero_then_empty_slot_leaves_query_unchanged() -> None:
 async def test_bare_digit_still_switches_subtab_without_prefix() -> None:
     """Without the ``0`` prefix, digits keep selecting Artifacts sub-tabs."""
     async with AcePage() as page:
-        await page.expect_state("artifacts_subtab", "commits")
+        await page.expect_state("artifacts_subtab", "stitches")
 
         await page.press("2")
         await page.pause()

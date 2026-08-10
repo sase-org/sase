@@ -19,6 +19,7 @@ def reference_for_entry_target(
     """Render the canonical reference represented by one ACE artifact row."""
 
     expected = {
+        "stitches": "commit",
         "commits": "commit",
         "commit": "commit",
         "chats": "chat",

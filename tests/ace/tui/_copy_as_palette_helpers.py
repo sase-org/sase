@@ -18,7 +18,7 @@ from sase.bead.model import Issue, IssueType
 class PaletteHarness:
     def __init__(self) -> None:
         self.current_tab = "patches"
-        self.current_artifacts_subtab = "commits"
+        self.current_artifacts_subtab = "stitches"
         self.current_files_subtab = "plans"
         self.current_idx = 0
         self.patches: list[Any] = []
@@ -245,7 +245,7 @@ def copy_as_row(
 
 
 def controlled_artifact_pane(subtab: str) -> Any:
-    if subtab == "commits":
+    if subtab == "stitches":
         return commit_pane((commit_entry("a", subject="Live commit"),))
     if subtab == "beads":
         return bead_pane()

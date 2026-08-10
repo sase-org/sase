@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from ...modals.copy_as_types import CopyAsContext
 
 
-_ARTIFACT_SUBTABS = frozenset({"commits", "beads", "plans", "chats", "bugs", "other"})
+_ARTIFACT_SUBTABS = frozenset({"stitches", "beads", "plans", "chats", "bugs", "other"})
 
 
 def build_copy_as_context(app: Any) -> CopyAsContext | None:

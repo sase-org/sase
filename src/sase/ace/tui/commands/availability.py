@@ -256,7 +256,13 @@ def _get_base_status(status: str) -> str:
 
 def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id.startswith("copy.artifacts_"):
-        if not spec.id.startswith(f"copy.artifacts_{ctx.artifacts_subtab}."):
+        # TODO(sase-j8.3): keymaps/mode_keymaps.py still registers the
+        # Stitches copy-mode group as "artifacts_commits"; drop this
+        # translation once that group is renamed to "artifacts_stitches".
+        copy_mode_subtab = (
+            "commits" if ctx.artifacts_subtab == "stitches" else ctx.artifacts_subtab
+        )
+        if not spec.id.startswith(f"copy.artifacts_{copy_mode_subtab}."):
             return False
         if ctx.artifact_selection_present is False:
             return False
@@ -264,13 +270,13 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return spec.id.rsplit(".", 1)[-1] in ctx.artifact_available_targets
         return True
     if spec.id == "app.edit_query":
-        return ctx.artifacts_subtab in {"prs", "commits", "plans"}
+        return ctx.artifacts_subtab in {"prs", "stitches", "plans"}
     if spec.id in {"app.cycle_files_subtab", "app.cycle_files_subtab_reverse"}:
         return ctx.artifacts_subtab in {"plans", "chats", "other"}
     if spec.id in _BUG_COMMANDS:
         return ctx.artifacts_subtab == "bugs"
     if spec.id in _COMMITS_ARTIFACT_COMMANDS:
-        return ctx.artifacts_subtab == "commits"
+        return ctx.artifacts_subtab == "stitches"
     if spec.id in _PLANS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "plans"
     if spec.id in _BEADS_ARTIFACT_COMMANDS:

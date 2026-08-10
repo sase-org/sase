@@ -32,14 +32,14 @@ class ArtifactsCommitsActionsMixin:
 
     def _commits_pane(self) -> CommitsPane | None:
         try:
-            return self.query_one("#artifacts-commits-pane", CommitsPane)  # type: ignore[attr-defined,no-any-return]
+            return self.query_one("#artifacts-stitches-pane", CommitsPane)  # type: ignore[attr-defined,no-any-return]
         except Exception:
             return None
 
     def _commits_active(self) -> bool:
         return (
             self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_subtab == "commits"
+            and self.current_artifacts_subtab == "stitches"
         )
 
     def action_commits_next(self) -> None:

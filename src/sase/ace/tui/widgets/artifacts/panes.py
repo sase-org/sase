@@ -50,7 +50,7 @@ class ArtifactsPrsPane(ArtifactsPaneLifecycle, Horizontal):
 
 
 _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {
-    "commits": (
+    "stitches": (
         "Commits",
         "A cross-repository timeline with messages, tags, and diffs will live here.",
         "The Commits pane is scaffolded and will load only when you open it.",
@@ -132,7 +132,7 @@ class ArtifactPlaceholderPane(ArtifactsPaneLifecycle, Vertical):
     def _scope_label(self) -> str:
         if self.project_scope is not None:
             return self._project_display_name or self.project_scope
-        if self.subtab == "commits":
+        if self.subtab == "stitches":
             return "All projects"
         return "Pick a project"
 

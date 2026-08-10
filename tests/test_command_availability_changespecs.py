@@ -35,7 +35,7 @@ def test_app_edit_query_is_available_on_prs_commits_plans_and_axe() -> None:
     )
     assert is_command_available(
         spec,
-        CommandContext(tab="changespecs", artifacts_subtab="commits"),  # legacy tab id
+        CommandContext(tab="changespecs", artifacts_subtab="stitches"),  # legacy tab id
     )
     assert is_command_available(
         spec,

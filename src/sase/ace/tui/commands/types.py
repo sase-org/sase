@@ -198,7 +198,7 @@ class CommandContext:
 
     tab: CommandTab | LegacyCommandTab = "artifacts"
     artifacts_subtab: Literal[
-        "prs", "commits", "bugs", "beads", "plans", "chats", "other"
+        "prs", "stitches", "bugs", "beads", "plans", "chats", "other"
     ] = "prs"
     patch: Patch | None = None
     changespec: InitVar[Patch | None] = None  # legacy compatibility alias

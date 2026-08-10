@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-ArtifactsSubTab = Literal["prs", "commits", "bugs", "beads", "files"]
+ArtifactsSubTab = Literal["prs", "stitches", "bugs", "beads", "files"]
 FilesSubTab = Literal["plans", "chats", "other"]
 ArtifactsPaneKey = Literal[
     "prs",
-    "commits",
+    "stitches",
     "bugs",
     "beads",
     "plans",
@@ -20,9 +20,9 @@ ArtifactsPaneKey = Literal[
     "other",
 ]
 
-DEFAULT_ARTIFACTS_SUBTAB: ArtifactsSubTab = "commits"
+DEFAULT_ARTIFACTS_SUBTAB: ArtifactsSubTab = "stitches"
 ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
-    "commits",
+    "stitches",
     "beads",
     "bugs",
     "prs",
@@ -30,7 +30,7 @@ ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
 )
 ARTIFACTS_PANE_IDS: dict[ArtifactsSubTab, str] = {
     "prs": "artifacts-prs-pane",
-    "commits": "artifacts-commits-pane",
+    "stitches": "artifacts-stitches-pane",
     "bugs": "artifacts-bugs-pane",
     "beads": "artifacts-beads-pane",
     "files": "artifacts-files-view",
@@ -46,7 +46,7 @@ FILES_PANE_IDS: dict[FilesSubTab, str] = {
 
 ARTIFACTS_ACCENTS: dict[ArtifactsPaneKey | Literal["files"], str] = {
     "prs": "#00D7AF",
-    "commits": "#FFD700",
+    "stitches": "#FFD700",
     "bugs": "#FF5F5F",
     "beads": "#D787FF",
     "plans": "#AF87FF",

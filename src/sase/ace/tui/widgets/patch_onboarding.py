@@ -34,7 +34,7 @@ _VCS_DOCS_URL = "https://sase.sh/vcs/"
 _PLUGINS_DOCS_URL = "https://sase.sh/plugins/"
 _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
 _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
-    "commits": "Trace committed work across projects.",
+    "stitches": "Trace committed work across projects.",
     "beads": "Review task, epic, and phase work items.",
     "bugs": "Track issues and launch fixes.",
     "prs": "Inspect Patches and move PRs through review.",

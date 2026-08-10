@@ -162,7 +162,7 @@ def context_from_registry(
 
 def _dispatch_winners(group: str, keys: dict[str, str]) -> dict[str, str]:
     winners: dict[str, str] = {}
-    for target in _DISPATCH_ORDER[group]:
+    for target in _DISPATCH_ORDER.get(group, ()):
         key = keys.get(target)
         if target == "pr_number" and not isinstance(key, str):
             key = keys.get("cl_number")

@@ -166,7 +166,7 @@ class ArtifactsNavigationActionsMixin:
 
     def _clear_all_artifacts_marks(self) -> None:
         """Drop every pane's marks after the shared project scope changes."""
-        for pane_key in ("commits", "bugs", "beads", "plans", "chats", "other"):
+        for pane_key in ("stitches", "bugs", "beads", "plans", "chats", "other"):
             self._clear_artifacts_marks_for_pane(pane_key)
 
     def _clear_artifacts_marks_for_pane(self, pane_key: ArtifactsPaneKey) -> None:
@@ -406,8 +406,8 @@ class ArtifactsNavigationActionsMixin:
     def action_show_artifacts_prs(self) -> None:
         self._switch_artifacts_subtab("prs")
 
-    def action_show_artifacts_commits(self) -> None:
-        self._switch_artifacts_subtab("commits")
+    def action_show_artifacts_stitches(self) -> None:
+        self._switch_artifacts_subtab("stitches")
 
     def action_show_artifacts_bugs(self) -> None:
         self._switch_artifacts_subtab("bugs")

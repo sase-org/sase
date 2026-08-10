@@ -153,7 +153,7 @@ async def test_picker_is_pr_only_and_bare_digits_only_switch_artifacts() -> None
         page.app._saved_queries = {"2": '"saved"'}
 
         await page.press("1")
-        await page.expect_state("artifacts_subtab", "commits")
+        await page.expect_state("artifacts_subtab", "stitches")
         assert page.app.canonical_query_string == '"feature"'
 
         for subtab_key in ("1", "2", "3", "5"):
