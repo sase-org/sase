@@ -21,9 +21,12 @@ class VCSHookSpec:
     Every method uses ``firstresult=True`` so pluggy returns the first
     non-``None`` result from the registered plugins.  Method names are
     prefixed with ``vcs_`` to namespace them within the pluggy project.
-    Defaulted keyword additions, such as ``merges`` on commit-log hooks, are
-    optional for hook implementations; pluggy forwards only the arguments an
-    implementation declares, so older providers keep their existing behavior.
+    Hook implementations may omit parameters they do not consume; pluggy
+    forwards only the arguments an implementation declares, so older providers
+    keep their existing behavior. New hook arguments must be declared as
+    positional-or-keyword parameters without defaults on the hookspec and on
+    hook implementations that consume them, so pluggy includes them in hook
+    calls.
     """
 
     # --- Core operations ---
@@ -140,22 +143,21 @@ class VCSHookSpec:
         self,
         cwd: str,
         limit: int,
-        *,
-        since: int | None = None,
-        until: int | None = None,
-        authors: tuple[str, ...] = (),
-        revs: Sequence[str] = ("HEAD",),
-        merges: "MergeVisibility" = "hide",
+        since: int | None,
+        until: int | None,
+        authors: tuple[str, ...],
+        revs: Sequence[str],
+        merges: "MergeVisibility",
     ) -> list["VcsCommitWire"]: ...
 
     @hookspec(firstresult=True)
     def vcs_resolve_remote_log_ref(
-        self, cwd: str, ref_name: str | None = None
+        self, cwd: str, ref_name: str | None
     ) -> str | None: ...
 
     @hookspec(firstresult=True)
     def vcs_fetch_remote(
-        self, cwd: str, refs: Sequence[str], timeout: int = 120
+        self, cwd: str, refs: Sequence[str], timeout: int
     ) -> tuple[bool, str | None]: ...
 
     @hookspec(firstresult=True)
@@ -164,8 +166,7 @@ class VCSHookSpec:
         cwd: str,
         local_ref: str,
         remote_ref: str,
-        *,
-        merges: "MergeVisibility" = "hide",
+        merges: "MergeVisibility",
     ) -> tuple[set[str], set[str]]: ...
 
     @hookspec(firstresult=True)

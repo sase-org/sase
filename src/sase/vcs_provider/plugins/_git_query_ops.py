@@ -112,9 +112,7 @@ class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
         return f"origin/{self._get_default_branch(cwd)}"
 
     @hookimpl
-    def vcs_resolve_remote_log_ref(
-        self, cwd: str, ref_name: str | None = None
-    ) -> str | None:
+    def vcs_resolve_remote_log_ref(self, cwd: str, ref_name: str | None) -> str | None:
         """Resolve the remote-tracking ref used for ``sase vcs log``."""
         remote_out = self._run(["git", "remote", "get-url", "origin"], cwd)
         if not remote_out.success or not remote_out.stdout.strip():
@@ -146,7 +144,7 @@ class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
 
     @hookimpl
     def vcs_fetch_remote(
-        self, cwd: str, refs: Sequence[str], timeout: int = 120
+        self, cwd: str, refs: Sequence[str], timeout: int
     ) -> tuple[bool, str | None]:
         """Fetch only the remote branches needed for the log comparison."""
         branches = tuple(
@@ -182,8 +180,7 @@ class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
         cwd: str,
         local_ref: str,
         remote_ref: str,
-        *,
-        merges: MergeVisibility = "hide",
+        merges: MergeVisibility,
     ) -> tuple[set[str], set[str]]:
         from sase.vcs_provider._errors import VCSOperationError
 
@@ -259,12 +256,11 @@ class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
         self,
         cwd: str,
         limit: int,
-        *,
-        since: int | None = None,
-        until: int | None = None,
-        authors: tuple[str, ...] = (),
-        revs: Sequence[str] = ("HEAD",),
-        merges: MergeVisibility = "hide",
+        since: int | None,
+        until: int | None,
+        authors: tuple[str, ...],
+        revs: Sequence[str],
+        merges: MergeVisibility,
     ) -> list[VcsCommitWire]:
         from sase.vcs_provider._errors import VCSOperationError
 

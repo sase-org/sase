@@ -40,6 +40,42 @@ def _make_git_provider() -> VCSPluginManager:
     return VCSPluginManager(pm)
 
 
+def _plugin_log(
+    plugin: BareGitPlugin,
+    cwd: str,
+    limit: int,
+    *,
+    since: int | None = None,
+    until: int | None = None,
+    authors: tuple[str, ...] = (),
+    revs: tuple[str, ...] = ("HEAD",),
+    merges: MergeVisibility = "hide",
+) -> list[VcsCommitWire]:
+    return plugin.vcs_log(cwd, limit, since, until, authors, revs, merges)
+
+
+def _bare_git_log(
+    cwd: str,
+    limit: int,
+    *,
+    since: int | None = None,
+    until: int | None = None,
+    authors: tuple[str, ...] = (),
+    revs: tuple[str, ...] = ("HEAD",),
+    merges: MergeVisibility = "hide",
+) -> list[VcsCommitWire]:
+    return _plugin_log(
+        BareGitPlugin(),
+        cwd,
+        limit,
+        since=since,
+        until=until,
+        authors=authors,
+        revs=revs,
+        merges=merges,
+    )
+
+
 def _git_env(extra: Mapping[str, str] | None = None) -> dict[str, str]:
     env = {
         key: value for key, value in os.environ.items() if not key.startswith("GIT_")
@@ -139,7 +175,7 @@ def _make_merge_history(repo: str) -> dict[str, str]:
 def test_vcs_log_parses_commit_fields(repo: str) -> None:
     _commit(repo, "a.txt", "feat: first commit")
 
-    commits = BareGitPlugin().vcs_log(repo, 10)
+    commits = _bare_git_log(repo, 10)
 
     assert len(commits) == 1
     commit = commits[0]
@@ -160,7 +196,7 @@ def test_vcs_log_orders_newest_first(repo: str) -> None:
     _commit(repo, "b.txt", "second")
     _commit(repo, "c.txt", "third")
 
-    subjects = [c.subject for c in BareGitPlugin().vcs_log(repo, 10)]
+    subjects = [c.subject for c in _bare_git_log(repo, 10)]
 
     assert subjects == ["third", "second", "first"]
 
@@ -169,7 +205,7 @@ def test_vcs_log_respects_limit(repo: str) -> None:
     for i in range(5):
         _commit(repo, f"f{i}.txt", f"commit {i}")
 
-    commits = BareGitPlugin().vcs_log(repo, 2)
+    commits = _bare_git_log(repo, 2)
 
     assert [c.subject for c in commits] == ["commit 4", "commit 3"]
 
@@ -178,7 +214,7 @@ def test_vcs_log_limit_zero_returns_all_commits(repo: str) -> None:
     for i in range(5):
         _commit(repo, f"f{i}.txt", f"commit {i}")
 
-    commits = BareGitPlugin().vcs_log(repo, 0)
+    commits = _bare_git_log(repo, 0)
 
     assert [c.subject for c in commits] == [
         "commit 4",
@@ -195,7 +231,7 @@ def test_vcs_log_sloped_until_keeps_margin_for_exact_filter(repo: str) -> None:
     _commit(repo, "b.txt", "middle", timestamp=base + 1_000)
     _commit(repo, "c.txt", "new", timestamp=base + 2_000)
 
-    commits = BareGitPlugin().vcs_log(repo, 2, since=base + 500, until=base + 1_500)
+    commits = _bare_git_log(repo, 2, since=base + 500, until=base + 1_500)
 
     assert [c.subject for c in commits] == ["new", "middle"]
     matcher = compile_commit_matcher(
@@ -219,7 +255,7 @@ def test_vcs_log_generates_exact_since_and_sloped_until_args(
 
     monkeypatch.setattr(plugin, "_run", run)
 
-    assert plugin.vcs_log("/repo", 5, since=100, until=200) == []
+    assert _plugin_log(plugin, "/repo", 5, since=100, until=200) == []
     assert len(commands) == 1
     assert commands[0][:-1] == [
         "git",
@@ -257,7 +293,7 @@ def test_vcs_log_generates_merge_visibility_args(
 
     monkeypatch.setattr(plugin, "_run", run)
 
-    assert plugin.vcs_log("/repo", 5, merges=merges) == []
+    assert _plugin_log(plugin, "/repo", 5, merges=merges) == []
 
     assert len(commands) == 1
     assert commands[0][:-1] == expected_args
@@ -282,7 +318,7 @@ def test_vcs_log_slop_admits_rebased_author_time_for_exact_match(repo: str) -> N
         committer_timestamp=base + 48 * 60 * 60,
     )
 
-    commits = BareGitPlugin().vcs_log(repo, 10, until=until)
+    commits = _bare_git_log(repo, 10, until=until)
 
     assert [commit.subject for commit in commits] == [
         "coarse margin only",
@@ -325,18 +361,36 @@ def test_vcs_log_author_filter_is_literal_case_insensitive_or(repo: str) -> None
         author_email="literal@example.com",
     )
 
-    plugin = BareGitPlugin()
+    provider = _make_git_provider()
 
-    assert [c.subject for c in plugin.vcs_log(repo, 10, authors=("BRYAN",))] == [
+    assert [c.subject for c in provider.log(repo, 10, authors=("BRYAN",))] == [
         "bryan work"
     ]
-    assert [c.subject for c in plugin.vcs_log(repo, 10, authors=("bryan", "amy"))] == [
+    assert [c.subject for c in provider.log(repo, 10, authors=("bryan", "amy"))] == [
         "amy work",
         "bryan work",
     ]
-    assert [c.subject for c in plugin.vcs_log(repo, 10, authors=("A.B",))] == [
+    assert [c.subject for c in provider.log(repo, 10, authors=("A.B",))] == [
         "literal author"
     ]
+    assert provider.log(repo, 10, authors=("nobody-matches-this",)) == []
+
+
+def test_provider_log_delegates_time_filters_to_hook(repo: str) -> None:
+    base = 1_700_000_000
+    _commit(repo, "a.txt", "old", timestamp=base)
+    _commit(repo, "b.txt", "recent", timestamp=base + 1_000)
+    provider = _make_git_provider()
+
+    assert provider.log(repo, 10, since=base + 10_000) == []
+    assert (
+        provider.log(
+            repo,
+            10,
+            until=base - GIT_AUTHOR_DATE_UNTIL_SLOP_SECONDS - 100,
+        )
+        == []
+    )
 
 
 def test_vcs_log_preserves_multiline_body(repo: str) -> None:
@@ -347,7 +401,7 @@ def test_vcs_log_preserves_multiline_body(repo: str) -> None:
         repo,
     )
 
-    commit = BareGitPlugin().vcs_log(repo, 10)[0]
+    commit = _bare_git_log(repo, 10)[0]
 
     assert commit.subject == "subject line"
     assert "body one" in commit.body
@@ -362,7 +416,7 @@ def test_vcs_log_preserves_sase_footer_in_body(repo: str) -> None:
         repo,
     )
 
-    commit = BareGitPlugin().vcs_log(repo, 10)[0]
+    commit = _bare_git_log(repo, 10)[0]
 
     assert commit.subject == "subject line"
     assert "body" in commit.body
@@ -382,18 +436,19 @@ def test_vcs_log_merge_visibility_modes(
 ) -> None:
     _make_merge_history(repo)
 
-    subjects = {c.subject for c in BareGitPlugin().vcs_log(repo, 10, merges=merges)}
+    provider = _make_git_provider()
+    subjects = {c.subject for c in provider.log(repo, 10, merges=merges)}
 
     assert subjects == expected_subjects
 
 
 def test_vcs_log_merge_visibility_partition_law(repo: str) -> None:
     _make_merge_history(repo)
-    provider = BareGitPlugin()
+    provider = _make_git_provider()
 
-    hide_ids = {c.full_id for c in provider.vcs_log(repo, 10, merges="hide")}
-    show_ids = {c.full_id for c in provider.vcs_log(repo, 10, merges="show")}
-    only_ids = {c.full_id for c in provider.vcs_log(repo, 10, merges="only")}
+    hide_ids = {c.full_id for c in provider.log(repo, 10, merges="hide")}
+    show_ids = {c.full_id for c in provider.log(repo, 10, merges="show")}
+    only_ids = {c.full_id for c in provider.log(repo, 10, merges="only")}
 
     assert hide_ids.isdisjoint(only_ids)
     assert hide_ids | only_ids == show_ids
@@ -404,7 +459,7 @@ def test_vcs_log_populates_parent_ids(repo: str) -> None:
 
     commits = {
         commit.subject: commit
-        for commit in BareGitPlugin().vcs_log(repo, 10, merges="show")
+        for commit in _make_git_provider().log(repo, 10, merges="show")
     }
 
     assert commits["base"].parent_ids == ()
@@ -446,7 +501,7 @@ def test_vcs_show_revision_merge_commit_returns_first_parent_patch(repo: str) ->
 
 
 def test_vcs_partition_commits_honors_merge_visibility_modes(repo: str) -> None:
-    provider = BareGitPlugin()
+    provider = _make_git_provider()
     origin = Path(repo).parent / "origin.git"
 
     _commit(repo, "base.txt", "base")
@@ -462,13 +517,13 @@ def test_vcs_partition_commits_honors_merge_visibility_modes(repo: str) -> None:
     _git(["merge", "--no-ff", "-q", "-m", "merge feature", "feature"], repo)
     merge_id = _rev_parse(repo)
 
-    hide_ahead, hide_behind = provider.vcs_partition_commits(
+    hide_ahead, hide_behind = provider.partition_commits(
         repo, local_ref="HEAD", remote_ref="origin/main", merges="hide"
     )
-    show_ahead, show_behind = provider.vcs_partition_commits(
+    show_ahead, show_behind = provider.partition_commits(
         repo, local_ref="HEAD", remote_ref="origin/main", merges="show"
     )
-    only_ahead, only_behind = provider.vcs_partition_commits(
+    only_ahead, only_behind = provider.partition_commits(
         repo, local_ref="HEAD", remote_ref="origin/main", merges="only"
     )
 
@@ -481,7 +536,7 @@ def test_vcs_partition_commits_honors_merge_visibility_modes(repo: str) -> None:
 
 
 def test_remote_log_ops_fetch_partition_and_union_log(repo: str) -> None:
-    provider = BareGitPlugin()
+    provider = _make_git_provider()
     origin = Path(repo).parent / "origin.git"
     remote_work = Path(repo).parent / "remote-work"
 
@@ -491,7 +546,8 @@ def test_remote_log_ops_fetch_partition_and_union_log(repo: str) -> None:
     _git(["push", "-u", "origin", "main"], repo)
     _git(["--git-dir", str(origin), "symbolic-ref", "HEAD", "refs/heads/main"], repo)
 
-    assert provider.vcs_resolve_remote_log_ref(repo) == "origin/main"
+    assert provider.resolve_remote_log_ref(repo) == "origin/main"
+    assert provider.resolve_remote_log_ref(repo, ref_name="feature") == "origin/feature"
 
     _commit(repo, "local.txt", "local only")
     local_id = _rev_parse(repo)
@@ -506,7 +562,7 @@ def test_remote_log_ops_fetch_partition_and_union_log(repo: str) -> None:
     branch_before = _git_stdout(["branch", "--show-current"], repo).strip()
     status_before = _git_stdout(["status", "--porcelain"], repo)
 
-    ok, error = provider.vcs_fetch_remote(repo, refs=("origin/main",))
+    ok, error = provider.fetch_remote(repo, refs=("origin/main",))
     assert ok is True, error
 
     branch_after = _git_stdout(["branch", "--show-current"], repo).strip()
@@ -514,7 +570,7 @@ def test_remote_log_ops_fetch_partition_and_union_log(repo: str) -> None:
     assert branch_after == branch_before
     assert status_after == status_before
 
-    ahead, behind = provider.vcs_partition_commits(
+    ahead, behind = provider.partition_commits(
         repo, local_ref="HEAD", remote_ref="origin/main"
     )
     assert local_id in ahead
@@ -522,13 +578,37 @@ def test_remote_log_ops_fetch_partition_and_union_log(repo: str) -> None:
 
     subjects = {
         commit.subject
-        for commit in provider.vcs_log(repo, 10, revs=("HEAD", "origin/main"))
+        for commit in provider.log(repo, 10, revs=("HEAD", "origin/main"))
     }
     assert {"base", "local only", "remote only"} <= subjects
 
 
+def test_provider_fetch_remote_delegates_timeout_to_hook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugin = BareGitPlugin()
+    timeouts: list[int | None] = []
+
+    def run(args: list[str], cwd: str, *, timeout: int | None = None) -> CommandOutput:
+        del args, cwd
+        timeouts.append(timeout)
+        return CommandOutput(0, "", "")
+
+    monkeypatch.setattr(plugin, "_run", run)
+    pm = pluggy.PluginManager("sase_vcs")
+    pm.add_hookspecs(VCSHookSpec)
+    pm.register(plugin)
+    provider = VCSPluginManager(pm)
+
+    ok, error = provider.fetch_remote("/repo", refs=("origin/main",), timeout=7)
+
+    assert ok is True
+    assert error is None
+    assert timeouts == [7]
+
+
 def test_remote_log_ref_returns_none_without_origin(repo: str) -> None:
-    assert BareGitPlugin().vcs_resolve_remote_log_ref(repo) is None
+    assert BareGitPlugin().vcs_resolve_remote_log_ref(repo, None) is None
 
 
 def test_vcs_log_empty_repo_returns_empty(repo: str) -> None:
@@ -537,7 +617,7 @@ def test_vcs_log_empty_repo_returns_empty(repo: str) -> None:
     from sase.vcs_provider import VCSOperationError
 
     with pytest.raises(VCSOperationError):
-        BareGitPlugin().vcs_log(repo, 10)
+        _bare_git_log(repo, 10)
 
 
 def test_vcs_repo_stats_empty_repo_returns_zero(repo: str) -> None:
@@ -591,9 +671,9 @@ def test_provider_log_delegates_to_hook(repo: str) -> None:
     _commit(repo, "a.txt", "only commit")
 
     provider = _make_git_provider()
-    commits = provider.log(cwd=repo, limit=10, authors=("bryan",))
+    commits = provider.log(cwd=repo, limit=10, authors=("nobody-matches-this",))
 
-    assert [c.subject for c in commits] == ["only commit"]
+    assert commits == []
 
 
 def test_provider_repo_stats_delegates_to_hook(repo: str) -> None:
