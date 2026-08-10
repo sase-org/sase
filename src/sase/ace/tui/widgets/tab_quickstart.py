@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from textwrap import wrap
 from typing import Any, Literal
 
 from rich.text import Text
@@ -46,6 +47,13 @@ _TAB_META: dict[TabQuickStartTab, tuple[str, str, str, str, str]] = {
 }
 
 _KEYCAP_STYLE = "bold #1a1a1a on #00D7AF"
+
+# Keep in sync with `.tab-quickstart-card` in styles.tcss: max-width 90 minus
+# the round border (2) and `padding: 0 1` (2).
+_CARD_MAX_WIDTH = 90
+_CARD_CONTENT_WIDTH = _CARD_MAX_WIDTH - 4
+_KEY_DESCRIPTION_GAP = 2
+_MIN_DESCRIPTION_WIDTH = 24
 
 
 class TabQuickStart(VerticalScroll):
@@ -260,7 +268,9 @@ class TabQuickStart(VerticalScroll):
 
         column_width = max(cls._keycap_width(labels) for labels, _ in rows)
         text = Text()
-        for labels, description in rows:
+        for idx, (labels, description) in enumerate(rows):
+            if idx:
+                text.append("\n")
             cls._append_key_row(text, labels, description, column_width=column_width)
         return text
 
@@ -305,14 +315,23 @@ class TabQuickStart(VerticalScroll):
         column_width: int,
     ) -> None:
         padding = max(0, column_width - cls._keycap_width(labels))
+        description_width = max(
+            _MIN_DESCRIPTION_WIDTH,
+            _CARD_CONTENT_WIDTH - (column_width + _KEY_DESCRIPTION_GAP),
+        )
+        description_lines = wrap(description, width=description_width) or [""]
         text.append(" " * padding)
         for idx, label in enumerate(labels):
             if idx:
                 text.append(" ")
             cls._append_keycap(text, label)
-        text.append("  ")
-        text.append(description)
-        text.append("\n")
+        text.append(" " * _KEY_DESCRIPTION_GAP)
+        text.append(description_lines[0])
+        continuation_prefix = " " * (column_width + _KEY_DESCRIPTION_GAP)
+        for line in description_lines[1:]:
+            text.append("\n")
+            text.append(continuation_prefix)
+            text.append(line)
 
     @staticmethod
     def _append_keycap(text: Text, label: str) -> None:

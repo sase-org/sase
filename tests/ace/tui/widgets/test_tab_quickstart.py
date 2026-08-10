@@ -2,14 +2,41 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
+from rich.cells import cell_len
 from rich.text import Text
 
 from sase.ace.tui.keymaps import load_keymap_registry
-from sase.ace.tui.widgets.tab_quickstart import TabQuickStart
+from sase.ace.tui.widgets.tab_quickstart import (
+    _CARD_CONTENT_WIDTH,
+    _KEY_DESCRIPTION_GAP,
+    TabQuickStart,
+)
 
 
 def _section_plain(sections: dict[str, Text], selector: str) -> str:
     return sections[selector].plain
+
+
+def _card_plain(
+    tab: Literal["agents", "patches"],
+    registry_config: dict[str, object] | None = None,
+) -> str:
+    registry = load_keymap_registry(registry_config or {})
+    prefix = "agent" if tab == "agents" else "patch"
+    sections = TabQuickStart.render_content(registry, tab=tab)
+    return _section_plain(sections, f"#{prefix}-quickstart-card")
+
+
+def _long_key_registry_config() -> dict[str, object]:
+    long_binding_pairs = {
+        "start_agent_home": "ctrl+shift+f24,ctrl+shift+f23",
+        "open_config_center": "ctrl+shift+f22,ctrl+shift+f21",
+        "show_help": "ctrl+shift+f20,ctrl+shift+f19",
+        "open_command_palette": "ctrl+shift+f18,ctrl+shift+f17",
+    }
+    return {"keymaps": {"app": long_binding_pairs}}
 
 
 def test_tab_quickstart_uses_active_keymap_registry() -> None:
@@ -118,3 +145,34 @@ def test_tab_quickstart_no_match_callout_is_prs_only() -> None:
     assert "No PRs match this query" in callout
     assert "3 exist" in callout
     assert "/ edits the query" in callout
+
+
+def test_tab_quickstart_card_lines_fit_content_width() -> None:
+    registry_configs = ({}, _long_key_registry_config())
+
+    for registry_config in registry_configs:
+        for tab in ("agents", "patches"):
+            card = _card_plain(tab, registry_config)
+            for line in card.splitlines():
+                assert cell_len(line) <= _CARD_CONTENT_WIDTH, line
+
+
+def test_tab_quickstart_wrapped_descriptions_use_hanging_indent() -> None:
+    card = _card_plain("patches")
+    lines = card.splitlines()
+    admin_line_idx = next(
+        idx for idx, line in enumerate(lines) if "SASE Admin Center" in line
+    )
+    continuation = lines[admin_line_idx + 1]
+    expected_indent = (
+        TabQuickStart._keycap_width(("1", "2", "3", "4", "5")) + _KEY_DESCRIPTION_GAP
+    )
+
+    assert continuation.startswith(" " * expected_indent)
+    assert continuation.strip() == "updates."
+    assert all(line.startswith(" ") for line in lines if line)
+
+
+def test_tab_quickstart_card_has_no_trailing_newline() -> None:
+    for tab in ("agents", "patches"):
+        assert not _card_plain(tab).endswith("\n")

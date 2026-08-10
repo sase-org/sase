@@ -25,6 +25,7 @@ _SENTINEL = object()
 
 _LEGACY_SELECTOR_ALIASES = {
     "#changespecs-view": "#artifacts-view",
+    "#changespec-quickstart-panel": "#patch-quickstart-panel",  # legacy compat alias
     "#patch-quickstart-panel": "#patch-quickstart-panel",
 }
 

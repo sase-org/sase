@@ -42,12 +42,6 @@ class ArtifactsPrsPane(ArtifactsPaneLifecycle, Horizontal):
                 id="patch-quickstart-panel",
                 classes="hidden",
             )
-            yield TabQuickStart(
-                tab="artifacts",
-                selector_prefix="changespec",  # legacy compatibility alias
-                id="changespec-quickstart-panel",  # legacy compatibility alias
-                classes="hidden",
-            )
 
     def on_activate(self) -> None:
         """Restore focus to the PR surface after another pane owned it."""

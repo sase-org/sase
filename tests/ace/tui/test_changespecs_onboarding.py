@@ -8,6 +8,7 @@ from textual.widgets import Static
 from sase.ace.saved_queries import save_query
 from sase.ace.testing import AcePage, make_patch
 from sase.ace.tui.actions.patch._onboarding import PatchOnboardingMixin
+from sase.ace.tui.widgets.tab_quickstart import TabQuickStart
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     wait_for_startup,
@@ -113,6 +114,30 @@ async def test_patches_onboarding_visible_after_empty_startup(
         search = _search_query_plain(page)
         assert "Search Query" in search
         assert '"visual"' in search
+
+
+async def test_patches_onboarding_mounts_single_quickstart_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[])
+
+    async with AcePage(
+        query='"visual"',
+        patches=[],
+        initial_tab="patches",
+    ) as page:
+        await wait_for_startup(page)
+        await _open_prs(page)
+        await page.expect_state("total", 0)
+
+        artifacts_view = page.query_one_widget("#artifacts-view")
+        quickstarts = list(artifacts_view.query(TabQuickStart))
+        assert [quickstart.id for quickstart in quickstarts] == [
+            "patch-quickstart-panel"
+        ]
+        legacy_selector = "#changespec-quickstart-panel"  # legacy compat alias
+        assert len(page.app.query(legacy_selector)) == 0
+        assert page.query_one_widget(legacy_selector).id == "patch-quickstart-panel"
 
 
 async def test_patches_onboarding_visible_when_saved_queries_exist(

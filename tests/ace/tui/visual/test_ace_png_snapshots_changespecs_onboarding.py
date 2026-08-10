@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage, make_patch
+from sase.ace.tui.widgets.tab_quickstart import TabQuickStart
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -16,6 +17,12 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+def _assert_single_prs_quickstart(page: AcePage) -> None:
+    artifacts_view = page.query_one_widget("#artifacts-view")
+    quickstarts = list(artifacts_view.query(TabQuickStart))
+    assert [quickstart.id for quickstart in quickstarts] == ["patch-quickstart-panel"]
 
 
 async def test_patches_onboarding_png_snapshot(
@@ -38,6 +45,7 @@ async def test_patches_onboarding_png_snapshot(
 
         assert_page_svg_contains(page, "Every PR your agents produce")
         assert_page_svg_contains(page, "SASE Admin Center")
+        _assert_single_prs_quickstart(page)
         ace_png_visual.assert_page_png(
             page,
             # legacy compatibility retained PNG filename
@@ -67,6 +75,7 @@ async def test_patches_onboarding_no_match_png_snapshot(
         assert_page_svg_contains(page, "Search Query")
         assert_page_svg_contains(page, "No PRs match this query")
         assert_page_svg_contains(page, "exists")
+        _assert_single_prs_quickstart(page)
         ace_png_visual.assert_page_png(
             page,
             # legacy compatibility retained PNG filename
