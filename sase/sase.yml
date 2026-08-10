@@ -67,6 +67,8 @@ memory:
         NAME, DESCRIPTION, PARENT, PR, STATUS, STITCHES, HOOKS, COMMENTS, MENTORS.
         Status lifecycle: WIP -> Draft -> Ready -> Mailed -> Submitted.
     Sase Project:
+      aliases:
+        - project
       definition: >-
         A sase project is a named unit of work registered with SASE. A project is
         created only when a new VCS xprompt argument resolves to a valid project:
@@ -79,11 +81,15 @@ memory:
         enabled and disabled; missing `PROJECT_STATE:` means enabled, and only an
         explicit disable changes that. The system-managed `home` project remains hidden.
     Sase Repo:
+      aliases:
+        - repo
       definition: >-
         A sase repo is any repository SASE knows: a project's primary repo, an SDD
         sidecar repo (`<project>--plans` or `<project>--research`), or a repo declared
         through `linked_repos:`.
     Sase Workspace:
+      aliases:
+        - workspace
       definition: >-
         A sase workspace is a numbered clone of a project's primary repo, managed by the
         workspace store and tracked in that project's `registry.json`. Each SASE agent
