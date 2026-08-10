@@ -17,7 +17,6 @@ from sase.ace.tui.model_alias_styles import (
     provider_model_text,
 )
 from sase.llm_provider import AliasView, BucketView, ModelsPanelSection
-from sase.llm_provider.config import DEFAULT_MODEL_ALIAS_NAME
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
 from .models_panel_duration import format_remaining
@@ -166,11 +165,7 @@ def state_tag(view: AliasView, now: float) -> Text:
     reference = ""
     if view.configured and view.references is not None:
         reference = view.references
-    elif (
-        not view.configured
-        and view.name != DEFAULT_MODEL_ALIAS_NAME
-        and view.implicit_fallback is not None
-    ):
+    elif not view.configured and view.implicit_fallback is not None:
         reference = view.implicit_fallback
     members = view.selector_members if view.selector_mode == "round_robin" else ()
     text = alias_state_text("configured" if view.configured else "implicit")

@@ -3,6 +3,7 @@
 import pytest
 
 import sase.ace.tui.modals.models_panel as models_panel
+import sase.llm_provider.alias_view as alias_view_module
 from sase.ace.tui.modals.models_panel import (
     _description_text_for_view,
     _kind_label,
@@ -87,7 +88,17 @@ def test_state_tag_configured_reference_includes_effort_overlay() -> None:
     assert text.plain == "configured → @default @ high"
 
 
-def test_state_tag_implicit_default() -> None:
+def test_state_tag_implicit_default_shows_shipped_delegation() -> None:
+    text = _state_tag(make_alias_view("default", "default"), now=0.0)
+    assert text.plain == "implicit → @smarter"
+
+
+def test_state_tag_implicit_default_without_fallback_shows_bare_implicit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        alias_view_module, "implicit_model_alias_fallback", lambda _name: None
+    )
     text = _state_tag(make_alias_view("default", "default"), now=0.0)
     assert text.plain == "implicit"
 
