@@ -152,8 +152,8 @@ def plan_file_metadata_from_content(
 
     title = _normalized_optional_text(frontmatter.get("title"))
     goal = _normalized_optional_text(frontmatter.get("goal"))
-    frontmatter_declared_size = "size" in frontmatter
-    size = normalize_phase_size(frontmatter.get("size"))
+    authored_size = normalize_phase_size(frontmatter.get("size"))
+    size = authored_size
     size_defaulted = False
     normalized_tier = normalize_plan_tier(frontmatter.get("tier"))
     authored_tier: AuthoredPlanTier | None = None
@@ -199,8 +199,11 @@ def plan_file_metadata_from_content(
                     else:
                         phase_availability = "available"
                 elif authored_tier == "tale":
+                    # Launch validation normalizes a legacy tale's missing or
+                    # over-sized `size` to `medium`, so any value core hands
+                    # back that the author did not write is a default.
                     size = normalize_phase_size(validation.plan.size)
-                    size_defaulted = not frontmatter_declared_size
+                    size_defaulted = size != authored_size
 
     if authored_tier != "tale":
         size = None

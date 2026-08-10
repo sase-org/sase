@@ -121,6 +121,17 @@ def test_full_render_marks_legacy_tale_size_as_defaulted() -> None:
     assert PHASE_SIZE_DEFAULT_MARKER in rendered
 
 
+def test_full_render_marks_legacy_over_sized_tale_size_as_defaulted() -> None:
+    record = _record(plan=_plan(frontmatter={"size": "large"}))
+
+    rendered = _render(record)
+
+    assert "size" in rendered
+    assert "medium" in rendered
+    assert "large" not in rendered
+    assert PHASE_SIZE_DEFAULT_MARKER in rendered
+
+
 def test_full_render_does_not_fabricate_size_for_invalid_sizeless_tale() -> None:
     record = _record(
         plan=_plan(

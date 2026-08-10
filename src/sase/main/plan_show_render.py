@@ -52,6 +52,7 @@ from sase.sdd.plan_display import (
 _LABEL_WIDTH = 12
 _TITLE_STYLE = "bold"
 _LEGACY_TALE_LAUNCH_SIZE = "medium"
+_AUTHORED_TALE_SIZES = frozenset({"xsmall", "small", "medium"})
 
 
 # --- PlanDisplay adapter ---------------------------------------------------
@@ -115,11 +116,13 @@ def _plan_size(plan: PlanShowPlan) -> tuple[PhaseSizeValue | None, bool]:
     if plan.tier != "tale":
         return None, False
     size = normalize_phase_size(plan.frontmatter.get("size"))
-    if size is not None or "size" in plan.frontmatter:
+    if size in _AUTHORED_TALE_SIZES:
         return size, False
+    # A missing or over-sized legacy tale size is normalized to `medium` by
+    # launch validation, so report what the follow-up agent will actually get.
     if plan.validation.ok:
         return normalize_phase_size(_LEGACY_TALE_LAUNCH_SIZE), True
-    return None, False
+    return size, False
 
 
 class _ProvenanceRow:

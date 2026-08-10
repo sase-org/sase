@@ -534,6 +534,23 @@ def test_plan_field_rows_render_legacy_tale_size_as_defaulted(
     assert str(marker_span.style) == COLOR_PLAN_EMPTY
 
 
+def test_plan_field_rows_render_legacy_over_sized_tale_as_defaulted(
+    tmp_path: Path,
+) -> None:
+    tale = tmp_path / "oversized.md"
+    tale.write_text(
+        VALID_TALE_PLAN.replace("size: small\n", "size: large\n"), encoding="utf-8"
+    )
+    loaded = load_plan_display(tale, display_path="plans/oversized.md")
+
+    size_value = _size_value(plan_field_rows(loaded))
+
+    assert loaded.validation_ok
+    assert loaded.size == "medium"
+    assert loaded.size_defaulted
+    assert size_value.plain == f" medium  {PHASE_SIZE_DEFAULT_MARKER}"
+
+
 def test_plan_field_rows_omit_plan_level_size_for_epics(tmp_path: Path) -> None:
     epic = tmp_path / "epic.md"
     epic.write_text(VALID_EPIC_PLAN, encoding="utf-8")

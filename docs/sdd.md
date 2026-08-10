@@ -204,6 +204,7 @@ provenance.
 tier: tale
 title: Example
 goal: Demonstrate the plan-side layout.
+size: small
 ---
 
 - **PROMPT:**
@@ -411,6 +412,12 @@ Every tale and epic requires these authored fields:
 | `title` | yes      | Non-empty human-readable plan title                                |
 | `goal`  | yes      | Non-empty description of the outcome the plan is intended to reach |
 | `model` | no       | Non-empty model value using the same syntax as `%model`            |
+
+Tales additionally require `size: xsmall | small | medium`. A tale is work one follow-up
+agent implements directly, so `large` and `xlarge` are invalid tale sizes and belong in
+an epic plan instead. Authoring validation rejects a missing or over-sized tale `size`,
+while launch validation normalizes both to `medium` with a warning so legacy tales still
+launch.
 
 SASE-managed `create_time`, `status`, `bead`, and `bead_id` fields are accepted but
 never required. Historical plans with a deprecated `prompt` or `parent` property remain
