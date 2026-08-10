@@ -2,614 +2,33 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 import json
 from pathlib import Path
-from typing import Any
 
 from pytest import MonkeyPatch
 
-from sase.ace.tui.models.agent import Agent as TuiAgent
-from sase.ace.tui.models.agent import AgentType
-from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
-from sase.agent.running import RunningAgentInfo
 from sase.agent.running_listing import _running_from_snapshot
 from sase.agents.cli_list import _agent_to_json
 from sase.core.agent_scan_wire import (
-    AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
     AgentClanContextWire,
     AgentMetaWire,
-    DoneMarkerWire,
-    PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
-from sase.core.runner_slots import live_runner_slot_waiters
-from sase.core.time import get_timezone
 from sase.integrations.agent_list_entries import (
-    _AgentChildrenSummary,
     _attach_runner_slot_context,
     _build_agent_list_entry,
     agent_list_entries,
 )
-
-
-def _agent(**overrides: Any) -> RunningAgentInfo:
-    tz = get_timezone()
-    defaults = {
-        "name": "alpha",
-        "project": "sase",
-        "pid": 1234,
-        "model": "opus",
-        "provider": "claude",
-        "workspace_num": 11,
-        "duration": "5m",
-        "approve": False,
-        "prompt": "Fix the thing",
-        "status": "RUNNING",
-        "started_at": datetime(2026, 7, 9, 12, 0, tzinfo=tz),
-        "duration_seconds": 300,
-        "artifacts_dir": "/tmp/sase/artifacts/ace-run/20260709120000",
-    }
-    defaults.update(overrides)
-    return RunningAgentInfo(**defaults)
-
-
-def _record(**overrides: Any) -> AgentArtifactRecordWire:
-    defaults = {
-        "project_name": "sase",
-        "project_dir": "/tmp/sase",
-        "project_file": "/tmp/sase/sase.gp",
-        "workflow_dir_name": "ace-run",
-        "artifact_dir": "/tmp/sase/artifacts/ace-run/20260709120000",
-        "timestamp": "20260709120000",
-    }
-    defaults.update(overrides)
-    return AgentArtifactRecordWire(**defaults)
-
-
-def test_entry_maps_metadata_and_pending_question_to_stopped_bucket() -> None:
-    entry = _build_agent_list_entry(
-        _agent(),
-        record=_record(
-            agent_meta=AgentMetaWire(
-                reasoning_effort="high",
-                vcs_provider="github",
-                tribe="sase-26",
-                bead_id="sase-26.1",
-                changespec_name="sase-123",
-                agent_family="alpha",
-                agent_family_role="code",
-                parent_agent_name="planner",
-                output_variables={"PLAN": "plans/foo.md"},
-            ),
-            pending_question=PendingQuestionMarkerWire(session_id="q1"),
-        ),
-    )
-
-    assert entry.status == "QUESTION"
-    assert entry.status_bucket == "Stopped"
-    assert entry.status_glyph == "▲"
-    assert entry.provider_badge == "🎭"
-    assert entry.reasoning_effort == "high"
-    assert entry.vcs_provider_display == "GitHub"
-    assert entry.tribe == "sase-26"
-    assert entry.bead_id == "sase-26.1"
-    assert entry.output_variables == {"PLAN": "plans/foo.md"}
-    assert entry.pending_question is True
-    assert entry.needs_user_action is True
-
-
-def test_wait_info_prefers_waiting_marker_and_computes_remaining_seconds() -> None:
-    tz = get_timezone()
-    now = datetime(2026, 7, 9, 12, 0, tzinfo=tz)
-    entry = _build_agent_list_entry(
-        _agent(status="STARTING"),
-        record=_record(
-            agent_meta=AgentMetaWire(
-                wait_for=["meta-dep"],
-                wait_for_beads=["meta-bead"],
-                wait_duration=999.0,
-            ),
-            waiting=WaitingMarkerWire(
-                waiting_for=["dep"],
-                wait_for_beads=["sase-87.2"],
-                wait_until=(now + timedelta(minutes=5)).isoformat(),
-            ),
-        ),
-        now=now,
-    )
-
-    assert entry.status == "WAITING"
-    assert entry.status_bucket == "Waiting"
-    assert entry.wait.wait_for == ("dep",)
-    assert entry.wait.wait_for_beads == ("sase-87.2",)
-    assert entry.wait.wait_until is not None
-    assert entry.wait.remaining_seconds == 300
-
-
-def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
-    first = _build_agent_list_entry(
-        _agent(name="first", status="WAITING"),
-        record=_record(
-            timestamp="20260709120001",
-            artifact_dir="/tmp/sase/artifacts/ace-run/20260709120001",
-            agent_meta=AgentMetaWire(),
-            waiting=WaitingMarkerWire(
-                wait_runners=9,
-                wait_priority=20,
-                slot_requested_at="2026-07-12T12:00:01Z",
-            ),
-        ),
-    )
-    second = _build_agent_list_entry(
-        _agent(name="second", status="WAITING"),
-        record=_record(
-            timestamp="20260709120002",
-            artifact_dir="/tmp/sase/artifacts/ace-run/20260709120002",
-            agent_meta=AgentMetaWire(),
-            waiting=WaitingMarkerWire(
-                wait_runners=0,
-                wait_runners_explicit=True,
-                wait_priority=1,
-                slot_requested_at="2026-07-12T12:00:02Z",
-            ),
-        ),
-    )
-
-    first, second = _attach_runner_slot_context(
-        [first, second], 7, runner_slot_holders=("phase",)
-    )
-
-    assert first.wait.wait_runners == 9
-    assert first.wait.wait_priority == 20
-    assert first.wait.runner_slots_in_use == 7
-    assert first.status == "QUEUED"
-    assert first.status_bucket == "Queued"
-    assert first.status_glyph == "…"
-    assert first.wait.runner_slot_queue_position == 1
-    assert first.wait.runner_slot_queue_size == 2
-    assert first.wait.runner_slot_holders == ("phase",)
-    assert second.wait.wait_runners_explicit is True
-    assert second.wait.wait_priority == 1
-    assert second.status == "QUEUED"
-    assert second.status_bucket == "Queued"
-    assert second.status_glyph == "…"
-    assert second.wait.runner_slot_queue_position == 2
-    assert second.wait.runner_slot_queue_size == 2
-    assert second.wait.runner_slot_holders == ("phase",)
-
-
-def test_runner_slot_queue_orders_priority_before_fifo_with_default_priority() -> None:
-    def waiter(
-        *,
-        name: str,
-        timestamp: str,
-        requested_at: str,
-        priority: int | None,
-    ):
-        return _build_agent_list_entry(
-            _agent(
-                name=name,
-                status="WAITING",
-                artifacts_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
-            ),
-            record=_record(
-                timestamp=timestamp,
-                artifact_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
-                agent_meta=AgentMetaWire(),
-                waiting=WaitingMarkerWire(
-                    wait_runners=9,
-                    wait_priority=priority,
-                    slot_requested_at=requested_at,
-                ),
-            ),
-        )
-
-    older_low_priority = waiter(
-        name="older-low-priority",
-        timestamp="20260712120001",
-        requested_at="2026-07-12T12:00:01Z",
-        priority=20,
-    )
-    older_default = waiter(
-        name="older-default",
-        timestamp="20260712120002",
-        requested_at="2026-07-12T12:00:02Z",
-        priority=None,
-    )
-    newer_explicit_default = waiter(
-        name="newer-explicit-default",
-        timestamp="20260712120003",
-        requested_at="2026-07-12T12:00:03Z",
-        priority=10,
-    )
-    newer_urgent = waiter(
-        name="newer-urgent",
-        timestamp="20260712120004",
-        requested_at="2026-07-12T12:00:04Z",
-        priority=1,
-    )
-
-    entries = _attach_runner_slot_context(
-        [
-            older_low_priority,
-            older_default,
-            newer_explicit_default,
-            newer_urgent,
-        ],
-        0,
-    )
-    positions = {entry.name: entry.wait.runner_slot_queue_position for entry in entries}
-
-    assert positions == {
-        "older-low-priority": 4,
-        "older-default": 2,
-        "newer-explicit-default": 3,
-        "newer-urgent": 1,
-    }
-
-
-def test_runner_slot_queue_orders_parked_waiters_after_open_thresholds() -> None:
-    specs = (
-        ("barrier-a", "20260712120001", 0, True, 1),
-        ("x0", "20260712120002", 9, False, None),
-        ("barrier-b", "20260712120003", 0, True, 1),
-        ("x1", "20260712120004", 9, False, None),
-    )
-
-    def waiter(
-        *,
-        name: str,
-        timestamp: str,
-        wait_runners: int,
-        explicit: bool = False,
-        priority: int | None = None,
-    ):
-        return _build_agent_list_entry(
-            _agent(
-                name=name,
-                status="WAITING",
-                artifacts_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
-            ),
-            record=_record(
-                timestamp=timestamp,
-                artifact_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
-                agent_meta=AgentMetaWire(),
-                waiting=WaitingMarkerWire(
-                    wait_runners=wait_runners,
-                    wait_runners_explicit=explicit,
-                    wait_priority=priority,
-                    slot_requested_at=f"2026-07-12T12:00:{timestamp[-2:]}Z",
-                ),
-            ),
-        )
-
-    entries = _attach_runner_slot_context(
-        [
-            waiter(
-                name=name,
-                timestamp=timestamp,
-                wait_runners=wait_runners,
-                explicit=explicit,
-                priority=priority,
-            )
-            for name, timestamp, wait_runners, explicit, priority in specs
-        ],
-        9,
-    )
-    positions = {entry.name: entry.wait.runner_slot_queue_position for entry in entries}
-    holders = [
-        TuiAgent(
-            agent_type=AgentType.RUNNING,
-            cl_name=f"holder-{index}",
-            project_file="/tmp/project/project.sase",
-            status="RUNNING",
-            start_time=datetime(2026, 7, 12, 12, 0),
-            raw_suffix=f"holder-{index}",
-            pid=200 + index,
-            artifacts_dir=f"/tmp/project/artifacts/ace-run/holder-{index}",
-            run_start_time=datetime(2026, 7, 12, 11, 40 + index),
-        )
-        for index in range(9)
-    ]
-    tui_waiters = [
-        TuiAgent(
-            agent_type=AgentType.RUNNING,
-            cl_name=name,
-            project_file="/tmp/project/project.sase",
-            status="WAITING",
-            start_time=datetime(2026, 7, 12, 12, 0),
-            raw_suffix=timestamp,
-            pid=100 + index,
-            artifacts_dir=f"/tmp/project/artifacts/ace-run/{timestamp}",
-            wait_runners=wait_runners,
-            wait_runners_explicit=explicit,
-            wait_priority=priority,
-            slot_requested_at=f"2026-07-12T12:00:{timestamp[-2:]}Z",
-        )
-        for index, (name, timestamp, wait_runners, explicit, priority) in enumerate(
-            specs
-        )
-    ]
-    refresh_runner_slot_context([*holders, *tui_waiters], effective_limit=10)
-    tui_positions = {
-        agent.cl_name: agent.runner_slot_queue_position for agent in tui_waiters
-    }
-
-    expected = {
-        "x0": 1,
-        "x1": 2,
-        "barrier-a": 3,
-        "barrier-b": 4,
-    }
-    assert positions == tui_positions == expected
-
-
-def test_runner_slot_queue_rank_matches_tui_projection() -> None:
-    specs = (
-        ("older", "20260712120001", "2026-07-12T12:00:01Z", 20),
-        ("default", "20260712120002", "2026-07-12T12:00:02Z", None),
-        ("tie-later", "20260712120005", "2026-07-12T12:00:02Z", 10),
-        ("tie-earlier", "20260712120004", "2026-07-12T12:00:02Z", 10),
-        ("urgent", "20260712120003", "2026-07-12T12:00:03Z", 1),
-    )
-    entries = [
-        _build_agent_list_entry(
-            _agent(
-                name=name,
-                status="WAITING",
-                artifacts_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
-            ),
-            record=_record(
-                timestamp=timestamp,
-                artifact_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
-                agent_meta=AgentMetaWire(),
-                waiting=WaitingMarkerWire(
-                    wait_runners=9,
-                    wait_priority=priority,
-                    slot_requested_at=requested_at,
-                ),
-            ),
-        )
-        for name, timestamp, requested_at, priority in specs
-    ]
-    tui_agents = [
-        TuiAgent(
-            agent_type=AgentType.RUNNING,
-            cl_name=name,
-            project_file="/tmp/project/project.sase",
-            status="WAITING",
-            start_time=datetime(2026, 7, 12, 12, 0),
-            raw_suffix=timestamp,
-            pid=100 + index,
-            artifacts_dir=f"/tmp/project/artifacts/ace-run/{timestamp}",
-            wait_runners=9,
-            wait_priority=priority,
-            slot_requested_at=requested_at,
-        )
-        for index, (name, timestamp, requested_at, priority) in enumerate(specs)
-    ]
-
-    entries = _attach_runner_slot_context(entries, 10)
-    refresh_runner_slot_context(tui_agents, effective_limit=10)
-    core_queue = live_runner_slot_waiters(
-        (
-            _record(
-                timestamp=timestamp,
-                artifact_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
-                agent_meta=AgentMetaWire(),
-                waiting=WaitingMarkerWire(
-                    wait_runners=9,
-                    wait_priority=priority,
-                    slot_requested_at=requested_at,
-                ),
-            )
-            for _name, timestamp, requested_at, priority in specs
-        ),
-        lambda _record: True,
-    )
-
-    integration_positions = {
-        entry.name: entry.wait.runner_slot_queue_position for entry in entries
-    }
-    tui_positions = {
-        agent.cl_name: agent.runner_slot_queue_position for agent in tui_agents
-    }
-    integration_order = [
-        entry.timestamp
-        for entry in sorted(
-            entries,
-            key=lambda entry: entry.wait.runner_slot_queue_position or 0,
-        )
-    ]
-    tui_order = [
-        agent.raw_suffix
-        for agent in sorted(
-            tui_agents,
-            key=lambda agent: agent.runner_slot_queue_position or 0,
-        )
-    ]
-    core_order = [waiter.timestamp for waiter in core_queue]
-    assert integration_order == tui_order == core_order
-    assert (
-        integration_positions
-        == tui_positions
-        == {
-            "older": 5,
-            "default": 2,
-            "tie-later": 4,
-            "tie-earlier": 3,
-            "urgent": 1,
-        }
-    )
-
-
-def test_runner_slot_queue_defaults_invalid_priorities() -> None:
-    def waiter(name: str, timestamp: str, priority: int | None):
-        return _build_agent_list_entry(
-            _agent(
-                name=name,
-                status="WAITING",
-                artifacts_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
-            ),
-            record=_record(
-                timestamp=timestamp,
-                artifact_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
-                agent_meta=AgentMetaWire(),
-                waiting=WaitingMarkerWire(
-                    wait_runners=9,
-                    wait_priority=priority,
-                    slot_requested_at=f"2026-07-12T12:00:{timestamp[-2:]}Z",
-                ),
-            ),
-        )
-
-    invalid_boolean = waiter("invalid-boolean", "20260712120001", True)
-    invalid_negative = waiter("invalid-negative", "20260712120002", -1)
-    explicit_priority = waiter("explicit-priority", "20260712120003", 2)
-
-    entries = _attach_runner_slot_context(
-        [invalid_boolean, invalid_negative, explicit_priority], 0
-    )
-    positions = {entry.name: entry.wait.runner_slot_queue_position for entry in entries}
-
-    assert positions == {
-        "invalid-boolean": 2,
-        "invalid-negative": 3,
-        "explicit-priority": 1,
-    }
-
-
-def test_answered_question_runner_wait_has_waiting_precedence(tmp_path) -> None:
-    request_path = tmp_path / "question_request.json"
-    request_path.write_text("{}")
-    (tmp_path / "question_response.json").write_text("{}")
-    entry = _build_agent_list_entry(
-        _agent(status="RUNNING"),
-        record=_record(
-            agent_meta=AgentMetaWire(run_started_at="2026-07-09T12:00:00Z"),
-            pending_question=PendingQuestionMarkerWire(
-                session_id="q1", request_path=str(request_path)
-            ),
-            waiting=WaitingMarkerWire(
-                wait_runners=0,
-                slot_requested_at="2026-07-09T12:05:00Z",
-            ),
-        ),
-    )
-
-    assert entry.status == "WAITING"
-    assert entry.wait.wait_runners == 0
-    assert entry.wait.slot_requested_at == "2026-07-09T12:05:00Z"
-
-    (entry,) = _attach_runner_slot_context([entry], 0)
-    assert entry.wait.runner_slot_queue_position == 1
-
-
-def test_plan_marker_becomes_actionable_plan_ready() -> None:
-    entry = _build_agent_list_entry(
-        _agent(),
-        record=_record(
-            agent_meta=AgentMetaWire(
-                plan=True,
-                plan_submitted_at=["2026-07-09T12:01:00Z"],
-            )
-        ),
-    )
-
-    assert entry.status == "PLAN"
-    assert entry.status_bucket == "Stopped"
-    assert entry.needs_user_action is True
-
-
-def test_plan_marker_uses_authored_tier(tmp_path: Path) -> None:
-    for tier, expected in (("tale", "TALE"), ("epic", "EPIC")):
-        plan_path = tmp_path / f"{tier}.md"
-        plan_path.write_text(f"---\ntier: {tier}\n---\n# Plan\n", encoding="utf-8")
-        entry = _build_agent_list_entry(
-            _agent(),
-            record=_record(
-                agent_meta=AgentMetaWire(
-                    plan=True,
-                    plan_path=str(plan_path),
-                    plan_submitted_at=["2026-07-09T12:01:00Z"],
-                )
-            ),
-        )
-
-        assert entry.status == expected
-        assert entry.status_bucket == "Stopped"
-        assert entry.needs_user_action is True
-
-
-def test_children_summary_is_preserved() -> None:
-    running = _build_agent_list_entry(
-        _agent(name="run"),
-        record=_record(agent_meta=AgentMetaWire()),
-        children=_AgentChildrenSummary(count=2, status_counts=(("Running", 2),)),
-    )
-
-    assert running.children.badge == "×2"
-    assert running.children.status_counts == (("Running", 2),)
-
-
-def test_completed_epic_parent_is_terminal_despite_running_bucket() -> None:
-    entry = _build_agent_list_entry(
-        _agent(status="EPIC APPROVED"),
-        record=_record(
-            has_done_marker=True,
-            done=DoneMarkerWire(outcome="epic_approved"),
-        ),
-    )
-
-    assert entry.status == "EPIC APPROVED"
-    assert entry.status_bucket == "Running"
-    assert entry.has_done_marker is True
-    assert entry.is_terminal is True
-
-
-def test_live_epic_parent_is_not_terminal() -> None:
-    entry = _build_agent_list_entry(
-        _agent(),
-        record=_record(
-            agent_meta=AgentMetaWire(
-                plan=True,
-                plan_approved=True,
-                plan_action="epic",
-            ),
-        ),
-    )
-
-    assert entry.status == "EPIC APPROVED"
-    assert entry.status_bucket == "Running"
-    assert entry.has_done_marker is False
-    assert entry.is_terminal is False
-
-
-def test_missing_artifact_markers_are_safe() -> None:
-    entry = _build_agent_list_entry(
-        _agent(
-            artifacts_dir="/tmp/does-not-exist",
-            model=None,
-            provider=None,
-            prompt=None,
-        ),
-        record=None,
-    )
-
-    assert entry.name == "alpha"
-    assert entry.model is None
-    assert entry.provider_badge is None
-    assert entry.status == "RUNNING"
+from tests._agent_list_entries_helpers import agent, record
 
 
 def test_agent_list_json_exposes_runner_slot_fields() -> None:
     entry = _build_agent_list_entry(
-        _agent(status="WAITING"),
-        record=_record(
+        agent(status="WAITING"),
+        record=record(
             agent_meta=AgentMetaWire(),
             waiting=WaitingMarkerWire(
                 waiting_for=["phase"],
@@ -643,7 +62,7 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
 def test_agent_list_projects_hidden_clan_declaration_context(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    record = _record(
+    artifact_record = record(
         agent_meta=AgentMetaWire(
             name="toobig-0.joiner",
             pid=1234,
@@ -657,7 +76,7 @@ def test_agent_list_projects_hidden_clan_declaration_context(
         projects_root="/tmp/projects",
         options=AgentArtifactScanOptionsWire(),
         stats=AgentArtifactScanStatsWire(),
-        records=[record],
+        records=[artifact_record],
         clan_context=[
             AgentClanContextWire(
                 agent_clan="toobig-0",
@@ -674,7 +93,7 @@ def test_agent_list_projects_hidden_clan_declaration_context(
     )
 
     (info,) = _running_from_snapshot(snapshot)
-    entry = _build_agent_list_entry(info, record=record)
+    entry = _build_agent_list_entry(info, record=artifact_record)
     payload = _agent_to_json(entry)
 
     assert info.tribe == "chop"
@@ -691,7 +110,7 @@ def test_agent_list_projects_hidden_clan_declaration_context(
 def test_agent_list_preserves_standalone_tribe_without_clan_context(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    record = _record(
+    artifact_record = record(
         agent_meta=AgentMetaWire(
             name="standalone",
             pid=1234,
@@ -704,7 +123,7 @@ def test_agent_list_preserves_standalone_tribe_without_clan_context(
         projects_root="/tmp/projects",
         options=AgentArtifactScanOptionsWire(),
         stats=AgentArtifactScanStatsWire(),
-        records=[record],
+        records=[artifact_record],
     )
     monkeypatch.setattr(
         "sase.agent.running_listing.is_process_alive",
@@ -712,7 +131,7 @@ def test_agent_list_preserves_standalone_tribe_without_clan_context(
     )
 
     (info,) = _running_from_snapshot(snapshot)
-    entry = _build_agent_list_entry(info, record=record)
+    entry = _build_agent_list_entry(info, record=artifact_record)
 
     assert info.tribe == "ops"
     assert entry.tribe == "ops"
@@ -742,12 +161,12 @@ def test_agent_list_entries_names_parallel_child_blocking_waiter(
             }
         )
     )
-    child = _agent(
+    child = agent(
         name="epic--phase",
         artifacts_dir=str(child_dir),
         holds_runner_slot=True,
     )
-    waiter = _agent(
+    waiter = agent(
         name="waiter",
         status="WAITING",
         artifacts_dir=str(waiter_dir),
