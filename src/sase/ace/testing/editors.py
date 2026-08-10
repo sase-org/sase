@@ -1,6 +1,6 @@
 """Focused text-editor test harnesses for ace widgets."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from textual.app import App, ComposeResult
@@ -10,6 +10,7 @@ from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 
 from . import settle as settle_helpers
+from .wait import wait_for as wait_for_pilot
 
 
 class _PromptTestApp(App[None]):
@@ -116,6 +117,15 @@ class PromptPage:
     async def pause(self) -> None:
         """Let the app process events and render a frame."""
         await settle_helpers.settle_pilot(self._pilot)
+
+    async def wait_for(
+        self,
+        predicate: Callable[[], bool],
+        *,
+        timeout: float = 5.0,
+    ) -> None:
+        """Poll until predicate returns True, or raise."""
+        await wait_for_pilot(self._pilot, predicate, timeout=timeout)
 
     @property
     def text(self) -> str:

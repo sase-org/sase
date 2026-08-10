@@ -216,10 +216,7 @@ async def _snapshot_modal(
         modal = GateDebugModal(_context())
         page.app.push_screen(modal)
         await page.expect_modal("GateDebugModal")
-        for _ in range(10):
-            await page.pause()
-            if modal._snapshot is not None:
-                break
+        await page.wait_for(lambda _state: modal._snapshot is not None)
         for _ in range(tab_index):
             await page.press("]")
             await page.pause()

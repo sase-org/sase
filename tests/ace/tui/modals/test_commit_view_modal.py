@@ -465,11 +465,13 @@ async def test_commit_view_modal_ignores_stale_diff_worker_result(
     )
     first_started = Event()
     release_first = Event()
+    first_finished = Event()
 
     def fake_load(spec: CommitViewSpec) -> str:
         if spec.sha == first.sha:
             first_started.set()
             release_first.wait(timeout=2)
+            first_finished.set()
             return "diff --git a/first b/first\n+stale first\n"
         return "diff --git a/second b/second\n+fresh second\n"
 
@@ -489,8 +491,7 @@ async def test_commit_view_modal_ignores_stale_diff_worker_result(
         await pilot.press("ctrl+n")
         await _wait_for_diff(pilot, modal, "+fresh second")
         release_first.set()
-        for _ in range(5):
-            await pilot.pause()
+        await wait_for(pilot, first_finished.is_set)
 
         assert modal._current_index == 1
         assert modal._diff_text is not None
@@ -610,10 +611,12 @@ async def test_commit_view_modal_toggle_back_ignores_stale_plan_result(
 ) -> None:
     started = Event()
     release = Event()
+    finished = Event()
 
     def load_plan(_message: str, **_kwargs) -> PlanDocument:
         started.set()
         release.wait(timeout=2)
+        finished.set()
         return PlanDocument(
             "success",
             reference="stale.md",
@@ -637,8 +640,7 @@ async def test_commit_view_modal_toggle_back_ignores_stale_plan_result(
 
         await pilot.press("p")
         release.set()
-        for _ in range(5):
-            await pilot.pause()
+        await wait_for(pilot, finished.is_set)
 
         assert modal._display_mode == "commit"
         assert "Stale plan" not in _rendered_text(modal._build_content())

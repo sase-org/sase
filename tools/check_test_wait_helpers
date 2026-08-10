@@ -11,7 +11,7 @@ from typing import NamedTuple
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCANNED_ROOTS = (REPO_ROOT / "tests",)
-FORBIDDEN_FUNCTION = "_wait_until"
+LEGACY_FORBIDDEN_FUNCTION = "_wait_until"
 PROMPT_PANEL_SELECTORS = {"#agent-prompt-panel"}
 WAIT_PRAGMA = "sase-test-wait:"
 
@@ -150,36 +150,104 @@ def _fixed_sleep_findings(tree: ast.AST, path: Path, lines: list[str]) -> list[F
     return findings
 
 
-def _is_pilot_pause_await(node: ast.AST) -> bool:
+def _is_pause_await(node: ast.AST) -> bool:
     return (
         isinstance(node, ast.Await)
         and isinstance(node.value, ast.Call)
         and isinstance(node.value.func, ast.Attribute)
         and node.value.func.attr == "pause"
-        and isinstance(node.value.func.value, ast.Name)
-        and node.value.func.value.id == "pilot"
     )
 
 
-def _has_conditional_break(node: ast.AST) -> bool:
+def _has_conditional_loop_exit(node: ast.AST) -> bool:
     return any(
         isinstance(child, ast.If)
-        and any(isinstance(descendant, ast.Break) for descendant in ast.walk(child))
+        and any(
+            isinstance(descendant, ast.Break | ast.Return)
+            for descendant in ast.walk(child)
+        )
         for child in ast.walk(node)
     )
 
 
-def _inline_pilot_pause_waits(tree: ast.AST) -> list[ast.For]:
-    return [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.For)
+def _is_bounded_pause_loop(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.For)
         and isinstance(node.target, ast.Name)
         and node.target.id == "_"
         and _is_range_call(node.iter)
-        and any(_is_pilot_pause_await(child) for child in ast.walk(node))
-        and _has_conditional_break(node)
-    ]
+        and any(_is_pause_await(child) for child in ast.walk(node))
+    )
+
+
+def _is_pause_only_loop(node: ast.For) -> bool:
+    return all(
+        isinstance(statement, ast.Expr) and _is_pause_await(statement.value)
+        for statement in node.body
+    )
+
+
+def _has_trailing_bare_assert(body: list[ast.stmt], index: int) -> bool:
+    return any(isinstance(statement, ast.Assert) for statement in body[index + 1 :])
+
+
+def _child_statement_bodies(statement: ast.stmt) -> list[list[ast.stmt]]:
+    bodies: list[list[ast.stmt]] = []
+    for field_name in ("body", "orelse", "finalbody"):
+        body = getattr(statement, field_name, None)
+        if isinstance(body, list) and all(isinstance(item, ast.stmt) for item in body):
+            bodies.append(body)
+    if isinstance(statement, ast.Try):
+        bodies.extend(handler.body for handler in statement.handlers)
+    return bodies
+
+
+def _pause_wait_loops(tree: ast.AST) -> list[ast.For]:
+    loops: list[ast.For] = []
+
+    def visit_body(body: list[ast.stmt]) -> None:
+        for index, statement in enumerate(body):
+            if isinstance(statement, ast.For) and _is_bounded_pause_loop(statement):
+                if _has_conditional_loop_exit(statement) or (
+                    _is_pause_only_loop(statement)
+                    and _has_trailing_bare_assert(body, index)
+                ):
+                    loops.append(statement)
+            for child_body in _child_statement_bodies(statement):
+                visit_body(child_body)
+
+    if isinstance(tree, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+        visit_body(tree.body)
+    return sorted(loops, key=lambda node: node.lineno)
+
+
+def _arg_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    args = node.args
+    return {
+        arg.arg
+        for arg in (
+            *args.posonlyargs,
+            *args.args,
+            *args.kwonlyargs,
+        )
+    }
+
+
+def _is_private_name(name: str) -> bool:
+    return name.startswith("_") and not (name.startswith("__") and name.endswith("__"))
+
+
+def _private_wait_helpers(tree: ast.AST) -> list[ast.AsyncFunctionDef]:
+    helpers: list[ast.AsyncFunctionDef] = []
+    for node in _function_defs(tree):
+        if not isinstance(node, ast.AsyncFunctionDef) or not _is_private_name(node.name):
+            continue
+        if node.name == LEGACY_FORBIDDEN_FUNCTION:
+            helpers.append(node)
+            continue
+        if "predicate" in _arg_names(node) and _pause_wait_loops(node):
+            helpers.append(node)
+    return helpers
 
 
 def _is_page_app_prompt_panel_query(node: ast.AST) -> bool:
@@ -263,12 +331,20 @@ def find_forbidden_helpers(
             except SyntaxError:
                 continue
             lines = source.splitlines()
-            for node in _function_defs(tree):
-                if node.name == FORBIDDEN_FUNCTION:
-                    findings.append(Finding(path, node.lineno, "private-wait-until"))
+            private_helpers = _private_wait_helpers(tree)
+            private_helper_loop_ids = {
+                id(loop)
+                for helper in private_helpers
+                for loop in _pause_wait_loops(helper)
+            }
             findings.extend(
-                Finding(path, node.lineno, "inline-pilot-pause-wait")
-                for node in _inline_pilot_pause_waits(tree)
+                Finding(path, node.lineno, "private-wait-helper")
+                for node in private_helpers
+            )
+            findings.extend(
+                Finding(path, node.lineno, "inline-pause-wait")
+                for node in _pause_wait_loops(tree)
+                if id(node) not in private_helper_loop_ids
             )
             findings.extend(
                 Finding(path, node.lineno, "raw-agent-prompt-panel-text")

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 import pytest
 
 from sase.ace.testing import PromptPage
@@ -15,19 +13,6 @@ from sase.core.word_lookup import (
     DefinitionSection,
     SpellCheckResult,
 )
-
-
-async def _wait_for(
-    page: PromptPage,
-    predicate: Callable[[], bool],
-    *,
-    attempts: int = 30,
-) -> None:
-    for _ in range(attempts):
-        if predicate():
-            return
-        await page.pause()
-    assert predicate()
 
 
 def _top_is(page: PromptPage, modal_type: type[object]) -> bool:
@@ -62,7 +47,7 @@ async def test_k_on_correct_word_pushes_definition_modal(
 
     async with PromptPage("say hello", cursor=(0, 5), size=(80, 24)) as page:
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, WordDefinitionModal))
+        await page.wait_for(lambda: _top_is(page, WordDefinitionModal))
 
         assert seen == ["hello"]
 
@@ -88,10 +73,9 @@ async def test_k_on_misspelling_digit_applies_suggestion(
         size=(80, 24),
     ) as page:
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: _top_is(page, SpellcheckPanelModal))
         await page.press("3")
-        await _wait_for(
-            page,
+        await page.wait_for(
             lambda: not _top_is(page, SpellcheckPanelModal),
         )
 
@@ -112,10 +96,9 @@ async def test_spellcheck_escape_leaves_prompt_untouched(
 
     async with PromptPage("seperate", cursor=(0, 2), size=(80, 24)) as page:
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: _top_is(page, SpellcheckPanelModal))
         await page.press("escape")
-        await _wait_for(
-            page,
+        await page.wait_for(
             lambda: not _top_is(page, SpellcheckPanelModal),
         )
 
@@ -139,7 +122,7 @@ async def test_k_without_aspell_falls_through_to_definitions(
 
     async with PromptPage("word", cursor=(0, 1), size=(80, 24)) as page:
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, WordDefinitionModal))
+        await page.wait_for(lambda: _top_is(page, WordDefinitionModal))
 
 
 async def test_k_without_lookup_tools_toasts_without_modal(
@@ -163,7 +146,7 @@ async def test_k_without_lookup_tools_toasts_without_modal(
         )
 
         await page.press("K")
-        await _wait_for(page, lambda: bool(notifications))
+        await page.wait_for(lambda: bool(notifications))
 
         assert notifications == [
             (
@@ -186,7 +169,7 @@ async def test_k_on_misspelling_records_word_before_panel_opens(
 
     async with PromptPage("helllo there", cursor=(0, 2), size=(80, 24)) as page:
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: _top_is(page, SpellcheckPanelModal))
 
         assert "helllo" in page.ta.app.misspelled_words()
 
@@ -204,9 +187,9 @@ async def test_spellcheck_escape_leaves_word_squiggled(
 
     async with PromptPage("seperate", cursor=(0, 2), size=(80, 24)) as page:
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: _top_is(page, SpellcheckPanelModal))
         await page.press("escape")
-        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: not _top_is(page, SpellcheckPanelModal))
 
         assert "seperate" in page.ta.app.misspelled_words()
         page.ta._build_highlight_map()
@@ -231,7 +214,7 @@ async def test_k_on_misspelling_without_suggestions_opens_panel_instead_of_notif
         )
 
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: _top_is(page, SpellcheckPanelModal))
 
         assert notifications == []
         assert "zzzzz" in page.ta.app.misspelled_words()
@@ -253,9 +236,9 @@ async def test_spellcheck_accept_clears_the_squiggle(
             lambda message, severity=None: notifications.append(message),
         )
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: _top_is(page, SpellcheckPanelModal))
         await page.press("a")
-        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: not _top_is(page, SpellcheckPanelModal))
 
         assert "bugyi" not in page.ta.app.misspelled_words()
         assert notifications == ["'Bugyi' will no longer be flagged as misspelled"]
@@ -277,9 +260,9 @@ async def test_spellcheck_dictionary_key_dismisses_panel_without_applying(
 
     async with PromptPage("fix accomodate now", cursor=(0, 7), size=(80, 24)) as page:
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: _top_is(page, SpellcheckPanelModal))
         await page.press("d")
-        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: not _top_is(page, SpellcheckPanelModal))
 
         # The dictionary action never applies a suggestion or replaces text.
         assert page.text == "fix accomodate now"
@@ -305,10 +288,10 @@ async def test_spellcheck_dictionary_added_clears_squiggle_and_notifies(
             lambda message, severity=None: notifications.append(message),
         )
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: _top_is(page, SpellcheckPanelModal))
         await page.press("d")
-        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
-        await _wait_for(page, lambda: "bugyi" not in page.ta.app.misspelled_words())
+        await page.wait_for(lambda: not _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: "bugyi" not in page.ta.app.misspelled_words())
 
         assert page.text == "Bugyi wrote this"
         assert notifications == ["Added 'Bugyi' to your aspell personal dictionary"]
@@ -338,10 +321,10 @@ async def test_spellcheck_dictionary_error_leaves_word_flagged_and_notifies(
             lambda message, severity=None: notifications.append((message, severity)),
         )
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: _top_is(page, SpellcheckPanelModal))
         await page.press("d")
-        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
-        await _wait_for(page, lambda: bool(notifications))
+        await page.wait_for(lambda: not _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: bool(notifications))
 
         assert "well-formedd" in page.ta.app.misspelled_words()
         assert page.text == "well-formedd"
@@ -370,10 +353,10 @@ async def test_spellcheck_dictionary_unavailable_notifies_warning_and_leaves_fla
             lambda message, severity=None: notifications.append((message, severity)),
         )
         await page.press("K")
-        await _wait_for(page, lambda: _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: _top_is(page, SpellcheckPanelModal))
         await page.press("d")
-        await _wait_for(page, lambda: not _top_is(page, SpellcheckPanelModal))
-        await _wait_for(page, lambda: bool(notifications))
+        await page.wait_for(lambda: not _top_is(page, SpellcheckPanelModal))
+        await page.wait_for(lambda: bool(notifications))
 
         assert "zzzzz" in page.ta.app.misspelled_words()
         assert page.text == "zzzzz word"
@@ -409,7 +392,7 @@ async def test_k_on_now_correct_remembered_word_forgets_it(
         assert "hello" in page.ta.app.misspelled_words()
 
         await page.press("K")
-        await _wait_for(page, lambda: bool(notifications))
+        await page.wait_for(lambda: bool(notifications))
 
         assert "hello" not in page.ta.app.misspelled_words()
 
@@ -443,7 +426,7 @@ async def test_unavailable_and_error_verdicts_record_nothing(
         )
 
         await page.press("K")
-        await _wait_for(page, lambda: bool(notifications))
+        await page.wait_for(lambda: bool(notifications))
 
         assert page.ta.app.misspelled_words() == frozenset()
 

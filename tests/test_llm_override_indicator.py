@@ -269,12 +269,8 @@ async def test_async_default_resolution_updates_cached_state(
         indicator = page.query_one_widget(
             "#llm-override-indicator", LLMOverrideIndicator
         )
-        cached: tuple[str, str] | None = None
-        for _ in range(20):
-            await page.pause()
-            cached = indicator._cached_default
-            if cached is not None:
-                break
+        await page.wait_for(lambda _state: indicator._cached_default is not None)
+        cached = indicator._cached_default
 
     assert cached == ("claude", "sonnet")
     rendered = indicator._build_initial_content()

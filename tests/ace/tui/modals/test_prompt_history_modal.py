@@ -463,8 +463,11 @@ async def test_ctrl_d_no_longer_loads_more(
             exhausted=True,
         ),
     ]
+    page_loads = 0
 
     def fake_load_prompt_record_page(**kwargs: object) -> PromptHistoryPage:
+        nonlocal page_loads
+        page_loads += 1
         if pages:
             return pages.pop(0)
         return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
@@ -483,9 +486,10 @@ async def test_ctrl_d_no_longer_loads_more(
         )
 
         await pilot.press("ctrl+d")
-        for _ in range(20):
-            await pilot.pause(0.01)
+        await pilot.pause()
 
+        assert page_loads == 1
+        assert not modal._history_loading
         assert [item.entry.text for item in modal._all_items] == [
             "alpha first loaded prompt",
         ]

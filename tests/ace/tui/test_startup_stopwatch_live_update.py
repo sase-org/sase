@@ -254,10 +254,9 @@ async def test_slow_mount_state_read_does_not_block_app_key_dispatch(
             )
             assert page.app.current_tab == "artifacts"
             await page.press("tab")
-            for _ in range(20):
-                if page.app.current_tab != "artifacts":
-                    break
-                await page.pause()
+            await page.wait_for(
+                lambda _state: page.app.current_tab != "artifacts",
+            )
             assert page.app.current_tab == "axe"
         finally:
             release.set()

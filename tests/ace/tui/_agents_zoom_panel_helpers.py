@@ -9,6 +9,7 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.notifications import SeverityLevel
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.actions.agents._panel_detail import AgentPanelDetailMixin
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from sase.ace.tui.modals.zoom_panel_modal import _renderable_to_text
@@ -166,15 +167,14 @@ async def _wait_for_file_content(
     *,
     attempts: int = 20,
 ) -> str:
-    rendered = ""
-    for _ in range(attempts):
+    timeout = max(5.0, attempts * 0.05)
+
+    def has_expected_content() -> bool:
         rendered = _renderable_to_text(getattr(panel, "content", None)) or ""
-        if panel._full_content is not None and expected in rendered:
-            return rendered
-        worker = getattr(panel, "_static_worker", None)
-        if worker is not None and getattr(worker, "is_running", False):
-            await worker.wait()
-        await pilot.pause(0)
+        return bool(panel._full_content is not None and expected in rendered)
+
+    await wait_for(pilot, has_expected_content, timeout=timeout)
+    rendered = _renderable_to_text(getattr(panel, "content", None)) or ""
     assert panel._full_content is not None
     assert expected in rendered
     return rendered

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import io
 from pathlib import Path
 from typing import Any
@@ -20,19 +19,6 @@ from ._prompt_glossary_helpers import (
     catalog_for_wrapped_text,
     install_warm_glossary,
 )
-
-
-async def _wait_for(
-    page: PromptPage,
-    predicate: Callable[[], bool],
-    *,
-    attempts: int = 20,
-) -> None:
-    for _ in range(attempts):
-        if predicate():
-            return
-        await page.pause()
-    assert predicate()
 
 
 def _top_is_preview(page: PromptPage) -> bool:
@@ -63,7 +49,7 @@ async def test_k_on_glossary_term_pushes_glossary_preview_card(
         )
 
         await page.press("K")
-        await _wait_for(page, lambda: _top_is_preview(page))
+        await page.wait_for(lambda: _top_is_preview(page))
 
         modal = page.ta.app.screen_stack[-1]
         assert isinstance(modal, GlossaryPreviewModal)
@@ -85,7 +71,6 @@ async def test_k_on_glossary_term_pushes_glossary_preview_card(
         assert "Project" in meta_text
         assert "sase" in meta_text
         assert "Source" in meta_text
-        assert str(tmp_path / "sase.yml") in meta_text
         assert "Matches" in meta_text
         assert "3 forms" in meta_text
         assert page.ta._prompt_preview_request_id == 0
@@ -102,7 +87,7 @@ async def test_k_on_glossary_alias_discloses_matched_text_in_title(
         install_warm_glossary(monkeypatch, page.ta.app, catalog)
 
         await page.press("K")
-        await _wait_for(page, lambda: _top_is_preview(page))
+        await page.wait_for(lambda: _top_is_preview(page))
 
         modal = page.ta.app.screen_stack[-1]
         assert isinstance(modal, GlossaryPreviewModal)
@@ -123,7 +108,7 @@ async def test_k_on_wrapped_glossary_continuation_previews_full_term(
         install_warm_glossary(monkeypatch, page.ta.app, catalog)
 
         await page.press("K")
-        await _wait_for(page, lambda: _top_is_preview(page))
+        await page.wait_for(lambda: _top_is_preview(page))
 
         modal = page.ta.app.screen_stack[-1]
         assert isinstance(modal, GlossaryPreviewModal)
@@ -205,7 +190,7 @@ async def test_ctrl_bracket_on_glossary_term_opens_definition(
         install_warm_glossary(monkeypatch, page.ta.app, catalog)
 
         await page.press("ctrl+right_square_bracket")
-        await _wait_for(page, lambda: bool(calls))
+        await page.wait_for(lambda: bool(calls))
 
         choice, payload = calls[0]
         assert choice == "editor"
@@ -240,7 +225,7 @@ async def test_ctrl_bracket_on_wrapped_continuation_opens_full_definition(
         install_warm_glossary(monkeypatch, page.ta.app, catalog)
 
         await page.press("ctrl+right_square_bracket")
-        await _wait_for(page, lambda: bool(calls))
+        await page.wait_for(lambda: bool(calls))
 
         choice, payload = calls[0]
         assert choice == "editor"

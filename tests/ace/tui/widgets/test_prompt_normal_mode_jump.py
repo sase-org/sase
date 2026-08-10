@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,19 +18,6 @@ from sase.ace.tui.widgets._prompt_jump_target import (
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
-
-
-async def _wait_for(
-    page: PromptPage,
-    predicate: Callable[[], bool],
-    *,
-    attempts: int = 20,
-) -> None:
-    for _ in range(attempts):
-        if predicate():
-            return
-        await page.pause()
-    assert predicate()
 
 
 def _top_is_jump_modal(page: PromptPage) -> bool:
@@ -85,7 +71,7 @@ async def test_ctrl_bracket_on_resolvable_token_pushes_jump_modal(
 
     async with PromptPage("run #foo", cursor=(0, 5), size=(80, 24)) as page:
         await page.press("ctrl+right_square_bracket")
-        await _wait_for(page, lambda: _top_is_jump_modal(page))
+        await page.wait_for(lambda: _top_is_jump_modal(page))
 
         assert seen and seen[0][0] == "foo"
         assert isinstance(page.ta.app.screen_stack[-1], JumpActionModal)
@@ -131,7 +117,7 @@ async def test_ctrl_bracket_on_warm_slash_skill_uses_skill_and_prompt_context(
         page.ta._xprompt_arg_assist_entries_by_project["sase"] = [_skill_entry()]
 
         await page.press("ctrl+right_square_bracket")
-        await _wait_for(page, lambda: _top_is_jump_modal(page))
+        await page.wait_for(lambda: _top_is_jump_modal(page))
 
         token, project, base_dir = seen[0]
         assert token.raw == "/sase_plan"
@@ -198,7 +184,7 @@ async def test_ctrl_bracket_with_single_action_runs_directly(
 
     async with PromptPage("open src/main.py", cursor=(0, 6), size=(80, 24)) as page:
         await page.press("ctrl+right_square_bracket")
-        await _wait_for(page, lambda: calls == [("editor", payload)])
+        await page.wait_for(lambda: calls == [("editor", payload)])
 
         assert not _top_is_jump_modal(page)
 
@@ -258,7 +244,7 @@ async def test_ctrl_bracket_on_image_views_it_inside_suspend_without_editor(
         )
 
         await page.press("ctrl+right_square_bracket")
-        await _wait_for(page, lambda: viewer_calls == [str(image)])
+        await page.wait_for(lambda: viewer_calls == [str(image)])
 
         assert suspended is False
         assert refocus_calls == [None]
@@ -291,7 +277,7 @@ async def test_ctrl_bracket_on_image_surfaces_viewer_warning(
         )
 
         await page.press("ctrl+right_square_bracket")
-        await _wait_for(page, lambda: bool(notifications))
+        await page.wait_for(lambda: bool(notifications))
 
         assert notifications == [("kitten is required to display images", "warning")]
 
@@ -351,7 +337,7 @@ async def test_ctrl_bracket_resolution_error_toasts_distinct_message(
             lambda message, severity=None: notifications.append((message, severity)),
         )
         await page.press("ctrl+right_square_bracket")
-        await _wait_for(page, lambda: page.ta._prompt_jump_request_id == 1)
+        await page.wait_for(lambda: page.ta._prompt_jump_request_id == 1)
         await page.pause()
 
         assert notifications == [

@@ -146,17 +146,6 @@ def resolve_notification_tab_color(tab: NotificationTagTab) -> str:
     return _default_notification_tab_color(config_key)
 
 
-def resolve_notification_tab_icon(tab: NotificationTagTab) -> str:
-    """Return the effective icon for one notification tab.
-
-    The chain never comes up empty: configuration, then the sender-declared
-    icon the core donates from the newest member row, then a built-in default
-    for a key ACE knows, then a default for the tab's kind, then a generic mark.
-    """
-    icon, _rung = _resolve_tab_icon(tab)
-    return icon
-
-
 def resolve_notification_tab_icons(
     tabs: Sequence[NotificationTagTab],
 ) -> dict[str | None, str]:
@@ -313,6 +302,5 @@ __all__ = [
     "notification_indicator_max_counts",
     "notification_tab_label",
     "resolve_notification_tab_color",
-    "resolve_notification_tab_icon",
     "resolve_notification_tab_icons",
 ]

@@ -42,7 +42,7 @@ def test_finds_private_wait_until_helpers(tmp_path: Path) -> None:
     tool = _load_tool()
 
     assert tool.find_forbidden_helpers((root,)) == [
-        tool.Finding(root / "test_bad.py", 1, "private-wait-until")
+        tool.Finding(root / "test_bad.py", 1, "private-wait-helper")
     ]
 
 
@@ -76,7 +76,46 @@ def test_finds_inline_bounded_pilot_pause_waits(tmp_path: Path) -> None:
     tool = _load_tool()
 
     assert tool.find_forbidden_helpers((root,)) == [
-        tool.Finding(root / "test_bad.py", 2, "inline-pilot-pause-wait")
+        tool.Finding(root / "test_bad.py", 2, "inline-pause-wait")
+    ]
+
+
+def test_finds_inline_bounded_page_pause_waits(tmp_path: Path) -> None:
+    root = tmp_path / "tests"
+    root.mkdir(parents=True)
+    (root / "test_bad.py").write_text(
+        "async def test_wait(page, modal):\n"
+        "    for _ in range(20):\n"
+        "        await page.pause()\n"
+        "        if modal.ready:\n"
+        "            break\n",
+        encoding="utf-8",
+    )
+
+    tool = _load_tool()
+
+    assert tool.find_forbidden_helpers((root,)) == [
+        tool.Finding(root / "test_bad.py", 2, "inline-pause-wait")
+    ]
+
+
+def test_finds_private_wait_for_helpers_by_shape(tmp_path: Path) -> None:
+    root = tmp_path / "tests"
+    root.mkdir(parents=True)
+    (root / "test_bad.py").write_text(
+        "async def _wait_for(page, predicate, *, attempts=20):\n"
+        "    for _ in range(attempts):\n"
+        "        if predicate():\n"
+        "            return\n"
+        "        await page.pause()\n"
+        "    assert predicate()\n",
+        encoding="utf-8",
+    )
+
+    tool = _load_tool()
+
+    assert tool.find_forbidden_helpers((root,)) == [
+        tool.Finding(root / "test_bad.py", 1, "private-wait-helper")
     ]
 
 

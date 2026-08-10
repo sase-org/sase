@@ -19,7 +19,6 @@ from sase.ace.tui.widgets import notification_tab_style
 from sase.ace.tui.widgets.notification_indicator import NotificationIndicator
 from sase.ace.tui.widgets.notification_tab_style import (
     resolve_notification_tab_color,
-    resolve_notification_tab_icon,
     resolve_notification_tab_icons,
 )
 from sase.core.time import get_timezone
@@ -44,6 +43,10 @@ def _use_config(monkeypatch: pytest.MonkeyPatch, ace: dict[str, Any]) -> None:
         "load_merged_config",
         lambda: {"ace": ace},
     )
+
+
+def _resolve_notification_tab_icon(tab: NotificationTagTab) -> str:
+    return resolve_notification_tab_icons((tab,))[tab.tag]
 
 
 def _tab(
@@ -138,7 +141,7 @@ def test_snoozed_only_renders_the_moon_prefixed_count() -> None:
     tab = _tab(SNOOZED_TAB_KEY, 4)
     text = NotificationIndicator._build_content((tab,))
     assert text.plain == " ☾4 "
-    assert resolve_notification_tab_icon(tab) == "☾"
+    assert _resolve_notification_tab_icon(tab) == "☾"
     snoozed_style = str(text.spans[0].style)
     assert snoozed_style.startswith("dim ")
     assert "#6C6C6C" in snoozed_style

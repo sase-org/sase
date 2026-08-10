@@ -27,7 +27,6 @@ from sase.ace.tui.widgets.notification_tab_style import (
     _notification_tab_key,
     notification_tab_label,
     resolve_notification_tab_color,
-    resolve_notification_tab_icon,
     resolve_notification_tab_icons,
 )
 
@@ -50,6 +49,10 @@ def _use_config(monkeypatch: pytest.MonkeyPatch, ace: dict[str, Any]) -> None:
         "load_merged_config",
         lambda: {"ace": ace},
     )
+
+
+def _resolve_notification_tab_icon(tab: NotificationTagTab) -> str:
+    return resolve_notification_tab_icons((tab,))[tab.tag]
 
 
 def _tab(
@@ -200,12 +203,12 @@ def test_a_configured_icon_outranks_a_sender_declared_one(
 ) -> None:
     _use_config(monkeypatch, {"notification_tabs": {"beads": {"icon": "★"}}})
 
-    assert resolve_notification_tab_icon(_tab("beads", icon="✦")) == "★"
+    assert _resolve_notification_tab_icon(_tab("beads", icon="✦")) == "★"
 
 
 def test_a_sender_declared_icon_outranks_the_builtin_default() -> None:
-    assert resolve_notification_tab_icon(_tab("beads", icon="✦")) == "✦"
-    assert resolve_notification_tab_icon(_tab("beads")) == _BUILTIN_TAB_ICONS["beads"]
+    assert _resolve_notification_tab_icon(_tab("beads", icon="✦")) == "✦"
+    assert _resolve_notification_tab_icon(_tab("beads")) == _BUILTIN_TAB_ICONS["beads"]
 
 
 def test_a_builtin_icon_outranks_the_kind_default() -> None:
@@ -213,23 +216,23 @@ def test_a_builtin_icon_outranks_the_kind_default() -> None:
     tab = _tab("beads", kind="panel")
 
     assert _KIND_TAB_ICONS["panel"] != _BUILTIN_TAB_ICONS["beads"]
-    assert resolve_notification_tab_icon(tab) == _BUILTIN_TAB_ICONS["beads"]
+    assert _resolve_notification_tab_icon(tab) == _BUILTIN_TAB_ICONS["beads"]
 
 
 def test_a_kind_icon_outranks_the_last_resort() -> None:
     """A tab ACE has never heard of still says something about itself."""
     assert (
-        resolve_notification_tab_icon(_tab("deployments", kind="panel"))
+        _resolve_notification_tab_icon(_tab("deployments", kind="panel"))
         == (_KIND_TAB_ICONS["panel"])
     )
     assert (
-        resolve_notification_tab_icon(_tab("plan-review", kind="tag"))
+        _resolve_notification_tab_icon(_tab("plan-review", kind="tag"))
         == (_KIND_TAB_ICONS["tag"])
     )
 
 
 def test_a_tab_with_no_kind_at_all_falls_to_the_last_resort() -> None:
-    assert resolve_notification_tab_icon(_tab("deployments")) == _LAST_RESORT_TAB_ICON
+    assert _resolve_notification_tab_icon(_tab("deployments")) == _LAST_RESORT_TAB_ICON
 
 
 def test_two_tag_tabs_resolve_to_distinct_icons() -> None:
@@ -306,7 +309,7 @@ def test_an_empty_configured_icon_falls_through_to_the_default(
     """An empty string is the documented "restore the built-in" spelling."""
     _use_config(monkeypatch, {"notification_tabs": {"beads": {"icon": ""}}})
 
-    assert resolve_notification_tab_icon(_tab("beads")) == _BUILTIN_TAB_ICONS["beads"]
+    assert _resolve_notification_tab_icon(_tab("beads")) == _BUILTIN_TAB_ICONS["beads"]
 
 
 @pytest.mark.parametrize("configured", ["ab", " ◈ ", "\n", "x" * 40, 7, None, "🇺🇸🇬🇧"])
@@ -316,14 +319,14 @@ def test_a_junk_configured_icon_falls_through_to_the_default(
 ) -> None:
     _use_config(monkeypatch, {"notification_tabs": {"beads": {"icon": configured}}})
 
-    assert resolve_notification_tab_icon(_tab("beads")) == _BUILTIN_TAB_ICONS["beads"]
+    assert _resolve_notification_tab_icon(_tab("beads")) == _BUILTIN_TAB_ICONS["beads"]
 
 
 @pytest.mark.parametrize("stored", ["ab", "  ", 7, ""])
 def test_a_junk_stored_icon_degrades_instead_of_raising(stored: object) -> None:
     tab = NotificationTagTab(tag="beads", label="Beads", count=1, icon=stored)  # type: ignore[arg-type]
 
-    assert resolve_notification_tab_icon(tab) == _BUILTIN_TAB_ICONS["beads"]
+    assert _resolve_notification_tab_icon(tab) == _BUILTIN_TAB_ICONS["beads"]
 
 
 def test_no_icon_wide_enough_to_blow_out_the_top_bar_survives() -> None:
@@ -341,7 +344,7 @@ def test_a_configured_snoozed_icon_reaches_the_synthetic_tab(
 ) -> None:
     _use_config(monkeypatch, {"notification_tabs": {"snoozed": {"icon": "★"}}})
 
-    assert resolve_notification_tab_icon(_tab(SNOOZED_TAB_KEY)) == "★"
+    assert _resolve_notification_tab_icon(_tab(SNOOZED_TAB_KEY)) == "★"
 
 
 def test_every_bundled_glyph_is_single_cell() -> None:

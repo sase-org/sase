@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from textual.app import App, ComposeResult
 
+from sase.ace.testing import wait_for
 from sase.logs import launch_log, run_log, toast_log
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
@@ -74,11 +75,7 @@ class ModalTestApp(App[None]):
 
 
 async def wait_for_logs_loaded(pilot: object, pane: LogsPane) -> None:
-    for _ in range(50):
-        await pilot.pause(0.01)  # type: ignore[attr-defined]
-        if not pane._loading:
-            return
-    raise AssertionError("Logs pane did not finish loading")
+    await wait_for(pilot, lambda: not pane._loading)
 
 
 async def open_logs_pane(pilot: object) -> tuple[ConfigCenterModal, LogsPane]:

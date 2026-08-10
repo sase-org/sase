@@ -8,6 +8,7 @@ import pytest
 from textual.pilot import Pilot
 from textual.widgets import OptionList
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals.inventory_project_picker import InventoryProjectPicker
 from sase.ace.tui.modals.project_inventory_panes import (
     RepoInventoryPane,
@@ -181,11 +182,10 @@ def _patch_inventory_data(
 async def _wait_for_inventory(pilot: Pilot[None], pane: ProjectsPane) -> None:
     repo_pane = pane.query_one(RepoInventoryPane)
     workspace_pane = pane.query_one(WorkspaceInventoryPane)
-    for _ in range(20):
-        if not repo_pane._loading and not workspace_pane._loading:
-            return
-        await pilot.pause()
-    raise AssertionError("inventory workers did not finish")
+    await wait_for(
+        pilot,
+        lambda: not repo_pane._loading and not workspace_pane._loading,
+    )
 
 
 async def test_repo_and_workspace_subtabs_render_cached_inventory(

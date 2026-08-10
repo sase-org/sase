@@ -7,6 +7,7 @@ from typing import Any
 from textual.app import App, ComposeResult
 
 import sase.ace.tui.modals.models_panel as models_panel
+from sase.ace.testing import wait_for as wait_for_pilot
 from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
 from sase.config.inventory import ConfigDiagnostic
 from sase.llm_provider import AliasKind, AliasView, TemporaryLLMOverride
@@ -165,13 +166,9 @@ def make_edit_plan(
 
 
 async def wait_for(
-    pilot: Any, predicate: Callable[[], bool], *, tries: int = 400
+    pilot: Any, predicate: Callable[[], bool], *, timeout: float = 5.0
 ) -> None:
-    for _ in range(tries):
-        if predicate():
-            return
-        await pilot.pause()
-    raise AssertionError("condition was not satisfied in time")
+    await wait_for_pilot(pilot, predicate, timeout=timeout)
 
 
 def make_bucketed_views() -> list[AliasView]:

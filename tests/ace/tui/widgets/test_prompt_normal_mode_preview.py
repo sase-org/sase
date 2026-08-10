@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from types import SimpleNamespace
 
 import pytest
@@ -16,19 +15,6 @@ from sase.ace.tui.widgets._prompt_preview_target import (
 )
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 from sase.core.word_lookup import DefinitionResult, SpellCheckResult
-
-
-async def _wait_for(
-    page: PromptPage,
-    predicate: Callable[[], bool],
-    *,
-    attempts: int = 20,
-) -> None:
-    for _ in range(attempts):
-        if predicate():
-            return
-        await page.pause()
-    assert predicate()
 
 
 def _top_is_preview(page: PromptPage) -> bool:
@@ -78,7 +64,7 @@ async def test_k_on_previewable_token_pushes_preview_modal(
 
     async with PromptPage("run #foo", cursor=(0, 5), size=(80, 24)) as page:
         await page.press("K")
-        await _wait_for(page, lambda: _top_is_preview(page))
+        await page.wait_for(lambda: _top_is_preview(page))
 
         assert seen and seen[0][0] == "foo"
         assert isinstance(page.ta.app.screen_stack[-1], PreviewPanelModal)
@@ -120,7 +106,7 @@ async def test_k_on_warm_slash_skill_uses_skill_and_prompt_context(
         page.ta._xprompt_arg_assist_entries_by_project["sase"] = [_skill_entry()]
 
         await page.press("K")
-        await _wait_for(page, lambda: _top_is_preview(page))
+        await page.wait_for(lambda: _top_is_preview(page))
 
         token, project, base_dir = seen[0]
         assert token.raw == "/sase_plan"
@@ -205,7 +191,7 @@ async def test_k_on_cold_unambiguous_absolute_path_stays_a_file(
         )
 
         await page.press("K")
-        await _wait_for(page, lambda: _top_is_preview(page))
+        await page.wait_for(lambda: _top_is_preview(page))
 
         assert seen[0].kind == "file"
         assert seen[0].target == "/tmp/readme.md"
@@ -249,7 +235,7 @@ async def test_k_resolution_error_does_not_push_modal(
 
     async with PromptPage("#missing", cursor=(0, 1), size=(80, 24)) as page:
         await page.press("K")
-        await _wait_for(page, lambda: page.ta._prompt_preview_request_id == 1)
+        await page.wait_for(lambda: page.ta._prompt_preview_request_id == 1)
         await page.pause()
 
         assert not _top_is_preview(page)
