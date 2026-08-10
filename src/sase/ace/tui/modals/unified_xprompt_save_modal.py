@@ -89,6 +89,7 @@ class UnifiedXPromptSaveModal(
         pane_count: int = 1,
         initial_name: str = "",
         last_used: dict[SaveMode, str] | None = None,
+        preferred_snippet_path: str | None = None,
     ) -> None:
         super().__init__()
         self._locations_by_mode = {
@@ -100,6 +101,7 @@ class UnifiedXPromptSaveModal(
         self._snippet_body = snippet_body
         self._pane_count = pane_count
         self._last_used = last_used or {}
+        self._preferred_snippet_path = preferred_snippet_path
         self._mode: SaveMode = "xprompt"
         self._mode_names: dict[SaveMode, str] = {
             "xprompt": initial_name,

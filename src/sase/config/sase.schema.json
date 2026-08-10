@@ -575,6 +575,11 @@
             "type": "string"
           }
         },
+        "snippet_config_path": {
+          "type": "string",
+          "description": "Config file that receives new ace.snippets entries written from the prompt bar. Empty string uses the user's sase.yml (the chezmoi source when chezmoi is enabled). A relative path resolves against ~/.config/sase/. The suffix must be .yml or .yaml, and the file must be writable; an unusable configured value falls back to the default and reports why.",
+          "default": ""
+        },
         "tribes": {
           "type": "object",
           "description": "Per-tribe ACE TUI identity display settings, keyed by bare tribe name. Every configured tribe must carry a description.",

@@ -26,6 +26,7 @@ class UnifiedXPromptSaveDestinationsMixin(_MixinBase):
     if TYPE_CHECKING:
         _last_used: dict[SaveMode, str]
         _mode: SaveMode
+        _preferred_snippet_path: str | None
         _preview_tab: str
         _updating_options: bool
 
@@ -38,6 +39,13 @@ class UnifiedXPromptSaveDestinationsMixin(_MixinBase):
         def _disarm(self) -> None: ...
 
     def _default_location_path(self) -> str | None:
+        if self._mode == "snippet" and self._preferred_snippet_path:
+            preferred_snippet = self._preferred_snippet_path
+            if any(
+                row.location.path == preferred_snippet and row.is_selectable
+                for row in self._locations
+            ):
+                return preferred_snippet
         preferred = self._last_used.get(self._mode)
         if preferred and any(
             row.location.path == preferred and row.is_selectable

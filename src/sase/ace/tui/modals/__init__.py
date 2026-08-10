@@ -18,9 +18,6 @@ if TYPE_CHECKING:
     from .local_xprompt_name_modal import LocalXPromptNameModal as LocalXPromptNameModal
     from .project_select_modal import ProjectSelectModal as ProjectSelectModal
     from .schema_object_form import SchemaFieldDiagnostic as SchemaFieldDiagnostic
-    from .snippet_config_location_modal import (
-        SnippetConfigLocation as SnippetConfigLocation,
-    )
     from .xprompt_item_modal import XPromptItemModal as XPromptItemModal
 
 _LAZY_EXPORTS = {
@@ -245,10 +242,6 @@ _LAZY_EXPORTS = {
     "SchemaObjectForm": (".schema_object_form", "SchemaObjectForm"),
     "SchemaObjectFormModel": (".schema_object_form", "SchemaObjectFormModel"),
     "SelectionItem": (".project_selection_types", "SelectionItem"),
-    "SnippetConfigLocation": (
-        ".snippet_config_location_modal",
-        "SnippetConfigLocation",
-    ),
     "SnoozeDurationModal": (".snooze_duration_modal", "SnoozeDurationModal"),
     "StashRestoreResult": (".stashed_prompts_modal", "StashRestoreResult"),
     "StashedPromptsModal": (".stashed_prompts_modal", "StashedPromptsModal"),
@@ -319,10 +312,6 @@ _LAZY_EXPORTS = {
         "build_mentor_review_data",
     ),
     "get_runner_count": (".runners_modal", "get_runner_count"),
-    "load_snippet_config_locations": (
-        ".snippet_config_location_modal",
-        "load_snippet_config_locations",
-    ),
     "render_transaction_preview": (
         ".config_transaction_preview",
         "render_transaction_preview",
@@ -491,9 +480,7 @@ __all__ = [
     "BackgroundTaskEntry",
     "RunnerJumpTarget",
     "RunnersModal",
-    "SnippetConfigLocation",
     "SnoozeDurationModal",
-    "load_snippet_config_locations",
     "get_runner_count",
     "SelectionItem",
     "StatusModal",

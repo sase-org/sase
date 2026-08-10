@@ -24,8 +24,8 @@ from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat
 from sase.xprompt.save_index import IndexKind, names_for_location
 from sase.xprompt.skill_locations import SkillDestination, skill_destinations
+from sase.xprompt.snippet_targets import load_snippet_config_locations
 
-from .snippet_config_location_modal import load_snippet_config_locations
 from .xprompt_location_modal import (
     XPromptLocation,
     get_all_xprompt_locations,

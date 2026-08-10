@@ -172,6 +172,9 @@ def init_late_startup_state(
     self._agents_repro_output_dir = (
         str(ace_cfg.get("repro_output_dir", "")) if isinstance(ace_cfg, dict) else ""
     )
+    self._snippet_config_path = (
+        str(ace_cfg.get("snippet_config_path", "")) if isinstance(ace_cfg, dict) else ""
+    )
     from ..tools.slow import slow_tool_call_threshold_ms_from_config
 
     self._slow_tool_call_threshold_ms = slow_tool_call_threshold_ms_from_config(

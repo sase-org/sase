@@ -22,6 +22,7 @@ class _SaveHarness(PromptBarSaveXpromptMixin):
         self._user_snippets: dict[str, str] = {}
         self._snippets_cache: dict[str, str] | None = None
         self._pending_snippet_saves: dict[str, str] = {}
+        self._snippet_config_path = ""
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
@@ -91,6 +92,7 @@ class _SaveFlowApp(PromptBarSaveXpromptMixin, App[None]):
         self._user_snippets: dict[str, str] = {}
         self._snippets_cache: dict[str, str] | None = None
         self._pending_snippet_saves: dict[str, str] = {}
+        self._snippet_config_path = ""
         self.save_requests: list[PromptInputBar.SaveAsXpromptRequested] = []
 
     def compose(self) -> ComposeResult:

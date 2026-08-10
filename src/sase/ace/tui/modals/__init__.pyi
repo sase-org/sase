@@ -194,9 +194,6 @@ from .schema_object_form import SchemaObjectField as SchemaObjectField
 from .schema_object_form import SchemaObjectForm as SchemaObjectForm
 from .schema_object_form import SchemaObjectFormModel as SchemaObjectFormModel
 from .project_selection_types import SelectionItem as SelectionItem
-from .snippet_config_location_modal import (
-    SnippetConfigLocation as SnippetConfigLocation,
-)
 from .snooze_duration_modal import SnoozeDurationModal as SnoozeDurationModal
 from .stashed_prompts_modal import StashRestoreResult as StashRestoreResult
 from .stashed_prompts_modal import StashedPromptsModal as StashedPromptsModal
@@ -249,9 +246,6 @@ from .agent_workspace_tmux_modal import (
 )
 from .mentor_review_models import build_mentor_review_data as build_mentor_review_data
 from .runners_modal import get_runner_count as get_runner_count
-from .snippet_config_location_modal import (
-    load_snippet_config_locations as load_snippet_config_locations,
-)
 from .config_transaction_preview import (
     render_transaction_preview as render_transaction_preview,
 )

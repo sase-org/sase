@@ -118,6 +118,9 @@ ace:
   # Press d on the AXE tab to toggle this state for the current session.
   axe_description_expanded: true
   snippets: {}
+  # Config file that receives new ace.snippets entries. Empty string uses the
+  # user's sase.yml (chezmoi source when chezmoi is enabled).
+  snippet_config_path: ""
   artifacts:
     commits:
       # Relative date windows re-anchor whenever the pane refreshes. Queries

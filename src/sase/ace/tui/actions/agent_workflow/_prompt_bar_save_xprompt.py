@@ -45,6 +45,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
     # writes so ``get_snippets()`` rebuilds with the new template.
     _user_snippets: dict[str, str]
     _snippets_cache: dict[str, str] | None
+    _snippet_config_path: str
 
     async def on_prompt_input_bar_save_as_xprompt_requested(
         self, event: object
@@ -100,6 +101,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             load_unified_snippet_locations,
         )
         from sase.xprompt.save_state import load_last_used_locations
+        from sase.xprompt.snippet_targets import resolve_snippet_save_target
 
         project = (
             self._prompt_context.project_name
@@ -108,12 +110,13 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         )
         # A draft declaring ``skill:`` may only be written to a canonical
         # ``skills/`` directory, so it gets a different destination index.
-        locations, snippet_locations, last_used = await asyncio.gather(
+        locations, snippet_locations, last_used, snippet_target = await asyncio.gather(
             asyncio.to_thread(
                 load_unified_save_locations, project, skill=bool(frontmatter.skill)
             ),
             asyncio.to_thread(load_unified_snippet_locations, project),
             asyncio.to_thread(load_last_used_locations),
+            asyncio.to_thread(resolve_snippet_save_target, self._snippet_config_path),
         )
 
         non_empty_count = sum(1 for pane in panes if pane.text.strip())
@@ -160,6 +163,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
                     )
                 ),
                 last_used=last_used,
+                preferred_snippet_path=str(snippet_target.write_path),
             ),
             _on_target,
         )

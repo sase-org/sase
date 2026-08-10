@@ -194,6 +194,101 @@ async def test_ctrl_x_toggles_in_screen_snippet_mode(tmp_path: Path) -> None:
     assert result.path == str(config)
 
 
+async def test_preferred_snippet_path_wins_over_other_selectable_locations(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "xprompts"
+    directory.mkdir()
+    first = tmp_path / "first.yml"
+    first.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    preferred = tmp_path / "preferred.yml"
+    preferred.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    app = _ModalApp()
+
+    async with app.run_test(size=(105, 36)) as pilot:
+        app.push_screen(
+            UnifiedXPromptSaveModal(
+                [_row(directory)],
+                snippet_locations=[
+                    _row(first, location_type="config", precedence=0),
+                    _row(preferred, location_type="config", precedence=1),
+                ],
+                preferred_snippet_path=str(preferred),
+            )
+        )
+        await pilot.pause()
+        await pilot.press("ctrl+x")
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, UnifiedXPromptSaveModal)
+        assert modal._selected_location_path() == str(preferred)
+
+
+async def test_preferred_snippet_path_wins_over_last_used(tmp_path: Path) -> None:
+    last_used_path = tmp_path / "last_used.yml"
+    last_used_path.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    preferred = tmp_path / "preferred.yml"
+    preferred.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    directory = tmp_path / "xprompts"
+    directory.mkdir()
+    app = _ModalApp()
+
+    async with app.run_test(size=(105, 36)) as pilot:
+        app.push_screen(
+            UnifiedXPromptSaveModal(
+                [_row(directory)],
+                snippet_locations=[
+                    _row(last_used_path, location_type="config", precedence=0),
+                    _row(preferred, location_type="config", precedence=1),
+                ],
+                preferred_snippet_path=str(preferred),
+                last_used={"snippet": str(last_used_path)},
+            )
+        )
+        await pilot.pause()
+        await pilot.press("ctrl+x")
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, UnifiedXPromptSaveModal)
+        assert modal._selected_location_path() == str(preferred)
+
+
+async def test_non_selectable_preferred_snippet_path_falls_back_to_last_used(
+    tmp_path: Path,
+) -> None:
+    last_used_path = tmp_path / "last_used.yml"
+    last_used_path.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    preferred = tmp_path / "preferred.yml"
+    preferred.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    directory = tmp_path / "xprompts"
+    directory.mkdir()
+    app = _ModalApp()
+
+    async with app.run_test(size=(105, 36)) as pilot:
+        app.push_screen(
+            UnifiedXPromptSaveModal(
+                [_row(directory)],
+                snippet_locations=[
+                    _row(last_used_path, location_type="config", precedence=0),
+                    _row(
+                        preferred,
+                        location_type="config",
+                        precedence=1,
+                        disabled_reason="read-only",
+                    ),
+                ],
+                preferred_snippet_path=str(preferred),
+                last_used={"snippet": str(last_used_path)},
+            )
+        )
+        await pilot.pause()
+        await pilot.press("ctrl+x")
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, UnifiedXPromptSaveModal)
+        assert modal._selected_location_path() == str(last_used_path)
+
+
 async def test_ctrl_x_wins_over_input_cut_and_works_from_every_field(
     tmp_path: Path,
 ) -> None:
