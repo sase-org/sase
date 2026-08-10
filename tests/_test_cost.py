@@ -294,6 +294,10 @@ def build_cost_record(
         float(worker.get("collection_seconds", 0.0) or 0.0)
         for worker in worker_payloads
     )
+    collection_cpu = sum(
+        float(worker.get("collection_cpu_seconds", 0.0) or 0.0)
+        for worker in worker_payloads
+    )
     peak_rss = max(
         (int(worker.get("peak_rss_kib", 0) or 0) for worker in worker_payloads),
         default=0,
@@ -318,6 +322,7 @@ def build_cost_record(
             "worker_wall_seconds": _round_seconds(worker_wall),
             "worker_cpu_seconds": _round_seconds(worker_cpu),
             "collection_seconds": _round_seconds(collection),
+            "collection_cpu_seconds": _round_seconds(collection_cpu),
             "peak_worker_rss_kib": peak_rss,
             "worker_rss_curve_kib": rss_curve,
             "causes": causes,
@@ -445,6 +450,26 @@ def _budget_limit(raw_budget: object) -> float | None:
         return None
 
 
+def worker_divisor(record: Mapping[str, Any]) -> int:
+    """Resolve how many workers a per-worker summary metric was summed over."""
+
+    worker_count = record.get("worker_count")
+    if isinstance(worker_count, (int, float)) and not isinstance(worker_count, bool):
+        if worker_count >= 1:
+            return int(worker_count)
+    workers = record.get("workers")
+    if isinstance(workers, Sequence):
+        reporting = sum(
+            1
+            for worker in workers
+            if isinstance(worker, Mapping)
+            and worker.get("collection_seconds") is not None
+        )
+        if reporting:
+            return reporting
+    return 1
+
+
 def check_cost_budgets(
     record: Mapping[str, Any],
     budgets: Mapping[str, Any],
@@ -462,7 +487,11 @@ def check_cost_budgets(
             actual = _summary_value(record, str(metric))
             if limit is None or actual is None:
                 continue
-            failure = CostBudgetFailure(str(metric), actual, limit, tolerance)
+            label = str(metric)
+            if isinstance(raw_budget, Mapping) and raw_budget.get("per_worker"):
+                actual = actual / worker_divisor(record)
+                label = f"{metric} (per worker)"
+            failure = CostBudgetFailure(label, actual, limit, tolerance)
             if actual > failure.allowed:
                 failures.append(failure)
 

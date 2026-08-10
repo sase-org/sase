@@ -4,9 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import json
+import math
 import os
+import statistics
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -15,17 +20,32 @@ if str(REPO_ROOT) not in sys.path:
 
 from tests._test_cost import (  # noqa: E402
     TEST_COST_DIR_ENV,
+    TEST_COST_SCHEMA,
     check_cost_budgets,
     cost_directory,
+    cost_recording_paths,
     latest_cost_record,
     load_cost_budgets,
     load_cost_record,
+    worker_divisor,
 )
 from tests._test_selection_health_store import store_directory  # noqa: E402
 
 
 DEFAULT_BUDGET_PATH = (
     REPO_ROOT / "tests" / "perf" / "baselines" / "test_cost_budgets.json"
+)
+
+# (metric, per_worker) pairs suggested from recorded history. Per-worker metrics
+# are summed across xdist workers by build_cost_record(), so they must be
+# divided back down before a limit derived from a single worker's cost is
+# meaningful.
+SUGGESTED_SUMMARY_METRICS: tuple[tuple[str, bool], ...] = (
+    ("total_file_wall_seconds", False),
+    ("idle_seconds", False),
+    ("peak_worker_rss_kib", False),
+    ("collection_seconds", True),
+    ("collection_cpu_seconds", True),
 )
 
 
@@ -38,6 +58,172 @@ def _default_recording_path() -> Path:
             f"--recording (override directory with {TEST_COST_DIR_ENV})"
         )
     return path
+
+
+def _history_recording_paths(directory: Path, history: int | None) -> list[Path]:
+    paths = cost_recording_paths(directory)
+    if not paths:
+        raise SystemExit(
+            "no test-cost recordings found; run `just test-cost` first (override "
+            f"directory with {TEST_COST_DIR_ENV})"
+        )
+    if history is not None and history > 0:
+        return paths[-history:]
+    return paths
+
+
+def _local_tolerance(budgets: Mapping[str, Any]) -> float:
+    raw = budgets.get("tolerance", 0.15)
+    if isinstance(raw, Mapping):
+        raw = raw.get("local", raw.get("default", 0.15))
+    try:
+        return max(float(raw), 0.0)
+    except (TypeError, ValueError):
+        return 0.15
+
+
+def _round_up_nice(value: float) -> float:
+    """Round ``value`` up to a round number carrying about 2 significant figures."""
+
+    if value <= 0:
+        return 0.0
+    magnitude = math.floor(math.log10(value))
+    step = 10 ** max(magnitude - 1, 0)
+    return float(math.ceil(value / step) * step)
+
+
+def _suggest_limit(values: Sequence[float], tolerance: float) -> float | None:
+    if not values:
+        return None
+    return _round_up_nice(max(values) / (1.0 + tolerance))
+
+
+def _summary_metric_values(
+    records: Sequence[Mapping[str, Any]], metric: str, *, per_worker: bool
+) -> list[float]:
+    values: list[float] = []
+    for record in records:
+        summary = record.get("summary")
+        if not isinstance(summary, Mapping):
+            continue
+        raw = summary.get(metric)
+        if raw is None:
+            continue
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if per_worker:
+            value = value / worker_divisor(record)
+        values.append(value)
+    return values
+
+
+def _cause_names(records: Sequence[Mapping[str, Any]]) -> list[str]:
+    names: set[str] = set()
+    for record in records:
+        summary = record.get("summary")
+        causes = summary.get("causes") if isinstance(summary, Mapping) else None
+        if isinstance(causes, Mapping):
+            names.update(str(name) for name in causes)
+    return sorted(names)
+
+
+def _cause_values(records: Sequence[Mapping[str, Any]], name: str) -> list[float]:
+    values: list[float] = []
+    for record in records:
+        summary = record.get("summary")
+        causes = summary.get("causes") if isinstance(summary, Mapping) else None
+        payload = causes.get(name) if isinstance(causes, Mapping) else None
+        if isinstance(payload, Mapping) and payload.get("seconds") is not None:
+            try:
+                values.append(float(payload["seconds"]))
+            except (TypeError, ValueError):
+                continue
+    return values
+
+
+def _provenance_notes(records: Sequence[Mapping[str, Any]]) -> list[str]:
+    hosts = sorted({str(record["host"]) for record in records if record.get("host")})
+    recorded_ats = sorted(
+        str(record["recorded_at"]) for record in records if record.get("recorded_at")
+    )
+    worker_counts = [
+        int(record["worker_count"])
+        for record in records
+        if isinstance(record.get("worker_count"), int)
+    ]
+    node_counts = [
+        int(record["summary"]["node_count"])
+        for record in records
+        if isinstance(record.get("summary"), Mapping)
+        and isinstance(record["summary"].get("node_count"), int)
+    ]
+    return [
+        f"sample: {len(records)} recording(s) from {', '.join(hosts) or 'unknown host'}",
+        "date range (UTC): "
+        f"{recorded_ats[0] if recorded_ats else 'n/a'} to "
+        f"{recorded_ats[-1] if recorded_ats else 'n/a'}",
+        "worker counts: "
+        + (f"{min(worker_counts)}-{max(worker_counts)}" if worker_counts else "n/a"),
+        "node counts: "
+        + (f"{min(node_counts)}-{max(node_counts)}" if node_counts else "n/a"),
+    ]
+
+
+def suggest_budgets(
+    directory: Path, history: int | None, current_budgets: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Derive suggested suite-cost budgets from recent recorded history."""
+
+    paths = _history_recording_paths(directory, history)
+    records = [load_cost_record(path) for path in paths]
+    tolerance = _local_tolerance(current_budgets)
+
+    summary: dict[str, Any] = {}
+    metric_notes: list[str] = []
+    for metric, per_worker in SUGGESTED_SUMMARY_METRICS:
+        values = _summary_metric_values(records, metric, per_worker=per_worker)
+        limit = _suggest_limit(values, tolerance)
+        if limit is None:
+            continue
+        entry: dict[str, Any] = {"limit": limit}
+        if per_worker:
+            entry["per_worker"] = True
+        summary[metric] = entry
+        label = f"summary.{metric}" + (" (per worker)" if per_worker else "")
+        metric_notes.append(
+            f"{label}: min={min(values):.3f} median={statistics.median(values):.3f} "
+            f"max={max(values):.3f}"
+        )
+
+    causes: dict[str, Any] = {}
+    for name in _cause_names(records):
+        values = _cause_values(records, name)
+        limit = _suggest_limit(values, tolerance)
+        if limit is None:
+            continue
+        causes[name] = {"limit": limit}
+        metric_notes.append(
+            f"causes.{name}: min={min(values):.3f} median={statistics.median(values):.3f} "
+            f"max={max(values):.3f}"
+        )
+
+    notes = [
+        "Suggested by `tools/check_test_cost_budgets --suggest`: limit = "
+        "ceil(worst recorded value / (1 + local tolerance)), rounded up to a round "
+        "number.",
+        *_provenance_notes(records),
+        *metric_notes,
+    ]
+
+    return {
+        "schema": TEST_COST_SCHEMA,
+        "tolerance": current_budgets.get("tolerance", {"ci": 0.2, "local": 0.15}),
+        "summary": summary,
+        "causes": causes,
+        "notes": notes,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -59,9 +245,34 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("CI") == "true",
         help="use the CI tolerance from the budget file",
     )
+    parser.add_argument(
+        "--suggest",
+        action="store_true",
+        help=(
+            "print suggested budgets (with provenance) derived from recorded "
+            "history instead of checking the newest recording"
+        ),
+    )
+    parser.add_argument(
+        "--history",
+        type=int,
+        default=None,
+        help="with --suggest, use only the newest N recordings (default: all retained)",
+    )
     args = parser.parse_args(argv)
 
     budget_path = args.budgets
+
+    if args.suggest:
+        try:
+            current_budgets = load_cost_budgets(budget_path)
+        except (OSError, ValueError):
+            current_budgets = {}
+        directory = cost_directory(store_directory(REPO_ROOT))
+        suggested = suggest_budgets(directory, args.history, current_budgets)
+        print(json.dumps(suggested, indent=2, sort_keys=True))
+        return 0
+
     budgets = load_cost_budgets(budget_path)
     record_path = args.recording or _default_recording_path()
     record = load_cost_record(record_path)

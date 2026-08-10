@@ -21,11 +21,27 @@ set `SASE_TEST_COST_DIR` to redirect them. `tools/check_test_cost_budgets` compa
 newest recording with `tests/perf/baselines/test_cost_budgets.json`, and
 `just check-full` plus the Python 3.13 CI test leg enforce that comparison.
 
+Budget entries are either per-worker or suite-wide totals, and mixing the two up
+silently defeats the gate:
+
+- `collection_seconds` and `collection_cpu_seconds` are **per-worker** limits: every
+  xdist worker collects the whole suite, so `build_cost_record()` sums the metric across
+  workers before a budget entry marked `"per_worker": true` divides it back down by the
+  record's worker count (falling back to the number of worker payloads that reported
+  collection time, then to 1) before comparing against the limit.
+- Every other summary entry (`total_file_wall_seconds`, `idle_seconds`,
+  `peak_worker_rss_kib`) and every `causes.*` entry is a **suite-wide total**, not
+  normalized by worker count.
+- `peak_worker_rss_kib` is the peak of a worker's RSS curve sampled across the run
+  (`worker_rss_curve_kib.peak`), not the curve's `post_collection` reading — workers
+  stabilize around ~520 MiB right after collection, then grow substantially over the
+  run.
+
 Read failures by bucket:
 
 - `total_file_wall_seconds` and `idle_seconds` point to broad suite cost or waiting.
-- `collection_seconds` and `peak_worker_rss_kib` point to import-time or retained worker
-  state.
+- `collection_seconds`, `collection_cpu_seconds`, and `peak_worker_rss_kib` point to
+  import-time or retained worker state.
 - Cause entries such as `textual_app_run_test_enter`, `ace_page_enter`, `parser_create`,
   `yaml_load`, and `subprocess_run` point to the hot pattern to audit.
 
@@ -36,9 +52,20 @@ just test-cost -- tests/ace/tui/widgets/test_vim_normal_key_containment.py
 tools/test_cost_report --top 20
 ```
 
-The committed budgets intentionally have tolerance for host noise. Raise them only with
-a fresh full-suite recording and an explanation of why the new steady-state cost is
-acceptable; do not raise them to hide a one-off regression.
+The committed budgets intentionally have tolerance for host noise. Raise a limit with
+this workflow, not a hand-picked number, and do not raise one to hide a one-off
+regression:
+
+```bash
+just test-cost
+tools/check_test_cost_budgets --suggest
+```
+
+`--suggest` reads the newest retained recordings (`--history N` to limit the sample),
+derives each limit as `ceil(worst recorded value / (1 + local tolerance))` rounded up to
+a round number, and prints a budget JSON along with the `notes` provenance line (sample
+size, host, UTC date range, worker-count range, node-count range, and per-metric
+min/median/max) to paste alongside the new limits.
 
 ## Trace recorder
 

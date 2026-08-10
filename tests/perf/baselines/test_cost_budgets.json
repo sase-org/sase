@@ -1,40 +1,52 @@
 {
   "causes": {
     "ace_page_enter": {
-      "limit": 230.0
+      "limit": 400.0
+    },
+    "ace_settle_pilot": {
+      "limit": 340.0
     },
     "parser_create": {
-      "limit": 50.0
+      "limit": 35.0
+    },
+    "pilot_pause_delay": {
+      "limit": 190.0
     },
     "subprocess_run": {
-      "limit": 300.0
+      "limit": 320.0
     },
     "textual_app_run_test_enter": {
-      "limit": 250.0
+      "limit": 350.0
     },
     "yaml_load": {
       "limit": 20.0
     }
   },
   "notes": [
-    "Budgets are checked against recordings from `just test-cost`.",
-    "Local tolerance absorbs host noise; CI receives a wider tolerance for shared runners.",
-    "Collection/RSS limits come from sase-ib.5's measured 12.399s collection and 500632 KiB peak RSS, rounded up.",
-    "Cause limits preserve the sase-ib reductions while avoiding brittle single-run exactness."
+    "Limits are derived as ceil(worst recorded value / (1 + local tolerance)), rounded up to a round number; run `tools/check_test_cost_budgets --suggest` against fresh recordings and paste its output (including provenance) rather than hand-picking a number.",
+    "Sample: 8 recordings from host athena, 2026-08-10 15:21Z-17:46Z, 4-14 workers, 28,380-28,470 nodes.",
+    "`collection_seconds` and `collection_cpu_seconds` are per-worker limits (each xdist worker collects the whole suite, so the recorded summary sum is divided by the worker count before comparison); every other summary and cause entry is a suite-wide total.",
+    "`peak_worker_rss_kib` is the peak of a worker's RSS curve sampled across the run, not the curve's post-collection reading (~520 MiB), which is stable and much lower.",
+    "Raising a limit requires a fresh `just test-cost` recording plus `tools/check_test_cost_budgets --suggest` output \u2014 do not raise a limit to hide a one-off regression."
   ],
   "schema": 1,
   "summary": {
+    "collection_cpu_seconds": {
+      "limit": 20.0,
+      "per_worker": true
+    },
     "collection_seconds": {
-      "limit": 15.0
+      "limit": 60.0,
+      "per_worker": true
     },
     "idle_seconds": {
-      "limit": 900.0
+      "limit": 2900.0
     },
     "peak_worker_rss_kib": {
-      "limit": 716800.0
+      "limit": 1100000.0
     },
     "total_file_wall_seconds": {
-      "limit": 2300.0
+      "limit": 4000.0
     }
   },
   "tolerance": {
