@@ -220,7 +220,7 @@ def test_main_rejects_invalid_distribution_before_worker_acquisition(
     ) in capsys.readouterr().err
 
 
-def test_main_cost_mode_arms_only_the_cost_recorder(
+def test_main_cost_mode_arms_cost_and_health_recorders(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     runner = load_run_pytest()
@@ -234,6 +234,7 @@ def test_main_cost_mode_arms_only_the_cost_recorder(
 
     def _execv(_executable: str, command: list[str]) -> None:
         observed["command"] = command
+        observed["health_request"] = runner.os.environ.get(runner.RECORD_ENV)
         observed["timings_request"] = runner.os.environ.get(runner.TIMINGS_RECORD_ENV)
         observed["cost_request"] = runner.os.environ.get(runner.TEST_COST_RECORD_ENV)
         raise ExecCalled
@@ -247,8 +248,10 @@ def test_main_cost_mode_arms_only_the_cost_recorder(
     assert isinstance(command, list)
     assert runner.TIMINGS_PLUGIN_MODULE not in command
     assert runner.TEST_COST_PLUGIN_MODULE in command
-    assert runner.HEALTH_PLUGIN_MODULE not in command
+    assert runner.HEALTH_PLUGIN_MODULE in command
 
+    health_request = json.loads(str(observed["health_request"]))
+    assert health_request["mode"] == "cost"
     assert observed["timings_request"] is None
 
     cost_request = json.loads(str(observed["cost_request"]))
@@ -274,6 +277,9 @@ def test_main_ace_page_group_isolation_uses_manifest_without_recorders(
     monkeypatch.setattr(runner, "ACE_PAGE_GROUP_MANIFEST", Path("manifest.txt"))
     monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(tmp_path / "scratch"))
     monkeypatch.setattr(runner, "_parallel_worker_grant", lambda: (2, None))
+    monkeypatch.delenv(runner.RECORD_ENV, raising=False)
+    monkeypatch.delenv(runner.TIMINGS_RECORD_ENV, raising=False)
+    monkeypatch.delenv(runner.TEST_COST_RECORD_ENV, raising=False)
     observed: dict[str, object] = {}
 
     class ExecCalled(Exception):
