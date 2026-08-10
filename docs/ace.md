@@ -1036,7 +1036,8 @@ whole tribe panel adds level 4 for exhaustive detail. These keys are configurabl
 [Agent Clans, Families, and Tribes](agent_families.md) for the grouping model.
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel
-adds `PLAN` as the leading lane in `SASE CONTEXT`. Its lane order is `BEAD`, `PLAN`,
+adds a `PLAN` lane in `SASE CONTEXT`. A task worker that authored a plan in the same run
+also shows a `PLAN` lane beside its task `BEAD` lane. The lane order is `BEAD`, `PLAN`,
 `ARTIFACTS`, the audited `MEMORY`, `SKILLS`, and `WORKSPACES`, with absent lanes
 omitted. A plan or any recorded output is enough to show the context section. An epic
 phase worker never shows its parent epic as a `PLAN` lane. Instead, its launch metadata
@@ -3263,39 +3264,43 @@ pinned attempt view resets the cursor.
   indented under its aggregate row. `Ctrl+J` / `Ctrl+K` navigate the rendered section
   headings, and pressing the row's number jumps to that member in the Agents list. At
   most 100 members receive numbers.
-- **SASE CONTEXT / BEAD**: Shown for an epic phase worker and limited to its selected
-  phase. Its fields are `Phase Title`, `Description`, `Size`, `Epic Plan`, and
-  `Epic Title`, in that order. The phase title comes from the same validated,
-  frontmatter-ordered phase entry, is normalized to one line, wraps losslessly, and
-  renders a quiet `unavailable` for missing, unreadable, damaged, or out-of-range
-  entries. Exact validated sizes use literal blue `small`, gold `medium`, or rose
-  `large` chips; missing/unreadable/damaged plans, explicit invalid sizes, and
-  out-of-range phase ordinals also show a quiet `unavailable` size. Modern explicit
-  phase metadata avoids bead-store reads. The parent goal, dependencies, and peer phases
-  are never rendered, and the parent plan does not become a generic artifact.
-- **SASE CONTEXT / PLAN**: Shown for the epic-authoring planner and epic lander when
-  direct metadata or a confirmed legacy epic association resolves a plan. Phase workers
-  deliberately omit the parent epic lane; no goal or peer roadmap phase is rendered. For
-  plan-bearing roles, the body rows are `Title`, `Goal`, and canonical `Path`, in that
-  order. The lane header carries the effective tier (`plan`, `tale`, or `epic`) and an
-  epic's phase count. An `approve` action displays `plan`, `tale` and legacy commit-only
-  actions display `tale`, and an `epic` action displays `epic`, even when the
-  corresponding commit or launch later fails. Without action metadata, a valid authored
-  tale or epic supplies the tier; legacy committed plans without a readable authored
-  tier display `tale`, and unresolved values display `tier unavailable`. Canonical path
-  selection remains separate: committed paths are workspace-relative, while pending or
-  explicitly uncommitted paths use the home-shortened machine-local archive. Valid
-  authored epics then show every phase in authored order with its title, fixed-width
-  literal size chip, ID, dependency IDs, optional model, and optional description; these
-  are static roadmap ordinals, not progress indicators. Launch-consumption validation
-  normalizes only an omitted historical size to `small`; explicit invalid sizes remain
-  unavailable. The chip stays visible while the title and every other value wrap without
-  truncation in the normal panel and metadata zoom view, and logical text exposes the
-  same labels to metadata search and copy. Only the path participates in file hint mode.
-  Invalid known epics show `phases unavailable` in the lane header without leaking
-  partial entries; tales do not show a phase roadmap. A plan alone renders
-  `SASE CONTEXT`; across every combination of present lanes, the full order is `BEAD`,
-  `PLAN`, `ARTIFACTS`, `MEMORY`, `SKILLS`, then `WORKSPACES`, with absent lanes omitted.
+- **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
+  phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
+  `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title
+  comes from the same validated, frontmatter-ordered phase entry, is normalized to one
+  line, wraps losslessly, and renders a quiet `unavailable` for missing, unreadable,
+  damaged, or out-of-range entries. Exact validated sizes use literal blue `small`, gold
+  `medium`, or rose `large` chips; missing/unreadable/damaged plans, explicit invalid
+  sizes, and out-of-range phase ordinals also show a quiet `unavailable` size. Modern
+  explicit phase metadata avoids bead-store reads. The parent goal, dependencies, and
+  peer phases are never rendered, and the parent plan does not become a generic
+  artifact. For a task worker, the fields are `Task Title`, `Description`, optional
+  `Notes`, `Size`, optional `+1 Reports` / `+1 Evidence`, and `Created`.
+- **SASE CONTEXT / PLAN**: Shown for the epic-authoring planner, epic lander, and task
+  workers with a distinct authored plan when direct metadata or a confirmed legacy epic
+  association resolves a plan. Phase workers deliberately omit the parent epic lane; no
+  goal or peer roadmap phase is rendered. A task bead's own `design` field is never
+  rendered as the task worker's `PLAN` lane. For plan-bearing roles, the body rows are
+  `Title`, `Goal`, and canonical `Path`, in that order. The lane header carries the
+  effective tier (`plan`, `tale`, or `epic`) and an epic's phase count. An `approve`
+  action displays `plan`, `tale` and legacy commit-only actions display `tale`, and an
+  `epic` action displays `epic`, even when the corresponding commit or launch later
+  fails. Without action metadata, a valid authored tale or epic supplies the tier;
+  legacy committed plans without a readable authored tier display `tale`, and unresolved
+  values display `tier unavailable`. Canonical path selection remains separate:
+  committed paths are workspace-relative, while pending or explicitly uncommitted paths
+  use the home-shortened machine-local archive. Valid authored epics then show every
+  phase in authored order with its title, fixed-width literal size chip, ID, dependency
+  IDs, optional model, and optional description; these are static roadmap ordinals, not
+  progress indicators. Launch-consumption validation normalizes only an omitted
+  historical size to `small`; explicit invalid sizes remain unavailable. The chip stays
+  visible while the title and every other value wrap without truncation in the normal
+  panel and metadata zoom view, and logical text exposes the same labels to metadata
+  search and copy. Only the path participates in file hint mode. Invalid known epics
+  show `phases unavailable` in the lane header without leaking partial entries; tales do
+  not show a phase roadmap. A plan alone renders `SASE CONTEXT`; across every
+  combination of present lanes, the full order is `BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`,
+  `SKILLS`, then `WORKSPACES`, with absent lanes omitted.
 - **SASE CONTEXT / ARTIFACTS**: The plan-adjacent output lane groups `Commits`,
   `Deltas`, and `Artifacts` as compact fields, preserves that internal order, and
   summarizes only the present fields in its header. Commits persisted by the selected

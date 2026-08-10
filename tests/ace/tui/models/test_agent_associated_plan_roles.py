@@ -10,7 +10,7 @@ import pytest
 import sase.ace.tui.models.agent_associated_plan as plan_model
 from sase.ace.tui.models.agent_associated_plan import resolve_agent_plan_enrichment
 from sase.bead.model import Issue, IssueType, PhaseSize, TaskPlusOneEvidence
-from tests.ace.tui.models._agent_associated_plan_helpers import write_epic
+from tests.ace.tui.models._agent_associated_plan_helpers import write_epic, write_plan
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
@@ -172,6 +172,7 @@ def test_task_worker_resolves_to_plan_free_task_bead_lane(
         "_lookup_issue",
         lambda _agent, bead_id, **_kwargs: task if bead_id == task.id else None,
     )
+    # An ambient SDD reference is not authored-plan handoff evidence for a task row.
     monkeypatch.setattr(
         plan_model,
         "_load_plan_metadata",
@@ -204,3 +205,138 @@ def test_task_worker_resolves_to_plan_free_task_bead_lane(
     assert enrichment.bead_summary.plus_one_count == 1
     assert enrichment.bead_summary.plus_one_evidence == tuple(task.plus_one_evidence)
     assert enrichment.bead_summary.display_plan_path is None
+
+
+@pytest.mark.parametrize("task_id", ("sase-task", "sase-task.4"))
+def test_task_worker_with_authored_plan_shows_bead_and_plan(
+    tmp_path: Path,
+    task_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    archived = write_plan(
+        tmp_path / "archive" / "task_handoff.md",
+        "Show the authored task plan beside the task bead.",
+        title="Task authored handoff",
+    )
+    selected_plan = write_plan(
+        workspace / "plans" / "task_handoff.md",
+        "Show the authored task plan beside the task bead.",
+        title="Task authored handoff",
+    )
+    task = Issue(
+        id=task_id,
+        title="Implement task surfaces",
+        issue_type=IssueType.TASK,
+        description="Render task metadata with an authored plan.",
+        size=PhaseSize.MEDIUM,
+    )
+    monkeypatch.setattr(
+        plan_model,
+        "_lookup_issue",
+        lambda _agent, bead_id, **_kwargs: task if bead_id == task.id else None,
+    )
+
+    enrichment = resolve_agent_plan_enrichment(
+        make_agent(
+            agent_name=f"{task_id}--plan",
+            agent_family_role="root",
+            role_suffix="--plan",
+            archived_plan_path=str(archived),
+            sdd_plan_path="plans/task_handoff.md",
+            plan_committed=True,
+            plan_action="tale",
+            workspace_dir=str(workspace),
+        )
+    )
+
+    assert enrichment.role == "task"
+    assert enrichment.bead_summary is not None
+    assert enrichment.bead_summary.bead_type == "task"
+    assert enrichment.associated_plan is not None
+    assert enrichment.associated_plan.title == "Task authored handoff"
+    assert enrichment.associated_plan.goal == (
+        "Show the authored task plan beside the task bead."
+    )
+    assert enrichment.associated_plan.effective_tier == "tale"
+    assert enrichment.resolved_plan_paths == (str(selected_plan.resolve()),)
+
+
+def test_task_worker_with_pending_authored_plan_uses_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = Issue(
+        id="sase-task",
+        title="Review pending handoff",
+        issue_type=IssueType.TASK,
+        description="Show the uncommitted archived plan.",
+    )
+    archived = write_plan(
+        tmp_path / "archive" / "pending_task_plan.md",
+        "Keep pending task plans visible.",
+        title="Pending task plan",
+    )
+    monkeypatch.setattr(
+        plan_model,
+        "_lookup_issue",
+        lambda _agent, bead_id, **_kwargs: task if bead_id == task.id else None,
+    )
+
+    enrichment = resolve_agent_plan_enrichment(
+        make_agent(
+            agent_name=task.id,
+            archived_plan_path=str(archived),
+        )
+    )
+
+    assert enrichment.role == "task"
+    assert enrichment.bead_summary is not None
+    assert enrichment.bead_summary.bead_type == "task"
+    assert enrichment.associated_plan is not None
+    assert enrichment.associated_plan.actual_path == str(archived.resolve())
+    assert enrichment.associated_plan.effective_tier == "plan"
+    assert enrichment.associated_plan.committed is False
+    assert enrichment.resolved_plan_paths == (str(archived.resolve()),)
+
+
+def test_task_bead_design_does_not_become_plan_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    write_plan(
+        workspace / "plans" / "task_design.md",
+        "This task design is not the worker's authored plan.",
+        title="Task design",
+    )
+    task = Issue(
+        id="sase-task",
+        title="Task with design",
+        issue_type=IssueType.TASK,
+        description="Keep the task bead lane plan-free.",
+        design="plans/task_design.md",
+    )
+    monkeypatch.setattr(
+        plan_model,
+        "_lookup_issue",
+        lambda _agent, bead_id, **_kwargs: task if bead_id == task.id else None,
+    )
+    monkeypatch.setattr(
+        plan_model,
+        "_load_plan_metadata",
+        lambda *_args, **_kwargs: pytest.fail("task design must not be read as a plan"),
+    )
+
+    enrichment = resolve_agent_plan_enrichment(
+        make_agent(
+            agent_name=task.id,
+            workspace_dir=str(workspace),
+        )
+    )
+
+    assert enrichment.role == "task"
+    assert enrichment.bead_summary is not None
+    assert enrichment.bead_summary.bead_type == "task"
+    assert enrichment.associated_plan is None
+    assert enrichment.resolved_plan_paths == ()

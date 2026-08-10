@@ -12,6 +12,7 @@ from rich.text import Text
 from sase.ace.patch.models import DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.agent_associated_plan import (
     AssociatedPlanSummary,
+    BeadSummary,
     PhaseBeadSummary,
 )
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
@@ -154,6 +155,24 @@ def _bead_section() -> ResponsiveBeadSection:
     )
 
 
+def _task_bead_section() -> ResponsiveBeadSection:
+    return ResponsiveBeadSection(
+        BeadSummary(
+            id="sase-task",
+            phase_title="Task authored a plan",
+            description="Render both task and authored-plan context.",
+            actual_plan_path=None,
+            display_plan_path=None,
+            plan_exists=False,
+            plan_readable=False,
+            epic_title=None,
+            size="medium",
+            created_at="2026-08-01T14:30:00Z",
+            bead_type="task",
+        )
+    )
+
+
 def _span_style_for(text: Text, needle: str) -> str:
     start = text.plain.index(needle)
     end = start + len(needle)
@@ -241,6 +260,23 @@ def test_bead_precedes_plan_without_changing_plan_range_bookkeeping() -> None:
     assert text[bead_start:bead_end].plain == bead_section.logical_text.plain
     assert text[plan_start:plan_end].plain == plan_section.logical_text.plain
     assert bead_end < plan_start
+
+
+def test_task_authored_plan_context_renders_bead_then_plan_lane() -> None:
+    text = Text()
+
+    append_agent_context_section(
+        text,
+        bead_section=_task_bead_section(),
+        plan_section=_plan_section(),
+    )
+
+    plain = text.plain
+    assert "SASE CONTEXT\n" in plain
+    assert "▸ BEAD · ◆ task sase-task\n" in plain
+    assert "  Task Title: Task authored a plan\n" in plain
+    assert "▸ PLAN · tale\n" in plain
+    assert plain.index("▸ BEAD") < plain.index("▸ PLAN")
 
 
 def test_memory_only_context_omits_empty_skills_lane() -> None:

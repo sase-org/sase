@@ -42,6 +42,7 @@ from ._agent_associated_plan_summary import (
     build_associated_plan_summary as _build_associated_plan_summary,
     direct_plan_reference as _direct_plan_reference,
     effective_commit_state as _effective_commit_state,
+    resolve_authored_plan as _resolve_authored_plan,
 )
 from ._agent_associated_plan_types import (
     AgentPlanRole,
@@ -117,12 +118,7 @@ def resolve_agent_plan_enrichment(
                 lookup_session=lookup_session,
             )
         if association is not None and association.role == "task":
-            return _AgentPlanEnrichment(
-                "task",
-                association.bead_summary,
-                None,
-                (),
-            )
+            return _task_plan_enrichment(agent, association)
     if initial_role == "ambiguous":
         bead_id = derive_agent_bead_id_from_name(
             agent.presented_agent_name or agent.agent_name
@@ -135,12 +131,7 @@ def resolve_agent_plan_enrichment(
                 lookup_session=lookup_session,
             )
         if association is not None and association.role == "task":
-            return _AgentPlanEnrichment(
-                "task",
-                association.bead_summary,
-                None,
-                (),
-            )
+            return _task_plan_enrichment(agent, association)
         if association is None or association.role != "land":
             if association is None or association.path is None:
                 # A confirmed legacy phase without an epic-plan association
@@ -179,9 +170,9 @@ def resolve_agent_plan_enrichment(
             )
         plan_path = association.path
         known_epic = association.known_epic
-        if association.role == "task" or (
-            initial_role in {"ordinary", "ambiguous"} and association.role is not None
-        ):
+        if association.role == "task":
+            return _task_plan_enrichment(agent, association)
+        if initial_role in {"ordinary", "ambiguous"} and association.role is not None:
             role = association.role
 
     if plan_path is None:
@@ -190,9 +181,6 @@ def resolve_agent_plan_enrichment(
         # state overwrite a richer confirmed description (or surface a cold
         # candidate). Explicit modern phases returned above remain phase-local
         # and authoritative even without a usable plan reference.
-        phase_bead = association.bead_summary if association is not None else None
-        if role == "task":
-            return _AgentPlanEnrichment(role, phase_bead, None, ())
         phase_bead = None
         if role == "phase" and association is not None:
             phase_id = association.phase_bead_id
@@ -243,6 +231,31 @@ def resolve_agent_plan_enrichment(
         phase_bead=None,
         associated_plan=summary,
         resolved_plan_paths=(str(plan_path),),
+    )
+
+
+def _task_plan_enrichment(
+    agent: Agent,
+    association: _ResolvedPlanAssociation,
+) -> _AgentPlanEnrichment:
+    """Pair a task BEAD with a plan the task agent itself authored.
+
+    A task bead never owns a plan, so the only PLAN a task row may show is the
+    handoff artifact this agent produced. ``parent_path=None`` keeps the shared
+    resolver's evidence gate intact: without a distinct archive, a plan action,
+    or a committed SDD handoff, no plan file is read and no lane appears.
+    """
+    summary, path = _resolve_authored_plan(
+        agent,
+        parent_path=None,
+        load_plan_metadata=_load_plan_metadata,
+        resolve_plan_reference=_resolve_cached_reference,
+    )
+    return _AgentPlanEnrichment(
+        "task",
+        association.bead_summary,
+        summary,
+        () if path is None else (str(path),),
     )
 
 

@@ -11,17 +11,15 @@ from sase.agent.bead_display import (
     normalize_bead_text,
 )
 from sase.bead.phase_description import generated_phase_description
-from sase.core.artifact_file_helpers import select_canonical_plan_path
 
 from ._agent_associated_plan_paths import display_plan_path
 from ._agent_associated_plan_summary import (
     build_associated_plan_summary,
     direct_plan_reference,
-    effective_commit_state,
+    resolve_authored_plan,
 )
 from ._agent_associated_plan_types import (
     AgentPlanEnrichment,
-    AssociatedPlanSummary,
     PhaseBeadSummary,
     PlanFileMetadata,
     ResolvedPlanAssociation,
@@ -124,7 +122,7 @@ def resolve_phase_plan_enrichment(
                 created_at=created_at,
             )
 
-    associated_plan, authored_path = _resolve_phase_authored_plan(
+    associated_plan, authored_path = resolve_authored_plan(
         agent,
         parent_path=parent_path,
         load_plan_metadata=load_plan_metadata,
@@ -135,113 +133,6 @@ def resolve_phase_plan_enrichment(
         phase_bead=phase_bead,
         associated_plan=associated_plan,
         resolved_plan_paths=_resolved_plan_paths(parent_path, authored_path),
-    )
-
-
-def _resolve_phase_authored_plan(
-    agent: Agent,
-    *,
-    parent_path: Path | None,
-    load_plan_metadata: PlanMetadataLoader,
-    resolve_plan_reference: PlanReferenceResolver,
-) -> tuple[AssociatedPlanSummary | None, Path | None]:
-    """Return a PLAN only when the phase has a distinct authored artifact."""
-    archived_reference = agent.archived_plan_path
-    if (
-        archived_reference is None
-        and agent.plan_path
-        and agent.plan_path != agent.sdd_plan_path
-    ):
-        archived_reference = agent.plan_path
-
-    archived_path = _resolve_distinct_authored_reference(
-        agent,
-        "authored-archive",
-        archived_reference,
-        parent_path=parent_path,
-        resolve_plan_reference=resolve_plan_reference,
-    )
-    sdd_path = _resolve_distinct_authored_reference(
-        agent,
-        "authored-sdd",
-        agent.sdd_plan_path,
-        parent_path=parent_path,
-        resolve_plan_reference=resolve_plan_reference,
-    )
-    has_handoff_evidence = bool(
-        archived_path is not None
-        or agent.plan_action is not None
-        or (
-            sdd_path is not None
-            and agent.plan_committed is not None
-            and agent.agent_family_role in {"code", "plan", "feedback"}
-        )
-    )
-    if not has_handoff_evidence:
-        return None, None
-    if archived_path is None and sdd_path is None:
-        return None, None
-
-    selected_path: Path
-    if archived_path is not None and sdd_path is not None:
-        selected_reference = select_canonical_plan_path(
-            archived_plan_path=str(archived_path),
-            sdd_plan_path=str(sdd_path),
-            plan_committed=agent.plan_committed,
-            plan_action=agent.plan_action,
-        )
-        selected_path = Path(selected_reference or archived_path)
-    else:
-        only_path = archived_path or sdd_path
-        assert only_path is not None
-        selected_path = only_path
-
-    selected_is_sdd = sdd_path is not None and _same_plan_path(
-        selected_path,
-        sdd_path,
-    )
-    if selected_is_sdd:
-        committed = effective_commit_state(agent)
-    elif agent.plan_committed is False or agent.plan_action == "approve":
-        committed = False
-    elif sdd_path is None:
-        # A distinct archive with no authored SDD handoff is a submitted plan;
-        # the inherited parent epic's commit bit does not apply to it.
-        committed = False
-    else:
-        committed = effective_commit_state(agent)
-
-    metadata = load_plan_metadata(selected_path)
-    summary = build_associated_plan_summary(
-        agent,
-        selected_path,
-        metadata,
-        committed=committed,
-        display_committed=committed is True,
-        known_epic=False,
-    )
-    return summary, selected_path
-
-
-def _resolve_distinct_authored_reference(
-    agent: Agent,
-    source: str,
-    reference: str | None,
-    *,
-    parent_path: Path | None,
-    resolve_plan_reference: PlanReferenceResolver,
-) -> Path | None:
-    if not reference:
-        return None
-    path = resolve_plan_reference(agent, source, reference)
-    if parent_path is not None and _same_plan_path(path, parent_path):
-        return None
-    return path
-
-
-def _same_plan_path(left: Path, right: Path) -> bool:
-    return left.expanduser().resolve(strict=False) == right.expanduser().resolve(
-        strict=False
     )
 
 
