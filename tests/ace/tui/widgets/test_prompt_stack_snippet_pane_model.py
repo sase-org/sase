@@ -5,14 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import SnippetPaneTarget
+from sase.ace.tui.widgets.prompt_stack import _SnippetPaneTarget
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from tests.ace.tui.widgets._prompt_input_bar_stack_helpers import _PromptBarApp
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import CaptureApp
 
 
-def _snippet_target(trigger: str = "todo") -> SnippetPaneTarget:
-    return SnippetPaneTarget(
+def _snippet_target(trigger: str = "todo") -> _SnippetPaneTarget:
+    return _SnippetPaneTarget(
         trigger=trigger,
         read_path="/tmp/sase.yml",
         write_path="/tmp/sase.yml",

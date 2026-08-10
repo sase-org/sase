@@ -153,7 +153,7 @@ class XPromptReadonlyTarget:
 
 
 @dataclass(frozen=True)
-class SnippetPaneTarget:
+class _SnippetPaneTarget:
     """The snippet definition a pane-scoped snippet draft writes back to."""
 
     trigger: str
@@ -220,7 +220,7 @@ class PromptStackItem:
     cursor: tuple[int, int] = (0, 0)
     mode: str = "insert"
     last_height: int | None = None
-    snippet_target: SnippetPaneTarget | None = None
+    snippet_target: _SnippetPaneTarget | None = None
 
     @property
     def is_snippet_pane(self) -> bool:
@@ -602,7 +602,7 @@ class PromptStackState:
         return item
 
     def append_snippet_pane(
-        self, text: str, target: SnippetPaneTarget
+        self, text: str, target: _SnippetPaneTarget
     ) -> PromptStackItem:
         """Append the single pinned bottom snippet pane and focus it."""
         if self.snippet_item is not None:
@@ -624,7 +624,7 @@ class PromptStackState:
             self.selected_index = self._clamp(self.selected_index)
         return item
 
-    def retarget_snippet_pane(self, target: SnippetPaneTarget) -> None:
+    def retarget_snippet_pane(self, target: _SnippetPaneTarget) -> None:
         """Replace the snippet target without touching the draft body."""
         item = self.snippet_item
         if item is None:
@@ -714,7 +714,7 @@ class PromptStackState:
         self,
         text: str,
         *,
-        snippet_target: SnippetPaneTarget | None = None,
+        snippet_target: _SnippetPaneTarget | None = None,
     ) -> PromptStackItem:
         item = PromptStackItem(
             text=text,
@@ -728,7 +728,6 @@ class PromptStackState:
 __all__ = [
     "PromptStackItem",
     "PromptStackState",
-    "SnippetPaneTarget",
     "SourceFingerprint",
     "XPromptBinding",
     "XPromptReadonlyTarget",
