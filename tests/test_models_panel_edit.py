@@ -36,7 +36,7 @@ from tests._models_panel_helpers import (
 
 
 async def test_action_edit_opens_model_picker(monkeypatch: Any) -> None:
-    _patch_views(monkeypatch, [_view("medium_phase_worker", "role")])
+    _patch_views(monkeypatch, [_view("medium_worker", "role")])
     monkeypatch.setattr(
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
     )
@@ -50,7 +50,7 @@ async def test_action_edit_opens_model_picker(monkeypatch: Any) -> None:
 
 async def test_action_edit_picker_uses_flat_alias_snapshot(monkeypatch: Any) -> None:
     views = [
-        _view("medium_phase_worker", "role"),
+        _view("medium_worker", "role"),
         _view(
             "bucketed_a",
             "user",
@@ -86,7 +86,7 @@ async def test_action_edit_picker_uses_flat_alias_snapshot(monkeypatch: Any) -> 
 
 
 async def test_on_edit_model_picked_opens_preview_with_set_op(monkeypatch: Any) -> None:
-    view = _view("medium_phase_worker", "role")
+    view = _view("medium_worker", "role")
     _patch_views(monkeypatch, [view])
     monkeypatch.setattr(
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
@@ -110,10 +110,8 @@ async def test_on_edit_model_picked_opens_preview_with_set_op(monkeypatch: Any) 
 
 async def test_on_edit_alias_picked_persists_raw_reference(monkeypatch: Any) -> None:
     target = _view("big_epic_lander", "role")
-    medium_phase_worker = _view(
-        "medium_phase_worker", "role", provider="codex", model="o3"
-    )
-    _patch_views(monkeypatch, [target, medium_phase_worker])
+    medium_worker = _view("medium_worker", "role", provider="codex", model="o3")
+    _patch_views(monkeypatch, [target, medium_worker])
     monkeypatch.setattr(
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
     )
@@ -124,9 +122,9 @@ async def test_on_edit_alias_picked_persists_raw_reference(monkeypatch: Any) -> 
         await pilot.pause()
         panel._pending_edit_view = target
         panel._pending_alias_selection = AliasSelectionContext(
-            (target, medium_phase_worker), target.name, "persistent"
+            (target, medium_worker), target.name, "persistent"
         )
-        panel._on_edit_model_picked("@medium_phase_worker")
+        panel._on_edit_model_picked("@medium_worker")
         await pilot.pause()
 
         assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
@@ -134,11 +132,11 @@ async def test_on_edit_alias_picked_persists_raw_reference(monkeypatch: Any) -> 
         await pilot.pause()
         screen = pilot.app.screen
         assert isinstance(screen, AliasEditPreviewModal)
-        assert screen._op.value == "@medium_phase_worker@xhigh"
+        assert screen._op.value == "@medium_worker@xhigh"
 
 
 async def test_on_edit_model_picked_custom_then_preview(monkeypatch: Any) -> None:
-    view = _view("medium_phase_worker", "role")
+    view = _view("medium_worker", "role")
     _patch_views(monkeypatch, [view])
     monkeypatch.setattr(
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
@@ -165,12 +163,12 @@ async def test_on_edit_model_picked_custom_then_preview(monkeypatch: Any) -> Non
 async def test_on_edit_custom_rejects_unknown_and_cyclic_aliases(
     monkeypatch: Any,
 ) -> None:
-    target = _view("medium_phase_worker", "role")
+    target = _view("medium_worker", "role")
     dependent = _view(
         "dependent",
         "user",
         configured=True,
-        configured_value="@medium_phase_worker",
+        configured_value="@medium_worker",
     )
     _patch_views(monkeypatch, [target, dependent])
 
@@ -252,7 +250,7 @@ async def test_on_edit_custom_preserves_alias_selector_member_efforts(
         pilot.app.push_screen(panel)
         await pilot.pause()
         panel._pending_edit_view = view
-        value = "@default@low | @medium_phase_worker@high"
+        value = "@default@low | @medium_worker@high"
         panel._on_edit_custom_picked(value)
         await pilot.pause()
 
@@ -263,7 +261,7 @@ async def test_on_edit_custom_preserves_alias_selector_member_efforts(
 
 
 async def test_on_edit_model_picked_cancel_is_noop(monkeypatch: Any) -> None:
-    _patch_views(monkeypatch, [_view("medium_phase_worker", "role")])
+    _patch_views(monkeypatch, [_view("medium_worker", "role")])
 
     async with _TestApp().run_test() as pilot:
         panel = ModelsPanel()
@@ -277,7 +275,7 @@ async def test_on_edit_model_picked_cancel_is_noop(monkeypatch: Any) -> None:
 async def test_on_edit_custom_explicit_alias_effort_skips_effort_picker(
     monkeypatch: Any,
 ) -> None:
-    view = _view("medium_phase_worker", "role")
+    view = _view("medium_worker", "role")
     _patch_views(monkeypatch, [view])
     monkeypatch.setattr(
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
@@ -299,7 +297,7 @@ async def test_on_edit_custom_explicit_alias_effort_skips_effort_picker(
 async def test_on_edit_effort_cancel_does_not_open_preview(
     monkeypatch: Any,
 ) -> None:
-    view = _view("medium_phase_worker", "role")
+    view = _view("medium_worker", "role")
     _patch_views(monkeypatch, [view])
 
     async with _TestApp().run_test() as pilot:
@@ -322,7 +320,7 @@ async def test_on_edit_effort_cancel_does_not_open_preview(
 
 
 async def test_action_reset_unconfigured_warns_and_skips(monkeypatch: Any) -> None:
-    _patch_views(monkeypatch, [_view("medium_phase_worker", "role", configured=False)])
+    _patch_views(monkeypatch, [_view("medium_worker", "role", configured=False)])
 
     async with _TestApp().run_test() as pilot:
         panel = ModelsPanel()
@@ -342,11 +340,7 @@ async def test_action_reset_configured_opens_preview_with_unset(
 ) -> None:
     _patch_views(
         monkeypatch,
-        [
-            _view(
-                "medium_phase_worker", "role", configured=True, configured_value="opus"
-            )
-        ],
+        [_view("medium_worker", "role", configured=True, configured_value="opus")],
     )
     monkeypatch.setattr(
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan(op="unset")

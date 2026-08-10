@@ -23,7 +23,7 @@ from tests._models_panel_helpers import make_alias_view, make_override
 
 
 def test_alias_context_builds_styled_rows_after_models() -> None:
-    context = make_alias_context(target="medium_phase_worker")
+    context = make_alias_context(target="medium_worker")
     rows = build_model_rows(
         include_default_option=False,
         alias_context=context,
@@ -42,11 +42,11 @@ def test_alias_context_builds_styled_rows_after_models() -> None:
         "@default",
         "@epic_lander",
         "@big_epic_lander",
-        "@xsmall_phase_worker",
-        "@small_phase_worker",
-        "@medium_phase_worker",
-        "@large_phase_worker",
-        "@xlarge_phase_worker",
+        "@xsmall_worker",
+        "@small_worker",
+        "@medium_worker",
+        "@large_worker",
+        "@xlarge_worker",
         "@smartest",
         "@smart",
         "@cheap",
@@ -61,9 +61,7 @@ def test_alias_context_builds_styled_rows_after_models() -> None:
     ]
     assert all(isinstance(option.prompt, Text) for option in alias_options)
     assert {option.prompt.plain.index("→") for option in alias_options} == {27}
-    medium = next(
-        option for option in alias_options if option.id == "@medium_phase_worker"
-    )
+    medium = next(option for option in alias_options if option.id == "@medium_worker")
     assert "CODEX(gpt-5.6-sol)" in medium.prompt.plain
     assert any(span.style == "bold #87D7FF" for span in medium.prompt.spans)
 
@@ -84,7 +82,7 @@ def test_followup_default_stays_before_models_and_aliases() -> None:
 
 def test_default_override_alias_row_labels_snapshot_semantics() -> None:
     context = make_alias_context(
-        target="medium_phase_worker",
+        target="medium_worker",
         operation="temporary",
         views=[
             make_alias_view(
@@ -117,11 +115,11 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         make_alias_view("default", "default"),
         make_alias_view("epic_lander", "role"),
         make_alias_view("big_epic_lander", "role"),
-        make_alias_view("xsmall_phase_worker", "role"),
-        make_alias_view("small_phase_worker", "role"),
-        make_alias_view("medium_phase_worker", "role"),
-        make_alias_view("large_phase_worker", "role"),
-        make_alias_view("xlarge_phase_worker", "role"),
+        make_alias_view("xsmall_worker", "role"),
+        make_alias_view("small_worker", "role"),
+        make_alias_view("medium_worker", "role"),
+        make_alias_view("large_worker", "role"),
+        make_alias_view("xlarge_worker", "role"),
         make_alias_view("smartest", "role"),
         make_alias_view("smart", "role"),
         make_alias_view("cheap", "role"),
@@ -129,7 +127,7 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         make_alias_view("cheapest", "role"),
         make_alias_view("hop_a", "user", configured=True, configured_value="@hop_b"),
         make_alias_view(
-            "hop_b", "user", configured=True, configured_value="@medium_phase_worker"
+            "hop_b", "user", configured=True, configured_value="@medium_worker"
         ),
         make_alias_view(
             "cycle_a", "user", configured=True, configured_value="@cycle_b"
@@ -141,29 +139,27 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
             "safe", "user", configured=True, configured_value="claude/haiku"
         ),
     ]
-    medium_context = make_alias_context(target="medium_phase_worker", views=views)
+    medium_context = make_alias_context(target="medium_worker", views=views)
     default_context = make_alias_context(target="default", views=views)
     smartest_context = make_alias_context(target="smartest", views=views)
 
-    assert _alias_disabled_reason(medium_context, "medium_phase_worker") == (
-        "current alias"
-    )
+    assert _alias_disabled_reason(medium_context, "medium_worker") == ("current alias")
     assert _alias_disabled_reason(medium_context, "hop_a") == "would create a cycle"
     assert _alias_disabled_reason(medium_context, "cycle_a") == ("would create a cycle")
     assert _alias_disabled_reason(medium_context, "safe") is None
     assert _alias_disabled_reason(default_context, "big_epic_lander") is None
-    assert _alias_disabled_reason(default_context, "large_phase_worker") == (
+    assert _alias_disabled_reason(default_context, "large_worker") == (
         "would create a cycle"
     )
-    assert _alias_disabled_reason(default_context, "medium_phase_worker") is None
+    assert _alias_disabled_reason(default_context, "medium_worker") is None
     assert _alias_disabled_reason(smartest_context, "big_epic_lander") == (
         "would create a cycle"
     )
-    assert _alias_disabled_reason(smartest_context, "xlarge_phase_worker") == (
+    assert _alias_disabled_reason(smartest_context, "xlarge_worker") == (
         "would create a cycle"
     )
-    assert _alias_disabled_reason(medium_context, "small_phase_worker") is None
-    assert _alias_disabled_reason(medium_context, "large_phase_worker") is None
+    assert _alias_disabled_reason(medium_context, "small_worker") is None
+    assert _alias_disabled_reason(medium_context, "large_worker") is None
 
 
 def test_alias_dependency_guard_handles_long_chains() -> None:
@@ -200,10 +196,10 @@ def test_temporary_alias_guard_disables_only_self() -> None:
 
 
 def test_free_form_alias_guard_rejects_unknown_and_unsafe_references() -> None:
-    context = make_alias_context(target="medium_phase_worker")
+    context = make_alias_context(target="medium_worker")
 
     assert alias_reference_rejection(context, "@missing") == "unknown alias"
-    assert alias_reference_rejection(context, "@medium_phase_worker") == "current alias"
+    assert alias_reference_rejection(context, "@medium_worker") == "current alias"
     assert alias_reference_rejection(context, "@default") is None
     assert alias_reference_rejection(context, "@default@medium") is None
     assert alias_reference_rejection(context, "@default@turbo") == "unknown alias"
@@ -225,9 +221,9 @@ async def test_alias_picker_filters_all_alias_fields_and_returns_raw_token() -> 
         assert filter_input.placeholder == "Filter aliases, providers, or models..."
 
         for query in (
-            "@medium_phase_worker",
+            "@medium_worker",
             "medium",
-            "phase",
+            "worker",
             "gpt-5.6-sol",
         ):
             filter_input.value = query
@@ -236,15 +232,15 @@ async def test_alias_picker_filters_all_alias_fields_and_returns_raw_token() -> 
                 option.id
                 for option in modal.query_one("#model-picker-list", OptionList).options
             }
-            assert "@medium_phase_worker" in ids
+            assert "@medium_worker" in ids
             assert "__empty__" not in ids
 
         option_list = modal.query_one("#model-picker-list", OptionList)
-        option_list.highlighted = option_list.get_option_index("@medium_phase_worker")
+        option_list.highlighted = option_list.get_option_index("@medium_worker")
         modal.action_select_model()
         await pilot.pause()
 
-    assert captured == ["@medium_phase_worker"]
+    assert captured == ["@medium_worker"]
 
 
 async def test_alias_only_no_match_uses_contextual_empty_state() -> None:
@@ -265,7 +261,7 @@ async def test_alias_only_no_match_uses_contextual_empty_state() -> None:
 
 
 async def test_alias_disabled_rows_are_searchable_and_skipped_by_navigation() -> None:
-    context = make_alias_context(target="medium_phase_worker")
+    context = make_alias_context(target="medium_worker")
     async with ModelPickerTestApp().run_test() as pilot:
         modal = ModelPickerModal(
             include_default_option=False,
@@ -274,22 +270,22 @@ async def test_alias_disabled_rows_are_searchable_and_skipped_by_navigation() ->
         pilot.app.push_screen(modal)
         await pilot.pause()
         filter_input = modal.query_one("#model-picker-filter", Input)
-        filter_input.value = "@medium_phase_worker"
+        filter_input.value = "@medium_worker"
         await pilot.pause()
 
         option_list = modal.query_one("#model-picker-list", OptionList)
-        medium = option_list.get_option("@medium_phase_worker")
+        medium = option_list.get_option("@medium_worker")
         assert medium.disabled is True
         assert "current alias" in str(medium.prompt)
-        assert "@medium_phase_worker" not in modal._jump_target_keys()
+        assert "@medium_worker" not in modal._jump_target_keys()
         modal.action_jump_to_entry()
-        assert "@medium_phase_worker" not in modal.jump_hints_by_key()
+        assert "@medium_worker" not in modal.jump_hints_by_key()
 
 
 async def test_alias_picker_narrow_geometry_keeps_single_line_rows_and_footer() -> None:
     long_name = "very_long_custom_alias_name_that_must_truncate"
     context = make_alias_context(
-        target="medium_phase_worker",
+        target="medium_worker",
         views=[
             make_alias_view(
                 long_name,
@@ -299,7 +295,7 @@ async def test_alias_picker_narrow_geometry_keeps_single_line_rows_and_footer() 
                 provider="opencode",
                 model="anthropic/claude-sonnet-4-5",
             ),
-            make_alias_view("medium_phase_worker", "role"),
+            make_alias_view("medium_worker", "role"),
         ],
     )
     async with StyledModelPickerTestApp().run_test(size=(60, 30)) as pilot:

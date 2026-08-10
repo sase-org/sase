@@ -112,7 +112,7 @@ def calm_views() -> list[AliasView]:
             ),
         ),
         _view(
-            "xsmall_phase_worker",
+            "xsmall_worker",
             "role",
             provider="claude",
             model="sonnet",
@@ -120,7 +120,7 @@ def calm_views() -> list[AliasView]:
             description="Extra-small phases that implement the simplest tasks.",
         ),
         _view(
-            "small_phase_worker",
+            "small_worker",
             "role",
             provider="claude",
             model="sonnet",
@@ -128,7 +128,7 @@ def calm_views() -> list[AliasView]:
             description="Small phases that implement directly.",
         ),
         _view(
-            "medium_phase_worker",
+            "medium_worker",
             "role",
             provider="claude",
             model="claude-fable-4-10",
@@ -136,7 +136,7 @@ def calm_views() -> list[AliasView]:
             description="Medium phases that implement directly.",
         ),
         _view(
-            "large_phase_worker",
+            "large_worker",
             "role",
             configured=True,
             configured_value="claude/opus",
@@ -145,7 +145,7 @@ def calm_views() -> list[AliasView]:
             description="Large phases that plan before implementation.",
         ),
         _view(
-            "xlarge_phase_worker",
+            "xlarge_worker",
             "role",
             provider="claude",
             model="opus",
@@ -239,7 +239,7 @@ def override_views() -> list[AliasView]:
         expires_at=FROZEN_NOW + 3600.0,
         source="ace",
     )
-    phase_worker_override = TemporaryLLMOverride(
+    worker_override = TemporaryLLMOverride(
         provider="codex",
         model="gpt-5.6-sol",
         raw_model="codex/gpt-5.6-sol",
@@ -257,15 +257,15 @@ def override_views() -> list[AliasView]:
         )
         if row.name == "default"
         else _view(
-            "medium_phase_worker",
+            "medium_worker",
             "role",
             configured=True,
             configured_value="codex/o3",
             provider="codex",
             model="gpt-5.6-sol",
-            override=phase_worker_override,
+            override=worker_override,
         )
-        if row.name == "medium_phase_worker"
+        if row.name == "medium_worker"
         else row
         for row in calm_views()
     ]
@@ -274,7 +274,7 @@ def override_views() -> list[AliasView]:
 def custom_builtin_warning_views() -> list[AliasView]:
     return [
         _view(
-            "small_phase_worker",
+            "small_worker",
             "role",
             configured=True,
             configured_value="codex/o3",
@@ -283,7 +283,7 @@ def custom_builtin_warning_views() -> list[AliasView]:
             configured_source="custom",
             description="Misplaced builtin phase-worker alias.",
         )
-        if row.name == "small_phase_worker"
+        if row.name == "small_worker"
         else row
         for row in calm_views()
     ]
@@ -301,11 +301,11 @@ def bucket_views() -> list[AliasView]:
                 "alias ultimately falls back to it."
             ),
         ),
-        _view("xsmall_phase_worker", "role", provider="claude", model="sonnet"),
-        _view("small_phase_worker", "role", provider="claude", model="sonnet"),
-        _view("medium_phase_worker", "role", provider="claude", model="opus"),
-        _view("large_phase_worker", "role", provider="claude", model="opus"),
-        _view("xlarge_phase_worker", "role", provider="claude", model="opus"),
+        _view("xsmall_worker", "role", provider="claude", model="sonnet"),
+        _view("small_worker", "role", provider="claude", model="sonnet"),
+        _view("medium_worker", "role", provider="claude", model="opus"),
+        _view("large_worker", "role", provider="claude", model="opus"),
+        _view("xlarge_worker", "role", provider="claude", model="opus"),
         _view(
             "research_a",
             "user",
@@ -365,7 +365,7 @@ def ownership_views() -> list[AliasView]:
             model="opus",
             configured_source="custom",
             description="Custom phase-worker bucket member.",
-            bucket="phase_worker",
+            bucket="worker",
         ),
     ]
 

@@ -21,7 +21,7 @@ from sase.llm_provider.model_alias_policy import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     implicit_alias_targets,
     role_alias_fallbacks,
@@ -41,26 +41,23 @@ def test_role_alias_helpers() -> None:
     targets = implicit_alias_targets()
 
     assert default_model_alias_name() == "default"
-    assert role_model_directive_value("small_phase_worker") == "@small_phase_worker"
+    assert role_model_directive_value("small_worker") == "@small_worker"
     assert role_model_directive_value("default") == "@default"
     assert implicit_model_alias_fallback("big_epic_lander") == "smartest"
     assert implicit_model_alias_fallback("epic_lander") == "default"
-    assert implicit_model_alias_fallback("xsmall_phase_worker") == "cheaper"
-    assert implicit_model_alias_fallback("small_phase_worker") == "cheap"
-    assert "medium_phase_worker" not in fallbacks
-    assert implicit_model_alias_fallback("medium_phase_worker") is None
-    assert implicit_model_alias_fallback_reference("medium_phase_worker") is None
-    assert implicit_model_alias_fallback_effort("medium_phase_worker") is None
+    assert implicit_model_alias_fallback("xsmall_worker") == "cheaper"
+    assert implicit_model_alias_fallback("small_worker") == "cheap"
+    assert "medium_worker" not in fallbacks
+    assert implicit_model_alias_fallback("medium_worker") is None
+    assert implicit_model_alias_fallback_reference("medium_worker") is None
+    assert implicit_model_alias_fallback_effort("medium_worker") is None
     assert (
-        implicit_model_alias_value("medium_phase_worker")
-        == FROZEN_TARGETS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME]
+        implicit_model_alias_value("medium_worker")
+        == FROZEN_TARGETS[MEDIUM_WORKER_MODEL_ALIAS_NAME]
     )
-    assert (
-        parse_model_alias_selector(targets[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME])
-        is None
-    )
-    assert implicit_model_alias_fallback("large_phase_worker") == "smart"
-    assert implicit_model_alias_fallback("xlarge_phase_worker") == "smartest"
+    assert parse_model_alias_selector(targets[MEDIUM_WORKER_MODEL_ALIAS_NAME]) is None
+    assert implicit_model_alias_fallback("large_worker") == "smart"
+    assert implicit_model_alias_fallback("xlarge_worker") == "smartest"
     assert implicit_model_alias_fallback("smart") == "default"
     assert implicit_model_alias_fallback("smartest") is None
     assert (
@@ -123,19 +120,19 @@ def test_default_alias_falls_back_to_provider_tier_default(
     assert resolve_model_provider("default") == ("claude", "opus")
 
 
-def test_medium_phase_worker_uses_concrete_target(
+def test_medium_worker_uses_concrete_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
-    resolved = resolve_model_alias_with_effort("medium_phase_worker")
+    resolved = resolve_model_alias_with_effort("medium_worker")
 
     assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
-        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+        MEDIUM_WORKER_MODEL_ALIAS_NAME
     ]
 
 
-def test_medium_phase_worker_ignores_default_with_outer_effort_winning(
+def test_medium_worker_ignores_default_with_outer_effort_winning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -146,12 +143,12 @@ def test_medium_phase_worker_ignores_default_with_outer_effort_winning(
         },
     )
 
-    resolved = resolve_model_alias_with_effort("@medium_phase_worker")
-    outer = resolve_model_alias_with_effort("@medium_phase_worker@low")
+    resolved = resolve_model_alias_with_effort("@medium_worker")
+    outer = resolve_model_alias_with_effort("@medium_worker@low")
 
-    target, _effort = FROZEN_TARGET_DETAILS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME]
+    target, _effort = FROZEN_TARGET_DETAILS[MEDIUM_WORKER_MODEL_ALIAS_NAME]
     assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
-        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+        MEDIUM_WORKER_MODEL_ALIAS_NAME
     ]
     assert (outer.target, outer.effort) == (target, "low")
 
@@ -254,17 +251,17 @@ def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
 
     assert resolve_model_alias("epic_lander") == "codex/gpt-5.6-sol"
     assert (
-        resolve_model_alias("medium_phase_worker")
-        == FROZEN_TARGET_DETAILS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME][0]
+        resolve_model_alias("medium_worker")
+        == FROZEN_TARGET_DETAILS[MEDIUM_WORKER_MODEL_ALIAS_NAME][0]
     )
-    for alias in ("smartest", "big_epic_lander", "xlarge_phase_worker"):
+    for alias in ("smartest", "big_epic_lander", "xlarge_worker"):
         resolved = resolve_model_alias_with_effort(alias)
         assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
             SMARTEST_MODEL_ALIAS_NAME
         ]
-    assert resolve_model_alias("large_phase_worker") == "codex/gpt-5.6-sol"
-    small = resolve_model_alias_with_effort("small_phase_worker")
-    xsmall = resolve_model_alias_with_effort("xsmall_phase_worker")
+    assert resolve_model_alias("large_worker") == "codex/gpt-5.6-sol"
+    small = resolve_model_alias_with_effort("small_worker")
+    xsmall = resolve_model_alias_with_effort("xsmall_worker")
     cheap = resolve_model_alias_with_effort("cheap")
     cheaper = resolve_model_alias_with_effort("cheaper")
     assert (small.target, small.effort) == frozen_selector_member(
@@ -301,7 +298,7 @@ def test_configured_smartest_alias_shadows_implicit_target(
         },
     )
 
-    for alias in ("smartest", "big_epic_lander", "xlarge_phase_worker"):
+    for alias in ("smartest", "big_epic_lander", "xlarge_worker"):
         resolved = resolve_model_alias_with_effort(alias)
         assert (resolved.target, resolved.effort) == ("codex/gpt-5.6-sol", None)
 
@@ -315,14 +312,14 @@ def test_smartest_target_and_effort_do_not_depend_on_provider_availability(
         lambda _target: False,
     )
 
-    for alias in ("@smartest", "@big_epic_lander", "@xlarge_phase_worker"):
+    for alias in ("@smartest", "@big_epic_lander", "@xlarge_worker"):
         resolved = resolve_model_alias_with_effort(alias, consume=True)
         assert (resolved.target, resolved.effort) == FROZEN_TARGET_DETAILS[
             SMARTEST_MODEL_ALIAS_NAME
         ]
 
 
-def test_stale_phase_worker_builtin_does_not_control_medium_phase(
+def test_stale_worker_builtin_does_not_control_medium_phase(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -332,25 +329,25 @@ def test_stale_phase_worker_builtin_does_not_control_medium_phase(
             "model_aliases": {
                 "builtin": {
                     "default": "codex/gpt-5.6-sol",
-                    "phase_worker": "claude/sonnet",
+                    "worker": "claude/sonnet",
                 }
             },
         },
     )
 
-    small = resolve_model_alias_with_effort("small_phase_worker")
+    small = resolve_model_alias_with_effort("small_worker")
     assert (small.target, small.effort) == frozen_selector_member(
         CHEAP_MODEL_ALIAS_NAME, 0
     )
     assert (
-        resolve_model_alias("medium_phase_worker")
-        == FROZEN_TARGET_DETAILS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME][0]
+        resolve_model_alias("medium_worker")
+        == FROZEN_TARGET_DETAILS[MEDIUM_WORKER_MODEL_ALIAS_NAME][0]
     )
     monkeypatch.setattr(
         "sase.llm_provider.config._resolved_target_is_available",
         lambda target: target.startswith("codex/"),
     )
-    assert resolve_model_alias("large_phase_worker") == "codex/gpt-5.6-sol"
+    assert resolve_model_alias("large_worker") == "codex/gpt-5.6-sol"
 
 
 def test_configured_phase_size_alias_shadows_default_only_for_that_size(
@@ -362,19 +359,19 @@ def test_configured_phase_size_alias_shadows_default_only_for_that_size(
             "provider": "claude",
             "model_aliases": {
                 "builtin": {
-                    "medium_phase_worker": "claude/sonnet",
-                    "large_phase_worker": "codex/o3",
+                    "medium_worker": "claude/sonnet",
+                    "large_worker": "codex/o3",
                 }
             },
         },
     )
 
-    small = resolve_model_alias_with_effort("small_phase_worker")
+    small = resolve_model_alias_with_effort("small_worker")
     assert (small.target, small.effort) == frozen_selector_member(
         CHEAP_MODEL_ALIAS_NAME, 0
     )
-    assert resolve_model_alias("medium_phase_worker") == "claude/sonnet"
-    assert resolve_model_alias("large_phase_worker") == "codex/o3"
+    assert resolve_model_alias("medium_worker") == "claude/sonnet"
+    assert resolve_model_alias("large_worker") == "codex/o3"
 
 
 def test_big_epic_lander_uses_smartest_independently_of_epic_lander(
@@ -440,7 +437,7 @@ def test_big_epic_lander_honors_launch_and_temporary_overrides(
     )
 
 
-def test_custom_phase_worker_alias_is_available_for_explicit_use_only(
+def test_custom_worker_alias_is_available_for_explicit_use_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A user-configured role alias wins over the implicit ``@default`` fallback."""
@@ -451,7 +448,7 @@ def test_custom_phase_worker_alias_is_available_for_explicit_use_only(
             "model_aliases": {
                 "builtin": {"default": "codex/gpt-5.6-sol"},
                 "custom": {
-                    "phase_worker": {
+                    "worker": {
                         "model": "claude/sonnet",
                         "description": "Explicit custom phase role.",
                     }
@@ -460,9 +457,9 @@ def test_custom_phase_worker_alias_is_available_for_explicit_use_only(
         },
     )
 
-    assert resolve_model_alias("phase_worker") == "claude/sonnet"
+    assert resolve_model_alias("worker") == "claude/sonnet"
     assert (
-        resolve_model_alias("medium_phase_worker")
-        == FROZEN_TARGET_DETAILS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME][0]
+        resolve_model_alias("medium_worker")
+        == FROZEN_TARGET_DETAILS[MEDIUM_WORKER_MODEL_ALIAS_NAME][0]
     )
     assert resolve_model_alias("coder") == "coder"

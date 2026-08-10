@@ -7,7 +7,7 @@ import pytest
 from sase.llm_provider import (
     AliasView,
     BucketView,
-    PHASE_WORKER_BUCKET_DESCRIPTION,
+    WORKER_BUCKET_DESCRIPTION,
     TemporaryLLMOverride,
     build_models_panel_rows,
     clear_alias_override,
@@ -112,7 +112,7 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
         "default",
         "epic_lander",
         "big_epic_lander",
-        "phase_worker",
+        "worker",
         "smartest",
         "smart",
         "cheap",
@@ -184,7 +184,7 @@ def test_models_panel_rows_treat_retired_coder_aliases_as_user_aliases(
         "default",
         "epic_lander",
         "big_epic_lander",
-        "phase_worker",
+        "worker",
         "smartest",
         "smart",
         "cheap",
@@ -219,7 +219,7 @@ def test_models_panel_rows_treat_retired_coder_aliases_as_user_aliases(
     assert user_by_name["claude_coder"].configured_source == "builtin"
 
 
-def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
+def test_models_panel_worker_bucket_coalesces_builtin_and_custom_members(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -227,69 +227,67 @@ def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {"large_phase_worker": "codex/o3"},
+                "builtin": {"large_worker": "codex/o3"},
                 "custom": {
-                    "phase_worker": {
+                    "worker": {
                         "model": "claude/sonnet",
                         "description": "Explicit custom phase role.",
-                        "bucket": "phase_worker",
+                        "bucket": "worker",
                     },
                     "phase_reviewer": {
                         "model": "claude/opus",
                         "description": "Reviews completed phases.",
-                        "bucket": "phase_worker",
+                        "bucket": "worker",
                     },
                 },
-                "buckets": {"phase_worker": {"description": "Configured phase roles."}},
+                "buckets": {"worker": {"description": "Configured phase roles."}},
             },
         },
     )
     patch_available_providers(monkeypatch)
 
-    set_alias_override(
-        "medium_phase_worker", "codex/gpt-5.6-sol", 3600.0, source="test"
-    )
+    set_alias_override("medium_worker", "codex/gpt-5.6-sol", 3600.0, source="test")
     try:
         rows = build_models_panel_rows()
     finally:
-        clear_alias_override("medium_phase_worker")
+        clear_alias_override("medium_worker")
 
     assert [row.name for row in rows] == [
         "default",
         "epic_lander",
         "big_epic_lander",
-        "phase_worker",
+        "worker",
         "smartest",
         "smart",
         "cheap",
         "cheaper",
         "cheapest",
     ]
-    phase_workers = rows[3]
-    assert isinstance(phase_workers, BucketView)
-    assert phase_workers.description == "Configured phase roles."
-    assert [member.name for member in phase_workers.members] == [
-        "xsmall_phase_worker",
-        "small_phase_worker",
-        "medium_phase_worker",
-        "large_phase_worker",
-        "xlarge_phase_worker",
+    workers = rows[3]
+    assert isinstance(workers, BucketView)
+    assert workers.description == "Configured phase roles."
+    assert [member.name for member in workers.members] == [
+        "xsmall_worker",
+        "small_worker",
+        "medium_worker",
+        "large_worker",
+        "xlarge_worker",
         "phase_reviewer",
-        "phase_worker",
+        "worker",
     ]
-    assert phase_workers.alias_count == 7
-    assert phase_workers.override_count == 1
+    assert workers.alias_count == 7
+    assert workers.override_count == 1
 
 
-def test_models_panel_phase_worker_bucket_uses_builtin_fallback_description(
+def test_models_panel_worker_bucket_uses_builtin_fallback_description(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude", "model_aliases": {}})
     patch_available_providers(monkeypatch)
 
     rows = build_models_panel_rows()
-    phase_workers = next(row for row in rows if row.name == "phase_worker")
+    workers = next(row for row in rows if row.name == "worker")
 
-    assert isinstance(phase_workers, BucketView)
-    assert phase_workers.description == PHASE_WORKER_BUCKET_DESCRIPTION
-    assert phase_workers.alias_count == 5
+    assert isinstance(workers, BucketView)
+    assert workers.description == WORKER_BUCKET_DESCRIPTION
+    assert workers.alias_count == 5

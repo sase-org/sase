@@ -1,5 +1,5 @@
 # Shipped defaults for SASE's implicit model aliases. This file is the single
-# edit point for changing what @smartest, @cheap, @medium_phase_worker, ...
+# edit point for changing what @smartest, @cheap, @medium_worker, ...
 # resolve to out of the box. User config (llm_provider.model_aliases.builtin)
 # still overrides anything here.
 #
@@ -22,21 +22,21 @@ aliases:
     description: >-
       Epic land agents selected for plans at or above the configured
       phase-count threshold.
-  xsmall_phase_worker:
+  xsmall_worker:
     fallback: "@cheaper"
     description: >-
       Extra-small bead phase agents that implement the simplest tasks
       directly.
-  small_phase_worker:
+  small_worker:
     fallback: "@cheap"
     description: "Small bead phase agents that implement directly."
-  medium_phase_worker:
+  medium_worker:
     target: "codex/gpt-5.5@xhigh"
     description: "Medium bead phase agents that implement directly."
-  large_phase_worker:
+  large_worker:
     fallback: "@smart"
     description: "Large bead phase agents that plan before implementation."
-  xlarge_phase_worker:
+  xlarge_worker:
     fallback: "@smartest"
     description: >-
       Extra-large bead phase agents that author an epic plan before

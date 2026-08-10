@@ -1536,8 +1536,8 @@ Directives use the same argument syntax as xprompt references:
 %m:agy/gemini-3.6-flash-high # Provider/model value with a stable Antigravity slug
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %model:muse/muse-spark-1.2   # Meta Muse Code — explicit-only, never auto-detected
-%model(opus, medium_phase_worker=codex/gpt-5.6-sol) # This agent uses opus; medium follow-ups use Codex
-%model(medium_phase_worker=@default) # Leave this agent on the default; route medium follow-ups through @default
+%model(opus, medium_worker=codex/gpt-5.6-sol) # This agent uses opus; medium follow-ups use Codex
+%model(medium_worker=@default) # Leave this agent on the default; route medium follow-ups through @default
 %effort:xhigh                # Set the reasoning-effort level for this prompt
 %e:xhigh                     # Same, using alias
 %effort:%{medium | high | xhigh} # Fan out directive values
@@ -1663,10 +1663,10 @@ The parenthesized `%model` form accepts keyword arguments that temporarily repla
 aliases for one launch lineage:
 
 ```text
-%model(opus, medium_phase_worker=codex/gpt-5.6-sol, small_phase_worker=@cheap)
-%model(xsmall_phase_worker=@cheaper, medium_phase_worker=@default@high)
-%model(large_phase_worker=@smart, xlarge_phase_worker=@smartest)
-%model(default=@medium_phase_worker)
+%model(opus, medium_worker=codex/gpt-5.6-sol, small_worker=@cheap)
+%model(xsmall_worker=@cheaper, medium_worker=@default@high)
+%model(large_worker=@smart, xlarge_worker=@smartest)
+%model(default=@medium_worker)
 ```
 
 The optional positional value selects the current agent's model. Each `alias=value`
@@ -1675,15 +1675,15 @@ agent still starts from the normal default, but that resolution uses the map:
 `default=...` changes it directly, while a size-specific phase-worker keyword affects
 only that phase or task route. The size-specific worker aliases are:
 
-| Route           | Alias                 |
-| --------------- | --------------------- |
-| `xsmall` worker | `xsmall_phase_worker` |
-| `small` worker  | `small_phase_worker`  |
-| `medium` worker | `medium_phase_worker` |
-| `large` worker  | `large_phase_worker`  |
-| `xlarge` worker | `xlarge_phase_worker` |
+| Route           | Alias           |
+| --------------- | --------------- |
+| `xsmall` worker | `xsmall_worker` |
+| `small` worker  | `small_worker`  |
+| `medium` worker | `medium_worker` |
+| `large` worker  | `large_worker`  |
+| `xlarge` worker | `xlarge_worker` |
 
-Legacy tasks without stored size metadata normalize to the `small_phase_worker` route at
+Legacy tasks without stored size metadata normalize to the `small_worker` route at
 launch. See [Implicit role aliases](llms.md#implicit-role-aliases) for the current
 shipped defaults.
 
@@ -1705,8 +1705,8 @@ default override for this lineage.
 
 The launch preview shows the resulting map before approval. Invalid alias names, missing
 values, duplicate keys, self-references, and ambiguous bare alias values fail with a
-directive error. Use `@medium_phase_worker`, not `medium_phase_worker`, when the value
-should reference another alias.
+directive error. Use `@medium_worker`, not `medium_worker`, when the value should
+reference another alias.
 
 A `%model` value may carry a trailing `@<effort>` reasoning-effort suffix (e.g.
 `%model:opus@xhigh`); the effort is split off the clean model and behaves exactly like a
@@ -2110,12 +2110,12 @@ planner's chat transcript — the plan file is the hand-off artifact. Set
 planner's session. The coder prompt also carries a `%model:` directive. A model chosen
 at approval time (or a `%model:`/`%m` directive inside a custom coder prompt) wins. When
 no model is chosen, the follow-up validates the tale plan it will actually hand off and
-routes by that plan's size: `%model:@xsmall_phase_worker`, `%model:@small_phase_worker`,
-`%model:@medium_phase_worker`, `%model:@large_phase_worker`, or
-`%model:@xlarge_phase_worker`. Tale approvals validate the committed SDD tale path when
-the commit succeeds, otherwise the original archived plan path. Legacy tale plans
-without size metadata normalize to `@medium_phase_worker`. The recorded follow-up
-metadata resolves the alias to the concrete model the coder actually launches with.
+routes by that plan's size: `%model:@xsmall_worker`, `%model:@small_worker`,
+`%model:@medium_worker`, `%model:@large_worker`, or `%model:@xlarge_worker`. Tale
+approvals validate the committed SDD tale path when the commit succeeds, otherwise the
+original archived plan path. Legacy tale plans without size metadata normalize to
+`@medium_worker`. The recorded follow-up metadata resolves the alias to the concrete
+model the coder actually launches with.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus
 recent approved and inferred rejected archived plans. Use the `id_prefix` from a

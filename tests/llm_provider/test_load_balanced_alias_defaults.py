@@ -28,7 +28,7 @@ def test_small_phase_and_cheap_share_one_rotation(
         lambda _target: True,
     )
 
-    small = resolve_model_alias_with_effort("@small_phase_worker", consume=True)
+    small = resolve_model_alias_with_effort("@small_worker", consume=True)
     cheap = resolve_model_alias_with_effort("@cheap", consume=True)
 
     assert (small.target, small.effort) == frozen_selector_member(
@@ -49,7 +49,7 @@ def test_xsmall_phase_and_cheaper_share_one_rotation(
         lambda _target: True,
     )
 
-    xsmall = resolve_model_alias_with_effort("@xsmall_phase_worker", consume=True)
+    xsmall = resolve_model_alias_with_effort("@xsmall_worker", consume=True)
     cheaper = resolve_model_alias_with_effort("@cheaper", consume=True)
 
     assert (xsmall.target, xsmall.effort) == frozen_selector_member(

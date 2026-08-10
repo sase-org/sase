@@ -125,7 +125,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
   including plan-first behavior, task defaults, and model routing.
 - Parent: `sase/memory/sase_beads.md`
 - Lines: 46
-- Approx. tokens: 555
+- Approx. tokens: 546
 
 ### `sase/memory/symvision.md`
 
@@ -161,7 +161,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Short notes: 5
 - Long notes: 7
 - Total lines: 874
-- Total approx. tokens: 10947
+- Total approx. tokens: 10938
 
 ## Commands
 

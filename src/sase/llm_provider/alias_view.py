@@ -30,13 +30,13 @@ from .config import (
     CHEAPEST_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
-    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
-    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+    LARGE_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_WORKER_MODEL_ALIAS_NAME,
+    SMALL_WORKER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
-    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
-    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+    XLARGE_WORKER_MODEL_ALIAS_NAME,
+    XSMALL_WORKER_MODEL_ALIAS_NAME,
     ModelAliasSelectorMember,
     get_model_aliases,
     implicit_model_alias_fallback,
@@ -61,11 +61,11 @@ AliasKind = Literal["default", "role", "user"]
 _ROLE_ALIAS_ORDER: tuple[str, ...] = (
     EPIC_LANDER_MODEL_ALIAS_NAME,
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
-    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
-    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
-    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    XSMALL_WORKER_MODEL_ALIAS_NAME,
+    SMALL_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_WORKER_MODEL_ALIAS_NAME,
+    LARGE_WORKER_MODEL_ALIAS_NAME,
+    XLARGE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
     CHEAP_MODEL_ALIAS_NAME,
@@ -74,13 +74,13 @@ _ROLE_ALIAS_ORDER: tuple[str, ...] = (
 )
 
 #: Built-in Models-panel bucket for the five size-specific phase roles.
-PHASE_WORKER_BUCKET_NAME = "phase_worker"
+WORKER_BUCKET_NAME = "worker"
 
-#: Description used when config does not override the phase-worker bucket.
-PHASE_WORKER_BUCKET_DESCRIPTION = "Size-specific phase-agent aliases."
+#: Description used when config does not override the worker bucket.
+WORKER_BUCKET_DESCRIPTION = "Size-specific phase-agent aliases."
 
 #: Built-in bucket names accepted by doctor even without custom members.
-BUILTIN_MODEL_ALIAS_BUCKET_NAMES = frozenset({PHASE_WORKER_BUCKET_NAME})
+BUILTIN_MODEL_ALIAS_BUCKET_NAMES = frozenset({WORKER_BUCKET_NAME})
 
 
 @dataclass(frozen=True)
@@ -94,14 +94,14 @@ class _BuiltinBucketSpec:
 
 _BUILTIN_BUCKET_SPECS: tuple[_BuiltinBucketSpec, ...] = (
     _BuiltinBucketSpec(
-        name=PHASE_WORKER_BUCKET_NAME,
-        description=PHASE_WORKER_BUCKET_DESCRIPTION,
+        name=WORKER_BUCKET_NAME,
+        description=WORKER_BUCKET_DESCRIPTION,
         fixed_members=(
-            XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
-            SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
-            MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
-            LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
-            XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+            XSMALL_WORKER_MODEL_ALIAS_NAME,
+            SMALL_WORKER_MODEL_ALIAS_NAME,
+            MEDIUM_WORKER_MODEL_ALIAS_NAME,
+            LARGE_WORKER_MODEL_ALIAS_NAME,
+            XLARGE_WORKER_MODEL_ALIAS_NAME,
         ),
     ),
 )
@@ -462,7 +462,7 @@ def build_models_panel_rows(
 ) -> list[AliasView | BucketView]:
     """Fold related aliases into top-level Models-panel bucket rows.
 
-    The built-in phase-worker family forms an always-present ``phase_worker``
+    The built-in worker family forms an always-present ``worker``
     bucket, with custom aliases that name that bucket coalesced after the
     built-in members. Other custom bucket rows come first alphabetically in the
     user region, followed by ungrouped aliases alphabetically. Bucket metadata
@@ -472,8 +472,8 @@ def build_models_panel_rows(
     specs_by_name = {spec.name: spec for spec in _BUILTIN_BUCKET_SPECS}
 
     def builtin_bucket_for_alias(view: AliasView) -> str | None:
-        if view.name in specs_by_name[PHASE_WORKER_BUCKET_NAME].fixed_members:
-            return PHASE_WORKER_BUCKET_NAME
+        if view.name in specs_by_name[WORKER_BUCKET_NAME].fixed_members:
+            return WORKER_BUCKET_NAME
         return None
 
     builtin_members: dict[str, list[AliasView]] = {

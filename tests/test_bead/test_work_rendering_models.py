@@ -21,12 +21,12 @@ class TestModelDirective:
     @pytest.mark.parametrize(
         ("size", "expected_model", "expects_plan"),
         [
-            (None, "@small_phase_worker", False),
-            (PhaseSize.XSMALL, "@xsmall_phase_worker", False),
-            (PhaseSize.SMALL, "@small_phase_worker", False),
-            (PhaseSize.MEDIUM, "@medium_phase_worker", False),
-            (PhaseSize.LARGE, "@large_phase_worker", True),
-            (PhaseSize.XLARGE, "@xlarge_phase_worker", True),
+            (None, "@small_worker", False),
+            (PhaseSize.XSMALL, "@xsmall_worker", False),
+            (PhaseSize.SMALL, "@small_worker", False),
+            (PhaseSize.MEDIUM, "@medium_worker", False),
+            (PhaseSize.LARGE, "@large_worker", True),
+            (PhaseSize.XLARGE, "@xlarge_worker", True),
         ],
     )
     def test_phase_size_controls_model_and_planning_handoff(
@@ -100,7 +100,7 @@ class TestModelDirective:
 
         phase_segment = rendered.split("\n---\n")[0]
         assert f"%model:{model}" in phase_segment
-        assert "_phase_worker" not in phase_segment
+        assert "_worker" not in phase_segment
         assert ("#plan" in phase_segment.splitlines()) is expects_plan
         if expects_plan:
             assert phase_segment.endswith("#bd/work_phase_bead:p1\n#plan")
@@ -260,7 +260,7 @@ class TestModelDirective:
         # epic-lander role alias.
         assert "%model:@epic_lander" in land_segment
 
-    def test_phase_model_empty_renders_small_phase_worker_directive(
+    def test_phase_model_empty_renders_small_worker_directive(
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1")])
@@ -273,7 +273,7 @@ class TestModelDirective:
         )
 
         phase_segment, land_segment = rendered.split("\n---\n")
-        assert "%model:@small_phase_worker" in phase_segment
+        assert "%model:@small_worker" in phase_segment
         assert "%model:@epic_lander" in land_segment
 
     def test_mixed_phase_models_only_decorate_set_phases(
@@ -302,7 +302,7 @@ class TestModelDirective:
         p3_seg = next(s for s in segments if "#bd/work_phase_bead:p3" in s)
         land_seg = segments[-1]
         assert "%model:codex/gpt-5.6-sol" in p1_seg
-        assert "%model:@small_phase_worker" in p2_seg
+        assert "%model:@small_worker" in p2_seg
         assert "%model:#pro" in p3_seg
         assert "%model:@epic_lander" in land_seg
 
@@ -321,7 +321,7 @@ class TestModelDirective:
         segments = rendered.split("\n---\n")
         phase_segment, land_segment = segments
         assert_bare_auto_directives(rendered)
-        assert "%model:@small_phase_worker" in phase_segment
+        assert "%model:@small_worker" in phase_segment
         # An explicit per-epic land model still wins over the epic-lander alias.
         assert land_segment == (
             "%id(!land, clan=e1, bead=e1)\n"
@@ -370,14 +370,14 @@ class TestModelDirective:
             "#bd/land_epic:e1"
         )
         # The only additions over the baseline are the role-alias model
-        # directives: @small_phase_worker on each phase and @epic_lander on land.
-        stripped = rendered.replace("%model:@small_phase_worker\n", "").replace(
+        # directives: @small_worker on each phase and @epic_lander on land.
+        stripped = rendered.replace("%model:@small_worker\n", "").replace(
             "%model:@epic_lander\n", ""
         )
         assert stripped == pre_model_baseline
         assert_bare_auto_directives(rendered)
         # The selector-backed phase role preserves its pool member's effort.
-        small = resolve_model_alias_with_effort("@small_phase_worker")
+        small = resolve_model_alias_with_effort("@small_worker")
         assert (small.target, small.effort) == frozen_selector_member(
             CHEAP_MODEL_ALIAS_NAME, 0
         )

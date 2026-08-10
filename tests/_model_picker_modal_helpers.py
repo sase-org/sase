@@ -43,23 +43,17 @@ def make_alias_context(
             ),
             make_alias_view("epic_lander", "role", provider="claude", model="opus"),
             make_alias_view("big_epic_lander", "role", provider="claude", model="opus"),
+            make_alias_view("xsmall_worker", "role", provider="claude", model="sonnet"),
+            make_alias_view("small_worker", "role", provider="claude", model="opus"),
             make_alias_view(
-                "xsmall_phase_worker", "role", provider="claude", model="sonnet"
-            ),
-            make_alias_view(
-                "small_phase_worker", "role", provider="claude", model="opus"
-            ),
-            make_alias_view(
-                "medium_phase_worker",
+                "medium_worker",
                 "role",
                 provider="codex",
                 model="gpt-5.6-sol",
             ),
+            make_alias_view("large_worker", "role", provider="claude", model="opus"),
             make_alias_view(
-                "large_phase_worker", "role", provider="claude", model="opus"
-            ),
-            make_alias_view(
-                "xlarge_phase_worker",
+                "xlarge_worker",
                 "role",
                 provider="claude",
                 model="claude-fable-5",

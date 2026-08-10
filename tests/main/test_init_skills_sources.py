@@ -409,17 +409,17 @@ def test_sase_plan_skill_does_not_expose_internal_model_aliases() -> None:
     body = src.read_text(encoding="utf-8")
 
     for internal_name in (
-        "phase_worker",
+        "worker",
         "cheap",
         "cheaper",
         "cheapest",
         "smart",
         "smartest",
-        "xsmall_phase_worker",
-        "small_phase_worker",
-        "medium_phase_worker",
-        "large_phase_worker",
-        "xlarge_phase_worker",
+        "xsmall_worker",
+        "small_worker",
+        "medium_worker",
+        "large_worker",
+        "xlarge_worker",
     ):
         assert internal_name not in body
 

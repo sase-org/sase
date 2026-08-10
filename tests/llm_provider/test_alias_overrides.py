@@ -75,15 +75,15 @@ def test_alias_token_is_resolved_eagerly_and_retained_raw(
     )
 
     override = set_alias_override(
-        "phase_worker", "@medium_phase_worker@medium", 3600.0, source="panel"
+        "worker", "@medium_worker@medium", 3600.0, source="panel"
     )
 
-    assert calls == ["@medium_phase_worker@medium"]
-    assert override.raw_model == "@medium_phase_worker@medium"
+    assert calls == ["@medium_worker@medium"]
+    assert override.raw_model == "@medium_worker@medium"
     assert (override.provider, override.model) == ("codex", "gpt-5.6-sol")
     assert override.effort == "medium"
-    stored = _read_state()["overrides"]["phase_worker"]
-    assert stored["raw_model"] == "@medium_phase_worker@medium"
+    stored = _read_state()["overrides"]["worker"]
+    assert stored["raw_model"] == "@medium_worker@medium"
     assert (stored["provider"], stored["model"]) == ("codex", "gpt-5.6-sol")
     assert stored["effort"] == "medium"
 
@@ -124,14 +124,14 @@ def test_set_until_stores_exact_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_set_until_preserves_other_aliases(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(time, "time", lambda: 1000.0)
-    set_alias_override("phase_worker", "claude/opus", None, source="panel")
+    set_alias_override("worker", "claude/opus", None, source="panel")
 
     set_alias_override_until("coder", "codex/o3", 2000.0, source="panel")
 
     data = _read_state()
     assert data["version"] == 2
     assert set(data) == {"version", "overrides"}
-    assert set(data["overrides"]) == {"coder", "phase_worker"}
+    assert set(data["overrides"]) == {"coder", "worker"}
 
 
 @pytest.mark.parametrize("expires_at", [float("nan"), float("inf"), float("-inf")])
@@ -176,24 +176,24 @@ def test_overwriting_same_alias_replaces_target() -> None:
 
 def test_overrides_on_multiple_aliases_are_independent() -> None:
     set_alias_override("coder", "codex/o3", None, source="panel")
-    set_alias_override("phase_worker", "claude/opus", None, source="panel")
+    set_alias_override("worker", "claude/opus", None, source="panel")
 
     active = get_active_alias_overrides()
-    assert set(active) == {"coder", "phase_worker"}
+    assert set(active) == {"coder", "worker"}
     assert active["coder"].model == "o3"
-    assert active["phase_worker"].model == "opus"
+    assert active["worker"].model == "opus"
 
 
 def test_setting_one_alias_preserves_others() -> None:
     set_alias_override("coder", "codex/o3", None, source="panel")
-    set_alias_override("phase_worker", "claude/opus", None, source="panel")
+    set_alias_override("worker", "claude/opus", None, source="panel")
 
     # A third set must not drop the first two.
     set_alias_override("epic_lander", "codex/o3", None, source="panel")
 
     assert set(get_active_alias_overrides()) == {
         "coder",
-        "phase_worker",
+        "worker",
         "epic_lander",
     }
 
@@ -251,12 +251,12 @@ def test_alias_and_default_overrides_coexist() -> None:
 
 def test_clear_one_alias_keeps_others() -> None:
     set_alias_override("coder", "codex/o3", None, source="panel")
-    set_alias_override("phase_worker", "claude/opus", None, source="panel")
+    set_alias_override("worker", "claude/opus", None, source="panel")
 
     assert clear_alias_override("coder") is True
 
     active = get_active_alias_overrides()
-    assert set(active) == {"phase_worker"}
+    assert set(active) == {"worker"}
     assert _state_path().exists()
 
 
@@ -269,7 +269,7 @@ def test_clear_last_alias_deletes_file() -> None:
 
 def test_clear_unknown_alias_returns_false() -> None:
     set_alias_override("coder", "codex/o3", None, source="panel")
-    assert clear_alias_override("phase_worker") is False
+    assert clear_alias_override("worker") is False
     # The untouched override is still present.
     assert get_active_alias_override("coder") is not None
 
@@ -302,10 +302,10 @@ def test_clear_present_but_expired_alias_returns_true() -> None:
 
 def test_expired_entry_pruned_active_entry_kept() -> None:
     set_alias_override("coder", "codex/o3", None, source="panel")  # no expiry
-    set_alias_override("phase_worker", "claude/opus", 60.0, source="panel")
+    set_alias_override("worker", "claude/opus", 60.0, source="panel")
 
     data = _read_state()
-    data["overrides"]["phase_worker"]["expires_at"] = time.time() - 1
+    data["overrides"]["worker"]["expires_at"] = time.time() - 1
     _write_state(data)
 
     active = get_active_alias_overrides()
@@ -318,12 +318,12 @@ def test_expired_entry_pruned_active_entry_kept() -> None:
 
 def test_all_entries_expired_deletes_file() -> None:
     set_alias_override("coder", "codex/o3", 60.0, source="panel")
-    set_alias_override("phase_worker", "claude/opus", 60.0, source="panel")
+    set_alias_override("worker", "claude/opus", 60.0, source="panel")
 
     data = _read_state()
     past = time.time() - 1
     data["overrides"]["coder"]["expires_at"] = past
-    data["overrides"]["phase_worker"]["expires_at"] = past
+    data["overrides"]["worker"]["expires_at"] = past
     _write_state(data)
 
     assert get_active_alias_overrides() == {}
@@ -338,7 +338,7 @@ def test_expiry_boundary_is_expired() -> None:
 
 def test_get_all_prunes_only_expired_entry() -> None:
     set_alias_override("coder", "codex/o3", None, source="panel")
-    short = set_alias_override("phase_worker", "claude/opus", 60.0, source="panel")
+    short = set_alias_override("worker", "claude/opus", 60.0, source="panel")
     assert short.expires_at is not None
 
     active = get_active_alias_overrides(now=short.expires_at)
@@ -467,7 +467,7 @@ def test_overrides_not_a_dict_deletes_file() -> None:
 def test_one_malformed_entry_pruned_valid_kept() -> None:
     set_alias_override("coder", "codex/o3", None, source="panel")
     data = _read_state()
-    data["overrides"]["phase_worker"] = {"provider": "claude"}  # missing fields
+    data["overrides"]["worker"] = {"provider": "claude"}  # missing fields
     _write_state(data)
 
     active = get_active_alias_overrides()
@@ -517,7 +517,7 @@ def test_non_finite_persisted_timestamp_is_pruned(
 ) -> None:
     set_alias_override("coder", "codex/o3", None, source="panel")
     data = _read_state()
-    data["overrides"]["phase_worker"] = {
+    data["overrides"]["worker"] = {
         "provider": "claude",
         "model": "opus",
         "raw_model": "claude/opus",

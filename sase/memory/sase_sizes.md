@@ -10,8 +10,8 @@ description:
 
 SASE uses one size scale for epic phases, task beads, and tale plans: `xsmall`, `small`,
 `medium`, `large`, `xlarge`. Size chooses the default work model through
-`@<size>_phase_worker` aliases and decides whether the worker plans before implementing.
-An explicit `model` always wins over size-derived routing.
+`@<size>_worker` aliases and decides whether the worker plans before implementing. An
+explicit `model` always wins over size-derived routing.
 
 - `xsmall`: the simplest tasks needing almost no reasoning, such as launching SASE
   agents only to observe their output while testing a SASE agent feature.
@@ -41,6 +41,6 @@ only when very confident you know the precise root cause, and describe that root
 in the bead. Use `xlarge` only when very certain the work needs an epic plan and
 multiple agents.
 
-Default model aliases are `@xsmall_phase_worker`, `@small_phase_worker`,
-`@medium_phase_worker`, `@large_phase_worker`, and `@xlarge_phase_worker`. An explicit
-`model` on a bead or plan takes precedence.
+Default model aliases are `@xsmall_worker`, `@small_worker`, `@medium_worker`,
+`@large_worker`, and `@xlarge_worker`. An explicit `model` on a bead or plan takes
+precedence.

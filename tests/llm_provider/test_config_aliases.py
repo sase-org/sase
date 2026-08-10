@@ -22,7 +22,7 @@ from sase.llm_provider.model_alias_policy import (
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_WORKER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
 )
@@ -158,10 +158,10 @@ def test_model_alias_description_builtin_and_custom(
         model_alias_description("big_epic_lander")
         == FROZEN_DESCRIPTIONS[BIG_EPIC_LANDER_MODEL_ALIAS_NAME]
     )
-    assert model_alias_description("phase_worker") is None
+    assert model_alias_description("worker") is None
     assert (
-        model_alias_description("medium_phase_worker")
-        == FROZEN_DESCRIPTIONS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME]
+        model_alias_description("medium_worker")
+        == FROZEN_DESCRIPTIONS[MEDIUM_WORKER_MODEL_ALIAS_NAME]
     )
     assert (
         model_alias_description("smart") == FROZEN_DESCRIPTIONS[SMART_MODEL_ALIAS_NAME]
@@ -204,11 +204,11 @@ def test_model_alias_names_include_configured_and_special(
         "default",
         "epic_lander",
         "big_epic_lander",
-        "xsmall_phase_worker",
-        "small_phase_worker",
-        "medium_phase_worker",
-        "large_phase_worker",
-        "xlarge_phase_worker",
+        "xsmall_worker",
+        "small_worker",
+        "medium_worker",
+        "large_worker",
+        "xlarge_worker",
         "smart",
         "smartest",
         "cheap",

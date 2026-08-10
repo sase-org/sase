@@ -34,7 +34,7 @@ async def _open_alias_edit_picker(page: AcePage) -> None:
     await page.expect_state("artifacts_subtab", "prs")
     page.app.push_screen(ModelsPanel())
     await page.expect_modal("ModelsPanel")
-    # default -> epic_lander -> big_epic_lander -> phase_worker bucket ->
+    # default -> epic_lander -> big_epic_lander -> worker bucket ->
     # xsmall member.
     await page.press("j", "j", "j", "l", "e")
     await page.expect_modal("ModelPickerModal")
@@ -62,16 +62,16 @@ async def test_models_panel_alias_picker_filtered_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_alias_edit_picker(page)
         picker_input = page.app.screen.query_one("#model-picker-filter", Input)
-        picker_input.value = "@medium_phase_worker"
+        picker_input.value = "@medium_worker"
         picker_list = page.app.screen.query_one("#model-picker-list", OptionList)
         await wait_for_state(
             page,
             lambda: (
                 picker_list.highlighted is not None
                 and picker_list.get_option_at_index(picker_list.highlighted).id
-                == "@medium_phase_worker"
+                == "@medium_worker"
             ),
-            description="filtered @medium_phase_worker alias highlighted",
+            description="filtered @medium_worker alias highlighted",
         )
         await wait_for_visual_idle(page)
 
@@ -100,8 +100,7 @@ async def test_models_panel_alias_picker_reordered_png_snapshot(
             page,
             lambda: (
                 "__header_claude__" in {option.id for option in picker_list.options}
-                and "@medium_phase_worker"
-                in {option.id for option in picker_list.options}
+                and "@medium_worker" in {option.id for option in picker_list.options}
             ),
             description="claude provider rows and aliases visible",
         )
@@ -183,20 +182,20 @@ async def test_models_panel_alias_selection_effort_step_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_override_picker(page)
         picker_input = page.app.screen.query_one("#model-picker-filter", Input)
-        picker_input.value = "@medium_phase_worker"
+        picker_input.value = "@medium_worker"
         picker_list = page.app.screen.query_one("#model-picker-list", OptionList)
         await wait_for_state(
             page,
             lambda: (
                 picker_list.highlighted is not None
                 and picker_list.get_option_at_index(picker_list.highlighted).id
-                == "@medium_phase_worker"
+                == "@medium_worker"
             ),
-            description="override picker @medium_phase_worker alias highlighted",
+            description="override picker @medium_worker alias highlighted",
         )
         await page.press("enter")
         await page.expect_modal("DefaultEffortLevelModal")
-        await wait_for_svg_contains(page, "Append an effort to @medium_phase_worker")
+        await wait_for_svg_contains(page, "Append an effort to @medium_worker")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -206,7 +205,7 @@ async def test_models_panel_alias_selection_effort_step_png_snapshot(
         )
 
 
-async def test_models_panel_phase_worker_override_drilled_in_png_snapshot(
+async def test_models_panel_worker_override_drilled_in_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -227,12 +226,12 @@ async def test_models_panel_phase_worker_override_drilled_in_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "models_panel_phase_worker_override_drilled_in_120x40",
-            title="ACE models panel (phase_worker bucket open with override)",
+            "models_panel_worker_override_drilled_in_120x40",
+            title="ACE models panel (worker bucket open with override)",
         )
 
 
-async def test_models_panel_phase_worker_drilled_in_png_snapshot(
+async def test_models_panel_worker_drilled_in_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -251,8 +250,8 @@ async def test_models_panel_phase_worker_drilled_in_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "models_panel_phase_worker_drilled_in_120x40",
-            title="ACE models panel (phase_worker bucket open)",
+            "models_panel_worker_drilled_in_120x40",
+            title="ACE models panel (worker bucket open)",
         )
 
 

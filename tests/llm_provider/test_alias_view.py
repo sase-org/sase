@@ -13,7 +13,7 @@ from sase.llm_provider.load_balancing import parse_model_alias_selector
 from sase.llm_provider.model_alias_policy import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     implicit_alias_targets,
 )
@@ -61,28 +61,28 @@ def test_includes_default_role_and_user_aliases(
         by_name["big_epic_lander"].model,
         by_name["big_epic_lander"].effort,
     ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
-    assert "phase_worker" not in by_name
-    assert by_name["xsmall_phase_worker"].kind == "role"
-    assert by_name["small_phase_worker"].kind == "role"
-    assert by_name["medium_phase_worker"].kind == "role"
-    assert by_name["medium_phase_worker"].configured is False
-    assert by_name["medium_phase_worker"].implicit_fallback is None
-    assert by_name["medium_phase_worker"].reference_effort is None
+    assert "worker" not in by_name
+    assert by_name["xsmall_worker"].kind == "role"
+    assert by_name["small_worker"].kind == "role"
+    assert by_name["medium_worker"].kind == "role"
+    assert by_name["medium_worker"].configured is False
+    assert by_name["medium_worker"].implicit_fallback is None
+    assert by_name["medium_worker"].reference_effort is None
     assert (
-        by_name["medium_phase_worker"].implicit_value
-        == FROZEN_TARGETS[MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME]
+        by_name["medium_worker"].implicit_value
+        == FROZEN_TARGETS[MEDIUM_WORKER_MODEL_ALIAS_NAME]
     )
     assert (
-        by_name["medium_phase_worker"].provider,
-        by_name["medium_phase_worker"].model,
-        by_name["medium_phase_worker"].effort,
-    ) == frozen_provider_model_effort(MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME)
-    assert by_name["large_phase_worker"].kind == "role"
-    assert by_name["xlarge_phase_worker"].kind == "role"
+        by_name["medium_worker"].provider,
+        by_name["medium_worker"].model,
+        by_name["medium_worker"].effort,
+    ) == frozen_provider_model_effort(MEDIUM_WORKER_MODEL_ALIAS_NAME)
+    assert by_name["large_worker"].kind == "role"
+    assert by_name["xlarge_worker"].kind == "role"
     assert (
-        by_name["xlarge_phase_worker"].provider,
-        by_name["xlarge_phase_worker"].model,
-        by_name["xlarge_phase_worker"].effort,
+        by_name["xlarge_worker"].provider,
+        by_name["xlarge_worker"].model,
+        by_name["xlarge_worker"].effort,
     ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
     assert by_name["smart"].kind == "role"
     assert by_name["smart"].implicit_fallback == "default"
@@ -203,11 +203,11 @@ def test_default_is_first_and_groups_are_ordered(
     assert role_slice == [
         "epic_lander",
         "big_epic_lander",
-        "xsmall_phase_worker",
-        "small_phase_worker",
-        "medium_phase_worker",
-        "large_phase_worker",
-        "xlarge_phase_worker",
+        "xsmall_worker",
+        "small_worker",
+        "medium_worker",
+        "large_worker",
+        "xlarge_worker",
         "smartest",
         "smart",
         "cheap",

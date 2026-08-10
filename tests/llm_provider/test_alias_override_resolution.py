@@ -20,7 +20,7 @@ from sase.llm_provider.model_alias_policy import (
     CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
 )
 from sase.llm_provider.temporary_override import (
@@ -48,11 +48,11 @@ def test_override_on_role_alias_changes_resolution(
             "model_aliases": {"builtin": {"default": "claude/opus"}},
         },
     )
-    set_alias_override("medium_phase_worker", "codex/o3", None, source="panel")
+    set_alias_override("medium_worker", "codex/o3", None, source="panel")
 
-    assert resolve_model_alias("medium_phase_worker") == "codex/o3"
-    assert resolve_model_alias("@medium_phase_worker") == "codex/o3"
-    assert resolve_model_provider("medium_phase_worker") == ("codex", "o3")
+    assert resolve_model_alias("medium_worker") == "codex/o3"
+    assert resolve_model_alias("@medium_worker") == "codex/o3"
+    assert resolve_model_provider("medium_worker") == ("codex", "o3")
 
 
 def test_override_beats_configured_alias(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -60,15 +60,15 @@ def test_override_beats_configured_alias(monkeypatch: pytest.MonkeyPatch) -> Non
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"medium_phase_worker": "claude/sonnet"}},
+            "model_aliases": {"builtin": {"medium_worker": "claude/sonnet"}},
         },
     )
 
     # Baseline: the configured value resolves before any override.
-    assert resolve_model_alias("medium_phase_worker") == "claude/sonnet"
+    assert resolve_model_alias("medium_worker") == "claude/sonnet"
 
-    set_alias_override("medium_phase_worker", "codex/o3", None, source="panel")
-    assert resolve_model_alias("medium_phase_worker") == "codex/o3"
+    set_alias_override("medium_worker", "codex/o3", None, source="panel")
+    assert resolve_model_alias("medium_worker") == "codex/o3"
 
 
 def test_nondefault_override_effort_and_outer_suffix_precedence(
@@ -78,26 +78,26 @@ def test_nondefault_override_effort_and_outer_suffix_precedence(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"medium_phase_worker": "claude/opus@high"}},
+            "model_aliases": {"builtin": {"medium_worker": "claude/opus@high"}},
         },
     )
     set_alias_override(
-        "medium_phase_worker", "codex/gpt-5.6-sol@medium", None, source="panel"
+        "medium_worker", "codex/gpt-5.6-sol@medium", None, source="panel"
     )
 
-    assert resolve_model_provider_with_effort("@medium_phase_worker") == (
+    assert resolve_model_provider_with_effort("@medium_worker") == (
         "codex",
         "gpt-5.6-sol",
         "medium",
     )
-    assert resolve_model_provider_with_effort("@medium_phase_worker@xhigh") == (
+    assert resolve_model_provider_with_effort("@medium_worker@xhigh") == (
         "codex",
         "gpt-5.6-sol",
         "xhigh",
     )
 
 
-def test_stale_override_on_phase_worker_has_no_builtin_effect(
+def test_stale_override_on_worker_has_no_builtin_effect(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -112,26 +112,26 @@ def test_stale_override_on_phase_worker_has_no_builtin_effect(
         lambda target: target.startswith("claude/"),
     )
 
-    set_alias_override("phase_worker", "codex/o3", None, source="panel")
-    assert resolve_model_alias("@phase_worker") == "phase_worker"
+    set_alias_override("worker", "codex/o3", None, source="panel")
+    assert resolve_model_alias("@worker") == "worker"
     assert resolve_model_provider_with_effort(
-        "xsmall_phase_worker"
+        "xsmall_worker"
     ) == frozen_selector_provider_model_effort(
         CHEAPER_MODEL_ALIAS_NAME,
         0,
     )
     assert resolve_model_provider_with_effort(
-        "small_phase_worker"
+        "small_worker"
     ) == frozen_selector_provider_model_effort(
         CHEAP_MODEL_ALIAS_NAME,
         0,
     )
-    assert resolve_model_provider("medium_phase_worker") == frozen_provider_model(
-        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+    assert resolve_model_provider("medium_worker") == frozen_provider_model(
+        MEDIUM_WORKER_MODEL_ALIAS_NAME
     )
-    assert resolve_model_provider("large_phase_worker") == ("claude", "opus")
+    assert resolve_model_provider("large_worker") == ("claude", "opus")
     assert resolve_model_provider_with_effort(
-        "xlarge_phase_worker"
+        "xlarge_worker"
     ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
 
 
@@ -142,20 +142,20 @@ def test_size_specific_phase_override_is_independent(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"medium_phase_worker": "claude/sonnet"}},
+            "model_aliases": {"builtin": {"medium_worker": "claude/sonnet"}},
         },
     )
 
-    set_alias_override("large_phase_worker", "codex/o3", None, source="panel")
+    set_alias_override("large_worker", "codex/o3", None, source="panel")
 
     assert resolve_model_provider_with_effort(
-        "small_phase_worker"
+        "small_worker"
     ) == frozen_selector_provider_model_effort(
         CHEAP_MODEL_ALIAS_NAME,
         0,
     )
-    assert resolve_model_provider("medium_phase_worker") == ("claude", "sonnet")
-    assert resolve_model_provider("large_phase_worker") == ("codex", "o3")
+    assert resolve_model_provider("medium_worker") == ("claude", "sonnet")
+    assert resolve_model_provider("large_worker") == ("codex", "o3")
 
 
 def test_unconfigured_provider_coder_alias_override_has_no_effect(
@@ -240,7 +240,7 @@ def test_nondefault_override_leaves_default_lane_unchanged(
         },
     )
 
-    set_alias_override("medium_phase_worker", "codex/o3", None, source="panel")
+    set_alias_override("medium_worker", "codex/o3", None, source="panel")
 
     # A non-default override does not affect @default...
     assert resolve_model_alias("default") == "claude/opus"
@@ -268,8 +268,8 @@ def test_default_override_propagates_to_references(
     assert resolve_model_provider("@smart") == ("codex", "o3")
     assert resolve_model_provider("@epic_lander") == ("codex", "o3")
     assert resolve_model_provider_with_effort(
-        "@medium_phase_worker"
-    ) == frozen_provider_model_effort(MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME)
+        "@medium_worker"
+    ) == frozen_provider_model_effort(MEDIUM_WORKER_MODEL_ALIAS_NAME)
     assert resolve_effective_default_provider_model() == ("codex", "o3")
 
 
@@ -308,7 +308,7 @@ def test_concrete_model_token_is_not_overridden(
     """A plain model token resolves to itself even with other overrides active."""
     mock_provider_config(monkeypatch, {"provider": "claude", "model_aliases": {}})
 
-    set_alias_override("medium_phase_worker", "codex/o3", None, source="panel")
+    set_alias_override("medium_worker", "codex/o3", None, source="panel")
     assert resolve_model_alias("some-bare-model") == "some-bare-model"
 
 
@@ -321,15 +321,15 @@ def test_override_clears_back_to_configured(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"medium_phase_worker": "claude/sonnet"}},
+            "model_aliases": {"builtin": {"medium_worker": "claude/sonnet"}},
         },
     )
 
-    set_alias_override("medium_phase_worker", "codex/o3", None, source="panel")
-    assert resolve_model_alias("medium_phase_worker") == "codex/o3"
+    set_alias_override("medium_worker", "codex/o3", None, source="panel")
+    assert resolve_model_alias("medium_worker") == "codex/o3"
 
-    clear_alias_override("medium_phase_worker")
-    assert resolve_model_alias("medium_phase_worker") == "claude/sonnet"
+    clear_alias_override("medium_worker")
+    assert resolve_model_alias("medium_worker") == "claude/sonnet"
 
 
 def test_launch_default_override_beats_machine_default_override(
@@ -371,7 +371,7 @@ def test_default_override_does_not_move_pinned_or_selector_backed_lanes(
 
     smartest = resolve_model_alias_with_effort("@smartest")
     big_lander = resolve_model_alias_with_effort("@big_epic_lander")
-    xlarge = resolve_model_alias_with_effort("@xlarge_phase_worker")
+    xlarge = resolve_model_alias_with_effort("@xlarge_worker")
     assert (smartest.target, smartest.effort) == FROZEN_TARGET_DETAILS[
         SMARTEST_MODEL_ALIAS_NAME
     ]
@@ -386,7 +386,7 @@ def test_default_override_does_not_move_pinned_or_selector_backed_lanes(
         == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
     )
     cheap = resolve_model_alias_with_effort("@cheap")
-    small = resolve_model_alias_with_effort("@small_phase_worker")
+    small = resolve_model_alias_with_effort("@small_worker")
     assert (cheap.target, cheap.effort) == frozen_selector_member(
         CHEAP_MODEL_ALIAS_NAME, 0
     )

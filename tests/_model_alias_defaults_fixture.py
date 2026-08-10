@@ -25,13 +25,13 @@ from sase.llm_provider.model_alias_policy import (
     CHEAPEST_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
-    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
-    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+    LARGE_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_WORKER_MODEL_ALIAS_NAME,
+    SMALL_WORKER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
-    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
-    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+    XLARGE_WORKER_MODEL_ALIAS_NAME,
+    XSMALL_WORKER_MODEL_ALIAS_NAME,
     _ModelAliasDefaults,
 )
 from sase.xprompt.effort import split_model_effort
@@ -48,25 +48,25 @@ _FROZEN_ALIASES: dict[str, dict[str, str]] = {
         "fallback": "@smartest",
         "description": "Frozen test description for big_epic_lander.",
     },
-    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME: {
+    XSMALL_WORKER_MODEL_ALIAS_NAME: {
         "fallback": "@cheaper",
-        "description": "Frozen test description for xsmall_phase_worker.",
+        "description": "Frozen test description for xsmall_worker.",
     },
-    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: {
+    SMALL_WORKER_MODEL_ALIAS_NAME: {
         "fallback": "@cheap",
-        "description": "Frozen test description for small_phase_worker.",
+        "description": "Frozen test description for small_worker.",
     },
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: {
+    MEDIUM_WORKER_MODEL_ALIAS_NAME: {
         "target": "codex/o3@high",
-        "description": "Frozen test description for medium_phase_worker.",
+        "description": "Frozen test description for medium_worker.",
     },
-    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: {
+    LARGE_WORKER_MODEL_ALIAS_NAME: {
         "fallback": "@smart",
-        "description": "Frozen test description for large_phase_worker.",
+        "description": "Frozen test description for large_worker.",
     },
-    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME: {
+    XLARGE_WORKER_MODEL_ALIAS_NAME: {
         "fallback": "@smartest",
-        "description": "Frozen test description for xlarge_phase_worker.",
+        "description": "Frozen test description for xlarge_worker.",
     },
     SMART_MODEL_ALIAS_NAME: {
         "fallback": "@default",

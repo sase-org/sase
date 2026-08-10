@@ -175,7 +175,7 @@ def test_task_work_launches_one_checkpointed_agent(
     assert captured["query"] == (
         f"#git:sase\n"
         f"%id({task_id}, bead={task_id})\n"
-        f"%m:@small_phase_worker\n"
+        f"%m:@small_worker\n"
         f"#bd/work_task:{task_id}\n"
         "Preserve the public API."
     )
@@ -242,11 +242,11 @@ def test_task_work_dry_run_is_read_only(
 @pytest.mark.parametrize(
     ("size", "alias", "expects_plan"),
     [
-        (PhaseSize.XSMALL, "@xsmall_phase_worker", False),
-        (PhaseSize.SMALL, "@small_phase_worker", False),
-        (PhaseSize.MEDIUM, "@medium_phase_worker", False),
-        (PhaseSize.LARGE, "@large_phase_worker", True),
-        (PhaseSize.XLARGE, "@xlarge_phase_worker", True),
+        (PhaseSize.XSMALL, "@xsmall_worker", False),
+        (PhaseSize.SMALL, "@small_worker", False),
+        (PhaseSize.MEDIUM, "@medium_worker", False),
+        (PhaseSize.LARGE, "@large_worker", True),
+        (PhaseSize.XLARGE, "@xlarge_worker", True),
     ],
 )
 def test_task_work_dry_run_routes_all_sizes_through_phase_policy(
@@ -290,7 +290,7 @@ def test_task_work_dry_run_normalizes_legacy_sizeless_task_to_small(
     bead_cli.handle_bead_work(make_args("sase-legacy", dry_run=True))
 
     prompt = capsys.readouterr().out.split("--- Task prompt (dry run) ---\n", 1)[1]
-    assert "%m:@small_phase_worker" in prompt.splitlines()
+    assert "%m:@small_worker" in prompt.splitlines()
     assert "#plan" not in prompt.splitlines()
 
 

@@ -134,7 +134,7 @@ class TestPlanFollowupApprovalEffort:
         state.current_artifacts_dir = "/tmp/followup"
 
         accept_mod._write_followup_effort_meta(
-            state, "%model:@small_phase_worker@xhigh\nImplement the approved plan."
+            state, "%model:@small_worker@xhigh\nImplement the approved plan."
         )
 
         assert call("/tmp/followup", "reasoning_effort", "xhigh") in (

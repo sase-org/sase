@@ -112,7 +112,7 @@ async def test_default_model_shows_tale_size_alias_label(tmp_path) -> None:
             model_display = modal.query_one("#coder-model-display", Static)
             display_text = str(model_display.render())
             assert "Follow-up — CLAUDE(opus)" in display_text
-    resolve_mock.assert_any_call("@small_phase_worker")
+    resolve_mock.assert_any_call("@small_worker")
 
 
 async def test_default_model_uses_validated_tale_size(tmp_path) -> None:
@@ -133,7 +133,7 @@ async def test_default_model_uses_validated_tale_size(tmp_path) -> None:
             model_display = modal.query_one("#coder-model-display", Static)
             display_text = str(model_display.render())
             assert "Follow-up — CODEX(gpt-5.6-sol)" in display_text
-    resolve_mock.assert_any_call("@medium_phase_worker")
+    resolve_mock.assert_any_call("@medium_worker")
 
 
 async def test_default_model_without_plan_file_uses_medium_fallback() -> None:
@@ -149,7 +149,7 @@ async def test_default_model_without_plan_file_uses_medium_fallback() -> None:
 
             model_display = modal.query_one("#coder-model-display", Static)
             assert "Follow-up — CLAUDE(opus)" in str(model_display.render())
-    resolve_mock.assert_any_call("@medium_phase_worker")
+    resolve_mock.assert_any_call("@medium_worker")
 
 
 async def test_epic_model_is_configured_by_plan_frontmatter() -> None:

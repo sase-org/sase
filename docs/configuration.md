@@ -1110,10 +1110,10 @@ already-loaded Artifacts-pane snapshots.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists
 inline-typable model names, implicit role aliases (`@default`, `@epic_lander`,
-`@big_epic_lander`, `@xsmall_phase_worker`, `@small_phase_worker`,
-`@medium_phase_worker`, `@large_phase_worker`, `@xlarge_phase_worker`, `@smartest`,
-`@smart`, `@cheap`, `@cheaper`, `@cheapest`), and configured model aliases; provider
-short aliases are shown as filter/display hints but are not inserted.
+`@big_epic_lander`, `@xsmall_worker`, `@small_worker`, `@medium_worker`,
+`@large_worker`, `@xlarge_worker`, `@smartest`, `@smart`, `@cheap`, `@cheaper`,
+`@cheapest`), and configured model aliases; provider short aliases are shown as
+filter/display hints but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered
 workspace-provider refs and known-project refs such as `#git:<project>` or
@@ -1288,15 +1288,15 @@ llm_provider:
       cheap: claude/haiku | codex/gpt-4.1-mini # custom small-phase pool
       cheaper: claude/haiku@minimal | codex/gpt-4.1-mini@low # custom xsmall pool
       cheapest: claude/haiku@minimal | codex/gpt-4o-mini # custom explicit-use pool
-      medium_phase_worker: codex/o3@high # custom medium target
-      large_phase_worker: "@smart"
+      medium_worker: codex/o3@high # custom medium target
+      large_worker: "@smart"
       smartest: claude/sonnet@max # custom maximum-effort target
     custom:
       blogger:
         model: claude/opus
         description: Agents that draft and edit blog posts.
     buckets:
-      phase_worker:
+      worker:
         description: Size-specific phase-agent roles.
 ```
 
@@ -1330,29 +1330,28 @@ available/total count, selector member lists mark the current selection with `â†
 active temporary overrides label selection suspended.
 
 ACE automatically supplies one display-only built-in bucket while alias resolution and
-configuration remain flat: `phase_worker` groups `@xsmall_phase_worker`,
-`@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, and
-`@xlarge_phase_worker`. `model_aliases.buckets.phase_worker.description` overrides the
-built-in description. A custom alias tagged with `bucket: phase_worker` joins that row
-while remaining independently addressable and editable.
+configuration remain flat: `worker` groups `@xsmall_worker`, `@small_worker`,
+`@medium_worker`, `@large_worker`, and `@xlarge_worker`.
+`model_aliases.buckets.worker.description` overrides the built-in description. A custom
+alias tagged with `bucket: worker` joins that row while remaining independently
+addressable and editable.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases**
 that resolve even when unset: `@default` (no-`%model` launches), `@epic_lander`,
-`@big_epic_lander`, the five `<size>_phase_worker` aliases, `@smartest`, `@smart`,
-`@cheap`, and `@cheaper`, plus explicit-use `@cheapest`. `@epic_lander` falls back to
-`@default`, while `@big_epic_lander` falls back independently to `@smartest`; xsmall
-phases and tasks fall back to `@cheaper`, small ones to `@cheap`, medium ones use
-`@medium_phase_worker`, large ones to `@smart` (which itself falls back to `@default`),
-and xlarge ones to `@smartest`. The implicit `@medium_phase_worker` and `@smartest`
-values are concrete targets, so they do not track `@default`; xlarge workers and
-threshold-sized epic landers inherit through `@smartest` unless they or `@smartest` are
-overridden. `@cheaper` owns the automatic xsmall phase/task pool and `@cheap` the small
-phase/task pool, while `@cheapest` owns an independent explicit-use pool. Override only
-threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override only
-large phases and sized tasks with `model_aliases.builtin.large_phase_worker`.
-`@smartest` is selected automatically through the threshold-sized epic and xlarge
-phase/task fallback chains. See [Implicit role aliases](llms.md#implicit-role-aliases)
-for the full table and
+`@big_epic_lander`, the five `<size>_worker` aliases, `@smartest`, `@smart`, `@cheap`,
+and `@cheaper`, plus explicit-use `@cheapest`. `@epic_lander` falls back to `@default`,
+while `@big_epic_lander` falls back independently to `@smartest`; xsmall phases and
+tasks fall back to `@cheaper`, small ones to `@cheap`, medium ones use `@medium_worker`,
+large ones to `@smart` (which itself falls back to `@default`), and xlarge ones to
+`@smartest`. The implicit `@medium_worker` and `@smartest` values are concrete targets,
+so they do not track `@default`; xlarge workers and threshold-sized epic landers inherit
+through `@smartest` unless they or `@smartest` are overridden. `@cheaper` owns the
+automatic xsmall phase/task pool and `@cheap` the small phase/task pool, while
+`@cheapest` owns an independent explicit-use pool. Override only threshold-sized epic
+landers with `model_aliases.builtin.big_epic_lander`; override only large phases and
+sized tasks with `model_aliases.builtin.large_worker`. `@smartest` is selected
+automatically through the threshold-sized epic and xlarge phase/task fallback chains.
+See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how
 delegated launches pick a role. New tasks require an explicit size after
 `/sase_new_task` has ruled out a semantic duplicate and a causally related in-progress
@@ -1361,8 +1360,8 @@ route.
 
 Accepted tale follow-ups without an approval-time model validate the actual handoff plan
 and choose the matching size-specific alias. Legacy tale plans without size metadata use
-`@medium_phase_worker`. An approval-time model, a `%model` directive in a custom coder
-prompt, or an outer effort suffix remains authoritative.
+`@medium_worker`. An approval-time model, a `%model` directive in a custom coder prompt,
+or an outer effort suffix remains authoritative.
 
 `model_aliases.builtin.epic_creator` is retired. SASE no longer launches an epic-creator
 agent, resolves that alias implicitly, or treats it as a builtin override, so a stale
@@ -1370,12 +1369,13 @@ entry should be deleted rather than repointed. `sase doctor` reports a leftover 
 under the `model_aliases.builtin.epic_creator` key.
 
 > The `llm_provider.worker_models` map and the reserved `@worker` / `@other` aliases
-> were removed in epic sase-5d. Use a size-specific phase alias or an explicit model
+> were removed in epic sase-5d. Use a size-specific worker alias or an explicit model
 > instead of `@worker`, and `@default` instead of `@other`. `@phase_worker` is also no
-> longer builtin; move a stale builtin override to `medium_phase_worker` or define a
-> custom alias deliberately. `sase doctor` reports configs that still reference removed
-> keys or aliases, including retired `@coder` and registered `@<provider>_coder` builtin
-> entries.
+> longer builtin; move a stale builtin override to `medium_worker` or define a custom
+> alias deliberately. The `phase_worker` bucket and its `<size>_phase_worker` aliases
+> were renamed to `worker` and `<size>_worker`. `sase doctor` reports configs that still
+> reference removed keys or aliases, including retired `@coder` and registered
+> `@<provider>_coder` builtin entries.
 
 The TUI also supports **temporary**, per-alias session-level provider/model overrides
 (set from the [Models panel](ace.md#models-panel), `,m`) that do **not** edit this

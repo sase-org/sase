@@ -61,11 +61,11 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
             "model_aliases": {
                 "builtin": {
                     "default": "claude/opus",
-                    "xsmall_phase_worker": "@cheaper",
-                    "small_phase_worker": "@cheap",
-                    "medium_phase_worker": "@default@high",
-                    "large_phase_worker": "@smart",
-                    "xlarge_phase_worker": "@smartest",
+                    "xsmall_worker": "@cheaper",
+                    "small_worker": "@cheap",
+                    "medium_worker": "@default@high",
+                    "large_worker": "@smart",
+                    "xlarge_worker": "@smartest",
                     "smart": "@default",
                     "smartest": ("claude/claude-fable-5 || codex/gpt-5.6-sol"),
                     "cheap": "claude/sonnet@xhigh | codex/gpt-5.5",
@@ -120,7 +120,7 @@ def test_config_schema_accepts_model_alias_buckets() -> None:
                     }
                 },
                 "buckets": {
-                    "phase_worker": {"description": "Phase worker aliases."},
+                    "worker": {"description": "Phase worker aliases."},
                     "research": {"description": "Research-swarm model roles."},
                 },
             }
@@ -160,9 +160,7 @@ def test_config_schema_accepts_custom_alias_coalesced_into_user_bucket() -> None
     assert errors == [], "\n".join(format_schema_error(error) for error in errors)
 
 
-def test_config_schema_accepts_custom_alias_coalesced_into_phase_worker_bucket() -> (
-    None
-):
+def test_config_schema_accepts_custom_alias_coalesced_into_worker_bucket() -> None:
     public_schema = schema()
     config = {
         "llm_provider": {
@@ -171,10 +169,10 @@ def test_config_schema_accepts_custom_alias_coalesced_into_phase_worker_bucket()
                     "phase_reviewer": {
                         "model": "codex/gpt-5.6-sol",
                         "description": "Reviews completed phases.",
-                        "bucket": "phase_worker",
+                        "bucket": "worker",
                     }
                 },
-                "buckets": {"phase_worker": {"description": "All phase-worker roles."}},
+                "buckets": {"worker": {"description": "All phase-worker roles."}},
             }
         }
     }

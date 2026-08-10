@@ -122,7 +122,7 @@ class _FollowupModel:
 
     ``model_prefix`` is prepended to the generated follow-up prompt (e.g.
     ``"%model:codex/gpt-5.6-sol\n"`` or
-    ``"%model:@medium_phase_worker\n"``). ``meta`` is the
+    ``"%model:@medium_worker\n"``). ``meta`` is the
     ``(provider_or_none, model)`` to write into the follow-up's
     ``agent_meta.json`` so the recorded model matches the directive; it is
     ``None`` when the inherited planner metadata is already correct and the

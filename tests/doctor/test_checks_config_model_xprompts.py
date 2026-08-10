@@ -233,7 +233,7 @@ def test_model_xprompts_warn_for_unroutable_alias_override_value(
     xprompts = {
         "m_bad_target": XPrompt(
             name="m_bad_target",
-            content="%model(opus, medium_phase_worker=not-a-model)",
+            content="%model(opus, medium_worker=not-a-model)",
         ),
     }
     _patch_model_xprompt_env(
@@ -245,4 +245,4 @@ def test_model_xprompts_warn_for_unroutable_alias_override_value(
     check = check_config_model_xprompts(_doctor_context(tmp_path))
 
     assert check.status == "WARN"
-    assert "%model(medium_phase_worker=not-a-model)" in check.details[0]
+    assert "%model(medium_worker=not-a-model)" in check.details[0]

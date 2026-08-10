@@ -54,11 +54,11 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@default",
         "@epic_lander",
         "@big_epic_lander",
-        "@xsmall_phase_worker",
-        "@small_phase_worker",
-        "@medium_phase_worker",
-        "@large_phase_worker",
-        "@xlarge_phase_worker",
+        "@xsmall_worker",
+        "@small_worker",
+        "@medium_worker",
+        "@large_worker",
+        "@xlarge_worker",
         "@smartest",
         "@smart",
         "@cheap",
@@ -80,7 +80,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     assert by_value["@default"].kind == "implicit_alias"
     assert by_value["@default"].aliases == ("default",)
     assert by_value["@big_epic_lander"].aliases == ("big_epic_lander",)
-    assert by_value["@medium_phase_worker"].aliases == ("medium_phase_worker",)
+    assert by_value["@medium_worker"].aliases == ("medium_worker",)
     assert by_value["@cheap"].aliases == ("cheap",)
     assert by_value["@smartest"].aliases == ("smartest",)
     assert by_value["@fast"].kind == "user_alias"
@@ -201,7 +201,7 @@ def test_model_completion_alias_enrichment_and_pool_counts(
     monkeypatch.setattr(
         model_completion,
         "get_model_aliases",
-        lambda: {"blogger": "@medium_phase_worker@high"},
+        lambda: {"blogger": "@medium_worker@high"},
     )
     monkeypatch.setattr(
         model_completion,
@@ -243,7 +243,7 @@ def test_model_completion_alias_enrichment_and_pool_counts(
                 "blogger",
                 kind="user",
                 configured=True,
-                configured_value="@medium_phase_worker@high",
+                configured_value="@medium_worker@high",
                 description="Draft and edit blog posts.",
                 config_source="custom",
                 bucket="writing",
@@ -269,7 +269,7 @@ def test_model_completion_alias_enrichment_and_pool_counts(
     assert blogger.description == "Draft and edit blog posts."
     assert blogger.alias_kind == "user"
     assert blogger.provenance == "configured"
-    assert blogger.reference == "medium_phase_worker"
+    assert blogger.reference == "medium_worker"
     assert blogger.reference_effort == "high"
     assert blogger.target_effort == "high"
     assert blogger.config_source == "custom"

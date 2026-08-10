@@ -24,7 +24,7 @@ from sase.bead.work import (
     SASE_EPIC_PLAN_SNAPSHOT_ENV,
     SASE_PHASE_BEAD_ID_ENV,
 )
-from sase.llm_provider.model_alias_policy import MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+from sase.llm_provider.model_alias_policy import MEDIUM_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.temporary_override import set_temporary_override
 from tests._model_alias_defaults_fixture import frozen_provider_model_effort
 
@@ -439,7 +439,7 @@ def _mock_provider_config(
     )
 
 
-def _extract_medium_phase_worker_model_meta(tmp_path: Path) -> dict[str, object]:
+def _extract_medium_worker_model_meta(tmp_path: Path) -> dict[str, object]:
     workspace_dir = tmp_path / "workspace"
     artifacts_dir = tmp_path / "artifacts"
     workspace_dir.mkdir()
@@ -450,7 +450,7 @@ def _extract_medium_phase_worker_model_meta(tmp_path: Path) -> dict[str, object]
         patch("sase.agent.names.claim_agent_name"),
     ):
         extract_directives_and_write_meta(
-            "%id:phase-worker\n%model:@medium_phase_worker\nDo work",
+            "%id:phase-worker\n%model:@medium_worker\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
         )
@@ -458,7 +458,7 @@ def _extract_medium_phase_worker_model_meta(tmp_path: Path) -> dict[str, object]
     return json.loads((artifacts_dir / "agent_meta.json").read_text())
 
 
-def test_medium_phase_worker_directive_metadata_pins_concrete_lane(
+def test_medium_worker_directive_metadata_pins_concrete_lane(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -466,10 +466,10 @@ def test_medium_phase_worker_directive_metadata_pins_concrete_lane(
     _mock_provider_config(monkeypatch, {"provider": "claude"})
     set_temporary_override("codex/o3", 3600.0, source="test")
 
-    meta = _extract_medium_phase_worker_model_meta(tmp_path)
+    meta = _extract_medium_worker_model_meta(tmp_path)
 
     provider, model, effort = frozen_provider_model_effort(
-        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+        MEDIUM_WORKER_MODEL_ALIAS_NAME
     )
     assert (meta["llm_provider"], meta["model"]) == (provider, model)
     assert meta["reasoning_effort"] == effort

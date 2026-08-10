@@ -22,10 +22,10 @@ class TestPlanFollowupModelSelection:
         "size",
         ["xsmall", "small", "medium", "large", "xlarge"],
     )
-    def test_coder_followup_uses_tale_size_phase_worker_alias(
+    def test_coder_followup_uses_tale_size_worker_alias(
         self, tmp_path, size: str
     ) -> None:
-        """An approved tale routes its follow-up through ``@<size>_phase_worker``."""
+        """An approved tale routes its follow-up through ``@<size>_worker``."""
         plan_file = write_plan_file(tmp_path, size=size)
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
         _, state, _ = run_plan_approval(
@@ -34,12 +34,10 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
             agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith(f"%model:@{size}_phase_worker\n")
+        assert state.current_prompt.startswith(f"%model:@{size}_worker\n")
         assert "%model:@worker" not in state.current_prompt
 
-    def test_sizeless_legacy_tale_defaults_to_medium_phase_worker(
-        self, tmp_path
-    ) -> None:
+    def test_sizeless_legacy_tale_defaults_to_medium_worker(self, tmp_path) -> None:
         plan_file = write_plan_file(tmp_path, size=None)
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
         _, state, _ = run_plan_approval(
@@ -48,7 +46,7 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
             agent_llm_provider=None,
         )
-        assert state.current_prompt.startswith("%model:@medium_phase_worker\n")
+        assert state.current_prompt.startswith("%model:@medium_worker\n")
 
     def test_tale_size_alias_ignores_planner_provider(self, tmp_path) -> None:
         state = run_followup_plan(
@@ -57,7 +55,7 @@ class TestPlanFollowupModelSelection:
             agent_model=None,
             agent_llm_provider="codex",
         )
-        assert state.current_prompt.startswith("%model:@small_phase_worker\n")
+        assert state.current_prompt.startswith("%model:@small_worker\n")
 
     def test_epic_approval_has_no_creator_model_followup(self, tmp_path) -> None:
         """Epic approval launches bead work directly without a model-prefixed child."""
@@ -85,7 +83,7 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
             agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith("%model:@small_phase_worker\n")
+        assert state.current_prompt.startswith("%model:@small_worker\n")
         assert "%model:@worker" not in state.current_prompt
 
     def test_coder_prompt_picker_model_wins_over_default(self, tmp_path) -> None:
@@ -102,5 +100,5 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
         )
         assert state.current_prompt.startswith("%model:sonnet\n")
-        assert "%model:@small_phase_worker" not in state.current_prompt
+        assert "%model:@small_worker" not in state.current_prompt
         assert "%model:@worker" not in state.current_prompt

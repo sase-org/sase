@@ -99,7 +99,7 @@ class TestPlanFollowupApprovalPlanRefs:
         ):
             handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
 
-        assert state.current_prompt.startswith("%model:@small_phase_worker\n#gh:sase ")
+        assert state.current_prompt.startswith("%model:@small_worker\n#gh:sase ")
         assert f"@{archived_plan}" in state.current_prompt
         assert "@sdd/plans/202605/scratch_plan.md" not in state.current_prompt
         assert os.environ["SASE_PLAN"] == str(archived_plan)

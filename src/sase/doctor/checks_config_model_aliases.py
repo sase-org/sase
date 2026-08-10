@@ -10,7 +10,26 @@ from sase.doctor.checks_config_common import (
 from sase.xprompt.effort import split_model_effort
 
 
-_RETIRED_BUILTIN_ALIAS_NAMES = {"coder", "epic_creator", "phase_worker"}
+_RETIRED_BUILTIN_ALIAS_NAMES = {
+    "coder",
+    "epic_creator",
+    "phase_worker",
+    "xsmall_phase_worker",
+    "small_phase_worker",
+    "medium_phase_worker",
+    "large_phase_worker",
+    "xlarge_phase_worker",
+}
+
+#: Retired ``<size>_phase_worker`` builtin-alias names, mapped to their
+#: ``<size>_worker`` replacements.
+_RETIRED_SIZE_ALIAS_REPLACEMENTS = {
+    "xsmall_phase_worker": "xsmall_worker",
+    "small_phase_worker": "small_worker",
+    "medium_phase_worker": "medium_worker",
+    "large_phase_worker": "large_worker",
+    "xlarge_phase_worker": "xlarge_worker",
+}
 
 
 def check_config_model_aliases() -> DiagnosticCheck:
@@ -19,7 +38,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
     Stale config is reported as actionable warnings:
 
     - the removed ``llm_provider.worker_models`` and ``llm_provider.default_model``
-      keys (the former should move to size-specific phase-worker aliases or
+      keys (the former should move to size-specific worker aliases or
       explicit launch choices, the latter to ``model_aliases.builtin.default``);
     - legacy flat entries directly under ``llm_provider.model_aliases``;
     - the removed top-level ``llm_provider.custom_model_aliases`` map;
@@ -50,7 +69,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
         validate_model_alias_selector_value,
     )
     from sase.llm_provider.model_alias_policy import (
-        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+        MEDIUM_WORKER_MODEL_ALIAS_NAME,
         implicit_alias_targets,
     )
 
@@ -86,8 +105,8 @@ def check_config_model_aliases() -> DiagnosticCheck:
                 "key": "worker_models",
                 "message": (
                     "llm_provider.worker_models is no longer supported; migrate "
-                    "entries to size-specific phase-worker aliases such as "
-                    "llm_provider.model_aliases.builtin.medium_phase_worker, "
+                    "entries to size-specific worker aliases such as "
+                    "llm_provider.model_aliases.builtin.medium_worker, "
                     "or use explicit approval/model overrides"
                 ),
             }
@@ -163,7 +182,18 @@ def check_config_model_aliases() -> DiagnosticCheck:
             if not isinstance(raw_bucket, str):
                 continue
             bucket = raw_bucket.strip()
-            if bucket and bucket not in member_buckets:
+            if bucket == "phase_worker":
+                problems.append(
+                    {
+                        "key": "model_aliases.buckets.phase_worker",
+                        "message": (
+                            "model_aliases.buckets.phase_worker was renamed to "
+                            "model_aliases.buckets.worker; move this metadata "
+                            "to the worker bucket"
+                        ),
+                    }
+                )
+            elif bucket and bucket not in member_buckets:
                 problems.append(
                     {
                         "key": f"model_aliases.buckets.{bucket}",
@@ -203,9 +233,9 @@ def check_config_model_aliases() -> DiagnosticCheck:
                 "message": (
                     "model_aliases.builtin.coder is retired; accepted tale "
                     "follow-ups now route through size-specific "
-                    "@<size>_phase_worker aliases. Move this target to "
-                    "llm_provider.model_aliases.builtin.medium_phase_worker or "
-                    "another size-specific phase-worker alias, or remove it"
+                    "@<size>_worker aliases. Move this target to "
+                    "llm_provider.model_aliases.builtin.medium_worker or "
+                    "another size-specific worker alias, or remove it"
                 ),
             }
         )
@@ -217,7 +247,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
                 "message": (
                     f"model_aliases.builtin.{alias} is retired; planner-provider "
                     "coder aliases no longer exist. Route accepted tales with "
-                    "size-specific aliases such as @medium_phase_worker, or use "
+                    "size-specific aliases such as @medium_worker, or use "
                     "an explicit approval/model override"
                 ),
             }
@@ -227,8 +257,8 @@ def check_config_model_aliases() -> DiagnosticCheck:
         if alias == "coder" or alias in stale_provider_coder_builtin_aliases:
             continue
         if alias == "phase_worker":
-            medium_phase_worker_default = implicit_alias_targets()[
-                MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+            medium_worker_default = implicit_alias_targets()[
+                MEDIUM_WORKER_MODEL_ALIAS_NAME
             ]
             problems.append(
                 {
@@ -236,9 +266,22 @@ def check_config_model_aliases() -> DiagnosticCheck:
                     "message": (
                         "model_aliases.builtin.phase_worker is no longer a "
                         "builtin alias override; move its target to "
-                        "llm_provider.model_aliases.builtin.medium_phase_worker "
+                        "llm_provider.model_aliases.builtin.medium_worker "
                         "to keep controlling medium phases, or remove it to "
-                        f"accept the shipped {medium_phase_worker_default} default"
+                        f"accept the shipped {medium_worker_default} default"
+                    ),
+                }
+            )
+        elif alias in _RETIRED_SIZE_ALIAS_REPLACEMENTS:
+            replacement = _RETIRED_SIZE_ALIAS_REPLACEMENTS[alias]
+            problems.append(
+                {
+                    "key": f"model_aliases.builtin.{alias}",
+                    "message": (
+                        f"model_aliases.builtin.{alias} is retired; move its "
+                        "target to "
+                        f"llm_provider.model_aliases.builtin.{replacement} "
+                        "to keep controlling that phase size, or remove it"
                     ),
                 }
             )
@@ -484,6 +527,6 @@ def _retired_alias_reference_guidance(
     if alias in registered_provider_coder_aliases:
         return (
             "accepted tale follow-ups now route by tale size; use a "
-            "size-specific alias such as @medium_phase_worker or an explicit model"
+            "size-specific alias such as @medium_worker or an explicit model"
         )
     return None

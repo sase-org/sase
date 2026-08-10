@@ -125,7 +125,7 @@ _ALIAS_ROWS = [
         description="Model used when a prompt has no %model directive.",
     ),
     _alias_row(
-        "@medium_phase_worker",
+        "@medium_worker",
         kind="implicit_alias",
         alias_kind="role",
         target_provider="codex",
@@ -135,7 +135,7 @@ _ALIAS_ROWS = [
         description="Default model used for medium tale follow-ups.",
     ),
     _alias_row(
-        "@small_phase_worker",
+        "@small_worker",
         kind="implicit_alias",
         alias_kind="role",
         target_provider="claude",
@@ -210,7 +210,7 @@ async def test_model_completion_mixed_menu_png_snapshot(
             ),
             description="model completion visibility",
         )
-        await wait_for_svg_contains(page, "@small_phase_worker")
+        await wait_for_svg_contains(page, "@small_worker")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

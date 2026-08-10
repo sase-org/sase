@@ -30,13 +30,13 @@ from .load_balancing import ModelAliasSelectorError, parse_model_alias_selector
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``epic_lander`` / ``big_epic_lander`` /
-#     ``<size>_phase_worker`` / ``smart`` / ``smartest`` /
+#     ``<size>_worker`` / ``smart`` / ``smartest`` /
 #     ``cheap`` / ``cheaper`` / ``cheapest``: bead/epic roles.
 #
 # Most roles fall back to another alias (ultimately ``@default``) when they are
 # not explicitly configured. A fallback reference may carry an effort overlay,
 # such as ``@default@high``; an outer effort still wins.
-# ``medium_phase_worker`` and ``smartest`` own independent concrete targets,
+# ``medium_worker`` and ``smartest`` own independent concrete targets,
 # while ``cheap``, ``cheaper``, and ``cheapest`` own load-balanced pools.
 # ``default`` itself falls back to the configured or autodetected provider's
 # tier default.
@@ -52,19 +52,19 @@ EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
 BIG_EPIC_LANDER_MODEL_ALIAS_NAME = "big_epic_lander"
 
 #: The implicit extra-small-phase role alias.
-XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME = "xsmall_phase_worker"
+XSMALL_WORKER_MODEL_ALIAS_NAME = "xsmall_worker"
 
 #: The implicit small-phase role alias.
-SMALL_PHASE_WORKER_MODEL_ALIAS_NAME = "small_phase_worker"
+SMALL_WORKER_MODEL_ALIAS_NAME = "small_worker"
 
 #: The implicit medium-phase role alias.
-MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME = "medium_phase_worker"
+MEDIUM_WORKER_MODEL_ALIAS_NAME = "medium_worker"
 
 #: The implicit large-phase role alias.
-LARGE_PHASE_WORKER_MODEL_ALIAS_NAME = "large_phase_worker"
+LARGE_WORKER_MODEL_ALIAS_NAME = "large_worker"
 
 #: The implicit extra-large-phase role alias.
-XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME = "xlarge_phase_worker"
+XLARGE_WORKER_MODEL_ALIAS_NAME = "xlarge_worker"
 
 #: The implicit "smart" high-capability alias.
 SMART_MODEL_ALIAS_NAME = "smart"
@@ -86,11 +86,11 @@ _ROLE_ALIAS_NAME_CONSTANTS: tuple[str, ...] = (
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
-    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
-    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
-    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    XSMALL_WORKER_MODEL_ALIAS_NAME,
+    SMALL_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_WORKER_MODEL_ALIAS_NAME,
+    LARGE_WORKER_MODEL_ALIAS_NAME,
+    XLARGE_WORKER_MODEL_ALIAS_NAME,
     SMART_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     CHEAP_MODEL_ALIAS_NAME,

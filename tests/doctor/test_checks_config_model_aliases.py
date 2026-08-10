@@ -6,7 +6,7 @@ import pytest
 
 from sase.doctor.checks_config_model_aliases import check_config_model_aliases
 from sase.llm_provider.model_alias_policy import (
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_WORKER_MODEL_ALIAS_NAME,
     implicit_alias_targets,
 )
 
@@ -64,12 +64,10 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
         in by_key["model_aliases.builtin.claude_coder"]
     )
     assert "model_aliases.builtin.phase_worker" in by_key
-    assert "medium_phase_worker" in by_key["model_aliases.builtin.phase_worker"]
+    assert "medium_worker" in by_key["model_aliases.builtin.phase_worker"]
     assert "remove it" in by_key["model_aliases.builtin.phase_worker"]
-    medium_phase_worker_default = implicit_alias_targets()[
-        MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
-    ]
-    assert medium_phase_worker_default in by_key["model_aliases.builtin.phase_worker"]
+    medium_worker_default = implicit_alias_targets()[MEDIUM_WORKER_MODEL_ALIAS_NAME]
+    assert medium_worker_default in by_key["model_aliases.builtin.phase_worker"]
     assert "model_aliases.builtin.epic_creator" in by_key
     assert "retired" in by_key["model_aliases.builtin.epic_creator"]
     assert "remove this entry" in by_key["model_aliases.builtin.epic_creator"]
@@ -84,7 +82,7 @@ def test_model_aliases_accepts_reference_effort_and_parses_problem_aliases(
         lambda: {
             "model_aliases": {
                 "builtin": {
-                    "medium_phase_worker": "@default@high",
+                    "medium_worker": "@default@high",
                     "epic_lander": "@phase_worker@high",
                 },
                 "custom": {
@@ -101,7 +99,7 @@ def test_model_aliases_accepts_reference_effort_and_parses_problem_aliases(
 
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
-    assert "model_aliases.builtin.medium_phase_worker" not in by_key
+    assert "model_aliases.builtin.medium_worker" not in by_key
     assert (
         "references unknown alias '@nope'"
         in by_key["model_aliases.custom.blogger.model"]
@@ -124,7 +122,7 @@ def test_model_aliases_warns_on_nested_schema_misuse(
                     "shadow": "claude/haiku",
                 },
                 "custom": {
-                    "small_phase_worker": {
+                    "small_worker": {
                         "model": "claude/opus",
                         "description": "Wrong location.",
                     },
@@ -151,8 +149,8 @@ def test_model_aliases_warns_on_nested_schema_misuse(
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
     assert "model_aliases.builtin.blogger" in by_key
     assert "model_aliases.custom" in by_key["model_aliases.builtin.blogger"]
-    assert "model_aliases.custom.small_phase_worker" in by_key
-    assert "builtin alias" in by_key["model_aliases.custom.small_phase_worker"]
+    assert "model_aliases.custom.small_worker" in by_key
+    assert "builtin alias" in by_key["model_aliases.custom.small_worker"]
     assert "model_aliases.builtin.shadow" in by_key
     assert (
         "both model_aliases.builtin and model_aliases.custom"
@@ -219,7 +217,7 @@ def test_model_aliases_ok_when_config_is_clean(
     assert not check.data["problems"]
 
 
-def test_model_aliases_allows_custom_phase_worker(
+def test_model_aliases_allows_custom_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -227,7 +225,7 @@ def test_model_aliases_allows_custom_phase_worker(
         lambda: {
             "model_aliases": {
                 "custom": {
-                    "phase_worker": {
+                    "worker": {
                         "model": "claude/sonnet",
                         "description": "Explicit custom phase role.",
                     }
@@ -246,8 +244,8 @@ def test_model_aliases_allows_custom_phase_worker(
     "alias",
     [
         "big_epic_lander",
-        "xsmall_phase_worker",
-        "xlarge_phase_worker",
+        "xsmall_worker",
+        "xlarge_worker",
         "smart",
         "cheap",
     ],
@@ -293,7 +291,7 @@ def test_model_aliases_warns_on_dangling_bucket_metadata(
                 },
                 "buckets": {
                     "coders": {"description": "Coder follow-up aliases."},
-                    "phase_worker": {"description": "Phase worker aliases."},
+                    "worker": {"description": "Phase worker aliases."},
                     "research": {"description": "Research roles."},
                     "unused": {"description": "No members."},
                 },
@@ -306,7 +304,7 @@ def test_model_aliases_warns_on_dangling_bucket_metadata(
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
     assert "model_aliases.buckets.coders" in by_key
-    assert "model_aliases.buckets.phase_worker" not in by_key
+    assert "model_aliases.buckets.worker" not in by_key
     assert "model_aliases.buckets.research" not in by_key
     assert "model_aliases.buckets.unused" in by_key
     assert "no custom aliases" in by_key["model_aliases.buckets.unused"]
@@ -321,7 +319,7 @@ def test_model_aliases_warns_on_malformed_and_nested_pools(
             "model_aliases": {
                 "builtin": {
                     "cheapest": "claude/opus || || codex/gpt-5.5",
-                    "medium_phase_worker": "@nested | claude/sonnet",
+                    "medium_worker": "@nested | claude/sonnet",
                 },
                 "custom": {
                     "nested": {

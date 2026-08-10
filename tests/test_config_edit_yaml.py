@@ -56,7 +56,7 @@ def test_set_key_changes_only_existing_scalar_line() -> None:
         "llm_provider:\n"
         "  model_aliases:\n"
         "    claude_coder: sonnet  # alias\n"
-        "    phase_worker: codex/o3\n"
+        "    worker: codex/o3\n"
     )
     expected = text.replace(
         "    claude_coder: sonnet  # alias\n",
@@ -78,17 +78,12 @@ def test_set_key_preserves_existing_quote_style_on_scalar_replace() -> None:
 
 
 def test_set_key_inserts_one_alias_line_under_existing_mapping() -> None:
-    text = (
-        "llm_provider:\n"
-        "  model_aliases:\n"
-        "    coder: sonnet\n"
-        "    phase_worker: codex/o3\n"
-    )
+    text = "llm_provider:\n  model_aliases:\n    coder: sonnet\n    worker: codex/o3\n"
     expected = (
         "llm_provider:\n"
         "  model_aliases:\n"
         "    coder: sonnet\n"
-        "    phase_worker: codex/o3\n"
+        "    worker: codex/o3\n"
         "    reviewer: opus\n"
     )
 
@@ -145,9 +140,9 @@ def test_unset_key_removes_only_target_alias_line() -> None:
         "llm_provider:\n"
         "  model_aliases:\n"
         "    coder: sonnet  # remove\n"
-        "    phase_worker: codex/o3\n"
+        "    worker: codex/o3\n"
     )
-    expected = "llm_provider:\n  model_aliases:\n    phase_worker: codex/o3\n"
+    expected = "llm_provider:\n  model_aliases:\n    worker: codex/o3\n"
 
     result = unset_key(text, ("llm_provider", "model_aliases", "coder"))
 

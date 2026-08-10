@@ -106,7 +106,7 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
         "get_active_alias_overrides",
         lambda: {
             "default": default_override,
-            "medium_phase_worker": alias_override,
+            "medium_worker": alias_override,
         },
     )
 
@@ -124,7 +124,7 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
         await page.app.wait_for_refresh()
 
         assert default_indicator.render().plain == " CODEX(o3)@xhigh ∞ "
-        assert alias_indicator.render().plain == " @medium_phase_worker@max ∞ "
+        assert alias_indicator.render().plain == " @medium_worker@max ∞ "
         visible_children = [
             child for child in top_bar.children if child.region.width > 0
         ]

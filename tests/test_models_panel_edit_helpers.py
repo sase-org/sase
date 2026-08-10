@@ -127,14 +127,14 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def test_alias_field_path_builds_map_key_path() -> None:
     assert (
-        _alias_field_path("medium_phase_worker")
-        == "llm_provider.model_aliases.builtin.medium_phase_worker"
+        _alias_field_path("medium_worker")
+        == "llm_provider.model_aliases.builtin.medium_worker"
     )
 
 
 def test_alias_field_path_strips_and_rejects_empty() -> None:
-    assert _alias_field_path("  phase_worker  ") == (
-        "llm_provider.model_aliases.builtin.phase_worker"
+    assert _alias_field_path("  worker  ") == (
+        "llm_provider.model_aliases.builtin.worker"
     )
     with pytest.raises(ValueError):
         _alias_field_path("   ")
@@ -143,11 +143,11 @@ def test_alias_field_path_strips_and_rejects_empty() -> None:
 def test_alias_model_edit_path_routes_by_kind_and_source() -> None:
     assert (
         alias_model_edit_path(
-            "medium_phase_worker",
+            "medium_worker",
             kind="role",
             configured_source="builtin",
         )
-        == "llm_provider.model_aliases.builtin.medium_phase_worker"
+        == "llm_provider.model_aliases.builtin.medium_worker"
     )
     assert (
         alias_model_edit_path(
@@ -178,11 +178,11 @@ def test_alias_reset_path_deletes_custom_user_alias_entry() -> None:
     )
     assert (
         alias_reset_path(
-            "medium_phase_worker",
+            "medium_worker",
             kind="role",
             configured_source="custom",
         )
-        == "llm_provider.model_aliases.builtin.medium_phase_worker"
+        == "llm_provider.model_aliases.builtin.medium_worker"
     )
 
 
@@ -192,7 +192,7 @@ def test_alias_reset_path_deletes_custom_user_alias_entry() -> None:
 def test_plan_alias_edit_set(tmp_path: Path) -> None:
     inventory, user_file = _alias_inventory(tmp_path, "")
     plan = plan_alias_edit(
-        "medium_phase_worker",
+        "medium_worker",
         ConfigEditOp.set_value("opus"),
         inventory=inventory,
         use_chezmoi=False,
@@ -201,13 +201,13 @@ def test_plan_alias_edit_set(tmp_path: Path) -> None:
         "llm_provider",
         "model_aliases",
         "builtin",
-        "medium_phase_worker",
+        "medium_worker",
     )
     assert plan.write_plan.op == "set"
     assert plan.write_plan.new_value == "opus"
     assert plan.target_path == str(user_file)
     assert plan.is_valid is True
-    assert "medium_phase_worker: opus" in plan.new_text
+    assert "medium_worker: opus" in plan.new_text
     assert "+" in plan.text_diff
 
 
@@ -259,10 +259,10 @@ def test_plan_alias_edit_rejects_descriptionless_custom_entry(tmp_path: Path) ->
 def test_plan_alias_edit_unset(tmp_path: Path) -> None:
     inventory, _ = _alias_inventory(
         tmp_path,
-        "llm_provider:\n  model_aliases:\n    builtin:\n      medium_phase_worker: opus\n",
+        "llm_provider:\n  model_aliases:\n    builtin:\n      medium_worker: opus\n",
     )
     plan = plan_alias_edit(
-        "medium_phase_worker",
+        "medium_worker",
         ConfigEditOp.unset(),
         inventory=inventory,
         use_chezmoi=False,
@@ -272,7 +272,7 @@ def test_plan_alias_edit_unset(tmp_path: Path) -> None:
     assert plan.effective_preview.before == "opus"
     # Resetting removes the configured key, so the alias falls back to implicit.
     assert plan.effective_preview.has_after is False
-    assert "medium_phase_worker: opus" not in plan.new_text
+    assert "medium_worker: opus" not in plan.new_text
 
 
 def test_plan_alias_edit_chezmoi_remaps_target(
@@ -284,7 +284,7 @@ def test_plan_alias_edit_chezmoi_remaps_target(
     config_dir.mkdir(parents=True)
     user_file = config_dir / "sase.yml"
     user_file.write_text(
-        "llm_provider:\n  model_aliases:\n    builtin:\n      medium_phase_worker: opus\n",
+        "llm_provider:\n  model_aliases:\n    builtin:\n      medium_worker: opus\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
@@ -298,14 +298,14 @@ def test_plan_alias_edit_chezmoi_remaps_target(
             strategy="replace",
             data={
                 "llm_provider": {
-                    "model_aliases": {"builtin": {"medium_phase_worker": "opus"}}
+                    "model_aliases": {"builtin": {"medium_worker": "opus"}}
                 }
             },
         ),
     ]
     inventory = _inventory(layers)
     plan = plan_alias_edit(
-        "medium_phase_worker",
+        "medium_worker",
         ConfigEditOp.set_value("sonnet"),
         inventory=inventory,
         use_chezmoi=True,
@@ -318,7 +318,7 @@ def test_plan_alias_edit_no_writable_layer_raises() -> None:
     inventory = _inventory([_layer("default", data={})])
     with pytest.raises(ConfigEditError):
         plan_alias_edit(
-            "medium_phase_worker",
+            "medium_worker",
             ConfigEditOp.set_value("opus"),
             inventory=inventory,
             use_chezmoi=False,
@@ -339,16 +339,16 @@ def test_commit_offer_set_in_repo_with_changes(tmp_path: Path) -> None:
     _init_repo(repo)
     target = repo / "sase.yml"
     target.write_text(
-        "llm_provider:\n  model_aliases:\n    builtin:\n      medium_phase_worker: opus\n"
+        "llm_provider:\n  model_aliases:\n    builtin:\n      medium_worker: opus\n"
     )
 
-    offer = build_alias_commit_offer(str(target), op="set", alias="medium_phase_worker")
+    offer = build_alias_commit_offer(str(target), op="set", alias="medium_worker")
 
     assert isinstance(offer, AliasCommitOffer)
     assert offer.git_root == str(repo)
     assert offer.file_path == str(target)
     assert offer.rel_path == "sase.yml"
-    assert offer.message.startswith("chore: Update model alias @medium_phase_worker")
+    assert offer.message.startswith("chore: Update model alias @medium_worker")
     assert "SASE_TYPE=config" in offer.message
 
 
@@ -358,12 +358,10 @@ def test_commit_offer_reset_uses_reset_verb(tmp_path: Path) -> None:
     target = repo / "sase.yml"
     target.write_text("llm_provider: {}\n")
 
-    offer = build_alias_commit_offer(
-        str(target), op="unset", alias="medium_phase_worker"
-    )
+    offer = build_alias_commit_offer(str(target), op="unset", alias="medium_worker")
 
     assert offer is not None
-    assert offer.message.startswith("chore: Reset model alias @medium_phase_worker")
+    assert offer.message.startswith("chore: Reset model alias @medium_worker")
 
 
 def test_commit_offer_chezmoi_source_repo(tmp_path: Path) -> None:
@@ -373,10 +371,10 @@ def test_commit_offer_chezmoi_source_repo(tmp_path: Path) -> None:
     source = repo / "home" / "dot_config" / "sase" / "sase.yml"
     source.parent.mkdir(parents=True)
     source.write_text(
-        "llm_provider:\n  model_aliases:\n    builtin:\n      medium_phase_worker: opus\n"
+        "llm_provider:\n  model_aliases:\n    builtin:\n      medium_worker: opus\n"
     )
 
-    offer = build_alias_commit_offer(str(source), op="set", alias="medium_phase_worker")
+    offer = build_alias_commit_offer(str(source), op="set", alias="medium_worker")
 
     assert offer is not None
     assert offer.git_root == str(repo)
@@ -390,8 +388,7 @@ def test_commit_offer_not_in_repo_returns_none(tmp_path: Path) -> None:
     target.write_text("llm_provider: {}\n")
 
     assert (
-        build_alias_commit_offer(str(target), op="set", alias="medium_phase_worker")
-        is None
+        build_alias_commit_offer(str(target), op="set", alias="medium_worker") is None
     )
 
 
@@ -405,6 +402,5 @@ def test_commit_offer_no_pending_changes_returns_none(tmp_path: Path) -> None:
     _git(repo, "commit", "-q", "-m", "init")
 
     assert (
-        build_alias_commit_offer(str(target), op="set", alias="medium_phase_worker")
-        is None
+        build_alias_commit_offer(str(target), op="set", alias="medium_worker") is None
     )

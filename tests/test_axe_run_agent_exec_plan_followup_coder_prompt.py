@@ -54,7 +54,7 @@ class TestPlanFollowupCoderPrompt:
             agent_model="opus",
             agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith("%model:@small_phase_worker\n")
+        assert state.current_prompt.startswith("%model:@small_worker\n")
         assert "be concise" in state.current_prompt
 
     def test_approve_prompt_includes_custom_extra_text(self, tmp_path) -> None:
@@ -75,7 +75,7 @@ class TestPlanFollowupCoderPrompt:
         assert "#fork:" not in state.current_prompt
         plan_ref = "@plan.md"
         assert plan_ref in state.current_prompt
-        assert state.current_prompt.startswith("%model:@small_phase_worker\n")
+        assert state.current_prompt.startswith("%model:@small_worker\n")
 
     def test_coder_prompt_preserves_resume_when_env_set(
         self, tmp_path, monkeypatch
@@ -85,7 +85,7 @@ class TestPlanFollowupCoderPrompt:
         state = run_followup_plan(tmp_path, action="approve", agent_model="opus")
         assert "#fork:test_agent--plan " in state.current_prompt
         assert state.current_prompt.startswith(
-            "%model:@small_phase_worker\n#fork:test_agent--plan "
+            "%model:@small_worker\n#fork:test_agent--plan "
         )
 
     def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
@@ -132,7 +132,7 @@ class TestPlanFollowupCoderPrompt:
         """handle_accepted_plan records the code prompt as the question base."""
         state = run_followup_plan(tmp_path, action="approve", agent_model="opus")
         assert state.question_base_prompt == state.current_prompt
-        assert state.question_base_prompt.startswith("%model:@small_phase_worker\n")
+        assert state.question_base_prompt.startswith("%model:@small_worker\n")
         assert "@plan.md" in state.question_base_prompt
 
     def test_accepted_plan_stores_complete_coder_prompt_artifact(

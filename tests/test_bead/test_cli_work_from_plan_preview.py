@@ -60,9 +60,9 @@ def test_plan_file_dry_run_is_pure_and_previews_waves(
     assert result.waves == (("core",), ("cli",), ("verify",))
     assert not result.archived_plan_path.exists()
     output = capsys.readouterr().out
-    assert "core Build the core (small · @small_phase_worker)" in output
-    assert "cli Add the CLI (medium · @medium_phase_worker)" in output
-    assert "verify Verify the result (large · @large_phase_worker · #plan)" in output
+    assert "core Build the core (small · @small_worker)" in output
+    assert "cli Add the CLI (medium · @medium_worker)" in output
+    assert "verify Verify the result (large · @large_worker · #plan)" in output
     assert "Land    @epic_lander" in output
 
 
@@ -86,9 +86,9 @@ def test_plan_file_launch_mode_keeps_legacy_sizeless_epic_resumable(
 
     assert result.waves == (("core",), ("cli",), ("verify",))
     output = capsys.readouterr().out
-    assert output.count("small · @small_phase_worker") == 3
-    assert "@medium_phase_worker" not in output
-    assert "@large_phase_worker" not in output
+    assert output.count("small · @small_worker") == 3
+    assert "@medium_worker" not in output
+    assert "@large_worker" not in output
     assert "#plan" not in output
 
 

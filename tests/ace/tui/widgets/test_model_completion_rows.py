@@ -99,7 +99,7 @@ def test_model_completion_row_uses_model_columns_and_styles() -> None:
     [
         (
             _candidate(
-                "@medium_phase_worker",
+                "@medium_worker",
                 reference="default",
                 reference_effort="high",
             ),
@@ -108,7 +108,7 @@ def test_model_completion_row_uses_model_columns_and_styles() -> None:
         ),
         (
             _candidate(
-                "@medium_phase_worker",
+                "@medium_worker",
                 provenance="configured",
                 reference="default",
             ),

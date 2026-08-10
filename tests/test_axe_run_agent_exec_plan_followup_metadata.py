@@ -193,7 +193,7 @@ class TestPlanFollowupMetadata:
     ) -> None:
         """Without a picker model, agent_meta.json records the resolved size alias.
 
-        The coder follow-up emits ``%model:@small_phase_worker`` and the
+        The coder follow-up emits ``%model:@small_worker`` and the
         recorded meta resolves that alias to the concrete provider/model the
         launch will actually use, so display and behavior stay in sync.
         """
@@ -231,10 +231,10 @@ class TestPlanFollowupMetadata:
             ) as resolve_mock,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        resolve_mock.assert_any_call("@small_phase_worker")
+        resolve_mock.assert_any_call("@small_worker")
         assert meta_updates.get("model") == "gpt-5.6-sol"
         assert meta_updates.get("llm_provider") == "codex"
-        assert state.current_prompt.startswith("%model:@small_phase_worker\n")
+        assert state.current_prompt.startswith("%model:@small_worker\n")
 
     def test_epic_meta_is_left_to_host_without_creator_model(self, tmp_path) -> None:
         """The agent leaves launch metadata to the detached host task."""
