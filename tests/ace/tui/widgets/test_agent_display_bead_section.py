@@ -9,13 +9,19 @@ import pytest
 from rich.cells import cell_len
 from rich.console import Console
 
+from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_associated_plan import BeadSummary, PhaseBeadSummary
+from sase.ace.tui.models.fold_scale import AGENT_FOLD_SCALE, FAMILY_FOLD_SCALE
+from sase.ace.tui.models.fold_state import FoldLevel
 from sase.bead_time_presentation import BEAD_TIME_RICH_STYLE
 from sase.bead.model import TaskPlusOneEvidence
 from sase.ace.tui.widgets.prompt_panel._agent_bead_section import (
+    BEAD_SECTION_ID,
     BEAD_FIELD_LABEL_WIDTH,
     BEAD_PLAN_STATE_STYLE,
     BEAD_SECTION_MAX_WIDTH,
+    bead_detail_level,
+    bead_summary_has_foldable_rows,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
     COLOR_ARTIFACT_FILE_BASENAME,
@@ -80,14 +86,23 @@ def _bead_summary(
     )
 
 
-def _header(summary: PhaseBeadSummary) -> AgentHeader:
+def _header(
+    summary: PhaseBeadSummary,
+    *,
+    agent: Agent | None = None,
+    lane_fold_level: FoldLevel | None = None,
+    lane_section_fold_overrides: dict[str, FoldLevel] | None = None,
+) -> AgentHeader:
+    display_agent = agent or make_agent(
+        agent_name="worker",
+        phase_bead_id=summary.id,
+        epic_bead_id=summary.id.rsplit(".", maxsplit=1)[0],
+    )
     header, _ = build_header_text(
-        make_agent(
-            agent_name="worker",
-            phase_bead_id=summary.id,
-            epic_bead_id=summary.id.rsplit(".", maxsplit=1)[0],
-        ),
+        display_agent,
         summary=DetailHeaderSummary(phase_bead=summary),
+        lane_fold_level=lane_fold_level,
+        lane_section_fold_overrides=lane_section_fold_overrides,
     )
     return header
 
@@ -118,6 +133,49 @@ def _field_lines(header: AgentHeader, label: str, *, width: int) -> list[str]:
 def _reconstruct(lines: list[str], *, spaced: bool) -> str:
     values = [line[BEAD_FIELD_LABEL_WIDTH:].rstrip() for line in lines]
     return (" " if spaced else "").join(values)
+
+
+def _field_labels(header: AgentHeader) -> list[str]:
+    known_labels = {
+        "Phase Title:",
+        "Task Title:",
+        "Description:",
+        "Notes:",
+        "Epic Plan:",
+        "Epic Title:",
+        "Size:",
+        "+1 Reports:",
+        "+1 Evidence:",
+        "Created:",
+    }
+    return [
+        label
+        for line in header.plain.splitlines()
+        if (label := line[:BEAD_FIELD_LABEL_WIDTH].strip()) in known_labels
+    ]
+
+
+def _family_container_agent() -> Agent:
+    child = make_agent(
+        agent_name="worker--code",
+        agent_family="worker",
+        agent_family_role="member",
+    )
+    root = make_agent(
+        agent_name="worker--plan",
+        agent_family="worker",
+        agent_family_role="root",
+        followup_agents=[child],
+    )
+    child.family_container = root
+    return root
+
+
+def test_bead_detail_level_uses_fold_scale_position() -> None:
+    assert bead_detail_level(FoldLevel.COLLAPSED, AGENT_FOLD_SCALE).name == "DIGEST"
+    assert bead_detail_level(FoldLevel.EXPANDED, AGENT_FOLD_SCALE).name == "FULL"
+    assert bead_detail_level(FoldLevel.EXPANDED, FAMILY_FOLD_SCALE).name == "DIGEST"
+    assert bead_detail_level(FoldLevel.FULLY_EXPANDED, FAMILY_FOLD_SCALE).name == "FULL"
 
 
 def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> None:
@@ -238,6 +296,7 @@ def test_task_bead_lane_renders_plus_one_count_and_evidence() -> None:
     header, _ = build_header_text(
         make_agent(agent_name=task_summary.id),
         summary=DetailHeaderSummary(phase_bead=task_summary),
+        lane_fold_level=FoldLevel.EXPANDED,
     )
 
     assert "[+1]" in header.plain
@@ -249,6 +308,104 @@ def test_task_bead_lane_renders_plus_one_count_and_evidence() -> None:
     assert header.plain.index("+1 Evidence:") < header.plain.index("Created:")
 
 
+def test_bead_digest_folds_only_multiline_log_rows_and_keeps_row_order() -> None:
+    evidence = TaskPlusOneEvidence(
+        timestamp="2026-08-01T15:00:00Z",
+        reporter="agent.beta",
+        note="Independent reproduction.\nSecond evidence line.",
+        refs=("research:202608/cache.md",),
+    )
+    task_summary = BeadSummary(
+        id="sase-task.5",
+        phase_title="Corroborated task",
+        description="Carry evidence into the Agents tab.",
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size="medium",
+        created_at=_CREATED_AT,
+        bead_type="task",
+        notes="first note line\nsecond note line\n\nthird note line",
+        plus_one_evidence=(evidence,),
+    )
+
+    collapsed = _header(task_summary)
+    expanded = _header(task_summary, lane_fold_level=FoldLevel.EXPANDED)
+
+    assert _field_labels(collapsed) == _field_labels(expanded)
+    assert "Task Title:" in collapsed.plain
+    assert "Description:" in collapsed.plain
+    assert "Notes: ▸ 4 lines (zz to show)" in collapsed.plain
+    assert "Size:" in collapsed.plain
+    assert "+1 Reports:" in collapsed.plain
+    assert "+1 Evidence: ▸ 4 lines (zz to show)" in collapsed.plain
+    assert "Created:" in collapsed.plain
+    assert "second note line" not in collapsed.plain
+    assert "Independent reproduction." not in collapsed.plain
+    assert "…" not in collapsed.plain
+    assert "second note line" in expanded.plain
+    assert "Independent reproduction." in expanded.plain
+
+
+def test_bead_digest_leaves_single_authored_note_line_inline() -> None:
+    notes = "single authored note line that may still wrap in a narrow panel"
+    header = _header(_bead_summary(notes=notes))
+
+    assert f"Notes: {notes}\n" in header.plain
+    assert "zz to show" not in header.plain
+
+
+def test_bead_summary_foldable_predicate_matches_log_rows() -> None:
+    evidence = TaskPlusOneEvidence(
+        timestamp="2026-08-01T15:00:00Z",
+        reporter="agent.beta",
+        note="Independent reproduction.",
+    )
+    task_summary = BeadSummary(
+        id="sase-task.5",
+        phase_title="Corroborated task",
+        description="Carry evidence into the Agents tab.",
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size="medium",
+        created_at=_CREATED_AT,
+        bead_type="task",
+        plus_one_evidence=(evidence,),
+    )
+
+    assert not bead_summary_has_foldable_rows(_bead_summary(notes=None))
+    assert not bead_summary_has_foldable_rows(_bead_summary(notes="one line"))
+    assert bead_summary_has_foldable_rows(_bead_summary(notes="one\ntwo"))
+    assert bead_summary_has_foldable_rows(task_summary)
+
+
+def test_family_bead_section_override_expands_folded_logs() -> None:
+    notes = "first family note\nsecond family note"
+    agent = _family_container_agent()
+
+    folded = _header(
+        _bead_summary(notes=notes),
+        agent=agent,
+        lane_fold_level=FoldLevel.EXPANDED,
+    )
+    expanded = _header(
+        _bead_summary(notes=notes),
+        agent=agent,
+        lane_fold_level=FoldLevel.EXPANDED,
+        lane_section_fold_overrides={BEAD_SECTION_ID: FoldLevel.FULLY_EXPANDED},
+    )
+
+    assert "Notes: ▸ 2 lines (zz to show)" in folded.plain
+    assert "second family note" not in folded.plain
+    assert notes in expanded.plain
+    assert "Notes: ▸" not in expanded.plain
+
+
 def test_bead_notes_render_literal_multiline_and_wrap_losslessly() -> None:
     notes = (
         "[2026-08-01T14:03:00Z · alice] [ready] first note\n"
@@ -256,7 +413,7 @@ def test_bead_notes_render_literal_multiline_and_wrap_losslessly() -> None:
         "[2026-08-01T14:07:00Z · bob] This follow-up line is long enough "
         "to fold through the existing responsive table without losing words."
     )
-    header = _header(_bead_summary(notes=notes))
+    header = _header(_bead_summary(notes=notes), lane_fold_level=FoldLevel.EXPANDED)
 
     assert notes in header.plain
     assert header.plain.index("Description:") < header.plain.index("Notes:")

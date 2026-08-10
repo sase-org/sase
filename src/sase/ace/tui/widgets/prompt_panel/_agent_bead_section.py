@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import IntEnum
 
 from rich.cells import cell_len
 from rich.console import Console, ConsoleOptions, RenderResult
@@ -20,6 +21,8 @@ from sase.bead.plus_one_presentation import (
 from sase.phase_size_presentation import phase_size_chip
 
 from ...models.agent_associated_plan import BeadSummary
+from ...models.fold_scale import FoldScale, fold_scale_position
+from ...models.fold_state import FoldLevel
 from ._artifact_files import append_artifact_file_path
 from ._agent_context_common import (
     COLOR_BEAD_PRIMARY,
@@ -27,11 +30,16 @@ from ._agent_context_common import (
     COLOR_EMPTY,
     COLOR_REASON,
     COLOR_SUMMARY,
+    COLOR_TRUNCATION,
     append_context_lane_header,
+    count_phrase,
 )
+from ._fold_language import append_fold_glyph
 
+BEAD_SECTION_ID = "bead"
 BEAD_SECTION_LABEL = "BEAD"
 BEAD_SECTION_MAX_WIDTH = 80
+BEAD_FOLD_HINT = "zz to show"
 _BEAD_FIELD_LABELS = (
     "Phase Title",
     "Description",
@@ -47,12 +55,36 @@ BEAD_FIELD_LABEL_WIDTH = cell_len(f"  {max(_BEAD_FIELD_LABELS, key=len)}: ")
 BEAD_PLAN_STATE_STYLE = "dim italic #FF8787"
 
 
+class _BeadDetail(IntEnum):
+    """Positional detail tiers owned by the BEAD lane."""
+
+    DIGEST = 1
+    FULL = 2
+
+
+def bead_detail_level(level: FoldLevel, scale: FoldScale) -> _BeadDetail:
+    """Resolve a lane fold level to the positional BEAD detail tier."""
+    position, _size = fold_scale_position(level, scale)
+    return _BeadDetail.DIGEST if position == 1 else _BeadDetail.FULL
+
+
+def bead_summary_has_foldable_rows(summary: BeadSummary) -> bool:
+    """Return whether ``summary`` has BEAD log rows that can fold."""
+    section = ResponsiveBeadSection(summary)
+    return any(_value_is_foldable(value) for _label, value in section._foldable_rows())
+
+
+def _value_is_foldable(value: Text) -> bool:
+    return len(value.plain.splitlines()) > 1
+
+
 @dataclass(slots=True)
 class ResponsiveBeadSection:
     """One selected-bead lane that reflows complete values at render time."""
 
     summary: BeadSummary
     hint_number: int | None = None
+    detail: _BeadDetail = _BeadDetail.FULL
 
     @property
     def logical_text(self) -> Text:
@@ -105,13 +137,18 @@ class ResponsiveBeadSection:
                 (self._label("Description"), self._description_value()),
             ]
             if self.summary.notes and self.summary.notes.strip():
-                rows.append((self._label("Notes"), self._notes_value()))
+                rows.append(
+                    (self._label("Notes"), self._foldable_value(self._notes_value()))
+                )
             if self.summary.size is not None:
                 rows.append((self._label("Size"), self._size_value()))
             if self.summary.plus_one_count:
                 rows.append((self._label("+1 Reports"), self._plus_one_count_value()))
                 rows.append(
-                    (self._label("+1 Evidence"), self._plus_one_evidence_value())
+                    (
+                        self._label("+1 Evidence"),
+                        self._foldable_value(self._plus_one_evidence_value()),
+                    )
                 )
             rows.append((self._label("Created"), self._created_value()))
             return tuple(rows)
@@ -120,7 +157,9 @@ class ResponsiveBeadSection:
             (self._label("Description"), self._description_value()),
         ]
         if self.summary.notes and self.summary.notes.strip():
-            rows.append((self._label("Notes"), self._notes_value()))
+            rows.append(
+                (self._label("Notes"), self._foldable_value(self._notes_value()))
+            )
         rows.extend(
             [
                 (self._label("Size"), self._size_value()),
@@ -135,6 +174,33 @@ class ResponsiveBeadSection:
     def _label(label: str) -> str:
         field_width = BEAD_FIELD_LABEL_WIDTH - cell_len("  : ")
         return f"  {label:>{field_width}}: "
+
+    def _foldable_rows(self) -> tuple[tuple[str, Text], ...]:
+        rows: list[tuple[str, Text]] = []
+        if self.summary.notes and self.summary.notes.strip():
+            rows.append((self._label("Notes"), self._notes_value()))
+        if self.summary.bead_type == "task" and self.summary.plus_one_count:
+            rows.append((self._label("+1 Evidence"), self._plus_one_evidence_value()))
+        return tuple(rows)
+
+    def _foldable_value(self, value: Text) -> Text:
+        """Return ``value`` or its one-line folded digest for this detail tier."""
+        if self.detail is not _BeadDetail.DIGEST:
+            return value
+
+        lines = value.plain.splitlines()
+        # Fold the unbounded append-only logs, never identity fields. Single authored
+        # lines stay inline even when they wrap visually, preserving lossless content.
+        if len(lines) <= 1:
+            return value
+
+        text = Text()
+        append_fold_glyph(text, FoldLevel.COLLAPSED)
+        text.append(
+            f"{count_phrase(len(lines), 'line')} ({BEAD_FOLD_HINT})",
+            style=COLOR_TRUNCATION,
+        )
+        return text
 
     def _description_value(self) -> Text:
         if self.summary.description:

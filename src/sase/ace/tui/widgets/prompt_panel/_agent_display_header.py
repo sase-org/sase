@@ -23,7 +23,11 @@ from ...models.fold_scale import (
     lane_fold_scale,
 )
 from ...models.fold_state import FoldLevel
-from ._agent_bead_section import ResponsiveBeadSection
+from ._agent_bead_section import (
+    BEAD_SECTION_ID,
+    ResponsiveBeadSection,
+    bead_detail_level,
+)
 from ._agent_display_family import (
     append_family_fold_heading,
     append_family_member_roster,
@@ -273,7 +277,19 @@ def build_header_text(
         from ._agent_context import append_agent_context_section
 
         if summary.bead_summary is not None:
-            bead_section = ResponsiveBeadSection(summary.bead_summary)
+            bead_section = ResponsiveBeadSection(
+                summary.bead_summary,
+                detail=bead_detail_level(
+                    effective_fold_level(
+                        lane_overrides.get(
+                            BEAD_SECTION_ID,
+                            resolved_lane_fold_level,
+                        ),
+                        lane_scale,
+                    ),
+                    lane_scale,
+                ),
+            )
         if summary.associated_plan is not None:
             plan_section = ResponsivePlanSection(summary.associated_plan)
         append_agent_context_section(

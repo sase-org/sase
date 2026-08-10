@@ -303,10 +303,33 @@ class FoldNavigationMixin(NavigationMixinBase):
         neighbor_count = getattr(self, "_selected_agent_neighbor_count", None)
         if callable(neighbor_count) and neighbor_count(agent) > 0:
             return
+        if self._selected_lane_has_foldable_bead_rows(agent):
+            return
         if self._selected_lane_has_slow_tool_calls(agent):
             return
         self.notify(  # type: ignore[attr-defined]
             "Fold levels shape clan, family, neighbor, and slow-call summaries"
+        )
+
+    def _selected_lane_has_foldable_bead_rows(self, agent: object) -> bool:
+        """Return whether cached lane data has BEAD rows affected by folds."""
+        from ...widgets.prompt_panel import AgentPromptPanel
+        from ...widgets.prompt_panel._agent_bead_section import (
+            bead_summary_has_foldable_rows,
+        )
+        from ...widgets.prompt_panel._agent_display_header_summary import (
+            get_cached_detail_header_summary,
+        )
+
+        try:
+            panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)  # type: ignore[attr-defined]
+            summary = get_cached_detail_header_summary(panel, agent)  # type: ignore[arg-type]
+        except Exception:
+            return False
+        return (
+            summary is not None
+            and summary.bead_summary is not None
+            and bead_summary_has_foldable_rows(summary.bead_summary)
         )
 
     def _selected_lane_has_slow_tool_calls(self, agent: object) -> bool:

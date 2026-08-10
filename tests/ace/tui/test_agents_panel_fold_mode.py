@@ -381,6 +381,14 @@ def test_regular_agent_fold_change_stays_silent_when_neighbors_are_foldable() ->
     assert app.notifications == []
 
 
+def test_regular_agent_fold_change_stays_silent_when_bead_rows_are_foldable() -> None:
+    app = _FoldApp(clan=False, foldable_bead_rows=True)
+
+    _press(app, "Z")
+
+    assert app.notifications == []
+
+
 def test_regular_agent_fold_change_stays_silent_when_slow_calls_are_foldable() -> None:
     app = _FoldApp(clan=False, slow_tool_call_count=1)
 

@@ -16,7 +16,7 @@ from ...models.fold_state import FoldLevel
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._artifact_files import ArtifactFilePath
 from ._agent_artifacts_lane import append_agent_artifacts_lane
-from ._agent_bead_section import ResponsiveBeadSection
+from ._agent_bead_section import BEAD_SECTION_ID, ResponsiveBeadSection
 from ._agent_memory_reads import append_agent_memory_reads_section
 from ._agent_opened_workspaces import append_agent_opened_workspaces_section
 from ._agent_plan_section import ResponsivePlanSection
@@ -126,7 +126,7 @@ def append_agent_context_section(
         text.append("SASE CONTEXT", style=_COLOR_HEADER)
         text.append(f" · {len(rendered_lanes)}\n", style="dim")
         lane_ids = {
-            "BEAD": "bead",
+            "BEAD": BEAD_SECTION_ID,
             "PLAN": "plan",
             "ARTIFACTS": "artifacts",
             "MEMORY": "memory-reads",
@@ -155,7 +155,7 @@ def append_agent_context_section(
             append_fold_glyph(heading, lane_level)
             heading.append_text(source_heading[2:])
             section_id = {
-                "BEAD": "bead",
+                "BEAD": BEAD_SECTION_ID,
                 "PLAN": "plan",
                 "ARTIFACTS": "artifacts",
                 "MEMORY": "memory-reads",

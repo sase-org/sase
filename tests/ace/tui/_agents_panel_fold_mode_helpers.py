@@ -17,6 +17,7 @@ class _FoldApp(FoldNavigationMixin):
         panel_focused: bool = False,
         has_agent: bool = True,
         neighbor_count: int = 0,
+        foldable_bead_rows: bool = False,
         slow_tool_call_count: int = 0,
     ) -> None:
         self.current_tab = tab
@@ -49,6 +50,7 @@ class _FoldApp(FoldNavigationMixin):
         self.notifications: list[str] = []
         self.panel_focused = panel_focused
         self.neighbor_count = neighbor_count
+        self.foldable_bead_rows = foldable_bead_rows
         self.slow_tool_call_count = slow_tool_call_count
 
     def _refresh_current_tab(self) -> None:
@@ -62,6 +64,9 @@ class _FoldApp(FoldNavigationMixin):
 
     def _selected_agent_neighbor_count(self, _agent: object) -> int:
         return self.neighbor_count
+
+    def _selected_lane_has_foldable_bead_rows(self, _agent: object) -> bool:
+        return self.foldable_bead_rows
 
     def _selected_agent_slow_tool_call_count(self, _agent: object) -> int:
         return self.slow_tool_call_count
