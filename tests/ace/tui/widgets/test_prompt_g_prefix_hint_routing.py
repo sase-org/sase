@@ -71,6 +71,9 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         monkeypatch.setattr(
             bar, "request_update_pinned_stash", lambda: calls.append("S")
         )
+        monkeypatch.setattr(
+            bar, "request_snippet_target_pane", lambda: calls.append("t")
+        )
         monkeypatch.setattr(bar, "request_save_as_xprompt", lambda: calls.append("x"))
         monkeypatch.setattr(
             bar,
@@ -90,6 +93,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "=",
             "s",
             "S",
+            "t",
             "x",
             "X",
         ):
@@ -118,6 +122,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "=",
             "s",
             "S",
+            "t",
             "x",
             "X",
             "ctrl+c",

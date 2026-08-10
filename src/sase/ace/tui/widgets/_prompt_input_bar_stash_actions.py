@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.widgets._prompt_input_bar_stack_models import StashedPromptPane
@@ -9,6 +10,7 @@ from sase.ace.tui.widgets._prompt_input_bar_stack_models import StashedPromptPan
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
 
+    from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
     from sase.ace.tui.widgets.prompt_stack import PromptStackState
 else:
     _MixinBase = object
@@ -27,6 +29,10 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         _stack: PromptStackState
 
         def _clear_active_completion_state(self) -> None: ...
+        def _confirm_discard_dirty_snippet(
+            self,
+            proceed: Callable[[], None],
+        ) -> bool: ...
         def load_stack_from_xprompt_markdown(
             self,
             text: str,
@@ -35,7 +41,20 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             preserve_target: bool = False,
             read_only_target: object | None = None,
         ) -> None: ...
-        def _rebuild_stack(self, enter_mode: str | None = None) -> None: ...
+        def _load_stack_from_xprompt_markdown_after_snippet_guard(
+            self,
+            text: str,
+            *,
+            binding: object | None = None,
+            preserve_target: bool = False,
+            read_only_target: object | None = None,
+        ) -> None: ...
+        def _rebuild_stack(
+            self,
+            enter_mode: str | None = None,
+            *,
+            restore_focus: PromptFocusRestore | None = None,
+        ) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
 
@@ -115,6 +134,17 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         """
         if self._mode != "prompt":
             return
+        self._sync_state_from_widgets()
+        if self._stack.snippet_is_dirty:
+            self._confirm_discard_dirty_snippet(
+                self._stash_all_panes_after_snippet_guard
+            )
+            return
+
+        self._stash_all_panes_after_snippet_guard()
+
+    def _stash_all_panes_after_snippet_guard(self) -> None:
+        """Stash all agent panes after the snippet-discard guard has passed."""
         if self._stack.binding is not None:
             self.app.notify(
                 "Stash saved without xprompt binding; restore will use save-as",
@@ -137,6 +167,31 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         """Stash the whole bar as one bundle, then load *markdown* in its place."""
         if self._mode != "prompt":
             return
+        self._sync_state_from_widgets()
+        if self._stack.snippet_is_dirty:
+            self._confirm_discard_dirty_snippet(
+                lambda: self._stash_all_and_load_xprompt_markdown_after_snippet_guard(
+                    markdown,
+                    binding=binding,
+                    read_only_target=read_only_target,
+                )
+            )
+            return
+
+        self._stash_all_and_load_xprompt_markdown_after_snippet_guard(
+            markdown,
+            binding=binding,
+            read_only_target=read_only_target,
+        )
+
+    def _stash_all_and_load_xprompt_markdown_after_snippet_guard(
+        self,
+        markdown: str,
+        *,
+        binding: object | None = None,
+        read_only_target: object | None = None,
+    ) -> None:
+        """Stash all agent panes and load xprompt markdown after discard guard."""
         panes = self.capture_stashable_panes()
         if panes:
             self._clear_active_completion_state()
@@ -146,7 +201,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             XPromptReadonlyTarget,
         )
 
-        self.load_stack_from_xprompt_markdown(
+        self._load_stack_from_xprompt_markdown_after_snippet_guard(
             markdown,
             binding=binding if isinstance(binding, XPromptBinding) else None,
             read_only_target=(

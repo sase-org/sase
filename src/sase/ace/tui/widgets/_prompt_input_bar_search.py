@@ -19,7 +19,7 @@ from sase.ace.tui.widgets.search_command_line import render_search_command_line
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
-    from sase.ace.tui.widgets.prompt_stack import PromptStackState
+    from sase.ace.tui.widgets.prompt_stack import PromptStackItem, PromptStackState
     from textual.widgets import Static as _MixinBase
 else:
     _MixinBase = object
@@ -54,7 +54,7 @@ class PromptInputBarSearchMixin(_MixinBase):
         _search_command_line_count: int
         _search_command_visible: bool
 
-        def _pane_id(self, item: object) -> str: ...
+        def _pane_id(self, item: PromptStackItem) -> str: ...
         def _schedule_height_update(self) -> None: ...
         def _frontmatter_panel(self) -> FrontmatterPanel | None: ...
         def focus_item(self, index: int) -> int: ...

@@ -5,14 +5,18 @@ from __future__ import annotations
 from typing import Any
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import _SnippetPaneTarget
+from sase.ace.tui.widgets.prompt_stack import SnippetPaneTarget
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from tests.ace.tui.widgets._prompt_input_bar_stack_helpers import _PromptBarApp
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import CaptureApp
 
 
-def _snippet_target(trigger: str = "todo") -> _SnippetPaneTarget:
-    return _SnippetPaneTarget(
+def _snippet_target(
+    trigger: str = "todo",
+    *,
+    loaded_body: str | None = None,
+) -> SnippetPaneTarget:
+    return SnippetPaneTarget(
         trigger=trigger,
         read_path="/tmp/sase.yml",
         write_path="/tmp/sase.yml",
@@ -20,7 +24,7 @@ def _snippet_target(trigger: str = "todo") -> _SnippetPaneTarget:
         apply_target=None,
         via_chezmoi=False,
         exists=False,
-        loaded_body=None,
+        loaded_body=loaded_body,
         loaded_fingerprint=None,
     )
 
@@ -31,7 +35,7 @@ async def _append_snippet_pane(
     text: str = "snippet body",
 ) -> None:
     bar._sync_state_from_widgets()
-    bar._stack.append_snippet_pane(text, _snippet_target())
+    bar._stack.append_snippet_pane(text, _snippet_target(loaded_body=text))
     bar._rebuild_stack(enter_mode="insert")
     await pilot.pause()
     await pilot.pause()

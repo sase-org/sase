@@ -32,7 +32,9 @@ from sase.ace.tui.widgets._prompt_input_bar_messages import (
     HistoryRequested as _HistoryRequested,
     RestoreRequested as _RestoreRequested,
     SaveAsXpromptRequested as _SaveAsXpromptRequested,
+    SnippetPaneSaveRequested as _SnippetPaneSaveRequested,
     SnippetRequested as _SnippetRequested,
+    SnippetTargetRequested as _SnippetTargetRequested,
     Stashed as _Stashed,
     Submitted as _Submitted,
     UpdatePinnedRequested as _UpdatePinnedRequested,
@@ -49,6 +51,10 @@ from sase.ace.tui.widgets._prompt_input_bar_stack_rendering import (
 from sase.ace.tui.widgets._prompt_input_bar_search import (
     PromptInputBarSearchMixin,
 )
+from sase.ace.tui.widgets._prompt_input_bar_snippet_pane import (
+    PromptInputBarSnippetPaneMixin,
+)
+from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackState,
@@ -100,6 +106,7 @@ def _middle_elide_cells(value: str, width: int) -> str:
 
 class PromptInputBar(
     PromptInputBarFrontmatterMixin,
+    PromptInputBarSnippetPaneMixin,
     PromptInputBarStackActionsMixin,
     PromptInputBarGPrefixHintsMixin,
     PromptInputBarSearchMixin,
@@ -120,6 +127,8 @@ class PromptInputBar(
     AllEditorRequested = _AllEditorRequested
     HistoryRequested = _HistoryRequested
     SnippetRequested = _SnippetRequested
+    SnippetTargetRequested = _SnippetTargetRequested
+    SnippetPaneSaveRequested = _SnippetPaneSaveRequested
     WorkflowEditorRequested = _WorkflowEditorRequested
     WriteXpromptRequested = _WriteXpromptRequested
 
@@ -159,6 +168,7 @@ class PromptInputBar(
         # Monotonic per-rebuild id namespace so a fresh stack mounted while the
         # previous panes are still being detached never collides on widget ids.
         self._generation = 0
+        self._snippet_focus_restore: PromptFocusRestore | None = None
         self._placeholder = ""
         # ``#@`` + ``Ctrl+I`` inline expansions that auto-staged xprompt inputs,
         # coupled to the body splice so NORMAL-mode ``u`` / ``Ctrl+R`` unstage /

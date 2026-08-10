@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets.prompt_stack import (
@@ -16,6 +17,7 @@ from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
 
+    from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
     from sase.ace.tui.widgets.prompt_stack import PromptStackItem
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 else:
@@ -27,12 +29,22 @@ class PromptInputBarStackXPromptMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _readonly_xprompt_target: XPromptReadonlyTarget | None
+        _snippet_focus_restore: PromptFocusRestore | None
         _stack: PromptStackState
         _xprompt_source_stale: bool
         _xprompt_target_generation: int
 
         def _pane_id(self, item: PromptStackItem) -> str: ...
-        def _rebuild_stack(self, enter_mode: str | None = None) -> None: ...
+        def _confirm_discard_dirty_snippet(
+            self,
+            proceed: Callable[[], None],
+        ) -> bool: ...
+        def _rebuild_stack(
+            self,
+            enter_mode: str | None = None,
+            *,
+            restore_focus: PromptFocusRestore | None = None,
+        ) -> None: ...
         def _refresh_prompt_mode_subtitle(self) -> None: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def _resolve_pane_target(
@@ -64,12 +76,42 @@ class PromptInputBarStackXPromptMixin(_MixinBase):
         normalizes a lone body pane through the canonical splitter instead of
         keeping the body text verbatim.
         """
+        self._sync_state_from_widgets()
+        if self._stack.snippet_is_dirty:
+            self._confirm_discard_dirty_snippet(
+                lambda: self._load_stack_from_xprompt_markdown_after_snippet_guard(
+                    text,
+                    binding=binding,
+                    preserve_target=preserve_target,
+                    read_only_target=read_only_target,
+                )
+            )
+            return
+
+        self._load_stack_from_xprompt_markdown_after_snippet_guard(
+            text,
+            binding=binding,
+            preserve_target=preserve_target,
+            read_only_target=read_only_target,
+        )
+
+    def _load_stack_from_xprompt_markdown_after_snippet_guard(
+        self,
+        text: str,
+        *,
+        binding: XPromptBinding | None = None,
+        preserve_target: bool = False,
+        read_only_target: XPromptReadonlyTarget | None = None,
+    ) -> None:
+        """Reload the whole bar after the snippet-discard guard has passed."""
         previous_stack = self._stack if preserve_target else None
         previous_readonly_target = (
             self._readonly_xprompt_target if preserve_target else None
         )
         previous_stale = self._xprompt_source_stale if preserve_target else False
         self._stack = PromptStackState.from_text(text)
+        if hasattr(self, "_snippet_focus_restore"):
+            self._snippet_focus_restore = None
         self._rebuild_stack()
         if binding is not None:
             self.target_xprompt(binding, source_markdown=text)

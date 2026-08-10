@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.ace.tui.widgets.prompt_stack import PromptStackState
+from sase.ace.tui.widgets.prompt_stack import PromptStackItem, PromptStackState
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets._todo_highlight import todo_annotation_count
 from sase.ace.tui.widgets.xprompt_arg_assist import (
@@ -16,6 +17,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
+    from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
 else:
     _MixinBase = object
 
@@ -80,8 +82,25 @@ class PromptInputBarActionsMixin(_MixinBase):
         def current_prompt_text(self) -> str: ...
         def _sync_state_from_widgets(self) -> None: ...
         def _clear_active_completion_state(self) -> None: ...
-        def _rebuild_stack(self, enter_mode: str | None = None) -> None: ...
-        def _pane_id(self, item: object) -> str: ...
+        def _rebuild_stack(
+            self,
+            enter_mode: str | None = None,
+            *,
+            restore_focus: PromptFocusRestore | None = None,
+        ) -> None: ...
+        def _pane_id(self, item: PromptStackItem) -> str: ...
+        def _confirm_discard_dirty_snippet(
+            self,
+            proceed: Callable[[], None],
+        ) -> bool: ...
+        def close_snippet_target(
+            self,
+            reason: Literal["saved", "discarded", "replaced"],
+        ) -> bool: ...
+        def request_save_snippet_target_pane(
+            self,
+            origin_text_area: PromptTextArea | None = None,
+        ) -> None: ...
 
     def _handle_text_submission(
         self,
@@ -97,9 +116,45 @@ class PromptInputBarActionsMixin(_MixinBase):
         mounted (``keep_bar``) so the remaining panes can be submitted in turn;
         an empty selected pane is simply dropped instead of launched.
         """
+        if self._text_submission_needs_dirty_snippet_guard(origin_text_area):
+            self._confirm_discard_dirty_snippet(
+                lambda: self._handle_text_submission_after_snippet_guard(
+                    origin_text_area
+                )
+            )
+            return
+        self._handle_text_submission_after_snippet_guard(origin_text_area)
+
+    def _handle_text_submission_after_snippet_guard(
+        self,
+        origin_text_area: PromptTextArea | None = None,
+    ) -> None:
+        """Process a text submission after any snippet discard guard has passed."""
         prepared = self._prepare_text_submission(origin_text_area)
         if prepared is not None:
             self._confirm_or_commit_submission(prepared)
+
+    def _text_submission_needs_dirty_snippet_guard(
+        self,
+        origin_text_area: PromptTextArea | None,
+    ) -> bool:
+        """Return whether the selected-pane submit would discard a dirty snippet."""
+        if self._mode != "prompt":
+            return False
+        self._sync_state_from_widgets()
+        if (
+            not self._stack.snippet_is_dirty
+            or self._stack.selected_item.is_snippet_pane
+        ):
+            return False
+        if self._stack.agent_count > 1:
+            return False
+        if origin_text_area is None:
+            try:
+                origin_text_area = self.active_text_area()
+            except Exception:
+                return False
+        return (origin_text_area.id or "") == self._pane_id(self._stack.selected_item)
 
     def _prepare_text_submission(
         self,
@@ -114,6 +169,7 @@ class PromptInputBarActionsMixin(_MixinBase):
                 return None
 
         if self._mode == "prompt" and self._stack.selected_item.is_snippet_pane:
+            self.request_save_snippet_target_pane(origin_text_area)
             return None
 
         if self._mode != "prompt" or self._stack.agent_count <= 1:
@@ -160,6 +216,21 @@ class PromptInputBarActionsMixin(_MixinBase):
         """
         if self._mode != "prompt":
             return
+        self._sync_state_from_widgets()
+        if self._stack.snippet_is_dirty:
+            self._confirm_discard_dirty_snippet(
+                lambda: self._handle_whole_stack_submission_after_snippet_guard(
+                    origin_text_area
+                )
+            )
+            return
+        self._handle_whole_stack_submission_after_snippet_guard(origin_text_area)
+
+    def _handle_whole_stack_submission_after_snippet_guard(
+        self,
+        origin_text_area: PromptTextArea | None = None,
+    ) -> None:
+        """Submit the whole stack after the snippet-discard guard has passed."""
         self._sync_state_from_widgets()
         if origin_text_area is None:
             try:
@@ -363,15 +434,28 @@ class PromptInputBarActionsMixin(_MixinBase):
         if self._mode == "prompt" and len(self._stack) > 1:
             self._sync_state_from_widgets()
             if self._stack.selected_item.is_snippet_pane:
+
+                def _close_snippet() -> None:
+                    self.close_snippet_target("discarded")
+
+                self._confirm_discard_dirty_snippet(_close_snippet)
                 return
             cancelled_text = self._stack.selected_item.text.strip()
             removed = self._stack.remove_selected()
             if not removed:
-                self.post_message(
-                    self.Cancelled(
-                        cancelled_text=self.current_prompt_text(), mode=self._mode
+
+                def _cancel_bar() -> None:
+                    self.post_message(
+                        self.Cancelled(
+                            cancelled_text=self.current_prompt_text(),
+                            mode=self._mode,
+                        )
                     )
-                )
+
+                if self._stack.has_snippet_pane:
+                    self._confirm_discard_dirty_snippet(_cancel_bar)
+                else:
+                    _cancel_bar()
                 return
             self._clear_active_completion_state()
             self.post_message(
@@ -392,16 +476,19 @@ class PromptInputBarActionsMixin(_MixinBase):
             self.action_cancel()
             return
 
-        self._sync_state_from_widgets()
-        self._clear_active_completion_state()
-        self.post_message(
-            self.Cancelled(
-                cancelled_text=self.current_prompt_text(),
-                mode=self._mode,
-                keep_bar=False,
-                record_segments=False,
+        def _cancel_all() -> None:
+            self._sync_state_from_widgets()
+            self._clear_active_completion_state()
+            self.post_message(
+                self.Cancelled(
+                    cancelled_text=self.current_prompt_text(),
+                    mode=self._mode,
+                    keep_bar=False,
+                    record_segments=False,
+                )
             )
-        )
+
+        self._confirm_discard_dirty_snippet(_cancel_all)
 
     def insert_snippet(
         self,

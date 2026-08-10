@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
 
+    from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
     from sase.ace.tui.widgets.prompt_stack import PromptStackState
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 else:
@@ -21,7 +22,12 @@ class PromptInputBarStackNavigationMixin(_MixinBase):
         _stack: PromptStackState
 
         def _apply_active_classes(self) -> None: ...
-        def _rebuild_stack(self, enter_mode: str | None = None) -> None: ...
+        def _rebuild_stack(
+            self,
+            enter_mode: str | None = None,
+            *,
+            restore_focus: PromptFocusRestore | None = None,
+        ) -> None: ...
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...

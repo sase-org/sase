@@ -119,6 +119,12 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_update_pin",
     ),
     _PromptGPrefixBinding(
+        "t",
+        "request_snippet_target_pane",
+        "_g_prefix_label_snippet_target",
+        "_g_prefix_available_snippet_target",
+    ),
+    _PromptGPrefixBinding(
         "w",
         "request_write_xprompt",
         "_g_prefix_label_write_xprompt",
@@ -165,6 +171,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         def focus_relative(self, delta: int, target_mode: str = "normal") -> bool: ...
         def move_active_pane(self, delta: int, target_mode: str = "normal") -> bool: ...
         def request_open_prompt_stash(self) -> None: ...
+        def request_snippet_target_pane(self) -> None: ...
         def request_save_as_xprompt(self) -> None: ...
         def request_write_xprompt(self) -> None: ...
         def request_update_pinned_stash(self) -> None: ...
@@ -350,6 +357,10 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         self._sync_state_from_widgets()
         return any(item.text.strip() for item in self._stack.agent_items)
 
+    def _g_prefix_available_snippet_target(self) -> bool:
+        """Whether ``gt`` can open or retarget a snippet target pane."""
+        return self._mode == "prompt"
+
     def _g_prefix_available_save_xprompt(self) -> bool:
         """Whether ``gx`` can save the current prompt draft as an xprompt."""
         if self._mode != "prompt":
@@ -425,6 +436,13 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
     def _g_prefix_label_update_pin(self) -> str:
         """Return the ``gS`` label."""
         return "update pinned stash"
+
+    def _g_prefix_label_snippet_target(self) -> str:
+        """Return the ``gt`` label."""
+        snippet = self._stack.snippet_item
+        if snippet is not None and snippet.snippet_target is not None:
+            return f"rename ⇥ {snippet.snippet_target.trigger}…"
+        return "new snippet…"
 
     def _g_prefix_label_save_xprompt(self) -> str:
         """Return the ``gx`` label."""

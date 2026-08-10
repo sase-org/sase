@@ -15,9 +15,9 @@ import pytest
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
+    SnippetPaneTarget,
     SourceFingerprint,
     XPromptBinding,
-    _SnippetPaneTarget,
     split_frontmatter,
     split_prompt_text,
 )
@@ -29,8 +29,8 @@ def _snippet_target(
     trigger: str = "todo",
     *,
     loaded_body: str | None = None,
-) -> _SnippetPaneTarget:
-    return _SnippetPaneTarget(
+) -> SnippetPaneTarget:
+    return SnippetPaneTarget(
         trigger=trigger,
         read_path="/tmp/sase.yml",
         write_path="/tmp/sase.yml",

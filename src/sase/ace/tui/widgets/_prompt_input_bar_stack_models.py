@@ -6,6 +6,15 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class PromptFocusRestore:
+    """Exact pane focus state restored after a temporary pane closes."""
+
+    item_id: str
+    cursor: tuple[int, int]
+    vim_mode: str
+
+
+@dataclass(frozen=True)
 class StashedPromptPane:
     """One captured prompt-bar pane handed to the app for persistence.
 

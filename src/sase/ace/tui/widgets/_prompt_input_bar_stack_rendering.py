@@ -15,6 +15,7 @@ from sase.ace.tui.widgets._prompt_cursor_readout import (
     cursor_readout_position,
     format_cursor_readout,
 )
+from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
 from sase.ace.tui.widgets._prompt_input_bar_stack_lifecycle import (
     PromptInputBarStackLifecycleMixin,
 )
@@ -196,7 +197,12 @@ class PromptInputBarStackRenderingMixin(
         state = "active" if index == self._stack.selected_index else "inactive"
         return f"prompt-input prompt-pane {state}"
 
-    def _rebuild_stack(self, enter_mode: str | None = None) -> None:
+    def _rebuild_stack(
+        self,
+        enter_mode: str | None = None,
+        *,
+        restore_focus: PromptFocusRestore | None = None,
+    ) -> None:
         """Re-render the prompt stack to match ``self._stack`` from scratch.
 
         Used by deliberate whole-stack replacements
@@ -218,16 +224,30 @@ class PromptInputBarStackRenderingMixin(
             return
         container.remove_children()
         container.mount(*self._build_pane_widgets())
-        self.call_after_refresh(lambda: self._after_rebuild(enter_mode))
+        self.call_after_refresh(lambda: self._after_rebuild(enter_mode, restore_focus))
 
-    def _after_rebuild(self, enter_mode: str | None = None) -> None:
+    def _after_rebuild(
+        self,
+        enter_mode: str | None = None,
+        restore_focus: PromptFocusRestore | None = None,
+    ) -> None:
         """Focus + style the active pane once a rebuilt stack has mounted."""
+        if restore_focus is not None:
+            self._stack.focus(self._restore_focus_index(restore_focus.item_id))
         try:
             text_area = self.active_text_area()
         except Exception:
             return
         text_area.focus()
-        self._cursor_to_end(text_area)
+        restored_cursor: tuple[int, int] | None = None
+        if restore_focus is None:
+            self._cursor_to_end(text_area)
+        else:
+            restored_cursor = self._clamp_cursor_location(
+                text_area,
+                restore_focus.cursor,
+            )
+            text_area.cursor_location = restored_cursor
         text_area._warm_current_xprompt_assist_entries()
         text_area._warm_current_artifact_ref_completion_catalog()
         text_area._warm_vcs_project_completion_catalog()
@@ -239,11 +259,41 @@ class PromptInputBarStackRenderingMixin(
         self._apply_active_classes()
         self._sync_todo_counts_from_mounted_panes()
         self._refresh_title()
-        if enter_mode == "normal":
+        if restore_focus is not None:
+            if restore_focus.vim_mode == "insert":
+                text_area._enter_insert_mode()
+            else:
+                text_area._enter_normal_mode()
+            if restored_cursor is not None:
+                text_area.cursor_location = restored_cursor
+        elif enter_mode == "normal":
             text_area._enter_normal_mode()
         elif enter_mode == "insert":
             text_area._enter_insert_mode()
         self._schedule_height_update()
+
+    def _restore_focus_index(self, item_id: str) -> int:
+        """Return the restored item index, falling back to the bottom agent pane."""
+        for index, item in enumerate(self._stack.items):
+            if item.item_id == item_id:
+                return index
+        for index in range(len(self._stack.items) - 1, -1, -1):
+            if not self._stack.items[index].is_snippet_pane:
+                return index
+        return self._stack.selected_index
+
+    @staticmethod
+    def _clamp_cursor_location(
+        text_area: PromptTextArea,
+        cursor: tuple[int, int],
+    ) -> tuple[int, int]:
+        """Clamp a stored ``(row, column)`` to *text_area*'s current document."""
+        row, column = cursor
+        doc = text_area.document
+        row = max(0, min(row, doc.line_count - 1))
+        line = doc.get_line(row)
+        column = max(0, min(column, len(line)))
+        return row, column
 
     @staticmethod
     def _cursor_to_end(text_area: PromptTextArea) -> None:

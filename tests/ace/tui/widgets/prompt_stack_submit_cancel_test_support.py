@@ -22,6 +22,10 @@ class CaptureApp(App[None]):
         self.stashed: list[PromptInputBar.Stashed] = []
         self.save_as_xprompt_requested: list[PromptInputBar.SaveAsXpromptRequested] = []
         self.write_xprompt_requested: list[PromptInputBar.WriteXpromptRequested] = []
+        self.snippet_target_requested: list[PromptInputBar.SnippetTargetRequested] = []
+        self.snippet_pane_save_requested: list[
+            PromptInputBar.SnippetPaneSaveRequested
+        ] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
@@ -50,6 +54,18 @@ class CaptureApp(App[None]):
         event: PromptInputBar.WriteXpromptRequested,
     ) -> None:
         self.write_xprompt_requested.append(event)
+
+    def on_prompt_input_bar_snippet_target_requested(
+        self,
+        event: PromptInputBar.SnippetTargetRequested,
+    ) -> None:
+        self.snippet_target_requested.append(event)
+
+    def on_prompt_input_bar_snippet_pane_save_requested(
+        self,
+        event: PromptInputBar.SnippetPaneSaveRequested,
+    ) -> None:
+        self.snippet_pane_save_requested.append(event)
 
 
 async def submit_current_pane(
