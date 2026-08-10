@@ -129,6 +129,8 @@ Submitted.
 
 #### 2.9 Sase Project
 
+ALIASES: project
+
 A sase project is a named unit of work registered with SASE. A project is created only
 when a new VCS xprompt argument resolves to a valid project: `#git:<name>` accepts any
 valid project name, while `#gh:<org>/<repo>` requires an existing GitHub repository. Its
@@ -141,11 +143,15 @@ that. The system-managed `home` project remains hidden.
 
 #### 2.10 Sase Repo
 
+ALIASES: repo
+
 A sase repo is any repository SASE knows: a project's primary repo, an SDD sidecar repo
 (`<project>--plans` or `<project>--research`), or a repo declared through
 `linked_repos:`.
 
 #### 2.11 Sase Workspace
+
+ALIASES: workspace
 
 A sase workspace is a numbered clone of a project's primary repo, managed by the
 workspace store and tracked in that project's `registry.json`. Each SASE agent claims
