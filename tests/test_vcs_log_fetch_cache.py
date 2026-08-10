@@ -1,4 +1,4 @@
-"""Tests for the ``sase vcs log`` fetch freshness cache."""
+"""Tests for the ``sase stitch log`` fetch freshness cache."""
 
 from __future__ import annotations
 

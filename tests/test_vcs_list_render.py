@@ -1,4 +1,4 @@
-"""Rendering tests for ``sase vcs list``."""
+"""Rendering tests for ``sase stitch list``."""
 
 from __future__ import annotations
 

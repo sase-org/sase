@@ -1,4 +1,4 @@
-"""Shared Rich styling helpers for ``sase vcs`` commands."""
+"""Shared Rich styling helpers for ``sase stitch`` commands."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tests for ``sase vcs log`` repo resolution across project layouts."""
+"""Tests for ``sase stitch log`` repo resolution across project layouts."""
 
 from __future__ import annotations
 

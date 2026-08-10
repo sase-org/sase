@@ -279,7 +279,7 @@ class VCSProvider(ABC):
     def resolve_remote_log_ref(
         self, cwd: str, ref_name: str | None = None
     ) -> str | None:
-        """Resolve the remote-tracking ref used by ``sase vcs log``.
+        """Resolve the remote-tracking ref used by ``sase stitch log``.
 
         When *ref_name* is provided, providers should interpret it as an
         explicit remote branch/ref override. Returning ``None`` means no usable
@@ -293,7 +293,7 @@ class VCSProvider(ABC):
     def fetch_remote(
         self, cwd: str, refs: Sequence[str], *, timeout: int = 120
     ) -> tuple[bool, str | None]:
-        """Fetch only the remote refs needed by ``sase vcs log``."""
+        """Fetch only the remote refs needed by ``sase stitch log``."""
         raise NotImplementedError("fetch_remote is not supported by this VCS provider")
 
     def partition_commits(
@@ -315,7 +315,7 @@ class VCSProvider(ABC):
         )
 
     def repo_stats(self, cwd: str) -> "VcsRepoStatsWire":
-        """Return aggregate repository stats for ``sase vcs list``.
+        """Return aggregate repository stats for ``sase stitch list``.
 
         Raises:
             VCSOperationError: When the underlying VCS query fails.

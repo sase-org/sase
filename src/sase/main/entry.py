@@ -425,11 +425,11 @@ def main() -> NoReturn:
 
         handle_var_command(args)
 
-    # --- vcs ---
-    if args.command == "vcs":
-        from .vcs_handler import handle_vcs_command
+    # --- stitch ---
+    if args.command in {"stitch", "vcs"}:  # legacy command alias
+        from .stitch_handler import handle_stitch_command
 
-        handle_vcs_command(args)
+        handle_stitch_command(args)
 
     # --- version ---
     if args.command == "version":

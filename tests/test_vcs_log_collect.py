@@ -1,4 +1,4 @@
-"""Tests for core ``sase vcs log`` collection behavior."""
+"""Tests for core ``sase stitch log`` collection behavior."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Thin parser facade for ``sase vcs list`` repository statistics."""
+"""Thin parser facade for ``sase stitch list`` repository statistics."""
 
 from __future__ import annotations
 

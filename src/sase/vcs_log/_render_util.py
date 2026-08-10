@@ -1,4 +1,4 @@
-"""Shared helpers for the ``sase vcs log`` renderers.
+"""Shared helpers for the ``sase stitch log`` renderers.
 
 Presence glyphs/labels, commit ordering, filter summaries, remote-state
 summaries, and wall-clock formatting live here so the plain-text and Rich

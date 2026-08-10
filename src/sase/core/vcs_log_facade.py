@@ -1,7 +1,7 @@
 """sase.core facade for the provider-agnostic VCS-log parser/aggregator.
 
 The helpers shared by the ``vcs_log`` provider hook and the
-``sase vcs log`` collection service:
+``sase stitch log`` collection service:
 
 - :func:`parse_git_log` — parse the pinned, separator-delimited
   ``git log --format=...`` stream into ``list[VcsCommitWire]``.

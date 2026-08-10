@@ -1,4 +1,4 @@
-"""Resolve repository sets for ``sase vcs log``.
+"""Resolve repository sets for ``sase stitch log``.
 
 The default path keeps the current-project/fallback behavior used by the
 existing command.  The explicit all-project path starts from the Rust-backed

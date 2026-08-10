@@ -43,12 +43,12 @@ from sase.main.parser_prompt import register_prompt_parser
 from sase.main.parser_repo import register_repo_parser
 from sase.main.parser_repro import register_repro_parser
 from sase.main.parser_skills import register_skills_parser
+from sase.main.parser_stitch import register_stitch_parser
 from sase.main.parser_task import register_task_parser
 from sase.main.parser_telemetry import register_telemetry_parser
 from sase.main.parser_update import register_update_parser
 from sase.main.parser_validate import register_validate_parser
 from sase.main.parser_var import register_var_parser
-from sase.main.parser_vcs import register_vcs_parser
 from sase.main.parser_version import register_version_parser
 from sase.main.parser_workspace import register_workspace_parser
 from sase.main.parser_xprompt import register_xprompt_parser
@@ -98,12 +98,12 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_revive_log_parser,
         register_run_parser,
         register_skills_parser,
+        register_stitch_parser,
         register_task_parser,
         register_telemetry_parser,
         register_update_parser,
         register_validate_parser,
         register_var_parser,
-        register_vcs_parser,
         register_version_parser,
         register_workspace_parser,
         register_xprompt_parser,

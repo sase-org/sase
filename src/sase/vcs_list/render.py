@@ -1,4 +1,4 @@
-"""Renderers for ``sase vcs list``."""
+"""Renderers for ``sase stitch list``."""
 
 from __future__ import annotations
 

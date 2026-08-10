@@ -1,4 +1,4 @@
-"""Rich ``sase vcs log`` renderers — ``pretty`` and ``full``.
+"""Rich ``sase stitch log`` renderers — ``pretty`` and ``full``.
 
 Colored output routes through the ``make_console`` factory so it honors
 ``auto``/``always``/``never`` plus ``NO_COLOR`` and TTY detection, matching

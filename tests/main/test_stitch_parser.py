@@ -1,4 +1,4 @@
-"""Tests for the ``sase vcs`` parser and handler dispatch."""
+"""Tests for the ``sase stitch`` parser and handler dispatch."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ import pytest
 from tests.main.parser_cli_helpers import parse_sase_args
 
 
-class TestVcsParser:
-    def test_bare_vcs_defaults_to_list(self) -> None:
-        ns = parse_sase_args(["vcs"])
+class TestStitchParser:
+    def test_bare_stitch_defaults_to_list(self) -> None:
+        ns = parse_sase_args(["stitch"])
 
-        assert ns.command == "vcs"
-        assert ns.vcs_subcommand == "list"
+        assert ns.command == "stitch"
+        assert ns.stitch_subcommand == "list"
         assert ns.repos == []
         assert ns.current_only is False
         assert ns.format == "pretty"
@@ -26,9 +26,9 @@ class TestVcsParser:
         assert ns.sort == "default"
 
     def test_list_defaults(self) -> None:
-        ns = parse_sase_args(["vcs", "list"])
+        ns = parse_sase_args(["stitch", "list"])
 
-        assert ns.vcs_subcommand == "list"
+        assert ns.stitch_subcommand == "list"
         assert ns.repos == []
         assert ns.current_only is False
         assert ns.format == "pretty"
@@ -39,7 +39,7 @@ class TestVcsParser:
     def test_list_options(self) -> None:
         ns = parse_sase_args(
             [
-                "vcs",
+                "stitch",
                 "list",
                 "-c",
                 "never",
@@ -61,10 +61,27 @@ class TestVcsParser:
         assert ns.repos == ["sase-core"]
         assert ns.sort == "recent"
 
-    def test_log_defaults(self) -> None:
-        ns = parse_sase_args(["vcs", "log"])
+    def test_legacy_vcs_alias_defaults_to_list(self) -> None:
+        canonical = parse_sase_args(["stitch"])
+        legacy = parse_sase_args(["vcs"])
 
-        assert ns.vcs_subcommand == "log"
+        assert legacy.command == "vcs"
+        assert legacy.stitch_subcommand == "list"
+        for key in (
+            "stitch_subcommand",
+            "repos",
+            "current_only",
+            "format",
+            "color",
+            "no_fetch",
+            "sort",
+        ):
+            assert getattr(legacy, key) == getattr(canonical, key)
+
+    def test_log_defaults(self) -> None:
+        ns = parse_sase_args(["stitch", "log"])
+
+        assert ns.stitch_subcommand == "log"
         assert ns.all is False
         assert ns.limit == 40
         assert ns.authors == []
@@ -82,7 +99,7 @@ class TestVcsParser:
 
     def test_log_limit_and_format_and_color(self) -> None:
         ns = parse_sase_args(
-            ["vcs", "log", "-n", "5", "--format", "full", "--color", "never"]
+            ["stitch", "log", "-n", "5", "--format", "full", "--color", "never"]
         )
 
         assert ns.limit == 5
@@ -91,88 +108,88 @@ class TestVcsParser:
 
     @pytest.mark.parametrize("mode", ["hide", "show", "only"])
     def test_log_merges_option(self, mode: str) -> None:
-        ns = parse_sase_args(["vcs", "log", "--merges", mode])
+        ns = parse_sase_args(["stitch", "log", "--merges", mode])
 
         assert ns.merges == mode
 
     def test_log_merges_short_option(self) -> None:
-        ns = parse_sase_args(["vcs", "log", "-m", "show"])
+        ns = parse_sase_args(["stitch", "log", "-m", "show"])
 
         assert ns.merges == "show"
 
     def test_log_rejects_unknown_merges_mode(self) -> None:
         with pytest.raises(SystemExit):
-            parse_sase_args(["vcs", "log", "--merges", "both"])
+            parse_sase_args(["stitch", "log", "--merges", "both"])
 
     def test_log_short_format_and_color_aliases(self) -> None:
-        ns = parse_sase_args(["vcs", "log", "-f", "json", "-c", "never"])
+        ns = parse_sase_args(["stitch", "log", "-f", "json", "-c", "never"])
 
         assert ns.format == "json"
         assert ns.color == "never"
 
     def test_log_remote_options(self) -> None:
-        ns = parse_sase_args(["vcs", "log", "-b", "main", "-N"])
+        ns = parse_sase_args(["stitch", "log", "-b", "main", "-N"])
 
         assert ns.remote_ref == "main"
         assert ns.no_fetch is True
 
     def test_log_force_fetch_option(self) -> None:
-        ns = parse_sase_args(["vcs", "log", "-F"])
+        ns = parse_sase_args(["stitch", "log", "-F"])
 
         assert ns.force_fetch is True
         assert ns.no_fetch is False
 
     def test_log_fetch_and_no_fetch_are_mutually_exclusive(self) -> None:
         with pytest.raises(SystemExit) as excinfo:
-            parse_sase_args(["vcs", "log", "--fetch", "--no-fetch"])
+            parse_sase_args(["stitch", "log", "--fetch", "--no-fetch"])
 
         assert excinfo.value.code == 2
 
     def test_log_ref_alias(self) -> None:
-        ns = parse_sase_args(["vcs", "log", "--ref", "release"])
+        ns = parse_sase_args(["stitch", "log", "--ref", "release"])
 
         assert ns.remote_ref == "release"
 
     def test_log_repo_is_repeatable(self) -> None:
-        ns = parse_sase_args(["vcs", "log", "-r", "sase", "--repo", "sase-core"])
+        ns = parse_sase_args(["stitch", "log", "-r", "sase", "--repo", "sase-core"])
 
         assert ns.repos == ["sase", "sase-core"]
 
     def test_log_current_only_flag(self) -> None:
-        ns = parse_sase_args(["vcs", "log", "-o"])
+        ns = parse_sase_args(["stitch", "log", "-o"])
 
         assert ns.current_only is True
 
     @pytest.mark.parametrize("option", ["-a", "--all"])
     def test_log_all_project_flags(self, option: str) -> None:
-        ns = parse_sase_args(["vcs", "log", option])
+        ns = parse_sase_args(["stitch", "log", option])
 
         assert ns.all is True
         assert ns.authors == []
 
     def test_log_all_and_current_only_are_mutually_exclusive(self) -> None:
         with pytest.raises(SystemExit) as excinfo:
-            parse_sase_args(["vcs", "log", "--all", "--current-only"])
+            parse_sase_args(["stitch", "log", "--all", "--current-only"])
 
         assert excinfo.value.code == 2
 
     def test_log_accepts_limit_zero(self) -> None:
-        ns = parse_sase_args(["vcs", "log", "--limit", "0"])
+        ns = parse_sase_args(["stitch", "log", "--limit", "0"])
 
         assert ns.limit == 0
 
     def test_log_rejects_negative_limit(self) -> None:
         with pytest.raises(SystemExit):
-            parse_sase_args(["vcs", "log", "-n", "-1"])
+            parse_sase_args(["stitch", "log", "-n", "-1"])
 
     def test_log_rejects_unknown_format(self) -> None:
         with pytest.raises(SystemExit):
-            parse_sase_args(["vcs", "log", "--format", "fancy"])
+            parse_sase_args(["stitch", "log", "--format", "fancy"])
 
     def test_log_date_aliases_author_and_reverse(self) -> None:
         ns = parse_sase_args(
             [
-                "vcs",
+                "stitch",
                 "log",
                 "--after",
                 "2w",
@@ -191,28 +208,52 @@ class TestVcsParser:
         assert ns.authors == ["Bryan", "amy"]
         assert ns.reverse is True
 
+    def test_legacy_vcs_alias_resolves_log_defaults(self) -> None:
+        canonical = parse_sase_args(["stitch", "log"])
+        legacy = parse_sase_args(["vcs", "log"])
+
+        assert legacy.command == "vcs"
+        for key in (
+            "stitch_subcommand",
+            "all",
+            "limit",
+            "authors",
+            "format",
+            "color",
+            "merges",
+            "no_fetch",
+            "force_fetch",
+            "remote_ref",
+            "reverse",
+            "sdd",
+            "since",
+            "show_tags",
+            "until",
+        ):
+            assert getattr(legacy, key) == getattr(canonical, key)
+
     def test_log_since_until_short_aliases(self) -> None:
-        ns = parse_sase_args(["vcs", "log", "-s", "1d", "-u", "today"])
+        ns = parse_sase_args(["stitch", "log", "-s", "1d", "-u", "today"])
 
         assert ns.since == "1d"
         assert ns.until == "today"
 
     def test_log_no_tags_option(self) -> None:
-        short = parse_sase_args(["vcs", "log", "-T"])
-        long = parse_sase_args(["vcs", "log", "--no-tags"])
+        short = parse_sase_args(["stitch", "log", "-T"])
+        long = parse_sase_args(["stitch", "log", "--no-tags"])
 
         assert short.show_tags is False
         assert long.show_tags is False
 
     @pytest.mark.parametrize("option", ["-S", "--sdd"])
     def test_log_sdd_flags(self, option: str) -> None:
-        ns = parse_sase_args(["vcs", "log", option])
+        ns = parse_sase_args(["stitch", "log", option])
 
         assert ns.sdd is True
 
     def test_log_tags_aliases_remain_hidden_no_ops(self) -> None:
-        short = parse_sase_args(["vcs", "log", "-t"])
-        long = parse_sase_args(["vcs", "log", "--tags"])
+        short = parse_sase_args(["stitch", "log", "-t"])
+        long = parse_sase_args(["stitch", "log", "--tags"])
 
         assert short.show_tags is True
         assert long.show_tags is True
@@ -221,7 +262,7 @@ class TestVcsParser:
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         with pytest.raises(SystemExit) as excinfo:
-            parse_sase_args(["vcs", "log", "-h"])
+            parse_sase_args(["stitch", "log", "-h"])
 
         assert excinfo.value.code == 0
         help_text = capsys.readouterr().out
@@ -260,27 +301,33 @@ class TestVcsParser:
         )
 
 
-class TestVcsHandlerDispatch:
-    def test_unknown_subcommand_exits_2(self) -> None:
-        from sase.main.vcs_handler import handle_vcs_command
+class TestStitchHandlerDispatch:
+    def test_legacy_vcs_modules_export_legacy_names(self) -> None:
+        from sase.main import parser_vcs, vcs_handler
 
-        ns = argparse.Namespace(vcs_subcommand="bogus")
+        assert parser_vcs.register_vcs_parser is parser_vcs.register_stitch_parser
+        assert vcs_handler.handle_vcs_command is vcs_handler.handle_stitch_command
+
+    def test_unknown_subcommand_exits_2(self) -> None:
+        from sase.main.stitch_handler import handle_stitch_command
+
+        ns = argparse.Namespace(stitch_subcommand="bogus")
         with pytest.raises(SystemExit) as excinfo:
-            handle_vcs_command(ns)
+            handle_stitch_command(ns)
         assert excinfo.value.code == 2
 
     def test_missing_subcommand_exits_2(self) -> None:
-        from sase.main.vcs_handler import handle_vcs_command
+        from sase.main.stitch_handler import handle_stitch_command
 
-        ns = argparse.Namespace(vcs_subcommand=None)
+        ns = argparse.Namespace(stitch_subcommand=None)
         with pytest.raises(SystemExit) as excinfo:
-            handle_vcs_command(ns)
+            handle_stitch_command(ns)
         assert excinfo.value.code == 2
 
     def test_log_handler_rejects_invalid_date(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        from sase.main.vcs_handler import _handle_log
+        from sase.main.stitch_handler import _handle_log
 
         ns = argparse.Namespace(
             all=False,
@@ -306,7 +353,7 @@ class TestVcsHandlerDispatch:
     def test_log_handler_rejects_empty_window(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        from sase.main.vcs_handler import _handle_log
+        from sase.main.stitch_handler import _handle_log
 
         ns = argparse.Namespace(
             all=False,
@@ -335,7 +382,7 @@ class TestVcsHandlerDispatch:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         from sase.core.time import get_timezone
-        from sase.main.vcs_handler import _handle_log
+        from sase.main.stitch_handler import _handle_log
         import sase.vcs_log.collect as collect_module
         import sase.vcs_log.dates as dates_module
         import sase.vcs_log.progress as progress_module

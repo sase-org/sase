@@ -1,4 +1,4 @@
-"""Collect repository listings for ``sase vcs list``."""
+"""Collect repository listings for ``sase stitch list``."""
 
 from __future__ import annotations
 

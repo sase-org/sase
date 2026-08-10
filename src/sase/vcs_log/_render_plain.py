@@ -1,4 +1,4 @@
-"""Plain-text ``sase vcs log`` renderers — ``json`` and ``oneline``.
+"""Plain-text ``sase stitch log`` renderers — ``json`` and ``oneline``.
 
 Both branches return a plain string (no Rich) so they stay stable under
 redirection and machine consumption.

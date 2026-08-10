@@ -113,7 +113,7 @@ class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
 
     @hookimpl
     def vcs_resolve_remote_log_ref(self, cwd: str, ref_name: str | None) -> str | None:
-        """Resolve the remote-tracking ref used for ``sase vcs log``."""
+        """Resolve the remote-tracking ref used for ``sase stitch log``."""
         remote_out = self._run(["git", "remote", "get-url", "origin"], cwd)
         if not remote_out.success or not remote_out.stdout.strip():
             return None

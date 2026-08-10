@@ -1,4 +1,4 @@
-"""Tests for the ``sase vcs list`` collection service."""
+"""Tests for the ``sase stitch list`` collection service."""
 
 from __future__ import annotations
 

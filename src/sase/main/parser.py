@@ -128,12 +128,14 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "revive-log": ("sase.main.parser_commands", "register_revive_log_parser"),
     "run": ("sase.main.parser_commands", "register_run_parser"),
     "skill": ("sase.main.parser_skills", "register_skills_parser"),
+    "stitch": ("sase.main.parser_stitch", "register_stitch_parser"),
     "task": ("sase.main.parser_task", "register_task_parser"),
     "telemetry": ("sase.main.parser_telemetry", "register_telemetry_parser"),
     "update": ("sase.main.parser_update", "register_update_parser"),
     "validate": ("sase.main.parser_validate", "register_validate_parser"),
     "var": ("sase.main.parser_var", "register_var_parser"),
-    "vcs": ("sase.main.parser_vcs", "register_vcs_parser"),
+    # Legacy command alias for the stitch parser.
+    "vcs": ("sase.main.parser_stitch", "register_stitch_parser"),
     "version": ("sase.main.parser_version", "register_version_parser"),
     "workspace": ("sase.main.parser_workspace", "register_workspace_parser"),
     "xprompt": ("sase.main.parser_xprompt", "register_xprompt_parser"),
@@ -240,8 +242,8 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
         "List enabled projects and manage disabled work.",
     ),
     _CompactRootCommand(
-        "vcs",
-        "Inspect primary, linked, and SDD repos, or show their commit timeline.",
+        "stitch",
+        "Inspect primary, linked, and SDD repos, or show their stitch timeline.",
     ),
     _CompactRootCommand(
         "workspace",

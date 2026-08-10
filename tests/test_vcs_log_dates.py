@@ -1,4 +1,4 @@
-"""Tests for ``sase vcs log`` date-bound parsing and resolution."""
+"""Tests for ``sase stitch log`` date-bound parsing and resolution."""
 
 from __future__ import annotations
 

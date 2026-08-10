@@ -1,4 +1,4 @@
-"""Result models for the ``sase vcs list`` service."""
+"""Result models for the ``sase stitch list`` service."""
 
 from __future__ import annotations
 

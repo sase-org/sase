@@ -1,4 +1,4 @@
-"""Live remote-fetch status for ``sase vcs log``."""
+"""Live remote-fetch status for ``sase stitch log``."""
 
 from __future__ import annotations
 

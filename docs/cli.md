@@ -29,8 +29,8 @@ For exhaustive flag tables, see the
 | `sase prompt run`               | Replay a stored prompt by selector, optionally editing or re-prefixing it first.                                                                                                                 | [Prompt history](prompt.md)                           |
 | `sase prompt save`              | Save a stored prompt as a reusable xprompt, or `export` it to stdout or a local file.                                                                                                            | [Prompt history](prompt.md), [XPrompts](xprompt.md)   |
 | `sase prompt prune`             | Curate the prompt-history store with `delete`, `prune`, and read-only `doctor`/`stats`.                                                                                                          | [Prompt history](prompt.md)                           |
-| `sase vcs list`                 | List the primary, linked, and SDD repositories with branch, dirty, commit-count, and activity summaries.                                                                                         | [VCS](vcs.md#sase-vcs-list)                           |
-| `sase vcs log`                  | Show a primary/linked timeline; `--sdd` opts into separate SDD history in current or all-project scope.                                                                                          | [VCS](vcs.md#sase-vcs-log)                            |
+| `sase stitch list`              | List the primary, linked, and SDD repositories with branch, dirty, commit-count, and activity summaries.                                                                                         | [VCS](vcs.md#sase-stitch-list)                        |
+| `sase stitch log`               | Show a primary/linked timeline; `--sdd` opts into separate SDD history in current or all-project scope.                                                                                          | [VCS](vcs.md#sase-stitch-log)                         |
 | `sase gate create`              | Create a durable command-backed gate from a schema-versioned JSON specification.                                                                                                                 | [Notifications](notifications.md)                     |
 | `sase gate show`                | Inspect a gate's branches, declared typed inputs, and repeatable actions without answering it.                                                                                                   | [Notifications](notifications.md#cli)                 |
 | `sase gate answer`              | Answer a gate headlessly, including per-option typed input and explicit resume/restart of a partially executed branch.                                                                           | [Notifications](notifications.md#cli)                 |
@@ -80,7 +80,7 @@ the in-TUI equivalents.
 Command groups with an exact `list` child default to that list view when invoked bare,
 including `sase agent-cli`, `sase bead`, `sase chat`, `sase file`, `sase file-history`,
 `sase file-hook`, `sase memory`, `sase notify`, `sase plugin`, `sase project`,
-`sase prompt`, `sase skill`, `sase task`, `sase telemetry`, `sase var`,
+`sase prompt`, `sase skill`, `sase stitch`, `sase task`, `sase telemetry`, `sase var`,
 `sase workspace`, and `sase xprompt`. Nested groups such as `sase agent tribe`,
 `sase axe chop`, `sase axe lumberjack`, `sase memory agent-docs`, and `sase plan links`
 follow the same rule.

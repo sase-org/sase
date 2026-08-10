@@ -153,20 +153,21 @@ contexts that only care about the VCS family.
 
 ## Per-Command VCS Usage
 
-### `sase vcs list`
+### `sase stitch list`
 
 Lists the available repository constellation: the primary repository, configured linked
 repositories, all configured sidecars, and a materialized legacy separate SDD store when
-present. A bare `sase vcs` delegates to `sase vcs list`. The log command excludes
-sidecar history by default; use `sase vcs log --sdd` to include it.
+present. A bare `sase stitch` delegates to `sase stitch list`. The log command excludes
+sidecar history by default; use `sase stitch log --sdd` to include it. The legacy
+`sase vcs` spelling is still accepted as a deprecated alias.
 
 Common forms:
 
 ```bash
-sase vcs
-sase vcs list
-sase vcs list --sort recent
-sase vcs list --repo sase-core --format json
+sase stitch
+sase stitch list
+sase stitch list --sort recent
+sase stitch list --repo sase-core --format json
 ```
 
 Options:
@@ -185,7 +186,7 @@ dirty state, configured description when available, commit count, contributor co
 last activity, and latest commit. A failed stats read for one repo is shown as a warning
 and does not hide the other repos.
 
-### `sase vcs log`
+### `sase stitch log`
 
 Shows a day-grouped commit timeline across the primary repository and ordinary
 configured linked repositories. Sidecar repositories are hidden by default. Pass the
@@ -226,19 +227,19 @@ spelling is unchanged.
 Common forms:
 
 ```bash
-sase vcs log
-sase vcs log --all
-sase vcs log --sdd
-sase vcs log --sdd --repo sdd
-sase vcs log --all --sdd
-sase vcs log --all --repo sase-core --repo chezmoi
-sase vcs log --branch main --no-fetch
-sase vcs log --merges show
-sase vcs log --merges only --format full
-sase vcs log --fetch --limit 3
-sase vcs log --since 2w --author bryan
-sase vcs log --limit 0 --since 2026-07-01 --format full
-sase vcs log --reverse --format json --no-tags
+sase stitch log
+sase stitch log --all
+sase stitch log --sdd
+sase stitch log --sdd --repo sdd
+sase stitch log --all --sdd
+sase stitch log --all --repo sase-core --repo chezmoi
+sase stitch log --branch main --no-fetch
+sase stitch log --merges show
+sase stitch log --merges only --format full
+sase stitch log --fetch --limit 3
+sase stitch log --since 2w --author bryan
+sase stitch log --limit 0 --since 2026-07-01 --format full
+sase stitch log --reverse --format json --no-tags
 ```
 
 Options:

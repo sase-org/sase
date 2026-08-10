@@ -1,4 +1,4 @@
-"""Wire record for repository statistics used by ``sase vcs list``."""
+"""Wire record for repository statistics used by ``sase stitch list``."""
 
 from __future__ import annotations
 

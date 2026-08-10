@@ -49,7 +49,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         "patch",
         "bead",
         "project",
-        "vcs",
+        "stitch",
         "workspace",
     }
     assert (

@@ -1,4 +1,4 @@
-"""Date-bound parsing for ``sase vcs log`` filters."""
+"""Date-bound parsing for ``sase stitch log`` filters."""
 
 from __future__ import annotations
 
