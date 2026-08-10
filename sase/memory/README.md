@@ -115,8 +115,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
   phase-bead description prefixes, and non-cascading close, resolution, and note
   semantics.
 - Parent: `AGENTS.md`
-- Lines: 130
-- Approx. tokens: 1642
+- Lines: 134
+- Approx. tokens: 1732
 
 ### `sase/memory/sase_sizes.md`
 
@@ -160,8 +160,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Total notes: 12
 - Short notes: 5
 - Long notes: 7
-- Total lines: 869
-- Total approx. tokens: 10869
+- Total lines: 873
+- Total approx. tokens: 10959
 
 ## Commands
 

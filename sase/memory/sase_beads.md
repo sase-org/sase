@@ -79,9 +79,13 @@ readable and launch through the small-task fallback.
 
 Each reporter contributes at most one +1, and the original creator does not count as an
 additional reporter. A +1 is append-only evidence, not a vote; repeat reporters use
-`sase bead note` for supplementary details. Adding the first valid +1 to an `open` or
-`closed` task atomically promotes it to `ready`, while `claimed`, `ready`, and
-`in_progress` tasks retain their status.
+`sase bead note` for supplementary details. Adding the first valid +1 to an `open` task
+atomically promotes it to `ready`. A closed task promotes only when the reporter's
+observation window starts strictly after the current close; evidence with missing
+provenance preserves the legacy reopen behavior. Stale-window evidence is recorded, but
+the close remains standing. Use `--verified-after-close` only for an actual reproduction
+on a tree that already contains the close. `claimed`, `ready`, `in_progress`, and
+`snoozed` tasks retain their existing status behavior.
 
 `sase bead update` accepts one or more bead IDs and applies the same requested fields to
 the whole batch atomically. Beads that already match are reported as unchanged and are

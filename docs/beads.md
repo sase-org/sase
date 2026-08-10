@@ -403,12 +403,20 @@ an additional reporter; a retry is an unchanged no-op that points the reporter t
 `sase bead note` for supplementary evidence. The evidence entries—not a mutable
 counter—derive the visible total and machine-readable `plus_one_count`.
 
-Adding new evidence to an `open` draft or `closed` task atomically promotes it to
-`ready`. If the task was `closed`, its close metadata is archived into
-[close history](#close-history) rather than discarded, and the `+1 EVIDENCE` entry that
-did the reopening is marked. A `claimed`, `ready`, or `in_progress` task keeps its
-status. The same mutation attaches normalized artifact refs, and plan/phase targets are
-rejected without writing.
+Adding new evidence to an `open` draft atomically promotes it to `ready`. A closed task
+reopens and promotes only when the reporter's observation window starts strictly after
+the current close. SASE CLI callers derive that window from the current agent's
+`agent_meta.json` `run_started_at`; human callers and `--verified-after-close` use the
+current instant. Non-CLI callers that omit `observed_since` preserve the legacy
+closed-task reopen behavior.
+
+If the report was already in flight before the close, the evidence is still recorded but
+the close remains standing. The command prints that the reopen was withheld, appends a
+durable note naming the standing close, and surfaces the entry as post-close evidence.
+Use `--verified-after-close` only for an actual reproduction on a tree that already
+contains the close. A `claimed`, `ready`, `in_progress`, or `snoozed` task keeps its
+existing status behavior. The same mutation attaches normalized artifact refs, and
+plan/phase targets are rejected without writing.
 
 ### Close History
 
@@ -431,11 +439,13 @@ Each record captures one undone close:
 | `reopened_via` | `plus_one`, `open`, `update`, or `epic_preclaim`           |
 | `reopened_by`  | Who reopened it, populated only for `plus_one` (see below) |
 
-A record is created whenever a closed bead leaves `closed`: `sase bead +1` on a closed
-task (`plus_one`), `sase bead open` (`open`), `sase bead update --status` moving a bead
-away from `closed` (`update`), and an epic work preclaim relaunching a previously-closed
-phase or epic (`epic_preclaim`). Reopening a bead that was never closed adds no record.
-A bead closed, reopened, and closed again accumulates one record per undone close;
+A record is created whenever a closed bead leaves `closed`: a qualifying fresh
+`sase bead +1` on a closed task (`plus_one`), `sase bead open` (`open`),
+`sase bead update --status` moving a bead away from `closed` (`update`), and an epic
+work preclaim relaunching a previously-closed phase or epic (`epic_preclaim`). Stale
+post-close `+1` evidence is retained on the still-closed task and does not archive the
+current close into history. Reopening a bead that was never closed adds no record. A
+bead closed, reopened, and closed again accumulates one record per undone close;
 `sase bead show` renders them newest first.
 
 `reopened_by` is populated only for `plus_one` reopens, because `add_task_plus_one` is
@@ -455,12 +465,17 @@ Every surface that shows a bead's status also shows its reopen history:
 - The `↺N` badge sits next to the `+N` corroboration badge on `sase bead show`,
   `sase bead list`, `sase bead ready`, `sase bead blocked`, `sase bead search` rows, the
   ACE beads pane, and the generated bead page lineage roster.
+- A closed task with stale post-close evidence shows a `+1 after close` badge next to
+  its normal `+N` corroboration badge; the same post-close marker appears in ACE,
+  generated bead pages, and task-triage previews.
 - `sase bead show --format full` renders a `PREVIOUSLY CLOSED` section — placed where
   `RESOLUTION` sits, above `DESCRIPTION` — with one entry per record, newest first, and
   the `+1 EVIDENCE` entry that reopened the bead marked with `↺ reopened this task`.
 - `sase bead show --format json` (and other JSON-emitting bead commands sharing the same
-  issue schema) include `close_history` on the issue object, and each
-  `plus_one_evidence` entry carries a derived `reopened_bead` boolean.
+  issue schema) include `close_history` on the issue object. Each `plus_one_evidence`
+  entry carries `observed_since` when provenance was provided, a derived
+  `recorded_after_current_close` boolean for post-close evidence, and a derived
+  `reopened_bead` boolean for the `+1` entry that actually reopened the task.
 - `sase bead search` indexes archived close reasons, resolutions, and timestamps, so a
   reason recorded before a reopen is still findable.
 - The ACE beads pane shows the `↺N` badge on list rows, a "Previously closed" property
@@ -851,9 +866,15 @@ no blocked bead has a stored size.
 Corroborate an existing task with independently attributed evidence. `--note` is
 required; `--ref` is repeatable and `--author` overrides normal current-agent
 attribution. Each reporter counts once, the creator does not count, and repeat reporters
-are unchanged no-ops. New evidence promotes `open` and `closed` tasks to `ready`
-atomically, archiving any close metadata into close history rather than discarding it,
-preserves other active statuses, and rejects plan or phase beads. See
+are unchanged no-ops. New evidence promotes `open` tasks to `ready` atomically. Closed
+tasks promote only when the report's `observed_since` window starts strictly after the
+current close, archiving close metadata into close history and clearing the assignee;
+missing provenance preserves the legacy reopen behavior. Stale post-close evidence is
+recorded with `observed_since`, shown with the post-close evidence marker and
+`+1 after close` badge, and leaves the close standing. `--verified-after-close` asserts
+that the defect was reproduced on a tree already containing the close and uses the
+current instant as the observation-window start. Other active statuses are preserved,
+and plan or phase beads are rejected. See
 [Task Corroboration (+1)](#task-corroboration-1) and [Close History](#close-history).
 
 ### `sase bead close <id> [<id2> ...]`

@@ -15,7 +15,8 @@ def register_bead_plus_one_parser(
         description=(
             "Record one independently attributed report on an existing task bead. "
             "Each reporter counts at most once; later details belong in `sase bead "
-            "note`. Draft and closed tasks are promoted to ready."
+            "note`. Draft tasks promote to ready; closed tasks promote only when "
+            "the report's observation window starts after the current close."
         ),
         epilog=(
             "Examples:\n"

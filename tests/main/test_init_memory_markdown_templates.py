@@ -104,6 +104,40 @@ def test_default_beads_template_renders_canonical_long_note() -> None:
     assert generated.parent == "AGENTS.md"
 
 
+def test_plus_one_close_boundary_guidance_stays_current() -> None:
+    generated = _generated_project_note("sase/memory/sase_beads.md")
+    docs = Path("docs/beads.md").read_text(encoding="utf-8")
+    generated_flat = " ".join(generated.split())
+    docs_flat = " ".join(docs.split())
+
+    stale_phrases = (
+        "valid +1 to an `open` or `closed` task atomically promotes it to `ready`",
+        "Adding new evidence to an `open` draft or `closed` task atomically promotes",
+        "New evidence promotes `open` and `closed` tasks to `ready`",
+        "Draft and closed tasks are promoted to ready",
+    )
+    for content in (generated_flat, docs_flat):
+        for phrase in stale_phrases:
+            assert phrase not in content
+    for required in (
+        "closed task promotes only when the reporter's observation window starts "
+        "strictly after the current close",
+        "Stale-window evidence is recorded, but the close remains standing",
+        "`--verified-after-close` only for an actual reproduction on a tree that "
+        "already contains the close",
+    ):
+        assert required in generated_flat
+    for required in (
+        "Closed tasks promote only when the report's `observed_since` window starts "
+        "strictly after the current close",
+        "`+1 after close` badge",
+        "`recorded_after_current_close` boolean",
+        "`--verified-after-close` asserts that the defect was reproduced on a tree "
+        "already containing the close",
+    ):
+        assert required in docs_flat
+
+
 def test_default_sizes_template_renders_canonical_child_long_note() -> None:
     content = _generated_project_note("sase/memory/sase_sizes.md")
 
