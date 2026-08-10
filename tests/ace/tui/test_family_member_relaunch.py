@@ -59,6 +59,13 @@ class _FamilyRelaunchApp(EntryRelaunchMixin, App[None]):
         self._remove(agent)
 
 
+def _prompt_bar_ready(app: _FamilyRelaunchApp) -> bool:
+    for bar in app.query(PromptInputBar):
+        if bar.query("#frontmatter-raw"):
+            return True
+    return False
+
+
 def _family_rows(tmp_path: Path, *, running_child: bool = False) -> tuple[Agent, Agent]:
     parent_dir = tmp_path / "parent"
     child_dir = tmp_path / "child"
@@ -135,7 +142,7 @@ async def test_completed_family_member_relaunch_dismisses_only_selected_child(
     ):
         async with app.run_test(size=(110, 40)) as pilot:
             app._kill_and_edit_agent()
-            await wait_for(pilot, lambda: bool(app.query(PromptInputBar)))
+            await wait_for(pilot, lambda: _prompt_bar_ready(app))
 
             bar = app.query_one(PromptInputBar)
             assert bar.all_prompt_texts() == [
@@ -205,7 +212,7 @@ async def test_running_family_member_relaunch_confirmation_kills_only_child(
             assert isinstance(app.screen, ConfirmKillModal)
 
             await pilot.press("y")
-            await wait_for(pilot, lambda: bool(app.query(PromptInputBar)))
+            await wait_for(pilot, lambda: _prompt_bar_ready(app))
 
             assert app.killed == [child]
             assert app.dismissed == []
