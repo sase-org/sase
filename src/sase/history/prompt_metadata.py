@@ -67,8 +67,13 @@ _DIRECTIVE_SUMMARY_ALIAS_SORT_KEYS = {
 
 
 @cache
-def _workflow_names() -> frozenset[str]:
-    """Return cached VCS workflow names for metadata classification."""
+def known_workflow_names() -> frozenset[str]:
+    """Return cached VCS workflow names for metadata classification.
+
+    Public so ``sase.workspace_provider.reset_workflow_metadata_caches()``
+    can invalidate it alongside every other cache derived from
+    ``get_all_workflow_metadata()``.
+    """
     from sase.workspace_provider import get_workflow_names
 
     return frozenset(get_workflow_names()) | _KNOWN_FALLBACK_VCS_PREFIXES
@@ -80,7 +85,7 @@ def summarize_prompt_for_list(text: str) -> PromptListSummary:
     protected = protect_fenced_blocks(text, fenced_blocks)
     directives = _scan_known_directives(protected)
     refs = iter_xprompt_references(protected)
-    workflow_names = _workflow_names()
+    workflow_names = known_workflow_names()
     vcs_tag = _extract_vcs_tag(text)
     project_prefix, project_ref_display = _project_columns(vcs_tag, workflow_names)
     intervals = [(directive.start, directive.end) for directive in directives]
@@ -103,7 +108,7 @@ def summarize_prompt_for_preview(text: str) -> PromptPreviewSummary:
     """Return detailed metadata for the highlighted prompt preview."""
     fenced_blocks: list[str] = []
     protected = protect_fenced_blocks(text, fenced_blocks)
-    workflow_names = _workflow_names()
+    workflow_names = known_workflow_names()
     refs = iter_xprompt_references(protected)
     directives = _scan_known_directives(protected)
 

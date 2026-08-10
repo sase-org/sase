@@ -356,6 +356,50 @@ def _isolate_sase_home(
 
 
 @pytest.fixture(autouse=True)
+def _restore_workflow_metadata_derived_caches() -> Iterator[None]:
+    """Restore VCS-tag caches derived from workspace-provider metadata.
+
+    These globals have no invalidation link back to their source (see
+    ``sase.workspace_provider.reset_workflow_metadata_caches``); this is the
+    backstop for any test that mutates them directly instead of going
+    through that entry point. Snapshot-and-restore, not an unconditional
+    clear, so ordinary tests don't pay for a plugin-discovery cache rebuild
+    every run.
+    """
+    from sase.history import prompt_metadata
+    from sase.xprompt import _parsing, _parsing_vcs_refs, _parsing_vcs_tags
+
+    def snapshot() -> tuple[object, ...]:
+        return (
+            _parsing._VCS_TAG_PATTERN,
+            _parsing._VCS_TAG_EMBEDDED_PATTERN,
+            _parsing._VCS_REPLACE_PATTERN,
+            _parsing_vcs_tags._VCS_TAG_PATTERN,
+            _parsing_vcs_tags._VCS_TAG_EMBEDDED_PATTERN,
+            _parsing_vcs_tags._VCS_REPLACE_PATTERN,
+            _parsing_vcs_refs._VCS_UNDERSCORE_NORMALIZER,
+            _parsing_vcs_refs._LAUNCH_XPROMPT_AT_REF_RE,
+        )
+
+    before = snapshot()
+    yield
+    if snapshot() == before:
+        return
+
+    (
+        _parsing._VCS_TAG_PATTERN,
+        _parsing._VCS_TAG_EMBEDDED_PATTERN,
+        _parsing._VCS_REPLACE_PATTERN,
+        _parsing_vcs_tags._VCS_TAG_PATTERN,
+        _parsing_vcs_tags._VCS_TAG_EMBEDDED_PATTERN,
+        _parsing_vcs_tags._VCS_REPLACE_PATTERN,
+        _parsing_vcs_refs._VCS_UNDERSCORE_NORMALIZER,
+        _parsing_vcs_refs._LAUNCH_XPROMPT_AT_REF_RE,
+    ) = before
+    prompt_metadata.known_workflow_names.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def _use_placeholder_directory_map_assets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

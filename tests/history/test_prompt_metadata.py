@@ -24,11 +24,11 @@ def _workflow_names(monkeypatch: pytest.MonkeyPatch):
         "sase.workspace_provider._registry.get_workflow_names",
         lambda: workflow_names,
     )
-    prompt_metadata._workflow_names.cache_clear()
+    prompt_metadata.known_workflow_names.cache_clear()
     xprompt_parsing._VCS_TAG_PATTERN = None
     xprompt_parsing._VCS_TAG_EMBEDDED_PATTERN = None
     yield
-    prompt_metadata._workflow_names.cache_clear()
+    prompt_metadata.known_workflow_names.cache_clear()
     xprompt_parsing._VCS_TAG_PATTERN = None
     xprompt_parsing._VCS_TAG_EMBEDDED_PATTERN = None
 

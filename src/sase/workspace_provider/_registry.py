@@ -49,6 +49,38 @@ def get_all_workflow_metadata() -> tuple[WorkflowMetadata, ...]:
     return tuple(_get_manager().get_workflow_metadata())
 
 
+def reset_workflow_metadata_caches() -> None:
+    """Clear ``get_all_workflow_metadata`` and every cache derived from it.
+
+    Nothing links these derived caches back to their source today: clearing
+    ``get_all_workflow_metadata`` (e.g. a test patching plugin metadata)
+    silently leaves the VCS-tag patterns compiled from the old metadata in
+    place for every subsequent caller in the process. This is the one entry
+    point that invalidates the source cache and all of its derivatives
+    together, so nothing can clear one without the others.
+
+    Tests that swap ``get_all_workflow_metadata`` itself for a plain fake
+    function (rather than going through this module's cached one) leave
+    nothing to clear on that name; skip it rather than raise in that case.
+    """
+    cache_clear = getattr(get_all_workflow_metadata, "cache_clear", None)
+    if cache_clear is not None:
+        cache_clear()
+
+    from sase.history import prompt_metadata
+    from sase.xprompt import _parsing, _parsing_vcs_refs, _parsing_vcs_tags
+
+    _parsing._VCS_TAG_PATTERN = None
+    _parsing._VCS_TAG_EMBEDDED_PATTERN = None
+    _parsing._VCS_REPLACE_PATTERN = None
+    _parsing_vcs_tags._VCS_TAG_PATTERN = None
+    _parsing_vcs_tags._VCS_TAG_EMBEDDED_PATTERN = None
+    _parsing_vcs_tags._VCS_REPLACE_PATTERN = None
+    _parsing_vcs_refs._VCS_UNDERSCORE_NORMALIZER = None
+    _parsing_vcs_refs._LAUNCH_XPROMPT_AT_REF_RE = None
+    prompt_metadata.known_workflow_names.cache_clear()
+
+
 def get_workflow_names() -> set[str]:
     """Return the set of all registered workflow type names."""
     return {m.workflow_type for m in get_all_workflow_metadata()}

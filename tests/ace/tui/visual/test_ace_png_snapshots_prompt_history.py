@@ -132,6 +132,6 @@ def _entry(
 
 
 def _clear_prompt_metadata_caches() -> None:
-    prompt_metadata._workflow_names.cache_clear()
+    prompt_metadata.known_workflow_names.cache_clear()
     xprompt_parsing._VCS_TAG_PATTERN = None
     xprompt_parsing._VCS_TAG_EMBEDDED_PATTERN = None

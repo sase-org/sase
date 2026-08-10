@@ -6,24 +6,35 @@ from pathlib import Path
 
 import pytest
 
+from sase.workspace_provider import reset_workflow_metadata_caches
 from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata
 
 
-def _reset_xprompt_vcs_caches() -> None:
-    import sase.history.prompt_metadata as prompt_metadata
-    import sase.xprompt._parsing as parsing
-    import sase.xprompt._parsing_vcs_refs as vcs_refs
-    import sase.xprompt._parsing_vcs_tags as vcs_tags
+class _TeardownResetTrigger:
+    """Fires ``reset_workflow_metadata_caches()`` when ``monkeypatch`` undoes.
 
-    parsing._VCS_TAG_PATTERN = None
-    parsing._VCS_TAG_EMBEDDED_PATTERN = None
-    parsing._VCS_REPLACE_PATTERN = None
-    vcs_tags._VCS_TAG_PATTERN = None
-    vcs_tags._VCS_TAG_EMBEDDED_PATTERN = None
-    vcs_tags._VCS_REPLACE_PATTERN = None
-    vcs_refs._VCS_UNDERSCORE_NORMALIZER = None
-    vcs_refs._LAUNCH_XPROMPT_AT_REF_RE = None
-    prompt_metadata._workflow_names.cache_clear()
+    ``pytest.MonkeyPatch`` has no public API to schedule an arbitrary
+    teardown callback -- only attribute restore. Patching this sentinel's
+    ``marker`` attribute turns that restore-on-undo into the missing hook:
+    :meth:`__setattr__` fires both when the attribute is patched and again
+    when ``monkeypatch.undo()`` restores it at test teardown, so the caches
+    reset at setup get reset again once the test's fake metadata patch is
+    gone, instead of staying compiled from it.
+    """
+
+    marker: object | None = None
+
+    def __setattr__(self, name: str, value: object) -> None:
+        object.__setattr__(self, name, value)
+        reset_workflow_metadata_caches()
+
+
+_teardown_reset_trigger = _TeardownResetTrigger()
+
+
+def _restore_xprompt_vcs_caches_on_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reset the derived VCS caches again once *monkeypatch* undoes."""
+    monkeypatch.setattr(_teardown_reset_trigger, "marker", object())
 
 
 def git_metadata() -> tuple[WorkflowMetadata, ...]:
@@ -61,7 +72,8 @@ def patch_git_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(registry, "get_all_workflow_metadata", git_metadata)
     monkeypatch.setattr(workspace_provider, "get_all_workflow_metadata", git_metadata)
-    _reset_xprompt_vcs_caches()
+    reset_workflow_metadata_caches()
+    _restore_xprompt_vcs_caches_on_teardown(monkeypatch)
 
 
 def patch_spy_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -70,7 +82,8 @@ def patch_spy_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(registry, "get_all_workflow_metadata", spy_metadata)
     monkeypatch.setattr(workspace_provider, "get_all_workflow_metadata", spy_metadata)
-    _reset_xprompt_vcs_caches()
+    reset_workflow_metadata_caches()
+    _restore_xprompt_vcs_caches_on_teardown(monkeypatch)
 
 
 def patch_no_workspace_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,7 +96,8 @@ def patch_no_workspace_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
         "get_all_workflow_metadata",
         no_workspace_metadata,
     )
-    _reset_xprompt_vcs_caches()
+    reset_workflow_metadata_caches()
+    _restore_xprompt_vcs_caches_on_teardown(monkeypatch)
 
 
 def patch_simple_git_resolver(
