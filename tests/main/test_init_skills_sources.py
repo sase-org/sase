@@ -229,6 +229,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
             "sase_new_task",
             (
                 "sase memory read sase_beads.md",
+                "sase memory read sase_sizes.md",
                 "sase bead search "
                 "'symbol|filename|command|error-fragment' --regex --type task",
                 "sase bead +1 <task-id>",
@@ -242,8 +243,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
                 "sase bead create -T task",
                 "RELATED:",
                 "--size <size>",
-                "xsmall",
-                "xlarge",
+                "Default to\n   `large`",
             ),
         ),
         (

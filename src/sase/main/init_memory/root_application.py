@@ -154,7 +154,7 @@ def initialize_memory_root(
     derive_project_title: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
     include_project_agent_docs: bool = False,
-    include_bead_memory: bool = False,
+    include_project_memory: bool = False,
 ) -> MemoryRootResult:
     context = memory_root_context(
         root,
@@ -166,7 +166,7 @@ def initialize_memory_root(
         derive_project_title=derive_project_title,
         chezmoi_home_roots=chezmoi_home_roots,
         include_project_agent_docs=include_project_agent_docs,
-        include_bead_memory=include_bead_memory,
+        include_project_memory=include_project_memory,
     )
     written = _apply_expected_memory_files(context.expected_files)
     written = (*written, *_apply_provider_shim_plan(context.shim_plan))

@@ -150,6 +150,7 @@ def test_init_memory_default_commits_and_pushes_project_changes(
         "add",
         "add",
         "add",
+        "add",
         "diff",
         "commit",
         "rev-parse",
@@ -166,6 +167,7 @@ def test_init_memory_default_commits_and_pushes_project_changes(
         in add_paths
     )
     assert project_root / "sase" / "memory" / "sase_beads.md" in add_paths
+    assert project_root / "sase" / "memory" / "sase_sizes.md" in add_paths
     commit_calls = [cmd for cmd in git_calls if "commit" in cmd and "-m" in cmd]
     assert commit_calls
     message = commit_calls[0][commit_calls[0].index("-m") + 1]

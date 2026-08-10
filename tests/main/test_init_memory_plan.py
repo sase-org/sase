@@ -37,11 +37,18 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     action_by_path = {action.path: action for action in plan.actions}
     assert project_root / "sase" / "memory" / "sase.md" in action_by_path
     assert project_root / "sase" / "memory" / "sase_beads.md" in action_by_path
+    assert project_root / "sase" / "memory" / "sase_sizes.md" in action_by_path
     assert project_root / "AGENTS.md" in {action.path for action in plan.actions}
     assert "**`sase/memory/sase_beads.md`**" in str(
         action_by_path[project_root / "AGENTS.md"].new_content
     )
+    assert "sase/memory/sase_sizes.md" not in str(
+        action_by_path[project_root / "AGENTS.md"].new_content
+    )
     assert "### `sase/memory/sase_beads.md`" in str(
+        action_by_path[project_root / "sase" / "memory" / "README.md"].new_content
+    )
+    assert "### `sase/memory/sase_sizes.md`" in str(
         action_by_path[project_root / "sase" / "memory" / "README.md"].new_content
     )
     assert all(action.new_content is not None for action in plan.actions)
@@ -80,9 +87,11 @@ linked_repos:
     assert plan.blockers == ()
     assert home_root / "sase" / "memory" / "sase.md" in action_paths
     assert home_root / "sase" / "memory" / "sase_beads.md" not in action_paths
+    assert home_root / "sase" / "memory" / "sase_sizes.md" not in action_paths
     assert home_root / "AGENTS.md" in action_paths
     assert project_root / "sase" / "memory" / "sase.md" not in action_paths
     assert project_root / "sase" / "memory" / "sase_beads.md" not in action_paths
+    assert project_root / "sase" / "memory" / "sase_sizes.md" not in action_paths
     assert project_root / "AGENTS.md" not in action_paths
     assert not (project_root / "sase" / "memory").exists()
     assert not (home_root / "sase" / "memory").exists()

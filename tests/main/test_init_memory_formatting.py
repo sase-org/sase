@@ -49,6 +49,7 @@ linked_repos:
     generated = [
         project_root / "sase" / "memory" / "sase.md",
         project_root / "sase" / "memory" / "sase_beads.md",
+        project_root / "sase" / "memory" / "sase_sizes.md",
         project_root / "sase" / "memory" / "README.md",
         home_root / "sase" / "memory" / "sase.md",
         home_root / "sase" / "memory" / "README.md",
@@ -95,6 +96,7 @@ def test_init_memory_generated_markdown_passes_prettier_check(
     generated = [
         project_root / "sase" / "memory" / "sase.md",
         project_root / "sase" / "memory" / "sase_beads.md",
+        project_root / "sase" / "memory" / "sase_sizes.md",
         project_root / "sase" / "memory" / "README.md",
     ]
     assert all(path.read_bytes().endswith(b"\n") for path in generated)

@@ -62,8 +62,9 @@ sase bead update <id> -s ready
 
 A genuinely new task starts as an `open` draft; refine its description, evidence refs, dependencies, and scope before
 marking it `ready`. Each ready bead raises one `TaskTriage` gate, from which the owner either launches
-`sase bead work <id>` or closes it as `canceled`. Every new task requires an intentional size: `xsmall`, `small`,
-`medium`, `large`, or `xlarge`. Legacy sizeless tasks remain readable and launch through the small-task fallback.
+`sase bead work <id>` or closes it as `canceled`. Every new task requires an intentional size; read the
+`sase_sizes.md` child note with `/sase_memory_read` before choosing it. Legacy sizeless tasks remain readable and launch
+through the small-task fallback.
 
 Each reporter contributes at most one +1, and the original creator does not count as an additional reporter. A +1 is
 append-only evidence, not a vote; repeat reporters use `sase bead note` for supplementary details. Adding the first

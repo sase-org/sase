@@ -36,7 +36,7 @@ from .glossary import (
 from .root_rendering import (
     generated_long_notes,
     generated_short_notes,
-    render_generated_beads_memory_content,
+    render_generated_project_long_memory_contents,
     render_generated_sase_memory_body,
     render_expected_memory_files,
 )
@@ -174,30 +174,34 @@ def _memory_migration_plan(root: Path) -> _MemoryMigrationPlan:
     )
 
 
-def _retired_note_paths(root: Path, *, include_bead_memory: bool) -> tuple[Path, ...]:
-    """Return a generated bead memory note this root no longer manages.
+def _retired_note_paths(
+    root: Path, *, include_project_memory: bool
+) -> tuple[Path, ...]:
+    """Return generated project memory notes this root no longer manages.
 
-    A root that stopped managing ``sase/memory/sase_beads.md`` (currently: every
-    root except a SASE-managed project) still deletes a previously generated copy
-    so it converges in a single ``sase memory init`` pass. Only a file that is
-    byte-identical to the current packaged render is considered SASE-owned; a
-    human-edited copy is left alone and keeps behaving as an ordinary long note.
+    A root that stopped managing project-only notes (currently: every root except a
+    SASE-managed project) still deletes previously generated copies so it converges in a
+    single ``sase memory init`` pass. Only a file that is byte-identical to the current
+    packaged render is considered SASE-owned; a human-edited copy is left alone and
+    keeps behaving as an ordinary long note.
     """
-    if include_bead_memory:
+    if include_project_memory:
         return ()
-    path = memory_write_root(root) / "sase_beads.md"
-    if not path.exists():
+    generated_contents, render_error = render_generated_project_long_memory_contents()
+    if render_error is not None:
         return ()
-    try:
-        current = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return ()
-    generated_content, render_error = render_generated_beads_memory_content()
-    if render_error is not None or generated_content is None:
-        return ()
-    if current != generated_content:
-        return ()
-    return (path,)
+    retired: list[Path] = []
+    for relative_path, generated_content in generated_contents.items():
+        path = root / relative_path
+        if not path.exists():
+            continue
+        try:
+            current = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if current == generated_content:
+            retired.append(path)
+    return tuple(retired)
 
 
 def _generated_glossary_relative_path() -> Path:
@@ -471,7 +475,7 @@ def memory_root_context(
     derive_project_title: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
     include_project_agent_docs: bool = False,
-    include_bead_memory: bool = False,
+    include_project_memory: bool = False,
 ) -> _MemoryRootContext:
     if not manage_memory:
         return _MemoryRootContext(
@@ -510,7 +514,7 @@ def memory_root_context(
         )
 
     retired_note_paths = (
-        *_retired_note_paths(root, include_bead_memory=include_bead_memory),
+        *_retired_note_paths(root, include_project_memory=include_project_memory),
         *_retired_glossary_note_paths(root, generated_glossary=generated_glossary),
     )
     root_resolved = root.resolve(strict=False)
@@ -533,22 +537,19 @@ def memory_root_context(
                 sase_render_error or "failed to render sase/memory/sase.md template",
             ),
         )
-    generated_beads_content: str | None = None
-    if include_bead_memory:
-        generated_beads_content, beads_render_error = (
-            render_generated_beads_memory_content()
+    generated_project_long_contents: dict[str, str] = {}
+    if include_project_memory:
+        generated_project_long_contents, generated_long_error = (
+            render_generated_project_long_memory_contents()
         )
-        if beads_render_error is not None or generated_beads_content is None:
+        if generated_long_error is not None:
             return _MemoryRootContext(
                 amd_sync=None,
                 expected_files=(),
                 shim_plan=ProviderShimPlan(writes=(), deletes=()),
                 additional_shim_plans=(),
                 source_memory_root=migration.source_memory_root,
-                blockers=(
-                    beads_render_error
-                    or "failed to render sase/memory/sase_beads.md template",
-                ),
+                blockers=(generated_long_error,),
             )
     amd_sync = _amd_sync_plan(
         root,
@@ -558,8 +559,8 @@ def memory_root_context(
             generated_sase_body, generated_glossary=generated_glossary
         ),
         generated_long_notes=(
-            generated_long_notes(generated_beads_content)
-            if include_bead_memory and generated_beads_content is not None
+            generated_long_notes(generated_project_long_contents)
+            if include_project_memory
             else {}
         ),
         source_memory_root=migration.source_memory_root,
@@ -571,10 +572,10 @@ def memory_root_context(
         project_name=project_name,
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
-        generated_beads_content=generated_beads_content,
+        generated_project_long_contents=generated_project_long_contents,
         generated_glossary=generated_glossary,
         source_memory_root=migration.source_memory_root,
-        include_bead_memory=include_bead_memory,
+        include_project_memory=include_project_memory,
         excluded_note_paths=excluded_note_paths,
     )
     if expected_error is not None:
@@ -622,7 +623,7 @@ def plan_memory_root(
     derive_project_title: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
     include_project_agent_docs: bool = False,
-    include_bead_memory: bool = False,
+    include_project_memory: bool = False,
 ) -> MemoryRootPlan:
     context = memory_root_context(
         root,
@@ -634,7 +635,7 @@ def plan_memory_root(
         derive_project_title=derive_project_title,
         chezmoi_home_roots=chezmoi_home_roots,
         include_project_agent_docs=include_project_agent_docs,
-        include_bead_memory=include_bead_memory,
+        include_project_memory=include_project_memory,
     )
     overlay = _validation_overlay_for_expected_files(root, context.expected_files)
     parent_blockers = (

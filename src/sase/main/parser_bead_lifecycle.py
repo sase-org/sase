@@ -176,7 +176,7 @@ def register_bead_create_parser(
         "-z",
         "--size",
         choices=["xsmall", "small", "medium", "large", "xlarge"],
-        help="Phase/task size controlling plan-first prompting and model routing",
+        help="Phase/task size; read sase/memory/sase_sizes.md for guidance",
     )
     parser.add_argument(
         "-r",
@@ -456,7 +456,7 @@ def register_bead_update_parser(
         "-z",
         "--size",
         choices=["xsmall", "small", "medium", "large", "xlarge"],
-        help="Phase size controlling plan-first prompting and default model routing",
+        help="Phase size; read sase/memory/sase_sizes.md for guidance",
     )
     parser.add_argument(
         "-s",

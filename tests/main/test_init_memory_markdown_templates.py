@@ -13,7 +13,7 @@ from sase.amd.init import plan_amd_memory_sync
 from sase.main import init_memory_handler
 from sase.main.init_memory.root_rendering import (
     generated_long_notes,
-    render_generated_beads_memory_content,
+    render_generated_project_long_memory_contents,
 )
 from sase.memory.notes import (
     GeneratedLongMemoryNote,
@@ -85,18 +85,36 @@ def _patch_roots(
     return project_root, home_root, config_dir
 
 
-def test_default_beads_template_renders_canonical_long_note() -> None:
-    content, error = render_generated_beads_memory_content()
-
+def _generated_project_note(relative_path: str) -> str:
+    contents, error = render_generated_project_long_memory_contents()
     assert error is None
-    assert content is not None
+    return contents[relative_path]
+
+
+def test_default_beads_template_renders_canonical_long_note() -> None:
+    content = _generated_project_note("sase/memory/sase_beads.md")
+
     relative_path = "sase/memory/sase_beads.md"
     note = parse_memory_note_text(content, relative_path)
     assert note.type == "long"
     assert note.parent == "AGENTS.md"
     assert note.description
-    assert generated_long_notes(content)[relative_path].description == note.description
-    assert generated_long_notes(content)[relative_path].parent == "AGENTS.md"
+    generated = generated_long_notes({relative_path: content})[relative_path]
+    assert generated.description == note.description
+    assert generated.parent == "AGENTS.md"
+
+
+def test_default_sizes_template_renders_canonical_child_long_note() -> None:
+    content = _generated_project_note("sase/memory/sase_sizes.md")
+
+    relative_path = "sase/memory/sase_sizes.md"
+    note = parse_memory_note_text(content, relative_path)
+    assert note.type == "long"
+    assert note.parent == "sase/memory/sase_beads.md"
+    assert note.description
+    generated = generated_long_notes({relative_path: content})[relative_path]
+    assert generated.description == note.description
+    assert generated.parent == "sase/memory/sase_beads.md"
 
 
 def test_generated_child_long_note_metadata_renders_single_pass(

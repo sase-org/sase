@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import pytest
 
-from sase.main.init_memory.root_rendering import render_generated_beads_memory_content
+from sase.main.init_memory.root_rendering import (
+    render_generated_project_long_memory_contents,
+)
+from sase.memory.cli_read import handle_memory_read_command
 from tests.main.init_memory_handler_helpers import (
     long_note,
     patch_standard_paths,
@@ -16,9 +20,16 @@ from tests.main.init_memory_handler_helpers import (
 )
 
 
+def _generated_project_note(relative_path: str) -> str:
+    contents, error = render_generated_project_long_memory_contents()
+    assert error is None
+    return contents[relative_path]
+
+
 def test_home_root_omits_bead_memory_note(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     project_root = tmp_path / "project"
     home_root = tmp_path / "home"
@@ -36,11 +47,14 @@ def test_home_root_omits_bead_memory_note(
     assert run_memory() == 0
 
     assert (project_root / "sase" / "memory" / "sase_beads.md").exists()
+    assert (project_root / "sase" / "memory" / "sase_sizes.md").exists()
     assert not (home_root / "sase" / "memory" / "sase_beads.md").exists()
+    assert not (home_root / "sase" / "memory" / "sase_sizes.md").exists()
 
     project_agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     home_agents = (home_root / "AGENTS.md").read_text(encoding="utf-8")
     assert "sase/memory/sase_beads.md" in project_agents
+    assert "sase/memory/sase_sizes.md" not in project_agents
     assert "sase/memory/sase_beads.md" not in home_agents
 
     project_readme = (project_root / "sase" / "memory" / "README.md").read_text(
@@ -50,7 +64,20 @@ def test_home_root_omits_bead_memory_note(
         encoding="utf-8"
     )
     assert "### `sase/memory/sase_beads.md`" in project_readme
+    assert "### `sase/memory/sase_sizes.md`" in project_readme
     assert "### `sase/memory/sase_beads.md`" not in home_readme
+    assert "### `sase/memory/sase_sizes.md`" not in home_readme
+
+    capsys.readouterr()
+    monkeypatch.chdir(project_root)
+    monkeypatch.setattr(Path, "home", lambda: home_root)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+    handle_memory_read_command(
+        argparse.Namespace(memory_path="sase_beads.md", reason="Need bead guidance")
+    )
+    read_output = capsys.readouterr().out
+    assert "## Children" in read_output
+    assert "**`sase/memory/sase_sizes.md`**" in read_output
 
 
 def test_retirement_converges_in_one_pass(
@@ -72,11 +99,12 @@ def test_retirement_converges_in_one_pass(
 
     assert run_memory() == 0
 
-    beads_content, error = render_generated_beads_memory_content()
-    assert error is None
-    assert beads_content is not None
+    beads_content = _generated_project_note("sase/memory/sase_beads.md")
     beads_path = home_root / "sase" / "memory" / "sase_beads.md"
     write(beads_path, beads_content)
+    sizes_content = _generated_project_note("sase/memory/sase_sizes.md")
+    sizes_path = home_root / "sase" / "memory" / "sase_sizes.md"
+    write(sizes_path, sizes_content)
 
     agents_path = home_root / "AGENTS.md"
     stale_agents = agents_path.read_text(encoding="utf-8").rstrip("\n")
@@ -90,16 +118,20 @@ def test_retirement_converges_in_one_pass(
 
     assert plan.blockers == ()
     assert ("delete", beads_path) in changes
+    assert ("delete", sizes_path) in changes
 
     assert run_memory() == 0
 
     assert not beads_path.exists()
+    assert not sizes_path.exists()
     home_agents = agents_path.read_text(encoding="utf-8")
     home_readme = (home_root / "sase" / "memory" / "README.md").read_text(
         encoding="utf-8"
     )
     assert "sase/memory/sase_beads.md" not in home_agents
+    assert "sase/memory/sase_sizes.md" not in home_agents
     assert "### `sase/memory/sase_beads.md`" not in home_readme
+    assert "### `sase/memory/sase_sizes.md`" not in home_readme
 
     assert plan_memory().actions == ()
 
@@ -164,10 +196,10 @@ def test_retirement_reports_no_unreferenced_blocker(
 
     assert run_memory() == 0
 
-    beads_content, error = render_generated_beads_memory_content()
-    assert error is None
-    assert beads_content is not None
+    beads_content = _generated_project_note("sase/memory/sase_beads.md")
     write(home_root / "sase" / "memory" / "sase_beads.md", beads_content)
+    sizes_content = _generated_project_note("sase/memory/sase_sizes.md")
+    write(home_root / "sase" / "memory" / "sase_sizes.md", sizes_content)
 
     plan = plan_memory()
     assert plan.blockers == ()
