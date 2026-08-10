@@ -914,7 +914,7 @@ rather than landing somewhere stale.
 | `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                  |
 | `p`                 | Toggle file / prompt layout                                                                                |
 | `z`                 | Start metadata fold mode for clan, lane (family or single agent), or selected whole-tribe detail panels    |
-| `Z`                 | Zoom the active detail panel                                                                               |
+| `Z`                 | Zoom the active agent or tribe detail panel                                                                |
 | `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                            |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                              |
 
@@ -1388,6 +1388,7 @@ collapses the panel through the same path as lowercase `h`. An already collapsed
 is a terminal no-op with the usual already-collapsed notification. The merged layout has
 no whole-panel focus and keeps the row-focused group scope across the merged roster.
 
+Press `Z` with a whole tribe panel selected to zoom that tribe's metadata document.
 Press `=` to isolate the focused tribe panel: it keeps that panel expanded and collapses
 every sibling panel. If that changes the layout, ACE remembers the prior collapsed-panel
 set for one session-local restore. Panels whose state would change back show `↺` in
@@ -2956,10 +2957,13 @@ the complete content.
 ## Agents Zoom Panel
 
 Press `Z` on an agent row in the Agents tab to open a near-fullscreen view of the active
-detail panel. Press `=` to isolate the focused tribe panel or restore the previously
+detail panel. With a whole tribe panel selected, `Z` opens that tribe's metadata
+document instead. Press `=` to isolate the focused tribe panel or restore the previously
 remembered panel layout (see Whole-Panel Focus above). In the detail modal, the header
 shows the available panel tabs (`METADATA`, `FILE`, `TOOLS`) with the active panel
-highlighted; use `]` / `[` to cycle those panels with wrap-around.
+highlighted; use `]` / `[` to cycle those panels with wrap-around. A tribe zoom exposes
+only the `METADATA` target, so panel cycling and file paging are inert there while
+search, copy, edit, and refresh continue to work.
 
 When the zoom modal shows files, the file list is fixed for the life of that modal so
 refreshes cannot add, remove, reorder, or jump the selected file. Use `Ctrl+N` /

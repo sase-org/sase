@@ -23,6 +23,8 @@ def zoom_target_view_selector(target: ZoomPanelTarget) -> str:
 
 
 def available_targets(modal: Any) -> list[ZoomPanelTarget]:
+    if getattr(modal, "_is_tribe_zoom", False):
+        return [ZoomPanelTarget.METADATA]
     targets = [ZoomPanelTarget.METADATA]
     if modal._has_file_content:
         targets.append(ZoomPanelTarget.FILE)
@@ -118,6 +120,11 @@ def agent_has_files(modal: Any, agent: Agent) -> bool:
 
 
 def reveal_file_panel(modal: Any, *, direction: str) -> bool:
+    if getattr(modal, "_is_tribe_zoom", False):
+        modal.notify("No files for a tribe panel", severity="warning")
+        modal._update_header()
+        return False
+
     origin_target = modal._target
     agent = modal._agent_provider()
     if agent is None or not agent_has_files(modal, agent):

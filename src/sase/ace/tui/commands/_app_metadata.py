@@ -454,10 +454,10 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "zoom_panel",
-        "Zoom detail panel",
+        "Zoom agent or tribe detail panel",
         "Display",
         AGENTS_ONLY,
-        ("zoom",),
+        ("zoom", "tribe"),
     ),
     (
         "isolate_panels",

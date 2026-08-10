@@ -103,7 +103,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Cycle panels: file → tools → metadata",
                 ),
                 (d(a.toggle_layout), "Toggle file/prompt layout"),
-                (d(a.zoom_panel), "Zoom detail panel"),
+                (d(a.zoom_panel), "Zoom agent/tribe detail"),
                 (
                     d(a.isolate_panels),
                     "Only panel ⇄ restore panels",

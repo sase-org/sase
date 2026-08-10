@@ -41,7 +41,8 @@ def seed_panels(modal: Any) -> None:
     modal.query_one("#zoom-file-scroll", VerticalScroll).border_subtitle = (
         modal._seed.file_subtitle or ""
     )
-    file_panel._current_agent = modal._last_agent
+    if modal._last_agent is not None:
+        file_panel._current_agent = modal._last_agent
     if modal._seed.file_list:
         file_panel._file_list = list(modal._seed.file_list)
         file_panel._current_file_index = min(
@@ -62,6 +63,10 @@ def seed_panels(modal: Any) -> None:
 
 
 def refresh_active_panel(modal: Any, *, force: bool) -> None:
+    if getattr(modal, "_is_tribe_zoom", False):
+        _refresh_tribe_metadata(modal)
+        return
+
     agent = modal._agent_provider()
     if agent is None:
         modal._update_header()
@@ -122,6 +127,17 @@ def refresh_metadata(modal: Any, agent: Agent) -> None:
             is_current=is_current,
         )
     panel.update_display(agent)
+
+
+def _refresh_tribe_metadata(modal: Any) -> None:
+    snapshot = modal._tribe_provider()
+    if snapshot is None:
+        modal._update_header()
+        return
+    modal._last_tribe = snapshot
+    panel = modal.query_one("#zoom-metadata-panel", AgentPromptPanel)
+    panel.update_tribe_display(snapshot, publish_member_jump_map=False)
+    modal._update_header()
 
 
 def refresh_file(modal: Any, agent: Agent, *, force: bool) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from ...models.agent_status import is_resumable_done_status
@@ -169,8 +170,45 @@ class AgentPanelDetailMixin:
         agent_detail.toggle_layout()
 
     def action_zoom_panel(self) -> None:
-        """Zoom the active agent detail panel."""
+        """Zoom the active agent or tribe detail panel."""
         if self.current_tab != "agents":
+            return
+
+        from ...modals import ZoomPanelModal, ZoomPanelTarget
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        tribe_resolver = getattr(self, "_focused_tribe_summary", None)
+        tribe_summary_provider = (
+            cast(Callable[..., Any], tribe_resolver)
+            if callable(tribe_resolver)
+            else None
+        )
+        tribe_snapshot = (
+            tribe_summary_provider(with_entry_target=False)
+            if tribe_summary_provider is not None
+            else None
+        )
+        if tribe_snapshot is not None:
+            assert tribe_summary_provider is not None
+            focused_tribe_summary = tribe_summary_provider
+            panel_identity = tribe_snapshot.container_identity
+
+            def tribe_provider() -> Any:
+                snapshot = focused_tribe_summary(with_entry_target=False)
+                if snapshot is None or snapshot.container_identity != panel_identity:
+                    return None
+                return snapshot
+
+            self.push_screen(  # type: ignore[attr-defined]
+                ZoomPanelModal(
+                    tribe_provider=tribe_provider,
+                    initial_tribe=tribe_snapshot,
+                    initial_target=ZoomPanelTarget.METADATA,
+                    seed=self._zoom_seed_for_tribe(agent_detail),
+                    refresh_interval=getattr(self, "refresh_interval", 10),
+                )
+            )
             return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
@@ -178,10 +216,6 @@ class AgentPanelDetailMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        from ...modals import ZoomPanelModal
-        from ...widgets import AgentDetail
-
-        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         target = self._zoom_target_for_detail(agent_detail)
         seed = self._zoom_seed_from_detail(agent_detail)
         agent_identity = agent.identity
@@ -202,6 +236,21 @@ class AgentPanelDetailMixin:
                 seed=seed,
                 refresh_interval=getattr(self, "refresh_interval", 10),
             )
+        )
+
+    def _zoom_seed_for_tribe(self, agent_detail: Any) -> Any:
+        """Capture the focused tribe document for the zoom modal's first paint."""
+        from ...modals import ZoomPanelSeed
+        from ...widgets.prompt_panel import AgentPromptPanel
+
+        prompt_panel = agent_detail.query_one("#agent-prompt-panel", AgentPromptPanel)
+        return ZoomPanelSeed(
+            metadata_renderable=getattr(prompt_panel, "content", None),
+            metadata_subtitle=self._zoom_border_subtitle(
+                agent_detail, "#agent-prompt-scroll"
+            ),
+            has_file_content=False,
+            has_tools_content=False,
         )
 
     def _zoom_target_for_detail(self, agent_detail: Any) -> Any:

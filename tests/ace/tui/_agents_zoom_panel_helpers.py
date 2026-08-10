@@ -14,6 +14,10 @@ from sase.ace.tui.actions.agents._panel_detail import AgentPanelDetailMixin
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from sase.ace.tui.modals.zoom_panel_modal import _renderable_to_text
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_tribe_summary import (
+    AgentTribeSummarySnapshot,
+    build_agent_tribe_summary_snapshot,
+)
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 
 
@@ -31,9 +35,34 @@ def _make_agent(**overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
+def _make_tribe_snapshot(
+    panel_key: str = "epic",
+    *,
+    status: str = "RUNNING",
+    name: str = "zoom.tribe.agent",
+) -> AgentTribeSummarySnapshot:
+    agent = _make_agent(
+        agent_name=name,
+        cl_name=name,
+        raw_suffix=f"{panel_key}-agent",
+        status=status,
+    )
+    return build_agent_tribe_summary_snapshot(
+        panel_key,
+        [agent],
+        panel_collapsed=True,
+        now=datetime(2026, 6, 12, 12, 5, 0),
+    )
+
+
 class _FakePanel:
     def __init__(self, content: object) -> None:
         self.content = content
+
+
+class _FakeScroll:
+    def __init__(self, subtitle: object = "") -> None:
+        self.border_subtitle = subtitle
 
 
 class _FakeFilePanel(_FakePanel):
@@ -64,6 +93,9 @@ class _FakeDetail:
         self._prompt = _FakePanel(Text("metadata"))
         self._file = _FakeFilePanel()
         self._tools = _FakePanel(Text("tools"))
+        self._prompt_scroll = _FakeScroll("metadata · seeded")
+        self._file_scroll = _FakeScroll("file · 2/2")
+        self._tools_scroll = _FakeScroll("tools · expanded")
 
     def is_info_mode(self) -> bool:
         return self._info
@@ -82,6 +114,9 @@ class _FakeDetail:
             "#agent-prompt-panel": self._prompt,
             "#agent-file-panel": self._file,
             "#agent-tools-panel": self._tools,
+            "#agent-prompt-scroll": self._prompt_scroll,
+            "#agent-file-scroll": self._file_scroll,
+            "#agent-tools-scroll": self._tools_scroll,
         }[selector]
 
 

@@ -85,6 +85,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         snapshot: AgentTribeSummarySnapshot,
         *,
         cheap: bool = False,
+        publish_member_jump_map: bool = True,
     ) -> None:
         """Render one pure tribe document on the regular prompt surface."""
         with tui_trace("widget.prompt_panel.update_tribe_display", cheap=cheap):
@@ -137,7 +138,9 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                     fold_level=fold_level,
                     section_fold_overrides=fold_overrides,
                     member_jump_map_publisher=(
-                        None if cheap else member_jump_map_publisher_for(app)
+                        member_jump_map_publisher_for(app)
+                        if publish_member_jump_map and not cheap
+                        else None
                     ),
                     cheap=cheap,
                 )

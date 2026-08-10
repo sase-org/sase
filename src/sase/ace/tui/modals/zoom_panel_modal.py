@@ -73,6 +73,8 @@ from .zoom_panel_widgets import ZoomFilePanel, ZoomFileRail, ZoomToolsPanel
 
 if TYPE_CHECKING:
     from ..models import Agent
+    from ..models.agent_tribe_summary import AgentTribeSummarySnapshot
+    from ..widgets.prompt_panel._messages import TribeSectionSnapshotLoaded
 
 
 _renderable_to_text = renderable_to_text
@@ -115,19 +117,33 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
     def __init__(
         self,
         *,
-        agent_provider: Callable[[], Agent | None],
-        initial_agent: Agent,
+        agent_provider: Callable[[], Agent | None] | None = None,
+        initial_agent: Agent | None = None,
+        tribe_provider: Callable[[], AgentTribeSummarySnapshot | None] | None = None,
+        initial_tribe: AgentTribeSummarySnapshot | None = None,
         initial_target: ZoomPanelTarget,
         seed: ZoomPanelSeed,
         refresh_interval: int,
     ) -> None:
         super().__init__()
-        self._agent_provider = agent_provider
+        if (agent_provider is None) == (tribe_provider is None):
+            raise ValueError(
+                "ZoomPanelModal requires exactly one of agent_provider or "
+                "tribe_provider"
+            )
+        self._agent_provider = agent_provider or (lambda: None)
         self._last_agent = initial_agent
-        self._target = initial_target
+        self._tribe_provider = tribe_provider or (lambda: None)
+        self._last_tribe = initial_tribe
+        self._is_tribe_zoom = tribe_provider is not None
+        self._target = (
+            ZoomPanelTarget.METADATA if self._is_tribe_zoom else initial_target
+        )
         self._seed = seed
-        self._has_file_content = seed.has_file_content
-        self._has_tools_content = seed.has_tools_content
+        self._has_file_content = False if self._is_tribe_zoom else seed.has_file_content
+        self._has_tools_content = (
+            False if self._is_tribe_zoom else seed.has_tools_content
+        )
         self._refresh_interval = max(refresh_interval, 2)
         self._refresh_timer: Timer | None = None
         self._metadata_generation = 0
@@ -174,12 +190,24 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
         )
 
     def on_unmount(self) -> None:
-        """Stop the modal-local refresh timer."""
+        """Stop the modal-local refresh timer and tribe enrichment."""
         if self._refresh_timer is not None:
             self._refresh_timer.stop()
             self._refresh_timer = None
+        if self._is_tribe_zoom:
+            try:
+                panel = self.query_one("#zoom-metadata-panel", AgentPromptPanel)
+            except Exception:
+                return
+            panel._cancel_tribe_section_worker_for_agent_selection()
 
     def _update_hints(self) -> None:
+        if self._is_tribe_zoom:
+            self.query_one("#zoom-panel-hints", Label).update(
+                "j/k g/G ^D/^U scroll  /? search  n/N match  "
+                "E edit  y copy  r refresh  q close"
+            )
+            return
         hints = (
             "j/k g/G ^D/^U scroll  ]/[ panel  ^N/^P file  "
             "/? search  n/N match  E edit  y copy  r refresh  q close"
@@ -215,6 +243,23 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
 
         title.update(text)
         self._update_rail()
+
+        if self._is_tribe_zoom:
+            snapshot = self._tribe_provider() or self._last_tribe
+            if snapshot is not None:
+                self._last_tribe = snapshot
+                agent_label_widget.update(
+                    Text.assemble(
+                        (snapshot.label, "bold"),
+                        "  ",
+                        status_text(snapshot.status),
+                    )
+                )
+            else:
+                agent_label_widget.update(
+                    Text.assemble(("Tribe panel", "bold"), "  ", status_text("MISSING"))
+                )
+            return
 
         agent = self._agent_provider() or self._last_agent
         if agent is not None:
@@ -297,6 +342,25 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
 
     def on_tools_visibility_changed(self, message: ToolsVisibilityChanged) -> None:
         on_tools_visibility_changed(self, message)
+
+    def on_tribe_section_snapshot_loaded(
+        self,
+        message: TribeSectionSnapshotLoaded,
+    ) -> None:
+        """Repaint modal-local tribe enrichment without leaking to the base panel."""
+        if not self._is_tribe_zoom:
+            return
+        if (
+            self._last_tribe is not None
+            and message.panel_identity == self._last_tribe.container_identity
+        ):
+            panel = self.query_one("#zoom-metadata-panel", AgentPromptPanel)
+            panel.update_tribe_display(
+                self._last_tribe,
+                publish_member_jump_map=False,
+            )
+            self._update_header()
+        message.stop()
 
     def on_key(self, event: Key) -> None:
         """Capture search keys before modal bindings or app bindings fire."""
