@@ -85,6 +85,18 @@ def patch_project(
         lambda _log: [("sase", tmp_path / "beads")],
     )
     monkeypatch.setattr(task_triage, "_gateable_tasks", lambda _path: list(ready))
+    patch_active_launches(monkeypatch)
+
+
+def patch_active_launches(
+    monkeypatch: pytest.MonkeyPatch,
+    bead_ids: set[str] | frozenset[str] = frozenset(),
+) -> None:
+    monkeypatch.setattr(
+        task_triage,
+        "active_task_launch_bead_ids",
+        lambda: frozenset(bead_ids),
+    )
 
 
 def patch_snooze_gate(

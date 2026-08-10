@@ -113,6 +113,31 @@ def submit_task_launch_for_project(
     )
 
 
+def _is_task_launch_row(task: BackgroundTask) -> bool:
+    """Return whether *task* is a detached task-bead launch row."""
+    return set(_TASK_LAUNCH_TAGS).issubset(task.tags) and (
+        len(task.command) >= 4 and task.command[:3] == ["sase", "bead", "work"]
+    )
+
+
+def active_task_launch_bead_ids() -> frozenset[str]:
+    """Return bead IDs with an active detached task-bead launch."""
+    from sase.tasks import (
+        ACTIVE_TASK_STATUSES,
+        DETACHED_TASK_KIND,
+        read_tasks,
+    )
+
+    return frozenset(
+        task.command[3]
+        for task in read_tasks(
+            status=ACTIVE_TASK_STATUSES,
+            kind=DETACHED_TASK_KIND,
+        )
+        if _is_task_launch_row(task)
+    )
+
+
 def _active_task_launch(task_id: str) -> BackgroundTask | None:
     """Return the newest active detached launch for *task_id*, if any."""
     from sase.tasks import (
@@ -125,17 +150,14 @@ def _active_task_launch(task_id: str) -> BackgroundTask | None:
         status=ACTIVE_TASK_STATUSES,
         kind=DETACHED_TASK_KIND,
     ):
-        if not set(_TASK_LAUNCH_TAGS).issubset(task.tags):
-            continue
-        if len(task.command) < 4 or task.command[:3] != ["sase", "bead", "work"]:
-            continue
-        if task.command[3] == task_id:
+        if _is_task_launch_row(task) and task.command[3] == task_id:
             return task
     return None
 
 
 __all__ = [
     "TaskLaunchOrigin",
+    "active_task_launch_bead_ids",
     "resolve_task_launch_cwd_for_project",
     "submit_task_launch_for_project",
     "submit_task_launch_task",

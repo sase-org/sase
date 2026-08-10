@@ -61,7 +61,13 @@ def test_missing_presentation_fingerprint_is_canceled_and_recreated(
 
     result = task_triage._run(make_runtime(tmp_path))
 
-    assert result.counters == {"gated": 1, "canceled": 1, "skipped": 0, "resnoozed": 0}
+    assert result.counters == {
+        "gated": 1,
+        "canceled": 1,
+        "skipped": 0,
+        "deferred": 0,
+        "resnoozed": 0,
+    }
     assert canceled == [(old_request_id, "task_triage_presentation_changed")]
     assert created[0]["request_id"].endswith("-g2")
     state = task_triage._read_state(state_path)["sase"]
@@ -106,7 +112,13 @@ def test_current_presentation_fingerprint_remains_pending(
     result = task_triage._run(make_runtime(tmp_path))
 
     assert result.reason == "no_triage_changes"
-    assert result.counters == {"gated": 0, "canceled": 0, "skipped": 1, "resnoozed": 0}
+    assert result.counters == {
+        "gated": 0,
+        "canceled": 0,
+        "skipped": 1,
+        "deferred": 0,
+        "resnoozed": 0,
+    }
 
 
 def test_presentation_fingerprint_covers_the_bead_creation_time() -> None:
@@ -206,6 +218,7 @@ def test_later_plus_one_refreshes_pending_triage_presentation(
         "gated": 1,
         "canceled": 1,
         "skipped": 0,
+        "deferred": 0,
         "resnoozed": 0,
     }
     assert canceled == [(created[0]["request_id"], "task_triage_presentation_changed")]
@@ -253,6 +266,7 @@ def test_later_close_history_refreshes_pending_triage_presentation(
         "gated": 1,
         "canceled": 1,
         "skipped": 0,
+        "deferred": 0,
         "resnoozed": 0,
     }
     assert canceled == [(created[0]["request_id"], "task_triage_presentation_changed")]

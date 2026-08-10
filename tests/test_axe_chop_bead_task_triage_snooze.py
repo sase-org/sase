@@ -40,6 +40,7 @@ def test_snoozed_task_raises_a_wake_gate_carrying_its_snooze_record(
         "gated": 1,
         "canceled": 0,
         "skipped": 0,
+        "deferred": 0,
         "resnoozed": 0,
     }
     assert created[0]["snooze"] == snoozed.snooze
@@ -80,6 +81,7 @@ def test_snoozing_a_ready_task_replaces_its_triage_gate_with_a_wake_gate(
         "gated": 1,
         "canceled": 1,
         "skipped": 0,
+        "deferred": 0,
         "resnoozed": 0,
     }
     assert canceled == [
@@ -129,6 +131,7 @@ def test_waking_a_snoozed_task_replaces_its_wake_gate_with_a_triage_gate(
         "gated": 1,
         "canceled": 1,
         "skipped": 0,
+        "deferred": 0,
         "resnoozed": 0,
     }
     assert canceled == [
@@ -278,6 +281,7 @@ def test_unmuted_wake_notification_is_re_snoozed_to_the_bead_wake_time(
         "gated": 0,
         "canceled": 0,
         "skipped": 1,
+        "deferred": 0,
         "resnoozed": 1,
     }
     assert result.reason is None
@@ -304,6 +308,7 @@ def test_wake_notification_already_snoozed_to_its_wake_time_is_left_alone(
         "gated": 0,
         "canceled": 0,
         "skipped": 1,
+        "deferred": 0,
         "resnoozed": 0,
     }
     assert result.reason == "no_triage_changes"
@@ -331,6 +336,7 @@ def test_a_past_wake_time_leaves_the_resurfaced_notification_unread(
         "gated": 0,
         "canceled": 0,
         "skipped": 1,
+        "deferred": 0,
         "resnoozed": 0,
     }
     assert snoozed == []
@@ -369,5 +375,6 @@ def test_a_pending_triage_gate_never_touches_the_notification_store(
         "gated": 0,
         "canceled": 0,
         "skipped": 1,
+        "deferred": 0,
         "resnoozed": 0,
     }

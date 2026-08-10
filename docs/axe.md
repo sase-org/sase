@@ -257,9 +257,10 @@ task with an active blocker still receives a gate.
 A still-pending gate is skipped on later ticks, preventing repeated notifications. If a
 task leaves both gateable statuses through a launch, close, or manual retraction, the
 chop cancels its pending gate. If a gate becomes terminal or its bundle disappears while
-the task is still gateable, the next tick replaces it. A persistent generation counter
-gives each replacement a new deterministic request ID, whether the task kept its status
-or left and came back.
+the task is still gateable, the next tick replaces it, except while that task bead has
+an active detached launch in flight. A persistent generation counter gives each
+replacement a new deterministic request ID, whether the task kept its status or left and
+came back.
 
 Two things also force a replacement. A gate of the wrong kind for the bead's current
 status is canceled as `bead_status_changed` and replaced in the same tick — a bead that

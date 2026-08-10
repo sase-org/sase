@@ -9,8 +9,10 @@ from unittest.mock import patch
 import pytest
 
 from sase.bead.task_launch import (
+    _active_task_launch,
     _build_task_launch_argv,
     _resolve_task_launch_cwd,
+    active_task_launch_bead_ids,
     submit_task_launch_task,
     submit_task_launch_for_project,
     task_launch_origin_from_gate_source,
@@ -148,6 +150,56 @@ def test_submit_task_launch_task_deduplicates_active_bead_id(
         "kind": "detached",
     }
     submit_task.assert_not_called()
+
+
+def _task_row(
+    task_id: str,
+    *,
+    status: str = "running",
+    kind: str = "detached",
+    command: list[str] | None = None,
+    tags: list[str] | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        task_id=task_id,
+        status=status,
+        kind=kind,
+        command=command or ["sase", "bead", "work", "sase-42", "--yes-to-all"],
+        tags=tags or ["task", "launch"],
+    )
+
+
+def test_active_task_launch_bead_ids_returns_active_task_bead_launches() -> None:
+    rows = [
+        _task_row("active-1", command=["sase", "bead", "work", "sase-42"]),
+        _task_row("active-2", command=["sase", "bead", "work", "sase-99"]),
+        _task_row("terminal", status="success"),
+        _task_row("command-kind", kind="command"),
+        _task_row("untagged", tags=["launch"]),
+        _task_row("other-command", command=["sase", "agent", "run", "sase-77"]),
+        _task_row(
+            "epic-plan",
+            command=["sase", "bead", "work", "plans/epic.md", "--yes-to-all"],
+            tags=["epic", "launch"],
+        ),
+    ]
+
+    def read_tasks(*, status: frozenset[str], kind: str) -> list[SimpleNamespace]:
+        assert status == frozenset({"pending", "running"})
+        assert kind == "detached"
+        return [row for row in rows if row.status in status and row.kind == kind]
+
+    with patch("sase.tasks.read_tasks", side_effect=read_tasks):
+        assert active_task_launch_bead_ids() == frozenset({"sase-42", "sase-99"})
+
+
+def test_active_task_launch_returns_newest_matching_active_row() -> None:
+    newest = _task_row("newest", command=["sase", "bead", "work", "sase-42"])
+    older = _task_row("older", command=["sase", "bead", "work", "sase-42"])
+    other = _task_row("other", command=["sase", "bead", "work", "sase-99"])
+
+    with patch("sase.tasks.read_tasks", return_value=[other, newest, older]):
+        assert _active_task_launch("sase-42") is newest
 
 
 def test_submit_task_launch_for_project_reuses_project_resolution(

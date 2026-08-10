@@ -23,6 +23,7 @@ from sase.bead.model import Issue, IssueType, SnoozeRecord, Status
 from sase.bead.snooze_gate import BEAD_SNOOZE_KIND, create_bead_snooze_gate
 from sase.bead.store_locator import canonical_beads_dir_for_project
 from sase.bead.task_gate import TASK_TRIAGE_KIND, create_task_triage_gate
+from sase.bead.task_launch import active_task_launch_bead_ids
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopLogger, ChopResultBuilder
 from sase.core import bead_read_facade as rust_beads
@@ -405,6 +406,7 @@ def _summary(
     gated: int = 0,
     canceled: int = 0,
     skipped: int = 0,
+    deferred: int = 0,
     resnoozed: int = 0,
     reason: str | None = None,
 ) -> ChopResultBuilder:
@@ -413,6 +415,7 @@ def _summary(
             "gated": gated,
             "canceled": canceled,
             "skipped": skipped,
+            "deferred": deferred,
             "resnoozed": resnoozed,
         },
         reason=reason,
@@ -467,9 +470,18 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
     gated = 0
     canceled = 0
     skipped = 0
+    deferred = 0
     resnoozed = 0
     state_changed = False
     notifications = _NotificationSnoozeIndex()
+    try:
+        in_flight_launches = active_task_launch_bead_ids()
+    except Exception as exc:  # noqa: BLE001 - keep today's triage behavior.
+        runtime.log.warning(
+            f"[bead_task_triage] Failed to read active task launches: {exc}"
+        )
+        in_flight_launches = frozenset()
+
     for project_name, beads_dir in project_stores:
         try:
             live_tasks = {issue.id: issue for issue in _gateable_tasks(beads_dir)}
@@ -494,6 +506,9 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
 
             issue = live_tasks.pop(bead_id, None)
             if issue is not None and gate_state == "pending":
+                if bead_id in in_flight_launches:
+                    skipped += 1
+                    continue
                 # A status change outranks the presentation check: the pending
                 # gate asks the wrong question entirely, so its fingerprint is
                 # not worth comparing.
@@ -552,6 +567,9 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 live_tasks[bead_id] = issue
 
         for bead_id, issue in sorted(live_tasks.items()):
+            if bead_id in in_flight_launches:
+                deferred += 1
+                continue
             generation = project_state.generations.get(bead_id, 0) + 1
             kind = _expected_gate_kind(issue)
             request_id = _request_id(project_name, bead_id, generation, kind)
@@ -590,6 +608,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
         gated=gated,
         canceled=canceled,
         skipped=skipped,
+        deferred=deferred,
         resnoozed=resnoozed,
         reason=reason,
     )

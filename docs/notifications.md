@@ -325,7 +325,8 @@ both at once. If the bead's status changes out of band (leaves `ready`, gets sno
 wakes), the chop cancels the gate of the wrong kind and creates the right one on its
 next tick. If a gate becomes terminal, disappears, or uses an obsolete presentation or
 option-input contract while still expected, the next five-minute scan creates a
-replacement with a new generation-specific request ID.
+replacement with a new generation-specific request ID, except while the task bead's
+detached launch is still in flight.
 
 ### Snoozed Task Notification
 

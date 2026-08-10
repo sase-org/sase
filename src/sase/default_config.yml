@@ -749,7 +749,7 @@ axe:
             generations in lane state prevent duplicate notifications, a gate of the wrong kind is replaced when its
             bead's status changes, and a snoozed bead's notification is re-snoozed to its wake time if it ever drifts.
             Gates are canceled when their beads leave those states, while answered or missing gates can be regenerated
-            safely if work remains.
+            safely if work remains. A ready bead with a detached launch still in flight is deferred instead of re-gated.
         - name: pr_submitted_checks
           script: sase_chop_pr_submitted_checks
           description: |-
