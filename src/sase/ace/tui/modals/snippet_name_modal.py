@@ -36,6 +36,7 @@ class SnippetNameResult:
     exists: bool
     existing_body: str | None
     derived_from: str | None
+    save_warning: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -431,6 +432,7 @@ class SnippetNameModal(ModalScreen[SnippetNameResult | None]):
             exists=analysis.has_collision,
             existing_body=existing_body,
             derived_from=derived_from,
+            save_warning=self._save_warning_for_analysis(analysis),
         )
 
     def _collision_body_path(self, analysis: _SnippetNameAnalysis) -> str | None:
@@ -443,6 +445,37 @@ class SnippetNameModal(ModalScreen[SnippetNameResult | None]):
             (item for item in collision.matches if not item.is_destination), None
         )
         return match.location_path if match is not None else None
+
+    def _save_warning_for_analysis(self, analysis: _SnippetNameAnalysis) -> str | None:
+        if analysis.destination_exists:
+            return None
+        collision = analysis.collision
+        if collision.derived_from:
+            return (
+                f"⚠ ⇥ {analysis.trigger} comes from {collision.derived_from} — "
+                "this entry will override it"
+            )
+        if collision.shadowed_by:
+            source = self._display_for_path(collision.shadowed_by)
+            return (
+                f"⚠ ⇥ {analysis.trigger} is defined in {source} — "
+                f"saving here will be shadowed by {source}"
+            )
+        if collision.shadows:
+            source = self._display_for_path(collision.shadows)
+            return (
+                f"⚠ ⇥ {analysis.trigger} is defined in {source} — "
+                "saving here will shadow it"
+            )
+        match = next(
+            (item for item in collision.matches if not item.is_destination), None
+        )
+        if match is not None:
+            return (
+                f"⚠ ⇥ {analysis.trigger} is defined in {match.display_path} — "
+                "saving here will shadow it"
+            )
+        return None
 
     def action_complete_match(self) -> None:
         match = self._highlighted_match()

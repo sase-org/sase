@@ -19,6 +19,7 @@ class _SaveHarness(PromptBarSaveXpromptMixin):
         self.notifications: list[tuple[str, str | None]] = []
         self.pushed: list[tuple[object, object]] = []
         self.git_offers: list[tuple[str, bool, str, str]] = []
+        self.post_write_targets: list[Any] = []
         self._user_snippets: dict[str, str] = {}
         self._snippets_cache: dict[str, str] | None = None
         self._pending_snippet_saves: dict[str, str] = {}
@@ -54,6 +55,7 @@ class _SaveHarness(PromptBarSaveXpromptMixin):
         refresh_config_on_success: bool = False,
     ) -> None:
         del kind, commit_type, refresh_config_on_success
+        self.post_write_targets.append(target)
         file_path = str(target.write_path)
         self.git_offers.append((file_path, is_new, xprompt_name, noun))
 
@@ -94,6 +96,7 @@ class _SaveFlowApp(PromptBarSaveXpromptMixin, App[None]):
         self._pending_snippet_saves: dict[str, str] = {}
         self._snippet_config_path = ""
         self.save_requests: list[PromptInputBar.SaveAsXpromptRequested] = []
+        self.notifications: list[tuple[str, str | None]] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(initial_value=self._initial_value)
@@ -103,6 +106,9 @@ class _SaveFlowApp(PromptBarSaveXpromptMixin, App[None]):
     ) -> None:
         self.save_requests.append(event)
         await super().on_prompt_input_bar_save_as_xprompt_requested(event)
+
+    def notify(self, msg: str, *, severity: str | None = None) -> None:
+        self.notifications.append((msg, severity))
 
     def _offer_git_commit(self, *_args: object, **_kwargs: object) -> None:
         pass

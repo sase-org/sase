@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
@@ -181,6 +182,7 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
             loaded_body=result.existing_body,
             loaded_fingerprint=loaded_fingerprint,
             derived_from=result.derived_from,
+            save_warning=result.save_warning,
         )
 
     def _item_index_for_pane_id(self, pane_id: str) -> int | None:
@@ -286,3 +288,31 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
             self.focus_item(index)
         except Exception:
             pass
+
+    def reload_snippet_target_body(
+        self,
+        body: str,
+        *,
+        loaded_fingerprint: SourceFingerprint | None,
+    ) -> bool:
+        """Replace the snippet draft with the current disk definition."""
+        if self._mode != "prompt" or not self.is_mounted:
+            return False
+        self._sync_state_from_widgets()
+        index = self._stack.snippet_index
+        snippet = self._stack.snippet_item
+        if index is None or snippet is None or snippet.snippet_target is None:
+            return False
+        snippet.text = body
+        snippet.snippet_target = replace(
+            snippet.snippet_target,
+            exists=True,
+            loaded_body=body,
+            loaded_fingerprint=loaded_fingerprint,
+            derived_from=None,
+            save_warning=None,
+        )
+        self._stack.selected_index = index
+        self._clear_active_completion_state()
+        self._rebuild_stack(enter_mode="insert")
+        return True

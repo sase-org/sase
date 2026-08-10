@@ -20,6 +20,12 @@ if TYPE_CHECKING:
     from .schema_object_form import SchemaFieldDiagnostic as SchemaFieldDiagnostic
     from .snippet_name_modal import SnippetNameModal as SnippetNameModal
     from .snippet_name_modal import SnippetNameResult as SnippetNameResult
+    from .snippet_save_confirm_modal import (
+        SnippetSaveConfirmModal as SnippetSaveConfirmModal,
+    )
+    from .snippet_save_confirm_modal import (
+        SnippetSaveConfirmState as SnippetSaveConfirmState,
+    )
     from .xprompt_item_modal import XPromptItemModal as XPromptItemModal
 
 _LAZY_EXPORTS = {
@@ -247,6 +253,14 @@ _LAZY_EXPORTS = {
     "SnoozeDurationModal": (".snooze_duration_modal", "SnoozeDurationModal"),
     "SnippetNameModal": (".snippet_name_modal", "SnippetNameModal"),
     "SnippetNameResult": (".snippet_name_modal", "SnippetNameResult"),
+    "SnippetSaveConfirmModal": (
+        ".snippet_save_confirm_modal",
+        "SnippetSaveConfirmModal",
+    ),
+    "SnippetSaveConfirmState": (
+        ".snippet_save_confirm_modal",
+        "SnippetSaveConfirmState",
+    ),
     "StashRestoreResult": (".stashed_prompts_modal", "StashRestoreResult"),
     "StashedPromptsModal": (".stashed_prompts_modal", "StashedPromptsModal"),
     "StatisticsHelpModal": (".statistics_help_modal", "StatisticsHelpModal"),
@@ -487,6 +501,8 @@ __all__ = [
     "SnoozeDurationModal",
     "SnippetNameModal",
     "SnippetNameResult",
+    "SnippetSaveConfirmModal",
+    "SnippetSaveConfirmState",
     "get_runner_count",
     "SelectionItem",
     "StatusModal",

@@ -4002,6 +4002,69 @@ SnippetNameModal #snippet-name-hints {
     text-align: center;
 }
 
+SnippetSaveConfirmModal {
+    align: center middle;
+}
+
+SnippetSaveConfirmModal > Container {
+    width: 86%;
+    height: 72%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+SnippetSaveConfirmModal #snippet-save-confirm-title {
+    text-style: bold;
+    text-align: center;
+    height: 1;
+    margin-bottom: 1;
+}
+
+SnippetSaveConfirmModal #snippet-save-confirm-header {
+    height: 2;
+    text-style: bold;
+}
+
+SnippetSaveConfirmModal #snippet-save-confirm-warning {
+    height: 1;
+    color: $warning;
+}
+
+SnippetSaveConfirmModal #snippet-save-confirm-preview-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+SnippetSaveConfirmModal #snippet-save-confirm-preview {
+    height: auto;
+}
+
+SnippetSaveConfirmModal #snippet-save-confirm-verdict {
+    height: 2;
+    margin-top: 1;
+    text-style: bold;
+}
+
+SnippetSaveConfirmModal .snippet-save-confirm-verdict-success {
+    color: $success;
+}
+
+SnippetSaveConfirmModal .snippet-save-confirm-verdict-warning {
+    color: $warning;
+}
+
+SnippetSaveConfirmModal .snippet-save-confirm-verdict-error {
+    color: $error;
+}
+
+SnippetSaveConfirmModal #snippet-save-confirm-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+}
+
 InputItemModal,
 XPromptItemModal {
     align: center middle;

@@ -166,6 +166,7 @@ class SnippetPaneTarget:
     loaded_body: str | None
     loaded_fingerprint: SourceFingerprint | None
     derived_from: str | None = None
+    save_warning: str | None = None
 
 
 def split_prompt_text(text: str) -> list[str]:

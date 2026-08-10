@@ -8,17 +8,22 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml  # type: ignore[import-untyped]
+from textual.pilot import Pilot
 
 from sase.ace.tui.modals import UnifiedXPromptSaveResult
+from sase.ace.tui.modals.snippet_name_modal import SnippetNameResult
+from sase.ace.tui.modals.snippet_save_confirm_modal import SnippetSaveConfirmModal
 from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_targets import (
     write_binding_sync,
 )
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_stack import SourceFingerprint, XPromptBinding
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat
+from sase.xprompt.snippet_targets import SnippetSaveTarget
 
-from ._prompt_save_xprompt_helpers import _SaveFlowApp, _SaveHarness
+from ._prompt_save_xprompt_helpers import _SaveFlowApp, _SaveHarness, _wait_save_tasks
 
 
 async def test_unified_markdown_result_writes_typed_name_authoritatively(
@@ -240,3 +245,214 @@ async def test_live_save_preserves_authored_capital_collision_off_event_loop() -
         "Foo": "authored capital",
         "foo": "lower save",
     }
+
+
+def _write_snippet_config(path: Path, snippets: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump({"ace": {"snippets": snippets}}),
+        encoding="utf-8",
+    )
+
+
+def _pane_target(path: Path) -> SnippetSaveTarget:
+    return SnippetSaveTarget(
+        read_path=path,
+        write_path=path,
+        apply_target=None,
+        via_chezmoi=False,
+        display_path=str(path),
+        source="configured",
+        fallback_reason=None,
+    )
+
+
+async def _open_snippet_pane(
+    pilot: Pilot[None],
+    bar: PromptInputBar,
+    path: Path,
+    *,
+    trigger: str = "todo",
+    existing_body: str | None = None,
+    body: str,
+) -> None:
+    result = SnippetNameResult(
+        trigger=trigger,
+        target=_pane_target(path),
+        exists=existing_body is not None,
+        existing_body=existing_body,
+        derived_from=None,
+    )
+    fingerprint = SourceFingerprint.from_path(path)
+    assert bar.open_snippet_target_pane(
+        result,
+        origin_pane_id=bar.active_text_area().id or "",
+        destination_exists=existing_body is not None,
+        loaded_fingerprint=fingerprint,
+    )
+    await pilot.pause()
+    bar.active_text_area().text = body
+    bar._sync_state_from_widgets()
+
+
+async def test_snippet_pane_confirmation_save_writes_publishes_and_closes(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "sase.yml"
+    _write_snippet_config(config, {})
+    app = _SaveFlowApp("agent prompt")
+
+    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            bar = app.query_one(PromptInputBar)
+            await _open_snippet_pane(
+                pilot,
+                bar,
+                config,
+                existing_body=None,
+                body="TODO($1): $0",
+            )
+
+            await pilot.press("enter")
+            await _wait_save_tasks(app)
+            await pilot.pause()
+            assert isinstance(app.screen, SnippetSaveConfirmModal)
+
+            await pilot.press("enter")
+            await _wait_save_tasks(app)
+            await pilot.pause()
+
+            payload = yaml.safe_load(config.read_text(encoding="utf-8"))
+            assert payload["ace"]["snippets"] == {"todo": "TODO($1): $0"}
+            assert app._pending_snippet_saves == {"todo": "TODO($1): $0"}
+            assert app._snippets_cache is not None
+            assert app._snippets_cache["todo"] == "TODO($1): $0"
+            assert not bar._stack.has_snippet_pane
+
+
+async def test_snippet_pane_failed_write_keeps_draft(tmp_path: Path) -> None:
+    config = tmp_path / "sase.yml"
+    _write_snippet_config(config, {})
+    app = _SaveFlowApp("agent prompt")
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await _open_snippet_pane(
+            pilot,
+            bar,
+            config,
+            existing_body=None,
+            body="draft body",
+        )
+
+        await pilot.press("enter")
+        await _wait_save_tasks(app)
+        await pilot.pause()
+        with patch(
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_snippets.write_snippet_sync",
+            side_effect=RuntimeError("boom"),
+        ):
+            await pilot.press("enter")
+            await _wait_save_tasks(app)
+            await pilot.pause()
+
+        assert bar._stack.has_snippet_pane
+        assert bar.active_text() == "draft body"
+        assert ("Failed to save snippet: boom", "error") in app.notifications
+
+
+async def test_snippet_pane_no_change_closes_without_write(tmp_path: Path) -> None:
+    config = tmp_path / "sase.yml"
+    _write_snippet_config(config, {"todo": "same body"})
+    app = _SaveFlowApp("agent prompt")
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await _open_snippet_pane(
+            pilot,
+            bar,
+            config,
+            existing_body="same body",
+            body="same body",
+        )
+
+        await pilot.press("enter")
+        await _wait_save_tasks(app)
+        await pilot.pause()
+        with patch(
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_snippets.write_snippet_sync"
+        ) as write_sync:
+            await pilot.press("enter")
+            await _wait_save_tasks(app)
+            await pilot.pause()
+
+        write_sync.assert_not_called()
+        assert not bar._stack.has_snippet_pane
+
+
+async def test_snippet_pane_changed_on_disk_reload_updates_draft(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "sase.yml"
+    _write_snippet_config(config, {"todo": "old body"})
+    app = _SaveFlowApp("agent prompt")
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await _open_snippet_pane(
+            pilot,
+            bar,
+            config,
+            existing_body="old body",
+            body="draft body",
+        )
+        _write_snippet_config(config, {"todo": "disk body changed"})
+
+        await pilot.press("enter")
+        await _wait_save_tasks(app)
+        await pilot.pause()
+        assert isinstance(app.screen, SnippetSaveConfirmModal)
+
+        await pilot.press("r")
+        await pilot.pause()
+
+        assert bar._stack.has_snippet_pane
+        assert bar.active_text() == "disk body changed"
+        snippet = bar._stack.snippet_item
+        assert snippet is not None
+        assert snippet.snippet_target is not None
+        assert snippet.snippet_target.loaded_body == "disk body changed"
+
+
+async def test_save_snippet_uses_resolved_chezmoi_target_for_post_write(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "chezmoi" / "dot_config" / "sase" / "sase.yml"
+    home_target = tmp_path / "home" / ".config" / "sase" / "sase.yml"
+    _write_snippet_config(source, {})
+    harness = _SaveHarness()
+
+    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+        ok = await harness.save_snippet(
+            write_path=str(source),
+            read_path=str(home_target),
+            location_path=str(source),
+            display_path="~/.config/sase/sase.yml",
+            trigger="todo",
+            body="body",
+            exists=False,
+            apply_target=str(home_target),
+            via_chezmoi=True,
+        )
+
+    assert ok is True
+    assert harness.post_write_targets
+    target = harness.post_write_targets[-1]
+    assert target.write_path == source
+    assert target.read_path == home_target
+    assert target.apply_target == home_target
+    assert target.via_chezmoi is True
