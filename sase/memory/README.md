@@ -124,8 +124,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Description: SASE size scale guidance for epic phases, task beads, and tale plans,
   including plan-first behavior, task defaults, and model routing.
 - Parent: `sase/memory/sase_beads.md`
-- Lines: 46
-- Approx. tokens: 546
+- Lines: 41
+- Approx. tokens: 477
 
 ### `sase/memory/symvision.md`
 
@@ -160,8 +160,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Total notes: 12
 - Short notes: 5
 - Long notes: 7
-- Total lines: 874
-- Total approx. tokens: 10938
+- Total lines: 869
+- Total approx. tokens: 10869
 
 ## Commands
 

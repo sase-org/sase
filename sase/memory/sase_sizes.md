@@ -31,11 +31,6 @@ Tale plans MUST declare `size: xsmall | small | medium`. A tale is single-agent 
 implementation work, so `large` and `xlarge` are invalid tale sizes; work that large
 belongs in an epic.
 
-Authoring a plan with `/sase_plan` is itself `large` or `xlarge` work: `large` means the
-agent authors a tale, while `xlarge` means the agent authors an epic. The task or phase
-size names the handoff; the tale plan's own `size` then names the follow-up
-implementation scope.
-
 When creating a new task bead, default to `large`. Use `xsmall`, `small`, or `medium`
 only when very confident you know the precise root cause, and describe that root cause
 in the bead. Use `xlarge` only when very certain the work needs an epic plan and
