@@ -45,6 +45,16 @@ def test_issue_wire_is_frozen_and_uses_immutable_collections() -> None:
         issue.title = "changed"  # type: ignore[misc]
 
 
+def test_issue_wire_provider_id_defaults_empty_and_round_trips() -> None:
+    assert IssueWire(number=1, title="Untagged", state="open").provider_id == ""
+    assert (
+        IssueWire(
+            number=1, title="Tagged", state="open", provider_id="I_kwDOabc123"
+        ).provider_id
+        == "I_kwDOabc123"
+    )
+
+
 def test_complete_fake_provider_reports_capability() -> None:
     provider = _manager(FakeIssueProvider())
 
@@ -65,6 +75,30 @@ def test_partial_issue_plugin_does_not_report_capability() -> None:
             return []
 
     assert _manager(PartialPlugin()).supports_issues() is False
+
+
+def test_split_issue_capability_probes_report_independently() -> None:
+    class ListingOnlyPlugin:
+        @hookimpl
+        def vcs_list_issues(
+            self, cwd: str, state: str = "open", limit: int = 100
+        ) -> list[IssueWire]:
+            return []
+
+    provider = _manager(ListingOnlyPlugin())
+
+    assert provider.supports_issue_listing() is True
+    assert provider.supports_issue_reads() is False
+    assert provider.supports_issue_mutations() is False
+    assert provider.supports_issues() is False
+
+
+def test_complete_fake_provider_reports_every_split_capability() -> None:
+    provider = _manager(FakeIssueProvider())
+
+    assert provider.supports_issue_listing() is True
+    assert provider.supports_issue_reads() is True
+    assert provider.supports_issue_mutations() is True
 
 
 def test_fake_provider_lists_filters_and_limits_issues() -> None:
@@ -149,3 +183,40 @@ def test_registry_capability_probe_uses_selected_provider(mock_get: MagicMock) -
 
     assert supports_issues("/repo") is True
     mock_get.assert_called_once_with("/repo")
+
+
+@patch("sase.vcs_provider._registry.get_vcs_provider")
+def test_registry_split_issue_capability_probes_use_selected_provider(
+    mock_get: MagicMock,
+) -> None:
+    from sase.vcs_provider._registry import (
+        supports_issue_listing,
+        supports_issue_mutations,
+        supports_issue_reads,
+    )
+
+    mock_get.return_value = _manager(FakeIssueProvider(capabilities=["issue_listing"]))
+
+    assert supports_issue_listing("/repo") is True
+    assert supports_issue_reads("/repo") is False
+    assert supports_issue_mutations("/repo") is False
+
+
+def test_fake_provider_capabilities_restrict_exposed_operations() -> None:
+    provider = _manager(FakeIssueProvider(capabilities=["issue_listing"]))
+
+    assert provider.supports_issue_listing() is True
+    assert provider.supports_issue_reads() is False
+    assert provider.supports_issue_mutations() is False
+    assert provider.supports_pull_requests() is False
+    with pytest.raises(NotImplementedError, match="get_issue"):
+        provider.get_issue(1, "/repo")
+
+
+def test_fake_provider_capabilities_default_to_full_support() -> None:
+    provider = _manager(FakeIssueProvider())
+
+    assert provider.supports_issue_listing() is True
+    assert provider.supports_issue_reads() is True
+    assert provider.supports_issue_mutations() is True
+    assert provider.supports_pull_requests() is True

@@ -17,9 +17,21 @@ from ._registry import (
     detect_vcs,
     detect_vcs_family,
     get_vcs_provider,
+    supports_issue_listing,
+    supports_issue_mutations,
+    supports_issue_reads,
     supports_issues,
+    supports_pull_requests,
 )
-from ._types import IssueListState, IssueState, IssueWire, MergeVisibility
+from ._types import (
+    IssueListState,
+    IssueState,
+    IssueWire,
+    MergeVisibility,
+    PullRequestListState,
+    PullRequestState,
+    PullRequestWire,
+)
 from .config import get_workspace_root
 
 VCS_DEFAULT_REVISION = "__vcs_default__"
@@ -30,6 +42,9 @@ __all__ = [
     "IssueState",
     "IssueWire",
     "MergeVisibility",
+    "PullRequestListState",
+    "PullRequestState",
+    "PullRequestWire",
     "VCS_DEFAULT_REVISION",
     "VCSHookSpec",
     "VCSOperationError",
@@ -42,5 +57,9 @@ __all__ = [
     "get_workspace_root",
     "hookimpl",
     "hookspec",
+    "supports_issue_listing",
+    "supports_issue_mutations",
+    "supports_issue_reads",
     "supports_issues",
+    "supports_pull_requests",
 ]

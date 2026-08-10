@@ -11,16 +11,20 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
     from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
-    from ._types import IssueListState, IssueState, IssueWire, MergeVisibility
+    from ._types import (
+        IssueListState,
+        IssueState,
+        IssueWire,
+        MergeVisibility,
+        PullRequestListState,
+        PullRequestWire,
+    )
 
 
-_ISSUE_OPERATION_HOOKS = (
-    "vcs_list_issues",
-    "vcs_get_issue",
-    "vcs_create_issue",
-    "vcs_update_issue",
-    "vcs_get_issue_url",
-)
+_ISSUE_LISTING_HOOKS = ("vcs_list_issues",)
+_ISSUE_READ_HOOKS = ("vcs_get_issue", "vcs_get_issue_url")
+_ISSUE_MUTATION_HOOKS = ("vcs_create_issue", "vcs_update_issue")
+_PULL_REQUEST_LISTING_HOOKS = ("vcs_list_pull_requests",)
 
 
 class VCSPluginManager(VCSProvider):
@@ -47,6 +51,18 @@ class VCSPluginManager(VCSProvider):
             op = hook_name.removeprefix("vcs_")
             raise NotImplementedError(f"{op} is not supported by this VCS provider")
         return result  # type: ignore[return-value]
+
+    def _has_hookimpls(self, hook_names: tuple[str, ...]) -> bool:
+        """Structurally probe whether every hook in *hook_names* has an impl.
+
+        Never executes a remote command; older plugins simply have no
+        implementations for hooks they predate, which pluggy exposes as empty
+        hook implementation lists.
+        """
+        return all(
+            bool(getattr(self._pm.hook, hook_name).get_hookimpls())
+            for hook_name in hook_names
+        )
 
     # --- Core abstract methods ---
 
@@ -324,17 +340,37 @@ class VCSPluginManager(VCSProvider):
 
     # --- Optional issue-tracker operations ---
 
-    def supports_issues(self) -> bool:
-        """Probe issue support without executing a remote tracker command.
+    def supports_issue_listing(self) -> bool:
+        """Probe whether the provider can list tracker issues."""
+        return self._has_hookimpls(_ISSUE_LISTING_HOOKS)
 
-        Older plugins simply have no implementations for the new hooks, which
-        pluggy exposes as empty hook implementation lists.  All operations are
-        required so a partial implementation cannot claim CRUD capability.
+    def supports_issue_reads(self) -> bool:
+        """Probe whether the provider can read individual tracker issues."""
+        return self._has_hookimpls(_ISSUE_READ_HOOKS)
+
+    def supports_issue_mutations(self) -> bool:
+        """Probe whether the provider can create/update tracker issues."""
+        return self._has_hookimpls(_ISSUE_MUTATION_HOOKS)
+
+    def supports_issues(self) -> bool:
+        """Probe full (listing + reads + mutations) issue capability.
+
+        Kept as the all-operations alias for existing callers that need full
+        CRUD capability; ACE surfaces that only need one slice (e.g. read-only
+        badges) should probe :meth:`supports_issue_listing`,
+        :meth:`supports_issue_reads`, or :meth:`supports_issue_mutations`
+        independently instead of hiding all issue context when a provider
+        cannot write.
         """
-        return all(
-            bool(getattr(self._pm.hook, hook_name).get_hookimpls())
-            for hook_name in _ISSUE_OPERATION_HOOKS
+        return (
+            self.supports_issue_listing()
+            and self.supports_issue_reads()
+            and self.supports_issue_mutations()
         )
+
+    def supports_pull_requests(self) -> bool:
+        """Probe pull-request support without executing a remote command."""
+        return self._has_hookimpls(_PULL_REQUEST_LISTING_HOOKS)
 
     def list_issues(
         self,
@@ -403,6 +439,21 @@ class VCSPluginManager(VCSProvider):
         if result is None:
             raise NotImplementedError(
                 "get_issue_url is not supported by this VCS provider"
+            )
+        return result  # type: ignore[return-value]
+
+    # --- Optional pull-request operations ---
+
+    def list_pull_requests(
+        self,
+        cwd: str,
+        state: "PullRequestListState" = "open",
+        limit: int = 100,
+    ) -> list["PullRequestWire"]:
+        result = self._pm.hook.vcs_list_pull_requests(cwd=cwd, state=state, limit=limit)
+        if result is None:
+            raise NotImplementedError(
+                "list_pull_requests is not supported by this VCS provider"
             )
         return result  # type: ignore[return-value]
 

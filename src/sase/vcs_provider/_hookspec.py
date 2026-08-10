@@ -9,7 +9,14 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
     from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
-    from ._types import IssueListState, IssueState, IssueWire, MergeVisibility
+    from ._types import (
+        IssueListState,
+        IssueState,
+        IssueWire,
+        MergeVisibility,
+        PullRequestListState,
+        PullRequestWire,
+    )
 
 hookspec = pluggy.HookspecMarker("sase_vcs")
 hookimpl = pluggy.HookimplMarker("sase_vcs")
@@ -227,6 +234,16 @@ class VCSHookSpec:
 
     @hookspec(firstresult=True)
     def vcs_get_issue_url(self, number: int, cwd: str) -> str: ...
+
+    # --- Optional pull-request operations ---
+
+    @hookspec(firstresult=True)
+    def vcs_list_pull_requests(
+        self,
+        cwd: str,
+        state: "PullRequestListState",
+        limit: int,
+    ) -> list["PullRequestWire"]: ...
 
     # --- Google-internal operations ---
 

@@ -5,6 +5,8 @@ from typing import Literal
 
 IssueState = Literal["open", "closed"]
 IssueListState = Literal["open", "closed", "all"]
+PullRequestState = Literal["open", "closed"]
+PullRequestListState = Literal["open", "closed", "all"]
 MergeVisibility = Literal["hide", "show", "only"]
 
 
@@ -29,6 +31,34 @@ class IssueWire:
     updated_at: str = ""
     url: str = ""
     comment_count: int = 0
+    provider_id: str = ""
+
+
+@dataclass(frozen=True)
+class PullRequestWire:
+    """Provider-neutral representation of an external pull request.
+
+    Mirrors :class:`IssueWire`'s frozen, tuple-collection-only immutability
+    contract at the same VCS provider boundary. ``state`` collapses to
+    ``"open"``/``"closed"`` like :data:`IssueState`; ``merged_at`` is the
+    signal that distinguishes a merged PR from a closed-unmerged one, since
+    providers (e.g. GitHub) report those as distinct raw states.
+    """
+
+    number: int
+    title: str
+    state: PullRequestState
+    provider_id: str = ""
+    url: str = ""
+    body: str = ""
+    is_draft: bool = False
+    author: str = ""
+    head_ref: str = ""
+    base_ref: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+    closed_at: str = ""
+    merged_at: str = ""
 
 
 @dataclass

@@ -212,6 +212,46 @@ def supports_issues(cwd: str) -> bool:
     return isinstance(provider, VCSPluginManager) and provider.supports_issues()
 
 
+def supports_issue_listing(cwd: str) -> bool:
+    """Return whether the provider selected for *cwd* can list issues.
+
+    Structural probe, never calls the remote tracker; see :func:`supports_issues`.
+    """
+    provider = get_vcs_provider(cwd)
+    return isinstance(provider, VCSPluginManager) and provider.supports_issue_listing()
+
+
+def supports_issue_reads(cwd: str) -> bool:
+    """Return whether the provider selected for *cwd* can read issues.
+
+    Structural probe, never calls the remote tracker; see :func:`supports_issues`.
+    """
+    provider = get_vcs_provider(cwd)
+    return isinstance(provider, VCSPluginManager) and provider.supports_issue_reads()
+
+
+def supports_issue_mutations(cwd: str) -> bool:
+    """Return whether the provider selected for *cwd* can create/update issues.
+
+    Structural probe, never calls the remote tracker; see :func:`supports_issues`.
+    """
+    provider = get_vcs_provider(cwd)
+    return (
+        isinstance(provider, VCSPluginManager) and provider.supports_issue_mutations()
+    )
+
+
+def supports_pull_requests(cwd: str) -> bool:
+    """Return whether the provider selected for *cwd* can list pull requests.
+
+    The probe is structural and never calls the remote tracker.  Provider
+    discovery errors remain visible to the caller; only a successfully loaded
+    provider with pull-request listing support reports support.
+    """
+    provider = get_vcs_provider(cwd)
+    return isinstance(provider, VCSPluginManager) and provider.supports_pull_requests()
+
+
 def _find_plugin_class(vcs_name: str) -> type | None:
     """Look up a VCS plugin class by name from ``sase_vcs`` entry points.
 

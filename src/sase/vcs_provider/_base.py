@@ -8,7 +8,14 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
     from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
-    from ._types import IssueListState, IssueState, IssueWire, MergeVisibility
+    from ._types import (
+        IssueListState,
+        IssueState,
+        IssueWire,
+        MergeVisibility,
+        PullRequestListState,
+        PullRequestWire,
+    )
 
 
 class VCSProvider(ABC):
@@ -405,6 +412,23 @@ class VCSProvider(ABC):
     def get_issue_url(self, number: int, cwd: str) -> str:
         """Return the browser URL for an issue without fetching its details."""
         raise NotImplementedError("get_issue_url is not supported by this VCS provider")
+
+    # --- Optional pull-request operations ---
+
+    def list_pull_requests(
+        self,
+        cwd: str,
+        state: "PullRequestListState" = "open",
+        limit: int = 100,
+    ) -> list["PullRequestWire"]:
+        """List tracker pull requests for the repository at *cwd*.
+
+        ``state`` accepts ``"open"``, ``"closed"``, or ``"all"`` and
+        ``limit <= 0`` means unbounded.
+        """
+        raise NotImplementedError(
+            "list_pull_requests is not supported by this VCS provider"
+        )
 
     # --- Google-internal methods (default raises NotImplementedError) ---
 

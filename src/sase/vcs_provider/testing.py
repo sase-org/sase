@@ -11,9 +11,31 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from threading import RLock
+from typing import Literal
 
 from ._hookspec import hookimpl
-from ._types import IssueListState, IssueState, IssueWire
+from ._types import (
+    IssueListState,
+    IssueState,
+    IssueWire,
+    PullRequestListState,
+    PullRequestWire,
+)
+
+ProviderCapability = Literal[
+    "issue_listing", "issue_reads", "issue_mutations", "pull_requests"
+]
+
+_ALL_CAPABILITIES: frozenset[ProviderCapability] = frozenset(
+    {"issue_listing", "issue_reads", "issue_mutations", "pull_requests"}
+)
+
+_CAPABILITY_METHODS: dict[ProviderCapability, tuple[str, ...]] = {
+    "issue_listing": ("vcs_list_issues",),
+    "issue_reads": ("vcs_get_issue", "vcs_get_issue_url"),
+    "issue_mutations": ("vcs_create_issue", "vcs_update_issue"),
+    "pull_requests": ("vcs_list_pull_requests",),
+}
 
 
 def _utc_now() -> str:
@@ -21,22 +43,29 @@ def _utc_now() -> str:
 
 
 class _InMemoryIssuePlugin:
-    """A network-free, mutable implementation of the issue hooks.
+    """A network-free, mutable implementation of the issue and PR hooks.
 
     Args:
         issues: Optional records with which to seed the tracker.
+        pull_requests: Optional records with which to seed the PR list.
         base_url: Browser URL prefix used for newly created issues.
         author: Author assigned to newly created issues.
         clock: Timestamp source. Tests can inject a deterministic callable.
+        capabilities: Restrict which operations this fake exposes, so
+            downstream phases can test capability gating without a network
+            call. ``None`` (the default) exposes every capability, matching
+            a fully CRUD-capable provider.
     """
 
     def __init__(
         self,
         issues: Iterable[IssueWire] = (),
         *,
+        pull_requests: Iterable[PullRequestWire] = (),
         base_url: str = "https://example.test/issues",
         author: str = "test-user",
         clock: Callable[[], str] | None = None,
+        capabilities: Iterable[ProviderCapability] | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._author = author
@@ -47,12 +76,33 @@ class _InMemoryIssuePlugin:
             if issue.number in self._issues:
                 raise ValueError(f"duplicate issue number: {issue.number}")
             self._issues[issue.number] = issue
+        self._pull_requests: dict[int, PullRequestWire] = {}
+        for pull_request in pull_requests:
+            if pull_request.number in self._pull_requests:
+                raise ValueError(
+                    f"duplicate pull request number: {pull_request.number}"
+                )
+            self._pull_requests[pull_request.number] = pull_request
+
+        if capabilities is not None:
+            disabled = _ALL_CAPABILITIES - frozenset(capabilities)
+            for capability in disabled:
+                for method_name in _CAPABILITY_METHODS[capability]:
+                    setattr(self, method_name, None)
 
     @property
     def issues(self) -> tuple[IssueWire, ...]:
         """Return a stable snapshot of every issue, ordered by number."""
         with self._lock:
             return tuple(self._issues[number] for number in sorted(self._issues))
+
+    @property
+    def pull_requests(self) -> tuple[PullRequestWire, ...]:
+        """Return a stable snapshot of every pull request, ordered by number."""
+        with self._lock:
+            return tuple(
+                self._pull_requests[number] for number in sorted(self._pull_requests)
+            )
 
     @hookimpl
     def vcs_list_issues(
@@ -149,8 +199,30 @@ class _InMemoryIssuePlugin:
     def _url(self, number: int) -> str:
         return f"{self._base_url}/{number}"
 
+    @hookimpl
+    def vcs_list_pull_requests(
+        self,
+        cwd: str,
+        state: PullRequestListState,
+        limit: int,
+    ) -> list[PullRequestWire]:
+        del cwd
+        if state not in ("open", "closed", "all"):
+            raise ValueError(f"invalid pull request state filter: {state!r}")
+        with self._lock:
+            pull_requests = [
+                pull_request
+                for pull_request in self._pull_requests.values()
+                if state == "all" or pull_request.state == state
+            ]
+        pull_requests.sort(
+            key=lambda pull_request: (pull_request.updated_at, pull_request.number),
+            reverse=True,
+        )
+        return pull_requests if limit <= 0 else pull_requests[:limit]
+
 
 # A readable compatibility name for tests that prefer to call fixtures "fake".
 FakeIssueProvider = _InMemoryIssuePlugin
 
-__all__ = ["FakeIssueProvider"]
+__all__ = ["FakeIssueProvider", "ProviderCapability"]
