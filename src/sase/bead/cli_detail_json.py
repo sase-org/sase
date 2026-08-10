@@ -52,6 +52,7 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "status": issue.status.value,
         "issue_type": issue.issue_type.value,
         "tier": issue.tier.value if issue.tier else None,
+        "size": issue.size.value if issue.size else None,
         "parent_id": issue.parent_id,
         "owner": issue.owner,
         "assignee": issue.assignee,
@@ -87,8 +88,6 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "changespec_bug_id": issue.changespec_bug_id,
         "dependencies": [_dependency_to_wire_dict(dep) for dep in issue.dependencies],
     }
-    if issue.size is not None:
-        payload["size"] = issue.size.value
     return payload
 
 

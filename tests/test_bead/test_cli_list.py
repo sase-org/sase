@@ -9,12 +9,18 @@ from pathlib import Path
 import pytest
 from rich.cells import cell_len
 
+from sase.ansi_style import xterm256_foreground_style
 from sase.bead import cli as bead_cli
 from sase.bead import cli_query
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
 from sase.bead_time_presentation import BEAD_CREATED_GLYPH, BEAD_TIME_CLI_STYLE
 from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
+from sase.phase_size_presentation import (
+    PHASE_SIZE_ACCENTS,
+    PHASE_SIZE_VALUES,
+    phase_size_cli_token,
+)
 
 from tests.main.parser_cli_helpers import parse_sase_args
 
@@ -255,6 +261,24 @@ def test_handle_bead_list_json_outputs_envelope(
     assert payload["implied_status_closed"] is False
     assert payload["results"][0]["id"] == issue.id
     assert payload["results"][0]["resolution"] is None
+    assert payload["results"][0]["size"] is None
+
+
+def test_handle_bead_list_json_always_emits_size(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        plan = proj.create("Open Epic", IssueType.PLAN)
+        task = proj.create("Sized Task", IssueType.TASK, size="medium")
+
+    args = parse_sase_args(["bead", "list", "-f", "json"])
+    bead_cli.handle_bead_list(args)
+
+    rows = {
+        row["id"]: row["size"] for row in json.loads(capsys.readouterr().out)["results"]
+    }
+    assert rows == {plan.id: None, task.id: "medium"}
 
 
 def test_handle_bead_list_includes_snoozed_by_default(
@@ -415,6 +439,93 @@ def test_list_compact_type_cells_share_equal_cell_width(
     assert len(widths) == 1
 
 
+def test_list_compact_renders_size_tokens_for_every_stored_size(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        ids = {
+            value: proj.create(f"{value.title()} Task", IssueType.TASK, size=value).id
+            for value in PHASE_SIZE_VALUES
+        }
+
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
+    lines = capsys.readouterr().out.splitlines()
+
+    for value, issue_id in ids.items():
+        line = next(line for line in lines if issue_id in line)
+        assert f"○ {phase_size_cli_token(value, use_color=False)} {issue_id} ·" in line
+
+    prefixes = {
+        cell_len(line[: line.index(issue_id)])
+        for value, issue_id in ids.items()
+        for line in lines
+        if issue_id in line
+    }
+    assert len(prefixes) == 1
+
+
+def test_list_compact_collapses_size_column_when_no_rows_are_sized(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        issue = proj.create("Plan Only", IssueType.PLAN)
+
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
+
+    assert capsys.readouterr().out == f"▸ ○ {issue.id} · Plan Only  ⧖ now\n"
+
+
+def test_list_compact_pads_unsized_rows_when_any_row_is_sized(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        plan = proj.create("Plan Bead", IssueType.PLAN)
+        task = proj.create("Large Task", IssueType.TASK, size="large")
+
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
+    lines = capsys.readouterr().out.splitlines()
+    plan_line = next(line for line in lines if plan.id in line)
+    task_line = next(line for line in lines if task.id in line)
+
+    assert f"○    {plan.id} ·" in plan_line
+    assert f"○  L {task.id} ·" in task_line
+    assert cell_len(plan_line[: plan_line.index(plan.id)]) == cell_len(
+        task_line[: task_line.index(task.id)]
+    )
+
+
+def test_list_formats_render_sizes_coherently(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        plan = proj.create("Parent", IssueType.PLAN)
+        unsized = proj.create("Unsized Phase", IssueType.PHASE, parent_id=plan.id)
+        sized = proj.create("Sized Task", IssueType.TASK, size="xlarge")
+
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
+    compact = capsys.readouterr().out
+    sized_line = next(line for line in compact.splitlines() if sized.id in line)
+    unsized_line = next(line for line in compact.splitlines() if unsized.id in line)
+    assert f"○ XL {sized.id} ·" in sized_line
+    assert f"○    {unsized.id} ·" in unsized_line
+
+    bead_cli.handle_bead_show(parse_sase_args(["bead", "show", sized.id]))
+    assert "Size: xlarge" in capsys.readouterr().out
+    bead_cli.handle_bead_show(parse_sase_args(["bead", "show", unsized.id]))
+    assert "Size: small (default)" in capsys.readouterr().out
+
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "-f", "json"]))
+    rows = {
+        row["id"]: row["size"] for row in json.loads(capsys.readouterr().out)["results"]
+    }
+    assert rows[sized.id] == "xlarge"
+    assert rows[unsized.id] is None
+
+
 def test_list_compact_color_modes_override_non_tty(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
@@ -430,6 +541,7 @@ def test_list_compact_color_modes_override_non_tty(
     for value in BEAD_TYPE_VALUES:
         presentation = bead_type_presentation(value)
         assert presentation.cli_style in colored
+    assert xterm256_foreground_style(PHASE_SIZE_ACCENTS["small"]) in colored
 
 
 def test_list_compact_no_color_env_suppresses_escapes(

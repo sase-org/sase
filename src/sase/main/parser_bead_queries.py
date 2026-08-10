@@ -87,7 +87,8 @@ def register_bead_list_parser(
             "none match and --status was not provided, list closed beads instead. "
             "--since and --until bound bead creation time. Closed listings default "
             "to the newest 20 beads unless --limit 0 is used or a creation-date "
-            "bound is present. Bare 'sase bead' defaults to this command."
+            "bound is present. Compact rows include a size column when any listed "
+            "bead has a stored size. Bare 'sase bead' defaults to this command."
         ),
         epilog=(
             "Examples:\n"
@@ -97,6 +98,8 @@ def register_bead_list_parser(
             "  sase bead list --format json\n"
             "  sase bead list --format full --limit 3\n"
             "  sase bead list --status closed --limit 0\n\n"
+            "Size column: XS xsmall · S small · M medium · L large · XL xlarge\n"
+            "(shown only when a listed bead has a stored size)\n\n"
             f"DATE grammar: {DATE_HELP}."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

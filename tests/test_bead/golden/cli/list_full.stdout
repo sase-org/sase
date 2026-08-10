@@ -9,8 +9,8 @@ CREATED BY
 
 CHILDREN
   PHASES
-    ○ beads-1.1: Build Alpha   [OPEN] · Size: small
-    ○ beads-1.2: Review Alpha   [OPEN] · Size: small
+    ○ beads-1.1: Build Alpha   [OPEN] · Size: small (default)
+    ○ beads-1.2: Review Alpha   [OPEN] · Size: small (default)
 
 DESCRIPTION
   Parent description
@@ -25,7 +25,7 @@ PLAN
 ○ beads-1.1 · Build Alpha   [OPEN]
 Type: phase · Owner: owner@example.com
 Assignee: alice
-Size: small
+Size: small (default)
 
 CREATED
   2025-12-31 19:01:00 EST · 7mo ago
@@ -46,7 +46,7 @@ EPIC PLAN
 ------------------------------------------------------------
 ○ beads-1.2 · Review Alpha   [OPEN]
 Type: phase · Owner: owner@example.com
-Size: small
+Size: small (default)
 
 CREATED
   2025-12-31 19:02:00 EST · 7mo ago
@@ -91,14 +91,14 @@ CREATED BY
 
 CHILDREN
   PHASES
-    ○ beads-4.1: Cross Phase   [OPEN] · Size: small
+    ○ beads-4.1: Cross Phase   [OPEN] · Size: small (default)
 
 PLAN
   plans/cross.md
 ------------------------------------------------------------
 ○ beads-4.1 · Cross Phase   [OPEN]
 Type: phase · Owner: owner@example.com
-Size: small
+Size: small (default)
 
 CREATED
   2025-12-31 19:08:00 EST · 7mo ago

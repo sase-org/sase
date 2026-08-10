@@ -5,9 +5,10 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal, cast
 
+from rich.cells import cell_len
 from rich.text import Text
 
-from sase.ansi_style import xterm256_foreground_style
+from sase.ansi_style import ANSI_RESET, xterm256_foreground_style
 
 PhaseSizeValue = Literal["xsmall", "small", "medium", "large", "xlarge"]
 
@@ -36,6 +37,17 @@ PHASE_SIZE_ACCENTS: dict[PhaseSizeValue, str] = {
     "large": "#D75F87",
     "xlarge": "#AF5FFF",
 }
+PHASE_SIZE_ABBREVIATIONS: dict[PhaseSizeValue, str] = {
+    "xsmall": "XS",
+    "small": "S",
+    "medium": "M",
+    "large": "L",
+    "xlarge": "XL",
+}
+PHASE_SIZE_TOKEN_WIDTH = max(
+    cell_len(token) for token in PHASE_SIZE_ABBREVIATIONS.values()
+)
+PHASE_SIZE_DEFAULT_MARKER = "(default)"
 
 
 def normalize_phase_size(value: object) -> PhaseSizeValue | None:
@@ -76,13 +88,38 @@ def phase_size_cli_style(value: object) -> str | None:
     return xterm256_foreground_style(PHASE_SIZE_ACCENTS[normalized])
 
 
+def phase_size_cli_token(
+    value: object | None,
+    *,
+    use_color: bool,
+    width: int = PHASE_SIZE_TOKEN_WIDTH,
+) -> str:
+    """Return the padded compact-row token for a stored phase/task size."""
+    if value is None:
+        return " " * width
+
+    normalized = normalize_phase_size(value)
+    if normalized is None:
+        raise ValueError(f"unknown phase size: {value!r}")
+
+    token = PHASE_SIZE_ABBREVIATIONS[normalized]
+    padding = " " * max(width - cell_len(token), 0)
+    if use_color:
+        return f"{padding}{xterm256_foreground_style(PHASE_SIZE_ACCENTS[normalized])}{token}{ANSI_RESET}"
+    return padding + token
+
+
 __all__ = [
+    "PHASE_SIZE_ABBREVIATIONS",
     "PHASE_SIZE_ACCENTS",
     "PHASE_SIZE_CHIP_WIDTH",
+    "PHASE_SIZE_DEFAULT_MARKER",
     "PHASE_SIZE_STYLES",
+    "PHASE_SIZE_TOKEN_WIDTH",
     "PHASE_SIZE_VALUES",
     "PhaseSizeValue",
     "normalize_phase_size",
     "phase_size_chip",
     "phase_size_cli_style",
+    "phase_size_cli_token",
 ]

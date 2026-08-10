@@ -5,6 +5,7 @@
     "status": "open",
     "issue_type": "phase",
     "tier": null,
+    "size": null,
     "parent_id": "beads-1",
     "owner": "owner@example.com",
     "assignee": "alice",

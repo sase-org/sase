@@ -201,6 +201,20 @@ def test_handle_bead_search_compact_renders_aligned_type_glyphs(
     assert len({cell_len(prefix) for prefix in prefixes}) == 1
 
 
+def test_handle_bead_search_compact_renders_size_token(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        task = proj.create("Needle Task", IssueType.TASK, size="large")
+
+    args = parse_sase_args(["bead", "search", "needle", "--color", "never"])
+    bead_cli.handle_bead_search(args)
+
+    row = capsys.readouterr().out.splitlines()[0]
+    assert f"◆ ○  L {task.id} · Needle Task" in row
+
+
 def test_handle_bead_search_compact_colors_type_glyphs(
     project_dir,
     capsys: pytest.CaptureFixture[str],

@@ -199,7 +199,7 @@ def test_ready_stats_and_detail_handlers_render_task_semantics(
 
     bead_cli.handle_bead_ready(create_parser().parse_args(["bead", "ready"]))
     ready_output = capsys.readouterr().out
-    assert f"◇ {first.id} · Ready follow-up" in ready_output
+    assert f"◇  M {first.id} · Ready follow-up" in ready_output
     assert blocked.id not in ready_output
     assert "Ready: 1 task bead with no active blockers" in ready_output
 

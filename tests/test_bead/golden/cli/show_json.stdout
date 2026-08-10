@@ -5,6 +5,7 @@
     "status": "open",
     "issue_type": "plan",
     "tier": "epic",
+    "size": null,
     "parent_id": null,
     "owner": "owner@example.com",
     "assignee": "",

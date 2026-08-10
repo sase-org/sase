@@ -52,6 +52,7 @@ from sase.bead_type_presentation import (
 )
 from sase.main.parser_bead_common import resolve_wrap_width
 from sase.markdown_width import markdown_print_width
+from sase.phase_size_presentation import PHASE_SIZE_TOKEN_WIDTH, phase_size_cli_token
 
 # Closed bead listings can grow without bound, so default to the newest few
 # rows when the user did not request an explicit ``--limit``.
@@ -349,10 +350,13 @@ def handle_bead_ready(args: argparse.Namespace) -> None:
         if not issues:
             print("No ready task beads (epic work is preassigned at launch).")
             return
+        size_width = _compact_size_column_width(issues)
         for issue in issues:
             parent = f" ← {issue.parent_id}" if issue.parent_id else ""
             print(
-                f"{status_icon(issue.status)} {issue.id} · "
+                f"{status_icon(issue.status)} "
+                f"{_compact_size_column(issue, use_color=False, width=size_width)}"
+                f"{issue.id} · "
                 f"{issue.title}{_row_badges(issue)}{parent}"
             )
         print(f"\n{'-' * 60}")
@@ -366,11 +370,13 @@ def handle_bead_blocked(args: argparse.Namespace) -> None:
         if not issues:
             print("No blocked issues.")
             return
+        size_width = _compact_size_column_width(issues)
         for issue in issues:
             blockers = [d.depends_on_id for d in issue.dependencies]
             blocker_str = ", ".join(blockers)
             print(
-                f"● {issue.id} · {issue.title}{_row_badges(issue)}"
+                f"● {_compact_size_column(issue, use_color=False, width=size_width)}"
+                f"{issue.id} · {issue.title}{_row_badges(issue)}"
                 f"  [blocked by: {blocker_str}]"
             )
 
@@ -406,12 +412,25 @@ def _row_badges(issue: Issue, *, use_color: bool = False) -> str:
     return "".join(f" {badge}" for badge in badges)
 
 
+def _compact_size_column_width(issues: list[Issue]) -> int:
+    return (
+        PHASE_SIZE_TOKEN_WIDTH if any(issue.size is not None for issue in issues) else 0
+    )
+
+
+def _compact_size_column(issue: Issue, *, use_color: bool, width: int) -> str:
+    if width == 0:
+        return ""
+    return f"{phase_size_cli_token(issue.size, use_color=use_color, width=width)} "
+
+
 def _render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
     # Measured (not assumed) so the column stays aligned even though the three
     # type glyphs may not always share a Unicode width class.
     type_width = max(
         cell_len(bead_type_presentation(value).glyph) for value in BEAD_TYPE_VALUES
     )
+    size_width = _compact_size_column_width(issues)
     lines = []
     for issue in issues:
         type_cell = bead_type_cli_cell(
@@ -422,7 +441,9 @@ def _render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
         issue_id = styled(issue.id, ANSI_BOLD_BLUE, use_color)
         parent = f" ← {issue.parent_id}" if issue.parent_id else ""
         lines.append(
-            f"{type_cell} {status_glyph} {issue_id} · {issue.title}"
+            f"{type_cell} {status_glyph} "
+            f"{_compact_size_column(issue, use_color=use_color, width=size_width)}"
+            f"{issue_id} · {issue.title}"
             f"{_row_badges(issue, use_color=use_color)}{parent}"
             f"{created_cell(issue, use_color=use_color)}"
         )
@@ -479,6 +500,7 @@ def _render_search_compact(
     type_width = max(
         cell_len(bead_type_presentation(value).glyph) for value in BEAD_TYPE_VALUES
     )
+    size_width = _compact_size_column_width([match.issue for match in matches])
     lines: list[str] = []
     for match in matches:
         issue = match.issue
@@ -488,7 +510,9 @@ def _render_search_compact(
             width=type_width,
         )
         lines.append(
-            f"{type_cell} {status_icon(issue.status)} {issue.id} · "
+            f"{type_cell} {status_icon(issue.status)} "
+            f"{_compact_size_column(issue, use_color=use_color, width=size_width)}"
+            f"{issue.id} · "
             f"{issue.title}{_row_badges(issue, use_color=use_color)}"
             f"{created_cell(issue, use_color=use_color)}"
         )

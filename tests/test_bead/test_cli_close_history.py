@@ -29,6 +29,7 @@ from sase.bead.model import (
     Status,
 )
 from tests.test_bead.cli_show_style_test_helpers import (
+    REOPENED_TASK_ID,
     REOPENING_REPORTER,
     REOPENING_TIMESTAMP,
     build_reopened_task,
@@ -267,7 +268,9 @@ class TestRowBadges:
 
         handle_bead_ready(_no_args())
 
-        assert " [+2] [↺2]" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert f"◇  S {REOPENED_TASK_ID} ·" in out
+        assert " [+2] [↺2]" in out
 
     def test_the_blocked_row_carries_both_badges(
         self,
@@ -286,7 +289,9 @@ class TestRowBadges:
 
         handle_bead_blocked(_no_args())
 
-        assert " [+2] [↺2]" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert f"●  S {REOPENED_TASK_ID} ·" in out
+        assert " [+2] [↺2]" in out
 
     def test_a_bead_that_was_never_reopened_keeps_its_row_unchanged(self) -> None:
         issue = Issue(id="bd-plain", title="Plain Task", issue_type=IssueType.TASK)

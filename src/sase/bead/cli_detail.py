@@ -61,7 +61,10 @@ from sase.bead_time_presentation import (
 from sase.bead_type_presentation import bead_type_presentation
 from sase.core.agent_identity_facade import present_agent_name
 from sase.markdown_wrap import MIN_PROSE_WRAP_WIDTH, wrap_markdown
-from sase.phase_size_presentation import phase_size_cli_style
+from sase.phase_size_presentation import (
+    PHASE_SIZE_DEFAULT_MARKER,
+    phase_size_cli_style,
+)
 
 
 def render_issue_detail(
@@ -124,11 +127,7 @@ def render_issue_detail(
     if issue.model:
         lines.append(f"{palette.label('Model:')} {issue.model}")
     if issue.issue_type in {IssueType.PHASE, IssueType.TASK}:
-        size_value = _phase_size_value(issue)
-        lines.append(
-            f"{palette.label('Size:')} "
-            f"{palette.accent(size_value, phase_size_cli_style(size_value))}"
-        )
+        lines.append(f"{palette.label('Size:')} {_phase_size_field(issue, palette)}")
 
     created_label = bead_created_label(issue.created_at)
     created_value = (
@@ -218,14 +217,13 @@ def render_issue_detail(
                 child = child_ref.issue
                 assert child is not None
                 child_status = bead_status_presentation(child.status)
-                child_size = _phase_size_value(child)
                 lines.append(
                     f"    {palette.accent(status_icon(child.status), child_status.cli_style)}"
                     f" {palette.accent(child.id, ANSI_BOLD_BLUE)}: {child.title}"
                     "   "
                     f"{palette.accent(f'[{child.status.value.upper()}]', child_status.cli_style)}"
                     f" {palette.separator('·')} {palette.label('Size:')} "
-                    f"{palette.accent(child_size, phase_size_cli_style(child_size))}"
+                    f"{_phase_size_field(child, palette)}"
                 )
         if detail.child_epics:
             lines.append(f"  {palette.subsection('CHILD EPICS')}")
@@ -522,8 +520,16 @@ def _lineage_kind(issue: Issue) -> str:
     return "epic" if issue.tier == BeadTier.EPIC else "plan"
 
 
-def _phase_size_value(issue: Issue) -> str:
-    return issue.size.value if issue.size else "small"
+def _phase_size_display(issue: Issue) -> tuple[str, bool]:
+    return (issue.size.value, False) if issue.size else ("small", True)
+
+
+def _phase_size_field(issue: Issue, palette: DetailPalette) -> str:
+    value, defaulted = _phase_size_display(issue)
+    field = palette.accent(value, phase_size_cli_style(value))
+    if defaulted:
+        field += f" {palette.placeholder(PHASE_SIZE_DEFAULT_MARKER)}"
+    return field
 
 
 def _display_design_path(

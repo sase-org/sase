@@ -843,7 +843,9 @@ the explicit `sase bead list` form when passing list filters.
 
 ### `sase bead blocked`
 
-Show all issues that have at least one active (non-closed) blocker.
+Show all issues that have at least one active (non-closed) blocker. Rows use the same
+plain status/size gutter as compact list rows, including the collapsed size column when
+no blocked bead has a stored size.
 
 ### `sase bead +1 <task-id>`
 
@@ -1125,21 +1127,23 @@ need closed history. When the default active query is empty and no explicit `--s
 was given, the command falls back to listing closed beads. `--status`, `--type`, and
 `--tier` are repeatable.
 
-Compact rows lead with an aligned, colored type indicator ahead of the existing status
-glyph:
+Compact rows lead with aligned, colored type and size indicators ahead of the ID:
 
 ```
-{type_glyph}<pad> {status_glyph} {id} · {title}{ ← parent_id}
+{type_glyph}<pad> {status_glyph} {size_token}<pad> {id} · {title}{ ← parent_id}{  ⧖ age}
 ```
 
 ```
-▸ ◐ sase-bv · Attribute beads to the agent that created them
-◆ ◐ sase-bt · Fix xdist flake in artifact modal copy shortcut
-↳ ◐ sase-bv.3 · Record the creator on every bead creation path ← sase-bv
+▸ ◐    sase-bv · Attribute beads to the agent that created them  ⧖ 1d
+◆ ◐  S sase-bt · Fix xdist flake in artifact modal copy shortcut  ⧖ 1d
+↳ ◐  M sase-bv.3 · Record the creator on every bead creation path ← sase-bv  ⧖ 1d
 ```
 
-The fixed first column is the bead type; the second glyph is status. Type color is
-controlled by the same `-c, --color` option as the status and ID styles, and the icons
+The fixed first column is the bead type; the second glyph is status; the third fixed
+two-cell column is the stored phase/task size. The size column appears only when at
+least one listed bead has a stored size, stays blank for unsized rows, and collapses
+entirely for listings where no bead is sized. Type and size color are controlled by the
+same `-c, --color` option as the status and ID styles, and the icons and size tokens
 remain distinct without color. Tier (`plan` vs. `epic`) stays out of this column; it
 remains visible through `--tier`, `--format full`, and `--format json`.
 
@@ -1148,6 +1152,14 @@ remains visible through `--tier`, `--format full`, and `--format json`.
 | `plan`  | `▸`  | Plan-like container with a tier; may be a child epic |
 | `phase` | `↳`  | Sized executable child within an epic/plan bead      |
 | `task`  | `◆`  | Independent work item; new tasks require a size      |
+
+| Size Token | Stored Size |
+| ---------- | ----------- |
+| `XS`       | `xsmall`    |
+| `S`        | `small`     |
+| `M`        | `medium`    |
+| `L`        | `large`     |
+| `XL`       | `xlarge`    |
 
 | Flag           | Values                                                                | Description                                                                           |
 | -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -1203,7 +1215,9 @@ Show task beads whose explicit status is `ready` and whose dependencies are all
 `closed`. Epic work does not appear: phase beads are preassigned at epic launch rather
 than entering a derived ready queue. When no rows qualify, the command prints
 `No ready task beads (epic work is preassigned at launch).` A ready task with an active
-blocker remains stored as `ready` but is omitted until the blocker closes.
+blocker remains stored as `ready` but is omitted until the blocker closes. Rows use the
+same plain status/size gutter as compact list rows, including the collapsed size column
+when no ready bead has a stored size.
 
 ### `sase bead rm <id> [<id2> ...]`
 
@@ -1226,10 +1240,11 @@ phase/task size, Patch name/bug ID, status, type, and tier; timestamps are not s
 Unlike `sase bead list`, search includes `open`, `claimed`, `ready`, `in_progress`, and
 `closed` beads by default, so it is the quickest way to recover older context.
 
-Compact output prints each matching bead with a short snippet. For multi-line fields
-such as descriptions or notes, the snippet uses the line that matched the query when
-possible instead of always showing the first line. JSON output exposes the exact
-`matched_fields` list for each result.
+Compact output prints each matching bead with the same type/status/size gutter as
+`sase bead list`, followed by a short snippet. For multi-line fields such as
+descriptions or notes, the snippet uses the line that matched the query when possible
+instead of always showing the first line. JSON output exposes the exact `matched_fields`
+list for each result.
 
 ```bash
 sase bead search auth
@@ -1263,11 +1278,11 @@ print the hosted-agent link — only `sase bead show` does. Compact
 `sase bead list`/`sase bead search` rows never show the creator at all. Closed beads
 include their resolution, close reason, and close timestamp; legacy closures without a
 resolution show `(unrecorded)`. Phase and task detail views always print a size: they
-use the stored value when present and `small` when it is absent. Legacy sizeless task
-launches use the same `@small_phase_worker` fallback. Any bead's children are grouped as
-phases (with status and size) and child epics (with tier and status), including child
-epics owned by a phase bead. Nested beads show their complete lineage back to the root
-plan. A `claimed` bead also prints
+use the stored value when present and `small (default)` when it is absent. Legacy
+sizeless task launches use the same `@small_phase_worker` fallback. Any bead's children
+are grouped as phases (with status and size) and child epics (with tier and status),
+including child epics owned by a phase bead. Nested beads show their complete lineage
+back to the root plan. A `claimed` bead also prints
 `Claimed by: <assignee> (agent has not started working yet)`.
 
 Detail resolution — the target issue plus its ancestors, children, dependencies, and
@@ -1285,7 +1300,8 @@ twice.
 `children`, `depends_on`, `blocks`, and `plan`, plus `page_url` when a hosted page URL
 resolves and `created_by_url` when the creator's hosted agent page resolves; every
 relationship reference includes a `resolved` flag and fixed null-valued fields for
-unresolved IDs.
+unresolved IDs. The `issue.size` key is always present and is `null` for a bead with no
+stored size.
 
 `--format full` renders a semantically colored, syntax-highlighted detail block
 controlled by `-s/--style`. Styling is purely additive ANSI: stripping SGR escapes from
