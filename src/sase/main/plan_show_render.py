@@ -48,10 +48,10 @@ from sase.sdd.plan_display import (
     plan_phase_metadata,
     plan_provenance_rows,
 )
-from sase.sdd.plan_validate import LEGACY_TALE_LAUNCH_SIZE
 
 _LABEL_WIDTH = 12
 _TITLE_STYLE = "bold"
+_LEGACY_TALE_LAUNCH_SIZE = "medium"
 
 
 # --- PlanDisplay adapter ---------------------------------------------------
@@ -118,7 +118,7 @@ def _plan_size(plan: PlanShowPlan) -> tuple[PhaseSizeValue | None, bool]:
     if size is not None or "size" in plan.frontmatter:
         return size, False
     if plan.validation.ok:
-        return normalize_phase_size(LEGACY_TALE_LAUNCH_SIZE), True
+        return normalize_phase_size(_LEGACY_TALE_LAUNCH_SIZE), True
     return None, False
 
 

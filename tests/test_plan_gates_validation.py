@@ -77,13 +77,30 @@ def test_require_plan_approval_validation_rejects_malformed_header_block(
     assert "trailing text in PARENT plan header section" in str(error)
 
 
+@pytest.mark.parametrize(
+    ("content", "expected_code"),
+    [
+        pytest.param(
+            VALID_TALE_PLAN.replace("size: small\n", ""),
+            "tale-size-missing",
+            id="missing",
+        ),
+        pytest.param(
+            VALID_TALE_PLAN.replace("size: small", "size: large"),
+            "tale-size-invalid",
+            id="large",
+        ),
+    ],
+)
 def test_require_plan_approval_validation_launch_normalizes_legacy_tale_size(
     gate_home: Path,
+    content: str,
+    expected_code: str,
 ) -> None:
     plan = write_plan(
         gate_home,
         "legacy-tale.md",
-        VALID_TALE_PLAN.replace("size: small\n", ""),
+        content,
     )
 
     validation = require_plan_approval_validation(plan, "tale")
@@ -92,9 +109,7 @@ def test_require_plan_approval_validation_launch_normalizes_legacy_tale_size(
     assert [diagnostic.severity.value for diagnostic in validation.diagnostics] == [
         "warning"
     ]
-    assert [diagnostic.code for diagnostic in validation.diagnostics] == [
-        "tale-size-missing"
-    ]
+    assert [diagnostic.code for diagnostic in validation.diagnostics] == [expected_code]
     assert validation.plan is not None
     assert validation.plan.size == "medium"
 

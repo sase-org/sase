@@ -15,8 +15,6 @@ from typing import Any
 from sase.core.rust import require_rust_binding
 
 PLAN_WIRE_SCHEMA_VERSION = 3
-LEGACY_TALE_LAUNCH_SIZE = "medium"
-_LEGACY_TALE_LAUNCH_SIZE = LEGACY_TALE_LAUNCH_SIZE
 
 
 class PlanDiagnosticSeverity(StrEnum):
@@ -106,55 +104,11 @@ def validate_plan(
     diagnostics so callers receive every problem in one pass.
 
     ``mode`` defaults to strict authoring validation. Launch consumers may pass
-    ``"launch"`` to normalize missing legacy phase sizes to ``"small"`` and
-    missing legacy tale size to ``"medium"`` while retaining a warning.
+    ``"launch"`` to let core normalize legacy sizes while retaining warnings.
     """
     binding = require_rust_binding("plan_validate")
-    content, compatibility_diagnostics = _launch_mode_compatibility_content(
-        _content_for_core_plan_validator(content),
-        tier,
-        mode,
-    )
-    result = _validation_result_from_dict(binding(content, tier, mode))
-    if not compatibility_diagnostics:
-        return result
-    return PlanValidationResult(
-        schema_version=result.schema_version,
-        ok=result.ok,
-        diagnostics=(*compatibility_diagnostics, *result.diagnostics),
-        plan=result.plan,
-    )
-
-
-def _launch_mode_compatibility_content(
-    content: str,
-    tier: str,
-    mode: str,
-) -> tuple[str, tuple[PlanDiagnostic, ...]]:
-    """Apply Python-side launch compatibility until older core wheels catch up."""
-    if tier != "tale" or mode != "launch":
-        return content, ()
-
-    from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
-
-    frontmatter, _body, had_frontmatter = parse_frontmatter(content)
-    if not had_frontmatter or "size" in frontmatter:
-        return content, ()
-    return (
-        set_frontmatter_fields(content, {"size": _LEGACY_TALE_LAUNCH_SIZE}),
-        (
-            PlanDiagnostic(
-                severity=PlanDiagnosticSeverity.WARNING,
-                code="tale-size-missing",
-                field_path="size",
-                message=(
-                    "legacy tale field `size` is missing; treating the tale as "
-                    f"`{_LEGACY_TALE_LAUNCH_SIZE}` for launch"
-                ),
-                line=None,
-            ),
-        ),
-    )
+    content = _content_for_core_plan_validator(content)
+    return _validation_result_from_dict(binding(content, tier, mode))
 
 
 def _content_for_core_plan_validator(content: str) -> str:
@@ -314,7 +268,6 @@ def _file_error(
 
 
 __all__ = [
-    "LEGACY_TALE_LAUNCH_SIZE",
     "PLAN_WIRE_SCHEMA_VERSION",
     "PlanDiagnostic",
     "PlanDiagnosticSeverity",

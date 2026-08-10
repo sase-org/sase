@@ -47,8 +47,13 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # `pytest -m contract $(cat tests/contract_manifest.txt) -p no:randomly
 # --durations=0`, which is the same `--durations` aggregate the retired oracle
 # read. The set is still inside the 30 s serial budget the plan sets.
-_MANIFEST_ENTRY_BUDGET = 39
-_MEASURED_SERIAL_COST = "26.7 serial seconds across 39 entries"
+#
+# Re-curated to 40 on 2026-08-10 after `tests/test_sase_bead_tool.py`
+# received the contract marker; it guards the checked-in `sase` wrapper
+# smoke contract and measured at <1 s inside the refreshed set. The command
+# above passed in 24.69 s wall time on a contended host.
+_MANIFEST_ENTRY_BUDGET = 40
+_MEASURED_SERIAL_COST = "24.7 serial seconds across 40 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

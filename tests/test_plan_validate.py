@@ -105,6 +105,9 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
         "parent",
         "bead_id",
     ]
+    tale_fields = {field.name: field for field in plan_frontmatter_schema("tale")}
+    assert tale_fields["size"].field_type == "xsmall | small | medium"
+    assert "sase/memory/sase_sizes.md" in tale_fields["size"].description
 
 
 @pytest.mark.parametrize("size", ["xsmall", "small", "medium"])
@@ -114,6 +117,19 @@ def test_facade_accepts_canonical_direct_tale_sizes(size: str) -> None:
     assert result.ok
     assert result.plan is not None
     assert result.plan.size == size
+
+
+@pytest.mark.parametrize("size", ["large", "xlarge"])
+def test_facade_rejects_over_sized_tales_in_authoring_mode(size: str) -> None:
+    result = validate_plan(VALID_TALE.replace("size: small", f"size: {size}"), "tale")
+
+    assert not result.ok
+    assert result.plan is None
+    assert [
+        (diagnostic.severity, diagnostic.code) for diagnostic in result.diagnostics
+    ] == [(PlanDiagnosticSeverity.ERROR, "tale-size-invalid")]
+    assert result.diagnostics[0].field_path == "size"
+    assert "belongs in an epic plan" in result.diagnostics[0].message
 
 
 def test_tale_size_is_required_for_authoring_and_legacy_safe_for_launch() -> None:
@@ -133,6 +149,25 @@ def test_tale_size_is_required_for_authoring_and_legacy_safe_for_launch() -> Non
     assert [diagnostic.code for diagnostic in launch.diagnostics] == [
         "tale-size-missing"
     ]
+    assert launch.plan is not None
+    assert launch.plan.size == "medium"
+
+
+@pytest.mark.parametrize("size", ["large", "xlarge"])
+def test_legacy_over_sized_tale_is_normalized_for_launch(size: str) -> None:
+    content = VALID_TALE.replace("size: small", f"size: {size}")
+
+    launch = validate_plan(content, "tale", mode="launch")
+
+    assert launch.ok
+    assert [diagnostic.severity for diagnostic in launch.diagnostics] == [
+        PlanDiagnosticSeverity.WARNING
+    ]
+    assert [diagnostic.code for diagnostic in launch.diagnostics] == [
+        "tale-size-invalid"
+    ]
+    assert size in launch.diagnostics[0].message
+    assert "`medium` for launch" in launch.diagnostics[0].message
     assert launch.plan is not None
     assert launch.plan.size == "medium"
 
@@ -469,6 +504,7 @@ def test_epic_failure_renders_size_parent_schema_and_minimal_example(
     assert fields["phases[].size"]["type"] == "xsmall | small | medium | large | xlarge"
     assert fields["phases[].size"]["required"] is True
     assert fields["phases[].size"]["example"] == "small"
+    assert "sase/memory/sase_sizes.md" in fields["phases[].size"]["description"]
     assert fields["parent_bead"]["required"] is False
     assert fields["parent_bead"]["example"] == "sase-7z.1"
     assert "  size: small" in payload["expected_schema"]["example"]
@@ -570,6 +606,11 @@ def test_failure_json_envelope_has_core_parity(
     assert title_error["line"] == 3
     assert payload["expected_schema"]["fields"][0]["type"] == "tale | epic"
     assert "field_type" not in payload["expected_schema"]["fields"][0]
+    tale_fields = {
+        field["name"]: field for field in payload["expected_schema"]["fields"]
+    }
+    assert tale_fields["size"]["type"] == "xsmall | small | medium"
+    assert "sase/memory/sase_sizes.md" in tale_fields["size"]["description"]
     assert payload["expected_schema"]["example"].startswith("---\ntier: tale")
     assert (
         "title: Ship the requested capability" in payload["expected_schema"]["example"]
