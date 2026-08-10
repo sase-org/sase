@@ -18,6 +18,10 @@ from sase.ace.patch import (
 from sase.directory_map_assets import DIRECTORY_MAP_ASSET_OVERRIDE_ENV
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
+from tests._global_state_leak_detector import (
+    pytest_addoption as _add_global_state_leak_detector_options,
+    register_global_state_leak_detector,
+)
 from tests._tmp_leak_guard import (
     check_tmp_env_leak_guard,
     finish_tmp_leak_guard,
@@ -103,6 +107,7 @@ def project_display_case() -> ProjectDisplayCase:
 def pytest_configure(config: pytest.Config) -> None:
     """Acquire host-global worker tokens for an xdist controller."""
     configure_suite_gate(config)
+    register_global_state_leak_detector(config)
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
@@ -206,6 +211,7 @@ def _restore_hypothesis_local_constant_prescan() -> None:
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
+    _add_global_state_leak_detector_options(parser)
     parser.addoption(
         "--sase-update-agents-goldens",
         action="store_true",
