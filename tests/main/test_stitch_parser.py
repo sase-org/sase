@@ -301,6 +301,134 @@ class TestStitchParser:
         )
 
 
+class TestStitchCreateParser:
+    def test_create_defaults(self) -> None:
+        ns = parse_sase_args(["stitch", "create"])
+
+        assert ns.stitch_subcommand == "create"
+        assert ns.message is None
+        assert ns.message_file is None
+        assert ns.files == []
+        assert ns.name is None
+        assert ns.bug_id == 0
+        assert ns.do_not_close_bead is False
+        assert ns.checkout_target == "HEAD~1"
+        assert ns.parent is None
+        assert ns.status is None
+        assert ns.method is None
+        assert ns.resume is False
+
+    def test_create_message_flags_are_mutually_exclusive(self) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            parse_sase_args(["stitch", "create", "-m", "hi", "-M", "msg.txt"])
+
+        assert excinfo.value.code == 2
+
+    def test_create_file_is_repeatable(self) -> None:
+        ns = parse_sase_args(["stitch", "create", "-f", "a.py", "--file", "b.py"])
+
+        assert ns.files == ["a.py", "b.py"]
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("create_commit", "create_commit"),
+            ("create_proposal", "create_proposal"),
+            ("create_pull_request", "create_pull_request"),
+            ("commit", "commit"),
+            ("propose", "propose"),
+            ("pr", "pr"),
+        ],
+    )
+    def test_create_type_accepts_canonical_methods_and_aliases(
+        self, value: str, expected: str
+    ) -> None:
+        ns = parse_sase_args(["stitch", "create", "-t", value])
+
+        assert ns.method == expected
+
+    def test_create_rejects_unknown_type(self) -> None:
+        with pytest.raises(SystemExit):
+            parse_sase_args(["stitch", "create", "-t", "bogus"])
+
+    def test_create_resume_flag(self) -> None:
+        ns = parse_sase_args(["stitch", "create", "-r"])
+
+        assert ns.resume is True
+
+    def test_create_short_flags_do_not_disturb_log_or_list_short_flags(self) -> None:
+        create_ns = parse_sase_args(["stitch", "create", "-r", "-b", "7", "-c", "main"])
+        log_ns = parse_sase_args(["stitch", "log", "-r", "sase-core", "-b", "main"])
+        list_ns = parse_sase_args(["stitch", "list", "-c", "never"])
+
+        assert create_ns.resume is True
+        assert create_ns.bug_id == 7
+        assert create_ns.checkout_target == "main"
+
+        assert log_ns.repos == ["sase-core"]
+        assert log_ns.remote_ref == "main"
+
+        assert list_ns.color == "never"
+
+    def test_bare_stitch_still_defaults_to_list_with_create_present(self) -> None:
+        ns = parse_sase_args(["stitch"])
+
+        assert ns.stitch_subcommand == "list"
+
+    def test_unknown_subcommand_usage_string_names_create(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from sase.main.stitch_handler import handle_stitch_command
+
+        ns = argparse.Namespace(stitch_subcommand="bogus")
+        with pytest.raises(SystemExit):
+            handle_stitch_command(ns)
+
+        assert "Usage: sase stitch {create,list,log}" in capsys.readouterr().err
+
+    def test_commit_and_stitch_create_parse_to_equivalent_namespaces(self) -> None:
+        argv = [
+            "-M",
+            "msg.txt",
+            "-f",
+            "a.py",
+            "-f",
+            "b.py",
+            "-n",
+            "feature",
+            "-b",
+            "7",
+            "-B",
+            "-c",
+            "main",
+            "-p",
+            "parent_feature",
+            "-s",
+            "ready",
+            "-t",
+            "pr",
+        ]
+
+        commit_ns = parse_sase_args(["commit", *argv])
+        create_ns = parse_sase_args(["stitch", "create", *argv])
+
+        shared_keys = (
+            "message",
+            "message_file",
+            "files",
+            "name",
+            "bug_id",
+            "do_not_close_bead",
+            "checkout_target",
+            "parent",
+            "status",
+            "method",
+            "resume",
+        )
+        for key in shared_keys:
+            assert getattr(commit_ns, key) == getattr(create_ns, key), key
+
+
 class TestStitchHandlerDispatch:
     def test_legacy_vcs_modules_export_legacy_names(self) -> None:
         from sase.main import parser_vcs, vcs_handler

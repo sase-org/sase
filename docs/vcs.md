@@ -2,7 +2,7 @@
 
 The **VCS provider layer** is an abstraction that lets sase commands work with both
 **Git** and **Mercurial** repositories. Commands and workflows that touch version
-control, including `sase commit`, `sase ace`, `sase axe`, `sase revert`, and
+control, including `sase stitch create`, `sase ace`, `sase axe`, `sase revert`, and
 `sase restore`, delegate to a provider interface rather than calling VCS commands
 directly.
 
@@ -56,8 +56,8 @@ The hooks are organized into several groups:
 - **Commit dispatch** — `vcs_create_commit`, `vcs_create_proposal`,
   `vcs_create_pull_request` (the three commit workflow methods dispatched by
   `CommitWorkflow`), plus `vcs_finalize_commit` (replays idempotent post-commit work —
-  bead amend, push-with-retry — when `sase commit --resume` finishes a workflow whose
-  dispatch was interrupted by a merge conflict; plugins that cannot safely replay
+  bead amend, push-with-retry — when `sase stitch create --resume` finishes a workflow
+  whose dispatch was interrupted by a merge conflict; plugins that cannot safely replay
   finalization can leave this unimplemented, and the workflow will only replay its
   tracking steps). See [commit_workflows.md](commit_workflows.md#resume-after-conflict).
 - **VCS-agnostic operations** — `vcs_abandon_change`,
@@ -92,13 +92,13 @@ The `SASE_VCS_PROVIDER` environment variable takes highest priority.
 
 ```bash
 # Force the Git provider family; GitHub remotes are reclassified when the plugin is installed.
-SASE_VCS_PROVIDER=git sase commit my_feature
+SASE_VCS_PROVIDER=git sase stitch create my_feature
 
 # Force hg provider
 SASE_VCS_PROVIDER=hg sase ace
 
 # Defer to next tier
-SASE_VCS_PROVIDER=auto sase commit my_feature
+SASE_VCS_PROVIDER=auto sase stitch create my_feature
 ```
 
 The `--vcs-provider` CLI flag on `sase ace` and `sase axe` sets this variable
@@ -284,10 +284,11 @@ or `YYYY-MM-DDTHH:MM`. Dates are resolved in the configured SASE timezone and pu
 into the provider query before the limit is applied, so filtered top-N results do not
 silently miss matching commits.
 
-### `sase commit`
+### `sase stitch create`
 
 Dispatches to one of three VCS methods (`create_commit`, `create_proposal`,
-`create_pull_request`) via the `CommitWorkflow` orchestrator. See
+`create_pull_request`) via the `CommitWorkflow` orchestrator. `sase commit` remains
+accepted as a deprecated alias for this subcommand. See
 [`docs/commit_workflows.md`](commit_workflows.md) for the full workflow reference.
 
 **Key VCS operations used:**
@@ -304,9 +305,9 @@ Dispatches to one of three VCS methods (`create_commit`, `create_proposal`,
 Common CLI forms:
 
 ```bash
-sase commit -m "Update parser"                         # create_commit
-sase commit -t propose -m "Try parser cleanup"         # create_proposal
-sase commit -t pr -n parser_cleanup -m "Update parser" # create_pull_request
+sase stitch create -m "Update parser"                         # create_commit
+sase stitch create -t propose -m "Try parser cleanup"         # create_proposal
+sase stitch create -t pr -n parser_cleanup -m "Update parser" # create_pull_request
 ```
 
 ### `sase ace` TUI Actions
@@ -374,7 +375,7 @@ Restores a previously reverted Patch.
 
 1. Checkout parent or default branch via `checkout()`
 2. Apply stashed diff via `apply_patch()`
-3. Run `sase commit` to re-create the commit
+3. Run `sase stitch create` to re-create the commit
 
 | Operation   | Git                     | Mercurial                      |
 | ----------- | ----------------------- | ------------------------------ |
@@ -431,7 +432,7 @@ Standalone command to restore a reverted Patch:
 
 1. Checkout parent (or default branch) via `checkout()`
 2. Apply saved diff via `apply_patch()` from `~/.sase/reverted/` or `~/.sase/archived/`
-3. Run `sase commit` to re-create the commit
+3. Run `sase stitch create` to re-create the commit
 
 ## Git Provider Details
 
@@ -668,7 +669,7 @@ vcs_provider:
 
 ```bash
 # Override VCS provider for a single command
-SASE_VCS_PROVIDER=git sase commit my_feature
+SASE_VCS_PROVIDER=git sase stitch create my_feature
 
 # Set for the entire shell session
 export SASE_VCS_PROVIDER=hg
@@ -773,7 +774,7 @@ because no plugin claimed it and `origin` was missing or unreadable.
 explicitly:
 
 ```bash
-SASE_VCS_PROVIDER=git sase commit my_feature
+SASE_VCS_PROVIDER=git sase stitch create my_feature
 ```
 
 ### GitHub: `gh` CLI Not Installed
@@ -784,7 +785,7 @@ GitHub PR operations (`get_change_url`, `mail`, `get_pr_number`) require the
 
 **Symptoms:**
 
-- `sase commit` completes but reports "Failed to retrieve change URL"
+- `sase stitch create` completes but reports "Failed to retrieve change URL"
 - `sase ace` mail action fails with "gh pr create failed"
 - No PR URL shown after commit
 

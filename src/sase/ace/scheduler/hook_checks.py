@@ -516,7 +516,7 @@ def check_hooks(
 
     # Update the HOOKS field in the file only if there were actual changes
     # Use merge_hook_updates to preserve hooks added by other processes
-    # (e.g., sase commit adding test hooks while we're updating statuses)
+    # (e.g., sase stitch create adding test hooks while we're updating statuses)
     if modified_hooks:
         success = merge_hook_updates(
             patch.file_path,

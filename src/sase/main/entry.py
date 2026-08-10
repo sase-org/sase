@@ -172,7 +172,7 @@ def main() -> NoReturn:
         handle_comments_command(args)
 
     # --- commit ---
-    if args.command == "commit":
+    if args.command == "commit":  # legacy command alias for `sase stitch create`
         from .commit_handler import handle_commit_command
 
         handle_commit_command(args)

@@ -91,7 +91,7 @@ def _safety_args() -> list[str]:
     """Return the safety flags for this run's sandbox mode.
 
     Muse's sandbox makes ``.git``, ``.muse``, and ``.agents`` read-only inside
-    the workspace root, which breaks any in-run ``sase commit`` the agent
+    the workspace root, which breaks any in-run ``sase stitch create`` the agent
     performs through the ``sase_git_commit`` skill. The default therefore
     disables it, matching what SASE already does for Codex and OpenCode.
     ``SASE_MUSE_SANDBOX=on`` keeps the sandbox with networking enabled, which

@@ -53,7 +53,7 @@ def run_agent_publication_step(
             print_status(
                 "The primary commit succeeded, but its immutable revision "
                 f"could not be resolved for agent publication: {exc}. "
-                "Run `sase commit --resume` to retry without creating "
+                "Run `sase stitch create --resume` to retry without creating "
                 "another primary commit.",
                 "error",
             )
@@ -62,7 +62,7 @@ def run_agent_publication_step(
             print_status(
                 "The primary commit succeeded, but the VCS provider did "
                 "not return an immutable revision. Run "
-                "`sase commit --resume` to retry without creating another "
+                "`sase stitch create --resume` to retry without creating another "
                 "primary commit.",
                 "error",
             )
@@ -81,11 +81,11 @@ def run_agent_publication_step(
             )
         except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary
             # The archive never reached the durable queue, so no later pass
-            # knows it is owed. Stop here and let `sase commit --resume` retry.
+            # knows it is owed. Stop here and let `sase stitch create --resume` retry.
             print_status(
                 "The primary commit succeeded, but prompt archive publication "
                 f"failed before a retry could be confirmed: {exc}. Run "
-                "`sase commit --resume` to retry without creating another "
+                "`sase stitch create --resume` to retry without creating another "
                 "primary commit.",
                 "error",
             )
@@ -94,7 +94,7 @@ def run_agent_publication_step(
             print_status(
                 "The primary commit succeeded, but prompt archive publication "
                 f"could not be queued: {prompt_outcome.error}. Run "
-                "`sase commit --resume` to retry without creating another "
+                "`sase stitch create --resume` to retry without creating another "
                 "primary commit.",
                 "error",
             )
@@ -133,7 +133,7 @@ def run_agent_publication_step(
         print_status(
             "The primary commit succeeded, but agent publication failed "
             f"before a retry could be confirmed: {exc}. Run "
-            "`sase commit --resume` to retry without creating another "
+            "`sase stitch create --resume` to retry without creating another "
             "primary commit.",
             "error",
         )
@@ -141,7 +141,7 @@ def run_agent_publication_step(
     if outcome.error and not outcome.queued and not outcome.skip_reason:
         print_status(
             "The primary commit succeeded, but agent publication could "
-            f"not be queued: {outcome.error}. Run `sase commit --resume` "
+            f"not be queued: {outcome.error}. Run `sase stitch create --resume` "
             "to retry without creating another primary commit.",
             "error",
         )

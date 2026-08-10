@@ -1,14 +1,14 @@
 ---
 name: sase_git_commit
 description:
-  Commit changes using sase commit for git-based VCS (bare git and GitHub). This is the
-  ONLY way you should EVER commit to git repos. NEVER invoke this skill unless the user
-  explicitly asks you to commit or a post-completion finalizer triggers it.
+  Commit changes using sase stitch create for git-based VCS (bare git and GitHub). This
+  is the ONLY way you should EVER commit to git repos. NEVER invoke this skill unless
+  the user explicitly asks you to commit or a post-completion finalizer triggers it.
 skill: true
 ---
 
 Commit changes via the `sase_git_commit` wrapper. The wrapper records skill invocation
-evidence, then delegates to `sase commit`.
+evidence, then delegates to `sase stitch create`.
 
 ## Instructions
 
@@ -34,7 +34,7 @@ evidence, then delegates to `sase commit`.
    - `revert` — Reverts a previous commit; reference the reverted commit in the message body.
    - `chore` — Maintenance that fits none of the tags above, such as tooling config, housekeeping, or asset updates.
 
-   Picking a tag is mandatory, not advisory: `sase commit` **rejects** a message whose subject line is not a
+   Picking a tag is mandatory, not advisory: `sase stitch create` **rejects** a message whose subject line is not a
    conventional header, before it syncs any bead or runs any hook. If that happens, rewrite the subject in the same
    `-M` message file (which is preserved on failure) and re-run the identical command — do not disable the check.
 
@@ -60,7 +60,7 @@ evidence, then delegates to `sase commit`.
    `mkdir -p .sase`) — do not rely on a file-writing tool to auto-create parent directories. `.sase/` is git-ignored in
    every SASE-managed checkout, so this temporary file never shows up as an uncommitted change to the post-completion
    commit finalizer and can never be swept into a whole-repository commit. **NEVER mention "{{ provider_name }}"{% if provider_name != provider_tool_name %} or "{{ provider_tool_name }}"{% endif %}** — write as if a human authored the commit.
-   Do not preemptively stash, fast-forward, pull, or hand-sync before committing; `sase commit` commits first, rebases
+   Do not preemptively stash, fast-forward, pull, or hand-sync before committing; `sase stitch create` commits first, rebases
    automatically, and handles mechanical bead-store conflicts.
 
 4. **Run the commit** — Execute:
@@ -94,7 +94,7 @@ evidence, then delegates to `sase commit`.
    - `2`: A rebase is paused for a real conflict. Do not re-run the original command while the rebase is paused; use the
      recovery flow below.
 
-5. **Verify clean and pushed** — For git repos, `sase_git_commit` delegates to `sase commit`, which normally pushes
+5. **Verify clean and pushed** — For git repos, `sase_git_commit` delegates to `sase stitch create`, which normally pushes
    commits as part of the `create_commit` workflow. After it exits successfully, run:
 
    ```bash
@@ -133,7 +133,7 @@ and finalize:
    repeat steps 1–4 until clean.
 5. **Verify the working tree is clean**: `git status` should show "nothing to commit,
    working tree clean".
-6. **Finalize the sase commit**: Run `sase_git_commit --resume`. This replays the
+6. **Finalize the sase stitch create**: Run `sase_git_commit --resume`. This replays the
    post-commit bookkeeping (push, Patch row, STITCHES entry, result marker) and exits 0
    on success.
 

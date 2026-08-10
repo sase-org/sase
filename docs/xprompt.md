@@ -1140,7 +1140,7 @@ directive (see below). Recorded skill uses can be summarized and inspected with
 # sase/skills/sase_git_commit.md
 name: sase_git_commit
 skill: true
-description: Commit changes using sase commit for git-based VCS
+description: Commit changes using sase stitch create for git-based VCS
 ---
 
 Commit instructions here...
@@ -1257,7 +1257,7 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_changespecs`   | Legacy compatibility shim that points agents to `sase_patches`                                |
 | `sase_chats`         | Inspect prior SASE agent prompts and responses                                                |
 | `sase_gate`          | Create a durable custom confirmation gate for a proposed command or decision                  |
-| `sase_git_commit`    | Commit through `sase commit` for git and GitHub workflows                                     |
+| `sase_git_commit`    | Commit through `sase stitch create` for git and GitHub workflows                              |
 | `sase_hg_commit`     | Commit through `sase commit` for the fig VCS workflow where deployed                          |
 | `sase_memory_read`   | Perform audited long-term memory reads through `sase memory read`                             |
 | `sase_notify`        | Inspect SASE notifications and notification inbox entries                                     |

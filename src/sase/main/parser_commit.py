@@ -2,14 +2,16 @@
 
 import argparse
 
+from sase.commit_methods import METHOD_ALIASES, VALID_METHODS
 
-def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the 'commit' subcommand parser."""
-    commit_parser = subparsers.add_parser(
-        "commit",
-        help="Dispatch a VCS commit operation",
-    )
-    msg_group = commit_parser.add_mutually_exclusive_group()
+
+def add_commit_create_options(parser: argparse.ArgumentParser) -> None:
+    """Add the shared commit/proposal/PR dispatch flags to *parser*.
+
+    Shared by the top-level ``sase commit`` legacy alias and the canonical
+    ``sase stitch create`` subcommand so the two spellings cannot drift.
+    """
+    msg_group = parser.add_mutually_exclusive_group()
     msg_group.add_argument(
         "-m",
         "--message",
@@ -20,7 +22,7 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         "--message-file",
         help="Path to file containing the commit message / PR description",
     )
-    commit_parser.add_argument(
+    parser.add_argument(
         "-f",
         "--file",
         action="append",
@@ -28,53 +30,51 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="files",
         help="File to stage (repeat for multiple; omit to stage all changes)",
     )
-    commit_parser.add_argument(
+    parser.add_argument(
         "-n",
         "--name",
         help="Branch/Patch name (required for create_pull_request)",
     )
-    commit_parser.add_argument(
+    parser.add_argument(
         "-b",
         "--bug-id",
         type=int,
         default=0,
         help="Bug ID to associate with the commit (overrides $SASE_BUG_ID)",
     )
-    commit_parser.add_argument(
+    parser.add_argument(
         "-B",
         "--do-not-close-bead",
         action="store_true",
         dest="do_not_close_bead",
         help="Do not auto-close the assigned in-progress task bead after commit",
     )
-    commit_parser.add_argument(
+    parser.add_argument(
         "-c",
         "--checkout-target",
         default="HEAD~1",
         help="Branch point for create_pull_request (default: HEAD~1)",
     )
-    commit_parser.add_argument(
+    parser.add_argument(
         "-p",
         "--parent",
         help="Parent Patch name (overrides auto-detection from current branch)",
     )
-    commit_parser.add_argument(
+    parser.add_argument(
         "-s",
         "--status",
         type=str.lower,
         choices=["wip", "draft", "ready"],
         help="Patch status (overrides $SASE_PR_STATUS; default: draft)",
     )
-    from sase.workflows.commit.workflow import METHOD_ALIASES, VALID_METHODS
-
-    commit_parser.add_argument(
+    parser.add_argument(
         "-t",
         "--type",
         dest="method",
         choices=[*VALID_METHODS, *METHOD_ALIASES],
         help="Commit method (default: $SASE_COMMIT_METHOD or create_commit)",
     )
-    commit_parser.add_argument(
+    parser.add_argument(
         "-r",
         "--resume",
         action="store_true",
@@ -83,6 +83,15 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
             "resolution. When set, -m/-M/-f and other commit args are ignored."
         ),
     )
+
+
+def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'commit' subcommand parser."""
+    commit_parser = subparsers.add_parser(
+        "commit",
+        help="Dispatch a VCS commit operation (legacy alias for `sase stitch create`)",
+    )
+    add_commit_create_options(commit_parser)
 
 
 def register_restore_parser(subparsers: argparse._SubParsersAction) -> None:

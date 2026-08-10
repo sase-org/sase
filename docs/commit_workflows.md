@@ -1,9 +1,9 @@
 # Commit Workflows
 
 Sase provides three unified workflows for landing code changes: **commit**, **propose**,
-and **pull request**. All three share the same PatchI command (`sase commit`), the same
-`CommitWorkflow` orchestrator, and the same VCS provider abstraction, but differ in what
-they produce and how they track the result.
+and **pull request**. All three share the same PatchI command (`sase stitch create`),
+the same `CommitWorkflow` orchestrator, and the same VCS provider abstraction, but
+differ in what they produce and how they track the result.
 
 ## Overview
 
@@ -26,7 +26,7 @@ Provider-neutral commit finalizer
 Commit skill wrapper (/sase_git_commit, /sase_hg_commit, ...)
         |
         v
-sase commit -> CommitWorkflow -> VCS provider -> tracked output
+sase stitch create -> CommitWorkflow -> VCS provider -> tracked output
 ```
 
 ## How It Works
@@ -68,8 +68,9 @@ There is one special case before the normal enforced-work follow-up path:
   repos are enforced after they are opened.
 
 Generated skills normally run an observable wrapper such as `sase_git_commit`, which
-records skill invocation evidence and then delegates to `sase commit`. A typical Git
-skill invocation omits `--type` because the xprompt already set `SASE_COMMIT_METHOD`:
+records skill invocation evidence and then delegates to `sase stitch create`. A typical
+Git skill invocation omits `--type` because the xprompt already set
+`SASE_COMMIT_METHOD`:
 
 ```bash
 sase_git_commit -M .sase/commit_message.md -f src/example.py
@@ -80,9 +81,9 @@ in every SASE-managed checkout, so the temporary file can never trip the commit
 finalizer's dirty check.
 
 The low-level equivalent is
-`sase commit -M .sase/commit_message.md -f src/example.py -t <method>`. The method
-defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the environment
-and `-t/--type` are set, they must resolve to the same method unless
+`sase stitch create -M .sase/commit_message.md -f src/example.py -t <method>`. The
+method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the
+environment and `-t/--type` are set, they must resolve to the same method unless
 `SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1` is set.
 
 If `SASE_BEAD_ID` is set, the finalizer first asks the agent to decide whether the
@@ -189,9 +190,9 @@ message is not a Conventional Commit (`<type>[(<scope>)][!]: <description>`), th
 workflow fails with an actionable error and nothing else has run — no bead is closed for
 a commit that never happened. Merge, revert, and fixup subjects are exempt; empty
 messages are rejected. The failure is recorded on the `commit_failed` run-log event with
-`reason="invalid_message"`, and `sase commit` preserves the `-M` message file so the
-same command can be re-run after the subject is rewritten. Configure the gate through
-`commit.message` (see [Configuration](configuration.md#commitmessage)).
+`reason="invalid_message"`, and `sase stitch create` preserves the `-M` message file so
+the same command can be re-run after the subject is rewritten. Configure the gate
+through `commit.message` (see [Configuration](configuration.md#commitmessage)).
 
 For PRs, the subject is validated exactly as the agent authored it.
 `vcs_provider.use_project_pr_prefix: true` prepends a `[project] ` prefix to the PR
@@ -208,19 +209,19 @@ the completed agent run into agent metadata, it adds canonical `meta_patch` and 
 
 ## CLI Inputs and Internal Payload
 
-The `sase commit` CLI builds an internal `CommitWorkflow` payload from flags. It does
-**not** accept a positional JSON payload.
+The `sase stitch create` CLI builds an internal `CommitWorkflow` payload from flags. It
+does **not** accept a positional JSON payload.
 
 Typical commit or proposal:
 
 ```bash
-sase commit -M .sase/commit_message.md -f src/auth.py -f src/login.py -t commit
+sase stitch create -M .sase/commit_message.md -f src/auth.py -f src/login.py -t commit
 ```
 
 Typical PR:
 
 ```bash
-sase commit -M .sase/pr_description.md -n feature_branch -b 12345 -s ready -t pr
+sase stitch create -M .sase/pr_description.md -n feature_branch -b 12345 -s ready -t pr
 ```
 
 The internal payload has this shape:
@@ -238,13 +239,14 @@ The CLI maps `-m` / `-M` to `message`, repeated `-f` flags to `files`, `-n` to `
 `parent`, and `-s` to `status`. Omitted `-f` means "stage all changes" and is
 represented as an empty `files` list.
 
-Bead association is not a user-supplied CLI flag. For new commit attempts, `sase commit`
-reads `SASE_BEAD_ID`; when it is set, the CLI adds that bead to the workflow payload,
-and `CommitWorkflow` leaves the subject unchanged while adding `SASE_BEAD=<id>` as the
-first structured footer tag. When the project's beads sidecar is hosted on GitHub, the
-tag is a Markdown reference link to the bead's generated page in the `--beads`
-repository; otherwise it remains the bare ID. Resolution is local-only and best-effort.
-Conflict resumes reuse the already-tagged message captured in the original checkpoint.
+Bead association is not a user-supplied CLI flag. For new commit attempts,
+`sase stitch create` reads `SASE_BEAD_ID`; when it is set, the CLI adds that bead to the
+workflow payload, and `CommitWorkflow` leaves the subject unchanged while adding
+`SASE_BEAD=<id>` as the first structured footer tag. When the project's beads sidecar is
+hosted on GitHub, the tag is a Markdown reference link to the bead's generated page in
+the `--beads` repository; otherwise it remains the bare ID. Resolution is local-only and
+best-effort. Conflict resumes reuse the already-tagged message captured in the original
+checkpoint.
 
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and
 `create_pull_request`, `CommitWorkflow` appends or updates a trailing
@@ -271,7 +273,7 @@ attempting publication. The attempt also drains older requests for the project. 
 failure after enqueueing does not invalidate the primary commit; the request remains for
 a later agent commit or full `sase agent sync`. Target-resolution and outbox-persistence
 failures occur before that durability guarantee, so they can instead skip publication or
-require `sase commit --resume`.
+require `sase stitch create --resume`.
 
 **Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `BEAD`, `AGENT`,
 `PLAN`, `BUG`, and any configured or inherited PR tag keys) are written with a `SASE_`
@@ -478,9 +480,9 @@ states:
 | `FAILED`   | `1`       | Failure; an after-hook failure keeps its post-dispatch checkpoint for resume. |
 | `CONFLICT` | `2`       | VCS dispatch hit a merge conflict; a checkpoint is left on disk for resume.   |
 
-The `sase commit` CLI propagates these states to its process exit code, so wrapper
-skills (`/sase_git_commit`) can branch on `$?` to distinguish a real failure from a
-conflict that the user needs to resolve.
+The `sase stitch create` CLI propagates these states to its process exit code, so
+wrapper skills (`/sase_git_commit`) can branch on `$?` to distinguish a real failure
+from a conflict that the user needs to resolve.
 
 ## Resume after Conflict
 
@@ -506,16 +508,16 @@ SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running unde
    is retained and the CLI prints:
 
    > `create_commit` hit a merge conflict: ... Resolve the conflict, then run
-   > `sase commit --resume` to finish.
+   > `sase stitch create --resume` to finish.
 
-**Resume flow (`sase commit --resume`):**
+**Resume flow (`sase stitch create --resume`):**
 
 1. Load the checkpoint from disk (if missing, the command errors out).
 2. Re-check the working tree for conflict markers — if they're still present, refuse to
    continue with `CONFLICT`.
 3. Verify the commit at `HEAD` matches the subject line from the checkpointed message.
-   If it doesn't, abort with `FAILED`; the user is expected to re-run `sase commit` from
-   scratch rather than resume into a foreign commit.
+   If it doesn't, abort with `FAILED`; the user is expected to re-run
+   `sase stitch create` from scratch rather than resume into a foreign commit.
 4. If dispatch was not already completed, call the provider's `vcs_finalize_commit` hook
    to replay idempotent post-commit work (bead amend, push with retry), then checkpoint
    dispatch completion.
@@ -531,9 +533,9 @@ back to the user rather than retry blindly.
 
 An after-hook failure also uses this resume path: the commit may already be pushed, so
 creating a new commit would risk duplication. Fix the hook and run
-`sase commit --resume`; dispatch/finalization is skipped because its completed step is
-already recorded. After hooks should be repeatable because a crash between command
-success and checkpoint persistence has at-least-once execution semantics.
+`sase stitch create --resume`; dispatch/finalization is skipped because its completed
+step is already recorded. After hooks should be repeatable because a crash between
+command success and checkpoint persistence has at-least-once execution semantics.
 
 ## Environment Variables
 

@@ -24,7 +24,8 @@ def test_wrapper_writes_invocation_marker_before_delegating(tmp_path: Path) -> N
     fake_sase.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        '[[ "$1" == "commit" ]]\n'
+        '[[ "$1" == "stitch" ]]\n'
+        '[[ "$2" == "create" ]]\n'
         '[[ -f "${SASE_ARTIFACTS_DIR}/commit_skill_invoked.json" ]]\n'
         'printf \'%s\\n\' "$@" >"${SASE_ARTIFACTS_DIR}/fake_sase_args.txt"\n',
         encoding="utf-8",
@@ -72,7 +73,8 @@ def test_wrapper_writes_invocation_marker_before_delegating(tmp_path: Path) -> N
     assert marker["raw_env_method"] == "propose"
     assert marker["wrapper"] == "sase_git_commit"
     assert (artifacts_dir / "fake_sase_args.txt").read_text().splitlines() == [
-        "commit",
+        "stitch",
+        "create",
         "-M",
         "commit_message.md",
         "-f",

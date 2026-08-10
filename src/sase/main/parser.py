@@ -243,7 +243,7 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
     ),
     _CompactRootCommand(
         "stitch",
-        "Inspect primary, linked, and SDD repos, or show their stitch timeline.",
+        "Dispatch a commit, proposal, or PR; inspect repos or their stitch timeline.",
     ),
     _CompactRootCommand(
         "workspace",

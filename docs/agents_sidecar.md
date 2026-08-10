@@ -79,12 +79,13 @@ half-rendered hood.
 ## Prompt and artifact archive
 
 The agents sidecar is also the canonical home for prompts published by agent-backed
-commits and approved planner runs. After the primary commit succeeds, `sase commit`
-publishes the committing run's prompt to `prompts/<YYYYMM>/<name>.md` inline, before
-returning. Approving a planner's tale or epic publishes a separate, plan-named entry
-before SASE continues with the plan write or epic handoff. Plan-backed entries use the
-plan slug as the filename; entries without a plan use the publishing agent's global lane
-name. Each prompt document has the same header-block grammar as plans:
+commits and approved planner runs. After the primary commit succeeds,
+`sase stitch create` publishes the committing run's prompt to
+`prompts/<YYYYMM>/<name>.md` inline, before returning. Approving a planner's tale or
+epic publishes a separate, plan-named entry before SASE continues with the plan write or
+epic handoff. Plan-backed entries use the plan slug as the filename; entries without a
+plan use the publishing agent's global lane name. Each prompt document has the same
+header-block grammar as plans:
 
 - `PLAN` links back to the plans sidecar when the run has a plan.
 - `AGENTS` links to the published agent page for the run.
@@ -145,10 +146,10 @@ marker, the commit workflow resolves the project's agents target. When that targ
 available, SASE records an outbox request for the exact hood and immediately drains it
 under the bounded agents lock, so the commit does not return until the hood is published
 and pushed (or the request is confirmed queued for retry). A publication that cannot
-even be queued fails the commit with a `sase commit --resume` hint; a request that
-survives the immediate drain — because of a transient, hood-specific, or repository-wide
-failure — prints a warning naming the recovery command and is retried by a later
-commit's drain or by an explicit `sase agent sync`. See
+even be queued fails the commit with a `sase stitch create --resume` hint; a request
+that survives the immediate drain — because of a transient, hood-specific, or
+repository-wide failure — prints a warning naming the recovery command and is retried by
+a later commit's drain or by an explicit `sase agent sync`. See
 [runtime provenance and publication](commit_workflows.md#cli-inputs-and-internal-payload).
 
 Published runs that are temporarily missing from local inventory are retained. New
@@ -345,14 +346,15 @@ before it returns. Bead-page rendering, prompt-archive publication, and plan-hea
 refresh are separate synchronous steps on the commit path — they are not outbox request
 kinds. Prompt-archive publication is still covered by the request, because every drain
 and full sync rebuilds the archives owed by the requests it is about to acknowledge. A
-prompt archive that cannot even be queued fails the commit with a `sase commit --resume`
-hint, the same way an unqueueable hood does. A hood-specific preparation failure
-increments only requests for that hood; repository-wide failures such as lock
-contention, pull failure, or push failure remain retryable without consuming unrelated
-per-item quarantine budgets. A repeatable failure that proves the requested hood can
-never be published retires that request after one confirming retry instead of
-quarantining it. Successful requests are acknowledged only after their sidecar work is
-committed and safely pushed, or after the prepared payload is already current.
+prompt archive that cannot even be queued fails the commit with a
+`sase stitch create --resume` hint, the same way an unqueueable hood does. A
+hood-specific preparation failure increments only requests for that hood;
+repository-wide failures such as lock contention, pull failure, or push failure remain
+retryable without consuming unrelated per-item quarantine budgets. A repeatable failure
+that proves the requested hood can never be published retires that request after one
+confirming retry instead of quarantining it. Successful requests are acknowledged only
+after their sidecar work is committed and safely pushed, or after the prepared payload
+is already current.
 
 ### Chats provenance versus publication
 

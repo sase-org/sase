@@ -120,7 +120,7 @@ def restore_patch(
     2. Renames the Patch to remove the __<N> suffix
     3. Checks out the parent revision
     4. Applies the stashed diff via the VCS provider
-    5. Runs sase commit with the base name (which will find the renamed Patch)
+    5. Runs sase stitch create with the base name (which will find the renamed Patch)
 
     Args:
         patch: The Patch to restore
@@ -150,7 +150,7 @@ def restore_patch(
         console.print(f"[cyan]Base name: {_esc(humanize_cl_name(base_name))}[/cyan]")
 
     # Rename the Patch to remove the __<N> suffix
-    # This allows sase commit to find it and use its description
+    # This allows sase stitch create to find it and use its description
     if base_name != patch.name:
         try:
             update_patch_name_atomic(patch.file_path, patch.name, base_name)
@@ -211,13 +211,13 @@ def restore_patch(
     if console:
         console.print("[green]Diff imported successfully[/green]")
 
-    # Run sase commit - it will find the renamed Patch and use its description
+    # Run sase stitch create - it will find the renamed Patch and use its description
     if console:
         # Keep the exact command argument visible and copyable.
-        console.print(f"[cyan]Running sase commit {base_name}...[/cyan]")
+        console.print(f"[cyan]Running sase stitch create {base_name}...[/cyan]")
 
     success, error = run_workspace_command(
-        ["sase", "commit", base_name], workspace_dir, capture_output=False
+        ["sase", "stitch", "create", base_name], workspace_dir, capture_output=False
     )
     if not success:
         return (False, error)

@@ -238,7 +238,7 @@ def test_unqueueable_publication_fails_the_commit_with_a_resume_hint(
     output = " ".join(capsys.readouterr().out.split())
     assert "agent publication could not be queued" in output
     assert "disk is full" in output
-    assert "sase commit --resume" in output
+    assert "sase stitch create --resume" in output
     assert (artifacts_dir / "commit_state.json").exists()
 
 
@@ -268,7 +268,7 @@ def test_publication_raising_fails_the_commit_with_a_resume_hint(
     output = " ".join(capsys.readouterr().out.split())
     assert "agent publication failed before a retry could be confirmed" in output
     assert "agents lock is wedged" in output
-    assert "sase commit --resume" in output
+    assert "sase stitch create --resume" in output
     assert (artifacts_dir / "commit_state.json").exists()
 
 
@@ -345,7 +345,7 @@ def test_unqueueable_prompt_archive_fails_the_commit_with_a_resume_hint(
     output = " ".join(capsys.readouterr().out.split())
     assert "prompt archive publication could not be queued" in output
     assert "disk is full" in output
-    assert "sase commit --resume" in output
+    assert "sase stitch create --resume" in output
     assert (artifacts_dir / "commit_state.json").exists()
 
 

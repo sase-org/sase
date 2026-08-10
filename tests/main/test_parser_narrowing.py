@@ -165,3 +165,31 @@ assert "sase.core.artifact_file_facade" not in sys.modules
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_stitch_parser_uses_lightweight_commit_methods_module() -> None:
+    """`sase stitch create` argparse choices do not import the commit workflow."""
+    script = """
+import sys
+
+import sase.main.parser_stitch
+
+assert "sase.workflows.commit" not in sys.modules
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_commit_methods_leaf_module_matches_workflow_types_reexport() -> None:
+    """The workflow types module re-exports the same leaf-module objects."""
+    from sase import commit_methods
+    from sase.workflows.commit import workflow_types
+
+    assert workflow_types.VALID_METHODS is commit_methods.VALID_METHODS
+    assert workflow_types.METHOD_ALIASES is commit_methods.METHOD_ALIASES

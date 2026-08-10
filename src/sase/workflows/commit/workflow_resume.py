@@ -44,7 +44,7 @@ def resume_commit_workflow(
     if is_conflict_state(provider, cp.cwd):
         print_status(
             "Conflicts are still in progress — complete the rebase/merge "
-            "first, then re-run sase commit --resume",
+            "first, then re-run sase stitch create --resume",
             "error",
         )
         VCS_OPERATIONS.labels(
@@ -61,7 +61,7 @@ def resume_commit_workflow(
     ):
         print_status(
             "Could not find the expected commit at HEAD (subject mismatch). "
-            "Re-run sase commit from scratch.",
+            "Re-run sase stitch create from scratch.",
             "error",
         )
         VCS_OPERATIONS.labels(

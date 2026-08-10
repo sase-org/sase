@@ -89,9 +89,13 @@ _HANDLERS = {
 def handle_stitch_command(args: argparse.Namespace) -> None:
     """Dispatch a parsed ``sase stitch ...`` command to its handler."""
     sub = getattr(args, "stitch_subcommand", None)
+    if sub == "create":
+        from sase.main.commit_handler import handle_commit_command
+
+        handle_commit_command(args)
     handler = _HANDLERS.get(sub) if isinstance(sub, str) else None
     if handler is None:
-        print("Usage: sase stitch {list,log}", file=sys.stderr)
+        print("Usage: sase stitch {create,list,log}", file=sys.stderr)
         sys.exit(2)
     sys.exit(handler(args))
 

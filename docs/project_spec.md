@@ -61,9 +61,9 @@ BUG: http://b/12345
 BUG: https://b/12345
 ```
 
-PR workflows that receive `SASE_BUG_ID` or `sase commit --bug-id` write the Patch field
-as `http://b/<id>`. Child Patches may inherit the parent's `BUG:` when SASE creates them
-through the commit workflow.
+PR workflows that receive `SASE_BUG_ID` or `sase stitch create --bug-id` write the Patch
+field as `http://b/<id>`. Child Patches may inherit the parent's `BUG:` when SASE
+creates them through the commit workflow.
 
 ## Project Metadata Fields
 

@@ -19,14 +19,14 @@ def commit_sdd_files_for_exec_plan(
     logger: logging.Logger,
     subprocess_run: Callable[..., Any],
 ) -> bool:
-    """Commit an approved SDD plan via ``sase commit``.
+    """Commit an approved SDD plan via ``sase stitch create``.
 
     The ``#gh`` workflow pre-step runs ``git checkout . && git clean -fd`` which
     wipes uncommitted files.  Committing (and pushing) the SDD files first
     ensures the epic agent can still read them.
 
     Returns ``True`` when all discovered files are committed, or no files were
-    found. Returns ``False`` when ``sase commit`` reports failure.
+    found. Returns ``False`` when ``sase stitch create`` reports failure.
     """
     from sase.sdd.files import find_sdd_file
 
@@ -73,7 +73,7 @@ def commit_sdd_files_for_exec_plan(
         os.write(msg_fd, message.encode())
     finally:
         os.close(msg_fd)
-    cmd = ["sase", "commit", "-M", msg_path]
+    cmd = ["sase", "stitch", "create", "-M", msg_path]
     for f in files:
         cmd.extend(["-f", f])
     try:
@@ -91,7 +91,7 @@ def commit_sdd_files_for_exec_plan(
             pass
     if result.returncode != 0:
         logger.warning(
-            "sase commit for SDD files failed (exit %d): %s",
+            "sase stitch create for SDD files failed (exit %d): %s",
             result.returncode,
             result.stderr,
         )

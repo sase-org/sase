@@ -361,7 +361,7 @@ def _autoclose_note(
     if subject:
         landed = f'{landed} ("{subject}")'
     return (
-        f"Auto-closed by `sase commit` after {landed}. No verification is implied "
+        f"Auto-closed by `sase stitch create` after {landed}. No verification is implied "
         f"by this note. Reopen with `sase bead open {bead_id}`, or pass "
         "`-B|--do-not-close-bead` on mid-flight commits."
     )

@@ -56,7 +56,7 @@ def run_workspace_command(
     """Run a subprocess command in a workspace directory.
 
     A generic wrapper for running commands like sase_hg_prune, sase_hg_update,
-    sase_hg_archive, hg import, and sase commit in a workspace directory.
+    sase_hg_archive, hg import, and sase stitch create in a workspace directory.
 
     Args:
         cmd: The command and arguments to run.

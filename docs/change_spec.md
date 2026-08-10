@@ -15,8 +15,8 @@ resolving.
 ## Format Overview
 
 Each Patch is a block of top-level fields and optional sections. `NAME`, `DESCRIPTION`,
-and `STATUS` are the normal minimum for a hand-written entry; `sase commit` creates and
-updates most other sections automatically.
+and `STATUS` are the normal minimum for a hand-written entry; `sase stitch create`
+creates and updates most other sections automatically.
 
 The canonical order is:
 
@@ -65,8 +65,8 @@ The unique identifier for the Patch.
 - Prefer a project- or area-specific prefix followed by an underscore.
 - Use underscores to separate suffix words.
 - Keep the suffix descriptive but concise.
-- `sase commit` appends a numeric suffix such as `_1` when it needs to make a new name
-  unique.
+- `sase stitch create` appends a numeric suffix such as `_1` when it needs to make a new
+  name unique.
 
 **Examples:**
 
@@ -123,13 +123,13 @@ Specifies the dependency relationship between Patches.
 The `PARENT` field is a Patch **name**, never a VCS ref. Values like `origin/main`,
 `origin/master`, or the Mercurial sentinel `p4head` describe checkout targets, not
 dependencies between Patches. "No parent Patch" is represented by omitting the field
-entirely. `sase commit` drops the `PARENT` field and warns when the value passed via
-`-p` does not resolve to an existing Patch.
+entirely. `sase stitch create` drops the `PARENT` field and warns when the value passed
+via `-p` does not resolve to an existing Patch.
 
-**Auto-detection:** when creating a new Patch via `sase commit`, the `PARENT` field is
-automatically set if the current branch corresponds to an existing Patch. This can be
-overridden with `-p`/`--parent`; see [commit_workflows.md](commit_workflows.md) for
-details.
+**Auto-detection:** when creating a new Patch via `sase stitch create`, the `PARENT`
+field is automatically set if the current branch corresponds to an existing Patch. This
+can be overridden with `-p`/`--parent`; see [commit_workflows.md](commit_workflows.md)
+for details.
 
 **Dependency guidelines:**
 
@@ -169,8 +169,9 @@ PR: https://github.com/org/repo/pull/42
 ### BUG
 
 An optional bug reference linking the Patch to an issue tracker. SASE stores this as
-plain text. PR workflows that receive `SASE_BUG_ID` or `sase commit --bug-id` write it
-as `http://b/<id>` in the Patch and add `SASE_BUG=<id>` to provider tag metadata.
+plain text. PR workflows that receive `SASE_BUG_ID` or `sase stitch create --bug-id`
+write it as `http://b/<id>` in the Patch and add `SASE_BUG=<id>` to provider tag
+metadata.
 
 **Example:**
 
@@ -246,7 +247,7 @@ numeric or numeric-plus-letter ID. Numeric stitches are created for real VCS com
 made through the tracked workflow. Proposal stitches such as `(2a)` are intentionally
 commitless until accepted.
 
-This section is managed automatically by `sase commit`.
+This section is managed automatically by `sase stitch create`.
 
 **Entry format:**
 
@@ -292,8 +293,8 @@ commit time. The `PLAN` drawer is emitted when `SASE_PLAN` is set during the com
 workflow.
 
 Legacy `COMMITS:` sections are parsed as stitches. "Commit" remains the correct term for
-real Git or Mercurial commits, SHAs, VCS logs, commit statistics, the `sase commit`
-command, and the act of committing.
+real Git or Mercurial commits, SHAs, VCS logs, commit statistics, the
+`sase stitch create` command, and the act of committing.
 
 ### TIMESTAMPS
 

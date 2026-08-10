@@ -172,8 +172,8 @@ def merge_hook_updates(
     """Merge hook status updates with current disk state.
 
     Acquires a lock and re-reads hooks from disk before writing to avoid
-    overwriting hooks added by concurrent processes (e.g., sase commit adding
-    test hooks while sase axe is updating hook statuses).
+    overwriting hooks added by concurrent processes (e.g., sase stitch create
+    adding test hooks while sase axe is updating hook statuses).
 
     Args:
         project_file: Path to the ProjectSpec file.

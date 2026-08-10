@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# sase_git_commit — thin wrapper around `sase commit` that adds JSON logging.
+# sase_git_commit — thin wrapper around `sase stitch create` that adds JSON logging.
 #
-# Usage: sase_git_commit [sase commit args...]
+# Usage: sase_git_commit [sase stitch create args...]
 #
 # All commit logic lives in CommitWorkflow and VCS providers;
 # this script only adds structured logging and per-agent invocation evidence.
@@ -165,9 +165,9 @@ jlog "script_start" \
 
 write_invocation_marker "$@"
 
-# Delegate to sase commit, forwarding all arguments.
+# Delegate to sase stitch create, forwarding all arguments.
 set +e
-sase commit "$@"
+sase stitch create "$@"
 rc=$?
 set -e
 

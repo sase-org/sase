@@ -297,12 +297,12 @@ references are resolved before the prompt or workflow runs.
 
 ## Review And Delivery
 
-| Command         | Purpose                                                                 | Details                                 |
-| --------------- | ----------------------------------------------------------------------- | --------------------------------------- |
-| `sase commit`   | Dispatch a commit, proposal, or PR through the configured VCS provider. | [Commit workflows](commit_workflows.md) |
-| `sase revert`   | Revert a Patch by pruning its change and archiving its diff.            | [Commit workflows](commit_workflows.md) |
-| `sase restore`  | Restore a reverted Patch by reapplying its archived diff.               | [Commit workflows](commit_workflows.md) |
-| `sase comments` | Preview mentor comments from JSON with syntax-highlighted code context. | [Mentors](mentors.md)                   |
+| Command              | Purpose                                                                 | Details                                 |
+| -------------------- | ----------------------------------------------------------------------- | --------------------------------------- |
+| `sase stitch create` | Dispatch a commit, proposal, or PR through the configured VCS provider. | [Commit workflows](commit_workflows.md) |
+| `sase revert`        | Revert a Patch by pruning its change and archiving its diff.            | [Commit workflows](commit_workflows.md) |
+| `sase restore`       | Restore a reverted Patch by reapplying its archived diff.               | [Commit workflows](commit_workflows.md) |
+| `sase comments`      | Preview mentor comments from JSON with syntax-highlighted code context. | [Mentors](mentors.md)                   |
 
 Delivery commands delegate to the VCS and workspace provider layers, so the same command
 surface can support plain git, GitHub pull requests, and other provider plugins.

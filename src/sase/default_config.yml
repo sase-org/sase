@@ -912,7 +912,7 @@ commit:
     enabled: true
     max_passes: 2
   message:
-    # Reject `sase commit` messages whose subject line is not a Conventional
+    # Reject `sase stitch create` messages whose subject line is not a Conventional
     # Commit (`type(scope)!: description`). Merge, revert, and fixup subjects
     # are always exempt.
     require_conventional_subject: true

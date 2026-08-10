@@ -236,7 +236,7 @@ class CommitWorkflow(BaseWorkflow):
                 print_status(
                     f"{self._method} hit a merge conflict: {result}. "
                     "Resolve the conflict, then run "
-                    "`sase commit --resume` to finish.",
+                    "`sase stitch create --resume` to finish.",
                     "warning",
                 )
                 return RunResult.CONFLICT
@@ -308,7 +308,7 @@ class CommitWorkflow(BaseWorkflow):
             _log_commit_failed(self._method, "after_hook_failed")
             print_status(
                 "The commit may already be pushed. Fix the after-hook failure, "
-                "then run `sase commit --resume`; do not create another commit.",
+                "then run `sase stitch create --resume`; do not create another commit.",
                 "error",
             )
             return False

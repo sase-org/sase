@@ -121,7 +121,10 @@ class TestHandleBeads:
             "done",
         ]
         note = close_args[close_args.index("--note") + 1]
-        assert "Auto-closed by `sase commit` after create_commit landed abc123" in note
+        assert (
+            "Auto-closed by `sase stitch create` after create_commit landed abc123"
+            in note
+        )
         assert '("fix: bug")' in note
         assert "No verification is implied by this note" in note
         message, level = print_status.call_args.args

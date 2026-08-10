@@ -1506,9 +1506,9 @@ name is historical; it now disables the provider-neutral finalizer.
 
 #### commit.message
 
-Configures the Conventional Commit subject gate that `sase commit` applies to every
-`create_commit`, `create_proposal`, and `create_pull_request` message before any side
-effect runs.
+Configures the Conventional Commit subject gate that `sase stitch create` applies to
+every `create_commit`, `create_proposal`, and `create_pull_request` message before any
+side effect runs.
 
 ```yaml
 commit:
@@ -1518,10 +1518,10 @@ commit:
       [build, chore, ci, deps, docs, feat, fix, perf, refactor, revert, style, test]
 ```
 
-| Field                                         | Type | Default            | Description                                                                         |
-| --------------------------------------------- | ---- | ------------------ | ----------------------------------------------------------------------------------- |
-| `commit.message.require_conventional_subject` | bool | `true`             | Reject a `sase commit` message whose subject line is not a Conventional Commit.     |
-| `commit.message.allowed_types`                | list | the 12 types above | Commit types this project accepts. A configured list **replaces** the built-in set. |
+| Field                                         | Type | Default            | Description                                                                            |
+| --------------------------------------------- | ---- | ------------------ | -------------------------------------------------------------------------------------- |
+| `commit.message.require_conventional_subject` | bool | `true`             | Reject a `sase stitch create` message whose subject line is not a Conventional Commit. |
+| `commit.message.allowed_types`                | list | the 12 types above | Commit types this project accepts. A configured list **replaces** the built-in set.    |
 
 The subject must match `<type>[(<scope>)][!]: <description>`. The scope is optional, one
 or more spaces may follow the colon, and no length or capitalization rule is applied to
@@ -2203,9 +2203,9 @@ Filter fields under `filters`:
 
 Matching semantics:
 
-- **Event sources.** Hooks receive files from commits created by `sase commit`, commits
-  written through the SDD sidecar commit path, and `sase artifact create` (treated as
-  `ADD`).
+- **Event sources.** Hooks receive files from commits created by `sase stitch create`,
+  commits written through the SDD sidecar commit path, and `sase artifact create`
+  (treated as `ADD`).
 - **Ops.** Commit operations come from `git diff --name-status`; renames split into
   `REMOVE` plus `ADD`, root-commit files are `ADD`, and unknown status letters fold to
   `MODIFY`.
@@ -2464,7 +2464,7 @@ commit_hooks:
 Hook output is captured and a bounded stdout/stderr tail is printed on failure. A
 failing `before` hook aborts before dispatch. A failing `after` hook leaves the commit
 checkpoint in place and returns failure even though the commit may already be pushed;
-fix the command and run `sase commit --resume`. The completed after-hook step is
+fix the command and run `sase stitch create --resume`. The completed after-hook step is
 checkpointed so a normal resume does not rerun it. A crash after the external command
 succeeds but before that checkpoint write can run it again, so `after` commands must be
 safe to repeat.
@@ -3019,7 +3019,7 @@ default or model alias resolves to any advisory-flagged model. See
 | `SASE_VCS_PROVIDER`               | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                 |
 | `SASE_WORKSPACE_ROOT`             | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts. |
 | `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `SASE_BUG=<id>` into PR tags and Patch.                                                           |
-| `SASE_BEAD_ID`                    | Bead ID for commit workflows. When set, `sase commit` adds a linked `SASE_BEAD=` footer tag and leaves the subject unchanged.                             |
+| `SASE_BEAD_ID`                    | Bead ID for commit workflows. When set, `sase stitch create` adds a linked `SASE_BEAD=` footer tag and leaves the subject unchanged.                      |
 | `SASE_DISABLE_COMMIT_STOP_HOOK`   | Disable commit finalization for this process.                                                                                                             |
 | `SASE_LINKED_REPOS_JSON`          | Resolved linked-repo metadata passed to launched agents.                                                                                                  |
 | `SASE_LINKED_REPO_<ENV_NAME>_DIR` | Workspace-matched directory for one configured linked repo.                                                                                               |
@@ -3227,9 +3227,10 @@ With no subcommand, `sase axe lumberjack` defaults to `sase axe lumberjack list`
 Both listings print only the description summary line by default so the output stays
 scannable; `-v/--verbose` renders the full [description](axe.md#description-grammar).
 
-### `sase commit`
+### `sase stitch create`
 
-Dispatches a commit, proposal, or PR via the VCS provider layer. See
+Dispatches a commit, proposal, or PR via the VCS provider layer. `sase commit` remains
+accepted as a deprecated alias for this subcommand. See
 [commit_workflows.md](commit_workflows.md) for the full flow, payload, checkpoint, and
 resume semantics.
 

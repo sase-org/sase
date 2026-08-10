@@ -169,7 +169,7 @@ class GitCommitDispatchMixin(CommandRunner):
         if detail.strip():
             parts.append(detail.strip())
         parts.append(
-            "Resolve the conflict, continue the rebase, then run `sase commit --resume`."
+            "Resolve the conflict, continue the rebase, then run `sase stitch create --resume`."
         )
         return "\n".join(parts)
 

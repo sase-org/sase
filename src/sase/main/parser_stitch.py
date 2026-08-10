@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from sase.main.parser_bead import nonnegative_int
+from sase.main.parser_commit import add_commit_create_options
 from sase.vcs_log.dates import DATE_HELP
 
 #: Default number of commits in the merged timeline.
@@ -218,9 +219,10 @@ def register_stitch_parser(subparsers: argparse._SubParsersAction) -> None:
     stitch_parser = subparsers.add_parser(
         "stitch",
         aliases=["vcs"],
-        help="Inspect repositories or show their stitch timeline",
+        help="Dispatch a stitch, or inspect repositories or their stitch timeline",
         description=(
-            "Inspect the repository constellation made up of the primary repo, "
+            "Dispatch a commit, proposal, or pull request, inspect the "
+            "repository constellation made up of the primary repo, "
             "configured linked repos, and sidecar repos when present, or show "
             "their cross-repository stitch timeline. `sase vcs` remains "
             "accepted as a legacy alias.\n\n"
@@ -231,9 +233,20 @@ def register_stitch_parser(subparsers: argparse._SubParsersAction) -> None:
     stitch_sub = stitch_parser.add_subparsers(
         dest="stitch_subcommand",
         help="stitch subcommands",
-        metavar="{list,log}",
+        metavar="{create,list,log}",
     )
     stitch_parser.set_defaults(stitch_subcommand="list")
+
+    create_parser = stitch_sub.add_parser(
+        "create",
+        help="Dispatch a commit, proposal, or pull request",
+        description=(
+            "Dispatch a commit, proposal, or pull request through the "
+            "configured VCS provider. `sase commit` remains accepted as a "
+            "legacy alias for this subcommand."
+        ),
+    )
+    add_commit_create_options(create_parser)
 
     list_parser = stitch_sub.add_parser(
         "list",

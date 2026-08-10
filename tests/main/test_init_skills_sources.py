@@ -497,9 +497,12 @@ def test_git_commit_skill_invokes_observable_wrapper() -> None:
     assert "`2`: A rebase is paused for a real conflict" in body
     assert "sase_git_commit --resume" in body
     assert "git-ignored" in body
+    assert "delegates to `sase stitch create`" in body
     assert "sase commit -M" not in body
     assert "-M commit_message.md" not in body
     assert "sase commit --resume" not in body
+    assert "sase commit" not in body
+    assert "sase stitch create -M" not in body
 
 
 def test_agy_skill_generation_writes_antigravity_target(

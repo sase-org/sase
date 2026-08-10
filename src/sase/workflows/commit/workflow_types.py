@@ -2,6 +2,15 @@
 
 from enum import IntEnum
 
+from sase.commit_methods import METHOD_ALIASES, VALID_METHODS
+
+__all__ = [
+    "RunResult",
+    "EXIT_CODE_CONFLICT",
+    "VALID_METHODS",
+    "METHOD_ALIASES",
+]
+
 
 class RunResult(IntEnum):
     OK = 0
@@ -10,11 +19,3 @@ class RunResult(IntEnum):
 
 
 EXIT_CODE_CONFLICT = 2
-
-VALID_METHODS = ("create_commit", "create_proposal", "create_pull_request")
-
-METHOD_ALIASES: dict[str, str] = {
-    "commit": "create_commit",
-    "propose": "create_proposal",
-    "pr": "create_pull_request",
-}
