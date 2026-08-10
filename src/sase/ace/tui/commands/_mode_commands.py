@@ -150,7 +150,7 @@ def _iter_copy_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
     prefix = copy.prefix
     tab_to_command_tab: dict[str, CommandTab] = {
         "artifacts": "artifacts",
-        "artifacts_commits": "artifacts",
+        "artifacts_stitches": "artifacts",
         "artifacts_plans": "artifacts",
         "artifacts_beads": "artifacts",
         "artifacts_chats": "artifacts",

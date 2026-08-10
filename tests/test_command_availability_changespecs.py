@@ -66,7 +66,7 @@ def test_plans_filter_command_is_available_only_on_plans() -> None:
         spec,
         CommandContext(tab="changespecs", artifacts_subtab="plans"),  # legacy tab id
     )
-    for subtab in ("prs", "commits", "bugs"):
+    for subtab in ("prs", "stitches", "bugs"):
         assert not is_command_available(
             spec,
             CommandContext(tab="changespecs", artifacts_subtab=subtab),  # legacy tab id
@@ -75,7 +75,7 @@ def test_plans_filter_command_is_available_only_on_plans() -> None:
 
 def test_artifacts_copy_commands_follow_the_active_subtab() -> None:
     catalog = _catalog_by_id()
-    groups = ("commits", "beads", "plans", "chats", "bugs", "other")
+    groups = ("stitches", "beads", "plans", "chats", "bugs", "other")
 
     for active in groups:
         ctx = CommandContext(
@@ -105,7 +105,7 @@ def test_saved_query_picker_and_slots_are_pr_only() -> None:
         assert not is_command_available(
             spec,
             CommandContext(
-                tab="changespecs", artifacts_subtab="commits"
+                tab="changespecs", artifacts_subtab="stitches"
             ),  # legacy tab id
         )
         assert not is_command_available(spec, CommandContext(tab="agents"))
@@ -128,7 +128,7 @@ def test_saved_query_slot_mode_command_is_pr_only() -> None:
     )
     assert not is_command_available(
         spec,
-        CommandContext(tab="changespecs", artifacts_subtab="commits"),  # legacy tab id
+        CommandContext(tab="changespecs", artifacts_subtab="stitches"),  # legacy tab id
     )
     assert not is_command_available(spec, CommandContext(tab="agents"))
     assert not is_command_available(spec, CommandContext(tab="axe"))

@@ -216,20 +216,21 @@ projects** choice removes it. The compatibility `a` action removes an active pro
 token and restores the last automatic or picked project on the next press.
 
 The bundled initial query is `sidecar:false since:24h`; it is configurable with
-`ace.artifacts.commits.default_query`, and changes take effect the next time ACE starts.
-Before the pane is mounted, an explicit project in the ACE query overrides a configured
-`project:`, a configured project overrides current-directory inference, and an inferred
-registered current project is added only when neither explicit source supplied one. An
-empty parsed query includes sidecar repositories; at ACE startup it can also gain that
-inferred visible project token. Canonical rendering always includes either
-`sidecar:true` or `sidecar:false`, and the configured `d` action rewrites that same
-visible token. Selecting a sidecar with `repo:` therefore requires `sidecar:true`. For
-example, `project:sase repo:sase author:Ada since:7d sidecar:false fix` shows recent
-SASE commits by Ada whose subjects contain `fix`, `repo:plans sidecar:true` shows that
-sidecar across all projects, and `limit:40` caps a deliberately broad search.
-Day-granular `until:` values (`today`, `yesterday`, and `YYYY-MM-DD`) include the full
-named day; relative and minute-precise values remain instant bounds. Relative windows
-such as `since:24h` re-anchor whenever the pane refreshes.
+`ace.artifacts.stitches.default_query` (`ace.artifacts.commits.default_query` is a
+deprecated alias), and changes take effect the next time ACE starts. Before the pane is
+mounted, an explicit project in the ACE query overrides a configured `project:`, a
+configured project overrides current-directory inference, and an inferred registered
+current project is added only when neither explicit source supplied one. An empty parsed
+query includes sidecar repositories; at ACE startup it can also gain that inferred
+visible project token. Canonical rendering always includes either `sidecar:true` or
+`sidecar:false`, and the configured `d` action rewrites that same visible token.
+Selecting a sidecar with `repo:` therefore requires `sidecar:true`. For example,
+`project:sase repo:sase author:Ada since:7d sidecar:false fix` shows recent SASE commits
+by Ada whose subjects contain `fix`, `repo:plans sidecar:true` shows that sidecar across
+all projects, and `limit:40` caps a deliberately broad search. Day-granular `until:`
+values (`today`, `yesterday`, and `YYYY-MM-DD`) include the full named day; relative and
+minute-precise values remain instant bounds. Relative windows such as `since:24h`
+re-anchor whenever the pane refreshes.
 
 The repository legend starts with `[P/N]`, where `P` is the selected commit's one-based
 position and `N` is the number of matched entries currently displayed. Day headings do

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from jsonschema import Draft7Validator, ValidationError
 
@@ -21,9 +23,23 @@ def test_commits_default_query_schema_accepts_nested_string() -> None:
     )
 
 
+def test_stitches_default_query_schema_accepts_nested_string() -> None:
+    Draft7Validator(load_config_schema()).validate(
+        {"ace": {"artifacts": {"stitches": {"default_query": "sidecar:true"}}}}
+    )
+
+
 def test_commits_default_query_is_exposed_in_config_inventory() -> None:
     fields = {field.path: field for field in config_field_model().fields}
     field = fields["ace.artifacts.commits.default_query"]
+
+    assert field.types == ("string",)
+    assert field.default == BUNDLED_COMMITS_DEFAULT_QUERY
+
+
+def test_stitches_default_query_is_exposed_in_config_inventory() -> None:
+    fields = {field.path: field for field in config_field_model().fields}
+    field = fields["ace.artifacts.stitches.default_query"]
 
     assert field.types == ("string",)
     assert field.default == BUNDLED_COMMITS_DEFAULT_QUERY
@@ -37,6 +53,14 @@ def test_commits_default_query_schema_rejects_wrong_types(value: object) -> None
         )
 
 
+@pytest.mark.parametrize("value", [False, 24, [], {}])
+def test_stitches_default_query_schema_rejects_wrong_types(value: object) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(load_config_schema()).validate(
+            {"ace": {"artifacts": {"stitches": {"default_query": value}}}}
+        )
+
+
 def test_valid_custom_commits_query_is_parsed_once_for_startup() -> None:
     resolved = resolve_commits_default_query(
         {"artifacts": {"commits": {"default_query": "repo:sase sidecar:true"}}}
@@ -44,6 +68,44 @@ def test_valid_custom_commits_query_is_parsed_once_for_startup() -> None:
 
     assert to_query_string(resolved.values) == "repo:sase sidecar:true merges:hide"
     assert resolved.diagnostic is None
+
+
+def test_valid_custom_stitches_query_is_parsed_once_for_startup() -> None:
+    resolved = resolve_commits_default_query(
+        {"artifacts": {"stitches": {"default_query": "repo:sase sidecar:true"}}}
+    )
+
+    assert to_query_string(resolved.values) == "repo:sase sidecar:true merges:hide"
+    assert resolved.diagnostic is None
+
+
+def test_legacy_commits_key_falls_back_with_deprecation_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        resolved = resolve_commits_default_query(
+            {"artifacts": {"commits": {"default_query": "repo:sase sidecar:true"}}}
+        )
+
+    assert to_query_string(resolved.values) == "repo:sase sidecar:true merges:hide"
+    assert "ace.artifacts.commits is deprecated" in caplog.text
+
+
+def test_stitches_key_wins_when_both_configured(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        resolved = resolve_commits_default_query(
+            {
+                "artifacts": {
+                    "stitches": {"default_query": "repo:sase sidecar:true"},
+                    "commits": {"default_query": "repo:other sidecar:false"},
+                }
+            }
+        )
+
+    assert to_query_string(resolved.values) == "repo:sase sidecar:true merges:hide"
+    assert "ace.artifacts.commits is deprecated and ignored" in caplog.text
 
 
 @pytest.mark.parametrize("value", [False, "repo:"])

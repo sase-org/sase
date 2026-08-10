@@ -58,17 +58,17 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             "Commits Pane",
             [
                 (
-                    f"{d(a.commits_next)} / {d(a.commits_prev)}",
+                    f"{d(a.stitches_next)} / {d(a.stitches_prev)}",
                     "Move to next / previous commit",
                 ),
                 (
-                    d(a.commits_view_selected),
+                    d(a.stitches_view_selected),
                     "Open full commit message and diff",
                 ),
                 ("p (commit view)", "Toggle attached local plan / commit"),
-                (d(a.commits_copy_sha), "Copy full commit SHA"),
+                (d(a.stitches_copy_sha), "Copy full commit SHA"),
                 (
-                    f"{d(a.edit_query)} / {d(a.commits_filters)}",
+                    f"{d(a.edit_query)} / {d(a.stitches_filters)}",
                     "Focus persistent commit filter",
                 ),
                 ("project:NAME", "Single; omitted = all projects"),
@@ -84,12 +84,12 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("bare text", "Match subject words"),
                 ("Enter / Esc", "Commit / restore; row stays"),
                 (
-                    f"{d(a.commits_toggle_sdd)} / {d(a.commits_toggle_all_projects)}",
+                    f"{d(a.stitches_toggle_sdd)} / {d(a.stitches_toggle_all_projects)}",
                     "Sidecars / project: off/on",
                 ),
-                (d(a.commits_cycle_merges), "Cycle merge visibility"),
+                (d(a.stitches_cycle_merges), "Cycle merge visibility"),
                 (
-                    f"{d(a.commits_fetch)} / {d(a.commits_refresh)}",
+                    f"{d(a.stitches_fetch)} / {d(a.stitches_refresh)}",
                     "Fetch remote refs / refresh from local refs",
                 ),
                 *artifact_list_navigation,

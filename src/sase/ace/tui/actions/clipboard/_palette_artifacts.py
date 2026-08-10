@@ -46,10 +46,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
             return None
 
     count = len(marked_targets) if marked else 1
-    # TODO(sase-j8.3): keymaps/mode_keymaps.py still registers this copy-mode
-    # group as "artifacts_commits"; drop this translation once that group is
-    # renamed to "artifacts_stitches".
-    copy_mode_group = f"artifacts_{'commits' if subtab == 'stitches' else subtab}"
+    copy_mode_group = f"artifacts_{subtab}"
     available, previews = artifact_target_state(
         group=copy_mode_group,
         subtab=subtab,

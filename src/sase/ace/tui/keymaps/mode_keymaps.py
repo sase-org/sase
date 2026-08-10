@@ -64,7 +64,7 @@ class CopyModeKeymaps(ModeKeymaps):
                 "spec": "p",
                 "snapshot": "s",
             },
-            "artifacts_commits": {
+            "artifacts_stitches": {
                 "sha": "percent_sign",
                 "reference": "at",
                 "handoff": "exclamation_mark",

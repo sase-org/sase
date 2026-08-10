@@ -10,7 +10,7 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
     cm = km.copy_mode
 
     cs_copy = cm.keys["patches"]
-    commits_copy = cm.keys["artifacts_commits"]
+    commits_copy = cm.keys["artifacts_stitches"]
     beads_copy = cm.keys["artifacts_beads"]
     plans_copy = cm.keys["artifacts_plans"]
     chats_copy = cm.keys["artifacts_chats"]

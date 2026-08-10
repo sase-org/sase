@@ -28,7 +28,7 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
         "spec",
         "snapshot",
     ),
-    "artifacts_commits": (
+    "artifacts_stitches": (
         "snapshot",
         "reference",
         "handoff",

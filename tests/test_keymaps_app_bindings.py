@@ -99,7 +99,7 @@ def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:
     bindings = build_app_bindings(default_app_keymaps())
     assert [b.action for b in bindings if b.key == "s"] == [
         "change_status",
-        "commits_cycle_merges",
+        "stitches_cycle_merges",
         "beads_cycle_status",
         "chats_cycle_provenance",
         "files_cycle_kind",

@@ -282,6 +282,31 @@ def test_partial_app_override() -> None:
     assert reg.app.quit == "q"  # unchanged
 
 
+def test_legacy_commits_action_override_migrates_to_stitches(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry({"keymaps": {"app": {"commits_next": "B"}}})
+    assert reg.app.stitches_next == "B"
+    assert "deprecated" in caplog.text
+
+
+def test_stitches_action_override_wins_over_legacy_commits_alias(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {
+                "keymaps": {
+                    "app": {"commits_next": "B", "stitches_next": "minus"},
+                }
+            }
+        )
+    assert reg.app.stitches_next == "minus"
+    assert "deprecated" in caplog.text
+    assert "ignored" in caplog.text
+
+
 def test_partial_mode_override() -> None:
     """Overriding one mode key preserves other mode defaults."""
     reg = load_keymap_registry(
@@ -494,6 +519,55 @@ def test_copy_mode_nested_override() -> None:
     assert isinstance(cs_keys, dict)
     assert cs_keys["bug"] == "B"  # overridden
     assert cs_keys["raw"] == "percent_sign"  # unchanged
+
+
+def test_legacy_artifacts_commits_copy_group_migrates_to_stitches(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {
+                "keymaps": {
+                    "modes": {
+                        "copy_mode": {
+                            "keys": {
+                                "artifacts_commits": {"sha": "S"},  # legacy wire key
+                            },
+                        },
+                    },
+                },
+            }
+        )
+    stitches_keys = reg.copy_mode.keys["artifacts_stitches"]
+    assert isinstance(stitches_keys, dict)
+    assert stitches_keys["sha"] == "S"  # overridden
+    assert "artifacts_commits" not in reg.copy_mode.keys
+    assert "deprecated" in caplog.text
+
+
+def test_artifacts_stitches_copy_group_override_wins_over_legacy_alias(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {
+                "keymaps": {
+                    "modes": {
+                        "copy_mode": {
+                            "keys": {
+                                "artifacts_commits": {"sha": "S"},  # legacy wire key
+                                "artifacts_stitches": {"sha": "T"},
+                            },
+                        },
+                    },
+                },
+            }
+        )
+    stitches_keys = reg.copy_mode.keys["artifacts_stitches"]
+    assert isinstance(stitches_keys, dict)
+    assert stitches_keys["sha"] == "T"
+    assert "deprecated" in caplog.text
+    assert "ignored" in caplog.text
 
 
 def test_unknown_mode_becomes_generic() -> None:

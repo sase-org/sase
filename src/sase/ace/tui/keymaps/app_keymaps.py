@@ -35,17 +35,17 @@ class AppKeymaps:
     cycle_files_subtab: str
     cycle_files_subtab_reverse: str
     pick_artifacts_project: str
-    # Commits sub-tab
-    commits_next: str
-    commits_prev: str
-    commits_view_selected: str
-    commits_copy_sha: str
-    commits_filters: str
-    commits_toggle_sdd: str
-    commits_cycle_merges: str
-    commits_toggle_all_projects: str
-    commits_fetch: str
-    commits_refresh: str
+    # Stitches sub-tab
+    stitches_next: str
+    stitches_prev: str
+    stitches_view_selected: str
+    stitches_copy_sha: str
+    stitches_filters: str
+    stitches_toggle_sdd: str
+    stitches_cycle_merges: str
+    stitches_toggle_all_projects: str
+    stitches_fetch: str
+    stitches_refresh: str
     # Plans sub-tab
     plans_next: str
     plans_prev: str

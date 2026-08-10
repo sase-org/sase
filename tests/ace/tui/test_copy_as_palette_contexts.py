@@ -31,7 +31,7 @@ def test_commit_rows_join_registry_keys_availability_and_warm_previews() -> None
     context = build_copy_as_context(app)
 
     assert context is not None
-    assert context.group == "artifacts_commits"
+    assert context.group == "artifacts_stitches"
     assert context.subtitle == "SASE · sase@aaaaaaa"
     assert [(row.target, row.key_display) for row in context.rows] == [
         ("sha", "%"),

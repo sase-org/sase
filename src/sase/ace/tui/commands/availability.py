@@ -171,18 +171,18 @@ _FILES_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
-_COMMITS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
+_STITCHES_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     {
-        "app.commits_next",
-        "app.commits_prev",
-        "app.commits_view_selected",
-        "app.commits_copy_sha",
-        "app.commits_filters",
-        "app.commits_toggle_sdd",
-        "app.commits_cycle_merges",
-        "app.commits_toggle_all_projects",
-        "app.commits_fetch",
-        "app.commits_refresh",
+        "app.stitches_next",
+        "app.stitches_prev",
+        "app.stitches_view_selected",
+        "app.stitches_copy_sha",
+        "app.stitches_filters",
+        "app.stitches_toggle_sdd",
+        "app.stitches_cycle_merges",
+        "app.stitches_toggle_all_projects",
+        "app.stitches_fetch",
+        "app.stitches_refresh",
     }
 )
 
@@ -256,13 +256,7 @@ def _get_base_status(status: str) -> str:
 
 def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id.startswith("copy.artifacts_"):
-        # TODO(sase-j8.3): keymaps/mode_keymaps.py still registers the
-        # Stitches copy-mode group as "artifacts_commits"; drop this
-        # translation once that group is renamed to "artifacts_stitches".
-        copy_mode_subtab = (
-            "commits" if ctx.artifacts_subtab == "stitches" else ctx.artifacts_subtab
-        )
-        if not spec.id.startswith(f"copy.artifacts_{copy_mode_subtab}."):
+        if not spec.id.startswith(f"copy.artifacts_{ctx.artifacts_subtab}."):
             return False
         if ctx.artifact_selection_present is False:
             return False
@@ -275,7 +269,7 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.artifacts_subtab in {"plans", "chats", "other"}
     if spec.id in _BUG_COMMANDS:
         return ctx.artifacts_subtab == "bugs"
-    if spec.id in _COMMITS_ARTIFACT_COMMANDS:
+    if spec.id in _STITCHES_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "stitches"
     if spec.id in _PLANS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "plans"

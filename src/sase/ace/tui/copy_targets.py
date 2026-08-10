@@ -109,7 +109,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         "snapshots",
     ),
     _target(
-        "artifacts_commits",
+        "artifacts_stitches",
         "sha",
         "SHA",
         "Copy commit SHA",
@@ -118,7 +118,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         accepts_marks=True,
     ),
     _target(
-        "artifacts_commits",
+        "artifacts_stitches",
         "reference",
         "@ref",
         "Copy artifact reference",
@@ -127,7 +127,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         accepts_marks=True,
     ),
     _target(
-        "artifacts_commits",
+        "artifacts_stitches",
         "link",
         "link",
         "Copy Markdown link",
@@ -136,7 +136,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         accepts_marks=True,
     ),
     _target(
-        "artifacts_commits",
+        "artifacts_stitches",
         "message",
         "message",
         "Copy commit message",
@@ -145,7 +145,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         accepts_marks=True,
     ),
     _target(
-        "artifacts_commits",
+        "artifacts_stitches",
         "repo_sha",
         "repo@SHA",
         "Copy repo@SHA",
@@ -154,7 +154,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         accepts_marks=True,
     ),
     _target(
-        "artifacts_commits",
+        "artifacts_stitches",
         "plan",
         "plan ref",
         "Copy linked plan reference",
@@ -163,7 +163,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         accepts_marks=True,
     ),
     _target(
-        "artifacts_commits",
+        "artifacts_stitches",
         "json",
         "JSON",
         "Copy metadata JSON",
@@ -172,7 +172,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         accepts_marks=True,
     ),
     _target(
-        "artifacts_commits",
+        "artifacts_stitches",
         "handoff",
         "agent + @ref",
         "Reference in new agent prompt",
@@ -181,7 +181,7 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         accepts_marks=True,
     ),
     _target(
-        "artifacts_commits",
+        "artifacts_stitches",
         "snapshot",
         "snap",
         "Copy Artifacts snapshot",

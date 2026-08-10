@@ -72,7 +72,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert switcher.current == ARTIFACTS_PANE_IDS["stitches"]
         assert page.app.check_action("change_status", ()) is False
         assert page.app.check_action("next_patch", ()) is False
-        assert page.app.check_action("commits_refresh", ()) is True
+        assert page.app.check_action("stitches_refresh", ()) is True
         assert page.app.check_action("start_leader_mode", ()) is not False
         assert page.app.check_action("refresh_bugs", ()) is False
         assert page.app.check_action("plans_refresh", ()) is False
@@ -119,7 +119,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
 
         await page.press("[")
         await page.expect_state("artifacts_subtab", "prs")
-        assert page.app.check_action("commits_refresh", ()) is False
+        assert page.app.check_action("stitches_refresh", ()) is False
         assert prs.activation_count == 1
         assert commits.deactivation_count == 2
         assert page.app.focused is not None
@@ -276,7 +276,7 @@ async def test_first_artifacts_entry_activates_default_without_hidden_collection
         assert switcher.current == ARTIFACTS_PANE_IDS["stitches"]
         assert commits.first_activation_count == 1
         assert commits.artifacts_active is True
-        assert page.app.check_action("commits_refresh", ()) is True
+        assert page.app.check_action("stitches_refresh", ()) is True
         assert page.app.check_action("change_status", ()) is False
         assert page.query_one_widget("#keybinding-content", Static).content.plain == ""
 
@@ -470,12 +470,12 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
         assert context.artifacts_subtab == "bugs"
         assert is_command_available(by_id["artifacts.prs"], context)
         assert not is_command_available(by_id["app.change_status"], context)
-        assert not is_command_available(by_id["app.commits_refresh"], context)
+        assert not is_command_available(by_id["app.stitches_refresh"], context)
 
         execute_command(page.app, by_id["artifacts.stitches"])
         await page.expect_state("artifacts_subtab", "stitches")
         context = extract_command_context(page.app)
-        assert is_command_available(by_id["app.commits_refresh"], context)
+        assert is_command_available(by_id["app.stitches_refresh"], context)
         assert not is_command_available(by_id["app.refresh_bugs"], context)
 
         execute_command(page.app, by_id["artifacts.files"])

@@ -10,16 +10,16 @@ from ..widgets.artifacts import CommitsPane
 
 COMMITS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
     {
-        "commits_next",
-        "commits_prev",
-        "commits_view_selected",
-        "commits_copy_sha",
-        "commits_filters",
-        "commits_toggle_sdd",
-        "commits_cycle_merges",
-        "commits_toggle_all_projects",
-        "commits_fetch",
-        "commits_refresh",
+        "stitches_next",
+        "stitches_prev",
+        "stitches_view_selected",
+        "stitches_copy_sha",
+        "stitches_filters",
+        "stitches_toggle_sdd",
+        "stitches_cycle_merges",
+        "stitches_toggle_all_projects",
+        "stitches_fetch",
+        "stitches_refresh",
     }
 )
 
@@ -42,7 +42,7 @@ class ArtifactsCommitsActionsMixin:
             and self.current_artifacts_subtab == "stitches"
         )
 
-    def action_commits_next(self) -> None:
+    def action_stitches_next(self) -> None:
         pane = self._commits_pane()
         if not self._commits_active() or pane is None:
             return
@@ -52,7 +52,7 @@ class ArtifactsCommitsActionsMixin:
         finally:
             self._finish_artifacts_navigation()  # type: ignore[attr-defined]
 
-    def action_commits_prev(self) -> None:
+    def action_stitches_prev(self) -> None:
         pane = self._commits_pane()
         if not self._commits_active() or pane is None:
             return
@@ -62,42 +62,42 @@ class ArtifactsCommitsActionsMixin:
         finally:
             self._finish_artifacts_navigation()  # type: ignore[attr-defined]
 
-    def action_commits_view_selected(self) -> None:
+    def action_stitches_view_selected(self) -> None:
         pane = self._commits_pane()
         if self._commits_active() and pane is not None:
             pane.open_selected_commit()
 
-    def action_commits_copy_sha(self) -> None:
+    def action_stitches_copy_sha(self) -> None:
         pane = self._commits_pane()
         if self._commits_active() and pane is not None:
             pane.copy_selected_sha()
 
-    def action_commits_filters(self) -> None:
+    def action_stitches_filters(self) -> None:
         pane = self._commits_pane()
         if self._commits_active() and pane is not None:
             pane.show_filters()
 
-    def action_commits_toggle_sdd(self) -> None:
+    def action_stitches_toggle_sdd(self) -> None:
         pane = self._commits_pane()
         if self._commits_active() and pane is not None:
             pane.toggle_sdd()
 
-    def action_commits_cycle_merges(self) -> None:
+    def action_stitches_cycle_merges(self) -> None:
         pane = self._commits_pane()
         if self._commits_active() and pane is not None:
             pane.cycle_merges()
 
-    def action_commits_toggle_all_projects(self) -> None:
+    def action_stitches_toggle_all_projects(self) -> None:
         pane = self._commits_pane()
         if self._commits_active() and pane is not None:
             pane.toggle_all_projects()
 
-    def action_commits_fetch(self) -> None:
+    def action_stitches_fetch(self) -> None:
         pane = self._commits_pane()
         if self._commits_active() and pane is not None:
             pane.fetch_commits()
 
-    def action_commits_refresh(self) -> None:
+    def action_stitches_refresh(self) -> None:
         pane = self._commits_pane()
         if self._commits_active() and pane is not None:
             pane.refresh_commits()

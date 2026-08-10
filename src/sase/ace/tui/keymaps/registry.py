@@ -38,6 +38,16 @@ _LEGACY_APP_KEY_ALIASES: dict[str, str] = {
     "prev_changespec": "prev_patch",  # legacy compatibility alias
     "start_agent_from_changespec": "start_agent_from_patch",  # legacy compatibility alias
     "jump_to_agent_changespec": "jump_to_agent_patch",  # legacy compatibility alias
+    "commits_next": "stitches_next",  # legacy compatibility alias
+    "commits_prev": "stitches_prev",  # legacy compatibility alias
+    "commits_view_selected": "stitches_view_selected",  # legacy compatibility alias
+    "commits_copy_sha": "stitches_copy_sha",  # legacy compatibility alias
+    "commits_filters": "stitches_filters",  # legacy compatibility alias
+    "commits_toggle_sdd": "stitches_toggle_sdd",  # legacy compatibility alias
+    "commits_cycle_merges": "stitches_cycle_merges",  # legacy compatibility alias
+    "commits_toggle_all_projects": "stitches_toggle_all_projects",  # legacy compatibility alias
+    "commits_fetch": "stitches_fetch",  # legacy compatibility alias
+    "commits_refresh": "stitches_refresh",  # legacy compatibility alias
 }
 
 
@@ -133,28 +143,41 @@ def _migrate_key_aliases(
     return migrated
 
 
+_LEGACY_COPY_GROUP_ALIASES: dict[str, str] = {
+    "changespecs": "patches",  # legacy compatibility alias
+    "artifacts_commits": "artifacts_stitches",  # legacy compatibility alias
+}
+
+
 def _migrate_copy_group_aliases(
     keys: dict[str, str | dict[str, str]],
 ) -> dict[str, str | dict[str, str]]:
     """Normalize legacy copy-mode group ids to canonical groups."""
     migrated = dict(keys)
-    if "changespecs" not in migrated:  # legacy compatibility alias
-        return migrated
-    legacy_value = migrated.pop("changespecs")  # legacy compatibility alias
-    if "patches" in migrated:
+    for legacy_name, canonical_name in _LEGACY_COPY_GROUP_ALIASES.items():
+        if legacy_name not in migrated:
+            continue
+        legacy_value = migrated.pop(legacy_name)
+        if canonical_name in migrated:
+            log.warning(
+                "copy_mode group %r is deprecated and ignored because %r is configured",
+                legacy_name,
+                canonical_name,
+            )
+            continue
+        if not isinstance(legacy_value, dict):
+            log.warning(
+                "copy_mode group %r is deprecated but ignored because its "
+                "value is not a mapping",
+                legacy_name,
+            )
+            continue
+        migrated[canonical_name] = legacy_value
         log.warning(
-            "copy_mode group 'changespecs' is deprecated and ignored because "
-            "'patches' is configured"
+            "copy_mode group %r is deprecated; treating it as %r",
+            legacy_name,
+            canonical_name,
         )
-        return migrated
-    if not isinstance(legacy_value, dict):
-        log.warning(
-            "copy_mode group 'changespecs' is deprecated but ignored because "
-            "its value is not a mapping"
-        )
-        return migrated
-    migrated["patches"] = legacy_value
-    log.warning("copy_mode group 'changespecs' is deprecated; treating it as 'patches'")
     return migrated
 
 

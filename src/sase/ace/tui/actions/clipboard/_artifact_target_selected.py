@@ -48,7 +48,7 @@ class ClipboardArtifactSelectedTargetsMixin(ClipboardArtifactMarkedTargetsMixin)
             self._copy_marked_commit_targets(pane, marked, target)
             return
         if target == "sha":
-            self.action_commits_copy_sha()  # type: ignore[attr-defined]
+            self.action_stitches_copy_sha()  # type: ignore[attr-defined]
             return
         entry = pane._selected_entry() if pane is not None else None
         if entry is None:

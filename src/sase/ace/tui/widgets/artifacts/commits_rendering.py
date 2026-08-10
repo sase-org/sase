@@ -132,21 +132,21 @@ def build_commits_legend(result: VcsLogResult | None) -> Text:
 def build_commits_hints(registry: KeymapRegistry) -> Text:
     """Build the commits action hint bar from configured keymaps."""
     actions = registry.app
-    view_key = key_display_name(actions.commits_view_selected)
+    view_key = key_display_name(actions.stitches_view_selected)
     if view_key == "Enter":
         view_key = view_key.lower()
     text = Text(
-        f"{key_display_name(actions.commits_next)}/"
-        f"{key_display_name(actions.commits_prev)} navigate  {view_key} view"
+        f"{key_display_name(actions.stitches_next)}/"
+        f"{key_display_name(actions.stitches_prev)} navigate  {view_key} view"
     )
     for key, label in (
-        (key_display_name(actions.commits_copy_sha), "copy"),
+        (key_display_name(actions.stitches_copy_sha), "copy"),
         (key_display_name(actions.edit_query), "filter"),
-        (key_display_name(actions.commits_toggle_sdd), "sidecars"),
-        (key_display_name(actions.commits_cycle_merges), "merges"),
-        (key_display_name(actions.commits_toggle_all_projects), "all"),
-        (key_display_name(actions.commits_fetch), "fetch"),
-        (key_display_name(actions.commits_refresh), "refresh"),
+        (key_display_name(actions.stitches_toggle_sdd), "sidecars"),
+        (key_display_name(actions.stitches_cycle_merges), "merges"),
+        (key_display_name(actions.stitches_toggle_all_projects), "all"),
+        (key_display_name(actions.stitches_fetch), "fetch"),
+        (key_display_name(actions.stitches_refresh), "refresh"),
         (key_display_name(actions.pick_artifacts_project), "project"),
     ):
         text.append("  ")

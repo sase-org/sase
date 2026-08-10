@@ -66,7 +66,7 @@ class CopyHarness(ClipboardMixin):
     def _commits_pane(self) -> Any:
         return self.commits_pane
 
-    def action_commits_copy_sha(self) -> None:
+    def action_stitches_copy_sha(self) -> None:
         entry = self.commits_pane._selected_entry()
         self.copies.append((entry.commit.full_id, "Copied commit SHA"))
 

@@ -733,7 +733,9 @@ ace:
 | `tribes`                   | dict         | see below | Per-tribe ACE TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                      |
 | `updates`                  | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
 
-#### `ace.artifacts.commits`
+#### `ace.artifacts.stitches`
+
+`ace.artifacts.commits` is a deprecated alias for this block; it still loads and warns.
 
 | Field           | Type | Default                               | Description                                                                                                                                                                                                                                                                                                            |
 | --------------- | ---- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

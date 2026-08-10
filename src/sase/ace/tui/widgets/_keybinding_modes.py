@@ -457,14 +457,8 @@ class KeybindingModesMixin:
             }
             else tab
         )
-        # TODO(sase-j8.3): keymaps/mode_keymaps.py still registers the Stitches
-        # copy-mode group as "artifacts_commits"; drop this translation once
-        # that group is renamed to "artifacts_stitches".
-        group_pane_key = (
-            "commits" if artifacts_pane_key == "stitches" else artifacts_pane_key
-        )
         key_group = (
-            f"artifacts_{group_pane_key}"
+            f"artifacts_{artifacts_pane_key}"
             if tab == "artifacts"
             and artifacts_pane_key
             in {"stitches", "beads", "plans", "chats", "bugs", "other"}

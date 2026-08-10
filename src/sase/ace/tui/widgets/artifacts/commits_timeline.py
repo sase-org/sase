@@ -32,7 +32,7 @@ class CommitsTimeline(OptionList):
 
     # Enter is registry-driven at the app level. Keep OptionList's arrow/page
     # bindings for accessibility while preventing its fixed Enter binding from
-    # bypassing a configured ``commits_view_selected`` override.
+    # bypassing a configured ``stitches_view_selected`` override.
     BINDINGS = [
         Binding("down", "cursor_down", "Down", show=False),
         Binding("end", "last", "Last", show=False),
