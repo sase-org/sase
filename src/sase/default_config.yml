@@ -1079,8 +1079,6 @@ xprompts:
       If you discover genuinely distinct follow-up work that is outside this task, use `/sase_new_task` with details
       identifying the current bead; it will corroborate a duplicate, attach a causally related active-epic issue, or
       create a sized task as appropriate.
-
-      IMPORTANT: Do not commit your changes unless/until the finalizer asks you to.
   epic: |
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
     keep in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `agy` /

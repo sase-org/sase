@@ -25,13 +25,23 @@ def test_task_prompt_has_exact_single_segment_order_and_feedback_tail() -> None:
     )
 
     assert rendered == (
-        "#gh:sase #commit\n"
+        "#gh:sase\n"
         "%id(!sase-42, bead=sase-42)\n"
         "%m:@small_phase_worker\n"
         "#custom/work_task:sase-42\n"
         "Please preserve the compatibility shim."
     )
     assert "\n---\n" not in rendered
+
+
+def test_task_prompt_omits_commit_rollover_xprompt() -> None:
+    rendered = render_task_prompt(
+        "sase-42",
+        work_task_xprompt=Workflow(name="bd/work_task"),
+        vcs_context=VCSLaunchContext(vcs_workflow="gh", project_name="sase"),
+    )
+
+    assert "#commit" not in rendered
 
 
 @pytest.mark.parametrize(

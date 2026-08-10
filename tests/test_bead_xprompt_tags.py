@@ -131,11 +131,13 @@ def test_builtin_phase_and_land_prompts_capture_follow_ups() -> None:
     assert "sase bead create -T task" not in land_body
 
 
-def test_builtin_task_prompt_defers_commits_to_finalizer() -> None:
+def test_builtin_task_prompt_omits_commit_deferral_line() -> None:
     body = get_all_prompts()["bd/work_task"].steps[0].prompt_part
     assert body is not None
 
-    assert "Do not commit your changes unless/until the finalizer asks you to." in body
+    assert (
+        "Do not commit your changes unless/until the finalizer asks you to." not in body
+    )
 
 
 def test_builtin_plan_review_uses_prompt_archive_and_plan_glob(

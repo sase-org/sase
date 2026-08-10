@@ -351,7 +351,7 @@ def render_task_prompt(
         )
 
     lines = [
-        f"#{vcs_context.vcs_workflow}:{vcs_context.project_name} #commit",
+        f"#{vcs_context.vcs_workflow}:{vcs_context.project_name}",
         f"%id(!{bead_id}, bead={bead_id})",
         f"%m:{task_model_directive_value(model, size=size)}",
         f"#{work_task_xprompt.name}:{bead_id}",

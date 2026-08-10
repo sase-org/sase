@@ -173,7 +173,7 @@ def test_task_work_launches_one_checkpointed_agent(
 
     assert events == ["checkpoint", "launch"]
     assert captured["query"] == (
-        f"#git:sase #commit\n"
+        f"#git:sase\n"
         f"%id({task_id}, bead={task_id})\n"
         f"%m:@small_phase_worker\n"
         f"#bd/work_task:{task_id}\n"
