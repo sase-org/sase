@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from rich.cells import cell_len
@@ -33,13 +34,62 @@ _STACK_SEPARATOR_RULE = "─"
 _STACK_SEPARATOR_ACTIVE_MARKER = "▍"
 
 
+def _take_cells(value: str, width: int, *, from_right: bool = False) -> str:
+    """Return a prefix/suffix of *value* that fits in *width* terminal cells."""
+    if width <= 0:
+        return ""
+    chars = reversed(value) if from_right else iter(value)
+    used = 0
+    taken: list[str] = []
+    for char in chars:
+        char_width = max(cell_len(char), 0)
+        if used + char_width > width:
+            break
+        taken.append(char)
+        used += char_width
+    if from_right:
+        taken.reverse()
+    return "".join(taken)
+
+
+def _middle_elide_cells(value: str, width: int) -> str:
+    """Fit *value* in *width* cells, preserving the path tail."""
+    if width <= 0:
+        return ""
+    if cell_len(value) <= width:
+        return value
+    if width == 1:
+        return "…"
+    left_width = max(1, (width - 1) // 2)
+    right_width = max(0, width - 1 - left_width)
+    suffix = _take_cells(value, right_width, from_right=True)
+    return f"{_take_cells(value, left_width)}…{suffix}"
+
+
+@dataclass(frozen=True)
+class _SnippetSeparatorInfo:
+    """The chip/destination/state data the snippet pane's separator renders."""
+
+    trigger: str
+    destination: str
+    state: str  # "clean" | "dirty" | "new"
+
+
 class _PromptStackSeparator(Static):
     """Width-aware separator row for one prompt-stack pane."""
 
-    def __init__(self, label: str, *, active: bool = False, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        label: str,
+        *,
+        active: bool = False,
+        snippet: _SnippetSeparatorInfo | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__("", **kwargs)
         self.label = label
         self.active = active
+        self.snippet = snippet
         self.position: tuple[int, int] | None = None
         self.vim_mode: str = "insert"
 
@@ -48,6 +98,13 @@ class _PromptStackSeparator(Static):
         if self.active == active:
             return
         self.active = active
+        self.refresh()
+
+    def set_snippet_info(self, info: _SnippetSeparatorInfo | None) -> None:
+        """Replace the snippet chip/destination/marker, no-op when unchanged."""
+        if self.snippet == info:
+            return
+        self.snippet = info
         self.refresh()
 
     def set_position(
@@ -61,8 +118,11 @@ class _PromptStackSeparator(Static):
         self.refresh()
 
     def render(self) -> Text:
-        """Render a centered agent label connected by full-width hairline rules."""
+        """Render a centered pane label connected by full-width hairline rules."""
         width = max(0, int(self.size.width))
+        if self.snippet is not None:
+            return self._render_snippet(width)
+
         label = self.label
         if self.active:
             label = f"{_STACK_SEPARATOR_ACTIVE_MARKER} {label}"
@@ -82,6 +142,74 @@ class _PromptStackSeparator(Static):
         text = Text(no_wrap=True, overflow="crop")
         text.append(_STACK_SEPARATOR_RULE * left_width, style="dim")
         text.append(padded_label, style=label_style)
+        text.append_text(self._render_right_rule(right_width))
+        return text
+
+    def _theme_color(self, attr: str, fallback: str) -> str:
+        """Return a theme color by attribute name, falling back outside an app."""
+        try:
+            theme = self.app.current_theme
+        except Exception:
+            return fallback
+        color = getattr(theme, attr, None)
+        return str(color) if color else fallback
+
+    def _snippet_marker(self) -> tuple[str, str]:
+        """Return ``(text, style)`` for the snippet pane's state marker."""
+        info = self.snippet
+        assert info is not None
+        if info.state == "new":
+            return "new", f"bold {self._theme_color('success', 'green')}"
+        if info.state == "dirty":
+            return "●", f"bold {self._theme_color('warning', 'yellow')}"
+        return "✓", "dim"
+
+    def _render_snippet(self, width: int) -> Text:
+        """Render the trigger-labeled title bar for the pinned snippet pane.
+
+        Unlike the centered agent label, this row reads left-to-right: the
+        ``⇥ <trigger>`` chip, the destination file (dim, middle-elided so a
+        deep path never overruns the rule), then a truthful state marker.
+        """
+        info = self.snippet
+        assert info is not None
+        chip_prefix = f"{_STACK_SEPARATOR_ACTIVE_MARKER} " if self.active else ""
+        chip = f"{chip_prefix}⇥ {info.trigger}"
+        chip_style = "bold" if self.active else "dim"
+        marker_text, marker_style = self._snippet_marker()
+
+        fixed_width = cell_len(f"  {chip}   {marker_text}  ")
+        dest_budget = max(0, width - fixed_width)
+        destination = (
+            _middle_elide_cells(info.destination, dest_budget)
+            if info.destination and dest_budget > 0
+            else ""
+        )
+
+        body = Text(no_wrap=True, overflow="crop")
+        body.append(" ")
+        body.append(chip, style=chip_style)
+        if destination:
+            body.append(" · ", style="dim")
+            body.append(destination, style="dim")
+        body.append(" ")
+        body.append(marker_text, style=marker_style)
+        body.append(" ")
+        label_width = body.cell_len
+
+        if width <= label_width:
+            text = body.copy()
+            text.no_wrap = True
+            text.overflow = "ellipsis"
+            text.truncate(width, overflow="ellipsis")
+            return text
+
+        rule_width = width - label_width
+        left_width = rule_width // 2
+        right_width = rule_width - left_width
+        text = Text(no_wrap=True, overflow="crop")
+        text.append(_STACK_SEPARATOR_RULE * left_width, style="dim")
+        text.append_text(body)
         text.append_text(self._render_right_rule(right_width))
         return text
 
@@ -168,12 +296,18 @@ class PromptInputBarStackRenderingMixin(
             if multi:
                 active = index == self._stack.selected_index
                 state = "active" if active else "inactive"
+                classes = f"prompt-stack-separator {state}"
+                snippet_info = None
+                if item.is_snippet_pane:
+                    classes += " snippet"
+                    snippet_info = self._snippet_separator_info(item)
                 widgets.append(
                     _PromptStackSeparator(
                         label,
                         active=active,
+                        snippet=snippet_info,
                         id=self._sep_id(item),
-                        classes=f"prompt-stack-separator {state}",
+                        classes=classes,
                     )
                 )
             widgets.append(
@@ -195,7 +329,26 @@ class PromptInputBarStackRenderingMixin(
         if not multi:
             return "prompt-input solo"
         state = "active" if index == self._stack.selected_index else "inactive"
-        return f"prompt-input prompt-pane {state}"
+        classes = f"prompt-input prompt-pane {state}"
+        if self._stack.items[index].is_snippet_pane:
+            classes += " snippet-target"
+        return classes
+
+    def _snippet_separator_info(self, item: PromptStackItem) -> _SnippetSeparatorInfo:
+        """Return the chip/destination/marker state for the snippet pane's rule."""
+        target = item.snippet_target
+        assert target is not None
+        if not target.exists:
+            state = "new"
+        elif self._stack.snippet_is_dirty:
+            state = "dirty"
+        else:
+            state = "clean"
+        return _SnippetSeparatorInfo(
+            trigger=target.trigger,
+            destination=target.display_path,
+            state=state,
+        )
 
     def _rebuild_stack(
         self,
@@ -346,6 +499,8 @@ class PromptInputBarStackRenderingMixin(
                 )
             except Exception:
                 continue
+            if item.is_snippet_pane:
+                separator.set_snippet_info(self._snippet_separator_info(item))
             if index == self._stack.selected_index:
                 separator.set_position(None)
                 continue

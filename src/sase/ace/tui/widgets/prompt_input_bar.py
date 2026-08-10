@@ -514,6 +514,15 @@ class PromptInputBar(
             return ""
         return str(chip())
 
+    def _snippet_pane_trigger(self) -> str | None:
+        """Return the active pane's snippet trigger, or ``None`` off the snippet pane."""
+        if self._mode != "prompt":
+            return None
+        item = self._stack.selected_item
+        if not item.is_snippet_pane or item.snippet_target is None:
+            return None
+        return item.snippet_target.trigger
+
     def insert_mode_subtitle(self) -> str:
         """Return the insert-mode subtitle, advertising the stack when stacked.
 
@@ -522,8 +531,15 @@ class PromptInputBar(
         and adds ``[^S] stash`` plus ``[^G Enter] this`` hints for active-pane
         actions.  ``Esc`` still drops into NORMAL mode for the normal ``g``
         prefix; INSERT mode reaches the same prompt-local actions through the
-        ``Ctrl+G`` prefix.
+        ``Ctrl+G`` prefix.  The pinned snippet pane advertises its own save /
+        discard / rename hints instead -- never the agent-stack hints, since
+        ``<enter>`` means something completely different there.
         """
+        trigger = self._snippet_pane_trigger()
+        if trigger is not None:
+            return (
+                f"[Enter] save ⇥ {trigger}  [Esc] normal  [^C] discard  [^G t] rename"
+            )
         target_hint = self._target_save_hint()
         if self._mode == "prompt" and self._stack.agent_count > 1:
             return (
@@ -544,8 +560,15 @@ class PromptInputBar(
         prompt bar still advertises ``g<enter>`` and ``<Ctrl+S>``; feedback /
         approve-prompt bars keep the original normal-mode hints since they are
         not stashable.  The full ``g`` prefix, including add-pane and
-        frontmatter actions, is discoverable through the hint panel.
+        frontmatter actions, is discoverable through the hint panel.  The
+        pinned snippet pane advertises its own save / discard / rename hints
+        instead, matching the insert-mode variant.
         """
+        trigger = self._snippet_pane_trigger()
+        if trigger is not None:
+            return (
+                f"[g<enter>] save ⇥ {trigger}  [i] insert  [^C] discard  [^G t] rename"
+            )
         target_hint = self._target_save_hint()
         if self._mode == "prompt" and self._stack.agent_count > 1:
             return (

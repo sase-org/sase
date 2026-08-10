@@ -3577,6 +3577,27 @@ PromptInputBar .prompt-pane.inactive {
     color: $text-muted;
 }
 
+/* The pinned snippet-target pane gets its own accent -- $primary, distinct
+   from both the plain active-pane $accent and xprompt targeting's $secondary
+   -- so the three states are never confusable at a glance. */
+PromptInputBar .prompt-pane.snippet-target {
+    border-left: thick $primary 30%;
+}
+
+PromptInputBar .prompt-pane.snippet-target.active {
+    border-left: thick $primary;
+    background: $primary 12%;
+}
+
+PromptInputBar .prompt-pane.snippet-target.active:focus {
+    background: $primary 12%;
+}
+
+PromptInputBar .prompt-pane.snippet-target.inactive {
+    background: $background;
+    color: $text-muted;
+}
+
 /* Separator rows: width-aware hairline rules with centered agent labels. */
 PromptInputBar .prompt-stack-separator {
     width: 100%;
@@ -3591,6 +3612,13 @@ PromptInputBar .prompt-stack-separator.inactive {
 
 PromptInputBar .prompt-stack-separator.active {
     color: $accent;
+}
+
+/* The snippet pane's separator reads as a labeled title bar, not a centered
+   agent rule, and keeps the same $primary accent in both active/inactive
+   states -- only the chip's bold/dim weight (set in Python) changes. */
+PromptInputBar .prompt-stack-separator.snippet {
+    color: $primary;
 }
 
 PromptInputBar.feedback-mode {

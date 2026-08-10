@@ -8,8 +8,11 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
+from sase.ace.tui.modals.snippet_name_modal import SnippetNameResult
 from sase.ace.tui.widgets import StashedPromptsIndicator
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
+from sase.xprompt.snippet_targets import SnippetSaveTarget
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -39,6 +42,9 @@ TARGETED_MARKDOWN = (
     "Audit the targeted xprompt editing state and keep the review notes concise."
 )
 
+SNIPPET_PANE_PROMPT = "Investigate the failing CI on the beads branch"
+SNIPPET_DESTINATION_DISPLAY = "~/.config/sase/sase.yml"
+
 
 def _write_target_source(
     tmp_path: Path,
@@ -50,6 +56,50 @@ def _write_target_source(
     source.parent.mkdir(parents=True)
     source.write_text(body, encoding="utf-8")
     return source, fake_home
+
+
+async def _open_snippet_pane(
+    page: AcePage,
+    bar: PromptInputBar,
+    tmp_path: Path,
+    *,
+    trigger: str = "todo",
+    existing_body: str | None = None,
+) -> None:
+    """Open the pinned snippet pane below *bar*'s existing prompt pane."""
+    destination = tmp_path / "sase.yml"
+    target = SnippetSaveTarget(
+        read_path=destination,
+        write_path=destination,
+        apply_target=None,
+        via_chezmoi=False,
+        display_path=SNIPPET_DESTINATION_DISPLAY,
+        source="configured",
+        fallback_reason=None,
+    )
+    result = SnippetNameResult(
+        trigger=trigger,
+        target=target,
+        exists=existing_body is not None,
+        existing_body=existing_body,
+        derived_from=None,
+    )
+    origin_id = bar.active_text_area().id or ""
+    assert bar.open_snippet_target_pane(
+        result,
+        origin_pane_id=origin_id,
+        destination_exists=existing_body is not None,
+        loaded_fingerprint=None,
+    )
+    await wait_for_state(
+        page,
+        lambda: (
+            bar._stack.selected_item.is_snippet_pane
+            and bar.active_text_area().has_focus
+        ),
+        description="snippet pane opened and focused",
+    )
+    await wait_for_visual_idle(page)
 
 
 async def test_prompt_stack_two_panes_png_snapshot(
@@ -349,4 +399,63 @@ async def test_prompt_stack_g_prefix_hints_png_snapshot(
             page,
             "prompt_stack_g_prefix_hints_120x40",
             title="ACE prompt stack — g prefix hints",
+        )
+
+
+async def test_prompt_stack_snippet_new_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, SNIPPET_PANE_PROMPT)
+        await _open_snippet_pane(page, bar, tmp_path)
+        await wait_for_svg_contains(page, "⇥ todo")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_stack_snippet_new_120x40",
+            title="ACE prompt stack — new snippet pane",
+        )
+
+
+async def test_prompt_stack_snippet_dirty_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, SNIPPET_PANE_PROMPT)
+        await _open_snippet_pane(
+            page,
+            bar,
+            tmp_path,
+            existing_body="- [ ] review the diff",
+        )
+
+        bar.active_text_area().text = (
+            "- [ ] review the diff\n- [ ] confirm rollback owner"
+        )
+        bar._sync_state_from_widgets()
+        bar.refresh_cursor_readouts()
+        await wait_for_svg_contains(page, "●")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_stack_snippet_dirty_120x40",
+            title="ACE prompt stack — dirty overwrite snippet pane",
         )

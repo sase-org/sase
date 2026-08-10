@@ -56,7 +56,10 @@ async def test_snippet_pane_is_mounted_but_not_an_agent_stack() -> None:
         assert bar.all_prompt_texts() == ["agent prompt"]
         assert bar.current_prompt_text() == "agent prompt"
         assert bar.xprompt_markdown_for_editor() == "agent prompt"
-        assert bar.insert_mode_subtitle() == "[Enter] send  [Esc] normal  [^C] cancel"
+        assert (
+            bar.insert_mode_subtitle()
+            == "[Enter] save ⇥ todo  [Esc] normal  [^C] discard  [^G t] rename"
+        )
         assert not any(entry.key == "s" for entry in bar.g_prefix_hint_entries())
 
 
@@ -75,7 +78,7 @@ async def test_agent_count_and_separators_skip_snippet_pane() -> None:
         ]
         assert any("agent 1" in row for row in rendered)
         assert any("agent 2" in row for row in rendered)
-        assert any("snippet" in row for row in rendered)
+        assert any("⇥ todo" in row for row in rendered)
         assert not any("agent 3" in row for row in rendered)
 
 
