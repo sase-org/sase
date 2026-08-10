@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._test_selection_manifest import sase_core_directory
+
 
 pytestmark = pytest.mark.contract
 
@@ -18,8 +20,11 @@ def _clean_sase_core_env(env_vars: dict[str, str]) -> dict[str, str]:
     env.pop("SASE_CORE_DIR", None)
     env.pop("SASE_CORE_WHEEL", None)
     env.pop("SASE_LINKED_REPO_SASE_CORE_DIR", None)
+    env.pop("SASE_LINKED_REPO_SASE_CORE_PRIMARY_DIR", None)
     env.pop("SASE_SIBLING_REPO_SASE_CORE_DIR", None)
+    env.pop("SASE_SIBLING_REPO_SASE_CORE_PRIMARY_DIR", None)
     env.pop("SASE_SIBLING_REPO_CORE_DIR", None)
+    env.pop("SASE_SIBLING_REPO_CORE_PRIMARY_DIR", None)
     env.update(env_vars)
     return env
 
@@ -42,46 +47,99 @@ def _evaluate_sase_core_dir(env_vars: dict[str, str], *, root: Path) -> str:
     return result.stdout.strip()
 
 
-@pytest.mark.parametrize(
-    ("env_vars", "expected"),
-    [
-        (
-            {
-                "SASE_CORE_DIR": "/tmp/explicit-sase-core",
-                "SASE_LINKED_REPO_SASE_CORE_DIR": "/tmp/real-linked-sase-core",
-                "SASE_SIBLING_REPO_SASE_CORE_DIR": "/tmp/real-sibling-sase-core",
-                "SASE_SIBLING_REPO_CORE_DIR": "/tmp/sibling-sase-core",
-            },
-            "/tmp/explicit-sase-core",
-        ),
-        (
-            {
-                "SASE_LINKED_REPO_SASE_CORE_DIR": "/tmp/real-linked-sase-core",
-                "SASE_SIBLING_REPO_SASE_CORE_DIR": "/tmp/real-sibling-sase-core",
-                "SASE_SIBLING_REPO_CORE_DIR": "/tmp/sibling-sase-core",
-            },
-            "/tmp/real-linked-sase-core",
-        ),
-        (
-            {
-                "SASE_SIBLING_REPO_SASE_CORE_DIR": "/tmp/real-sibling-sase-core",
-                "SASE_SIBLING_REPO_CORE_DIR": "/tmp/sibling-sase-core",
-            },
-            "/tmp/real-sibling-sase-core",
-        ),
-        (
-            {"SASE_SIBLING_REPO_CORE_DIR": "/tmp/sibling-sase-core"},
-            "/tmp/sibling-sase-core",
-        ),
-    ],
-)
-def test_justfile_sase_core_dir_precedence(
-    isolated_justfile_root: Path, env_vars: dict[str, str], expected: str
+def test_justfile_sase_core_dir_prefers_explicit_override(
+    isolated_justfile_root: Path,
 ) -> None:
     workspace_core = isolated_justfile_root / "sase/repos/linked/sase-core"
     workspace_core.mkdir(parents=True)
 
-    assert _evaluate_sase_core_dir(env_vars, root=isolated_justfile_root) == expected
+    assert (
+        _evaluate_sase_core_dir(
+            {
+                "SASE_CORE_DIR": "/tmp/explicit-sase-core",
+                "SASE_LINKED_REPO_SASE_CORE_DIR": str(workspace_core),
+                "SASE_LINKED_REPO_SASE_CORE_PRIMARY_DIR": "/tmp/primary-sase-core",
+            },
+            root=isolated_justfile_root,
+        )
+        == "/tmp/explicit-sase-core"
+    )
+
+
+@pytest.mark.parametrize(
+    "env_name",
+    [
+        "SASE_LINKED_REPO_SASE_CORE_DIR",
+        "SASE_SIBLING_REPO_SASE_CORE_DIR",
+        "SASE_SIBLING_REPO_CORE_DIR",
+    ],
+)
+def test_justfile_sase_core_dir_accepts_current_workspace_env(
+    isolated_justfile_root: Path, env_name: str
+) -> None:
+    workspace_core = isolated_justfile_root / "sase/repos/linked/sase-core"
+    workspace_core.mkdir(parents=True)
+
+    assert _evaluate_sase_core_dir(
+        {
+            env_name: str(workspace_core),
+            "SASE_LINKED_REPO_SASE_CORE_PRIMARY_DIR": "/tmp/primary-sase-core",
+        },
+        root=isolated_justfile_root,
+    ) == str(workspace_core)
+
+
+def test_justfile_sase_core_dir_uses_primary_for_stale_agent_workspace_env(
+    isolated_justfile_root: Path,
+) -> None:
+    foreign_core = isolated_justfile_root.parent / "sase_11/sase/repos/linked/sase-core"
+    primary_core = isolated_justfile_root.parent / "primary-sase-core"
+
+    assert _evaluate_sase_core_dir(
+        {
+            "SASE_LINKED_REPO_SASE_CORE_DIR": str(foreign_core),
+            "SASE_SIBLING_REPO_SASE_CORE_DIR": str(foreign_core),
+            "SASE_SIBLING_REPO_CORE_DIR": str(foreign_core),
+            "SASE_LINKED_REPO_SASE_CORE_PRIMARY_DIR": str(primary_core),
+            "SASE_SIBLING_REPO_SASE_CORE_PRIMARY_DIR": "/tmp/sibling-primary",
+            "SASE_SIBLING_REPO_CORE_PRIMARY_DIR": "/tmp/legacy-primary",
+        },
+        root=isolated_justfile_root,
+    ) == str(primary_core)
+
+
+def test_selection_manifest_core_dir_mirrors_stale_env_resolution(
+    isolated_justfile_root: Path,
+) -> None:
+    foreign_core = isolated_justfile_root.parent / "sase_11/sase/repos/linked/sase-core"
+    primary_core = isolated_justfile_root.parent / "primary-sase-core"
+
+    assert (
+        sase_core_directory(
+            isolated_justfile_root,
+            {
+                "SASE_LINKED_REPO_SASE_CORE_DIR": str(foreign_core),
+                "SASE_LINKED_REPO_SASE_CORE_PRIMARY_DIR": str(primary_core),
+            },
+        )
+        == primary_core
+    )
+
+
+def test_justfile_sase_core_dir_ignores_stale_env_without_primary(
+    isolated_justfile_root: Path,
+) -> None:
+    workspace_core = isolated_justfile_root / "sase/repos/linked/sase-core"
+    workspace_core.mkdir(parents=True)
+    foreign_core = isolated_justfile_root.parent / "sase_11/sase/repos/linked/sase-core"
+
+    assert (
+        _evaluate_sase_core_dir(
+            {"SASE_LINKED_REPO_SASE_CORE_DIR": str(foreign_core)},
+            root=isolated_justfile_root,
+        )
+        == "sase/repos/linked/sase-core"
+    )
 
 
 def test_justfile_prefers_workspace_local_sase_core(

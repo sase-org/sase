@@ -13,15 +13,27 @@ prettier_bin := "node_modules/.bin/prettier"
 
 # Linked Rust core repo. CI can override this with SASE_CORE_DIR after
 # checking out sase-core inside the Actions workspace. SASE-launched agents
-# provide the workspace-matched linked checkout via
-# SASE_LINKED_REPO_SASE_CORE_DIR. Keep the legacy SASE_SIBLING_REPO_SASE_CORE_DIR
-# and SASE_SIBLING_REPO_CORE_DIR variables as compatibility fallbacks for older
-# launch environments. Without those variables, numbered workspaces keep linked
-# repos under sase/repos/linked, while primary and older development layouts use
-# the sibling ../sase-core checkout.
+# provide workspace-matched linked checkouts via SASE_LINKED_REPO_SASE_CORE_DIR
+# and primary host checkouts via SASE_LINKED_REPO_SASE_CORE_PRIMARY_DIR. Trust
+# workspace-scoped env paths only when they point under this Justfile checkout;
+# otherwise a shell inherited from another numbered workspace must use the
+# primary checkout or the checkout-relative fallback.
 workspace_sase_core_dir := "sase/repos/linked/sase-core"
 fallback_sase_core_dir := if path_exists(workspace_sase_core_dir) == "true" { workspace_sase_core_dir } else { "../sase-core" }
-sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", fallback_sase_core_dir))))
+justfile_directory_abs := clean(justfile_directory())
+linked_sase_core_dir := env_var_or_default("SASE_LINKED_REPO_SASE_CORE_DIR", "")
+linked_sase_core_dir_abs := if linked_sase_core_dir != "" { clean(absolute_path(linked_sase_core_dir)) } else { "" }
+current_linked_sase_core_dir := if linked_sase_core_dir_abs != "" { if linked_sase_core_dir_abs =~ "^" + justfile_directory_abs + "(/|$)" { linked_sase_core_dir } else { "" } } else { "" }
+sibling_sase_core_dir := env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_DIR", "")
+sibling_sase_core_dir_abs := if sibling_sase_core_dir != "" { clean(absolute_path(sibling_sase_core_dir)) } else { "" }
+current_sibling_sase_core_dir := if sibling_sase_core_dir_abs != "" { if sibling_sase_core_dir_abs =~ "^" + justfile_directory_abs + "(/|$)" { sibling_sase_core_dir } else { "" } } else { "" }
+legacy_sibling_core_dir := env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", "")
+legacy_sibling_core_dir_abs := if legacy_sibling_core_dir != "" { clean(absolute_path(legacy_sibling_core_dir)) } else { "" }
+current_legacy_sibling_core_dir := if legacy_sibling_core_dir_abs != "" { if legacy_sibling_core_dir_abs =~ "^" + justfile_directory_abs + "(/|$)" { legacy_sibling_core_dir } else { "" } } else { "" }
+linked_sase_core_primary_dir := env_var_or_default("SASE_LINKED_REPO_SASE_CORE_PRIMARY_DIR", "")
+sibling_sase_core_primary_dir := env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_PRIMARY_DIR", "")
+legacy_sibling_core_primary_dir := env_var_or_default("SASE_SIBLING_REPO_CORE_PRIMARY_DIR", "")
+sase_core_dir := env_var_or_default("SASE_CORE_DIR", if current_linked_sase_core_dir != "" { current_linked_sase_core_dir } else if current_sibling_sase_core_dir != "" { current_sibling_sase_core_dir } else if current_legacy_sibling_core_dir != "" { current_legacy_sibling_core_dir } else if linked_sase_core_primary_dir != "" { linked_sase_core_primary_dir } else if sibling_sase_core_primary_dir != "" { sibling_sase_core_primary_dir } else if legacy_sibling_core_primary_dir != "" { legacy_sibling_core_primary_dir } else { fallback_sase_core_dir })
 
 # Prefer the workspace-matched sase-github checkout for demo recordings. The
 # PyPI package remains the fallback for source trees without a linked checkout.

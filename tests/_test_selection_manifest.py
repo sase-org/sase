@@ -25,20 +25,25 @@ from typing import Any
 #: `baseline.environment` became a per-input map (was a single opaque digest),
 #: `baseline.environment_changed_inputs` joined it, `max_serial_seconds` did,
 #: and the `timings` block stopped reading `escalated` for a run that escalated
-#: on that estimate, and to 7 when the `gear` block — whether the middle gear
-#: was offered an over-budget selection, and the worker width the suite gate
-#: granted it — joined it.
-MANIFEST_SCHEMA = 7
+#: on that estimate, to 7 when the `gear` block — whether the middle gear was
+#: offered an over-budget selection, and the worker width the suite gate granted
+#: it — joined it, and to 8 when stale workspace-scoped `sase-core` env vars
+#: stopped contributing the `core-cargo` fingerprint.
+MANIFEST_SCHEMA = 8
 
 SELECTION_DIRECTORY = Path(".pytest_cache") / "sase-selection"
 GRAPH_CACHE_FILENAME = "graph.json"
 MANIFEST_FILENAME = "manifest.json"
 
-_SASE_CORE_DIR_ENV_VARS = (
-    "SASE_CORE_DIR",
+_WORKSPACE_SASE_CORE_DIR_ENV_VARS = (
     "SASE_LINKED_REPO_SASE_CORE_DIR",
     "SASE_SIBLING_REPO_SASE_CORE_DIR",
     "SASE_SIBLING_REPO_CORE_DIR",
+)
+_PRIMARY_SASE_CORE_DIR_ENV_VARS = (
+    "SASE_LINKED_REPO_SASE_CORE_PRIMARY_DIR",
+    "SASE_SIBLING_REPO_SASE_CORE_PRIMARY_DIR",
+    "SASE_SIBLING_REPO_CORE_PRIMARY_DIR",
 )
 _WORKSPACE_SASE_CORE_DIR = Path("sase/repos/linked/sase-core")
 
@@ -59,15 +64,36 @@ def write_manifest(path: Path, manifest: Mapping[str, Any]) -> None:
 def sase_core_directory(root: Path, environ: Mapping[str, str] | None = None) -> Path:
     """Mirror the Justfile's ``sase_core_dir`` resolution order."""
     environ = os.environ if environ is None else environ
-    for name in _SASE_CORE_DIR_ENV_VARS:
+    explicit = environ.get("SASE_CORE_DIR")
+    if explicit:
+        return _resolve_env_path(root, explicit)
+    for name in _WORKSPACE_SASE_CORE_DIR_ENV_VARS:
         value = environ.get(name)
         if value:
-            candidate = Path(value)
-            return candidate if candidate.is_absolute() else root / candidate
+            candidate = _resolve_env_path(root, value)
+            if _is_relative_to(candidate, root):
+                return candidate
+    for name in _PRIMARY_SASE_CORE_DIR_ENV_VARS:
+        value = environ.get(name)
+        if value:
+            return _resolve_env_path(root, value)
     workspace_checkout = root / _WORKSPACE_SASE_CORE_DIR
     if workspace_checkout.exists():
         return workspace_checkout
     return root.parent / "sase-core"
+
+
+def _resolve_env_path(root: Path, value: str) -> Path:
+    candidate = Path(value)
+    return candidate if candidate.is_absolute() else root / candidate
+
+
+def _is_relative_to(candidate: Path, root: Path) -> bool:
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return False
+    return True
 
 
 def _load_validator_module(root: Path) -> ModuleType | None:
