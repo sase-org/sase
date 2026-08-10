@@ -3343,10 +3343,10 @@ pinned attempt view resets the cursor.
   snapshot; bead-only, timed-only, and runner-only waits do not receive that marker.
   Timed waits add compact duration, target time, and countdown text when available. An
   explicit runner threshold on a `QUEUED` row shows the live running count, threshold,
-  and its `queue #N of M` admission rank; `runners=0` is labeled as a drain barrier. A
-  `QUEUED` detail uses a separate `Queue:` line led by its rank and elapsed time since
-  `slot_requested_at`, followed by cap context. It deliberately suppresses the marker's
-  stale dependency, bead, and time-wait fields.
+  and its `queue #N of M` capacity-aware display rank; `runners=0` is labeled as a drain
+  barrier. A `QUEUED` detail uses a separate `Queue:` line led by its rank and elapsed
+  time since `slot_requested_at`, followed by cap context. It deliberately suppresses
+  the marker's stale dependency, bead, and time-wait fields.
 - **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent family
   with `sase var set`. Strings, numbers, booleans, null, lists, and nested maps retain
   their types. A single contributing agent renders as a flat sorted key/value block;

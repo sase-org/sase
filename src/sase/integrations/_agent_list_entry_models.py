@@ -27,9 +27,9 @@ class AgentWaitInfo:
     wait_priority: int | None = None
     slot_requested_at: str | None = None
     runner_slots_in_use: int | None = None
-    # Admission rank and total across every live runner-slot waiter, ordered
-    # by priority and request FIFO. These remain populated while the pool is
-    # full; they are not limited to waiters whose threshold is already met.
+    # Display rank and total across every live runner-slot waiter. Capacity-
+    # eligible waiters come first; parked waiters follow by nearest opening
+    # threshold, with priority/FIFO preserved inside each group.
     runner_slot_queue_position: int | None = None
     runner_slot_queue_size: int | None = None
     runner_slot_holders: tuple[str, ...] = ()

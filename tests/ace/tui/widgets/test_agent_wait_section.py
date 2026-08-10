@@ -27,7 +27,6 @@ def _lanes(agent, **overrides):
         "clan_wait_member_statuses": None,
         "tribe_wait_bindings": None,
         "wait_bead_statuses": None,
-        "runner_queue_ahead_count": None,
     }
     arguments.update(overrides)
     return build_wait_lanes(agent, **arguments)

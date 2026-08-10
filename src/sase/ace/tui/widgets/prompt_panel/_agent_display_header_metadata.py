@@ -260,7 +260,6 @@ def _append_wait_field(
         clan_wait_member_statuses=clan_wait_member_statuses,
         tribe_wait_bindings=tribe_wait_bindings,
         wait_bead_statuses=wait_bead_statuses,
-        runner_queue_ahead_count=runner_queue_ahead_count,
     )
     if runners_only:
         lanes = tuple(lane for lane in lanes if lane[0] == "runners")

@@ -19,7 +19,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
 )
 from sase.core.paths import sase_projects_dir
-from sase.core.runner_slots import runner_slot_waiter_sort_key
+from sase.core.runner_slots import runner_slot_queue_display_key
 from sase.core.time import get_timezone
 
 from ._agent_list_entry_builder import (
@@ -106,7 +106,10 @@ def _attach_runner_slot_context(
 ) -> list[AgentListEntry]:
     waiters = sorted(
         (entry for entry in entries if _is_live_slot_waiter(entry)),
-        key=_runner_slot_waiter_sort_key,
+        key=lambda entry: _runner_slot_waiter_sort_key(
+            entry,
+            running_count=runner_slots_in_use,
+        ),
     )
     positions = {id(entry): index for index, entry in enumerate(waiters, 1)}
     queue_size = len(waiters)
@@ -148,8 +151,12 @@ def _is_live_slot_waiter(entry: AgentListEntry) -> bool:
 
 def _runner_slot_waiter_sort_key(
     entry: AgentListEntry,
-) -> tuple[int, int, datetime, str, str]:
-    return runner_slot_waiter_sort_key(
+    *,
+    running_count: int,
+) -> tuple[int, int, int, int, datetime, str, str]:
+    return runner_slot_queue_display_key(
+        running_count=running_count,
+        threshold=entry.wait.wait_runners,
         priority=entry.wait.wait_priority,
         slot_requested_at=entry.wait.slot_requested_at,
         timestamp=entry.timestamp,

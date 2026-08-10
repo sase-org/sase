@@ -56,6 +56,7 @@ def _entry(
     explicit: bool = False,
     priority: int = 10,
     requested_at: str = "2026-07-25T12:00:00Z",
+    parked: bool = False,
 ) -> RunnerQueueEntry:
     return RunnerQueueEntry(
         identity=(AgentType.RUNNING, name, name),
@@ -65,6 +66,7 @@ def _entry(
         priority=priority,
         slot_requested_at=requested_at,
         status="QUEUED",
+        parked=parked,
     )
 
 
@@ -105,7 +107,7 @@ def test_queue_window_renders_short_queue_whole_and_long_queue_with_gaps() -> No
     ] == [1, "+2", 4, 5, 6, 7, 8, "+2"]
 
 
-def test_ahead_count_uses_selected_threshold_and_treats_missing_as_zero() -> None:
+def test_ahead_count_uses_selected_index_in_display_order() -> None:
     queue = (
         _entry("drain", threshold=0),
         _entry("equal-a", threshold=5),
@@ -118,16 +120,7 @@ def test_ahead_count_uses_selected_threshold_and_treats_missing_as_zero() -> Non
         RunnerCapacitySnapshot(queue=queue),
     )
     assert selection is not None
-    assert selection.ahead_count == 2
-
-    missing_queue = (*queue[:-1], _entry("missing", threshold=None))
-    missing = _agent("missing", position=4, size=4, threshold=None)
-    missing_selection = runner_queue_selection(
-        missing,
-        RunnerCapacitySnapshot(queue=missing_queue),
-    )
-    assert missing_selection is not None
-    assert missing_selection.ahead_count == 3
+    assert selection.ahead_count == 3
 
 
 def test_queue_field_renders_front_label_and_section_requires_real_position() -> None:
@@ -153,30 +146,48 @@ def test_explicit_threshold_waiter_gets_the_same_queue_ladder() -> None:
     selected.status = "WAITING"
     header = _header(
         selected,
-        (_entry("barrier", threshold=0, explicit=True),),
+        (_entry("barrier", threshold=0, explicit=True, parked=True),),
     )
 
     assert "Wait: [runners] ≤ 0 (drain barrier)" in header.plain
-    assert "❖ QUEUE · 1 waiting · 10/1 runners" in header.plain
+    assert "❖ QUEUE · 1 waiting · 1 parked · 10/1 runners" in header.plain
     assert "≤0" in header.plain
 
 
 def test_queue_ladder_demotes_deeper_barrier_and_marks_selected_rank() -> None:
     queue = (
-        _entry("drain-barrier", threshold=0, explicit=True),
         _entry("eligible-first", threshold=9),
         _entry("selected", threshold=9),
+        _entry("drain-barrier", threshold=0, explicit=True, parked=True),
     )
     header = _header(
-        _agent("selected", position=3, size=3),
+        _agent("selected", position=2, size=3),
         queue,
     )
 
-    assert "Queue: #3 of 3 · 1 ahead · " in header.plain
-    assert _style_at(header, "#1") == "#AF87FF"
+    assert "Queue: #2 of 3 · 1 ahead · " in header.plain
+    assert _style_at(header, "#1") == "#5F87FF"
+    assert _style_at(header, "#2") == "bold black on #5F87FF"
+    assert _style_at(header, "#3") == "#AF87FF"
     assert _style_at(header, "drain-barrier") == "dim #FFD700"
-    assert _style_at(header, "#2") == "#5F87FF"
-    assert _style_at(header, "#3") == "bold black on #5F87FF"
+
+
+def test_queue_heading_reports_parked_count_when_present() -> None:
+    header = _header(
+        _agent("selected", position=1, size=3),
+        (
+            _entry("selected"),
+            _entry("near", threshold=4, explicit=True, parked=True),
+            _entry("deep", threshold=0, explicit=True, parked=True),
+        ),
+    )
+
+    assert "❖ QUEUE · 3 waiting · 2 parked · 10/10 runners" in header.plain
+    position = header.plain.index("2 parked")
+    assert any(
+        span.start <= position < span.end and str(span.style) == "#AF87FF"
+        for span in header.spans
+    )
 
 
 def test_queue_qualifiers_render_only_where_they_explain_ordering() -> None:

@@ -120,9 +120,10 @@ their own wire shape.
 
 Every live runner-slot waiter is promoted in memory from the scan-level `WAITING` state
 to `QUEUED`; the status is never persisted. `entry.wait.runner_slot_queue_position` and
-`runner_slot_queue_size` describe the same set in admission order—lower `wait_priority`
-first, then `slot_requested_at` FIFO—even while the runner pool is full or an authored
-`%wait(runners=N)` threshold is not yet satisfied.
+`runner_slot_queue_size` describe the same set in capacity-aware display order:
+currently eligible waiters first, then parked waiters by the threshold that opens
+soonest, with lower `wait_priority` and `slot_requested_at` FIFO preserved inside each
+group.
 
 Source: `src/sase/integrations/agent_list_entries.py`,
 `src/sase/integrations/provider_badges.py`

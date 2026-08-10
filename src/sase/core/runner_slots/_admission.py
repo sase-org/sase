@@ -46,6 +46,30 @@ def runner_slot_waiter_sort_key(
     )
 
 
+def runner_slot_queue_display_key(
+    *,
+    running_count: int,
+    threshold: int | None,
+    priority: object,
+    slot_requested_at: str | None,
+    timestamp: str | None,
+    artifact_dir: str | None,
+) -> tuple[int, int, int, int, datetime, str, str]:
+    """Return the capacity-aware presentation key for one slot waiter."""
+    effective_threshold = threshold if threshold is not None else 0
+    parked = running_count > effective_threshold
+    return (
+        1 if parked else 0,
+        -effective_threshold if parked else 0,
+        *runner_slot_waiter_sort_key(
+            priority=priority,
+            slot_requested_at=slot_requested_at,
+            timestamp=timestamp,
+            artifact_dir=artifact_dir,
+        ),
+    )
+
+
 def deference_window_seconds(
     priority: int,
     *,

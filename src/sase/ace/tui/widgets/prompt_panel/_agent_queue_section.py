@@ -60,15 +60,10 @@ def runner_queue_selection(
     )
     if selected_index is None:
         return None
-    selected_threshold = _threshold(capacity.queue[selected_index])
-    ahead_count = sum(
-        _threshold(entry) >= selected_threshold
-        for entry in capacity.queue[:selected_index]
-    )
     return _RunnerQueueSelection(
         queue=capacity.queue,
         index=selected_index,
-        ahead_count=ahead_count,
+        ahead_count=selected_index,
     )
 
 
@@ -92,6 +87,9 @@ def append_runner_queue_section(
         style=f"bold {QUEUED_STATUS_COLOR} underline",
     )
     heading.append(f" · {len(queue)} waiting", style="dim")
+    parked_count = sum(entry.parked for entry in queue)
+    if parked_count:
+        heading.append(f" · {parked_count} parked", style=_PARKED_COLOR)
     if wait_agent.runner_slots_in_use is not None:
         if wait_agent.wait_runners is not None:
             heading.append(
@@ -110,7 +108,7 @@ def append_runner_queue_section(
 
     threshold_width = max(
         (
-            cell_len(f"≤{_threshold(entry)}")
+            cell_len(f"≤{entry.threshold if entry.threshold is not None else 0}")
             for entry in queue
             if entry.wait_runners_explicit
         ),
@@ -124,7 +122,6 @@ def append_runner_queue_section(
         ),
         default=0,
     )
-    selected_threshold = _threshold(queue[selection.index])
     now = local_now()
     for row in _queue_window(queue, selection.index):
         if row.entry is None or row.rank is None:
@@ -136,7 +133,6 @@ def append_runner_queue_section(
             rank=row.rank,
             queue_size=len(queue),
             selected_index=selection.index,
-            selected_threshold=selected_threshold,
             threshold_width=threshold_width,
             priority_width=priority_width,
             now=now,
@@ -181,7 +177,6 @@ def _append_queue_entry(
     rank: int,
     queue_size: int,
     selected_index: int,
-    selected_threshold: int,
     threshold_width: int,
     priority_width: int,
     now: datetime,
@@ -197,18 +192,17 @@ def _append_queue_entry(
         name_style = f"bold {_AGENT_NAME_ANNOTATION_STYLE}"
     else:
         text.append("   ")
-        if index < selected_index:
-            if _threshold(entry) >= selected_threshold:
-                rank_style = QUEUED_STATUS_COLOR
-            else:
-                rank_style = _PARKED_COLOR
+        if entry.parked:
+            rank_style = _PARKED_COLOR
+        elif index < selected_index:
+            rank_style = QUEUED_STATUS_COLOR
         else:
             rank_style = "dim"
         text.append(rank_label.rjust(rank_width), style=rank_style)
         text.append(" ")
         name_style = (
             f"dim {_AGENT_NAME_ANNOTATION_STYLE}"
-            if index < selected_index and rank_style == _PARKED_COLOR
+            if entry.parked
             else _AGENT_NAME_ANNOTATION_STYLE
         )
 
@@ -217,7 +211,8 @@ def _append_queue_entry(
     text.append_text(name)
     if threshold_width:
         text.append(" ")
-        threshold_label = f"≤{_threshold(entry)}" if entry.wait_runners_explicit else ""
+        threshold = entry.threshold if entry.threshold is not None else 0
+        threshold_label = f"≤{threshold}" if entry.wait_runners_explicit else ""
         text.append(
             threshold_label.ljust(threshold_width),
             style=_PARKED_COLOR if threshold_label else None,
@@ -237,10 +232,6 @@ def _append_queue_entry(
         style="dim",
     )
     text.append("\n")
-
-
-def _threshold(entry: RunnerQueueEntry) -> int:
-    return entry.threshold if entry.threshold is not None else 0
 
 
 def _queue_duration(requested_at: str | None, now: datetime) -> str:

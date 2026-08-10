@@ -13,16 +13,16 @@ value is an active machine-wide override from `~/.sase/max_running_agents_overri
 first and merged configuration second. `Q` includes both implicit-cap and
 authored-threshold waits.
 
-Admission sorts waiters by lower numeric `%wait(priority=N)` first, then first-in,
-first-out within the same priority, across all projects. ACE shows that full order as
-`#N/M` on `QUEUED` rows and as `queue #N of M` in details, even while the pool is full
-or an authored threshold is not yet satisfied. Priority defaults to `10` and does not
-age, so sustained higher-priority arrivals can starve default- or lower-priority
-waiters. An older low-threshold waiter does not block a later launch whose higher
-threshold currently permits it to run. Parallel family members participate even when ACE
-renders them as nested rows. Serial family follow-ups are exempt so a running parent can
-safely wait for child work; workflow Python/bash steps and axe Patch runners are exempt
-as well.
+Admission starts the first waiter whose threshold is satisfied by the current running
+count, ordered by lower numeric `%wait(priority=N)` first and then first-in, first-out
+within the same priority. Threshold-ineligible waiters are skipped instead of blocking
+later waiters that can run. ACE shows this as a capacity-aware display order: currently
+eligible waiters first, then parked waiters by the threshold that opens soonest, with
+priority/FIFO preserved inside each group. Priority defaults to `10` and does not age,
+so sustained higher-priority arrivals can starve default- or lower-priority waiters.
+Parallel family members participate even when ACE renders them as nested rows. Serial
+family follow-ups are exempt so a running parent can safely wait for child work;
+workflow Python/bash steps and axe Patch runners are exempt as well.
 
 The bundled task, epic phase, and lander xprompts used by `sase bead work` do not set an
 authored wait priority. They use the default priority (`10`) once their rendered
@@ -30,17 +30,16 @@ phase-DAG, bead-dependency, or other waits resolve. A project, user, config, or 
 override of any bundled xprompt supplies its own body and may choose a different
 priority.
 
-Selecting a ranked waiter in ACE also shows a bounded `QUEUE` ladder. Its `N ahead`
-count includes only earlier entries whose runner threshold is greater than or equal to
-the selected waiter's threshold—the entries that become eligible no later and therefore
-really can start first. Earlier, stricter drain waits use a parked amethyst accent
-instead of being counted as ahead. That accent distinguishes their stricter threshold,
-not a different status: every entry is still `QUEUED`. The ladder includes the front, up
-to two entries on either side of the selected waiter, and gap counts; short queues show
-all entries, while long queues show at most seven actual queue entries. Explicit
-thresholds and non-default priorities appear as `≤N` and `pN`. This is current admission
-context, not an ETA or a prediction that no new waiter will arrive, and its entries are
-not digit-jump targets.
+Selecting a ranked waiter in ACE also shows a bounded `QUEUE` ladder in that same
+capacity-aware order. Its `N ahead` count is the number of earlier ladder entries.
+Entries whose threshold is not currently satisfied use a parked amethyst accent wherever
+they appear; the accent is display context, not a different status, because every entry
+is still `QUEUED`. The heading adds `N parked` when any waiter is currently blocked by
+its threshold. The ladder includes the front, up to two entries on either side of the
+selected waiter, and gap counts; short queues show all entries, while long queues show
+at most seven actual queue entries. Explicit thresholds and non-default priorities
+appear as `≤N` and `pN`. This is current admission context, not an ETA or a prediction
+that no new waiter will arrive, and its entries are not digit-jump targets.
 
 A deprioritized waiter — one whose priority is numerically worse than the `10` default —
 is additionally held back for a bounded deference window before it may claim a freed
@@ -79,10 +78,10 @@ To diagnose a wait:
    tab.
 2. Inspect the launch's `waiting.json`. `wait_runners` is the effective existing-runner
    threshold and `slot_requested_at` is its FIFO request time;
-   `runner_slot_queue_position` in `sase agent list -j` is its current priority/FIFO
-   rank among all live slot waiters. `wait_priority` is the value that rank used, and
-   `wait_priority_explicit` distinguishes a deliberate `priority=N` from the implicit
-   `10` default.
+   `runner_slot_queue_position` in `sase agent list -j` is its current capacity-aware
+   display rank among all live slot waiters. `wait_priority` is the value used inside
+   each eligible or parked ordering group, and `wait_priority_explicit` distinguishes a
+   deliberate `priority=N` from the implicit `10` default.
 3. Press fixed `Ctrl+R` in the Models panel to edit `max_running_agents` persistently or
    apply/clear a temporary value. Parked implicit-cap agents reread the effective value
    and normally react within about two seconds. Setting another temporary value replaces

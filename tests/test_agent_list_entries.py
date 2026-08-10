@@ -169,7 +169,7 @@ def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
     assert first.status == "QUEUED"
     assert first.status_bucket == "Queued"
     assert first.status_glyph == "…"
-    assert first.wait.runner_slot_queue_position == 2
+    assert first.wait.runner_slot_queue_position == 1
     assert first.wait.runner_slot_queue_size == 2
     assert first.wait.runner_slot_holders == ("phase",)
     assert second.wait.wait_runners_explicit is True
@@ -177,7 +177,7 @@ def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
     assert second.status == "QUEUED"
     assert second.status_bucket == "Queued"
     assert second.status_glyph == "…"
-    assert second.wait.runner_slot_queue_position == 1
+    assert second.wait.runner_slot_queue_position == 2
     assert second.wait.runner_slot_queue_size == 2
     assert second.wait.runner_slot_holders == ("phase",)
 
@@ -250,6 +250,102 @@ def test_runner_slot_queue_orders_priority_before_fifo_with_default_priority() -
         "newer-explicit-default": 3,
         "newer-urgent": 1,
     }
+
+
+def test_runner_slot_queue_orders_parked_waiters_after_open_thresholds() -> None:
+    specs = (
+        ("barrier-a", "20260712120001", 0, True, 1),
+        ("x0", "20260712120002", 9, False, None),
+        ("barrier-b", "20260712120003", 0, True, 1),
+        ("x1", "20260712120004", 9, False, None),
+    )
+
+    def waiter(
+        *,
+        name: str,
+        timestamp: str,
+        wait_runners: int,
+        explicit: bool = False,
+        priority: int | None = None,
+    ):
+        return _build_agent_list_entry(
+            _agent(
+                name=name,
+                status="WAITING",
+                artifacts_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
+            ),
+            record=_record(
+                timestamp=timestamp,
+                artifact_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
+                agent_meta=AgentMetaWire(),
+                waiting=WaitingMarkerWire(
+                    wait_runners=wait_runners,
+                    wait_runners_explicit=explicit,
+                    wait_priority=priority,
+                    slot_requested_at=f"2026-07-12T12:00:{timestamp[-2:]}Z",
+                ),
+            ),
+        )
+
+    entries = _attach_runner_slot_context(
+        [
+            waiter(
+                name=name,
+                timestamp=timestamp,
+                wait_runners=wait_runners,
+                explicit=explicit,
+                priority=priority,
+            )
+            for name, timestamp, wait_runners, explicit, priority in specs
+        ],
+        9,
+    )
+    positions = {entry.name: entry.wait.runner_slot_queue_position for entry in entries}
+    holders = [
+        TuiAgent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"holder-{index}",
+            project_file="/tmp/project/project.sase",
+            status="RUNNING",
+            start_time=datetime(2026, 7, 12, 12, 0),
+            raw_suffix=f"holder-{index}",
+            pid=200 + index,
+            artifacts_dir=f"/tmp/project/artifacts/ace-run/holder-{index}",
+            run_start_time=datetime(2026, 7, 12, 11, 40 + index),
+        )
+        for index in range(9)
+    ]
+    tui_waiters = [
+        TuiAgent(
+            agent_type=AgentType.RUNNING,
+            cl_name=name,
+            project_file="/tmp/project/project.sase",
+            status="WAITING",
+            start_time=datetime(2026, 7, 12, 12, 0),
+            raw_suffix=timestamp,
+            pid=100 + index,
+            artifacts_dir=f"/tmp/project/artifacts/ace-run/{timestamp}",
+            wait_runners=wait_runners,
+            wait_runners_explicit=explicit,
+            wait_priority=priority,
+            slot_requested_at=f"2026-07-12T12:00:{timestamp[-2:]}Z",
+        )
+        for index, (name, timestamp, wait_runners, explicit, priority) in enumerate(
+            specs
+        )
+    ]
+    refresh_runner_slot_context([*holders, *tui_waiters], effective_limit=10)
+    tui_positions = {
+        agent.cl_name: agent.runner_slot_queue_position for agent in tui_waiters
+    }
+
+    expected = {
+        "x0": 1,
+        "x1": 2,
+        "barrier-a": 3,
+        "barrier-b": 4,
+    }
+    assert positions == tui_positions == expected
 
 
 def test_runner_slot_queue_rank_matches_tui_projection() -> None:

@@ -12,7 +12,7 @@ from sase.agent.status_buckets import (
 )
 from sase.core.runner_slots import (
     normalize_wait_priority,
-    runner_slot_waiter_sort_key,
+    runner_slot_queue_display_key,
 )
 
 from .agent import Agent, AgentType
@@ -20,7 +20,7 @@ from .agent import Agent, AgentType
 
 @dataclass(frozen=True, slots=True)
 class RunnerQueueEntry:
-    """Presentation facts for one waiter in canonical admission order."""
+    """Presentation facts for one waiter in capacity-aware queue order."""
 
     identity: tuple[AgentType, str, str | None]
     presented_name: str
@@ -29,6 +29,7 @@ class RunnerQueueEntry:
     priority: int
     slot_requested_at: str | None
     status: str
+    parked: bool = False
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,7 @@ def refresh_runner_slot_context(
     running_count = sum(1 for agent in agents if _holds_runner_slot(agent))
     waiters = sorted(
         (agent for agent in agents if _is_live_slot_waiter(agent)),
-        key=_waiter_sort_key,
+        key=lambda agent: _waiter_sort_key(agent, running_count=running_count),
     )
     queue_positions: dict[int, int] = {}
     queue_entries: list[RunnerQueueEntry] = []
@@ -74,6 +75,7 @@ def refresh_runner_slot_context(
             agent.status,
             slot_queued=True,
         )
+        threshold = agent.wait_runners if agent.wait_runners is not None else 0
         queue_entries.append(
             RunnerQueueEntry(
                 identity=agent.identity,
@@ -88,6 +90,7 @@ def refresh_runner_slot_context(
                 priority=normalize_wait_priority(agent.wait_priority),
                 slot_requested_at=agent.slot_requested_at,
                 status=agent.status,
+                parked=running_count > threshold,
             )
         )
     from ._agent_clan import aggregate_clan_status, clan_members
@@ -164,10 +167,16 @@ def _is_live_slot_waiter(agent: Agent) -> bool:
     )
 
 
-def _waiter_sort_key(agent: Agent) -> tuple[int, int, datetime, str, str]:
+def _waiter_sort_key(
+    agent: Agent,
+    *,
+    running_count: int,
+) -> tuple[int, int, int, int, datetime, str, str]:
     # Snapshot-backed running rows use the source record timestamp as
     # ``raw_suffix``; claim-backed rows normalize the same artifact timestamp.
-    return runner_slot_waiter_sort_key(
+    return runner_slot_queue_display_key(
+        running_count=running_count,
+        threshold=agent.wait_runners,
         priority=agent.wait_priority,
         slot_requested_at=agent.slot_requested_at,
         timestamp=agent.raw_suffix,

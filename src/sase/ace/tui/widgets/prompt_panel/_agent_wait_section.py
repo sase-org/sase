@@ -136,7 +136,6 @@ def build_wait_lanes(
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None,
     tribe_wait_bindings: Mapping[tuple[object, str], TribeWaitBinding] | None,
     wait_bead_statuses: Sequence[tuple[str, str | None]] | None,
-    runner_queue_ahead_count: int | None,
 ) -> tuple[WaitLane, ...]:
     """Build ordered, styled values for each active wait dimension."""
     from sase.ace.tui.models.agent import (

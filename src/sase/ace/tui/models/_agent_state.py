@@ -227,8 +227,8 @@ class AgentState:
     # Snapshot-derived display context. These values are recomputed from the
     # already-loaded Agents refresh payload after full and artifact-delta
     # merges; rendering them never triggers another filesystem scan. Queue
-    # position and size cover every live slot waiter in priority/FIFO
-    # admission order, even while the runner pool is full.
+    # position and size cover every live slot waiter in capacity-aware display
+    # order, even while the runner pool is full.
     runner_slots_in_use: int | None = None
     runner_slot_queue_position: int | None = None
     runner_slot_queue_size: int | None = None
