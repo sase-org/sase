@@ -115,9 +115,21 @@ class ArtifactsBeadsIssueMutationActionsMixin(ArtifactsBeadsCommonMixin):
         if not canonical:
             self._notify_beads("Unable to normalize issue reference", severity="error")
             return
+        snapshot = pane.snapshot
+        display_project = (
+            row.project
+            if snapshot is None
+            else snapshot.display_names.get(row.project, row.project)
+        )
 
         def mutate(project: Any) -> Issue:
-            return _attach_external_ref(project, row.issue, canonical, row.project)
+            return _attach_external_ref(
+                project,
+                row.issue,
+                canonical,
+                row.project,
+                display_project,
+            )
 
         self._submit_bead_mutation(
             pane,
@@ -145,6 +157,11 @@ class ArtifactsBeadsIssueMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 severity="warning",
             )
             return
+        display_project = (
+            row.project
+            if snapshot is None
+            else snapshot.display_names.get(row.project, row.project)
+        )
         from .task_actions import TrackedTaskResult
 
         def task() -> TrackedTaskResult[IssueWire]:
@@ -164,7 +181,11 @@ class ArtifactsBeadsIssueMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 cwd=Path(workspace),
             ) as mutation:
                 _attach_external_ref(
-                    mutation.project, row.issue, canonical, row.project
+                    mutation.project,
+                    row.issue,
+                    canonical,
+                    row.project,
+                    display_project,
                 )
                 mutation.commit(
                     require_mutation_commit_message("update", [row.issue.id])
@@ -230,8 +251,14 @@ def _attach_external_ref(
     issue: Issue,
     canonical: str,
     project_key: str,
+    display_project: str,
 ) -> Issue:
-    refs = _refs_with_canonical_bug_ref(issue.refs, canonical, project_key)
+    refs = _refs_with_canonical_bug_ref(
+        issue.refs,
+        canonical,
+        project_key,
+        display_project=display_project,
+    )
     fields: dict[str, Any] = {}
     if tuple(refs) != tuple(issue.refs):
         fields["refs"] = list(refs)
@@ -246,6 +273,8 @@ def _refs_with_canonical_bug_ref(
     refs: Iterable[str],
     canonical: str,
     project_key: str,
+    *,
+    display_project: str,
 ) -> tuple[str, ...]:
     existing_refs = tuple(refs)
     if any(
@@ -254,4 +283,5 @@ def _refs_with_canonical_bug_ref(
         for ref in existing_refs
     ):
         return existing_refs
-    return (*existing_refs, canonical)
+    issue_id = canonical.rsplit("#", 1)[-1]
+    return (*existing_refs, f"bug:{display_project}#{issue_id}")
