@@ -2,15 +2,7 @@
 # Entries are debt to remove, not suppressions to grow. Adding a node requires
 # a filed SASE bead that names the flake, evidence, and owner.
 # effective-after: 2026-08-10T23:36:35Z
-# bead: sase-ct; fixed by c0520947d/sase-j7.1, but retained until the
-# post-cutoff selection store no longer reports this historical VCS selector debt.
-tests/ace/tui/test_prompt_bar_xprompt_selector_requests.py::test_vcs_tag_directory_key_spelling_also_resolves
-# bead: sase-ct; fixed by c0520947d/sase-j7.1, but retained until the
-# post-cutoff selection store no longer reports this historical VCS selector debt.
-tests/ace/tui/test_prompt_bar_xprompt_selector_requests.py::test_vcs_tag_offers_project_local_xprompts_by_canonical_name
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
-# sase-jf
-tests/test_keymaps_registry_loading.py::test_stitches_action_override_wins_over_legacy_commits_alias
 # sase-j6
 tests/test_bead/test_plus_one_presentation.py::test_post_close_plus_one_badge_marker_search_and_json_agree
