@@ -40,6 +40,8 @@ def commit_prompt_archive_if_dirty(
         return False
     if dirty.returncode != 1:
         return _git_error("could not inspect staged prompt archive", dirty)
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
     committed = git_runner(
         repo,
         [
@@ -49,7 +51,9 @@ def commit_prompt_archive_if_dirty(
             "user.email=sase@localhost",
             "commit",
             "-m",
-            f"chore(agents): archive prompt for {global_agent}",
+            apply_auto_commit_type_tag(
+                f"chore(agents): archive prompt for {global_agent}", "agents_sync"
+            ),
         ],
         op="agents_sync.prompt_archive_commit",
     )

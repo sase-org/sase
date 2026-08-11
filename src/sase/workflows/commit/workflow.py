@@ -45,6 +45,7 @@ from sase.workflows.commit.pr_operations import (
     detect_parent_patch,
 )
 from sase.workflows.commit.runtime_tags import apply_runtime_commit_tags
+from sase.workflows.commit.runtime_tags import apply_tracked_commit_tags
 from sase.workflows.commit.runtime_tags import resolve_local_agent_name
 from sase.workflows.commit.workflow_publication import run_agent_publication_step
 from sase.workflows.commit.workflow_resume import resume_commit_workflow
@@ -192,7 +193,7 @@ class CommitWorkflow(BaseWorkflow):
             apply_runtime_commit_tags(self._payload)
             build_pr_body(self._payload)
         elif self._method == "create_commit":
-            apply_runtime_commit_tags(self._payload)
+            apply_tracked_commit_tags(self._payload)
 
         provider = get_vcs_provider(cwd)
         dispatch = getattr(provider, self._method)

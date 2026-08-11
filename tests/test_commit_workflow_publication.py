@@ -496,7 +496,7 @@ def test_family_member_commit_uses_metadata_for_footer_and_publication(
 
     payload = provider.create_commit.call_args.args[0]
     assert payload["message"] == (
-        "fix: bug\n\nSASE_AGENT=[bbugyi200.athena.ms--code][1]\n\n"
+        "fix: bug\n\nSASE_TYPE=stitch\nSASE_AGENT=[bbugyi200.athena.ms--code][1]\n\n"
         "[1]: https://github.com/sase-org/sase--agents/blob/main/"
         "families/bbugyi200.athena.ms.md#member-code"
     )

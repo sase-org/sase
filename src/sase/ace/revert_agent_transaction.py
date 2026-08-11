@@ -34,7 +34,10 @@ def apply_revert_transaction(
         rollback_to(workspace_dir, head_before)
         return False, detail
 
-    commit = _run_git(workspace_dir, ["commit", "--no-verify", "-m", message])
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
+    tagged_message = apply_auto_commit_type_tag(message, "revert")
+    commit = _run_git(workspace_dir, ["commit", "--no-verify", "-m", tagged_message])
     if commit.returncode != 0:
         detail = (commit.stderr or commit.stdout or "git commit failed").strip()
         rollback_to(workspace_dir, head_before)

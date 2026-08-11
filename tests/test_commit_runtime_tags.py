@@ -17,6 +17,7 @@ from sase.workflows.commit.runtime_tags import (
     STALE_RUNTIME_COMMIT_TAG_KEYS,
     _resolve_runtime_commit_tags,
     apply_runtime_commit_tags,
+    apply_tracked_commit_tags,
     apply_auto_commit_tags_with_runtime,
     apply_auto_commit_type_tag,
     filter_runtime_owned_tags,
@@ -350,6 +351,55 @@ def test_runtime_producer_removes_inherited_legacy_machine(
     assert "MACHINE=" not in payload["message"]
 
 
+def test_apply_tracked_commit_tags_adds_type_stitch() -> None:
+    payload = {"message": "fix: bug"}
+
+    apply_tracked_commit_tags(payload)
+
+    assert payload["message"] == "fix: bug\n\nSASE_TYPE=stitch"
+
+
+def test_apply_tracked_commit_tags_keeps_bead_and_plan_with_type_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+    payload = {
+        "message": (
+            "fix: bug\n\nSASE_BEAD=[sase-ai.2][1]\nSASE_PLAN=[202608/plan.md][2]"
+            "\n\n[1]: https://example.test/bead\n[2]: https://example.test/plan"
+        )
+    }
+
+    apply_tracked_commit_tags(payload)
+
+    tags = parse_trailing_commit_tags(payload["message"])
+    assert tags["TYPE"] == "stitch"
+    assert tags["AGENT"] == "alice.machine_a.agent-a"
+    assert tags["BEAD"] == "sase-ai.2"
+    assert tags["PLAN"] == "202608/plan.md"
+
+    # TYPE (and AGENT) render first in the UI per _KEY_PRIORITY, independent
+    # of raw footer append order.
+    from sase.vcs_log._tag_style import _tag_chips
+
+    ordered_keys = [chip.key for chip in _tag_chips(tuple(tags.items()))]
+    assert ordered_keys.index("TYPE") < ordered_keys.index("BEAD")
+    assert ordered_keys.index("TYPE") < ordered_keys.index("PLAN")
+
+
+def test_apply_tracked_commit_tags_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+    payload = {"message": "fix: bug"}
+
+    apply_tracked_commit_tags(payload)
+    once = payload["message"]
+    apply_tracked_commit_tags(payload)
+
+    assert payload["message"] == once
+
+
 def test_parse_trailing_commit_tags_reads_legacy_block() -> None:
     assert parse_trailing_commit_tags("Subject\n\nAGENT=foo\nTYPE=sdd") == {
         "AGENT": "foo",
@@ -544,7 +594,9 @@ def test_create_commit_provider_receives_runtime_tags(
     assert _run_workflow(payload, "create_commit", provider) == RunResult.OK
 
     provider.create_commit.assert_called_once_with(payload, ANY)
-    assert payload["message"] == ("fix: bug\n\nSASE_AGENT=alice.machine_a.agent-a")
+    assert payload["message"] == (
+        "fix: bug\n\nSASE_TYPE=stitch\nSASE_AGENT=alice.machine_a.agent-a"
+    )
 
 
 def test_create_pull_request_tags_override_inherited_runtime_tags(

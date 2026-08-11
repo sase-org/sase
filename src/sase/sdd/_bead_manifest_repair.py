@@ -147,6 +147,8 @@ def repair_event_manifest_after_integration(
             )
         )
         return (False, (), error)
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
     committed = runner(
         repo_root,
         [
@@ -156,7 +158,7 @@ def repair_event_manifest_after_integration(
             "user.name=sase",
             "commit",
             "-m",
-            "chore(beads): repair event manifest",
+            apply_auto_commit_type_tag("chore(beads): repair event manifest", "beads"),
             "--",
             relative_path,
         ],

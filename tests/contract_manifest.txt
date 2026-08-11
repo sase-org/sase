@@ -3,6 +3,7 @@ tests/test_agent_stop_hook_config.py
 tests/test_agent_tribe_terminology.py
 tests/test_check_sase_core_rs_bindings_tool.py
 tests/test_ci_bootstrap_sidecars_tool.py
+tests/test_commit_type_tag_contract.py
 tests/test_config_schema.py
 tests/test_demo_media_postprocessor.py
 tests/test_gemini_active_surface_guard.py

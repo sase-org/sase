@@ -49,6 +49,9 @@ def _run_until_dispatch(
         stack.enter_context(
             patch("sase.workflows.commit.workflow.apply_runtime_commit_tags")
         )
+        stack.enter_context(
+            patch("sase.workflows.commit.workflow.apply_tracked_commit_tags")
+        )
         stack.enter_context(patch("sase.workflows.commit.workflow.build_pr_body"))
         stack.enter_context(
             patch(

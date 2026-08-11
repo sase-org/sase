@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from rich.text import Text
 
 _TYPE_COLORS = {
+    "stitch": "#FFD700",
     "sdd": "#87D7FF",
     "init": "#5FD75F",
     "beads": "#5FD7AF",
@@ -15,6 +16,7 @@ _TYPE_COLORS = {
     "skills": "#D787AF",
     "xprompt": "#FFAF5F",
     "config": "#D7AF5F",
+    "revert": "#D75F5F",
 }
 _TYPE_FALLBACK_COLOR = "#AF87D7"
 _AGENT_COLOR = "#FFD700"

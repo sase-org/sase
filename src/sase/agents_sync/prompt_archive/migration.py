@@ -373,6 +373,8 @@ def _commit_paths(repo: Path, paths: list[Path], message: str) -> None:
         return
     if dirty.returncode != 1:
         raise RuntimeError(dirty.stderr.strip() or "could not inspect migration diff")
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
     committed = run_git(
         repo,
         [
@@ -382,7 +384,7 @@ def _commit_paths(repo: Path, paths: list[Path], message: str) -> None:
             "user.email=sase@localhost",
             "commit",
             "-m",
-            message,
+            apply_auto_commit_type_tag(message, "agents_sync"),
             "--",
             *relpaths,
         ],

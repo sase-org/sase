@@ -78,6 +78,25 @@ def apply_runtime_commit_tags(payload: dict) -> None:
     )
 
 
+def apply_tracked_commit_tags(payload: dict) -> None:
+    """Stamp ``TYPE=stitch`` plus runtime provenance tags in one footer update.
+
+    Used only by the ``create_commit`` dispatch branch of the tracked
+    ``sase stitch create`` workflow, so every commit that workflow produces
+    carries the ``stitch`` provenance the origin classifier depends on. Keeps
+    the tag block a single render, rather than two, so ``TYPE`` and ``AGENT``
+    are applied together.
+    """
+    message = str(payload.get("message") or "")
+    updates: dict[str, CommitTagValue] = {"TYPE": "stitch"}
+    updates.update(_resolve_runtime_commit_tags())
+    payload["message"] = update_trailing_commit_tags(
+        message,
+        updates,
+        remove_keys=STALE_RUNTIME_COMMIT_TAG_KEYS | {"TYPE"},
+    )
+
+
 def apply_auto_commit_type_tag(message: str, auto_commit_type: str) -> str:
     """Append or update the auto-commit ``TYPE`` tag in *message*."""
     return apply_auto_commit_tags(message, auto_commit_type)

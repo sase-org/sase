@@ -49,8 +49,19 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # `pytest -m contract $(cat tests/contract_manifest.txt) -p no:randomly
 # --durations=0`, which is the same `--durations` aggregate the retired oracle
 # read. The set is still inside the 30 s serial budget the plan sets.
-_MANIFEST_ENTRY_BUDGET = 40
-_MEASURED_SERIAL_COST = "24.7 serial seconds across 40 entries"
+#
+# Re-curated to 41 on 2026-08-11 (sase-jo.2) for
+# `test_commit_type_tag_contract.py`, the structural guard for the tracked-
+# commit `SASE_TYPE=` provenance invariant: it walks every `src/sase` module
+# for `git commit` argv construction, exactly the "no import edge can express
+# it" case the curation procedure admits on value per second. Its first
+# version cost 8.6 s (a full `ast.parse` of all 2,978 `src/sase` modules); a
+# substring pre-filter for the literal `"commit"` (present in only 87 of them)
+# cut that to 0.46 s. The whole 41-entry set measured 24.0 s under the same
+# `pytest -m contract $(cat tests/contract_manifest.txt) -p no:randomly
+# --durations=0` command, still inside the 30 s serial budget the plan sets.
+_MANIFEST_ENTRY_BUDGET = 41
+_MEASURED_SERIAL_COST = "24.0 serial seconds across 41 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

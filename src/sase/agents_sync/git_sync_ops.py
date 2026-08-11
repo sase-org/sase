@@ -70,6 +70,8 @@ def commit_agents_payload_if_dirty(
             "could not inspect staged agents sidecar changes",
             dirty,
         )
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
     committed = git_runner(
         repo,
         [
@@ -79,7 +81,10 @@ def commit_agents_payload_if_dirty(
             "user.email=sase@localhost",
             "commit",
             "-m",
-            f"chore(agents): sync from {owner.username}.{owner.machine_name}",
+            apply_auto_commit_type_tag(
+                f"chore(agents): sync from {owner.username}.{owner.machine_name}",
+                "agents_sync",
+            ),
         ],
         op="agents_sync.commit",
     )

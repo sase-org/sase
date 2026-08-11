@@ -254,6 +254,36 @@ def test_followup_offers_commit_and_scoped_apply_for_plain_chezmoi_target(
     assert offers[1].apply_target == str(target.apply_target)
 
 
+def test_followup_commit_offer_stamps_sase_type_xprompt(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    write_path = tmp_path / "repo" / "home" / "sase" / "xprompts" / "review.md"
+    target = write_targets.XPromptWriteTarget(
+        read_path=tmp_path / "home" / "sase" / "xprompts" / "review.md",
+        write_path=write_path,
+        apply_target=None,
+        via_chezmoi=False,
+    )
+    monkeypatch.setattr(write_targets, "get_git_root", lambda _path: str(tmp_path))
+    monkeypatch.setattr(
+        write_targets,
+        "has_git_changes",
+        lambda _root, _path: True,
+    )
+
+    offers = write_targets.build_post_write_action_offers(
+        target,
+        kind=write_targets.WrittenFileKind.XPROMPT,
+        is_new=False,
+        xprompt_name="review",
+    )
+
+    assert offers[0].kind is write_targets.PostWriteActionKind.COMMIT_PUSH
+    assert offers[0].commit_message is not None
+    assert "SASE_TYPE=xprompt" in offers[0].commit_message
+
+
 def test_followup_memory_init_has_message_and_cwd(
     tmp_path: Path,
     monkeypatch,

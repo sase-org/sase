@@ -56,6 +56,30 @@ def test_execute_successful_revert(tmp_path: Path) -> None:
     assert saved["complete"] is True
 
 
+def test_revert_commit_carries_sase_type_revert_tag(tmp_path: Path) -> None:
+    repo = tmp_path / "ws"
+    _init_repo(repo)
+    _commit(
+        repo,
+        _msg("add feature", "foo"),
+        {"feature.txt": "feature\n"},
+    )
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+
+    preview = preview_agent_revert(str(repo), "foo")
+    assert preview.ok
+    shas = tuple(c.full_sha for c in preview.commits)
+
+    result = execute_agent_revert(
+        str(repo), shas, agent_name="foo", artifacts_dir=str(artifacts)
+    )
+
+    assert result.success, result.message
+    message = _git(repo, "log", "-1", "--format=%B")
+    assert "SASE_TYPE=revert" in message
+
+
 def test_revert_git_runner_recovers_stale_index_lock(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
