@@ -205,11 +205,12 @@ default. Tokens from different facets combine with AND semantics; comma-separate
 repeated values within one facet combine with OR semantics. Free-text terms must all
 match. Press `Tab` to accept the highlighted key or value completion.
 
-Stitches accepts singular `project:` plus `repo:`, `author:`, `since:`, `until:`,
-`sidecar:`, `merges:`, and `limit:` and free text matched against the commit subject.
-`merges:hide/show/only` controls merge-commit visibility exactly like
-`sase stitch log`'s `--merges` flag (see
-[VCS Provider Reference](vcs.md#sase-stitch-log)). `project:` is not repeatable,
+Stitches accepts singular `project:` plus `repo:`, `author:`, `origin:`, `since:`,
+`until:`, `sidecar:`, `merges:`, and `limit:` and free text matched against the commit
+subject. `origin:` accepts `stitch`, `auto`, and `manual`, and is repeatable,
+comma-listable, and negatable like `repo:` and `author:`. `merges:hide/show/only`
+controls merge-commit visibility exactly like `sase stitch list`'s `--merges` flag (see
+[VCS Provider Reference](vcs.md#sase-stitch-list)). `project:` is not repeatable,
 comma-listable, or negatable because it selects the repository constellation before
 commits are collected. With no `project:` token, collection truly spans all projects. It
 accepts a configured project name, ProjectSpec directory key, or alias; committed known
@@ -228,18 +229,24 @@ query includes sidecar repositories; at ACE startup it can also gain that inferr
 visible project token. Canonical rendering always includes either `sidecar:true` or
 `sidecar:false`, and the configured `d` action rewrites that same visible token.
 Selecting a sidecar with `repo:` therefore requires `sidecar:true`. For example,
-`project:sase repo:sase author:Ada since:7d sidecar:false fix` shows recent SASE commits
-by Ada whose subjects contain `fix`, `repo:plans sidecar:true` shows that sidecar across
-all projects, and `limit:40` caps a deliberately broad search. Day-granular `until:`
-values (`today`, `yesterday`, and `YYYY-MM-DD`) include the full named day; relative and
-minute-precise values remain instant bounds. Relative windows such as `since:24h`
-re-anchor whenever the pane refreshes.
+`project:sase repo:sase author:Ada origin:stitch since:7d sidecar:false fix` shows
+recent tracked SASE commits by Ada whose subjects contain `fix`,
+`repo:plans sidecar:true` shows that sidecar across all projects, and `limit:40` caps a
+deliberately broad search. Day-granular `until:` values (`today`, `yesterday`, and
+`YYYY-MM-DD`) include the full named day; relative and minute-precise values remain
+instant bounds. Relative windows such as `since:24h` re-anchor whenever the pane
+refreshes.
 
 The repository legend starts with `[P/N]`, where `P` is the selected commit's one-based
 position and `N` is the number of matched entries currently displayed. Day headings do
 not count as entries. A `+` on the denominator, as in `[1/40+]`, means the displayed
 total is only a lower bound. The persistent filter row reports the corresponding
-coverage state (`exact`, `preview`, or `capped`) without repeating the match count.
+coverage state (`exact`, `preview`, or `capped`) without repeating the match count. Each
+timeline row also has a fixed origin glyph immediately before the subject: `✦ stitch`
+for commits created through `sase stitch create`, `↻ auto` for other SASE-created
+commits, and `✎ manual` when the commit has no SASE provenance footer. The legend lists
+only the origins present in the displayed commits, so a result containing only tracked
+work shows only `✦ stitch`.
 
 Stitches queries are uncapped unless they include an explicit positive `limit:N`, so the
 bundled 24-hour query shows all matching commits. When an explicit limit may have

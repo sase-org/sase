@@ -138,23 +138,23 @@ def test_parse_mixed_positive_and_negative_terms() -> None:
 
 
 def test_parse_origin_comma_list_and_negation() -> None:
-    values = parse_commit_filter_query("origin:manual,sase -origin:sase")
+    values = parse_commit_filter_query("origin:stitch,auto -origin:manual")
 
-    assert values.origins == ("manual", "sase")
-    assert values.excluded_origins == ("sase",)
+    assert values.origins == ("stitch", "auto")
+    assert values.excluded_origins == ("manual",)
 
 
 def test_parse_origin_is_case_insensitive() -> None:
-    values = parse_commit_filter_query("ORIGIN:SaSe")
+    values = parse_commit_filter_query("ORIGIN:StItCh")
 
-    assert values.origins == ("sase",)
+    assert values.origins == ("stitch",)
 
 
 def test_canonical_query_round_trips_origin_selection() -> None:
-    values = parse_commit_filter_query("origin:manual,sase -origin:sase")
+    values = parse_commit_filter_query("origin:stitch,auto -origin:manual")
 
     assert to_query_string(values) == (
-        "origin:manual origin:sase -origin:sase sidecar:true merges:hide"
+        "origin:stitch origin:auto -origin:manual sidecar:true merges:hide"
     )
     assert parse_commit_filter_query(to_query_string(values)) == values
 
@@ -184,10 +184,10 @@ def test_canonical_query_round_trips_origin_selection() -> None:
         ),
         ("repo:a,,b", "empty value", "repo:a,,b", (0, 9)),
         ("origin:", "requires a value", "origin:", (0, 7)),
-        ("origin:manual,,sase", "empty value", "origin:manual,,sase", (0, 19)),
+        ("origin:manual,,auto", "empty value", "origin:manual,,auto", (0, 19)),
         (
             "origin:bogus",
-            "must be 'manual' or 'sase'",
+            "must be 'stitch', 'auto', or 'manual'",
             "origin:bogus",
             (0, 12),
         ),
@@ -350,10 +350,12 @@ _VALUE_TEXT = st.text(
     authors=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_repos=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_authors=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
-    origins=st.lists(st.sampled_from(("manual", "sase")), max_size=2).map(tuple),
-    excluded_origins=st.lists(st.sampled_from(("manual", "sase")), max_size=2).map(
+    origins=st.lists(st.sampled_from(("stitch", "auto", "manual")), max_size=2).map(
         tuple
     ),
+    excluded_origins=st.lists(
+        st.sampled_from(("stitch", "auto", "manual")), max_size=2
+    ).map(tuple),
     text_terms=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_text=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     sidecar=st.booleans(),
@@ -564,16 +566,18 @@ def test_commit_matcher_applies_merge_visibility(
 
 
 def test_commit_matcher_applies_origin_selection() -> None:
-    matcher = compile_commit_matcher(CommitLogFilterValues(origins=("sase",)))
+    matcher = compile_commit_matcher(CommitLogFilterValues(origins=("stitch",)))
 
-    assert matcher(_entry(origin="sase")) is True
+    assert matcher(_entry(origin="stitch")) is True
     assert matcher(_entry(origin="manual")) is False
 
 
 def test_commit_matcher_applies_origin_negation() -> None:
-    matcher = compile_commit_matcher(CommitLogFilterValues(excluded_origins=("sase",)))
+    matcher = compile_commit_matcher(
+        CommitLogFilterValues(excluded_origins=("stitch",))
+    )
 
-    assert matcher(_entry(origin="sase")) is False
+    assert matcher(_entry(origin="stitch")) is False
     assert matcher(_entry(origin="manual")) is True
 
 
@@ -596,11 +600,11 @@ def test_commit_matcher_applies_origin_negation() -> None:
         ("sidecar:t", 9, ("sidecar", "t")),
         ("merges:o", 8, ("merges", "o")),
         ("origin:", 7, ("origin", "")),
-        ("origin:sa", 9, ("origin", "sa")),
-        ("origin:manual,sa", 16, ("origin", "sa")),
+        ("origin:st", 9, ("origin", "st")),
+        ("origin:manual,st", 16, ("origin", "st")),
         ("-repo:plans", 11, ("repo", "plans")),
         ("-author:bo", 10, ("author", "bo")),
-        ("-origin:sa", 10, ("origin", "sa")),
+        ("-origin:st", 10, ("origin", "st")),
         ("-since:7", 8, ("key", "since:7")),
         ("-merges:o", 9, ("key", "merges:o")),
         ('-"generated ro', 14, ("text", "generated ro")),

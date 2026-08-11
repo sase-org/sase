@@ -117,10 +117,10 @@ class TestStitchParser:
 
     def test_list_origin_is_repeatable(self) -> None:
         ns = parse_sase_args(
-            ["stitch", "list", "--origin", "manual", "--origin", "sase"]
+            ["stitch", "list", "--origin", "stitch", "--origin", "auto"]
         )
 
-        assert ns.origins == ["manual", "sase"]
+        assert ns.origins == ["stitch", "auto"]
 
     def test_list_rejects_unknown_origin(self) -> None:
         with pytest.raises(SystemExit):
@@ -543,16 +543,16 @@ class TestStitchHandlerDispatch:
             show_tags=True,
             since="2026-07-18",
             until="2026-07-18",
-            origins=["sase"],
+            origins=["stitch"],
         )
 
         assert _handle_list(ns) == 0
         filter_spec = captured["filter_spec"]
         assert filter_spec.since is not None
         assert filter_spec.until is not None
-        assert filter_spec.origins == ("sase",)
+        assert filter_spec.origins == ("stitch",)
         filters = filter_spec.resolve(now=reference)
         assert filters.since == int(datetime(2026, 7, 18, tzinfo=tz).timestamp())
         assert filters.until == int(datetime(2026, 7, 19, tzinfo=tz).timestamp()) - 1
         assert filters.merges == "show"
-        assert filters.origins == ("sase",)
+        assert filters.origins == ("stitch",)

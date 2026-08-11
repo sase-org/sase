@@ -122,9 +122,9 @@ def _add_list_options(parser: argparse.ArgumentParser) -> None:
         action="append",
         default=[],
         dest="origins",
-        choices=["manual", "sase"],
+        choices=["stitch", "auto", "manual"],
         metavar="ORIGIN",
-        help="Filter by commit origin: manual or sase (repeatable; ORed)",
+        help="Filter by commit origin: stitch, auto, or manual (repeatable; ORed)",
     )
     parser.add_argument(
         "-r",

@@ -29,7 +29,7 @@ For exhaustive flag tables, see the
 | `sase prompt run`               | Replay a stored prompt by selector, optionally editing or re-prefixing it first.                                                                                                                 | [Prompt history](prompt.md)                           |
 | `sase prompt save`              | Save a stored prompt as a reusable xprompt, or `export` it to stdout or a local file.                                                                                                            | [Prompt history](prompt.md), [XPrompts](xprompt.md)   |
 | `sase prompt prune`             | Curate the prompt-history store with `delete`, `prune`, and read-only `doctor`/`stats`.                                                                                                          | [Prompt history](prompt.md)                           |
-| `sase stitch list`              | Show a primary/linked timeline; `--sdd` opts into sidecar history in current or all-project scope.                                                                                               | [VCS](vcs.md#sase-stitch-list)                        |
+| `sase stitch list`              | Show a primary/linked timeline; `--origin` filters `stitch`/`auto`/`manual`, and `--sdd` opts into sidecar history.                                                                              | [VCS](vcs.md#sase-stitch-list)                        |
 | `sase gate create`              | Create a durable command-backed gate from a schema-versioned JSON specification.                                                                                                                 | [Notifications](notifications.md)                     |
 | `sase gate show`                | Inspect a gate's branches, declared typed inputs, and repeatable actions without answering it.                                                                                                   | [Notifications](notifications.md#cli)                 |
 | `sase gate answer`              | Answer a gate headlessly, including per-option typed input and explicit resume/restart of a partially executed branch.                                                                           | [Notifications](notifications.md#cli)                 |
@@ -46,6 +46,10 @@ For exhaustive flag tables, see the
 | `sase task kill ID`             | Kill a running task by id or unique prefix; an already-terminal task is an unchanged no-op.                                                                                                      | [ACE Tasks tab](ace.md#tasks-tab)                     |
 | `sase repro replay`             | Replay an Agents-tab reproduction bundle through the headless TUI harness and emit a verdict.                                                                                                    | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 | `sase repro capture agents-tab` | Capture a commit-safe out-of-band Agents-tab bundle from current filesystem state.                                                                                                               | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
+
+`sase stitch list --origin ORIGIN` accepts `stitch`, `auto`, or `manual`; repeat the
+flag to OR multiple origins. `sase stitch list --format json` includes the same
+canonical value as each commit's `"origin"` field.
 
 `sase run` launches detached background agents that appear in the ACE Agents tab. It can
 start from prompt text, xprompt or workflow references, the editor, or the

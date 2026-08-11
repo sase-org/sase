@@ -76,6 +76,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("since: / until:", "until:DAY includes the full day"),
                 ("sidecar:true / false", "Include / exclude sidecars"),
                 ("merges:hide / show / only", "Merge-commit visibility"),
+                ("origin:stitch/auto/manual", "Commit origin"),
                 ("limit:N / limit:all", "N caps; omitted/all unlimited"),
                 (
                     "[P/N] / [P/N+]",

@@ -217,6 +217,7 @@ sase stitch list --all --sdd
 sase stitch list --all --repo sase-core --repo chezmoi
 sase stitch list --branch main --no-fetch
 sase stitch list --merges show
+sase stitch list --origin stitch --origin manual
 sase stitch list --merges only --format full
 sase stitch list --fetch --limit 3
 sase stitch list --since 2w --author bryan
@@ -239,6 +240,7 @@ Options:
 | `-m`, `--merges hide/show/only`           | Control merge-commit visibility. `hide` is the default; `show` marks merges; `only` shows only merges. |
 | `-N`, `--no-fetch`                        | Skip the remote fetch and compare against existing remote-tracking refs.                               |
 | `-T`, `--no-tags`                         | Hide trailing SASE commit tags in pretty/full/oneline output and omit them from JSON.                  |
+| `--origin stitch/auto/manual`             | Filter by commit origin. Repeatable values are ORed.                                                   |
 | `-r`, `--repo NAME`                       | Restrict to a resolved repo name. Repeatable.                                                          |
 | `-R`, `--reverse`                         | Display the selected commits oldest-first.                                                             |
 | `-S`, `--sdd`                             | Include commits from all available sidecar repositories.                                               |
@@ -273,6 +275,15 @@ subject, so the PR's actual change summary is what you see rather than the gener
 or `YYYY-MM-DDTHH:MM`. Dates are resolved in the configured SASE timezone and pushed
 into the provider query before the limit is applied, so filtered top-N results do not
 silently miss matching commits.
+
+Origin filtering is applied after commit collection and before the final visible cap,
+because commit origin is classified from the parsed SASE footer instead of pushed down
+to the VCS provider. `stitch` means the commit was created through `sase stitch create`,
+`auto` means another SASE command created it, and `manual` means the commit has no SASE
+provenance footer. Pretty output shows the fixed origin glyph column (`✦`, `↻`, or `✎`)
+and an adaptive legend; `--format full` includes the marker in each commit header,
+`--format oneline` includes a compact origin token, and `--format json` includes an
+`"origin"` string on every commit.
 
 ### `sase stitch create`
 

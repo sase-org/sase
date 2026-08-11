@@ -312,6 +312,20 @@ still accept historical `MACHINE` tags and the unprefixed spelling, so commit hi
 not rewritten and old commits remain readable. External consumers should accept both
 historical and `SASE_`-prefixed spellings.
 
+**Commit origin invariant:** Every commit SASE creates carries a `SASE_TYPE=` footer
+tag. Commits created through the tracked workflow carry `SASE_TYPE=stitch`; automatic
+commits from other SASE commands carry another type such as `sdd`, `init`, or `xprompt`.
+The Stitches pane and `sase stitch list` classify those commits as `stitch` or `auto`. A
+commit with no SASE provenance footer is `manual`. For older history, a commit that has
+`SASE_AGENT=`, `SASE_BEAD=`, or `SASE_PLAN=` but no type is treated as `stitch` so
+pre-invariant tracked work still renders correctly.
+
+The origin names describe the mechanism, not the person who pressed the final button. A
+squash merge of a tracked SASE PR still classifies as `stitch` because the content came
+from a tracked stitch. Commits authored upstream in a linked repository classify as
+`manual` when they have no SASE footer. A human who runs `sase stitch create` also gets
+`stitch`; the runtime `SASE_AGENT=` tag, when present, remains the actor metadata.
+
 **Legacy `SASE_AGENT` values:** commits written before provenance moved to the lane
 carry a concrete member name and a `#member-<role>` anchor — for example
 `SASE_AGENT=[bbugyi200.athena.pc--code][2]` pointing at

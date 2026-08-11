@@ -31,8 +31,9 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
 - Status and status-transition helpers: `read_status_from_lines`, `apply_status_update`,
   and `plan_status_transition`
 - Git query parsers: `parse_git_name_status_z`, `parse_git_branch_name`,
-  `derive_git_workspace_name`, `parse_git_conflicted_files`, and
-  `parse_git_local_changes`
+  `derive_git_workspace_name`, `parse_git_conflicted_files`, `parse_git_local_changes`,
+  VCS-log parsing, and standalone commit-origin classification through
+  `classify_commit_origin`
 - Notification JSONL store operations: `read_notifications_snapshot`,
   `append_notification`, `apply_notification_state_update`, and `rewrite_notifications`.
   The store owns every temporal snooze semantic: deadlines are validated as

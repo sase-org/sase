@@ -419,12 +419,12 @@ def test_pretty_filter_summary_mentions_non_default_merge_modes() -> None:
 
 
 def test_pretty_filter_summary_mentions_origin_selection() -> None:
-    text = _render(_result(), "pretty", filters=CommitFilters(origins=("sase",)))
-    assert "origin sase" in text
+    text = _render(_result(), "pretty", filters=CommitFilters(origins=("stitch",)))
+    assert "origin stitch" in text
 
     empty = VcsLogResult(repos=(), commits=(), warnings=())
-    text = _render(empty, "pretty", filters=CommitFilters(origins=("sase", "manual")))
-    assert "No commits found (origin sase or manual)" in text
+    text = _render(empty, "pretty", filters=CommitFilters(origins=("stitch", "manual")))
+    assert "No commits found (origin stitch or manual)" in text
 
 
 def test_origin_filter_applies_before_limit_cap() -> None:
@@ -433,9 +433,9 @@ def test_origin_filter_applies_before_limit_cap() -> None:
         commits=(
             _entry("sase", "c5000000", 500, "c5", origin="manual"),
             _entry("sase", "c4000000", 400, "c4", origin="manual"),
-            _entry("sase", "c3000000", 300, "c3", origin="sase"),
+            _entry("sase", "c3000000", 300, "c3", origin="stitch"),
             _entry("sase", "c2000000", 200, "c2", origin="manual"),
-            _entry("sase", "c1000000", 100, "c1", origin="sase"),
+            _entry("sase", "c1000000", 100, "c1", origin="stitch"),
         ),
         warnings=(),
     )
@@ -444,7 +444,7 @@ def test_origin_filter_applies_before_limit_cap() -> None:
         result,
         "oneline",
         limit=2,
-        filters=CommitFilters(origins=("sase",)),
+        filters=CommitFilters(origins=("stitch",)),
     )
 
     assert "c3" in text

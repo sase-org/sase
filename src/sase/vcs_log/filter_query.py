@@ -65,7 +65,7 @@ _NEGATABLE_KEYS = frozenset(("repo", "author", "origin"))
 _NON_NEGATIVE_INTEGER_RE = re.compile(r"^\d+$")
 #: Canonical commit-origin values accepted by the ``origin:`` filter key.
 #: Mirrors ``sase.core.vcs_log_wire.CommitOrigin``.
-_ORIGIN_VALUES: frozenset[str] = frozenset(("manual", "sase"))
+_ORIGIN_VALUES: frozenset[str] = frozenset(("stitch", "auto", "manual"))
 
 
 class CommitFilterQueryError(FilterQueryError):
@@ -423,7 +423,7 @@ def _parse_origin_value(value: str, token: FilterToken) -> CommitOrigin:
     folded = value.casefold()
     if folded in _ORIGIN_VALUES:
         return folded  # type: ignore[return-value]
-    raise _error("origin: must be 'manual' or 'sase'", token)
+    raise _error("origin: must be 'stitch', 'auto', or 'manual'", token)
 
 
 def _error(message: str, token: FilterToken) -> CommitFilterQueryError:
